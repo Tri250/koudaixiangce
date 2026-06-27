@@ -627,6 +627,8 @@ class GpuPipeline(private val context: Context) {
 
     // ── Cleanup ────────────────────────────────────────────────────
 
+    fun isInitialized(): Boolean = initialized
+
     fun release() {
         if (!initialized) return
 

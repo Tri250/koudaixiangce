@@ -363,4 +363,43 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
         _images.value = filtered
     }
+
+    /**
+     * 删除选中的图片（真实文件 + Sidecar 清理）
+     */
+    fun deleteSelected() {
+        val selected = _selectedImagePaths.value.toList()
+        if (selected.isEmpty()) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val sidecarManager = com.rapidraw.core.SidecarManager(getApplication())
+            for (path in selected) {
+                try {
+                    val uri = android.net.Uri.parse(path)
+                    when (uri.scheme) {
+                        "file" -> {
+                            val file = java.io.File(uri.path!!)
+                            if (file.exists()) {
+                                // 清理 Sidecar
+                                sidecarManager.deleteSidecar(path)
+                                file.delete()
+                            }
+                        }
+                        "content" -> {
+                            // 通过 ContentResolver 删除
+                            try {
+                                getApplication<Application>().contentResolver.delete(uri, null, null)
+                            } catch (_: Exception) { /* 忽略权限不足 */ }
+                            sidecarManager.deleteSidecar(path)
+                        }
+                    }
+                } catch (_: Exception) { /* 继续删除下一张 */ }
+            }
+
+            withContext(Dispatchers.Main) {
+                exitBatchMode()
+                loadImages(_selectedFolder.value)
+            }
+        }
+    }
 }
