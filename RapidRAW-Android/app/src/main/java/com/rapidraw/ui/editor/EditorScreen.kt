@@ -2,7 +2,6 @@ package com.rapidraw.ui.editor
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,7 +12,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.GridCells
+import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -91,6 +90,8 @@ import com.rapidraw.data.model.ResizeMode
 import com.rapidraw.ui.adjustments.AdvancedPanel
 import com.rapidraw.ui.adjustments.QuickAdjustPanel
 import com.rapidraw.ui.components.HistogramView
+import com.rapidraw.ui.components.SmartOptimizeConfirm
+import com.rapidraw.ui.components.RecipeShareSheet
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.EditorSurface
@@ -124,10 +125,15 @@ fun EditorScreen(
     val zoomLevel by viewModel.zoomLevel.collectAsState()
     val showClipping by viewModel.showClipping.collectAsState()
     val currentImage by viewModel.currentImage.collectAsState()
+    val showSmartOptimizeConfirm by viewModel.showSmartOptimizeConfirm.collectAsState()
+    val smartOptimizedAdjustments by viewModel.smartOptimizedAdjustments.collectAsState()
+    val detectedScene by viewModel.detectedScene.collectAsState()
+    val sceneConfidence by viewModel.sceneConfidence.collectAsState()
 
     var showHistogram by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showExifSheet by remember { mutableStateOf(false) }
+    var showRecipeSheet by remember { mutableStateOf(false) }
     var isLongPressing by remember { mutableStateOf(false) }
 
     val displayOriginal = isShowingOriginal || isLongPressing
@@ -271,6 +277,28 @@ fun EditorScreen(
                                 showMoreMenu = false
                             },
                         )
+                        DropdownMenuItem(
+                            text = { Text("复制编辑参数", color = TextPrimary) },
+                            onClick = {
+                                viewModel.copyCurrentAdjustments()
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("配方分享", color = TextPrimary) },
+                            onClick = {
+                                showRecipeSheet = true
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("AI 消除", color = TextPrimary) },
+                            onClick = {
+                                // AI消除入口：切换到调整Tab并准备画笔模式
+                                viewModel.setTab(EditorTab.ADJUST)
+                                showMoreMenu = false
+                            },
+                        )
                     }
                 }
             }
@@ -411,6 +439,42 @@ fun EditorScreen(
                 }
             }
 
+            // Scene detection label
+            if (detectedScene != null && !isSmartOptimizing && !displayOriginal) {
+                val sceneLabel = when (detectedScene) {
+                    com.rapidraw.core.SceneType.PORTRAIT -> "人像"
+                    com.rapidraw.core.SceneType.LANDSCAPE -> "风景"
+                    com.rapidraw.core.SceneType.NIGHT -> "夜景"
+                    com.rapidraw.core.SceneType.FOOD -> "美食"
+                    com.rapidraw.core.SceneType.ARCHITECTURE -> "建筑"
+                    com.rapidraw.core.SceneType.PET -> "宠物"
+                    com.rapidraw.core.SceneType.DOCUMENT -> "文档"
+                    com.rapidraw.core.SceneType.SKY -> "天空"
+                    com.rapidraw.core.SceneType.BEACH -> "海滩"
+                    com.rapidraw.core.SceneType.SNOW -> "雪景"
+                    com.rapidraw.core.SceneType.INDOOR -> "室内"
+                    com.rapidraw.core.SceneType.GENERAL -> "通用"
+                    else -> ""
+                }
+                if (sceneLabel.isNotEmpty()) {
+                    Surface(
+                        color = HasselbladOrange.copy(alpha = 0.85f),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 44.dp, end = 12.dp),
+                    ) {
+                        Text(
+                            text = "$sceneLabel ${(sceneConfidence * 100).toInt()}%",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+
             // Histogram overlay
             if (showHistogram && histogramData.size == 4) {
                 Surface(
@@ -437,6 +501,15 @@ fun EditorScreen(
                     .fillMaxSize(0.92f),
             )
         }
+
+        // ── Smart Optimize Confirm ────────────────────────────────────
+        SmartOptimizeConfirm(
+            visible = showSmartOptimizeConfirm,
+            adjustments = smartOptimizedAdjustments ?: adjustments,
+            onAccept = { viewModel.acceptSmartOptimize() },
+            onUndo = { viewModel.undoSmartOptimize() },
+            onCompare = { viewModel.toggleShowOriginal() },
+        )
 
         // ── Filmstrip ──────────────────────────────────────────────────
         Surface(
@@ -598,6 +671,25 @@ fun EditorScreen(
             }
         }
     }
+
+    // ── Recipe Share Sheet ───────────────────────────────────────────────
+    RecipeShareSheet(
+        visible = showRecipeSheet,
+        adjustments = adjustments,
+        filmId = selectedFilmId,
+        filmIntensity = adjustments.filmIntensity,
+        onDismiss = { showRecipeSheet = false },
+        onApplyRecipe = { recipe ->
+            viewModel.applyPreset(
+                com.rapidraw.data.model.Preset(
+                    id = System.currentTimeMillis(),
+                    name = recipe.name,
+                    adjustments = recipe.adjustments,
+                )
+            )
+            showRecipeSheet = false
+        },
+    )
 }
 
 // ── Film Panel (3×3 grid) ───────────────────────────────────────────────
@@ -894,6 +986,9 @@ private fun ExportPanel(
     var quality by remember { mutableFloatStateOf(95f) }
     var resizeMode by remember { mutableStateOf(ResizeMode.ORIGINAL) }
     var keepMetadata by remember { mutableStateOf(true) }
+    var socialPlatform by remember { mutableStateOf(com.rapidraw.data.model.SocialPlatform.ORIGINAL) }
+    var addWatermark by remember { mutableStateOf(false) }
+    var watermarkText by remember { mutableStateOf("RapidRAW") }
 
     Column(
         modifier = Modifier.padding(16.dp),
@@ -963,6 +1058,81 @@ private fun ExportPanel(
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Social Platform
+        Text(text = "分享平台", color = TextSecondary, fontSize = 13.sp)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 4.dp),
+        ) {
+            com.rapidraw.data.model.SocialPlatform.entries.forEach { platform ->
+                val isSelected = platform == socialPlatform
+                Surface(
+                    modifier = Modifier.clickable { socialPlatform = platform },
+                    color = if (isSelected) HasselbladOrange else EditorBorder,
+                    shape = RoundedCornerShape(4.dp),
+                ) {
+                    Text(
+                        text = platform.displayName,
+                        color = if (isSelected) EditorBackground else TextSecondary,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Watermark toggle
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { addWatermark = !addWatermark }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "添加水印",
+                color = TextPrimary,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Surface(
+                color = if (addWatermark) HasselbladOrange else EditorBorder,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(44.dp, 24.dp),
+            ) {
+                Box(contentAlignment = if (addWatermark) Alignment.CenterEnd else Alignment.CenterStart) {
+                    Box(
+                        modifier = Modifier
+                            .padding(2.dp)
+                            .size(20.dp)
+                            .background(Color.White, CircleShape),
+                    )
+                }
+            }
+        }
+
+        if (addWatermark) {
+            Spacer(modifier = Modifier.height(8.dp))
+            androidx.compose.material3.OutlinedTextField(
+                value = watermarkText,
+                onValueChange = { watermarkText = it },
+                label = { Text("水印文字", color = TextSecondary) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                ),
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         Surface(
@@ -975,6 +1145,9 @@ private fun ExportPanel(
                             quality = quality.toInt(),
                             resizeMode = resizeMode,
                             keepMetadata = keepMetadata,
+                            socialPlatform = socialPlatform,
+                            addWatermark = addWatermark,
+                            watermarkText = watermarkText,
                         )
                     )
                 },

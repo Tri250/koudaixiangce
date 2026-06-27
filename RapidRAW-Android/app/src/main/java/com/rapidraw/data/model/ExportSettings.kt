@@ -19,6 +19,17 @@ enum class ResizeMode {
 }
 
 @Serializable
+enum class SocialPlatform(val displayName: String, val aspectRatio: Float?) {
+    ORIGINAL("原图", null),
+    XIAOHONGSHU("小红书 3:4", 3f / 4f),
+    INSTAGRAM("Instagram 1:1", 1f),
+    INSTAGRAM_STORY("Ins 故事 9:16", 9f / 16f),
+    DOUYIN("抖音 9:16", 9f / 16f),
+    WECHAT_MOMENTS("朋友圈 3:4", 3f / 4f),
+    WECHAT_AVATAR("微信头像 1:1", 1f),
+}
+
+@Serializable
 enum class WatermarkAnchor {
     TOP_LEFT,
     TOP_CENTER,
@@ -41,7 +52,9 @@ data class ExportSettings(
     val keepMetadata: Boolean = true,
     val stripGps: Boolean = false,
     val filenameTemplate: String? = null,
-    val watermarkPath: String? = null,
+    val socialPlatform: SocialPlatform = SocialPlatform.ORIGINAL,
+    val addWatermark: Boolean = false,
+    val watermarkText: String = "RapidRAW",
     val watermarkAnchor: WatermarkAnchor = WatermarkAnchor.BOTTOM_RIGHT,
     val watermarkScale: Float = 0.15f,
     val watermarkOpacity: Float = 0.5f,

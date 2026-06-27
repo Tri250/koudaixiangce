@@ -55,8 +55,20 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val _thumbnails = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
     val thumbnails: StateFlow<Map<String, Bitmap>> = _thumbnails.asStateFlow()
 
-    private val _selectedImages = MutableStateFlow<Set<String>>(emptySet())
-    val selectedImages: StateFlow<Set<String>> = _selectedImages.asStateFlow()
+    private val _isBatchMode = MutableStateFlow(false)
+    val isBatchMode: StateFlow<Boolean> = _isBatchMode.asStateFlow()
+
+    private val _selectedImagePaths = MutableStateFlow<Set<String>>(emptySet())
+    val selectedImagePaths: StateFlow<Set<String>> = _selectedImagePaths.asStateFlow()
+
+    // Alias for backward compatibility
+    val selectedImages: StateFlow<Set<String>> = _selectedImagePaths.asStateFlow()
+
+    private val _hasCopiedAdjustments = MutableStateFlow(com.rapidraw.core.AdjustmentClipboard.hasData())
+    val hasCopiedAdjustments: StateFlow<Boolean> = _hasCopiedAdjustments.asStateFlow()
+
+    private val _batchProgress = MutableStateFlow<com.rapidraw.core.BatchProcessor.BatchProgress?>(null)
+    val batchProgress: StateFlow<com.rapidraw.core.BatchProcessor.BatchProgress?> = _batchProgress.asStateFlow()
 
     private val SUPPORTED_EXTENSIONS = setOf(
         "jpg", "jpeg", "png", "tiff", "tif",
@@ -70,6 +82,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun loadImages(folder: String?) {
         _selectedFolder.value = folder
         _isLoading.value = true
+        _selectedImagePaths.value = emptySet()
 
         viewModelScope.launch(Dispatchers.IO) {
             val imageList = queryImages(folder)
@@ -243,18 +256,90 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun enterBatchMode() {
+        _isBatchMode.value = true
+        _hasCopiedAdjustments.value = com.rapidraw.core.AdjustmentClipboard.hasData()
+    }
+    fun exitBatchMode() {
+        _isBatchMode.value = false
+        _selectedImagePaths.value = emptySet()
+    }
     fun toggleImageSelection(path: String) {
-        _selectedImages.update { current ->
-            if (path in current) {
-                current - path
-            } else {
-                current + path
-            }
+        val current = _selectedImagePaths.value.toMutableSet()
+        if (current.contains(path)) current.remove(path) else current.add(path)
+        _selectedImagePaths.value = current
+    }
+    fun selectAll() { _selectedImagePaths.value = _images.value.map { it.path }.toSet() }
+    fun clearSelection() { _selectedImagePaths.value = emptySet() }
+
+    fun hasCopiedAdjustments(): Boolean = com.rapidraw.core.AdjustmentClipboard.hasData()
+
+    fun pasteAdjustmentsToSelected(
+        batchProcessor: com.rapidraw.core.BatchProcessor,
+        exportSettings: com.rapidraw.data.model.ExportSettings,
+    ) {
+        val adjustments = com.rapidraw.core.AdjustmentClipboard.adjustments ?: return
+        val selected = _selectedImagePaths.value.toList()
+        if (selected.isEmpty()) return
+
+        val uris = selected.map { android.net.Uri.parse(it) }
+        viewModelScope.launch {
+            batchProcessor.batchApplyAdjustments(uris, adjustments, exportSettings)
+                .collect { progress ->
+                    _batchProgress.value = progress
+                    if (progress.isComplete) {
+                        _batchProgress.value = null
+                        exitBatchMode()
+                        loadImages(_selectedFolder.value)
+                    }
+                }
         }
     }
 
-    fun clearSelection() {
-        _selectedImages.value = emptySet()
+    fun batchApplyFilm(
+        batchProcessor: com.rapidraw.core.BatchProcessor,
+        film: com.rapidraw.data.model.FilmSimulation,
+        exportSettings: com.rapidraw.data.model.ExportSettings,
+    ) {
+        val selected = _selectedImagePaths.value.toList()
+        if (selected.isEmpty()) return
+
+        val adjustments = com.rapidraw.data.model.Adjustments().withFilmSimulation(film)
+        val uris = selected.map { android.net.Uri.parse(it) }
+
+        viewModelScope.launch {
+            batchProcessor.batchApplyFilm(uris, adjustments, exportSettings)
+                .collect { progress ->
+                    _batchProgress.value = progress
+                    if (progress.isComplete) {
+                        _batchProgress.value = null
+                        exitBatchMode()
+                        loadImages(_selectedFolder.value)
+                    }
+                }
+        }
+    }
+
+    fun batchExport(
+        batchProcessor: com.rapidraw.core.BatchProcessor,
+        exportSettings: com.rapidraw.data.model.ExportSettings,
+    ) {
+        val selected = _selectedImagePaths.value.toList()
+        if (selected.isEmpty()) return
+
+        val uris = selected.map { android.net.Uri.parse(it) }
+
+        viewModelScope.launch {
+            batchProcessor.batchExport(uris, exportSettings)
+                .collect { progress ->
+                    _batchProgress.value = progress
+                    if (progress.isComplete) {
+                        _batchProgress.value = null
+                        exitBatchMode()
+                        loadImages(_selectedFolder.value)
+                    }
+                }
+        }
     }
 
     private fun applyFilters(allImages: List<ImageFile>) {

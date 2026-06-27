@@ -49,7 +49,13 @@ data class ExportSettings(
     val quality: Int = 95,             // JPEG quality 1-100
     val maxWidth: Int = 0,             // 0 = no resize
     val maxHeight: Int = 0,
-    val preserveMetadata: Boolean = true
+    val preserveMetadata: Boolean = true,
+    val socialAspectRatio: Float? = null, // null = original, otherwise crop to aspect ratio
+    val addWatermark: Boolean = false,
+    val watermarkText: String = "RapidRAW",
+    val watermarkAnchor: String = "BOTTOM_RIGHT",
+    val watermarkScale: Float = 0.15f,
+    val watermarkOpacity: Float = 0.5f,
 )
 
 data class Adjustments(
@@ -1475,7 +1481,17 @@ class ImageProcessor {
             // Apply resize if needed
             var exportBitmap = bitmap
             if (settings.maxWidth > 0 || settings.maxHeight > 0) {
-                exportBitmap = resizeBitmap(bitmap, settings.maxWidth, settings.maxHeight)
+                exportBitmap = resizeBitmap(exportBitmap, settings.maxWidth, settings.maxHeight)
+            }
+
+            // Apply social platform aspect ratio crop (center crop)
+            if (settings.socialAspectRatio != null) {
+                exportBitmap = cropToAspectRatio(exportBitmap, settings.socialAspectRatio)
+            }
+
+            // Apply watermark
+            if (settings.addWatermark && settings.watermarkText.isNotEmpty()) {
+                exportBitmap = drawTextWatermark(exportBitmap, settings)
             }
 
             val mimeType = when (settings.format.uppercase()) {
@@ -1537,6 +1553,59 @@ class ImageProcessor {
         }
 
         return Bitmap.createScaledBitmap(bitmap, width, height, true)
+    }
+
+    private fun cropToAspectRatio(bitmap: Bitmap, aspectRatio: Float): Bitmap {
+        val currentRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+        if (kotlin.math.abs(currentRatio - aspectRatio) < 0.01f) return bitmap
+
+        val newWidth: Int
+        val newHeight: Int
+        if (currentRatio > aspectRatio) {
+            // Image is wider than target: crop width
+            newHeight = bitmap.height
+            newWidth = (bitmap.height * aspectRatio).toInt()
+        } else {
+            // Image is taller than target: crop height
+            newWidth = bitmap.width
+            newHeight = (bitmap.width / aspectRatio).toInt()
+        }
+
+        val x = (bitmap.width - newWidth) / 2
+        val y = (bitmap.height - newHeight) / 2
+        return Bitmap.createBitmap(bitmap, x, y, newWidth, newHeight)
+    }
+
+    private fun drawTextWatermark(bitmap: Bitmap, settings: ExportSettings): Bitmap {
+        val result = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = android.graphics.Canvas(result)
+
+        val paint = android.graphics.Paint().apply {
+            color = android.graphics.Color.WHITE
+            alpha = (settings.watermarkOpacity * 255).toInt().coerceIn(0, 255)
+            isAntiAlias = true
+            textSize = (bitmap.width * settings.watermarkScale).coerceIn(12f, 120f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+
+        val text = settings.watermarkText
+        val textWidth = paint.measureText(text)
+        val textHeight = paint.fontMetrics.descent - paint.fontMetrics.ascent
+
+        val padding = (bitmap.width * 0.02f).coerceAtLeast(8f)
+        val x = when (settings.watermarkAnchor) {
+            "TOP_LEFT", "CENTER_LEFT", "BOTTOM_LEFT" -> padding
+            "TOP_CENTER", "CENTER", "BOTTOM_CENTER" -> (bitmap.width - textWidth) / 2f
+            else -> bitmap.width - textWidth - padding
+        }
+        val y = when (settings.watermarkAnchor) {
+            "TOP_LEFT", "TOP_CENTER", "TOP_RIGHT" -> textHeight + padding
+            "CENTER_LEFT", "CENTER", "CENTER_RIGHT" -> (bitmap.height + textHeight) / 2f
+            else -> bitmap.height - padding
+        }
+
+        canvas.drawText(text, x, y, paint)
+        return result
     }
 
     private fun compressBitmap(bitmap: Bitmap, format: String, quality: Int, outputStream: OutputStream) {

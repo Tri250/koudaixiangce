@@ -30,9 +30,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -89,9 +94,15 @@ fun LibraryScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val thumbnails by viewModel.thumbnails.collectAsState()
     val selectedImages by viewModel.selectedImages.collectAsState()
+    val isBatchMode by viewModel.isBatchMode.collectAsState()
+    val batchProgress by viewModel.batchProgress.collectAsState()
+    val hasCopiedAdjustments by viewModel.hasCopiedAdjustments.collectAsState()
 
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isSortDropdownExpanded by remember { mutableStateOf(false) }
+    var showFilmPicker by remember { mutableStateOf(false) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     val folderChips = buildList {
         add("All")
@@ -315,13 +326,14 @@ fun LibraryScreen(
                             thumbnail = thumbnails[image.path],
                             isSelected = image.path in selectedImages,
                             onClick = {
-                                if (selectedImages.isNotEmpty()) {
+                                if (isBatchMode || selectedImages.isNotEmpty()) {
                                     viewModel.toggleImageSelection(image.path)
                                 } else {
                                     navController.navigate(com.rapidraw.ui.navigation.Routes.editorPath(image.path))
                                 }
                             },
                             onLongClick = {
+                                if (!isBatchMode) viewModel.enterBatchMode()
                                 viewModel.toggleImageSelection(image.path)
                             },
                         )
@@ -329,9 +341,51 @@ fun LibraryScreen(
                 }
             }
 
-            // ── Bottom Bar (when items selected) ──────────────────────────
+            // ── Batch Progress Overlay ────────────────────────────────────
+            if (batchProgress != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.6f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Surface(
+                        color = EditorSurface,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.padding(24.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                text = "批量处理中...",
+                                color = TextPrimary,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "${batchProgress!!.current} / ${batchProgress!!.total}",
+                                color = TextSecondary,
+                                fontSize = 14.sp,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = batchProgress!!.currentFileName,
+                                color = TextTertiary,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Bottom Batch Bar ──────────────────────────────────────────
             AnimatedVisibility(
-                visible = selectedImages.isNotEmpty(),
+                visible = isBatchMode || selectedImages.isNotEmpty(),
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
@@ -339,38 +393,110 @@ fun LibraryScreen(
                     color = EditorSurface,
                     tonalElevation = 4.dp,
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "${selectedImages.size} selected",
-                            color = HasselbladOrange,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
+                    Column {
+                        // Selected count + cancel
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(
+                                onClick = { viewModel.exitBatchMode() },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "取消",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
 
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        IconButton(onClick = {
-                            // Batch export
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.FileDownload,
-                                contentDescription = "Export",
-                                tint = TextSecondary,
+                            Text(
+                                text = "${selectedImages.size} 张已选",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(start = 4.dp),
                             )
+
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            // Select All
+                            IconButton(
+                                onClick = { viewModel.selectAll() },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SelectAll,
+                                    contentDescription = "全选",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
                         }
 
-                        IconButton(onClick = {
-                            // Delete selected
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete",
+                        // Action buttons row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Apply Film
+                            BatchActionButton(
+                                icon = Icons.Default.PhotoFilter,
+                                label = "应用胶片",
+                                onClick = { showFilmPicker = true },
+                                enabled = selectedImages.isNotEmpty(),
+                            )
+
+                            // Paste Adjustments
+                            if (hasCopiedAdjustments) {
+                                BatchActionButton(
+                                    icon = Icons.Default.ContentPaste,
+                                    label = "粘贴调节",
+                                    onClick = {
+                                        val batchProcessor = com.rapidraw.core.BatchProcessor(
+                                            context = context,
+                                            imageProcessor = com.rapidraw.core.ImageProcessor(),
+                                        )
+                                        viewModel.pasteAdjustmentsToSelected(
+                                            batchProcessor,
+                                            com.rapidraw.data.model.ExportSettings(),
+                                        )
+                                    },
+                                    enabled = selectedImages.isNotEmpty(),
+                                )
+                            }
+
+                            // Batch Export
+                            BatchActionButton(
+                                icon = Icons.Default.FileDownload,
+                                label = "导出",
+                                onClick = {
+                                    val batchProcessor = com.rapidraw.core.BatchProcessor(
+                                        context = context,
+                                        imageProcessor = com.rapidraw.core.ImageProcessor(),
+                                    )
+                                    viewModel.batchExport(
+                                        batchProcessor,
+                                        com.rapidraw.data.model.ExportSettings(),
+                                    )
+                                },
+                                enabled = selectedImages.isNotEmpty(),
+                            )
+
+                            // Delete
+                            BatchActionButton(
+                                icon = Icons.Default.Delete,
+                                label = "删除",
+                                onClick = { /* TODO: implement delete */ },
+                                enabled = selectedImages.isNotEmpty(),
                                 tint = Color(0xFFFF4444),
                             )
                         }
@@ -380,20 +506,78 @@ fun LibraryScreen(
         }
 
         // ── FAB: Import ──────────────────────────────────────────────────
-        FloatingActionButton(
-            onClick = {
-                // Import images
-            },
-            containerColor = HasselbladOrange,
-            contentColor = EditorBackground,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 72.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "Import",
-            )
+        if (!isBatchMode) {
+            FloatingActionButton(
+                onClick = {
+                    // Import images
+                },
+                containerColor = HasselbladOrange,
+                contentColor = EditorBackground,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 72.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Import",
+                )
+            }
+        }
+
+        // ── Film Picker Bottom Sheet ────────────────────────────────────
+        if (showFilmPicker) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { showFilmPicker = false },
+                containerColor = EditorSurface,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = "选择胶片",
+                        color = TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val films = com.rapidraw.data.model.FilmSimulation.ALL
+                    films.forEach { film ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val batchProcessor = com.rapidraw.core.BatchProcessor(
+                                        context = context,
+                                        imageProcessor = com.rapidraw.core.ImageProcessor(),
+                                    )
+                                    viewModel.batchApplyFilm(
+                                        batchProcessor,
+                                        film,
+                                        com.rapidraw.data.model.ExportSettings(),
+                                    )
+                                    showFilmPicker = false
+                                }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = film.displayName,
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = film.displayNameEn,
+                                color = TextTertiary,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -502,6 +686,36 @@ private fun ImageGridCell(
                 .fillMaxWidth()
                 .background(Color.Black.copy(alpha = 0.5f))
                 .padding(horizontal = 4.dp, vertical = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun BatchActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    tint: Color = TextSecondary,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (enabled) tint else TextTertiary,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            color = if (enabled) TextPrimary else TextTertiary,
+            fontSize = 10.sp,
         )
     }
 }

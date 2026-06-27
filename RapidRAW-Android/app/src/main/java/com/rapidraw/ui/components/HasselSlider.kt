@@ -36,6 +36,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.HasselbladOrange
+import com.rapidraw.ui.theme.SliderThumb
+import com.rapidraw.ui.theme.SliderTrackFill
+import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
 import kotlin.math.roundToInt
@@ -104,7 +107,7 @@ fun HasselSlider(
                     .background(EditorBorder)
             )
 
-            // Filled portion (Hasselblad Orange)
+            // Filled portion (white)
             val fraction = if (range.endInclusive != range.start) {
                 ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
             } else 0f
@@ -114,7 +117,7 @@ fun HasselSlider(
                     .size(height = 2.dp, width = 1.dp)
                     .fillMaxWidth(fraction)
                     .clip(CircleShape)
-                    .background(HasselbladOrange)
+                    .background(SliderTrackFill)
             )
 
             // Thumb
@@ -124,7 +127,7 @@ fun HasselSlider(
                     .offset { IntOffset(thumbOffsetPx, 0) }
                     .size(thumbSize)
                     .clip(CircleShape)
-                    .background(HasselbladOrange)
+                    .background(SliderThumb)
                     .pointerInput(range, stepSize, defaultValue) {
                         detectDragGestures(
                             onDragStart = { isDragging = true },
@@ -159,7 +162,7 @@ fun HasselSlider(
         // Value display
         Text(
             text = format(value),
-            color = if (value != defaultValue) HasselbladOrange else TextTertiary,
+            color = if (value != defaultValue) TextPrimary else TextTertiary,
             fontSize = with(density) { 12.dp.toSp() },
             modifier = Modifier
                 .width(40.dp)

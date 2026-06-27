@@ -23,6 +23,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.rapidraw.core.SceneClassifier
+import com.rapidraw.core.AiInpainter
+import com.rapidraw.core.UserPreferenceLearning
+import com.rapidraw.core.SceneType
 
 enum class EditorTab {
     FILM,
@@ -70,6 +74,18 @@ class EditorViewModel(
 
     private val _isSmartOptimizing = MutableStateFlow(false)
     val isSmartOptimizing: StateFlow<Boolean> = _isSmartOptimizing.asStateFlow()
+
+    private val _detectedScene = MutableStateFlow<SceneType?>(null)
+    val detectedScene: StateFlow<SceneType?> = _detectedScene.asStateFlow()
+
+    private val _sceneConfidence = MutableStateFlow(0f)
+    val sceneConfidence: StateFlow<Float> = _sceneConfidence.asStateFlow()
+
+    private val _showSmartOptimizeConfirm = MutableStateFlow(false)
+    val showSmartOptimizeConfirm: StateFlow<Boolean> = _showSmartOptimizeConfirm.asStateFlow()
+
+    private val _smartOptimizedAdjustments = MutableStateFlow<Adjustments?>(null)
+    val smartOptimizedAdjustments: StateFlow<Adjustments?> = _smartOptimizedAdjustments.asStateFlow()
 
     private val _selectedFilmId = MutableStateFlow<String?>(null)
     val selectedFilmId: StateFlow<String?> = _selectedFilmId.asStateFlow()
@@ -130,6 +146,7 @@ class EditorViewModel(
                     _previewBitmap.value = processed.preview
                     _isLoading.value = false
                     updateHistogram(processed.preview)
+                    detectScene(processed.preview)
 
                     // 加载完成后自动智能优化
                     smartOptimize()
@@ -274,10 +291,23 @@ class EditorViewModel(
                     redHist, greenHist, blueHist, w, h, _adjustments.value
                 )
 
+                // Run scene classifier on the preview bitmap
+                val classifier = SceneClassifier()
+                val analysis = classifier.classify(bitmap)
+                _detectedScene.value = analysis.sceneType
+                _sceneConfidence.value = analysis.confidence
+
+                // Use UserPreferenceLearning to personalize the optimization
+                val userLearning = UserPreferenceLearning(context)
+                val profile = userLearning.learn()
+                val personalized = userLearning.personalizedOptimize(optimized, analysis.sceneType, profile)
+
                 withContext(Dispatchers.Main) {
+                    val originalAdjustments = _adjustments.value
                     pushUndo()
-                    _adjustments.value = optimized
-                    _isSmartOptimized.value = true
+                    _adjustments.value = personalized
+                    _smartOptimizedAdjustments.value = originalAdjustments
+                    _showSmartOptimizeConfirm.value = true
                     _isSmartOptimizing.value = false
                     schedulePreviewUpdate()
                 }
@@ -286,6 +316,35 @@ class EditorViewModel(
                     _isSmartOptimizing.value = false
                 }
             }
+        }
+    }
+
+    fun acceptSmartOptimize() {
+        _showSmartOptimizeConfirm.value = false
+        _smartOptimizedAdjustments.value = null
+        _isSmartOptimized.value = true
+    }
+
+    fun undoSmartOptimize() {
+        _showSmartOptimizeConfirm.value = false
+        _smartOptimizedAdjustments.value?.let { original ->
+            _adjustments.value = original  // Revert to original
+        }
+        _smartOptimizedAdjustments.value = null
+    }
+
+    fun copyCurrentAdjustments(): Adjustments {
+        val adj = _adjustments.value.copy()
+        AdjustmentClipboard.copy(adj)
+        return adj
+    }
+
+    fun detectScene(bitmap: Bitmap) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val classifier = SceneClassifier()
+            val analysis = classifier.classify(bitmap)
+            _detectedScene.value = analysis.sceneType
+            _sceneConfidence.value = analysis.confidence
         }
     }
 
@@ -352,6 +411,12 @@ class EditorViewModel(
                     else settings.resizeValue,
                     maxHeight = 0,
                     preserveMetadata = settings.keepMetadata,
+                    socialAspectRatio = settings.socialPlatform.aspectRatio,
+                    addWatermark = settings.addWatermark,
+                    watermarkText = settings.watermarkText,
+                    watermarkAnchor = settings.watermarkAnchor.name,
+                    watermarkScale = settings.watermarkScale,
+                    watermarkOpacity = settings.watermarkOpacity,
                 )
 
                 imageProcessor.exportImage(processed, coreExportSettings, context)
