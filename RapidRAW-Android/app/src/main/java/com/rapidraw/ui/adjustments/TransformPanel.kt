@@ -95,6 +95,14 @@ fun TransformPanel(
                     onClick = { onUpdate("cropAspectRatio", 16f / 9f) },
                     modifier = Modifier.weight(1f),
                 )
+                AspectRatioButton(
+                    label = "65:24",
+                    subLabel = "XPAN",
+                    isSelected = adjustments.crop?.aspectRatio == 65f / 24f,
+                    onClick = { onUpdate("cropAspectRatio", 65f / 24f) },
+                    modifier = Modifier.weight(1f),
+                    showIndicator = adjustments.crop?.aspectRatio == 65f / 24f,
+                )
             }
 
             Row(
@@ -328,6 +336,8 @@ private fun AspectRatioButton(
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    subLabel: String? = null,
+    showIndicator: Boolean = false,
 ) {
     Box(
         modifier = modifier
@@ -339,11 +349,28 @@ private fun AspectRatioButton(
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            color = if (isSelected) TextPrimary else TextSecondary,
-            fontSize = 12.sp,
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = label,
+                color = if (isSelected) TextPrimary else TextSecondary,
+                fontSize = 12.sp,
+            )
+            if (subLabel != null) {
+                Text(
+                    text = subLabel,
+                    color = if (isSelected) TextPrimary else TextTertiary,
+                    fontSize = 8.sp,
+                )
+            }
+            if (showIndicator) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .size(4.dp)
+                        .background(HasselbladOrange, CircleShape),
+                )
+            }
+        }
     }
 }
 

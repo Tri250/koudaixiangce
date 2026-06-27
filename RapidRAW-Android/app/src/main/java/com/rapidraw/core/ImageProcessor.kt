@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import com.rapidraw.data.model.FilmSimulation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -55,6 +56,27 @@ data class Adjustments(
     // Exposure & Brightness
     val exposure: Float = 0f,          // -5.0 .. 5.0
     val brightness: Float = 0f,        // -1.0 .. 1.0
+
+    // Tone / Film
+    val toneLevel: Float = 0f,         // -1.0 .. 1.0
+    val filmIntensity: Float = 1f,     // 0.0 .. 1.0
+    val greenMagenta: Float = 0f,      // -1.0 .. 1.0
+    val softGlow: Float = 0f,          // 0.0 .. 1.0
+
+    // Film simulation parameters
+    val filmId: String = "",
+    val filmHighlightRollOff: Float = 0f,   // 0..1
+    val filmShadowLift: Float = 0f,         // 0..1
+    val filmDrCompression: Float = 0f,      // 0..1
+    val filmRedShift: Float = 0f,           // -1..1
+    val filmGreenShift: Float = 0f,         // -1..1
+    val filmBlueShift: Float = 0f,          // -1..1
+    val filmSaturation: Float = 0f,         // -1..1
+    val filmContrast: Float = 0f,           // -1..1
+    val filmGrainAmount: Float = 0f,        // 0..1
+    val filmGrainSize: Float = 0f,          // 0..1
+    val filmGrainRoughness: Float = 0f,     // 0..1
+    val filmCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 51f to 51f, 102f to 102f, 153f to 153f, 204f to 204f, 255f to 255f),
 
     // White Balance
     val temperature: Float = 6500f,    // 2000 .. 15000
@@ -360,7 +382,7 @@ class ImageProcessor {
 
     suspend fun processPreview(
         gpuPipeline: GpuPipeline,
-        adjustments: Adjustments,
+        adjustments: com.rapidraw.data.model.Adjustments,
         previewWidth: Int,
         previewHeight: Int
     ): Bitmap? = withContext(Dispatchers.Main) {
@@ -378,9 +400,12 @@ class ImageProcessor {
      * Applies all adjustments in linear color space with progress reporting.
      */
     suspend fun processFullResolution(
-        adjustments: Adjustments,
+        adjustments: com.rapidraw.data.model.Adjustments,
         originalBitmap: Bitmap
     ): Bitmap = withContext(Dispatchers.Default) {
+        // Convert to core Adjustments for internal processing
+        val adj = convertToCoreAdjustments(adjustments)
+
         val w = originalBitmap.width
         val h = originalBitmap.height
         val totalPixels = w.toLong() * h.toLong()
@@ -394,14 +419,20 @@ class ImageProcessor {
 
         // Pre-compute white balance multipliers
         val wbMultipliers = ColorMath.temperatureTintToMultipliers(
-            adjustments.temperature, adjustments.tint
+            adj.temperature, adj.tint
         )
 
         // Pre-compute tone curve (identity if no changes)
-        val curvePoints = adjustments.toneCurvePoints.sortedBy { it.first }
+        val curvePoints = adj.toneCurvePoints.sortedBy { it.first }
+
+        // Pre-compute film curve points
+        val filmCurve = adj.filmCurvePoints.sortedBy { it.first }
 
         // Pre-compute color calibration matrix
-        val calibMatrix = computeCalibrationMatrix(adjustments)
+        val calibMatrix = computeCalibrationMatrix(adj)
+
+        // Pre-compute soft glow bloom buffer if needed
+        val bloomBuffer = if (adj.softGlow > 1e-6f) computeBloomBuffer(pixels, w, h, adj.softGlow) else null
 
         // Process each pixel
         for (y in 0 until h) {
@@ -420,35 +451,54 @@ class ImageProcessor {
                 b = ColorMath.srgbToLinear(b)
 
                 // ── 2. Linear Exposure ──
-                r = r * 2f.pow(adjustments.exposure)
-                g = g * 2f.pow(adjustments.exposure)
-                b = b * 2f.pow(adjustments.exposure)
+                r = r * 2f.pow(adj.exposure)
+                g = g * 2f.pow(adj.exposure)
+                b = b * 2f.pow(adj.exposure)
 
                 // ── 3. Filmic Brightness (rational curve with midtone emphasis) ──
-                val br = adjustments.brightness * 2f
+                val br = adj.brightness * 2f
                 r = applyFilmicBrightness(r, br)
                 g = applyFilmicBrightness(g, br)
                 b = applyFilmicBrightness(b, br)
+
+                // ── 3b. Tone Level (影调: combined brightness control) ──
+                if (abs(adj.toneLevel) > 1e-6f) {
+                    val luma = ColorMath.getLuma(r, g, b)
+                    val shift = adj.toneLevel * 0.3f
+                    val target = (luma + shift).coerceIn(0f, 1f)
+                    val factor = if (luma > 1e-6f) target / luma else 1f
+                    r *= factor
+                    g *= factor
+                    b *= factor
+                }
 
                 // ── 4. White Balance ──
                 r *= wbMultipliers[0]
                 g *= wbMultipliers[1]
                 b *= wbMultipliers[2]
 
+                // ── 4b. Green-Magenta axis (青品) ──
+                if (abs(adj.greenMagenta) > 1e-6f) {
+                    // Positive = magenta (reduce green, add red+blue), Negative = green
+                    g += adj.greenMagenta * -0.1f
+                    r += adj.greenMagenta * 0.05f
+                    b += adj.greenMagenta * 0.05f
+                }
+
                 // ── 5. Highlights Adjustment ──
-                val highlightsResult = applyHighlightsAdjustment(r, g, b, adjustments.highlights)
+                val highlightsResult = applyHighlightsAdjustment(r, g, b, adj.highlights)
                 r = highlightsResult[0]; g = highlightsResult[1]; b = highlightsResult[2]
 
                 // ── 6. Tonal: Contrast/Shadows/Whites/Blacks ──
-                val tonalResult = applyTonalAdjustments(r, g, b, adjustments)
+                val tonalResult = applyTonalAdjustments(r, g, b, adj)
                 r = tonalResult[0]; g = tonalResult[1]; b = tonalResult[2]
 
                 // ── 7. Saturation/Vibrance ──
-                val satResult = applyCreativeColor(r, g, b, adjustments.saturation, adjustments.vibrance)
+                val satResult = applyCreativeColor(r, g, b, adj.saturation, adj.vibrance)
                 r = satResult[0]; g = satResult[1]; b = satResult[2]
 
                 // ── 8. HSL 8-color panel ──
-                val hslResult = applyHslPanel(r, g, b, adjustments)
+                val hslResult = applyHslPanel(r, g, b, adj)
                 r = hslResult[0]; g = hslResult[1]; b = hslResult[2]
 
                 // ── 9. Tone Curves ──
@@ -457,7 +507,7 @@ class ImageProcessor {
                 b = ColorMath.applyCurve(b, curvePoints)
 
                 // ── 10. Color Grading ──
-                val cgResult = applyColorGrading(r, g, b, adjustments)
+                val cgResult = applyColorGrading(r, g, b, adj)
                 r = cgResult[0]; g = cgResult[1]; b = cgResult[2]
 
                 // ── 11. Sharpness (unsharp mask) - applied in post ──
@@ -466,15 +516,15 @@ class ImageProcessor {
                 // ── 12. Clarity/Structure (local contrast) - applied in post ──
 
                 // ── 13. Dehaze ──
-                val dehazeResult = applyDehaze(r, g, b, adjustments.dehaze)
+                val dehazeResult = applyDehaze(r, g, b, adj.dehaze)
                 r = dehazeResult[0]; g = dehazeResult[1]; b = dehazeResult[2]
 
                 // ── 14. Vignette ──
-                val vignetteResult = applyVignette(r, g, b, x.toFloat() / w, y.toFloat() / h, adjustments.vignette)
+                val vignetteResult = applyVignette(r, g, b, x.toFloat() / w, y.toFloat() / h, adj.vignette)
                 r = vignetteResult[0]; g = vignetteResult[1]; b = vignetteResult[2]
 
                 // ── 15. Grain ──
-                val grainResult = applyGrain(r, g, b, x.toFloat(), y.toFloat(), adjustments.grain, adjustments.grainSize, w, h)
+                val grainResult = applyGrain(r, g, b, x.toFloat(), y.toFloat(), adj.grain, adj.grainSize, w, h)
                 r = grainResult[0]; g = grainResult[1]; b = grainResult[2]
 
                 // ── 16. Color Calibration ──
@@ -485,12 +535,109 @@ class ImageProcessor {
                 r = cal[0]; g = cal[1]; b = cal[2]
 
                 // ── 17. AgX Tone Mapping ──
-                if (adjustments.agxEnabled) {
-                    val agxResult = applyAgxToneMap(r, g, b, adjustments.agxContrast, adjustments.agxPedestal)
+                if (adj.agxEnabled) {
+                    val agxResult = applyAgxToneMap(r, g, b, adj.agxContrast, adj.agxPedestal)
                     r = agxResult[0]; g = agxResult[1]; b = agxResult[2]
                 }
 
-                // ── 18. Linear to sRGB ──
+                // ── 18. Film Simulation Processing ──
+                if (adj.filmId.isNotEmpty() && adj.filmIntensity > 1e-6f) {
+                    // Film color shifts (applied in linear space)
+                    r += adj.filmRedShift * 0.15f
+                    g += adj.filmGreenShift * 0.15f
+                    b += adj.filmBlueShift * 0.15f
+
+                    // Film saturation modifier
+                    if (abs(adj.filmSaturation) > 1e-6f) {
+                        val lum = ColorMath.getLuma(r, g, b)
+                        val satMod = 1f + adj.filmSaturation
+                        r = lum + (r - lum) * satMod
+                        g = lum + (g - lum) * satMod
+                        b = lum + (b - lum) * satMod
+                    }
+
+                    // Film contrast modifier
+                    if (abs(adj.filmContrast) > 1e-6f) {
+                        val contrastPow = 1f + adj.filmContrast * 0.5f
+                        val mid = 0.18f
+                        r = mid + (r - mid) * contrastPow
+                        g = mid + (g - mid) * contrastPow
+                        b = mid + (b - mid) * contrastPow
+                    }
+
+                    // Film highlight roll-off
+                    if (adj.filmHighlightRollOff > 1e-6f) {
+                        val luma = ColorMath.getLuma(r, g, b)
+                        val hMask = ColorMath.highlightsMask(luma)
+                        val shoulder = 1f - (1f - r).toDouble().pow(1.0 + adj.filmHighlightRollOff * 2.0).toFloat()
+                        val shoulderg = 1f - (1f - g).toDouble().pow(1.0 + adj.filmHighlightRollOff * 2.0).toFloat()
+                        val shoulderb = 1f - (1f - b).toDouble().pow(1.0 + adj.filmHighlightRollOff * 2.0).toFloat()
+                        r = r + (shoulder - r) * hMask * adj.filmIntensity
+                        g = g + (shoulderg - g) * hMask * adj.filmIntensity
+                        b = b + (shoulderb - b) * hMask * adj.filmIntensity
+                    }
+
+                    // Film shadow lift
+                    if (adj.filmShadowLift > 1e-6f) {
+                        val luma = ColorMath.getLuma(r, g, b)
+                        val sMask = ColorMath.shadowsMask(luma)
+                        val lift = adj.filmShadowLift * 0.2f * sMask * adj.filmIntensity
+                        r += lift
+                        g += lift
+                        b += lift
+                    }
+
+                    // Film DR compression
+                    if (adj.filmDrCompression > 1e-6f) {
+                        val luma = ColorMath.getLuma(r, g, b)
+                        val compressed = luma / (luma + adj.filmDrCompression * 0.5f + 1e-6f) * (1f + adj.filmDrCompression * 0.5f)
+                        val factor = if (luma > 1e-6f) compressed / luma else 1f
+                        val blend = adj.filmDrCompression * adj.filmIntensity
+                        val blendedFactor = 1f + (factor - 1f) * blend
+                        r *= blendedFactor
+                        g *= blendedFactor
+                        b *= blendedFactor
+                    }
+
+                    // Film curve
+                    val hasFilmCurve = adj.filmCurvePoints.size >= 2 &&
+                        adj.filmCurvePoints.any { abs(it.first - it.second) > 0.1f }
+                    if (hasFilmCurve) {
+                        val filmR = ColorMath.applyCurve(r, filmCurve)
+                        val filmG = ColorMath.applyCurve(g, filmCurve)
+                        val filmB = ColorMath.applyCurve(b, filmCurve)
+                        r = r + (filmR - r) * adj.filmIntensity
+                        g = g + (filmG - g) * adj.filmIntensity
+                        b = b + (filmB - b) * adj.filmIntensity
+                    }
+
+                    // Film grain (blended on top of base grain)
+                    if (adj.filmGrainAmount > 1e-6f) {
+                        val fGrainSize = 1f + adj.filmGrainSize * 4f
+                        val noise = ColorMath.gradientNoise(x * fGrainSize, y * fGrainSize)
+                        val grainOffset = (noise - 0.5f) * adj.filmGrainAmount * 0.4f
+                        val luma = ColorMath.getLuma(r, g, b)
+                        var grainMod = 1f - abs(luma - 0.5f) * 1.5f
+                        grainMod = grainMod.coerceIn(0.2f, 1f)
+                        // Roughness modulates grain sharpness
+                        val roughnessMod = 0.5f + adj.filmGrainRoughness * 0.5f
+                        r += grainOffset * grainMod * roughnessMod * adj.filmIntensity
+                        g += grainOffset * grainMod * roughnessMod * adj.filmIntensity
+                        b += grainOffset * grainMod * roughnessMod * adj.filmIntensity
+                    }
+                }
+
+                // ── 19. Soft Glow / Bloom ──
+                if (bloomBuffer != null) {
+                    val bloomR = bloomBuffer[idx * 3]
+                    val bloomG = bloomBuffer[idx * 3 + 1]
+                    val bloomB = bloomBuffer[idx * 3 + 2]
+                    r = r + (bloomR - r) * adj.softGlow * 0.5f
+                    g = g + (bloomG - g) * adj.softGlow * 0.5f
+                    b = b + (bloomB - b) * adj.softGlow * 0.5f
+                }
+
+                // ── 20. Linear to sRGB ──
                 r = ColorMath.linearToSrgb(r)
                 g = ColorMath.linearToSrgb(g)
                 b = ColorMath.linearToSrgb(b)
@@ -506,7 +653,7 @@ class ImageProcessor {
                 b = b.coerceIn(0f, 1f)
 
                 // Clipping preview
-                if (adjustments.clippingPreview) {
+                if (adj.clippingPreview) {
                     if (r >= 1f || g >= 1f || b >= 1f) {
                         r = 1f; g = 0f; b = 0f
                     } else if (r <= 0f || g <= 0f || b <= 0f) {
@@ -526,7 +673,7 @@ class ImageProcessor {
         outputBitmap.setPixels(pixels, 0, w, 0, 0, w, h)
 
         // Post-processing: Sharpness & Clarity (spatial operations)
-        val finalBitmap = applySpatialOperations(outputBitmap, adjustments)
+        val finalBitmap = applySpatialOperations(outputBitmap, adj)
         if (finalBitmap != outputBitmap) outputBitmap.recycle()
 
         finalBitmap
@@ -1031,6 +1178,294 @@ class ImageProcessor {
             val bi = (outB * 255f).toInt().coerceIn(0, 255)
             dst[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
         }
+    }
+
+    // ── Convert data.model.Adjustments → core Adjustments ──────────
+
+    /**
+     * Convert the canonical data.model.Adjustments to the core Adjustments
+     * used internally by the CPU processing pipeline.
+     * Normalises value ranges from the UI scale to the internal processing scale.
+     */
+    fun convertToCoreAdjustments(src: com.rapidraw.data.model.Adjustments): Adjustments {
+        return Adjustments(
+            exposure = src.exposure,
+            brightness = src.brightness / 5f,                                  // -5..5 → -1..1
+            toneLevel = src.toneLevel,
+            filmIntensity = src.filmIntensity,
+            greenMagenta = src.greenMagenta,
+            softGlow = src.softGlow,
+            filmId = src.filmId,
+            filmHighlightRollOff = src.filmHighlightRollOff,
+            filmShadowLift = src.filmShadowLift,
+            filmDrCompression = src.filmDrCompression,
+            filmRedShift = src.filmRedShift,
+            filmGreenShift = src.filmGreenShift,
+            filmBlueShift = src.filmBlueShift,
+            filmSaturation = src.filmSaturation,
+            filmContrast = src.filmContrast,
+            filmGrainAmount = src.filmGrainAmount,
+            filmGrainSize = src.filmGrainSize,
+            filmGrainRoughness = src.filmGrainRoughness,
+            filmCurvePoints = src.filmCurvePoints,
+            temperature = 6500f + src.temperature * 50f,                       // offset → Kelvin
+            tint = src.tint / 100f,                                            // -100..100 → -1..1
+            contrast = src.contrast / 100f,                                    // -100..100 → -1..1
+            highlights = src.highlights / 150f,                                // -150..150 → -1..1
+            shadows = src.shadows / 100f,                                      // -100..100 → -1..1
+            whites = src.whites / 30f,                                         // -30..30 → -1..1
+            blacks = src.blacks / 60f,                                         // -60..60 → -1..1
+            saturation = src.saturation / 100f,                                // -100..100 → -1..1
+            vibrance = src.vibrance / 100f,                                    // -100..100 → -1..1
+            hueRed = src.hslReds.hue / 100f,
+            satRed = src.hslReds.saturation / 100f,
+            lumRed = src.hslReds.luminance / 100f,
+            hueOrange = src.hslOranges.hue / 100f,
+            satOrange = src.hslOranges.saturation / 100f,
+            lumOrange = src.hslOranges.luminance / 100f,
+            hueYellow = src.hslYellows.hue / 100f,
+            satYellow = src.hslYellows.saturation / 100f,
+            lumYellow = src.hslYellows.luminance / 100f,
+            hueGreen = src.hslGreens.hue / 100f,
+            satGreen = src.hslGreens.saturation / 100f,
+            lumGreen = src.hslGreens.luminance / 100f,
+            hueAqua = src.hslAquas.hue / 100f,
+            satAqua = src.hslAquas.saturation / 100f,
+            lumAqua = src.hslAquas.luminance / 100f,
+            hueBlue = src.hslBlues.hue / 100f,
+            satBlue = src.hslBlues.saturation / 100f,
+            lumBlue = src.hslBlues.luminance / 100f,
+            huePurple = src.hslPurples.hue / 100f,
+            satPurple = src.hslPurples.saturation / 100f,
+            lumPurple = src.hslPurples.luminance / 100f,
+            hueMagenta = src.hslMagentas.hue / 100f,
+            satMagenta = src.hslMagentas.saturation / 100f,
+            lumMagenta = src.hslMagentas.luminance / 100f,
+            toneCurvePoints = src.lumaCurve.map { it.x to it.y },
+            colorGradingShadows = floatArrayOf(
+                src.colorGrading.shadows.hue / 360f,
+                src.colorGrading.shadows.saturation / 100f,
+                src.colorGrading.shadows.luminance / 100f),
+            colorGradingMidtones = floatArrayOf(
+                src.colorGrading.midtones.hue / 360f,
+                src.colorGrading.midtones.saturation / 100f,
+                src.colorGrading.midtones.luminance / 100f),
+            colorGradingHighlights = floatArrayOf(
+                src.colorGrading.highlights.hue / 360f,
+                src.colorGrading.highlights.saturation / 100f,
+                src.colorGrading.highlights.luminance / 100f),
+            colorGradingBlend = src.colorGrading.blending / 100f,
+            colorGradingGlobalSat = 0f,
+            calibRedHue = src.colorCalibration.redHue / 100f,
+            calibRedSat = src.colorCalibration.redSaturation / 100f,
+            calibGreenHue = src.colorCalibration.greenHue / 100f,
+            calibGreenSat = src.colorCalibration.greenSaturation / 100f,
+            calibBlueHue = src.colorCalibration.blueHue / 100f,
+            calibBlueSat = src.colorCalibration.blueSaturation / 100f,
+            sharpness = src.sharpness / 150f * 4f,                             // 0..150 → 0..4
+            clarity = src.clarity / 100f,                                      // -100..100 → -1..1
+            structure = src.structure / 100f,                                   // -100..100 → -1..1
+            dehaze = src.dehaze / 100f,                                        // -100..100 → -1..1
+            vignette = src.vignetteAmount / 100f,                              // -100..100 → -1..1
+            grain = src.grainAmount / 100f,                                    // 0..100 → 0..1
+            grainSize = src.grainSize / 100f * 3f,                             // 0..100 → 0..3
+            chromaticAberration = (src.chromaticAberrationRedCyan +
+                src.chromaticAberrationBlueYellow) / 200f,                     // combined → -1..1
+            agxEnabled = src.toneMapper == "agx",
+            agxContrast = 0f,
+            agxPedestal = 0f,
+            clippingPreview = src.showClipping,
+        )
+    }
+
+    // ── Smart Optimizer Integration ────────────────────────────────
+
+    /**
+     * Run SmartOptimizer on the given bitmap histograms and return
+     * suggested adjustments.
+     */
+    fun smartOptimize(bitmap: Bitmap): com.rapidraw.data.model.Adjustments {
+        val histograms = computeHistograms(bitmap)
+        return SmartOptimizer.quickEnhance(
+            histograms[0], histograms[1], histograms[2],
+            bitmap.width, bitmap.height
+        )
+    }
+
+    // ── Histogram Computation ──────────────────────────────────────
+
+    /**
+     * Compute R, G, B, and Luma histograms from a Bitmap.
+     * Returns Array<IntArray> of size 4: [redHist, greenHist, blueHist, lumaHist]
+     * Each histogram is IntArray(256).
+     */
+    fun computeHistograms(bitmap: Bitmap): Array<IntArray> {
+        val w = bitmap.width
+        val h = bitmap.height
+        val pixels = IntArray(w * h)
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        val redHist = IntArray(256)
+        val greenHist = IntArray(256)
+        val blueHist = IntArray(256)
+        val lumaHist = IntArray(256)
+
+        for (pixel in pixels) {
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+            redHist[r]++
+            greenHist[g]++
+            blueHist[b]++
+            // Rec.709 luma
+            val luma = (0.2126f * r + 0.7152f * g + 0.0722f * b).toInt().coerceIn(0, 255)
+            lumaHist[luma]++
+        }
+
+        return arrayOf(redHist, greenHist, blueHist, lumaHist)
+    }
+
+    // ── CPU-side Film Simulation Processing ────────────────────────
+
+    /**
+     * Apply film simulation processing to a color in linear space.
+     * Used for full resolution export when a film simulation is selected.
+     * Returns the processed color as FloatArray(3) [r, g, b].
+     */
+    fun applyFilmSimulation(color: FloatArray, film: FilmSimulation, intensity: Float): FloatArray {
+        var r = color[0]
+        var g = color[1]
+        var b = color[2]
+
+        if (intensity < 1e-6f) return floatArrayOf(r, g, b)
+
+        // Film color shifts
+        r += film.redShift * 0.15f * intensity
+        g += film.greenShift * 0.15f * intensity
+        b += film.blueShift * 0.15f * intensity
+
+        // Film saturation modifier
+        if (abs(film.saturationModifier) > 1e-6f) {
+            val lum = ColorMath.getLuma(r, g, b)
+            val satMod = 1f + film.saturationModifier * intensity
+            r = lum + (r - lum) * satMod
+            g = lum + (g - lum) * satMod
+            b = lum + (b - lum) * satMod
+        }
+
+        // Film contrast modifier
+        if (abs(film.contrastModifier) > 1e-6f) {
+            val contrastPow = 1f + film.contrastModifier * 0.5f * intensity
+            val mid = 0.18f
+            r = mid + (r - mid) * contrastPow
+            g = mid + (g - mid) * contrastPow
+            b = mid + (b - mid) * contrastPow
+        }
+
+        // Film highlight roll-off
+        if (film.highlightRollOff > 1e-6f) {
+            val luma = ColorMath.getLuma(r, g, b)
+            val hMask = ColorMath.highlightsMask(luma)
+            val shoulder = 1f - (1f - r).toDouble().pow(1.0 + film.highlightRollOff * 2.0).toFloat()
+            val shoulderg = 1f - (1f - g).toDouble().pow(1.0 + film.highlightRollOff * 2.0).toFloat()
+            val shoulderb = 1f - (1f - b).toDouble().pow(1.0 + film.highlightRollOff * 2.0).toFloat()
+            r = r + (shoulder - r) * hMask * intensity
+            g = g + (shoulderg - g) * hMask * intensity
+            b = b + (shoulderb - b) * hMask * intensity
+        }
+
+        // Film shadow lift
+        if (film.shadowLift > 1e-6f) {
+            val luma = ColorMath.getLuma(r, g, b)
+            val sMask = ColorMath.shadowsMask(luma)
+            val lift = film.shadowLift * 0.2f * sMask * intensity
+            r += lift
+            g += lift
+            b += lift
+        }
+
+        // Film DR compression
+        if (film.drCompression > 1e-6f) {
+            val luma = ColorMath.getLuma(r, g, b)
+            val compressed = luma / (luma + film.drCompression * 0.5f + 1e-6f) * (1f + film.drCompression * 0.5f)
+            val factor = if (luma > 1e-6f) compressed / luma else 1f
+            val blend = film.drCompression * intensity
+            val blendedFactor = 1f + (factor - 1f) * blend
+            r *= blendedFactor
+            g *= blendedFactor
+            b *= blendedFactor
+        }
+
+        // Film tone curve
+        val filmCurve = film.toneCurvePoints.sortedBy { it.first }
+        val hasFilmCurve = filmCurve.size >= 2 && filmCurve.any { abs(it.first - it.second) > 0.1f }
+        if (hasFilmCurve) {
+            val filmR = ColorMath.applyCurve(r, filmCurve)
+            val filmG = ColorMath.applyCurve(g, filmCurve)
+            val filmB = ColorMath.applyCurve(b, filmCurve)
+            r = r + (filmR - r) * intensity
+            g = g + (filmG - g) * intensity
+            b = b + (filmB - b) * intensity
+        }
+
+        // Film grain
+        if (film.grainAmount > 1e-6f) {
+            val noise = ColorMath.gradientNoise(r * 1000f, g * 1000f + b * 500f)
+            val grainOffset = (noise - 0.5f) * film.grainAmount * 0.4f * intensity
+            val luma = ColorMath.getLuma(r, g, b)
+            var grainMod = 1f - abs(luma - 0.5f) * 1.5f
+            grainMod = grainMod.coerceIn(0.2f, 1f)
+            val roughnessMod = 0.5f + film.grainRoughness * 0.5f
+            r += grainOffset * grainMod * roughnessMod
+            g += grainOffset * grainMod * roughnessMod
+            b += grainOffset * grainMod * roughnessMod
+        }
+
+        return floatArrayOf(r, g, b)
+    }
+
+    // ── Soft Glow / Bloom Buffer ──────────────────────────────────
+
+    /**
+     * Compute a bloom buffer by extracting bright pixels and blurring them.
+     * Returns FloatArray of size (w * h * 3) containing the blurred bright pixels.
+     */
+    private fun computeBloomBuffer(pixels: IntArray, w: Int, h: Int, glowAmount: Float): FloatArray {
+        val threshold = 0.7f
+        val bloomRadius = (3 + glowAmount * 10).toInt()
+
+        // Extract bright pixels above threshold
+        val brightPixels = IntArray(pixels.size)
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            val r = ((p shr 16) and 0xFF) / 255f
+            val g = ((p shr 8) and 0xFF) / 255f
+            val b = (p and 0xFF) / 255f
+            val luma = ColorMath.getLuma(ColorMath.srgbToLinear(r), ColorMath.srgbToLinear(g), ColorMath.srgbToLinear(b))
+            if (luma > threshold) {
+                val excess = ((luma - threshold) / (1f - threshold)).coerceIn(0f, 1f)
+                val ri = (r * excess * 255f).toInt().coerceIn(0, 255)
+                val gi = (g * excess * 255f).toInt().coerceIn(0, 255)
+                val bi = (b * excess * 255f).toInt().coerceIn(0, 255)
+                brightPixels[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+            } else {
+                brightPixels[i] = 0xFF shl 24
+            }
+        }
+
+        // Blur the bright pixels
+        val blurredPixels = boxBlur(brightPixels, w, h, bloomRadius)
+
+        // Convert to float array
+        val result = FloatArray(w * h * 3)
+        for (i in blurredPixels.indices) {
+            val p = blurredPixels[i]
+            result[i * 3] = ((p shr 16) and 0xFF) / 255f
+            result[i * 3 + 1] = ((p shr 8) and 0xFF) / 255f
+            result[i * 3 + 2] = (p and 0xFF) / 255f
+        }
+
+        return result
     }
 
     // ── Export ─────────────────────────────────────────────────────

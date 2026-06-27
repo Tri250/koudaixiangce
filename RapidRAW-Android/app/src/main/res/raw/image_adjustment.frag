@@ -91,6 +91,26 @@ uniform float uAgXPedestal;   // 0.0 .. 0.5
 // Debug
 uniform float uClippingPreview; // 0.0 or 1.0
 
+// ── Film Simulation Uniforms ──────────────────────────────────────────
+uniform float uFilmIntensity;       // 0.0 - 1.0, film simulation blend amount
+uniform float uHighlightRollOff;    // 0.0 - 1.0, how quickly highlights fade
+uniform float uShadowLift;          // 0.0 - 1.0, shadow detail preservation
+uniform float uDrCompression;       // 0.0 - 1.0, dynamic range compression
+uniform float uFilmRedShift;        // -1.0 - 1.0, film color shift red
+uniform float uFilmGreenShift;      // -1.0 - 1.0
+uniform float uFilmBlueShift;       // -1.0 - 1.0
+uniform float uFilmSaturation;      // -1.0 - 1.0, film saturation modifier
+uniform float uFilmContrast;        // -1.0 - 1.0, film contrast modifier
+uniform float uFilmGrainAmount;     // 0.0 - 1.0
+uniform float uFilmGrainSize;       // 0.0 - 1.0
+uniform float uFilmGrainRoughness;  // 0.0 - 1.0
+uniform vec2 uFilmCurve[6];         // x=input, y=output, 6 control points
+
+// ── Additional Adjustment Uniforms ────────────────────────────────────
+uniform float uGreenMagenta;        // -1.0 - 1.0, green-magenta tint axis
+uniform float uSoftGlow;            // 0.0 - 1.0, soft glow/bloom intensity
+uniform float uToneLevel;           // -1.0 - 1.0, combined tone/brightness control
+
 in vec2 vTexCoord;
 out vec4 fragColor;
 
@@ -195,7 +215,7 @@ float midtones_mask(float luma) {
     return smoothstep_custom(0.2, 0.4, luma) * (1.0 - smoothstep_custom(0.6, 0.8, luma));
 }
 
-// ── Cubic Hermite Interpolation (Tone Curve) ──────────────────────────
+// ── Cubic Hermite Interpolation (User Tone Curve) ─────────────────────
 
 struct CurvePoint {
     float x;
@@ -271,7 +291,6 @@ vec3 apply_linear_exposure(vec3 color, float exposure) {
 
 vec3 apply_filmic_exposure(vec3 color, float brightness) {
     // Filmic rational curve with midtone emphasis
-    // Matches the WGSL implementation
     float b = brightness * 2.0;
     vec3 numerator = color * (1.0 + b);
     vec3 denominator = 1.0 + abs(b) * color;
@@ -643,22 +662,27 @@ vec3 apply_sharpness(vec3 color, vec2 uv) {
     return color + highPass * uSharpness;
 }
 
-// ── 12. Chromatic Aberration Correction ───────────────────────────────
+// ── 12. Chromatic Aberration ──────────────────────────────────────────
 
-vec3 apply_chromatic_aberration(vec2 uv) {
-    if (abs(uChromaticAberration) < EPS) {
-        return texture(uTexture, uv).rgb;
-    }
+vec3 apply_chromatic_aberration(vec3 color, vec2 uv) {
+    if (abs(uChromaticAberration) < EPS) return color;
 
     vec2 dir = uv - 0.5;
     float dist = length(dir);
     vec2 offset = dir * dist * uChromaticAberration * 0.02;
 
+    // Re-sample original texture with CA offsets for R and B channels
     float r = texture(uTexture, uv + offset).r;
-    float g = texture(uTexture, uv).g;
+    float g = color.g;
     float b = texture(uTexture, uv - offset).b;
 
-    return vec3(r, g, b);
+    // Convert CA-sampled channels to linear and blend with processed color
+    float blend = clamp(abs(uChromaticAberration), 0.0, 1.0);
+    vec3 result = color;
+    result.r = mix(color.r, srgb_to_linear(r), blend);
+    result.b = mix(color.b, srgb_to_linear(b), blend);
+
+    return result;
 }
 
 // ── 13. Dehaze ────────────────────────────────────────────────────────
@@ -706,7 +730,7 @@ vec3 apply_vignette(vec3 color, vec2 uv) {
     return color * vignetteAmount;
 }
 
-// ── 15. Film Grain ────────────────────────────────────────────────────
+// ── 15. Film Grain (Legacy) ───────────────────────────────────────────
 
 vec3 apply_grain(vec3 color, vec2 uv) {
     if (uGrain < EPS) return color;
@@ -797,76 +821,280 @@ vec3 apply_clipping_preview(vec3 color) {
     return result;
 }
 
-// ── MAIN ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Tone Level (影调) ────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_tone_level(vec3 color) {
+    if (abs(uToneLevel) < 0.001) return color;
+    // Positive = brighter (lift shadows and midtones)
+    // Negative = darker (compress highlights)
+    float lift = uToneLevel * 0.3;
+    float gamma = 1.0 - uToneLevel * 0.3;
+    gamma = max(0.3, gamma);
+    color += lift * 0.2;
+    color = pow(max(color, vec3(0.0)), vec3(gamma));
+    return color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Green-Magenta Tint ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_green_magenta(vec3 color) {
+    if (abs(uGreenMagenta) < 0.001) return color;
+    // Green-Magenta axis shift
+    // Magenta = reduce green, increase red+blue
+    // Green = increase green, reduce red+blue
+    float amount = uGreenMagenta * 0.12;
+    color.r += amount * 0.5;
+    color.g -= amount * 0.8;
+    color.b += amount * 0.3;
+    return max(color, vec3(0.0));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Soft Glow ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_soft_glow(vec3 color, vec2 uv) {
+    if (uSoftGlow < 0.001) return color;
+    // Extract highlights
+    float lum = get_luma(color);
+    vec3 highlights = color * smoothstep(0.4, 0.9, lum);
+    // Simple 9x9 blur approximation for glow
+    vec2 texel = 1.0 / uResolution;
+    vec3 blur = vec3(0.0);
+    float weights = 0.0;
+    for (int dx = -4; dx <= 4; dx++) {
+        for (int dy = -4; dy <= 4; dy++) {
+            float w = 1.0 / (1.0 + float(dx * dx + dy * dy) * 0.1);
+            blur += texture(uTexture, uv + vec2(float(dx), float(dy)) * texel * 3.0).rgb * w;
+            weights += w;
+        }
+    }
+    blur /= weights;
+    // Extract high luminance from blur
+    float blurLum = get_luma(blur);
+    vec3 glow = blur * smoothstep(0.4, 0.9, blurLum);
+    // Additive blend with reduced opacity
+    color = mix(color, color + glow * 0.4, uSoftGlow);
+    return color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Film Tone Curve (6 control points, Cubic Hermite) ──────────
+// ═══════════════════════════════════════════════════════════════════════
+
+float apply_film_curve_channel(float x) {
+    // Normalize input to 0-1 range
+    x = clamp(x, 0.0, 1.0);
+
+    // Find the segment
+    for (int i = 0; i < 5; i++) {
+        float x0 = uFilmCurve[i].x / 255.0;
+        float x1 = uFilmCurve[i + 1].x / 255.0;
+        if (x >= x0 && x <= x1) {
+            float y0 = uFilmCurve[i].y / 255.0;
+            float y1 = uFilmCurve[i + 1].y / 255.0;
+
+            // Catmull-Rom tangents
+            float m0, m1;
+            if (i == 0) {
+                m0 = (y1 - y0) / (x1 - x0);
+            } else {
+                float yPrev = uFilmCurve[i - 1].y / 255.0;
+                float xPrev = uFilmCurve[i - 1].x / 255.0;
+                m0 = (y1 - yPrev) / (x1 - xPrev) * 0.5;
+            }
+            if (i == 4) {
+                m1 = (y1 - y0) / (x1 - x0);
+            } else {
+                float yNext = uFilmCurve[i + 2].y / 255.0;
+                float xNext = uFilmCurve[i + 2].x / 255.0;
+                m1 = (yNext - y0) / (xNext - x0) * 0.5;
+            }
+
+            float t = (x - x0) / max(x1 - x0, 0.001);
+            float t2 = t * t;
+            float t3 = t2 * t;
+
+            // Hermite interpolation
+            float h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
+            float h10 = t3 - 2.0 * t2 + t;
+            float h01 = -2.0 * t3 + 3.0 * t2;
+            float h11 = t3 - t2;
+
+            return h00 * y0 + h10 * (x1 - x0) * m0 + h01 * y1 + h11 * (x1 - x0) * m1;
+        }
+    }
+    return x;
+}
+
+vec3 apply_film_curve(vec3 color) {
+    // Apply the same curve to R, G, B channels using the 6 control points
+    color.r = apply_film_curve_channel(color.r);
+    color.g = apply_film_curve_channel(color.g);
+    color.b = apply_film_curve_channel(color.b);
+    return color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Film Grain (Realistic) ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_film_grain(vec3 color, vec2 uv) {
+    if (uFilmGrainAmount < 0.001) return color;
+    float lum = get_luma(color);
+    // Grain more visible in shadows
+    float shadowWeight = 1.0 - lum * 0.5;
+    // Variable grain size: use different hash frequencies
+    float size = max(1.0, uFilmGrainSize * 8.0 + 1.0);
+    vec2 grainUV = uv * uResolution / size;
+    float noise = hash(grainUV.x + hash(grainUV.y)) * 2.0 - 1.0;
+    // Roughness: more rough = sharper noise edges
+    float roughNoise = mix(noise * noise * sign(noise), noise, uFilmGrainRoughness);
+    float grainStrength = uFilmGrainAmount * shadowWeight * 0.15;
+    return color + roughNoise * grainStrength;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Film Simulation ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_film_simulation(vec3 color, vec2 uv) {
+    // 1. Apply film color shift in linear space
+    color.r += uFilmRedShift * 0.08;
+    color.g += uFilmGreenShift * 0.08;
+    color.b += uFilmBlueShift * 0.08;
+
+    // 2. Apply film saturation modifier
+    float lum = get_luma(color);
+    vec3 desat = vec3(lum);
+    color = mix(desat, color, 1.0 + uFilmSaturation);
+
+    // 3. Apply film contrast modifier
+    color = (color - 0.5) * (1.0 + uFilmContrast * 0.5) + 0.5;
+
+    // 4. Apply shadow lift (raise shadow values)
+    float shadowMask = 1.0 - smoothstep(0.0, 0.3, lum);
+    color += shadowMask * uShadowLift * 0.15;
+
+    // 5. Apply highlight rolloff
+    float highlightMask = smoothstep(0.7, 1.0, lum);
+    float rolloff = 1.0 - highlightMask * uHighlightRollOff * 0.3;
+    color *= rolloff;
+
+    // 6. Apply dynamic range compression
+    if (uDrCompression > 0.0) {
+        float compressed = atan(color.r * uDrCompression * 3.0) / (PI * 0.5);
+        float compressedG = atan(color.g * uDrCompression * 3.0) / (PI * 0.5);
+        float compressedB = atan(color.b * uDrCompression * 3.0) / (PI * 0.5);
+        vec3 compressedV = vec3(compressed, compressedG, compressedB);
+        float t = uDrCompression;
+        color = mix(color, compressedV, t);
+    }
+
+    // 7. Apply film tone curve (cubic Hermite through 6 points)
+    color = apply_film_curve(color);
+
+    // 8. Apply film grain
+    color = apply_film_grain(color, uv);
+
+    return color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── MAIN ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
 
 void main() {
     vec2 uv = vTexCoord;
 
-    // 0. Chromatic aberration (samples texture with offset)
-    vec3 color = apply_chromatic_aberration(uv);
+    vec4 texColor = texture(uTexture, uv);
+    vec3 originalLinear = texColor.rgb; // already in linear space from upload
 
-    // 1. sRGB to Linear
-    color = srgb_to_linear(color);
+    // Store original for film intensity blending
+    vec3 noFilmColor = originalLinear;
 
-    // 2. Linear Exposure
+    // === Step 1: sRGB to Linear (if input is sRGB) ===
+    vec3 color = srgb_to_linear(originalLinear);
+
+    // === Step 2: Tone level (影调) ===
+    color = apply_tone_level(color);
+
+    // === Step 3: Linear exposure ===
     color = apply_linear_exposure(color, uExposure);
 
-    // 3. Filmic Brightness
+    // === Step 4: Filmic brightness ===
     color = apply_filmic_exposure(color, uBrightness);
 
-    // 4. White Balance
+    // === Step 5: White balance ===
     color = apply_white_balance(color, uTemperature, uTint);
 
-    // 5. Highlights
+    // === Step 6: Green-Magenta tint ===
+    color = apply_green_magenta(color);
+
+    // === Step 7: Highlights adjustment ===
     color = apply_highlights_adjustment(color, uHighlights);
 
-    // 6. Tonal Adjustments (Contrast/Shadows/Whites/Blacks)
+    // === Step 8: Tonal adjustments (contrast/shadows/whites/blacks) ===
     color = apply_tonal_adjustments(color, uContrast, uShadows, uWhites, uBlacks);
 
-    // 7. Creative Color (Saturation + Vibrance)
+    // === Step 9: Creative color (saturation + vibrance) ===
     color = apply_creative_color(color, uSaturation, uVibrance);
 
-    // 8. HSL 8-Color Panel
+    // === Step 10: HSL 8-color panel ===
     color = apply_hsl_panel(color);
 
-    // 9. Color Grading
+    // === Step 11: Color grading ===
     color = apply_color_grading(color);
 
-    // 10. Color Calibration
+    // === Step 12: Color calibration ===
     color = apply_color_calibration(color);
 
-    // 11. Local Contrast (Clarity/Structure)
+    // === Step 13: Local contrast (clarity/structure) ===
     color = apply_local_contrast(color, uv);
 
-    // 12. Sharpness (Unsharp Mask)
+    // === Step 14: Sharpness ===
     color = apply_sharpness(color, uv);
 
-    // 13. Dehaze
+    // === Step 15: Chromatic aberration ===
+    color = apply_chromatic_aberration(color, uv);
+
+    // === Step 16: Dehaze ===
     color = apply_dehaze(color);
 
-    // 14. Vignette
+    // === Step 17: Soft glow ===
+    color = apply_soft_glow(color, uv);
+
+    // === Step 18: Vignette ===
     color = apply_vignette(color, uv);
 
-    // 15. Film Grain
-    color = apply_grain(color, uv);
+    // === Step 19: Film simulation (complete: curve + grain + color + DR) ===
+    vec3 filmColor = apply_film_simulation(color, uv);
 
-    // 16. Tone Curve
+    // === Step 20: Blend film with non-film based on intensity ===
+    color = mix(color, filmColor, uFilmIntensity);
+
+    // === Step 21: User tone curves ===
     color = apply_tone_curve(color);
 
-    // 17. AgX Tone Mapping
-    color = apply_agx_tonemap(color);
+    // === Step 22: AgX tone mapping (if enabled) ===
+    if (uAgXEnabled > 0.5) {
+        color = apply_agx_tonemap(color);
+    }
 
-    // 18. Linear to sRGB
+    // === Step 23: Linear to sRGB ===
     color = linear_to_srgb(color);
 
-    // 19. Dither
-    color += dither(gl_FragCoord.xy) / 255.0;
+    // === Step 24: Dither ===
+    color += (gradient_noise(uv.x, uv.y) - 0.5) / 255.0;
 
-    // 20. Clamp
-    color = clamp(color, 0.0, 1.0);
+    // === Step 25: Clipping visualization ===
+    if (uClippingPreview > 0.5) {
+        color = apply_clipping_preview(color);
+    }
 
-    // 21. Clipping Visualization
-    color = apply_clipping_preview(color);
-
-    fragColor = vec4(color, 1.0);
+    fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }

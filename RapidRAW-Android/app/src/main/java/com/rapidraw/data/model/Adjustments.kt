@@ -72,6 +72,26 @@ data class MaskContainer(
 data class Adjustments(
     // ── Basic ───────────────────────────────────────────────────
     val exposure: Float = 0f,
+    val toneLevel: Float = 0f,              // 影调 -1..1, combined brightness control
+    val filmIntensity: Float = 1f,          // 滤镜强度 0..1
+    val greenMagenta: Float = 0f,           // 青品 -1..1, green-magenta axis
+    val softGlow: Float = 0f,               // 柔光 0..1, soft glow/bloom
+
+    // Film simulation parameters (set when a film is selected)
+    val filmId: String = "",                // Selected film simulation ID
+    val filmHighlightRollOff: Float = 0f,   // 0..1
+    val filmShadowLift: Float = 0f,         // 0..1
+    val filmDrCompression: Float = 0f,      // 0..1
+    val filmRedShift: Float = 0f,           // -1..1
+    val filmGreenShift: Float = 0f,         // -1..1
+    val filmBlueShift: Float = 0f,          // -1..1
+    val filmSaturation: Float = 0f,         // -1..1
+    val filmContrast: Float = 0f,           // -1..1
+    val filmGrainAmount: Float = 0f,        // 0..1
+    val filmGrainSize: Float = 0f,          // 0..1
+    val filmGrainRoughness: Float = 0f,     // 0..1
+    val filmCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 51f to 51f, 102f to 102f, 153f to 153f, 204f to 204f, 255f to 255f),
+
     val brightness: Float = 0f,
     val contrast: Float = 0f,
     val highlights: Float = 0f,
@@ -161,6 +181,21 @@ data class Adjustments(
     fun copyByField(key: String, value: Float): Adjustments = when (key) {
         // Basic
         "exposure" -> copy(exposure = value.coerceIn(-5f, 5f))
+        "toneLevel" -> copy(toneLevel = value.coerceIn(-1f, 1f))
+        "filmIntensity" -> copy(filmIntensity = value.coerceIn(0f, 1f))
+        "greenMagenta" -> copy(greenMagenta = value.coerceIn(-1f, 1f))
+        "softGlow" -> copy(softGlow = value.coerceIn(0f, 1f))
+        "filmHighlightRollOff" -> copy(filmHighlightRollOff = value.coerceIn(0f, 1f))
+        "filmShadowLift" -> copy(filmShadowLift = value.coerceIn(0f, 1f))
+        "filmDrCompression" -> copy(filmDrCompression = value.coerceIn(0f, 1f))
+        "filmRedShift" -> copy(filmRedShift = value.coerceIn(-1f, 1f))
+        "filmGreenShift" -> copy(filmGreenShift = value.coerceIn(-1f, 1f))
+        "filmBlueShift" -> copy(filmBlueShift = value.coerceIn(-1f, 1f))
+        "filmSaturation" -> copy(filmSaturation = value.coerceIn(-1f, 1f))
+        "filmContrast" -> copy(filmContrast = value.coerceIn(-1f, 1f))
+        "filmGrainAmount" -> copy(filmGrainAmount = value.coerceIn(0f, 1f))
+        "filmGrainSize" -> copy(filmGrainSize = value.coerceIn(0f, 1f))
+        "filmGrainRoughness" -> copy(filmGrainRoughness = value.coerceIn(0f, 1f))
         "brightness" -> copy(brightness = value.coerceIn(-5f, 5f))
         "contrast" -> copy(contrast = value.coerceIn(-100f, 100f))
         "highlights" -> copy(highlights = value.coerceIn(-150f, 150f))
@@ -257,5 +292,36 @@ data class Adjustments(
         "transformXOffset" -> copy(transformXOffset = value.coerceIn(-100f, 100f))
         "transformYOffset" -> copy(transformYOffset = value.coerceIn(-100f, 100f))
         else -> this
+    }
+
+    fun withFilmSimulation(film: FilmSimulation): Adjustments {
+        return this.copy(
+            filmId = film.id,
+            filmHighlightRollOff = film.highlightRollOff,
+            filmShadowLift = film.shadowLift,
+            filmDrCompression = film.drCompression,
+            filmRedShift = film.redShift,
+            filmGreenShift = film.greenShift,
+            filmBlueShift = film.blueShift,
+            filmSaturation = film.saturationModifier,
+            filmContrast = film.contrastModifier,
+            filmGrainAmount = film.grainAmount,
+            filmGrainSize = film.grainSize,
+            filmGrainRoughness = film.grainRoughness,
+            filmCurvePoints = film.toneCurvePoints,
+            // Merge film's base adjustments
+            exposure = if (exposure == 0f) film.baseAdjustments.exposure else exposure,
+            contrast = if (contrast == 0f) film.baseAdjustments.contrast else contrast,
+            highlights = if (highlights == 0f) film.baseAdjustments.highlights else highlights,
+            shadows = if (shadows == 0f) film.baseAdjustments.shadows else shadows,
+            saturation = if (saturation == 0f) film.baseAdjustments.saturation else saturation,
+            vibrance = if (vibrance == 0f) film.baseAdjustments.vibrance else vibrance,
+            temperature = if (temperature == 0f) film.baseAdjustments.temperature else temperature,
+            clarity = if (clarity == 0f) film.baseAdjustments.clarity else clarity,
+            dehaze = if (dehaze == 0f) film.baseAdjustments.dehaze else dehaze,
+            grainAmount = if (grainAmount == 0f) film.baseAdjustments.grainAmount else grainAmount,
+            vignetteAmount = if (vignetteAmount == 0f) film.baseAdjustments.vignetteAmount else vignetteAmount,
+            sharpness = if (sharpness == 0f) film.baseAdjustments.sharpness else sharpness,
+        )
     }
 }

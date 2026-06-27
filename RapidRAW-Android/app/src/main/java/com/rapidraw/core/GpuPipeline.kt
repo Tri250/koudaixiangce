@@ -7,6 +7,7 @@ import android.opengl.GLES30
 import android.opengl.GLUtils
 import android.opengl.Matrix
 import android.util.Log
+import com.rapidraw.data.model.Adjustments
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -291,7 +292,15 @@ class GpuPipeline(private val context: Context) {
             "uGrain", "uGrainSize",
             "uChromaticAberration",
             "uAgXEnabled", "uAgXContrast", "uAgXPedestal",
-            "uClippingPreview"
+            "uClippingPreview",
+            // New uniforms for film simulation & advanced controls
+            "uToneLevel", "uFilmIntensity", "uGreenMagenta", "uSoftGlow",
+            "uFilmHighlightRollOff", "uFilmShadowLift", "uFilmDrCompression",
+            "uFilmRedShift", "uFilmGreenShift", "uFilmBlueShift",
+            "uFilmSaturation", "uFilmContrast",
+            "uFilmGrainAmount", "uFilmGrainSize", "uFilmGrainRoughness",
+            "uFilmCurve[0]", "uFilmCurve[1]", "uFilmCurve[2]",
+            "uFilmCurve[3]", "uFilmCurve[4]", "uFilmCurve[5]"
         )
 
         for (name in uniformNames) {
@@ -382,52 +391,85 @@ class GpuPipeline(private val context: Context) {
 
     /**
      * Convert Adjustments data class to shader uniforms.
+     * Accepts data.model.Adjustments (the canonical adjustment type).
      */
     fun updateAdjustments(adjustments: Adjustments) {
         if (!initialized) return
 
         GLES30.glUseProgram(program)
 
+        // ── Basic ──
         setUniform1f("uExposure", adjustments.exposure)
-        setUniform1f("uBrightness", adjustments.brightness)
-        setUniform1f("uTemperature", adjustments.temperature)
-        setUniform1f("uTint", adjustments.tint)
-        setUniform1f("uContrast", adjustments.contrast)
-        setUniform1f("uHighlights", adjustments.highlights)
-        setUniform1f("uShadows", adjustments.shadows)
-        setUniform1f("uWhites", adjustments.whites)
-        setUniform1f("uBlacks", adjustments.blacks)
-        setUniform1f("uSaturation", adjustments.saturation)
-        setUniform1f("uVibrance", adjustments.vibrance)
+        setUniform1f("uBrightness", adjustments.brightness / 5f)          // -5..5 → -1..1
+        setUniform1f("uTemperature", 6500f + adjustments.temperature * 50f) // offset → Kelvin
+        setUniform1f("uTint", adjustments.tint / 100f)                    // -100..100 → -1..1
+        setUniform1f("uContrast", adjustments.contrast / 100f)            // -100..100 → -1..1
+        setUniform1f("uHighlights", adjustments.highlights / 150f)        // -150..150 → -1..1
+        setUniform1f("uShadows", adjustments.shadows / 100f)             // -100..100 → -1..1
+        setUniform1f("uWhites", adjustments.whites / 30f)                // -30..30 → -1..1
+        setUniform1f("uBlacks", adjustments.blacks / 60f)                // -60..60 → -1..1
+        setUniform1f("uSaturation", adjustments.saturation / 100f)       // -100..100 → -1..1
+        setUniform1f("uVibrance", adjustments.vibrance / 100f)           // -100..100 → -1..1
 
-        // HSL
-        setUniform1f("uHueRed", adjustments.hueRed)
-        setUniform1f("uSatRed", adjustments.satRed)
-        setUniform1f("uLumRed", adjustments.lumRed)
-        setUniform1f("uHueOrange", adjustments.hueOrange)
-        setUniform1f("uSatOrange", adjustments.satOrange)
-        setUniform1f("uLumOrange", adjustments.lumOrange)
-        setUniform1f("uHueYellow", adjustments.hueYellow)
-        setUniform1f("uSatYellow", adjustments.satYellow)
-        setUniform1f("uLumYellow", adjustments.lumYellow)
-        setUniform1f("uHueGreen", adjustments.hueGreen)
-        setUniform1f("uSatGreen", adjustments.satGreen)
-        setUniform1f("uLumGreen", adjustments.lumGreen)
-        setUniform1f("uHueAqua", adjustments.hueAqua)
-        setUniform1f("uSatAqua", adjustments.satAqua)
-        setUniform1f("uLumAqua", adjustments.lumAqua)
-        setUniform1f("uHueBlue", adjustments.hueBlue)
-        setUniform1f("uSatBlue", adjustments.satBlue)
-        setUniform1f("uLumBlue", adjustments.lumBlue)
-        setUniform1f("uHuePurple", adjustments.huePurple)
-        setUniform1f("uSatPurple", adjustments.satPurple)
-        setUniform1f("uLumPurple", adjustments.lumPurple)
-        setUniform1f("uHueMagenta", adjustments.hueMagenta)
-        setUniform1f("uSatMagenta", adjustments.satMagenta)
-        setUniform1f("uLumMagenta", adjustments.lumMagenta)
+        // ── New: Tone / Film Intensity / Green-Magenta / Soft Glow ──
+        setUniform1f("uToneLevel", adjustments.toneLevel)
+        setUniform1f("uFilmIntensity", adjustments.filmIntensity)
+        setUniform1f("uGreenMagenta", adjustments.greenMagenta)
+        setUniform1f("uSoftGlow", adjustments.softGlow)
 
-        // Tone curve - pack 10 control points into 5 vec4s
-        val curvePoints = adjustments.toneCurvePoints
+        // ── New: Film simulation parameters ──
+        setUniform1f("uFilmHighlightRollOff", adjustments.filmHighlightRollOff)
+        setUniform1f("uFilmShadowLift", adjustments.filmShadowLift)
+        setUniform1f("uFilmDrCompression", adjustments.filmDrCompression)
+        setUniform1f("uFilmRedShift", adjustments.filmRedShift)
+        setUniform1f("uFilmGreenShift", adjustments.filmGreenShift)
+        setUniform1f("uFilmBlueShift", adjustments.filmBlueShift)
+        setUniform1f("uFilmSaturation", adjustments.filmSaturation)
+        setUniform1f("uFilmContrast", adjustments.filmContrast)
+        setUniform1f("uFilmGrainAmount", adjustments.filmGrainAmount)
+        setUniform1f("uFilmGrainSize", adjustments.filmGrainSize)
+        setUniform1f("uFilmGrainRoughness", adjustments.filmGrainRoughness)
+
+        // Film curve: upload 6 control points as 6 vec2 uniforms
+        val filmCurve = adjustments.filmCurvePoints
+        for (i in 0 until 6) {
+            if (i < filmCurve.size) {
+                setUniform2f("uFilmCurve[$i]", filmCurve[i].first, filmCurve[i].second)
+            } else {
+                val t = i * 51f
+                setUniform2f("uFilmCurve[$i]", t, t)
+            }
+        }
+
+        // ── HSL 8-color panel ──
+        setUniform1f("uHueRed", adjustments.hslReds.hue / 100f)
+        setUniform1f("uSatRed", adjustments.hslReds.saturation / 100f)
+        setUniform1f("uLumRed", adjustments.hslReds.luminance / 100f)
+        setUniform1f("uHueOrange", adjustments.hslOranges.hue / 100f)
+        setUniform1f("uSatOrange", adjustments.hslOranges.saturation / 100f)
+        setUniform1f("uLumOrange", adjustments.hslOranges.luminance / 100f)
+        setUniform1f("uHueYellow", adjustments.hslYellows.hue / 100f)
+        setUniform1f("uSatYellow", adjustments.hslYellows.saturation / 100f)
+        setUniform1f("uLumYellow", adjustments.hslYellows.luminance / 100f)
+        setUniform1f("uHueGreen", adjustments.hslGreens.hue / 100f)
+        setUniform1f("uSatGreen", adjustments.hslGreens.saturation / 100f)
+        setUniform1f("uLumGreen", adjustments.hslGreens.luminance / 100f)
+        setUniform1f("uHueAqua", adjustments.hslAquas.hue / 100f)
+        setUniform1f("uSatAqua", adjustments.hslAquas.saturation / 100f)
+        setUniform1f("uLumAqua", adjustments.hslAquas.luminance / 100f)
+        setUniform1f("uHueBlue", adjustments.hslBlues.hue / 100f)
+        setUniform1f("uSatBlue", adjustments.hslBlues.saturation / 100f)
+        setUniform1f("uLumBlue", adjustments.hslBlues.luminance / 100f)
+        setUniform1f("uHuePurple", adjustments.hslPurples.hue / 100f)
+        setUniform1f("uSatPurple", adjustments.hslPurples.saturation / 100f)
+        setUniform1f("uLumPurple", adjustments.hslPurples.luminance / 100f)
+        setUniform1f("uHueMagenta", adjustments.hslMagentas.hue / 100f)
+        setUniform1f("uSatMagenta", adjustments.hslMagentas.saturation / 100f)
+        setUniform1f("uLumMagenta", adjustments.hslMagentas.luminance / 100f)
+
+        // ── Tone curve - pack lumaCurve control points into 5 vec4s ──
+        // data.model uses Coord(x,y); convert to Pair list for packing
+        val curvePoints = adjustments.lumaCurve.map { it.x to it.y }
         if (curvePoints.size == 10) {
             for (i in 0 until 5) {
                 val p0 = curvePoints[i * 2]
@@ -436,40 +478,50 @@ class GpuPipeline(private val context: Context) {
             }
         }
 
-        // Color grading
-        setUniform3f("uColorGradingShadows", adjustments.colorGradingShadows)
-        setUniform3f("uColorGradingMidtones", adjustments.colorGradingMidtones)
-        setUniform3f("uColorGradingHighlights", adjustments.colorGradingHighlights)
-        setUniform1f("uColorGradingBlend", adjustments.colorGradingBlend)
-        setUniform1f("uColorGradingGlobalSat", adjustments.colorGradingGlobalSat)
+        // ── Color Grading ──
+        // ColorGradingRegion has hue(0..360), saturation(0..100), luminance(-100..100)
+        // Shader expects vec3 (hue/360, sat/100, lum/100)
+        val cg = adjustments.colorGrading
+        setUniform3f("uColorGradingShadows", floatArrayOf(
+            cg.shadows.hue / 360f, cg.shadows.saturation / 100f, cg.shadows.luminance / 100f))
+        setUniform3f("uColorGradingMidtones", floatArrayOf(
+            cg.midtones.hue / 360f, cg.midtones.saturation / 100f, cg.midtones.luminance / 100f))
+        setUniform3f("uColorGradingHighlights", floatArrayOf(
+            cg.highlights.hue / 360f, cg.highlights.saturation / 100f, cg.highlights.luminance / 100f))
+        setUniform1f("uColorGradingBlend", cg.blending / 100f)
+        setUniform1f("uColorGradingGlobalSat", 0f)
 
-        // Color calibration
-        setUniform1f("uCalibRedHue", adjustments.calibRedHue)
-        setUniform1f("uCalibRedSat", adjustments.calibRedSat)
-        setUniform1f("uCalibGreenHue", adjustments.calibGreenHue)
-        setUniform1f("uCalibGreenSat", adjustments.calibGreenSat)
-        setUniform1f("uCalibBlueHue", adjustments.calibBlueHue)
-        setUniform1f("uCalibBlueSat", adjustments.calibBlueSat)
+        // ── Color Calibration ──
+        val cc = adjustments.colorCalibration
+        setUniform1f("uCalibRedHue", cc.redHue / 100f)
+        setUniform1f("uCalibRedSat", cc.redSaturation / 100f)
+        setUniform1f("uCalibGreenHue", cc.greenHue / 100f)
+        setUniform1f("uCalibGreenSat", cc.greenSaturation / 100f)
+        setUniform1f("uCalibBlueHue", cc.blueHue / 100f)
+        setUniform1f("uCalibBlueSat", cc.blueSaturation / 100f)
 
-        // Detail
-        setUniform1f("uSharpness", adjustments.sharpness)
-        setUniform1f("uClarity", adjustments.clarity)
-        setUniform1f("uStructure", adjustments.structure)
+        // ── Detail ──
+        setUniform1f("uSharpness", adjustments.sharpness / 150f * 4f)     // 0..150 → 0..4
+        setUniform1f("uClarity", adjustments.clarity / 100f)             // -100..100 → -1..1
+        setUniform1f("uStructure", adjustments.structure / 100f)         // -100..100 → -1..1
 
-        // Effects
-        setUniform1f("uDehaze", adjustments.dehaze)
-        setUniform1f("uVignette", adjustments.vignette)
-        setUniform1f("uGrain", adjustments.grain)
-        setUniform1f("uGrainSize", adjustments.grainSize)
-        setUniform1f("uChromaticAberration", adjustments.chromaticAberration)
+        // ── Effects ──
+        setUniform1f("uDehaze", adjustments.dehaze / 100f)               // -100..100 → -1..1
+        setUniform1f("uVignette", adjustments.vignetteAmount / 100f)     // -100..100 → -1..1
+        setUniform1f("uGrain", adjustments.grainAmount / 100f)           // 0..100 → 0..1
+        setUniform1f("uGrainSize", adjustments.grainSize / 100f * 3f)    // 0..100 → 0..3
+        val chromaticAberration = (adjustments.chromaticAberrationRedCyan +
+            adjustments.chromaticAberrationBlueYellow) / 200f            // combined → -1..1
+        setUniform1f("uChromaticAberration", chromaticAberration)
 
-        // Tone mapping
-        setUniform1f("uAgXEnabled", if (adjustments.agxEnabled) 1f else 0f)
-        setUniform1f("uAgXContrast", adjustments.agxContrast)
-        setUniform1f("uAgXPedestal", adjustments.agxPedestal)
+        // ── Tone Mapping ──
+        val agxEnabled = adjustments.toneMapper == "agx"
+        setUniform1f("uAgXEnabled", if (agxEnabled) 1f else 0f)
+        setUniform1f("uAgXContrast", 0f)
+        setUniform1f("uAgXPedestal", 0f)
 
-        // Debug
-        setUniform1f("uClippingPreview", if (adjustments.clippingPreview) 1f else 0f)
+        // ── Debug ──
+        setUniform1f("uClippingPreview", if (adjustments.showClipping) 1f else 0f)
     }
 
     // ── Render ─────────────────────────────────────────────────────

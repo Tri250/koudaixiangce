@@ -1,5 +1,7 @@
 package com.rapidraw.ui.presets
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,17 +10,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -44,10 +47,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.Adjustments
-import com.rapidraw.data.model.HasselbladMasterFilter
+import com.rapidraw.data.model.FilmCategory
+import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.Preset
+import com.rapidraw.ui.theme.BadgeBg
 import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.EditorSurfaceVariant
+import com.rapidraw.ui.theme.FilmCardBorder
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
@@ -56,16 +62,18 @@ import com.rapidraw.ui.theme.TextTertiary
 @Composable
 fun PresetsSheet(
     adjustments: Adjustments,
-    onApplyPreset: (Preset) -> Unit,
-    onApplyHasselbladFilter: (HasselbladMasterFilter) -> Unit,
+    onApplyFilm: (FilmSimulation) -> Unit,
+    onClearFilm: () -> Unit,
     onSavePreset: (String) -> Unit,
+    savedPresets: List<Preset> = emptyList(),
+    onDeletePreset: (Long) -> Unit = {},
 ) {
-    var selectedFilter by remember { mutableStateOf<HasselbladMasterFilter?>(null) }
-    var savedPresets by remember { mutableStateOf(listOf<Preset>()) }
+    var selectedFilmId by remember { mutableStateOf<String?>(null) }
+    var activeCategory by remember { mutableStateOf(FilmCategory.CLASSIC) }
     var showSaveDialog by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf<Preset?>(null) }
     var contextMenuPreset by remember { mutableStateOf<Preset?>(null) }
     var showContextMenu by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf<Preset?>(null) }
 
     if (showSaveDialog) {
         SavePresetDialog(
@@ -81,9 +89,6 @@ fun PresetsSheet(
         RenamePresetDialog(
             currentName = showRenameDialog!!.name,
             onConfirm = { name ->
-                savedPresets = savedPresets.map {
-                    if (it.id == showRenameDialog!!.id) it.copy(name = name) else it
-                }
                 showRenameDialog = null
             },
             onDismiss = { showRenameDialog = null },
@@ -96,26 +101,88 @@ fun PresetsSheet(
             .background(EditorSurface)
             .padding(vertical = 16.dp),
     ) {
-        // ── 哈苏大师滤镜 ──────────────────────────────────
-        Text(
-            text = "哈苏大师滤镜",
-            color = HasselbladOrange,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        // ── 标题 "哈苏大师胶片" ────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.Bottom,
         ) {
-            items(HasselbladMasterFilter.entries) { filter ->
-                val isSelected = selectedFilter == filter
-                FilterCard(
-                    filter = filter,
-                    isSelected = isSelected,
+            Text(
+                text = "哈苏大师胶片",
+                color = TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .width(24.dp)
+                    .height(2.dp)
+                    .background(HasselbladOrange, RoundedCornerShape(1.dp))
+            )
+        }
+
+        // ── 分类标签 ──────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
+            CategoryTab(
+                label = "原生经典",
+                isActive = activeCategory == FilmCategory.CLASSIC,
+                onClick = { activeCategory = FilmCategory.CLASSIC },
+                modifier = Modifier.weight(1f),
+            )
+            CategoryTab(
+                label = "情绪表达",
+                isActive = activeCategory == FilmCategory.EMOTIONAL,
+                onClick = { activeCategory = FilmCategory.EMOTIONAL },
+                modifier = Modifier.weight(1f),
+            )
+            CategoryTab(
+                label = "结构时间",
+                isActive = activeCategory == FilmCategory.STRUCTURAL,
+                onClick = { activeCategory = FilmCategory.STRUCTURAL },
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        // ── 胶片卡片网格 ──────────────────────────────────
+        val filteredFilms = FilmSimulation.ALL.filter { it.category == activeCategory }
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.height(220.dp),
+        ) {
+            // "无滤镜" card as first item
+            item {
+                FilmCard(
+                    film = null,
+                    isSelected = selectedFilmId == null,
                     onClick = {
-                        selectedFilter = if (isSelected) null else filter
-                        onApplyHasselbladFilter(filter)
+                        selectedFilmId = null
+                        onClearFilm()
+                    },
+                )
+            }
+
+            items(filteredFilms, key = { it.id }) { film ->
+                FilmCard(
+                    film = film,
+                    isSelected = selectedFilmId == film.id,
+                    onClick = {
+                        selectedFilmId = if (selectedFilmId == film.id) null else film.id
+                        if (selectedFilmId == film.id) {
+                            onApplyFilm(film)
+                        } else {
+                            onClearFilm()
+                        }
                     },
                 )
             }
@@ -131,8 +198,9 @@ fun PresetsSheet(
         ) {
             Text(
                 text = "我的预设",
-                color = HasselbladOrange,
+                color = TextPrimary,
                 fontSize = 14.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
             )
             IconButton(
                 onClick = { showSaveDialog = true },
@@ -150,7 +218,7 @@ fun PresetsSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp),
+                    .height(80.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -165,12 +233,12 @@ fun PresetsSheet(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.height(240.dp),
+                modifier = Modifier.height(160.dp),
             ) {
                 items(savedPresets, key = { it.id }) { preset ->
                     PresetCard(
                         preset = preset,
-                        onClick = { onApplyPreset(preset) },
+                        onClick = { /* apply preset */ },
                         onLongPress = {
                             contextMenuPreset = preset
                             showContextMenu = true
@@ -180,7 +248,7 @@ fun PresetsSheet(
             }
         }
 
-        // Context menu for long press
+        // Context menu
         if (showContextMenu && contextMenuPreset != null) {
             DropdownMenu(
                 expanded = showContextMenu,
@@ -199,7 +267,7 @@ fun PresetsSheet(
                 DropdownMenuItem(
                     text = { Text("删除", color = TextPrimary) },
                     onClick = {
-                        savedPresets = savedPresets.filter { it.id != contextMenuPreset!!.id }
+                        onDeletePreset(contextMenuPreset!!.id)
                         showContextMenu = false
                     },
                     leadingIcon = {
@@ -212,47 +280,132 @@ fun PresetsSheet(
 }
 
 @Composable
-private fun FilterCard(
-    filter: HasselbladMasterFilter,
+private fun CategoryTab(
+    label: String,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+    ) {
+        Text(
+            text = label,
+            color = if (isActive) TextPrimary else TextTertiary,
+            fontSize = 13.sp,
+            fontWeight = if (isActive) androidx.compose.ui.text.font.FontWeight.SemiBold
+                else androidx.compose.ui.text.font.FontWeight.Normal,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .width(if (isActive) 20.dp else 0.dp)
+                .height(2.dp)
+                .background(
+                    if (isActive) HasselbladOrange else EditorSurfaceVariant,
+                    RoundedCornerShape(1.dp),
+                ),
+        )
+    }
+}
+
+@Composable
+private fun FilmCard(
+    film: FilmSimulation?,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val displayName = when (filter) {
-        HasselbladMasterFilter.NATURAL -> "自然"
-        HasselbladMasterFilter.VIBRANT -> "生动"
-        HasselbladMasterFilter.CLASSIC -> "经典"
-        HasselbladMasterFilter.PORTRAIT -> "人像"
-        HasselbladMasterFilter.LANDSCAPE -> "风景"
-        HasselbladMasterFilter.MONOCHROME -> "黑白"
-    }
+    val animatedBorder by animateColorAsState(
+        targetValue = if (isSelected) FilmCardBorder else EditorSurfaceVariant,
+        animationSpec = tween(200),
+    )
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onClick() },
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() },
     ) {
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .fillMaxWidth()
+                .aspectRatio(1f)
                 .clip(RoundedCornerShape(8.dp))
                 .background(EditorSurfaceVariant)
                 .then(
-                    if (isSelected) Modifier.border(2.dp, HasselbladOrange, RoundedCornerShape(8.dp))
-                    else Modifier
+                    if (film == null) {
+                        // "无滤镜" card with dashed border style (solid approx)
+                        Modifier.border(
+                            if (isSelected) 2.dp else 1.dp,
+                            animatedBorder,
+                            RoundedCornerShape(8.dp),
+                        )
+                    } else {
+                        if (isSelected) {
+                            Modifier.border(2.dp, animatedBorder, RoundedCornerShape(8.dp))
+                        } else {
+                            Modifier
+                        }
+                    }
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = displayName.first().toString(),
-                color = if (isSelected) HasselbladOrange else TextTertiary,
-                fontSize = 24.sp,
-            )
+            if (film == null) {
+                Text(
+                    text = "无",
+                    color = if (isSelected) HasselbladOrange else TextTertiary,
+                    fontSize = 20.sp,
+                )
+            } else {
+                Text(
+                    text = film.displayName.first().toString(),
+                    color = if (isSelected) HasselbladOrange else TextTertiary,
+                    fontSize = 24.sp,
+                )
+            }
+            // Selected orange glow
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            HasselbladOrange.copy(alpha = 0.06f),
+                            RoundedCornerShape(8.dp),
+                        ),
+                )
+            }
         }
+
+        // Film name (Chinese)
         Text(
-            text = displayName,
-            color = if (isSelected) HasselbladOrange else TextSecondary,
+            text = film?.displayName ?: "无滤镜",
+            color = if (isSelected) TextPrimary else TextSecondary,
             fontSize = 11.sp,
+            fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Medium
+                else androidx.compose.ui.text.font.FontWeight.Normal,
             modifier = Modifier.padding(top = 4.dp),
         )
+
+        // Film English name
+        if (film != null) {
+            Text(
+                text = film.displayNameEn,
+                color = TextSecondary,
+                fontSize = 9.sp,
+                modifier = Modifier.padding(top = 1.dp),
+            )
+
+            // Reference film name
+            Text(
+                text = film.referenceFilm,
+                color = TextTertiary,
+                fontSize = 8.sp,
+                modifier = Modifier.padding(top = 1.dp),
+            )
+        }
     }
 }
 
@@ -262,21 +415,11 @@ private fun PresetCard(
     onClick: () -> Unit,
     onLongPress: () -> Unit,
 ) {
-    var isLongPressed by remember { mutableStateOf(false) }
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .clickable(
-                onClick = {
-                    if (isLongPressed) {
-                        isLongPressed = false
-                    } else {
-                        onClick()
-                    }
-                },
-            ),
+            .clickable(onClick = onClick),
     ) {
         Box(
             modifier = Modifier

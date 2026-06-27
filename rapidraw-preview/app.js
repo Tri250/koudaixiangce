@@ -1,4 +1,4 @@
-/* ==================== RapidRAW App ==================== */
+/* ==================== RapidRAW App - Hasselblad Master Film Edition ==================== */
 
 (function() {
   'use strict';
@@ -26,38 +26,53 @@
     { id: 18, prompt: 'foggy morning lake reflection calm', raw: false, stars: 5, folder: 'dcim' },
   ];
 
-  const FILTER_PRESETS = {
-    natural: { brightness: 0, contrast: 0, saturate: 100, 'hue-rotate': 0, sepia: 0, grayscale: 0 },
-    vibrant: { brightness: 5, contrast: 10, saturate: 140, 'hue-rotate': 0, sepia: 0, grayscale: 0 },
-    classic: { brightness: 2, contrast: 5, saturate: 85, 'hue-rotate': -5, sepia: 15, grayscale: 0 },
-    portrait: { brightness: 5, contrast: -3, saturate: 95, 'hue-rotate': 3, sepia: 8, grayscale: 0 },
-    landscape: { brightness: 0, contrast: 15, saturate: 115, 'hue-rotate': 0, sepia: 0, grayscale: 0 },
-    monochrome: { brightness: 3, contrast: 10, saturate: 0, 'hue-rotate': 0, sepia: 0, grayscale: 100 },
-  };
+  // 9 Hasselblad Master Films
+  const FILMS = [
+    { id: 'none', name: '无滤镜', nameEn: '', ref: '', category: 'all', char: '无',
+      gradient: 'linear-gradient(135deg, #2E2E2E, #3A3A3A)' },
+    // 原生经典
+    { id: 'hewa', name: '和光', nameEn: 'Natural', ref: 'Kodak Portra 400', category: 'classic', char: '和',
+      gradient: 'linear-gradient(135deg, #8B7355, #D2B48C, #87CEEB)',
+      css: { brightness: 1.05, contrast: 0.95, saturate: 0.92, sepia: 0.03, 'hue-rotate': 2 } },
+    { id: 'nongyu', name: '浓郁', nameEn: 'Vibrant', ref: 'Fujifilm Pro 400H', category: 'classic', char: '浓',
+      gradient: 'linear-gradient(135deg, #1A5276, #2ECC71, #1ABC9C)',
+      css: { brightness: 1.02, contrast: 1.1, saturate: 1.15, sepia: 0, 'hue-rotate': -2 } },
+    { id: 'fugu', name: '复古', nameEn: 'Retro', ref: 'Kodak Gold 200', category: 'classic', char: '复',
+      gradient: 'linear-gradient(135deg, #8B6914, #CD853F, #DEB887)',
+      css: { brightness: 1.0, contrast: 1.05, saturate: 0.92, sepia: 0.15, 'hue-rotate': -5 } },
+    // 情绪表达
+    { id: 'qingxin', name: '清新', nameEn: 'Fresh', ref: 'Fujifilm Superia', category: 'emotional', char: '清',
+      gradient: 'linear-gradient(135deg, #A8D8EA, #E8F4FD, #F5F5F5)',
+      css: { brightness: 1.12, contrast: 0.88, saturate: 0.8, sepia: 0, 'hue-rotate': -1 } },
+    { id: 'tongtou', name: '通透', nameEn: 'Clarity', ref: 'Hasselblad HNCS', category: 'emotional', char: '通',
+      gradient: 'linear-gradient(135deg, #BDC3C7, #ECF0F1, #FFFFFF)',
+      css: { brightness: 1.02, contrast: 1.0, saturate: 1.03, sepia: 0, 'hue-rotate': 0 } },
+    // 结构时间
+    { id: 'nihong', name: '霓虹', nameEn: 'Neon', ref: 'CineStill 800T', category: 'structural', char: '霓',
+      gradient: 'linear-gradient(135deg, #E8600C, #FF6B6B, #4ECDC4)',
+      css: { brightness: 1.0, contrast: 1.2, saturate: 1.12, sepia: 0.05, 'hue-rotate': 3 } },
+    { id: 'lengdiao', name: '冷调闪光', nameEn: 'Cool Flash', ref: 'Early CCD Digital', category: 'structural', char: '冷',
+      gradient: 'linear-gradient(135deg, #2C3E50, #3498DB, #85C1E9)',
+      css: { brightness: 0.98, contrast: 1.08, saturate: 0.95, sepia: 0, 'hue-rotate': -8 } },
+    { id: 'nuandiao', name: '暖调闪光', nameEn: 'Warm Flash', ref: 'Early CCD Digital (Warm)', category: 'structural', char: '暖',
+      gradient: 'linear-gradient(135deg, #D4A574, #E8C39E, #F5DEB3)',
+      css: { brightness: 1.02, contrast: 1.05, saturate: 1.03, sepia: 0.1, 'hue-rotate': 5 } },
+    { id: 'heibai', name: '反差黑白', nameEn: 'Noir', ref: 'Kodak Tri-X 400', category: 'structural', char: '黑',
+      gradient: 'linear-gradient(135deg, #1a1a1a, #555, #aaa)',
+      css: { brightness: 1.03, contrast: 1.25, saturate: 0, sepia: 0, 'hue-rotate': 0 } },
+  ];
 
   const SLIDER_RANGES = {
-    exposure: { min: -100, max: 100, css: 'brightness', cssUnit: '%', cssBase: 100, cssScale: 0.5 },
-    brightness: { min: -100, max: 100, css: 'brightness', cssUnit: '%', cssBase: 100, cssScale: 0.4 },
-    contrast: { min: -100, max: 100, css: 'contrast', cssUnit: '%', cssBase: 100, cssScale: 0.5 },
-    highlights: { min: -100, max: 100, css: null },
-    shadows: { min: -100, max: 100, css: null },
-    whites: { min: -100, max: 100, css: null },
-    blacks: { min: -100, max: 100, css: null },
+    intensity:   { min: -100, max: 100, css: 'brightness', cssUnit: '%', cssBase: 100, cssScale: 0.5 },
+    softlight:   { min: -100, max: 100, css: null },
+    tone:        { min: -100, max: 100, css: 'contrast', cssUnit: '%', cssBase: 100, cssScale: 0.5 },
+    saturation:  { min: -100, max: 100, css: 'saturate', cssUnit: '%', cssBase: 100, cssScale: 1.0 },
     temperature: { min: -100, max: 100, css: 'sepia', cssUnit: '%', cssBase: 0, cssScale: 0.3 },
-    tint: { min: -100, max: 100, css: 'hue-rotate', cssUnit: 'deg', cssBase: 0, cssScale: 0.5 },
-    saturation: { min: -100, max: 100, css: 'saturate', cssUnit: '%', cssBase: 100, cssScale: 1.0 },
-    vibrance: { min: -100, max: 100, css: 'saturate', cssUnit: '%', cssBase: 100, cssScale: 0.5 },
-    vignette: { min: 0, max: 100, css: null },
-    grain: { min: 0, max: 100, css: null },
-    glow: { min: 0, max: 100, css: null },
-    sharpness: { min: 0, max: 100, css: null },
-    'detail-amount': { min: 0, max: 100, css: null },
-    'noise-reduction': { min: 0, max: 100, css: null },
-    'color-noise': { min: 0, max: 100, css: null },
-    'hsl-hue': { min: -100, max: 100, css: 'hue-rotate', cssUnit: 'deg', cssBase: 0, cssScale: 0.3 },
-    'hsl-sat': { min: -100, max: 100, css: null },
-    'hsl-lum': { min: -100, max: 100, css: null },
-    rotation: { min: -180, max: 180, css: null },
+    tint:        { min: -100, max: 100, css: 'hue-rotate', cssUnit: 'deg', cssBase: 0, cssScale: 0.5 },
+    sharpness:   { min: 0, max: 100, css: null },
+    vignette:    { min: 0, max: 100, css: null },
+    dehaze:      { min: -100, max: 100, css: null },
+    rotation:    { min: -180, max: 180, css: null },
   };
 
   // ==================== STATE ====================
@@ -66,11 +81,12 @@
     currentView: 'library',
     currentFolder: 'all',
     currentImage: null,
-    activeFilter: 'natural',
-    activeTab: 'basic',
+    activeFilm: 'none',
+    activeTab: 'film',
+    activeFilmCategory: 'classic',
     sliderValues: {},
-    undoStack: [],
-    redoStack: [],
+    isSmartOptimized: false,
+    isLongPressing: false,
   };
 
   // ==================== HELPERS ====================
@@ -80,6 +96,10 @@
 
   function getImageUrl(prompt) {
     return `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(prompt)}&image_size=landscape_4_3`;
+  }
+
+  function getFallbackSvg(id, w, h) {
+    return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect fill="#2E2E2E" width="${w}" height="${h}"/><text x="${w/2}" y="${h/2+5}" text-anchor="middle" fill="#8C8C8C" font-size="14" font-family="sans-serif">IMG_${id}</text></svg>`)}`;
   }
 
   function showToast(msg) {
@@ -113,9 +133,7 @@
       img.loading = 'lazy';
       img.src = getImageUrl(photo.prompt);
       img.alt = photo.prompt;
-      img.onerror = function() {
-        this.src = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#2E2E2E" width="200" height="200"/><text x="100" y="105" text-anchor="middle" fill="#666" font-size="13" font-family="sans-serif">IMG_${photo.id}</text></svg>`)}`;
-      };
+      img.onerror = function() { this.src = getFallbackSvg(photo.id, 200, 200); };
 
       item.appendChild(img);
 
@@ -168,24 +186,47 @@
   function openEditor(photo) {
     state.currentImage = photo;
     state.sliderValues = {};
-    state.activeFilter = 'natural';
+    state.activeFilm = 'none';
+    state.isSmartOptimized = false;
 
     const preview = $('#preview-image');
     preview.src = getImageUrl(photo.prompt);
-    preview.onerror = function() {
-      this.src = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="#2E2E2E" width="400" height="300"/><text x="200" y="155" text-anchor="middle" fill="#999" font-size="16" font-family="sans-serif">IMG_${photo.id}</text></svg>`)}`;
-    };
+    preview.onerror = function() { this.src = getFallbackSvg(photo.id, 400, 300); };
 
-    renderFilmstrip();
     resetAllSliders();
     applyImageFilter();
+
+    // Smart auto-optimization on load
+    setTimeout(() => {
+      simulateSmartOptimize();
+    }, 600);
 
     switchView('editor');
     animateHistogram();
   }
 
+  function simulateSmartOptimize() {
+    state.isSmartOptimized = true;
+    const badge = $('#optimized-badge');
+    if (badge) {
+      badge.style.opacity = '1';
+    }
+    // Apply a subtle auto-enhancement via CSS filter
+    const img = $('#preview-image');
+    if (img) {
+      const currentFilter = img.style.filter || '';
+      // Smart optimize: slight brightness/contrast/saturation boost
+      const optimizeFilter = 'brightness(1.04) contrast(1.06) saturate(1.05)';
+      img.style.filter = currentFilter ? currentFilter + ' ' + optimizeFilter : optimizeFilter;
+    }
+    showToast('智能优化完成');
+  }
+
   function closeEditor() {
     state.currentImage = null;
+    state.isSmartOptimized = false;
+    const badge = $('#optimized-badge');
+    if (badge) badge.style.opacity = '0';
     switchView('library');
   }
 
@@ -196,7 +237,6 @@
 
     prev.classList.remove('active');
     prev.classList.add('exit-left');
-
     next.classList.add('active');
 
     setTimeout(() => {
@@ -204,25 +244,6 @@
     }, 400);
 
     state.currentView = view;
-  }
-
-  function renderFilmstrip() {
-    const strip = $('#filmstrip');
-    strip.innerHTML = '';
-    PHOTOS.forEach(photo => {
-      const item = document.createElement('div');
-      item.className = `filmstrip-item${state.currentImage && photo.id === state.currentImage.id ? ' active' : ''}`;
-      const img = document.createElement('img');
-      img.loading = 'lazy';
-      img.src = getImageUrl(photo.prompt);
-      img.alt = '';
-      img.onerror = function() {
-        this.src = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><rect fill="#2E2E2E" width="44" height="44"/></svg>`)}`;
-      };
-      item.appendChild(img);
-      item.addEventListener('click', () => openEditor(photo));
-      strip.appendChild(item);
-    });
   }
 
   // ==================== TABS ====================
@@ -236,10 +257,84 @@
         const panel = $(`.panel-content[data-panel="${tab.dataset.tab}"]`);
         if (panel) panel.classList.add('active');
         state.activeTab = tab.dataset.tab;
+      });
+    });
+  }
 
-        if (tab.dataset.tab === 'curve') {
-          drawCurve();
+  // ==================== FILM GRID ====================
+
+  function renderFilmGrid() {
+    const grid = $('#film-grid');
+    grid.innerHTML = '';
+
+    const category = state.activeFilmCategory;
+    const filteredFilms = FILMS.filter(f => f.category === category || f.id === 'none');
+
+    // Always include "无滤镜" at the start
+    const noFilter = FILMS[0]; // id: 'none'
+    const categoryFilms = FILMS.filter(f => f.category === category);
+    const filmsToShow = [noFilter, ...categoryFilms];
+
+    filmsToShow.forEach(film => {
+      const card = document.createElement('div');
+      card.className = `film-card${film.id === 'none' ? ' nofilter' : ''}${state.activeFilm === film.id ? ' active' : ''}`;
+      card.dataset.film = film.id;
+
+      const thumb = document.createElement('div');
+      thumb.className = 'film-card-thumb';
+      if (film.gradient) {
+        thumb.style.background = film.gradient;
+      }
+
+      const char = document.createElement('span');
+      char.className = 'film-char';
+      char.textContent = film.char;
+      thumb.appendChild(char);
+
+      card.appendChild(thumb);
+
+      const name = document.createElement('div');
+      name.className = 'film-card-name';
+      name.textContent = film.name;
+      card.appendChild(name);
+
+      if (film.nameEn) {
+        const nameEn = document.createElement('div');
+        nameEn.className = 'film-card-name-en';
+        nameEn.textContent = film.nameEn;
+        card.appendChild(nameEn);
+      }
+
+      if (film.ref) {
+        const ref = document.createElement('div');
+        ref.className = 'film-card-ref';
+        ref.textContent = film.ref;
+        card.appendChild(ref);
+      }
+
+      card.addEventListener('click', () => {
+        $$('.film-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        state.activeFilm = film.id;
+        applyImageFilter();
+        if (film.id === 'none') {
+          showToast('已清除滤镜');
+        } else {
+          showToast(`已应用: ${film.name}`);
         }
+      });
+
+      grid.appendChild(card);
+    });
+  }
+
+  function initFilmCategoryTabs() {
+    $$('.film-cat-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        $$('.film-cat-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        state.activeFilmCategory = tab.dataset.cat;
+        renderFilmGrid();
       });
     });
   }
@@ -304,7 +399,6 @@
         setSliderValue(pct);
       }
 
-      // Pointer events
       trackContainer.addEventListener('mousedown', (e) => {
         isDragging = true;
         thumb.classList.add('dragging');
@@ -395,21 +489,18 @@
     const filters = [];
     const vals = state.sliderValues;
 
-    // Exposure & Brightness → CSS brightness
-    const exposure = vals.exposure || 0;
-    const brightness = vals.brightness || 0;
-    const totalBrightness = 1 + (exposure * 0.005) + (brightness * 0.004);
-    filters.push(`brightness(${totalBrightness})`);
+    // Intensity & brightness
+    const intensity = vals.intensity || 0;
+    const totalBrightness = 1 + (intensity * 0.005);
+    if (intensity !== 0) filters.push(`brightness(${totalBrightness})`);
 
-    // Contrast
-    const contrast = vals.contrast || 0;
-    filters.push(`contrast(${1 + contrast * 0.005})`);
+    // Tone → contrast
+    const tone = vals.tone || 0;
+    if (tone !== 0) filters.push(`contrast(${1 + tone * 0.005})`);
 
-    // Saturation & Vibrance
+    // Saturation
     const saturation = vals.saturation || 0;
-    const vibrance = vals.vibrance || 0;
-    const totalSaturate = 1 + (saturation * 0.01) + (vibrance * 0.005);
-    filters.push(`saturate(${totalSaturate})`);
+    if (saturation !== 0) filters.push(`saturate(${1 + saturation * 0.01})`);
 
     // Temperature → sepia
     const temperature = vals.temperature || 0;
@@ -423,28 +514,33 @@
       filters.push(`hue-rotate(${tint * 0.5}deg)`);
     }
 
-    // Apply filter preset
-    const preset = FILTER_PRESETS[state.activeFilter];
-    if (preset && state.activeFilter !== 'natural') {
-      // Combine with slider values
-      if (preset.sepia) {
-        const existingSepia = temperature > 0 ? temperature * 0.003 : 0;
-        // Preset already accounted for; keep it additive
+    // Film simulation CSS filter
+    const activeFilmData = FILMS.find(f => f.id === state.activeFilm);
+    if (activeFilmData && activeFilmData.css) {
+      const filmCss = activeFilmData.css;
+      if (filmCss.brightness && filmCss.brightness !== 1) {
+        filters.push(`brightness(${filmCss.brightness})`);
       }
-      filters.push(`sepia(${(preset.sepia || 0) / 100})`);
-      if (preset['hue-rotate']) {
-        filters.push(`hue-rotate(${preset['hue-rotate']}deg)`);
+      if (filmCss.contrast && filmCss.contrast !== 1) {
+        filters.push(`contrast(${filmCss.contrast})`);
+      }
+      if (filmCss.saturate !== undefined && filmCss.saturate !== 1) {
+        filters.push(`saturate(${filmCss.saturate})`);
+      }
+      if (filmCss.sepia && filmCss.sepia > 0) {
+        filters.push(`sepia(${filmCss.sepia})`);
+      }
+      if (filmCss['hue-rotate'] && filmCss['hue-rotate'] !== 0) {
+        filters.push(`hue-rotate(${filmCss['hue-rotate']}deg)`);
       }
     }
 
-    // Glow → blur overlay simulation
-    const glow = vals.glow || 0;
-    if (glow > 0) {
-      // Slight brightness boost simulates glow
-      filters.push(`brightness(${1 + glow * 0.002})`);
+    // Smart optimize base
+    if (state.isSmartOptimized) {
+      filters.push('brightness(1.04)', 'contrast(1.06)', 'saturate(1.05)');
     }
 
-    img.style.filter = filters.join(' ');
+    img.style.filter = filters.length > 0 ? filters.join(' ') : 'none';
 
     // Vignette overlay
     updateVignette(vals.vignette || 0);
@@ -469,121 +565,88 @@
     overlay.style.opacity = (amount / 100).toString();
   }
 
-  // ==================== FILTER CARDS ====================
+  // ==================== LONG-PRESS PREVIEW ====================
 
-  function initFilterCards() {
-    $$('.filter-card').forEach(card => {
-      card.addEventListener('click', () => {
-        $$('.filter-card').forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        state.activeFilter = card.dataset.filter;
+  function initLongPress() {
+    const previewArea = $('#preview-area');
+    const overlay = $('#original-overlay');
+    let pressTimer = null;
+    let savedFilter = '';
+
+    previewArea.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.histogram-overlay') || e.target.closest('.optimized-badge')) return;
+      pressTimer = setTimeout(() => {
+        state.isLongPressing = true;
+        savedFilter = $('#preview-image').style.filter;
+        $('#preview-image').style.filter = 'none';
+        overlay.classList.add('visible');
+      }, 500);
+    });
+
+    previewArea.addEventListener('mouseup', () => {
+      clearTimeout(pressTimer);
+      if (state.isLongPressing) {
+        state.isLongPressing = false;
+        overlay.classList.remove('visible');
         applyImageFilter();
-        showToast(`已应用: ${card.querySelector('.filter-name').textContent}`);
-      });
+      }
+    });
+
+    previewArea.addEventListener('mouseleave', () => {
+      clearTimeout(pressTimer);
+      if (state.isLongPressing) {
+        state.isLongPressing = false;
+        overlay.classList.remove('visible');
+        applyImageFilter();
+      }
+    });
+
+    // Touch support
+    previewArea.addEventListener('touchstart', (e) => {
+      if (e.target.closest('.histogram-overlay') || e.target.closest('.optimized-badge')) return;
+      pressTimer = setTimeout(() => {
+        state.isLongPressing = true;
+        savedFilter = $('#preview-image').style.filter;
+        $('#preview-image').style.filter = 'none';
+        overlay.classList.add('visible');
+      }, 500);
+    }, { passive: true });
+
+    previewArea.addEventListener('touchend', () => {
+      clearTimeout(pressTimer);
+      if (state.isLongPressing) {
+        state.isLongPressing = false;
+        overlay.classList.remove('visible');
+        applyImageFilter();
+      }
     });
   }
 
-  // ==================== HSL CHIPS ====================
+  // ==================== CROP PANEL ====================
 
-  function initHslChips() {
-    $$('.hsl-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        $$('.hsl-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-      });
-    });
-  }
-
-  // ==================== CURVE CANVAS ====================
-
-  function drawCurve() {
-    const canvas = $('#curve-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Grid
-    ctx.strokeStyle = '#3A3A3A';
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i <= 4; i++) {
-      const x = (w / 4) * i;
-      const y = (h / 4) * i;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-
-    // Diagonal (linear)
-    ctx.strokeStyle = '#666';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(0, h);
-    ctx.lineTo(w, 0);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Curve
-    const activeChannel = $('.curve-chip.active')?.dataset.channel || 'rgb';
-    const colors = { rgb: '#F0F0F0', r: '#FF5555', g: '#55FF55', b: '#5599FF' };
-    ctx.strokeStyle = colors[activeChannel] || '#F0F0F0';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, h);
-
-    // S-curve
-    const points = [];
-    for (let x = 0; x <= w; x++) {
-      const t = x / w;
-      // S-curve: gentle
-      const y = h - (h * (3 * t * t - 2 * t * t * t));
-      points.push({ x, y });
-    }
-
-    ctx.moveTo(0, h);
-    for (const pt of points) {
-      ctx.lineTo(pt.x, pt.y);
-    }
-    ctx.stroke();
-
-    // Control points
-    ctx.fillStyle = colors[activeChannel] || '#F0F0F0';
-    const cp1 = { x: w * 0.25, y: h * 0.75 };
-    const cp2 = { x: w * 0.75, y: h * 0.25 };
-    [cp1, cp2].forEach(cp => {
-      ctx.beginPath();
-      ctx.arc(cp.x, cp.y, 4, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  }
-
-  function initCurveChips() {
-    $$('.curve-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        $$('.curve-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        drawCurve();
-      });
-    });
-  }
-
-  // ==================== GEOMETRY ====================
-
-  function initGeoButtons() {
-    $$('.geo-btn').forEach(btn => {
+  function initCropButtons() {
+    $$('.crop-ratio-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        $$('.geo-btn').forEach(b => b.classList.remove('active'));
+        $$('.crop-ratio-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        if (btn.dataset.ratio !== 'free') {
+          showToast(`裁剪比例: ${btn.dataset.ratio}`);
+        } else {
+          showToast('自由裁剪');
+        }
       });
     });
+
+    // Crop tool buttons
+    const btnFlipH = $('#btn-flip-h');
+    const btnFlipV = $('#btn-flip-v');
+    const btnRotateCcw = $('#btn-rotate-ccw');
+    const btnRotateCw = $('#btn-rotate-cw');
+
+    if (btnFlipH) btnFlipH.addEventListener('click', () => showToast('水平翻转'));
+    if (btnFlipV) btnFlipV.addEventListener('click', () => showToast('垂直翻转'));
+    if (btnRotateCcw) btnRotateCcw.addEventListener('click', () => showToast('逆时针旋转90°'));
+    if (btnRotateCw) btnRotateCw.addEventListener('click', () => showToast('顺时针旋转90°'));
   }
 
   // ==================== HISTOGRAM ====================
@@ -600,7 +663,6 @@
 
       for (let i = 0; i < numBars; i++) {
         const x = i / numBars;
-        // Bell curve-ish distribution with some randomness
         const center1 = 0.35;
         const center2 = 0.65;
         const val = Math.exp(-((x - center1) ** 2) / 0.05) * 0.8
@@ -611,7 +673,6 @@
         if (val > maxVal) maxVal = val;
       }
 
-      // Build SVG path
       const width = 120;
       const height = 60;
       let d = `M 0 ${height}`;
@@ -627,12 +688,11 @@
       return d;
     }
 
-    // Animate
     let frame = 0;
     function animate() {
       if (state.currentView !== 'editor') return;
       frame++;
-      if (frame % 120 === 0) { // Update every ~2s
+      if (frame % 120 === 0) {
         path.setAttribute('d', generateHistogram());
       }
       requestAnimationFrame(animate);
@@ -641,35 +701,7 @@
     animate();
   }
 
-  // ==================== BOTTOM SHEETS ====================
-
-  function openSheet(sheetId) {
-    const sheet = $(`#${sheetId}`);
-    const overlay = $(`#${sheetId}-overlay`);
-    if (sheet) sheet.classList.add('visible');
-    if (overlay) overlay.classList.add('visible');
-  }
-
-  function closeSheet(sheetId) {
-    const sheet = $(`#${sheetId}`);
-    const overlay = $(`#${sheetId}-overlay`);
-    if (sheet) sheet.classList.remove('visible');
-    if (overlay) overlay.classList.remove('visible');
-  }
-
-  function initSheets() {
-    // Filter sheet
-    $('#fab-filters').addEventListener('click', () => openSheet('filter-sheet'));
-    $('#close-filter-sheet').addEventListener('click', () => closeSheet('filter-sheet'));
-    $('#filter-sheet-overlay').addEventListener('click', () => closeSheet('filter-sheet'));
-
-    // Export sheet
-    $('#btn-more').addEventListener('click', () => openSheet('export-sheet'));
-    $('#close-export-sheet').addEventListener('click', () => closeSheet('export-sheet'));
-    $('#export-sheet-overlay').addEventListener('click', () => closeSheet('export-sheet'));
-  }
-
-  // ==================== EXPORT OPTIONS ====================
+  // ==================== EXPORT ====================
 
   function initExportOptions() {
     // Format radio
@@ -700,13 +732,13 @@
 
     // Export button
     $('#btn-export').addEventListener('click', () => {
-      closeSheet('export-sheet');
       showToast('正在导出...');
     });
   }
 
   function initExportSlider() {
     const track = $('.export-slider-track');
+    if (!track) return;
     const fill = track.querySelector('.export-slider-fill');
     const thumb = track.querySelector('.export-slider-thumb');
     const valEl = $('#quality-val');
@@ -714,7 +746,7 @@
 
     function setQuality(pct) {
       pct = Math.max(0, Math.min(1, pct));
-      const val = Math.round(50 + pct * 50); // 50-100
+      const val = Math.round(50 + pct * 50);
       fill.style.width = (pct * 100) + '%';
       thumb.style.left = (pct * 100) + '%';
       valEl.textContent = val;
@@ -753,44 +785,10 @@
   // ==================== EDITOR ACTIONS ====================
 
   function initEditorActions() {
-    // Back button
     $('#btn-back').addEventListener('click', closeEditor);
-
-    // Undo/Redo
     $('#btn-undo').addEventListener('click', () => showToast('撤销'));
     $('#btn-redo').addEventListener('click', () => showToast('重做'));
-
-    // EXIF
     $('#btn-exif').addEventListener('click', () => showToast('EXIF 信息'));
-
-    // Crop
-    $('#btn-crop').addEventListener('click', () => showToast('裁剪模式'));
-  }
-
-  // ==================== CURVE CANVAS INTERACTION ====================
-
-  function initCurveInteraction() {
-    const canvas = $('#curve-canvas');
-    if (!canvas) return;
-
-    let isDragging = false;
-
-    canvas.addEventListener('mousedown', (e) => {
-      isDragging = true;
-      drawCurveAtPoint(e);
-    });
-
-    canvas.addEventListener('mousemove', (e) => {
-      if (isDragging) drawCurveAtPoint(e);
-    });
-
-    canvas.addEventListener('mouseup', () => isDragging = false);
-    canvas.addEventListener('mouseleave', () => isDragging = false);
-
-    function drawCurveAtPoint(e) {
-      // Simplified visual feedback
-      drawCurve();
-    }
   }
 
   // ==================== INITIALIZATION ====================
@@ -801,23 +799,18 @@
     initBottomNav();
     initTabs();
     initSliders();
-    initHslChips();
-    initCurveChips();
-    initCurveInteraction();
-    initGeoButtons();
-    initSheets();
+    initFilmCategoryTabs();
+    renderFilmGrid();
+    initCropButtons();
     initExportOptions();
     initEditorActions();
-    initFilterCards();
+    initLongPress();
 
-    // Hide zoom hint after animation
-    setTimeout(() => {
-      const hint = $('#zoom-hint');
-      if (hint) hint.style.display = 'none';
-    }, 3500);
+    // Hide optimized badge initially
+    const badge = $('#optimized-badge');
+    if (badge) badge.style.opacity = '0';
   }
 
-  // Wait for DOM
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

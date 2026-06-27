@@ -13,12 +13,12 @@ val HasselbladOrangeMuted = Color(0x80E8600C)
 val EditorBackground = Color(0xFF1A1A1A)
 val EditorSurface = Color(0xFF242424)
 val EditorSurfaceVariant = Color(0xFF2E2E2E)
-val EditorBorder = Color(0xFF3A3A3A)
+val EditorBorder = Color(0xFF484848)
 
 // 文字色
 val TextPrimary = Color(0xFFF0F0F0)
-val TextSecondary = Color(0xFF999999)
-val TextTertiary = Color(0xFF666666)
+val TextSecondary = Color(0xFFB3B3B3)
+val TextTertiary = Color(0xFF8C8C8C)
 
 // 功能色
 val ClippingRed = Color(0xFFFF4444)
@@ -30,3 +30,14 @@ val WarningYellow = Color(0xFFFFC107)
 val HasselbladGradient = Brush.horizontalGradient(
     colors = listOf(HasselbladOrangeDark, HasselbladOrange, HasselbladOrangeLight)
 )
+
+// UI interaction colors - WHITE system (replaces orange for interactive elements)
+val SliderTrackFill = Color(0xDEFFFFFF)       // 87% white - slider fill
+val SliderTrackEmpty = Color(0x33FFFFFF)       // 20% white - slider empty track
+val SliderThumb = Color(0xF0FFFFFF)            // 94% white - slider thumb
+val TabActiveUnderline = Color(0xDEFFFFFF)     // 87% white - active tab underline
+val TabActiveText = Color(0xF0FFFFFF)          // 94% white - active tab text
+val FilmCardBorder = HasselbladOrange           // Orange ONLY for film card selection
+val ExportButtonBg = HasselbladOrange           // Orange ONLY for export/brand buttons
+val ViewfinderCorner = HasselbladOrange         // Orange ONLY for viewfinder corners
+val BadgeBg = Color(0x80E8600C)               // 50% orange for "已优化" badge

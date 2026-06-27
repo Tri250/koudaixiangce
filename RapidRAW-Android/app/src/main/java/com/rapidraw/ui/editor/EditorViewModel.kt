@@ -8,9 +8,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.GpuPipeline
 import com.rapidraw.core.ImageProcessor
+import com.rapidraw.core.SmartOptimizer
 import com.rapidraw.data.model.Adjustments
 import com.rapidraw.data.model.ExportSettings
-import com.rapidraw.data.model.HasselbladMasterFilter
+import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.ImageFile
 import com.rapidraw.data.model.Preset
 import kotlinx.coroutines.Dispatchers
@@ -23,17 +24,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class EditorPanel {
-    BASIC,
-    COLOR,
-    CURVES,
-    DETAILS,
-    EFFECTS,
-    TRANSFORM,
-    PRESETS,
+enum class EditorTab {
+    FILM,
+    ADJUST,
+    CROP,
     EXPORT,
-    METADATA,
-    MASKS,
 }
 
 class EditorViewModel(
@@ -64,8 +59,20 @@ class EditorViewModel(
     private val _isShowingOriginal = MutableStateFlow(false)
     val isShowingOriginal: StateFlow<Boolean> = _isShowingOriginal.asStateFlow()
 
-    private val _activePanel = MutableStateFlow(EditorPanel.BASIC)
-    val activePanel: StateFlow<EditorPanel> = _activePanel.asStateFlow()
+    private val _activeTab = MutableStateFlow(EditorTab.ADJUST)
+    val activeTab: StateFlow<EditorTab> = _activeTab.asStateFlow()
+
+    private val _showAdvanced = MutableStateFlow(false)
+    val showAdvanced: StateFlow<Boolean> = _showAdvanced.asStateFlow()
+
+    private val _isSmartOptimized = MutableStateFlow(false)
+    val isSmartOptimized: StateFlow<Boolean> = _isSmartOptimized.asStateFlow()
+
+    private val _isSmartOptimizing = MutableStateFlow(false)
+    val isSmartOptimizing: StateFlow<Boolean> = _isSmartOptimizing.asStateFlow()
+
+    private val _selectedFilmId = MutableStateFlow<String?>(null)
+    val selectedFilmId: StateFlow<String?> = _selectedFilmId.asStateFlow()
 
     private val _histogramData = MutableStateFlow<Array<IntArray>>(arrayOf(
         IntArray(256), IntArray(256), IntArray(256), IntArray(256),
@@ -81,10 +88,13 @@ class EditorViewModel(
     private val undoStack = ArrayDeque<Adjustments>(maxSize = 50)
     private val redoStack = ArrayDeque<Adjustments>(maxSize = 50)
 
-    private var originalBitmap: Bitmap? = null
-    private var previewBitmapCache: Bitmap? = null
+    internal var originalBitmap: Bitmap? = null
+        private set
+    internal var previewBitmapCache: Bitmap? = null
+        private set
     private var gpuPipeline: GpuPipeline? = null
     private var previewJob: Job? = null
+    private var smartOptimizeJob: Job? = null
 
     init {
         if (imageFile != null) {
@@ -111,6 +121,11 @@ class EditorViewModel(
                     _previewBitmap.value = processed.preview
                     _isLoading.value = false
                     updateHistogram(processed.preview)
+
+                    // Auto smart optimize if adjustments are all defaults
+                    if (isDefaultAdjustments(_adjustments.value)) {
+                        smartOptimize()
+                    }
                 }
 
                 undoStack.clear()
@@ -126,9 +141,39 @@ class EditorViewModel(
         }
     }
 
+    // ── Quick Adjust Mapping ──────────────────────────────────────────
+
+    fun getQuickAdjustValue(key: String): Float {
+        val adj = _adjustments.value
+        return when (key) {
+            "filmIntensity" -> adj.lutIntensity / 100f
+            "softGlow" -> adj.glowAmount / 100f
+            "toneLevel" -> adj.contrast / 100f
+            "saturation" -> adj.saturation
+            "temperature" -> adj.temperature
+            "greenMagenta" -> adj.tint / 100f
+            "sharpness" -> adj.sharpness.coerceIn(0f, 100f)
+            "vignetteAmount" -> adj.vignetteAmount.coerceIn(0f, 100f)
+            "dehaze" -> adj.dehaze.coerceIn(0f, 100f)
+            else -> 0f
+        }
+    }
+
     fun updateAdjustment(key: String, value: Float) {
         pushUndo()
         _adjustments.value = _adjustments.value.copyByField(key, value)
+        schedulePreviewUpdate()
+    }
+
+    fun updateQuickAdjust(key: String, value: Float) {
+        pushUndo()
+        when (key) {
+            "filmIntensity" -> _adjustments.value = _adjustments.value.copyByField("lutIntensity", value * 100f)
+            "softGlow" -> _adjustments.value = _adjustments.value.copyByField("glowAmount", value * 100f)
+            "toneLevel" -> _adjustments.value = _adjustments.value.copyByField("contrast", value * 100f)
+            "greenMagenta" -> _adjustments.value = _adjustments.value.copyByField("tint", value * 100f)
+            else -> _adjustments.value = _adjustments.value.copyByField(key, value)
+        }
         schedulePreviewUpdate()
     }
 
@@ -138,11 +183,100 @@ class EditorViewModel(
         schedulePreviewUpdate()
     }
 
-    fun applyHasselbladFilter(filter: HasselbladMasterFilter) {
+    // ── Film Simulation ───────────────────────────────────────────────
+
+    fun selectFilm(film: FilmSimulation) {
         pushUndo()
-        _adjustments.value = filter.adjustments
+        _selectedFilmId.value = film.id
+        _adjustments.value = film.baseAdjustments.copy(
+            grainAmount = (film.grainAmount * 100f).coerceIn(0f, 100f),
+            grainSize = (film.grainSize * 50f).coerceIn(0f, 100f),
+            grainRoughness = (film.grainRoughness * 100f).coerceIn(0f, 100f),
+            saturation = film.baseAdjustments.saturation + (film.saturationModifier * 100f).coerceIn(-100f, 100f),
+            contrast = film.baseAdjustments.contrast + (film.contrastModifier * 100f).coerceIn(-100f, 100f),
+        )
         schedulePreviewUpdate()
     }
+
+    fun clearFilm() {
+        pushUndo()
+        _selectedFilmId.value = null
+        _adjustments.value = Adjustments()
+        schedulePreviewUpdate()
+    }
+
+    // ── Tab Navigation ────────────────────────────────────────────────
+
+    fun setTab(tab: EditorTab) {
+        _activeTab.value = tab
+    }
+
+    fun toggleAdvanced() {
+        _showAdvanced.value = !_showAdvanced.value
+    }
+
+    // ── Long-Press Original ───────────────────────────────────────────
+
+    fun onPreviewLongPressStart() {
+        _isShowingOriginal.value = true
+    }
+
+    fun onPreviewLongPressEnd() {
+        _isShowingOriginal.value = false
+    }
+
+    // ── Smart Optimize ────────────────────────────────────────────────
+
+    fun smartOptimize() {
+        val bitmap = previewBitmapCache ?: return
+        if (bitmap.isRecycled) return
+
+        _isSmartOptimizing.value = true
+
+        smartOptimizeJob?.cancel()
+        smartOptimizeJob = viewModelScope.launch(Dispatchers.Default) {
+            delay(100) // Brief delay to show loading state
+
+            val w = bitmap.width
+            val h = bitmap.height
+            val pixels = IntArray(w * h)
+
+            try {
+                bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+
+                val redHist = IntArray(256)
+                val greenHist = IntArray(256)
+                val blueHist = IntArray(256)
+
+                for (pixel in pixels) {
+                    val r = (pixel shr 16) and 0xFF
+                    val g = (pixel shr 8) and 0xFF
+                    val b = pixel and 0xFF
+                    redHist[r]++
+                    greenHist[g]++
+                    blueHist[b]++
+                }
+
+                val optimized = SmartOptimizer.quickEnhance(
+                    redHist, greenHist, blueHist, w, h, _adjustments.value
+                )
+
+                withContext(Dispatchers.Main) {
+                    pushUndo()
+                    _adjustments.value = optimized
+                    _isSmartOptimized.value = true
+                    _isSmartOptimizing.value = false
+                    schedulePreviewUpdate()
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    _isSmartOptimizing.value = false
+                }
+            }
+        }
+    }
+
+    // ── Undo/Redo ─────────────────────────────────────────────────────
 
     fun undo() {
         if (undoStack.isEmpty()) return
@@ -162,13 +296,10 @@ class EditorViewModel(
         schedulePreviewUpdate()
     }
 
+    // ── Other Controls ────────────────────────────────────────────────
+
     fun toggleShowOriginal() {
         _isShowingOriginal.value = !_isShowingOriginal.value
-        if (_isShowingOriginal.value) {
-            _previewBitmap.value = previewBitmapCache
-        } else {
-            schedulePreviewUpdate()
-        }
     }
 
     fun toggleClipping() {
@@ -177,19 +308,67 @@ class EditorViewModel(
         schedulePreviewUpdate()
     }
 
-    fun setActivePanel(panel: EditorPanel) {
-        _activePanel.value = panel
-    }
-
     fun resetAdjustments() {
         pushUndo()
         _adjustments.value = Adjustments()
+        _selectedFilmId.value = null
+        _isSmartOptimized.value = false
         schedulePreviewUpdate()
     }
 
     fun setZoomLevel(level: Float) {
         _zoomLevel.value = level.coerceIn(0.5f, 5f)
     }
+
+    // ── Export ────────────────────────────────────────────────────────
+
+    fun exportImage(settings: ExportSettings) {
+        val source = originalBitmap ?: return
+
+        _isLoading.value = true
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val coreAdjustments = convertToCoreAdjustments(_adjustments.value)
+                val processed = imageProcessor.processFullResolution(coreAdjustments, source)
+
+                val coreExportSettings = com.rapidraw.core.ExportSettings(
+                    format = settings.format.name,
+                    quality = settings.quality,
+                    maxWidth = if (settings.resizeMode == com.rapidraw.data.model.ResizeMode.ORIGINAL) 0
+                    else settings.resizeValue,
+                    maxHeight = 0,
+                    preserveMetadata = settings.keepMetadata,
+                )
+
+                imageProcessor.exportImage(processed, coreExportSettings, context)
+
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
+                }
+            }
+        }
+    }
+
+    // ── Curve Update ──────────────────────────────────────────────────
+
+    fun updateCurve(key: String, points: List<com.rapidraw.data.model.Coord>) {
+        pushUndo()
+        _adjustments.value = when (key) {
+            "lumaCurve" -> _adjustments.value.copy(lumaCurve = points)
+            "redCurve" -> _adjustments.value.copy(redCurve = points)
+            "greenCurve" -> _adjustments.value.copy(greenCurve = points)
+            "blueCurve" -> _adjustments.value.copy(blueCurve = points)
+            else -> _adjustments.value
+        }
+        schedulePreviewUpdate()
+    }
+
+    // ── Internal Helpers ──────────────────────────────────────────────
 
     private fun pushUndo() {
         undoStack.addLast(_adjustments.value)
@@ -199,6 +378,15 @@ class EditorViewModel(
         redoStack.clear()
         _canUndo.value = true
         _canRedo.value = false
+    }
+
+    private fun isDefaultAdjustments(adj: Adjustments): Boolean {
+        return adj.exposure == 0f && adj.brightness == 0f && adj.contrast == 0f &&
+            adj.highlights == 0f && adj.shadows == 0f && adj.whites == 0f &&
+            adj.blacks == 0f && adj.temperature == 0f && adj.tint == 0f &&
+            adj.saturation == 0f && adj.vibrance == 0f && adj.sharpness == 0f &&
+            adj.dehaze == 0f && adj.clarity == 0f && adj.vignetteAmount == 0f &&
+            adj.glowAmount == 0f && adj.lutIntensity == 100f
     }
 
     private fun schedulePreviewUpdate() {
@@ -257,38 +445,6 @@ class EditorViewModel(
                 _histogramData.value = arrayOf(redHist, greenHist, blueHist, lumaHist)
             } catch (_: Exception) {
                 // Bitmap may have been recycled
-            }
-        }
-    }
-
-    fun exportImage(settings: ExportSettings) {
-        val source = originalBitmap ?: return
-
-        _isLoading.value = true
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val coreAdjustments = convertToCoreAdjustments(_adjustments.value)
-                val processed = imageProcessor.processFullResolution(coreAdjustments, source)
-
-                val coreExportSettings = com.rapidraw.core.ExportSettings(
-                    format = settings.format.name,
-                    quality = settings.quality,
-                    maxWidth = if (settings.resizeMode == com.rapidraw.data.model.ResizeMode.ORIGINAL) 0
-                    else settings.resizeValue,
-                    maxHeight = 0,
-                    preserveMetadata = settings.keepMetadata,
-                )
-
-                imageProcessor.exportImage(processed, coreExportSettings, context)
-
-                withContext(Dispatchers.Main) {
-                    _isLoading.value = false
-                }
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) {
-                    _isLoading.value = false
-                }
             }
         }
     }
@@ -370,6 +526,7 @@ class EditorViewModel(
     override fun onCleared() {
         super.onCleared()
         previewJob?.cancel()
+        smartOptimizeJob?.cancel()
         gpuPipeline?.release()
         originalBitmap?.recycle()
         previewBitmapCache?.recycle()
