@@ -495,7 +495,7 @@ fun LibraryScreen(
                             BatchActionButton(
                                 icon = Icons.Default.Delete,
                                 label = "删除",
-                                onClick = { /* TODO: implement delete */ },
+                                onClick = { viewModel.deleteSelected() },
                                 enabled = selectedImages.isNotEmpty(),
                                 tint = Color(0xFFFF4444),
                             )

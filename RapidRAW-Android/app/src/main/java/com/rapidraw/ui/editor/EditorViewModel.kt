@@ -142,14 +142,23 @@ class EditorViewModel(
                 originalBitmap = processed.original
                 previewBitmapCache = processed.preview
 
+                // Load non-destructive sidecar if exists
+                val sidecar = SidecarManager.loadSidecar(context, uri)
+                val initialAdjustments = sidecar?.adjustments ?: Adjustments()
+                val initialFilmId = sidecar?.filmId
+
                 withContext(Dispatchers.Main) {
                     _previewBitmap.value = processed.preview
                     _isLoading.value = false
+                    _adjustments.value = initialAdjustments
+                    _selectedFilmId.value = initialFilmId
                     updateHistogram(processed.preview)
                     detectScene(processed.preview)
 
-                    // 加载完成后自动智能优化
-                    smartOptimize()
+                    // Only auto smart-optimize if no sidecar exists
+                    if (sidecar == null) {
+                        smartOptimize()
+                    }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -420,6 +429,16 @@ class EditorViewModel(
                 )
 
                 imageProcessor.exportImage(processed, coreExportSettings, context)
+
+                // Persist non-destructive sidecar alongside export
+                currentImage.value?.let { img ->
+                    SidecarManager.saveSidecar(
+                        context,
+                        Uri.parse(img.path),
+                        _adjustments.value,
+                        _selectedFilmId.value,
+                    )
+                }
 
                 withContext(Dispatchers.Main) {
                     _isLoading.value = false
