@@ -747,7 +747,7 @@ fun EditorScreen(
         onApplyRecipe = { recipe ->
             viewModel.applyPreset(
                 com.rapidraw.data.model.Preset(
-                    id = System.currentTimeMillis(),
+                    id = System.currentTimeMillis().toString(),
                     name = recipe.name,
                     adjustments = recipe.adjustments,
                 )

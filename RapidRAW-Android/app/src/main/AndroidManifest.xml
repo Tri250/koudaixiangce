@@ -9,8 +9,7 @@
     <!-- MANAGE_EXTERNAL_STORAGE 仅在 Android 10 及以下需要，Android 11+ 使用 Photo Picker -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
-    <!-- Android 13+ 的媒体权限 -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Android 13+ 的用户选择媒体访问 -->
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <!-- Android 14+ 的预测性返回手势 -->
     <uses-permission android:name="android.permission.VIBRATE" />

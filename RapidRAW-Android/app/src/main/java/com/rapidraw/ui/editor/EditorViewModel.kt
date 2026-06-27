@@ -30,6 +30,7 @@ import com.rapidraw.core.AiMaskGenerator
 import com.rapidraw.core.FlowMaskManager
 import com.rapidraw.core.UserPreferenceLearning
 import com.rapidraw.core.SceneType
+import com.rapidraw.core.AdjustmentClipboard
 
 enum class EditorTab {
     FILM,
@@ -419,8 +420,8 @@ class EditorViewModel(
         _isAiProcessing.value = true
         viewModelScope.launch(Dispatchers.Default) {
             try {
-                val inpainter = AiInpainter(source)
-                val result = inpainter.removeObject(maskBitmap, iterations = 3)
+                val inpainter = AiInpainter()
+                val result = inpainter.removeObject(source, maskBitmap, iterations = 3)
                 withContext(Dispatchers.Main) {
                     previewBitmapCache = result
                     _previewBitmap.value = result
@@ -532,8 +533,7 @@ class EditorViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val coreAdjustments = convertToCoreAdjustments(_adjustments.value)
-                val processed = imageProcessor.processFullResolution(coreAdjustments, source)
+                val processed = imageProcessor.processFullResolution(_adjustments.value, source)
 
                 val coreExportSettings = com.rapidraw.core.ExportSettings(
                     format = settings.format.name,
@@ -621,8 +621,7 @@ class EditorViewModel(
                     }
                 } else {
                     // CPU 降级路径
-                    val coreAdjustments = convertToCoreAdjustments(currentAdjustments)
-                    val processed = imageProcessor.processFullResolution(coreAdjustments, sourceBitmap)
+                    val processed = imageProcessor.processFullResolution(currentAdjustments, sourceBitmap)
 
                     withContext(Dispatchers.Main) {
                         _previewBitmap.value = processed
@@ -632,8 +631,7 @@ class EditorViewModel(
             } catch (_: Exception) {
                 // GPU 管线失败时降级到 CPU
                 try {
-                    val coreAdjustments = convertToCoreAdjustments(currentAdjustments)
-                    val processed = imageProcessor.processFullResolution(coreAdjustments, sourceBitmap)
+                    val processed = imageProcessor.processFullResolution(currentAdjustments, sourceBitmap)
                     withContext(Dispatchers.Main) {
                         _previewBitmap.value = processed
                         updateHistogram(processed)
