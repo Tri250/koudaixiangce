@@ -110,6 +110,15 @@ class EditorViewModel(
         _currentImage.value = imageFile
         _isLoading.value = true
 
+        // 先重置状态，再加载
+        undoStack.clear()
+        redoStack.clear()
+        _canUndo.value = false
+        _canRedo.value = false
+        _adjustments.value = Adjustments()
+        _selectedFilmId.value = null
+        _isSmartOptimized.value = false
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val uri = Uri.parse(imageFile.path)
@@ -122,17 +131,9 @@ class EditorViewModel(
                     _isLoading.value = false
                     updateHistogram(processed.preview)
 
-                    // Auto smart optimize if adjustments are all defaults
-                    if (isDefaultAdjustments(_adjustments.value)) {
-                        smartOptimize()
-                    }
+                    // 加载完成后自动智能优化
+                    smartOptimize()
                 }
-
-                undoStack.clear()
-                redoStack.clear()
-                _canUndo.value = false
-                _canRedo.value = false
-                _adjustments.value = Adjustments()
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     _isLoading.value = false
@@ -146,16 +147,16 @@ class EditorViewModel(
     fun getQuickAdjustValue(key: String): Float {
         val adj = _adjustments.value
         return when (key) {
-            "filmIntensity" -> adj.lutIntensity / 100f
-            "softGlow" -> adj.glowAmount / 100f
-            "toneLevel" -> adj.contrast / 100f
-            "saturation" -> adj.saturation
-            "temperature" -> adj.temperature
-            "greenMagenta" -> adj.tint / 100f
-            "sharpness" -> adj.sharpness.coerceIn(0f, 100f)
+            "filmIntensity" -> adj.filmIntensity
+            "softGlow"      -> adj.softGlow
+            "toneLevel"     -> adj.toneLevel
+            "saturation"    -> adj.saturation
+            "temperature"   -> adj.temperature
+            "greenMagenta"  -> adj.greenMagenta
+            "sharpness"     -> adj.sharpness.coerceIn(0f, 100f)
             "vignetteAmount" -> adj.vignetteAmount.coerceIn(0f, 100f)
-            "dehaze" -> adj.dehaze.coerceIn(0f, 100f)
-            else -> 0f
+            "dehaze"        -> adj.dehaze.coerceIn(0f, 100f)
+            else            -> 0f
         }
     }
 
@@ -465,6 +466,23 @@ class EditorViewModel(
         return com.rapidraw.core.Adjustments(
             exposure = adj.exposure,
             brightness = adj.brightness,
+            toneLevel = adj.toneLevel,
+            filmIntensity = adj.filmIntensity,
+            greenMagenta = adj.greenMagenta,
+            softGlow = adj.softGlow,
+            filmId = adj.filmId,
+            filmHighlightRollOff = adj.filmHighlightRollOff,
+            filmShadowLift = adj.filmShadowLift,
+            filmDrCompression = adj.filmDrCompression,
+            filmRedShift = adj.filmRedShift,
+            filmGreenShift = adj.filmGreenShift,
+            filmBlueShift = adj.filmBlueShift,
+            filmSaturation = adj.filmSaturation,
+            filmContrast = adj.filmContrast,
+            filmGrainAmount = adj.filmGrainAmount,
+            filmGrainSize = adj.filmGrainSize,
+            filmGrainRoughness = adj.filmGrainRoughness,
+            filmCurvePoints = adj.filmCurvePoints,
             temperature = adj.temperature,
             tint = adj.tint,
             contrast = adj.contrast,

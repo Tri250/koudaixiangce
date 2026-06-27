@@ -103,16 +103,16 @@ private val QUICK_PARAMS = listOf(
 
 private fun getQuickValue(adjustments: Adjustments, key: String): Float {
     return when (key) {
-        "filmIntensity" -> adjustments.lutIntensity / 100f
-        "softGlow" -> adjustments.glowAmount / 100f
-        "toneLevel" -> adjustments.contrast / 100f
-        "saturation" -> adjustments.saturation
-        "temperature" -> adjustments.temperature
-        "greenMagenta" -> adjustments.tint / 100f
-        "sharpness" -> adjustments.sharpness.coerceIn(0f, 100f)
+        "filmIntensity" -> adjustments.filmIntensity
+        "softGlow"      -> adjustments.softGlow
+        "toneLevel"     -> adjustments.toneLevel
+        "saturation"    -> adjustments.saturation
+        "temperature"   -> adjustments.temperature
+        "greenMagenta"  -> adjustments.greenMagenta
+        "sharpness"     -> adjustments.sharpness.coerceIn(0f, 100f)
         "vignetteAmount" -> adjustments.vignetteAmount.coerceIn(0f, 100f)
-        "dehaze" -> adjustments.dehaze.coerceIn(0f, 100f)
-        else -> 0f
+        "dehaze"        -> adjustments.dehaze.coerceIn(0f, 100f)
+        else            -> 0f
     }
 }
 
