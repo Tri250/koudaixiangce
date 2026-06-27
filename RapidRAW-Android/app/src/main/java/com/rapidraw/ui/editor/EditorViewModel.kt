@@ -27,6 +27,7 @@ import com.rapidraw.core.SceneClassifier
 import com.rapidraw.core.AiInpainter
 import com.rapidraw.core.UserPreferenceLearning
 import com.rapidraw.core.SceneType
+import com.rapidraw.core.FlowMaskManager
 
 enum class EditorTab {
     FILM,
@@ -109,8 +110,16 @@ class EditorViewModel(
     internal var previewBitmapCache: Bitmap? = null
         private set
     private var gpuPipeline: GpuPipeline? = null
+    private var flowMaskManager: FlowMaskManager? = null
     private var previewJob: Job? = null
     private var smartOptimizeJob: Job? = null
+
+    // Flow Mask state
+    private val _flowMaskIntensity = MutableStateFlow(1.0f)
+    val flowMaskIntensity: StateFlow<Float> = _flowMaskIntensity.asStateFlow()
+
+    private val _isFlowMaskActive = MutableStateFlow(false)
+    val isFlowMaskActive: StateFlow<Boolean> = _isFlowMaskActive.asStateFlow()
 
     init {
         if (imageFile != null) {
@@ -120,6 +129,50 @@ class EditorViewModel(
 
     fun setGpuPipeline(pipeline: GpuPipeline?) {
         gpuPipeline = pipeline
+        // Sync existing mask if any
+        flowMaskManager?.let { manager ->
+            pipeline?.updateMaskTexture(manager.maskBitmap)
+        }
+    }
+
+    // ── Flow Mask ─────────────────────────────────────────────────────
+
+    fun setFlowMaskActive(active: Boolean) {
+        _isFlowMaskActive.value = active
+    }
+
+    fun setFlowMaskIntensity(intensity: Float) {
+        _flowMaskIntensity.value = intensity.coerceIn(0f, 1f)
+    }
+
+    fun flowMaskPaintStroke(x: Float, y: Float) {
+        val manager = flowMaskManager ?: return
+        manager.paintStroke(x, y)
+        // Real-time GPU sync
+        gpuPipeline?.updateMaskTexture(manager.maskBitmap)
+    }
+
+    fun flowMaskEraseStroke(x: Float, y: Float) {
+        val manager = flowMaskManager ?: return
+        manager.eraseStroke(x, y)
+        gpuPipeline?.updateMaskTexture(manager.maskBitmap)
+    }
+
+    fun flowMaskClear() {
+        flowMaskManager?.clear()
+        gpuPipeline?.updateMaskTexture(null)
+    }
+
+    fun setFlowMaskBrushSize(size: Float) {
+        flowMaskManager?.brushSize = size.coerceIn(10f, 300f)
+    }
+
+    fun setFlowMaskBrushOpacity(opacity: Float) {
+        flowMaskManager?.brushOpacity = opacity.coerceIn(0.05f, 1f)
+    }
+
+    fun setFlowMaskBrushHardness(hardness: Float) {
+        flowMaskManager?.brushHardness = hardness.coerceIn(0f, 1f)
     }
 
     fun loadImage(imageFile: ImageFile) {
@@ -154,6 +207,9 @@ class EditorViewModel(
                     _selectedFilmId.value = initialFilmId
                     updateHistogram(processed.preview)
                     detectScene(processed.preview)
+
+                    // Initialize FlowMaskManager for this image dimensions
+                    flowMaskManager = FlowMaskManager(processed.preview.width, processed.preview.height)
 
                     // Only auto smart-optimize if no sidecar exists
                     if (sidecar == null) {

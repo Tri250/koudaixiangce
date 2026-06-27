@@ -36,15 +36,35 @@ data class Recipe(
     companion object {
         /**
          * Parse a share code back into a Recipe.
+         *
+         * Supports two formats:
+         * 1. Full Base64-encoded JSON (reversible, used for direct copy-paste)
+         * 2. 6-char short code — NOT reversible by itself; must be resolved
+         *    via [com.rapidraw.data.repository.RecipeRepository.findByShareCode]
+         *    which queries the local Room database.
+         *
+         * This method attempts to decode format #1. For short codes, use Repository.
          */
         fun fromShareCode(code: String): Recipe? {
             return try {
-                // Note: 6-char code is not reversible (truncated).
-                // In production, this would query a backend or use a larger code.
-                // For local-only, we use a larger code or store locally.
-                null
+                val trimmed = code.trim()
+                if (trimmed.length >= 20) {
+                    // Likely a full Base64-encoded JSON — attempt direct decode
+                    val decoded = java.util.Base64.getUrlDecoder().decode(trimmed)
+                    val json = String(decoded, Charsets.UTF_8)
+                    Json.decodeFromString<Recipe>(json)
+                } else {
+                    // Short 6-char code is not reversible without local database.
+                    // Caller should use RecipeRepository.findByShareCode(code) instead.
+                    null
+                }
             } catch (_: Exception) {
-                null
+                // If Base64 decode fails, try parsing as plain JSON
+                return try {
+                    Json.decodeFromString<Recipe>(code.trim())
+                } catch (_: Exception) {
+                    null
+                }
             }
         }
         

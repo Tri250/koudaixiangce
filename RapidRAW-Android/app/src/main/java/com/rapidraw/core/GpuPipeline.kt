@@ -42,6 +42,8 @@ class GpuPipeline(private val context: Context) {
     private var vertexShader = 0
     private var fragmentShader = 0
     private var textureId = 0
+    private var maskTextureId = 0
+    private var maskIntensity = 1.0f
     private var fbo = 0
     private var fboTextureId = 0
     private var width = 0
@@ -300,7 +302,9 @@ class GpuPipeline(private val context: Context) {
             "uFilmSaturation", "uFilmContrast",
             "uFilmGrainAmount", "uFilmGrainSize", "uFilmGrainRoughness",
             "uFilmCurve[0]", "uFilmCurve[1]", "uFilmCurve[2]",
-            "uFilmCurve[3]", "uFilmCurve[4]", "uFilmCurve[5]"
+            "uFilmCurve[3]", "uFilmCurve[4]", "uFilmCurve[5]",
+            // Flow Mask uniforms
+            "uMaskTexture", "uMaskIntensity"
         )
 
         for (name in uniformNames) {
@@ -354,6 +358,27 @@ class GpuPipeline(private val context: Context) {
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+
+        // Create placeholder mask texture (will be updated via updateMaskTexture)
+        val maskArr = IntArray(1)
+        GLES30.glGenTextures(1, maskArr, 0)
+        maskTextureId = maskArr[0]
+
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, maskTextureId)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
+        // Upload a 1x1 transparent placeholder
+        val placeholder = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
+        placeholder.put(0.toByte())
+        placeholder.put(0.toByte())
+        placeholder.put(0.toByte())
+        placeholder.put(0.toByte())
+        placeholder.position(0)
+        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RGBA, 1, 1, 0,
+            GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, placeholder)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
     }
 
@@ -543,6 +568,16 @@ class GpuPipeline(private val context: Context) {
         setUniform1i("uTexture", 0)
         setUniform2f("uResolution", inputBitmap.width.toFloat(), inputBitmap.height.toFloat())
 
+        // Bind mask texture to GL_TEXTURE1 if available
+        if (maskTextureId != 0) {
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, maskTextureId)
+            setUniform1i("uMaskTexture", 1)
+            setUniform1f("uMaskIntensity", maskIntensity)
+        } else {
+            setUniform1f("uMaskIntensity", 0f)
+        }
+
         // Render to FBO
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
         GLES30.glViewport(0, 0, width, height)
@@ -627,6 +662,36 @@ class GpuPipeline(private val context: Context) {
 
     // ── Cleanup ────────────────────────────────────────────────────
 
+    /**
+     * Update the flow mask texture from a Bitmap.
+     * Called by EditorViewModel when mask changes.
+     */
+    fun updateMaskTexture(bitmap: Bitmap?) {
+        if (!initialized || maskTextureId == 0) return
+
+        makeCurrent()
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, maskTextureId)
+
+        if (bitmap != null && !bitmap.isRecycled) {
+            GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, bitmap, 0)
+            maskIntensity = 1.0f
+        } else {
+            // Upload 1x1 transparent placeholder when mask is cleared
+            val placeholder = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
+            placeholder.put(0.toByte())
+            placeholder.put(0.toByte())
+            placeholder.put(0.toByte())
+            placeholder.put(0.toByte())
+            placeholder.position(0)
+            GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RGBA, 1, 1, 0,
+                GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, placeholder)
+            maskIntensity = 0f
+        }
+
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+    }
+
     fun release() {
         if (!initialized) return
 
@@ -636,6 +701,7 @@ class GpuPipeline(private val context: Context) {
         if (vertexShader != 0) GLES30.glDeleteShader(vertexShader)
         if (fragmentShader != 0) GLES30.glDeleteShader(fragmentShader)
         if (textureId != 0) GLES30.glDeleteTextures(1, intArrayOf(textureId), 0)
+        if (maskTextureId != 0) GLES30.glDeleteTextures(1, intArrayOf(maskTextureId), 0)
         if (fboTextureId != 0) GLES30.glDeleteTextures(1, intArrayOf(fboTextureId), 0)
         if (fbo != 0) GLES30.glDeleteFramebuffers(1, intArrayOf(fbo), 0)
         if (vao != 0) GLES30.glDeleteVertexArrays(1, intArrayOf(vao), 0)
