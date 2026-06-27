@@ -6,11 +6,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -139,13 +136,6 @@ fun EditorScreen(
     var showRecipeSheet by remember { mutableStateOf(false) }
     var isLongPressing by remember { mutableStateOf(false) }
 
-    // Flow Mask state
-    var showFlowMask by remember { mutableStateOf(false) }
-    var flowMaskBrushSize by remember { mutableFloatStateOf(80f) }
-    var flowMaskBrushOpacity by remember { mutableFloatStateOf(0.15f) }
-    var flowMaskBrushHardness by remember { mutableFloatStateOf(0.5f) }
-    var flowMaskIsErasing by remember { mutableStateOf(false) }
-
     val displayOriginal = isShowingOriginal || isLongPressing
 
     val animatedZoom by animateFloatAsState(
@@ -155,10 +145,6 @@ fun EditorScreen(
     )
 
     var panOffset by remember { mutableStateOf(Offset.Zero) }
-    val animOffsetX = remember { Animatable(0f) }
-    val animOffsetY = remember { Animatable(0f) }
-    var lastPanVelocity by remember { mutableStateOf(Offset.Zero) }
-    val gestureScope = rememberCoroutineScope()
 
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp
@@ -306,31 +292,11 @@ fun EditorScreen(
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("局部调整", color = TextPrimary) },
-                            onClick = {
-                                showMoreMenu = false
-                                showFlowMask = true
-                                viewModel.setFlowMaskActive(true)
-                            },
-                        )
-                        DropdownMenuItem(
                             text = { Text("AI 消除", color = TextPrimary) },
                             onClick = {
+                                // AI消除入口：切换到调整Tab并准备画笔模式
+                                viewModel.setTab(EditorTab.ADJUST)
                                 showMoreMenu = false
-                                currentImage?.let { img ->
-                                    navController.navigate(
-                                        com.rapidraw.ui.navigation.Routes.aiInpaintPath(img.path)
-                                    )
-                                }
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("大师配方", color = TextPrimary) },
-                            onClick = {
-                                showMoreMenu = false
-                                navController.navigate(
-                                    com.rapidraw.ui.navigation.Routes.PRESETS_DISCOVERY
-                                )
                             },
                         )
                     }
@@ -353,84 +319,33 @@ fun EditorScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) {
-                            detectTransformGestures(
-                                onGesture = { _, pan, zoom, _ ->
-                                    lastPanVelocity = pan
-                                    val newZoom = (zoomLevel * zoom).coerceIn(0.5f, 5f)
-                                    viewModel.setZoomLevel(newZoom)
-                                    panOffset = Offset(
-                                        panOffset.x + pan.x,
-                                        panOffset.y + pan.y,
-                                    )
-                                },
-                                onGestureEnd = {
-                                    // Inertial pan decay
-                                    val vx = lastPanVelocity.x * 8f
-                                    val vy = lastPanVelocity.y * 8f
-                                    if (kotlin.math.abs(vx) > 50f || kotlin.math.abs(vy) > 50f) {
-                                        gestureScope.launch {
-                                            animOffsetX.snapTo(panOffset.x)
-                                            animOffsetY.snapTo(panOffset.y)
-                                            launch {
-                                                animOffsetX.animateDecay(vx, exponentialDecay())
-                                            }
-                                            launch {
-                                                animOffsetY.animateDecay(vy, exponentialDecay())
-                                            }
-                                        }
-                                    }
-                                },
-                            )
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                val newZoom = (zoomLevel * zoom).coerceIn(0.5f, 5f)
+                                viewModel.setZoomLevel(newZoom)
+                                panOffset = Offset(
+                                    panOffset.x + pan.x,
+                                    panOffset.y + pan.y,
+                                )
+                            }
                         }
                         .pointerInput(Unit) {
                             detectTapGestures(
                                 onLongPress = {
-                                    if (!showFlowMask) {
-                                        isLongPressing = true
-                                        viewModel.onPreviewLongPressStart()
-                                    }
+                                    isLongPressing = true
+                                    viewModel.onPreviewLongPressStart()
                                 },
                                 onPress = {
                                     awaitRelease()
-                                    if (!showFlowMask) {
-                                        isLongPressing = false
-                                        viewModel.onPreviewLongPressEnd()
-                                    }
+                                    isLongPressing = false
+                                    viewModel.onPreviewLongPressEnd()
                                 },
                             )
                         }
-                        .then(
-                            if (showFlowMask) {
-                                Modifier.pointerInput(Unit) {
-                                    detectDragGestures { change, _ ->
-                                        change.consume()
-                                        val x = change.position.x
-                                        val y = change.position.y
-                                        // Map touch coordinates to bitmap coordinates
-                                        val bmp = previewBitmap ?: return@detectDragGestures
-                                        val scaleX = bmp.width.toFloat() / size.width.toFloat()
-                                        val scaleY = bmp.height.toFloat() / size.height.toFloat()
-                                        val scale = maxOf(scaleX, scaleY)
-                                        val offsetX = (size.width - bmp.width / scale) / 2f
-                                        val offsetY = (size.height - bmp.height / scale) / 2f
-                                        val bmpX = (x - offsetX) * scale
-                                        val bmpY = (y - offsetY) * scale
-                                        if (bmpX in 0f..bmp.width.toFloat() && bmpY in 0f..bmp.height.toFloat()) {
-                                            if (flowMaskIsErasing) {
-                                                viewModel.flowMaskEraseStroke(bmpX, bmpY)
-                                            } else {
-                                                viewModel.flowMaskPaintStroke(bmpX, bmpY)
-                                            }
-                                        }
-                                    }
-                                }
-                            } else Modifier
-                        )
                         .graphicsLayer {
                             scaleX = animatedZoom
                             scaleY = animatedZoom
-                            translationX = if (animOffsetX.isRunning) animOffsetX.value else panOffset.x
-                            translationY = if (animOffsetY.isRunning) animOffsetY.value else panOffset.y
+                            translationX = panOffset.x
+                            translationY = panOffset.y
                         },
                     contentScale = ContentScale.Fit,
                 )
@@ -639,48 +554,46 @@ fun EditorScreen(
         }
 
         // ── Bottom Tab Row ─────────────────────────────────────────────
-        if (!showFlowMask) {
-            Surface(
-                color = EditorSurface,
-            ) {
-                TabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    containerColor = EditorSurface,
-                    contentColor = Color.White,
-                    indicator = { tabPositions ->
-                        if (selectedTabIndex < tabPositions.size) {
-                            SecondaryIndicator(
-                                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                                height = 3.dp,
-                                color = Color.White,
-                            )
-                        }
-                    },
-                    divider = {},
-                ) {
-                    BOTTOM_TABS.forEachIndexed { index, label ->
-                        val isSelected = index == selectedTabIndex
-                        Tab(
-                            selected = isSelected,
-                            onClick = {
-                                val tab = when (index) {
-                                    0 -> EditorTab.FILM
-                                    1 -> EditorTab.ADJUST
-                                    2 -> EditorTab.CROP
-                                    else -> EditorTab.EXPORT
-                                }
-                                viewModel.setTab(tab)
-                            },
-                            text = {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) Color.White else TextSecondary,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                )
-                            },
+        Surface(
+            color = EditorSurface,
+        ) {
+            TabRow(
+                selectedTabIndex = selectedTabIndex,
+                containerColor = EditorSurface,
+                contentColor = Color.White,
+                indicator = { tabPositions ->
+                    if (selectedTabIndex < tabPositions.size) {
+                        SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                            height = 3.dp,
+                            color = Color.White,
                         )
                     }
+                },
+                divider = {},
+            ) {
+                BOTTOM_TABS.forEachIndexed { index, label ->
+                    val isSelected = index == selectedTabIndex
+                    Tab(
+                        selected = isSelected,
+                        onClick = {
+                            val tab = when (index) {
+                                0 -> EditorTab.FILM
+                                1 -> EditorTab.ADJUST
+                                2 -> EditorTab.CROP
+                                else -> EditorTab.EXPORT
+                            }
+                            viewModel.setTab(tab)
+                        },
+                        text = {
+                            Text(
+                                text = label,
+                                color = if (isSelected) Color.White else TextSecondary,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        },
+                    )
                 }
             }
         }
@@ -697,62 +610,35 @@ fun EditorScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
             ) {
-                if (showFlowMask) {
-                    FlowMaskPanel(
-                        brushSize = flowMaskBrushSize,
-                        brushOpacity = flowMaskBrushOpacity,
-                        brushHardness = flowMaskBrushHardness,
-                        isErasing = flowMaskIsErasing,
-                        onBrushSizeChange = {
-                            flowMaskBrushSize = it
-                            viewModel.setFlowMaskBrushSize(it)
-                        },
-                        onBrushOpacityChange = {
-                            flowMaskBrushOpacity = it
-                            viewModel.setFlowMaskBrushOpacity(it)
-                        },
-                        onBrushHardnessChange = {
-                            flowMaskBrushHardness = it
-                            viewModel.setFlowMaskBrushHardness(it)
-                        },
-                        onToggleErasing = { flowMaskIsErasing = !flowMaskIsErasing },
-                        onClear = { viewModel.flowMaskClear() },
-                        onDone = {
-                            showFlowMask = false
-                            viewModel.setFlowMaskActive(false)
-                        },
+                when (activeTab) {
+                    EditorTab.FILM -> FilmPanel(
+                        selectedFilmId = selectedFilmId,
+                        onSelectFilm = { viewModel.selectFilm(it) },
+                        onClearFilm = { viewModel.clearFilm() },
                     )
-                } else {
-                    when (activeTab) {
-                        EditorTab.FILM -> FilmPanel(
-                            selectedFilmId = selectedFilmId,
-                            onSelectFilm = { viewModel.selectFilm(it) },
-                            onClearFilm = { viewModel.clearFilm() },
-                        )
-                        EditorTab.ADJUST -> {
-                            if (showAdvanced) {
-                                AdvancedPanel(
-                                    adjustments = adjustments,
-                                    onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
-                                    onCurveUpdate = { key, value -> viewModel.updateCurve(key, value as List<com.rapidraw.data.model.Coord>) },
-                                    onBack = { viewModel.toggleAdvanced() },
-                                )
-                            } else {
-                                QuickAdjustPanel(
-                                    adjustments = adjustments,
-                                    onUpdate = { key, value -> viewModel.updateQuickAdjust(key, value) },
-                                    onAdvancedClick = { viewModel.toggleAdvanced() },
-                                )
-                            }
+                    EditorTab.ADJUST -> {
+                        if (showAdvanced) {
+                            AdvancedPanel(
+                                adjustments = adjustments,
+                                onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
+                                onCurveUpdate = { key, value -> viewModel.updateCurve(key, value as List<com.rapidraw.data.model.Coord>) },
+                                onBack = { viewModel.toggleAdvanced() },
+                            )
+                        } else {
+                            QuickAdjustPanel(
+                                adjustments = adjustments,
+                                onUpdate = { key, value -> viewModel.updateQuickAdjust(key, value) },
+                                onAdvancedClick = { viewModel.toggleAdvanced() },
+                            )
                         }
-                        EditorTab.CROP -> CropPanel(
-                            adjustments = adjustments,
-                            onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
-                        )
-                        EditorTab.EXPORT -> ExportPanel(
-                            onExport = { settings -> viewModel.exportImage(settings) },
-                        )
                     }
+                    EditorTab.CROP -> CropPanel(
+                        adjustments = adjustments,
+                        onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
+                    )
+                    EditorTab.EXPORT -> ExportPanel(
+                        onExport = { settings -> viewModel.exportImage(settings) },
+                    )
                 }
             }
         }
@@ -1340,134 +1226,5 @@ private fun formatFileSize(size: Long): String {
         size < 1024 * 1024 -> "${size / 1024} KB"
         size < 1024 * 1024 * 1024 -> "${"%.1f".format(size / (1024.0 * 1024.0))} MB"
         else -> "${"%.2f".format(size / (1024.0 * 1024.0 * 1024.0))} GB"
-    }
-}
-
-// ── Flow Mask Panel ─────────────────────────────────────────────────────
-
-@Composable
-private fun FlowMaskPanel(
-    brushSize: Float,
-    brushOpacity: Float,
-    brushHardness: Float,
-    isErasing: Boolean,
-    onBrushSizeChange: (Float) -> Unit,
-    onBrushOpacityChange: (Float) -> Unit,
-    onBrushHardnessChange: (Float) -> Unit,
-    onToggleErasing: () -> Unit,
-    onClear: () -> Unit,
-    onDone: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "局部调整",
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Row {
-                androidx.compose.material3.TextButton(onClick = onClear) {
-                    Text("清除", color = TextSecondary, fontSize = 13.sp)
-                }
-                androidx.compose.material3.TextButton(onClick = onDone) {
-                    Text("完成", color = HasselbladOrange, fontSize = 13.sp)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Brush size
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("大小", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.width(40.dp))
-            androidx.compose.material3.Slider(
-                value = brushSize,
-                onValueChange = onBrushSizeChange,
-                valueRange = 10f..300f,
-                modifier = Modifier.weight(1f),
-                colors = androidx.compose.material3.SliderDefaults.colors(
-                    thumbColor = HasselbladOrange,
-                    activeTrackColor = HasselbladOrange,
-                ),
-            )
-            Text("${brushSize.toInt()}", color = TextPrimary, fontSize = 12.sp, modifier = Modifier.width(36.dp))
-        }
-
-        // Brush opacity (flow)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("流量", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.width(40.dp))
-            androidx.compose.material3.Slider(
-                value = brushOpacity,
-                onValueChange = onBrushOpacityChange,
-                valueRange = 0.05f..1f,
-                modifier = Modifier.weight(1f),
-                colors = androidx.compose.material3.SliderDefaults.colors(
-                    thumbColor = HasselbladOrange,
-                    activeTrackColor = HasselbladOrange,
-                ),
-            )
-            Text("${(brushOpacity * 100).toInt()}%", color = TextPrimary, fontSize = 12.sp, modifier = Modifier.width(36.dp))
-        }
-
-        // Brush hardness
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("硬度", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.width(40.dp))
-            androidx.compose.material3.Slider(
-                value = brushHardness,
-                onValueChange = onBrushHardnessChange,
-                valueRange = 0f..1f,
-                modifier = Modifier.weight(1f),
-                colors = androidx.compose.material3.SliderDefaults.colors(
-                    thumbColor = HasselbladOrange,
-                    activeTrackColor = HasselbladOrange,
-                ),
-            )
-            Text("${(brushHardness * 100).toInt()}", color = TextPrimary, fontSize = 12.sp, modifier = Modifier.width(36.dp))
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Paint / Erase toggle
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { if (isErasing) onToggleErasing() },
-                color = if (!isErasing) HasselbladOrange else EditorBorder,
-                shape = RoundedCornerShape(6.dp),
-            ) {
-                Text(
-                    text = "绘制",
-                    color = if (!isErasing) EditorBackground else TextSecondary,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    textAlign = TextAlign.Center,
-                )
-            }
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { if (!isErasing) onToggleErasing() },
-                color = if (isErasing) HasselbladOrange else EditorBorder,
-                shape = RoundedCornerShape(6.dp),
-            ) {
-                Text(
-                    text = "擦除",
-                    color = if (isErasing) EditorBackground else TextSecondary,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
     }
 }

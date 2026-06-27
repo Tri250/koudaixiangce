@@ -342,38 +342,6 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun deleteSelected() {
-        val selected = _selectedImagePaths.value.toList()
-        if (selected.isEmpty()) return
-
-        viewModelScope.launch(Dispatchers.IO) {
-            var deletedCount = 0
-            for (path in selected) {
-                try {
-                    val uri = android.net.Uri.parse(path)
-                    if (uri.scheme == "content") {
-                        val rows = contentResolver.delete(uri, null, null)
-                        if (rows > 0) deletedCount++
-                    } else {
-                        val file = java.io.File(uri.path!!)
-                        if (file.exists() && file.delete()) {
-                            deletedCount++
-                            // Also delete sidecar if exists
-                            com.rapidraw.core.SidecarManager.deleteSidecar(context, uri)
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Skip files we can't delete (permission issues etc.)
-                }
-            }
-
-            withContext(Dispatchers.Main) {
-                exitBatchMode()
-                loadImages(_selectedFolder.value)
-            }
-        }
-    }
-
     private fun applyFilters(allImages: List<ImageFile>) {
         var filtered = allImages
 

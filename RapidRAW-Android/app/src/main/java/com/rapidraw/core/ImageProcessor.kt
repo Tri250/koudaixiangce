@@ -288,20 +288,7 @@ class ImageProcessor {
     }
 
     private fun decodeRawFallback(context: Context, uri: Uri): Bitmap {
-        // On Android P+, ImageDecoder has built-in RAW support for many formats (CR2, NEF, ARW, etc.)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            try {
-                val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
-                return android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-                    decoder.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE)
-                    decoder.isMutableRequired = true
-                }
-            } catch (_: Exception) {
-                // Fall through to BitmapFactory if ImageDecoder fails
-            }
-        }
-
-        // Fallback: try BitmapFactory (some OEMs bundle RAW codecs)
+        // Try to decode RAW with BitmapFactory - some Android versions support this
         val inputStream = context.contentResolver.openInputStream(uri)
             ?: throw IllegalArgumentException("Cannot open URI")
 
@@ -311,14 +298,6 @@ class ImageProcessor {
                 inJustDecodeBounds = true
             }
             BitmapFactory.decodeStream(stream, null, options)
-
-            // If BitmapFactory also can't decode this RAW, throw a descriptive error
-            if (options.outWidth <= 0 || options.outHeight <= 0) {
-                throw IllegalArgumentException(
-                    "Unsupported RAW format. This Android version does not include a decoder for this file. " +
-                    "Supported formats: DNG (all Android P+ devices), CR2/NEF/ARW/ORF/RAF/RW2/PEF (Android 10+ with RAW codec support)."
-                )
-            }
 
             // Calculate inSampleSize for manageable size
             val maxDim = 4096

@@ -27,7 +27,6 @@ import com.rapidraw.core.SceneClassifier
 import com.rapidraw.core.AiInpainter
 import com.rapidraw.core.UserPreferenceLearning
 import com.rapidraw.core.SceneType
-import com.rapidraw.core.FlowMaskManager
 
 enum class EditorTab {
     FILM,
@@ -110,16 +109,8 @@ class EditorViewModel(
     internal var previewBitmapCache: Bitmap? = null
         private set
     private var gpuPipeline: GpuPipeline? = null
-    private var flowMaskManager: FlowMaskManager? = null
     private var previewJob: Job? = null
     private var smartOptimizeJob: Job? = null
-
-    // Flow Mask state
-    private val _flowMaskIntensity = MutableStateFlow(1.0f)
-    val flowMaskIntensity: StateFlow<Float> = _flowMaskIntensity.asStateFlow()
-
-    private val _isFlowMaskActive = MutableStateFlow(false)
-    val isFlowMaskActive: StateFlow<Boolean> = _isFlowMaskActive.asStateFlow()
 
     init {
         if (imageFile != null) {
@@ -129,50 +120,6 @@ class EditorViewModel(
 
     fun setGpuPipeline(pipeline: GpuPipeline?) {
         gpuPipeline = pipeline
-        // Sync existing mask if any
-        flowMaskManager?.let { manager ->
-            pipeline?.updateMaskTexture(manager.maskBitmap)
-        }
-    }
-
-    // ── Flow Mask ─────────────────────────────────────────────────────
-
-    fun setFlowMaskActive(active: Boolean) {
-        _isFlowMaskActive.value = active
-    }
-
-    fun setFlowMaskIntensity(intensity: Float) {
-        _flowMaskIntensity.value = intensity.coerceIn(0f, 1f)
-    }
-
-    fun flowMaskPaintStroke(x: Float, y: Float) {
-        val manager = flowMaskManager ?: return
-        manager.paintStroke(x, y)
-        // Real-time GPU sync
-        gpuPipeline?.updateMaskTexture(manager.maskBitmap)
-    }
-
-    fun flowMaskEraseStroke(x: Float, y: Float) {
-        val manager = flowMaskManager ?: return
-        manager.eraseStroke(x, y)
-        gpuPipeline?.updateMaskTexture(manager.maskBitmap)
-    }
-
-    fun flowMaskClear() {
-        flowMaskManager?.clear()
-        gpuPipeline?.updateMaskTexture(null)
-    }
-
-    fun setFlowMaskBrushSize(size: Float) {
-        flowMaskManager?.brushSize = size.coerceIn(10f, 300f)
-    }
-
-    fun setFlowMaskBrushOpacity(opacity: Float) {
-        flowMaskManager?.brushOpacity = opacity.coerceIn(0.05f, 1f)
-    }
-
-    fun setFlowMaskBrushHardness(hardness: Float) {
-        flowMaskManager?.brushHardness = hardness.coerceIn(0f, 1f)
     }
 
     fun loadImage(imageFile: ImageFile) {
@@ -195,26 +142,14 @@ class EditorViewModel(
                 originalBitmap = processed.original
                 previewBitmapCache = processed.preview
 
-                // Load non-destructive sidecar if exists
-                val sidecar = SidecarManager.loadSidecar(context, uri)
-                val initialAdjustments = sidecar?.adjustments ?: Adjustments()
-                val initialFilmId = sidecar?.filmId
-
                 withContext(Dispatchers.Main) {
                     _previewBitmap.value = processed.preview
                     _isLoading.value = false
-                    _adjustments.value = initialAdjustments
-                    _selectedFilmId.value = initialFilmId
                     updateHistogram(processed.preview)
                     detectScene(processed.preview)
 
-                    // Initialize FlowMaskManager for this image dimensions
-                    flowMaskManager = FlowMaskManager(processed.preview.width, processed.preview.height)
-
-                    // Only auto smart-optimize if no sidecar exists
-                    if (sidecar == null) {
-                        smartOptimize()
-                    }
+                    // 加载完成后自动智能优化
+                    smartOptimize()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -485,16 +420,6 @@ class EditorViewModel(
                 )
 
                 imageProcessor.exportImage(processed, coreExportSettings, context)
-
-                // Persist non-destructive sidecar alongside export
-                currentImage.value?.let { img ->
-                    SidecarManager.saveSidecar(
-                        context,
-                        Uri.parse(img.path),
-                        _adjustments.value,
-                        _selectedFilmId.value,
-                    )
-                }
 
                 withContext(Dispatchers.Main) {
                     _isLoading.value = false

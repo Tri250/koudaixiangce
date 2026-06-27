@@ -3,7 +3,6 @@ precision highp float;
 
 // ── Input ──────────────────────────────────────────────────────────────
 uniform sampler2D uTexture;
-uniform sampler2D uMaskTexture;
 uniform vec2 uResolution;
 
 // ── Adjustment Uniforms ────────────────────────────────────────────────
@@ -111,7 +110,6 @@ uniform vec2 uFilmCurve[6];         // x=input, y=output, 6 control points
 uniform float uGreenMagenta;        // -1.0 - 1.0, green-magenta tint axis
 uniform float uSoftGlow;            // 0.0 - 1.0, soft glow/bloom intensity
 uniform float uToneLevel;           // -1.0 - 1.0, combined tone/brightness control
-uniform float uMaskIntensity;       // 0.0 - 1.0, flow mask blend strength
 
 in vec2 vTexCoord;
 out vec4 fragColor;
@@ -1096,13 +1094,6 @@ void main() {
     // === Step 25: Clipping visualization ===
     if (uClippingPreview > 0.5) {
         color = apply_clipping_preview(color);
-    }
-
-    // === Step 26: Flow Mask blending ===
-    if (uMaskIntensity > 0.001) {
-        float maskAlpha = texture(uMaskTexture, vTexCoord).a * uMaskIntensity;
-        vec3 original = texture(uTexture, vTexCoord).rgb;
-        color = mix(original, color, maskAlpha);
     }
 
     fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
