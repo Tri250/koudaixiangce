@@ -167,12 +167,13 @@ class EditorViewModel(
 
     fun updateQuickAdjust(key: String, value: Float) {
         pushUndo()
-        when (key) {
-            "filmIntensity" -> _adjustments.value = _adjustments.value.copyByField("lutIntensity", value * 100f)
-            "softGlow" -> _adjustments.value = _adjustments.value.copyByField("glowAmount", value * 100f)
-            "toneLevel" -> _adjustments.value = _adjustments.value.copyByField("contrast", value * 100f)
-            "greenMagenta" -> _adjustments.value = _adjustments.value.copyByField("tint", value * 100f)
-            else -> _adjustments.value = _adjustments.value.copyByField(key, value)
+        // 直接映射到 Adjustments 的新字段，不做间接转换
+        _adjustments.value = when (key) {
+            "filmIntensity" -> _adjustments.value.copy(filmIntensity = value.coerceIn(0f, 1f))
+            "softGlow"      -> _adjustments.value.copy(softGlow = value.coerceIn(0f, 1f))
+            "toneLevel"     -> _adjustments.value.copy(toneLevel = value.coerceIn(-1f, 1f))
+            "greenMagenta"  -> _adjustments.value.copy(greenMagenta = value.coerceIn(-1f, 1f))
+            else            -> _adjustments.value.copyByField(key, value)
         }
         schedulePreviewUpdate()
     }
@@ -188,20 +189,31 @@ class EditorViewModel(
     fun selectFilm(film: FilmSimulation) {
         pushUndo()
         _selectedFilmId.value = film.id
-        _adjustments.value = film.baseAdjustments.copy(
-            grainAmount = (film.grainAmount * 100f).coerceIn(0f, 100f),
-            grainSize = (film.grainSize * 50f).coerceIn(0f, 100f),
-            grainRoughness = (film.grainRoughness * 100f).coerceIn(0f, 100f),
-            saturation = film.baseAdjustments.saturation + (film.saturationModifier * 100f).coerceIn(-100f, 100f),
-            contrast = film.baseAdjustments.contrast + (film.contrastModifier * 100f).coerceIn(-100f, 100f),
-        )
+        // 使用 withFilmSimulation 正确传递所有胶片模拟参数到着色器
+        _adjustments.value = _adjustments.value.withFilmSimulation(film)
         schedulePreviewUpdate()
     }
 
     fun clearFilm() {
         pushUndo()
         _selectedFilmId.value = null
-        _adjustments.value = Adjustments()
+        // 清除所有胶片模拟参数，保留用户已调整的基础参数
+        _adjustments.value = _adjustments.value.copy(
+            filmId = "",
+            filmIntensity = 0f,
+            filmHighlightRollOff = 0f,
+            filmShadowLift = 0f,
+            filmDrCompression = 0f,
+            filmRedShift = 0f,
+            filmGreenShift = 0f,
+            filmBlueShift = 0f,
+            filmSaturation = 0f,
+            filmContrast = 0f,
+            filmGrainAmount = 0f,
+            filmGrainSize = 0f,
+            filmGrainRoughness = 0f,
+            filmCurvePoints = listOf(0f to 0f, 51f to 51f, 102f to 102f, 153f to 153f, 204f to 204f, 255f to 255f),
+        )
         schedulePreviewUpdate()
     }
 
