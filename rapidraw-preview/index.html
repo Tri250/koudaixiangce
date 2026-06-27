@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>RapidRAW - 哈苏色彩编辑器</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+</head>
+<body>
+
+<div id="app">
+  <!-- ==================== LIBRARY VIEW ==================== -->
+  <div id="library-view" class="view active">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <h1 class="app-title">RapidRAW</h1>
+      </div>
+      <div class="top-bar-right">
+        <button class="icon-btn" id="btn-search"><span class="material-icons-round">search</span></button>
+        <button class="icon-btn" id="btn-filter"><span class="material-icons-round">tune</span></button>
+      </div>
+    </div>
+
+    <!-- Folder Chips -->
+    <div class="folder-chips">
+      <button class="chip active" data-folder="all">全部</button>
+      <button class="chip" data-folder="dcim">DCIM</button>
+      <button class="chip" data-folder="downloads">下载</button>
+      <button class="chip" data-folder="screenshots">截图</button>
+    </div>
+
+    <!-- Image Grid -->
+    <div class="image-grid" id="image-grid">
+      <!-- Dynamically populated -->
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+      <button class="nav-item active" data-view="library">
+        <span class="material-icons-round">photo_library</span>
+        <span class="nav-label">图库</span>
+      </button>
+      <button class="nav-item" data-view="folders">
+        <span class="material-icons-round">folder</span>
+        <span class="nav-label">文件夹</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <span class="material-icons-round">settings</span>
+        <span class="nav-label">设置</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== EDITOR VIEW ==================== -->
+  <div id="editor-view" class="view">
+    <!-- Editor Top Bar -->
+    <div class="editor-top-bar">
+      <button class="icon-btn" id="btn-back"><span class="material-icons-round">arrow_back</span></button>
+      <div class="editor-top-actions">
+        <button class="icon-btn" id="btn-exif"><span class="material-icons-round">info</span></button>
+        <button class="icon-btn" id="btn-undo"><span class="material-icons-round">undo</span></button>
+        <button class="icon-btn" id="btn-redo"><span class="material-icons-round">redo</span></button>
+        <button class="icon-btn" id="btn-crop"><span class="material-icons-round">crop</span></button>
+        <button class="icon-btn" id="btn-more"><span class="material-icons-round">more_vert</span></button>
+      </div>
+    </div>
+
+    <!-- Image Preview Area -->
+    <div class="preview-area" id="preview-area">
+      <img id="preview-image" src="" alt="Preview">
+      <!-- Histogram Overlay -->
+      <div class="histogram-overlay" id="histogram">
+        <svg viewBox="0 0 120 60" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="histGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#E8600C" stop-opacity="0.3"/>
+              <stop offset="50%" stop-color="#E8600C" stop-opacity="0.8"/>
+              <stop offset="100%" stop-color="#E8600C" stop-opacity="0.3"/>
+            </linearGradient>
+          </defs>
+          <path id="hist-path" fill="url(#histGrad)" stroke="#E8600C" stroke-width="0.5" d=""/>
+        </svg>
+      </div>
+      <!-- Zoom Hint -->
+      <div class="zoom-hint" id="zoom-hint">
+        <span class="material-icons-round" style="font-size:16px">pinch</span>
+        双指缩放
+      </div>
+    </div>
+
+    <!-- Filmstrip -->
+    <div class="filmstrip" id="filmstrip">
+      <!-- Dynamically populated -->
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="tab-bar" id="tab-bar">
+      <button class="tab active" data-tab="basic">基础</button>
+      <button class="tab" data-tab="color">颜色</button>
+      <button class="tab" data-tab="curve">曲线</button>
+      <button class="tab" data-tab="detail">细节</button>
+      <button class="tab" data-tab="effect">效果</button>
+      <button class="tab" data-tab="geometry">几何</button>
+    </div>
+
+    <!-- Adjustment Panels -->
+    <div class="adjustment-panel" id="adjustment-panel">
+      <!-- Basic Panel -->
+      <div class="panel-content active" data-panel="basic">
+        <div class="slider-row" data-param="exposure">
+          <span class="slider-label">曝光</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="brightness">
+          <span class="slider-label">亮度</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="contrast">
+          <span class="slider-label">对比</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="highlights">
+          <span class="slider-label">高光</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="shadows">
+          <span class="slider-label">阴影</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="whites">
+          <span class="slider-label">白色</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="blacks">
+          <span class="slider-label">黑色</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+      </div>
+
+      <!-- Color Panel -->
+      <div class="panel-content" data-panel="color">
+        <div class="slider-row" data-param="temperature">
+          <span class="slider-label">色温</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="tint">
+          <span class="slider-label">色调</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="saturation">
+          <span class="slider-label">饱和度</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="vibrance">
+          <span class="slider-label">自然饱和度</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <!-- HSL Section -->
+        <div class="hsl-section">
+          <div class="hsl-header">HSL</div>
+          <div class="hsl-chips">
+            <button class="hsl-chip active" data-hsl="red">红</button>
+            <button class="hsl-chip" data-hsl="orange">橙</button>
+            <button class="hsl-chip" data-hsl="yellow">黄</button>
+            <button class="hsl-chip" data-hsl="green">绿</button>
+            <button class="hsl-chip" data-hsl="aqua">青</button>
+            <button class="hsl-chip" data-hsl="blue">蓝</button>
+            <button class="hsl-chip" data-hsl="purple">紫</button>
+          </div>
+          <div class="slider-row" data-param="hsl-hue">
+            <span class="slider-label">色相</span>
+            <div class="slider-track-container">
+              <div class="slider-track">
+                <div class="slider-fill"></div>
+                <div class="slider-center-mark"></div>
+                <div class="slider-thumb"></div>
+              </div>
+            </div>
+            <span class="slider-value">0</span>
+          </div>
+          <div class="slider-row" data-param="hsl-sat">
+            <span class="slider-label">饱和度</span>
+            <div class="slider-track-container">
+              <div class="slider-track">
+                <div class="slider-fill"></div>
+                <div class="slider-center-mark"></div>
+                <div class="slider-thumb"></div>
+              </div>
+            </div>
+            <span class="slider-value">0</span>
+          </div>
+          <div class="slider-row" data-param="hsl-lum">
+            <span class="slider-label">明亮度</span>
+            <div class="slider-track-container">
+              <div class="slider-track">
+                <div class="slider-fill"></div>
+                <div class="slider-center-mark"></div>
+                <div class="slider-thumb"></div>
+              </div>
+            </div>
+            <span class="slider-value">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Curve Panel -->
+      <div class="panel-content" data-panel="curve">
+        <div class="curve-container">
+          <canvas id="curve-canvas" width="280" height="200"></canvas>
+          <div class="curve-chips">
+            <button class="curve-chip active" data-channel="rgb">RGB</button>
+            <button class="curve-chip" data-channel="r">R</button>
+            <button class="curve-chip" data-channel="g">G</button>
+            <button class="curve-chip" data-channel="b">B</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail Panel -->
+      <div class="panel-content" data-panel="detail">
+        <div class="slider-row" data-param="sharpness">
+          <span class="slider-label">锐度</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="detail-amount">
+          <span class="slider-label">细节</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="noise-reduction">
+          <span class="slider-label">降噪</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="color-noise">
+          <span class="slider-label">色彩降噪</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+      </div>
+
+      <!-- Effect Panel -->
+      <div class="panel-content" data-panel="effect">
+        <div class="slider-row" data-param="vignette">
+          <span class="slider-label">暗角</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="grain">
+          <span class="slider-label">颗粒</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+        <div class="slider-row" data-param="glow">
+          <span class="slider-label">发光</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+      </div>
+
+      <!-- Geometry Panel -->
+      <div class="panel-content" data-panel="geometry">
+        <div class="geo-grid">
+          <button class="geo-btn active" data-geo="auto">
+            <span class="material-icons-round">auto_fix_high</span>
+            <span>自动</span>
+          </button>
+          <button class="geo-btn" data-geo="level">
+            <span class="material-icons-round">horizontal_rule</span>
+            <span>水平</span>
+          </button>
+          <button class="geo-btn" data-geo="vertical">
+            <span class="material-icons-round">more_vert</span>
+            <span>垂直</span>
+          </button>
+          <button class="geo-btn" data-geo="full">
+            <span class="material-icons-round">crop_free</span>
+            <span>完全</span>
+          </button>
+        </div>
+        <div class="slider-row" data-param="rotation">
+          <span class="slider-label">旋转</span>
+          <div class="slider-track-container">
+            <div class="slider-track">
+              <div class="slider-fill"></div>
+              <div class="slider-center-mark"></div>
+              <div class="slider-thumb"></div>
+            </div>
+          </div>
+          <span class="slider-value">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAB Button -->
+    <button class="fab-btn" id="fab-filters">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="#1A1A1A" stroke-width="1.5"/>
+        <circle cx="12" cy="12" r="5" stroke="#1A1A1A" stroke-width="1.5"/>
+        <line x1="12" y1="2" x2="12" y2="7" stroke="#1A1A1A" stroke-width="1.2"/>
+        <line x1="12" y1="17" x2="12" y2="22" stroke="#1A1A1A" stroke-width="1.2"/>
+        <line x1="2" y1="12" x2="7" y2="12" stroke="#1A1A1A" stroke-width="1.2"/>
+        <line x1="17" y1="12" x2="22" y2="12" stroke="#1A1A1A" stroke-width="1.2"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ==================== HASSELBLAD FILTERS SHEET ==================== -->
+  <div class="sheet-overlay" id="filter-sheet-overlay"></div>
+  <div class="bottom-sheet" id="filter-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h2 class="sheet-title">哈苏大师滤镜</h2>
+      <button class="icon-btn" id="close-filter-sheet"><span class="material-icons-round">close</span></button>
+    </div>
+    <div class="filter-scroll">
+      <div class="filter-cards" id="filter-cards">
+        <div class="filter-card active" data-filter="natural">
+          <div class="filter-thumb" style="background: linear-gradient(135deg, #8B7355, #D2B48C, #87CEEB);"></div>
+          <span class="filter-name">自然</span>
+        </div>
+        <div class="filter-card" data-filter="vibrant">
+          <div class="filter-thumb" style="background: linear-gradient(135deg, #FF6B35, #004E89, #1A936F);"></div>
+          <span class="filter-name">生动</span>
+        </div>
+        <div class="filter-card" data-filter="classic">
+          <div class="filter-thumb" style="background: linear-gradient(135deg, #8B6914, #CD853F, #DEB887);"></div>
+          <span class="filter-name">经典</span>
+        </div>
+        <div class="filter-card" data-filter="portrait">
+          <div class="filter-thumb" style="background: linear-gradient(135deg, #E8B4B8, #F5DEB3, #FAEBD7);"></div>
+          <span class="filter-name">人像</span>
+        </div>
+        <div class="filter-card" data-filter="landscape">
+          <div class="filter-thumb" style="background: linear-gradient(135deg, #2D5016, #6B8E23, #87CEEB);"></div>
+          <span class="filter-name">风景</span>
+        </div>
+        <div class="filter-card" data-filter="monochrome">
+          <div class="filter-thumb" style="background: linear-gradient(135deg, #333, #888, #ccc);"></div>
+          <span class="filter-name">黑白</span>
+        </div>
+      </div>
+    </div>
+    <div class="presets-section">
+      <h3 class="presets-title">我的预设</h3>
+      <div class="presets-grid">
+        <div class="preset-item">
+          <div class="preset-thumb" style="background: linear-gradient(135deg, #E8600C, #F2803F);"></div>
+          <span>日落暖调</span>
+        </div>
+        <div class="preset-item">
+          <div class="preset-thumb" style="background: linear-gradient(135deg, #2C3E50, #3498DB);"></div>
+          <span>冷色电影</span>
+        </div>
+        <div class="preset-item">
+          <div class="preset-thumb" style="background: linear-gradient(135deg, #556B2F, #9ACD32);"></div>
+          <span>森系清新</span>
+        </div>
+        <div class="preset-item">
+          <div class="preset-thumb" style="background: linear-gradient(135deg, #8B4513, #D2691E);"></div>
+          <span>胶片复古</span>
+        </div>
+        <div class="preset-item">
+          <div class="preset-thumb" style="background: linear-gradient(135deg, #1a1a1a, #666);"></div>
+          <span>高对比黑白</span>
+        </div>
+        <div class="preset-item add-preset">
+          <div class="preset-thumb">
+            <span class="material-icons-round">add</span>
+          </div>
+          <span>新建预设</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== EXPORT SHEET ==================== -->
+  <div class="sheet-overlay" id="export-sheet-overlay"></div>
+  <div class="bottom-sheet" id="export-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h2 class="sheet-title">导出</h2>
+      <button class="icon-btn" id="close-export-sheet"><span class="material-icons-round">close</span></button>
+    </div>
+    <div class="export-content">
+      <div class="export-section">
+        <div class="export-label">格式</div>
+        <div class="format-options">
+          <label class="format-option active">
+            <input type="radio" name="format" value="jpeg" checked>
+            <span class="format-btn">JPEG</span>
+          </label>
+          <label class="format-option">
+            <input type="radio" name="format" value="png">
+            <span class="format-btn">PNG</span>
+          </label>
+          <label class="format-option">
+            <input type="radio" name="format" value="tiff">
+            <span class="format-btn">TIFF</span>
+          </label>
+        </div>
+      </div>
+      <div class="export-section" id="quality-section">
+        <div class="export-label">质量 <span id="quality-val">95</span>%</div>
+        <div class="export-slider-track">
+          <div class="export-slider-fill" style="width:95%"></div>
+          <div class="export-slider-thumb" style="left:95%"></div>
+        </div>
+      </div>
+      <div class="export-section">
+        <div class="export-label">调整大小</div>
+        <div class="resize-options">
+          <button class="resize-btn active">原始</button>
+          <button class="resize-btn">75%</button>
+          <button class="resize-btn">50%</button>
+          <button class="resize-btn">25%</button>
+        </div>
+      </div>
+      <div class="export-section">
+        <div class="export-label">色彩空间</div>
+        <div class="resize-options">
+          <button class="resize-btn active">sRGB</button>
+          <button class="resize-btn">Adobe RGB</button>
+          <button class="resize-btn">P3</button>
+        </div>
+      </div>
+      <button class="export-btn" id="btn-export">导出</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
