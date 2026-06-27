@@ -48,6 +48,12 @@ class GpuPipeline(private val context: Context) {
     private var height = 0
     private var initialized = false
 
+    // 性能优化：复用缓冲区避免频繁 GC
+    private var readBackBuffer: java.nio.ByteBuffer? = null
+    private var readBackBitmap: android.graphics.Bitmap? = null
+    private var lastInputWidth = 0
+    private var lastInputHeight = 0
+
     // Vertex buffers
     private var vao = 0
     private var vbo = 0
@@ -535,10 +541,17 @@ class GpuPipeline(private val context: Context) {
         makeCurrent()
         GLES30.glUseProgram(program)
 
-        // Upload bitmap to texture
+        // Upload bitmap to texture（仅在尺寸变化时重新分配纹理存储）
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, textureId)
-        GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, inputBitmap, 0)
+        if (inputBitmap.width != lastInputWidth || inputBitmap.height != lastInputHeight) {
+            GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, inputBitmap, 0)
+            lastInputWidth = inputBitmap.width
+            lastInputHeight = inputBitmap.height
+        } else {
+            // 尺寸不变时使用 texSubImage2D 避免重新分配
+            GLUtils.texSubImage2D(GLES30.GL_TEXTURE_2D, 0, 0, 0, inputBitmap)
+        }
 
         setUniform1i("uTexture", 0)
         setUniform2f("uResolution", inputBitmap.width.toFloat(), inputBitmap.height.toFloat())
@@ -578,24 +591,33 @@ class GpuPipeline(private val context: Context) {
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
 
-        val buffer = ByteBuffer.allocateDirect(width * height * 4)
-            .order(ByteOrder.nativeOrder())
-        GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
+        // 复用 ByteBuffer 避免频繁分配
+        var buffer = readBackBuffer
+        if (buffer == null || buffer.capacity() < width * height * 4) {
+            buffer = ByteBuffer.allocateDirect(width * height * 4)
+                .order(ByteOrder.nativeOrder())
+            readBackBuffer = buffer
+        }
+        buffer.clear()
 
+        GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
 
         buffer.rewind()
 
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        // 复用 Bitmap 避免频繁创建
+        var bitmap = readBackBitmap
+        if (bitmap == null || bitmap.width != width || bitmap.height != height) {
+            bitmap?.recycle()
+            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            readBackBitmap = bitmap
+        }
         bitmap.copyPixelsFromBuffer(buffer)
 
         // OpenGL reads bottom-to-top, need to flip vertically
         val matrix = android.graphics.Matrix()
         matrix.postScale(1f, -1f)
-        val flipped = Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
-        bitmap.recycle()
-
-        return flipped
+        return Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
     }
 
     // ── Uniform Helpers ────────────────────────────────────────────

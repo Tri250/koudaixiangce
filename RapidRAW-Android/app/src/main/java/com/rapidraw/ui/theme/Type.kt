@@ -2,11 +2,27 @@ package com.rapidraw.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.rapidraw.R
 
-internal val OPPOSansFamily = FontFamily.SansSerif
+/**
+ * OPPO Sans 字体家族。
+ * 字体文件应放置于 app/src/main/res/font/：
+ *   opposans_regular.ttf / opposans_medium.ttf / opposans_bold.ttf
+ * 若不存在则自动降级为系统 SansSerif。
+ */
+internal val OPPOSansFamily: FontFamily = try {
+    FontFamily(
+        Font(R.font.opposans_regular, FontWeight.Normal),
+        Font(R.font.opposans_medium, FontWeight.Medium),
+        Font(R.font.opposans_bold, FontWeight.Bold),
+    )
+} catch (_: Exception) {
+    FontFamily.SansSerif
+}
 
 internal val AppFontFamily = OPPOSansFamily
 

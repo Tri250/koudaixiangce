@@ -6,8 +6,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculateCentroidSize
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -145,6 +152,11 @@ fun EditorScreen(
     )
 
     var panOffset by remember { mutableStateOf(Offset.Zero) }
+
+    // 惯性动画状态
+    val animOffsetX = remember { Animatable(0f) }
+    val animOffsetY = remember { Animatable(0f) }
+    val haptic = LocalHapticFeedback.current
 
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp
@@ -294,8 +306,17 @@ fun EditorScreen(
                         DropdownMenuItem(
                             text = { Text("AI 消除", color = TextPrimary) },
                             onClick = {
-                                // AI消除入口：切换到调整Tab并准备画笔模式
-                                viewModel.setTab(EditorTab.ADJUST)
+                                val img = currentImage
+                                if (img != null) {
+                                    navController.navigate(com.rapidraw.ui.navigation.Routes.aiInpaintPath(img.path))
+                                }
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("大师配方", color = TextPrimary) },
+                            onClick = {
+                                navController.navigate(com.rapidraw.ui.navigation.Routes.PRESETS_DISCOVERY)
                                 showMoreMenu = false
                             },
                         )
@@ -319,13 +340,56 @@ fun EditorScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                val newZoom = (zoomLevel * zoom).coerceIn(0.5f, 5f)
-                                viewModel.setZoomLevel(newZoom)
-                                panOffset = Offset(
-                                    panOffset.x + pan.x,
-                                    panOffset.y + pan.y,
-                                )
+                            awaitEachGesture {
+                                var zoomStart = zoomLevel
+                                var panStart = panOffset
+                                var lastVelocity = Offset.Zero
+                                var lastPan = Offset.Zero
+                                var lastTime = 0L
+
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val changes = event.changes
+                                    if (changes.size >= 2) {
+                                        val zoom = calculateZoom(changes)
+                                        val pan = calculatePan(changes)
+                                        val newZoom = (zoomStart * zoom).coerceIn(0.5f, 5f)
+                                        viewModel.setZoomLevel(newZoom)
+                                        panOffset = Offset(
+                                            panStart.x + pan.x,
+                                            panStart.y + pan.y,
+                                        )
+                                        // 计算速度用于惯性
+                                        val now = System.currentTimeMillis()
+                                        if (lastTime > 0) {
+                                            val dt = (now - lastTime).coerceAtLeast(1)
+                                            lastVelocity = Offset(
+                                                (panOffset.x - lastPan.x) / dt * 16f,
+                                                (panOffset.y - lastPan.y) / dt * 16f,
+                                            )
+                                        }
+                                        lastPan = panOffset
+                                        lastTime = now
+                                    }
+                                } while (event.changes.any { it.pressed })
+
+                                // 手势结束：启动惯性动画
+                                if (lastVelocity.getDistance() > 0.5f) {
+                                    launch {
+                                        animOffsetX.snapTo(panOffset.x)
+                                        animOffsetY.snapTo(panOffset.y)
+                                        animOffsetX.animateDecay(
+                                            lastVelocity.x,
+                                            exponentialDecay(frictionMultiplier = 2f),
+                                        )
+                                    }
+                                    launch {
+                                        animOffsetY.animateDecay(
+                                            lastVelocity.y,
+                                            exponentialDecay(frictionMultiplier = 2f),
+                                        )
+                                    }
+                                }
                             }
                         }
                         .pointerInput(Unit) {
@@ -344,8 +408,9 @@ fun EditorScreen(
                         .graphicsLayer {
                             scaleX = animatedZoom
                             scaleY = animatedZoom
-                            translationX = panOffset.x
-                            translationY = panOffset.y
+                            // 惯性动画进行中时优先使用动画值
+                            translationX = if (animOffsetX.isRunning) animOffsetX.value else panOffset.x
+                            translationY = if (animOffsetY.isRunning) animOffsetY.value else panOffset.y
                         },
                     contentScale = ContentScale.Fit,
                 )
