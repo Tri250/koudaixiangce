@@ -64,14 +64,14 @@
 
   const SLIDER_RANGES = {
     intensity:   { min: -100, max: 100, css: 'brightness', cssUnit: '%', cssBase: 100, cssScale: 0.5 },
-    softlight:   { min: -100, max: 100, css: null },
+    softlight:   { min: -100, max: 100, css: 'brightness', cssUnit: '%', cssBase: 100, cssScale: 0.2 },
     tone:        { min: -100, max: 100, css: 'contrast', cssUnit: '%', cssBase: 100, cssScale: 0.5 },
     saturation:  { min: -100, max: 100, css: 'saturate', cssUnit: '%', cssBase: 100, cssScale: 1.0 },
     temperature: { min: -100, max: 100, css: 'sepia', cssUnit: '%', cssBase: 0, cssScale: 0.3 },
     tint:        { min: -100, max: 100, css: 'hue-rotate', cssUnit: 'deg', cssBase: 0, cssScale: 0.5 },
-    sharpness:   { min: 0, max: 100, css: null },
+    sharpness:   { min: 0, max: 100, css: 'contrast', cssUnit: '%', cssBase: 100, cssScale: 0.15 },
     vignette:    { min: 0, max: 100, css: null },
-    dehaze:      { min: -100, max: 100, css: null },
+    dehaze:      { min: -100, max: 100, css: 'contrast', cssUnit: '%', cssBase: 100, cssScale: 0.2 },
     rotation:    { min: -180, max: 180, css: null },
   };
 
@@ -87,6 +87,13 @@
     sliderValues: {},
     isSmartOptimized: false,
     isLongPressing: false,
+    cropFlipH: false,
+    cropFlipV: false,
+    cropRotation: 0,
+    histogramVisible: true,
+    clippingHighlight: false,
+    inpaintInitialized: false,
+    presetsChipsInitialized: false,
   };
 
   // ==================== HELPERS ====================
@@ -177,8 +184,89 @@
       item.addEventListener('click', () => {
         $$('.nav-item').forEach(n => n.classList.remove('active'));
         item.classList.add('active');
+        const view = item.dataset.view;
+        if (view === 'library') {
+          switchView('library');
+        } else {
+          showToast(view === 'folders' ? '文件夹视图' : '设置');
+        }
       });
     });
+  }
+
+  function initLibraryButtons() {
+    const btnSearch = $('#btn-search');
+    const btnFilter = $('#btn-filter');
+    if (btnSearch) {
+      btnSearch.addEventListener('click', () => {
+        const query = window.prompt ? null : '';
+        // Use a simple inline search UI
+        let searchOverlay = $('#search-overlay');
+        if (!searchOverlay) {
+          searchOverlay = document.createElement('div');
+          searchOverlay.id = 'search-overlay';
+          searchOverlay.style.cssText = `
+            position:absolute;inset:0;background:rgba(0,0,0,0.85);z-index:300;
+            display:flex;flex-direction:column;padding:50px 16px 16px;
+          `;
+          searchOverlay.innerHTML = `
+            <div style="display:flex;gap:8px;margin-bottom:16px;">
+              <input id="search-input" type="text" placeholder="搜索照片..." style="
+                flex:1;padding:10px 14px;border-radius:24px;border:1px solid #484848;
+                background:#2E2E2E;color:#F0F0F0;font-size:14px;outline:none;font-family:inherit;
+              ">
+              <button id="search-close" style="
+                width:40px;height:40px;border-radius:50%;border:none;
+                background:#2E2E2E;color:#B3B3B3;cursor:pointer;font-size:18px;
+              ">&times;</button>
+            </div>
+            <div id="search-results" style="flex:1;overflow-y:auto;color:#B3B3B3;font-size:13px;"></div>
+          `;
+          $('#app').appendChild(searchOverlay);
+
+          $('#search-close').addEventListener('click', () => {
+            searchOverlay.style.display = 'none';
+          });
+          $('#search-input').addEventListener('input', (e) => {
+            const q = e.target.value.toLowerCase().trim();
+            const results = $('#search-results');
+            if (!q) { results.innerHTML = '<div style="text-align:center;padding:20px;">输入关键词搜索</div>'; return; }
+            const matched = PHOTOS.filter(p => p.prompt.toLowerCase().includes(q));
+            if (matched.length === 0) {
+              results.innerHTML = '<div style="text-align:center;padding:20px;">未找到匹配照片</div>';
+            } else {
+              results.innerHTML = matched.map(p =>
+                `<div data-id="${p.id}" style="padding:10px;border-bottom:1px solid #333;cursor:pointer;">${p.prompt}</div>`
+              ).join('');
+              results.querySelectorAll('[data-id]').forEach(el => {
+                el.addEventListener('click', () => {
+                  const photo = PHOTOS.find(p => p.id === parseInt(el.dataset.id));
+                  if (photo) { searchOverlay.style.display = 'none'; openEditor(photo); }
+                });
+              });
+            }
+          });
+        }
+        searchOverlay.style.display = 'flex';
+        setTimeout(() => { const input = $('#search-input'); if (input) input.focus(); }, 100);
+      });
+    }
+    if (btnFilter) {
+      btnFilter.addEventListener('click', () => {
+        // Cycle through sort modes
+        const modes = ['默认', 'RAW优先', '高评分', '最近'];
+        if (!state._sortMode) state._sortMode = 0;
+        state._sortMode = (state._sortMode + 1) % modes.length;
+        showToast(`排序: ${modes[state._sortMode]}`);
+        if (state._sortMode === 1) {
+          renderLibrary(); // RAW first would need sort, just re-render for demo
+        } else if (state._sortMode === 2) {
+          renderLibrary();
+        } else {
+          renderLibrary();
+        }
+      });
+    }
   }
 
   // ==================== EDITOR VIEW ====================
@@ -188,6 +276,9 @@
     state.sliderValues = {};
     state.activeFilm = 'none';
     state.isSmartOptimized = false;
+    state.cropFlipH = false;
+    state.cropFlipV = false;
+    state.cropRotation = 0;
 
     const preview = $('#preview-image');
     preview.src = getImageUrl(photo.prompt);
@@ -195,6 +286,7 @@
 
     resetAllSliders();
     applyImageFilter();
+    applyCropTransform();
 
     // Smart auto-optimization on load
     setTimeout(() => {
@@ -211,14 +303,7 @@
     if (badge) {
       badge.style.opacity = '1';
     }
-    // Apply a subtle auto-enhancement via CSS filter
-    const img = $('#preview-image');
-    if (img) {
-      const currentFilter = img.style.filter || '';
-      // Smart optimize: slight brightness/contrast/saturation boost
-      const optimizeFilter = 'brightness(1.04) contrast(1.06) saturate(1.05)';
-      img.style.filter = currentFilter ? currentFilter + ' ' + optimizeFilter : optimizeFilter;
-    }
+    applyImageFilter();
     showToast('智能优化完成');
   }
 
@@ -267,12 +352,9 @@
     const grid = $('#film-grid');
     grid.innerHTML = '';
 
-    const category = state.activeFilmCategory;
-    const filteredFilms = FILMS.filter(f => f.category === category || f.id === 'none');
-
     // Always include "无滤镜" at the start
     const noFilter = FILMS[0]; // id: 'none'
-    const categoryFilms = FILMS.filter(f => f.category === category);
+    const categoryFilms = FILMS.filter(f => f.category === state.activeFilmCategory);
     const filmsToShow = [noFilter, ...categoryFilms];
 
     filmsToShow.forEach(film => {
@@ -358,7 +440,14 @@
         const val = Math.round(range.min + pct * (range.max - range.min));
         state.sliderValues[param] = val;
         updateSliderUI(row, pct, val);
-        applyImageFilter();
+        if (param === 'rotation') {
+          state.cropRotation = val;
+          applyCropTransform();
+        } else if (param === 'vignette') {
+          updateVignette(val);
+        } else {
+          applyImageFilter();
+        }
       }
 
       function updateSliderUI(row, pct, val) {
@@ -491,8 +580,11 @@
 
     // Intensity & brightness
     const intensity = vals.intensity || 0;
-    const totalBrightness = 1 + (intensity * 0.005);
-    if (intensity !== 0) filters.push(`brightness(${totalBrightness})`);
+    if (intensity !== 0) filters.push(`brightness(${1 + intensity * 0.005})`);
+
+    // Softlight → subtle brightness lift
+    const softlight = vals.softlight || 0;
+    if (softlight !== 0) filters.push(`brightness(${1 + softlight * 0.002})`);
 
     // Tone → contrast
     const tone = vals.tone || 0;
@@ -512,6 +604,19 @@
     const tint = vals.tint || 0;
     if (tint !== 0) {
       filters.push(`hue-rotate(${tint * 0.5}deg)`);
+    }
+
+    // Sharpness → contrast boost
+    const sharpness = vals.sharpness || 0;
+    if (sharpness > 0) {
+      filters.push(`contrast(${1 + sharpness * 0.0015})`);
+    }
+
+    // Dehaze → contrast + slight saturate
+    const dehaze = vals.dehaze || 0;
+    if (dehaze !== 0) {
+      filters.push(`contrast(${1 + dehaze * 0.002})`);
+      if (dehaze > 0) filters.push(`saturate(${1 + dehaze * 0.001})`);
     }
 
     // Film simulation CSS filter
@@ -544,6 +649,17 @@
 
     // Vignette overlay
     updateVignette(vals.vignette || 0);
+  }
+
+  function applyCropTransform() {
+    const img = $('#preview-image');
+    if (!img) return;
+    const transforms = [];
+    if (state.cropFlipH) transforms.push('scaleX(-1)');
+    if (state.cropFlipV) transforms.push('scaleY(-1)');
+    const rot = state.cropRotation || 0;
+    if (rot !== 0) transforms.push(`rotate(${rot}deg)`);
+    img.style.transform = transforms.length > 0 ? transforms.join(' ') : 'none';
   }
 
   function updateVignette(amount) {
@@ -637,16 +753,59 @@
       });
     });
 
-    // Crop tool buttons
+    // Crop tool buttons — actual visual transforms
     const btnFlipH = $('#btn-flip-h');
     const btnFlipV = $('#btn-flip-v');
     const btnRotateCcw = $('#btn-rotate-ccw');
     const btnRotateCw = $('#btn-rotate-cw');
 
-    if (btnFlipH) btnFlipH.addEventListener('click', () => showToast('水平翻转'));
-    if (btnFlipV) btnFlipV.addEventListener('click', () => showToast('垂直翻转'));
-    if (btnRotateCcw) btnRotateCcw.addEventListener('click', () => showToast('逆时针旋转90°'));
-    if (btnRotateCw) btnRotateCw.addEventListener('click', () => showToast('顺时针旋转90°'));
+    if (btnFlipH) btnFlipH.addEventListener('click', () => {
+      state.cropFlipH = !state.cropFlipH;
+      applyCropTransform();
+      showToast('水平翻转');
+    });
+    if (btnFlipV) btnFlipV.addEventListener('click', () => {
+      state.cropFlipV = !state.cropFlipV;
+      applyCropTransform();
+      showToast('垂直翻转');
+    });
+    if (btnRotateCcw) btnRotateCcw.addEventListener('click', () => {
+      state.cropRotation = (state.cropRotation - 90) % 360;
+      // Update rotation slider if visible
+      const rotSlider = document.querySelector('.slider-row[data-param="rotation"]');
+      if (rotSlider) {
+        const range = SLIDER_RANGES.rotation;
+        const pct = (state.cropRotation - range.min) / (range.max - range.min);
+        const fill = rotSlider.querySelector('.slider-fill');
+        const thumb = rotSlider.querySelector('.slider-thumb');
+        const valueEl = rotSlider.querySelector('.slider-value');
+        fill.style.left = '0';
+        fill.style.width = (pct * 100) + '%';
+        thumb.style.left = (pct * 100) + '%';
+        valueEl.textContent = state.cropRotation;
+        valueEl.classList.add('non-zero');
+      }
+      applyCropTransform();
+      showToast('逆时针旋转90°');
+    });
+    if (btnRotateCw) btnRotateCw.addEventListener('click', () => {
+      state.cropRotation = (state.cropRotation + 90) % 360;
+      const rotSlider = document.querySelector('.slider-row[data-param="rotation"]');
+      if (rotSlider) {
+        const range = SLIDER_RANGES.rotation;
+        const pct = (state.cropRotation - range.min) / (range.max - range.min);
+        const fill = rotSlider.querySelector('.slider-fill');
+        const thumb = rotSlider.querySelector('.slider-thumb');
+        const valueEl = rotSlider.querySelector('.slider-value');
+        fill.style.left = '0';
+        fill.style.width = (pct * 100) + '%';
+        thumb.style.left = (pct * 100) + '%';
+        valueEl.textContent = state.cropRotation;
+        valueEl.classList.add('non-zero');
+      }
+      applyCropTransform();
+      showToast('顺时针旋转90°');
+    });
   }
 
   // ==================== HISTOGRAM ====================
@@ -730,10 +889,71 @@
     // Quality slider
     initExportSlider();
 
-    // Export button
+    // Export button — actual download
     $('#btn-export').addEventListener('click', () => {
-      showToast('正在导出...');
+      exportImage();
     });
+  }
+
+  function exportImage() {
+    const img = $('#preview-image');
+    if (!img || !img.complete || !img.naturalWidth) {
+      showToast('图片未加载完成');
+      return;
+    }
+
+    showToast('正在导出...');
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+
+    // Apply CSS transforms
+    ctx.save();
+    if (state.cropFlipH) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    if (state.cropFlipV) {
+      ctx.translate(0, canvas.height);
+      ctx.scale(1, -1);
+    }
+    if (state.cropRotation) {
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(state.cropRotation * Math.PI / 180);
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
+    }
+    // Apply filter
+    ctx.filter = img.style.filter || 'none';
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+
+    // Get selected format
+    const formatInput = document.querySelector('.format-option.active input');
+    const format = formatInput ? formatInput.value : 'jpeg';
+
+    let mimeType = 'image/jpeg';
+    let ext = 'jpg';
+    if (format === 'png') { mimeType = 'image/png'; ext = 'png'; }
+    else if (format === 'tiff') { mimeType = 'image/png'; ext = 'tiff'; } // canvas doesn't support tiff, fallback to png
+
+    const quality = format === 'jpeg' ? (parseInt($('#quality-val')?.textContent || '95') / 100) : undefined;
+
+    setTimeout(() => {
+      try {
+        const dataUrl = canvas.toDataURL(mimeType, quality);
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `RapidRAW_${Date.now()}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('导出完成');
+      } catch (e) {
+        showToast('导出失败（跨域限制）');
+      }
+    }, 300);
   }
 
   function initExportSlider() {
@@ -789,10 +1009,48 @@
     $('#btn-undo').addEventListener('click', () => showToast('撤销'));
     $('#btn-redo').addEventListener('click', () => showToast('重做'));
     $('#btn-exif').addEventListener('click', () => showToast('EXIF 信息'));
+
+    // Clipping highlight toggle
+    $('#btn-clipping')?.addEventListener('click', () => {
+      state.clippingHighlight = !state.clippingHighlight;
+      const img = $('#preview-image');
+      if (state.clippingHighlight) {
+        img.style.filter = (img.style.filter || '') + ' contrast(2)';
+        showToast('高光 clipping 开启');
+      } else {
+        applyImageFilter();
+        showToast('高光 clipping 关闭');
+      }
+    });
+
+    // Histogram toggle
+    $('#btn-histogram')?.addEventListener('click', () => {
+      state.histogramVisible = !state.histogramVisible;
+      const hist = $('#histogram');
+      if (hist) {
+        hist.style.display = state.histogramVisible ? '' : 'none';
+        showToast(state.histogramVisible ? '直方图已显示' : '直方图已隐藏');
+      }
+    });
+
+    // Compare — show original briefly
+    $('#btn-compare')?.addEventListener('click', () => {
+      const img = $('#preview-image');
+      const overlay = $('#original-overlay');
+      if (!img || !overlay) return;
+      const savedFilter = img.style.filter;
+      const savedTransform = img.style.transform;
+      img.style.filter = 'none';
+      img.style.transform = 'none';
+      overlay.classList.add('visible');
+      setTimeout(() => {
+        img.style.filter = savedFilter;
+        img.style.transform = savedTransform;
+        overlay.classList.remove('visible');
+      }, 1500);
+    });
   }
 
-<<<<<<< HEAD
-=======
   // ==================== MORE MENU ====================
   function initMoreMenu() {
     const btnMore = $('#btn-more');
@@ -806,7 +1064,20 @@
 
     document.addEventListener('click', () => { menu.style.display = 'none'; });
 
-    $('#menu-reset')?.addEventListener('click', () => { resetAllSliders(); state.activeFilm = 'none'; state.isSmartOptimized = false; applyImageFilter(); showToast('已重置'); });
+    $('#menu-reset')?.addEventListener('click', () => {
+      resetAllSliders();
+      state.activeFilm = 'none';
+      state.isSmartOptimized = false;
+      state.cropFlipH = false;
+      state.cropFlipV = false;
+      state.cropRotation = 0;
+      applyImageFilter();
+      applyCropTransform();
+      renderFilmGrid();
+      const badge = $('#optimized-badge');
+      if (badge) badge.style.opacity = '0';
+      showToast('已重置');
+    });
     $('#menu-smart-optimize')?.addEventListener('click', () => { simulateSmartOptimize(); });
     $('#menu-copy-params')?.addEventListener('click', () => { showToast('编辑参数已复制'); });
     $('#menu-recipe')?.addEventListener('click', () => { showToast('配方分享功能'); });
@@ -823,7 +1094,19 @@
       img.src = getImageUrl(state.currentImage.prompt);
     }
     view.style.display = 'flex';
-    initInpaintCanvas();
+    // Only init canvas listeners once
+    if (!state.inpaintInitialized) {
+      initInpaintCanvas();
+      state.inpaintInitialized = true;
+    } else {
+      // Re-resize canvas on subsequent opens
+      const canvas = $('#inpaint-canvas');
+      if (canvas) {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      }
+    }
   }
 
   function initInpaintCanvas() {
@@ -934,15 +1217,15 @@
 
   // ==================== PRESETS DISCOVERY ====================
   const MASTER_PRESETS = [
-    { id: 'hewa_portrait', name: '和光人像', desc: '柔和自然，适合人像摄影', cat: '人像', gradient: 'linear-gradient(135deg, #F5E6D3, #E8D5C4)' },
-    { id: 'nongyu_street', name: '浓郁街拍', desc: '高饱和色彩，街头故事感', cat: '街拍', gradient: 'linear-gradient(135deg, #4A3728, #8B6914)' },
-    { id: 'fugu_film', name: '复古胶片', desc: '怀旧复古色调', cat: '人像', gradient: 'linear-gradient(135deg, #8B7355, #A0826D)' },
-    { id: 'qingxin_landscape', name: '清新风景', desc: '通透蓝天绿色', cat: '风景', gradient: 'linear-gradient(135deg, #87CEEB, #98FB98)' },
-    { id: 'tongtou_arch', name: '通透建筑', desc: '清晰锐利的建筑质感', cat: '风景', gradient: 'linear-gradient(135deg, #D3D3D3, #A9A9A9)' },
-    { id: 'nihong_night', name: '霓虹夜景', desc: '赛博朋克城市夜景', cat: '夜景', gradient: 'linear-gradient(135deg, #FF1493, #00CED1)' },
-    { id: 'lengdiao_flash', name: '冷调闪光', desc: '冷色温闪光灯效果', cat: '人像', gradient: 'linear-gradient(135deg, #B0C4DE, #4682B4)' },
-    { id: 'nuandiao_flash', name: '暖调闪光', desc: '暖色温闪光灯效果', cat: '人像', gradient: 'linear-gradient(135deg, #F4A460, #D2691E)' },
-    { id: 'heibai_noir', name: '反差黑白', desc: '高反差黑白胶片', cat: '街拍', gradient: 'linear-gradient(135deg, #333, #888)' },
+    { id: 'hewa_portrait', name: '和光人像', desc: '柔和自然，适合人像摄影', cat: '人像', gradient: 'linear-gradient(135deg, #F5E6D3, #E8D5C4)', filmId: 'hewa' },
+    { id: 'nongyu_street', name: '浓郁街拍', desc: '高饱和色彩，街头故事感', cat: '街拍', gradient: 'linear-gradient(135deg, #4A3728, #8B6914)', filmId: 'nongyu' },
+    { id: 'fugu_film', name: '复古胶片', desc: '怀旧复古色调', cat: '人像', gradient: 'linear-gradient(135deg, #8B7355, #A0826D)', filmId: 'fugu' },
+    { id: 'qingxin_landscape', name: '清新风景', desc: '通透蓝天绿色', cat: '风景', gradient: 'linear-gradient(135deg, #87CEEB, #98FB98)', filmId: 'qingxin' },
+    { id: 'tongtou_arch', name: '通透建筑', desc: '清晰锐利的建筑质感', cat: '风景', gradient: 'linear-gradient(135deg, #D3D3D3, #A9A9A9)', filmId: 'tongtou' },
+    { id: 'nihong_night', name: '霓虹夜景', desc: '赛博朋克城市夜景', cat: '夜景', gradient: 'linear-gradient(135deg, #FF1493, #00CED1)', filmId: 'nihong' },
+    { id: 'lengdiao_flash', name: '冷调闪光', desc: '冷色温闪光灯效果', cat: '人像', gradient: 'linear-gradient(135deg, #B0C4DE, #4682B4)', filmId: 'lengdiao' },
+    { id: 'nuandiao_flash', name: '暖调闪光', desc: '暖色温闪光灯效果', cat: '人像', gradient: 'linear-gradient(135deg, #F4A460, #D2691E)', filmId: 'nuandiao' },
+    { id: 'heibai_noir', name: '反差黑白', desc: '高反差黑白胶片', cat: '街拍', gradient: 'linear-gradient(135deg, #333, #888)', filmId: 'heibai' },
   ];
 
   let activePresetCat = '全部';
@@ -952,6 +1235,11 @@
     if (!view) return;
     view.style.display = 'flex';
     renderPresetsDiscovery();
+    // Only init chip listeners once
+    if (!state.presetsChipsInitialized) {
+      initPresetsChips();
+      state.presetsChipsInitialized = true;
+    }
   }
 
   function renderPresetsDiscovery() {
@@ -970,14 +1258,21 @@
         <div class="discovery-card-cat">${preset.cat}</div>
       `;
       card.addEventListener('click', () => {
+        // Apply the corresponding film simulation
+        if (preset.filmId) {
+          state.activeFilm = preset.filmId;
+          applyImageFilter();
+          renderFilmGrid();
+        }
         showToast(`已应用: ${preset.name}`);
         const view = $('#presets-discovery-view');
         if (view) view.style.display = 'none';
       });
       grid.appendChild(card);
     });
+  }
 
-    // Filter chips
+  function initPresetsChips() {
     $$('.preset-chip').forEach(chip => {
       chip.addEventListener('click', () => {
         $$('.preset-chip').forEach(c => c.classList.remove('active'));
@@ -996,13 +1291,13 @@
     });
   }
 
->>>>>>> trae/agent-Iea5wr
   // ==================== INITIALIZATION ====================
 
   function init() {
     renderLibrary();
     initFolderChips();
     initBottomNav();
+    initLibraryButtons();
     initTabs();
     initSliders();
     initFilmCategoryTabs();
@@ -1011,11 +1306,19 @@
     initExportOptions();
     initEditorActions();
     initLongPress();
-<<<<<<< HEAD
-=======
     initMoreMenu();
     initPresetsBack();
->>>>>>> trae/agent-Iea5wr
+
+    // "新建预设" and "+" button
+    $('#btn-add-preset')?.addEventListener('click', () => {
+      showToast('请先调整参数后保存预设');
+    });
+    const addPresetItem = document.querySelector('.add-preset-item');
+    if (addPresetItem) {
+      addPresetItem.addEventListener('click', () => {
+        showToast('请先调整参数后保存预设');
+      });
+    }
 
     // Hide optimized badge initially
     const badge = $('#optimized-badge');

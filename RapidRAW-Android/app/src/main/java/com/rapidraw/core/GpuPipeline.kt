@@ -15,6 +15,38 @@ import java.nio.FloatBuffer
 /**
  * OpenGL ES 3.0 based GPU processing pipeline for real-time preview.
  * Uses EGL14 for context management and GLES30 for rendering.
+ *
+ * GPU PROCESSING PIPELINE - CONSISTENCY NOTE
+ * ============================================
+ * This pipeline must produce identical results to the CPU path in ImageProcessor.processFullResolution().
+ * The processing order is:
+ * 1. sRGB → Linear
+ * 2. Exposure
+ * 3. Filmic Brightness
+ * 4. Tone Level
+ * 5. White Balance (temperature/tint)
+ * 6. Green-Magenta axis
+ * 7. Highlights
+ * 8. Tonal (contrast/shadows/whites/blacks)
+ * 9. Centre
+ * 10. Saturation/Vibrance
+ * 11. HSL 8-color panel
+ * 12. Tone Curve
+ * 13. RGB Curves
+ * 14. Color Grading
+ * 15. Color Calibration
+ * 16. Film Simulation (curve + shifts)
+ * 17. Film Intensity mix
+ * 18. Vignette
+ * 19. Grain
+ * 20. Soft Glow / Bloom
+ * 21. LUT
+ * 22. Linear → sRGB
+ * 23. AgX Tone Mapping (if enabled)
+ * 24. Dither + Clamp
+ *
+ * When adding new processing steps, BOTH this GPU shader and the CPU path must be updated.
+ * Test with: identical input → diff < 1/255 per channel.
  */
 class GpuPipeline(private val context: Context) {
 

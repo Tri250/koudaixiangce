@@ -1057,8 +1057,6 @@ html, body {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
-<<<<<<< HEAD
-=======
 
 /* ==================== MORE MENU ==================== */
 .more-menu {
@@ -1320,4 +1318,3 @@ html, body {
   background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 40%, transparent 100%);
   pointer-events: none;
 }
->>>>>>> trae/agent-Iea5wr

@@ -39,7 +39,7 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                     processed.original.recycle()
                     processed.preview.recycle()
                     // Export
-                    imageProcessor.exportImage(adjusted, exportSettings.toCore(), context)
+                    imageProcessor.exportImage(adjusted, exportSettings, context, processed.exif, processed.orientation)
                     // Clean up
                     if (adjusted != processed.original) adjusted.recycle()
                 }
@@ -67,7 +67,7 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
 
                 withContext(Dispatchers.IO) {
                     val processed = imageProcessor.loadAndDecode(context, uri)
-                    imageProcessor.exportImage(processed.original, exportSettings.toCore(), context)
+                    imageProcessor.exportImage(processed.original, exportSettings, context, processed.exif, processed.orientation)
                     // Release decoded bitmaps after export
                     processed.original.recycle()
                     processed.preview.recycle()
@@ -89,37 +89,4 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
         adjustments: com.rapidraw.data.model.Adjustments,
         exportSettings: com.rapidraw.data.model.ExportSettings,
     ): Flow<BatchProgress> = batchApplyFilm(imageUris, adjustments, exportSettings)
-
-    private fun com.rapidraw.data.model.ExportSettings.toCore(): ExportSettings {
-        var maxWidth = 0
-        var maxHeight = 0
-        when (this.resizeMode) {
-            com.rapidraw.data.model.ResizeMode.WIDTH -> maxWidth = this.resizeValue
-            com.rapidraw.data.model.ResizeMode.HEIGHT -> maxHeight = this.resizeValue
-            com.rapidraw.data.model.ResizeMode.LONG_EDGE -> {
-                maxWidth = this.resizeValue
-                maxHeight = this.resizeValue
-            }
-            com.rapidraw.data.model.ResizeMode.SHORT_EDGE -> {
-                maxWidth = this.resizeValue
-                maxHeight = this.resizeValue
-            }
-            com.rapidraw.data.model.ResizeMode.ORIGINAL -> {
-                // leave as 0
-            }
-        }
-        return ExportSettings(
-            format = this.format.name,
-            quality = this.quality,
-            maxWidth = maxWidth,
-            maxHeight = maxHeight,
-            preserveMetadata = this.keepMetadata,
-            socialAspectRatio = this.socialPlatform.aspectRatio,
-            addWatermark = this.addWatermark,
-            watermarkText = this.watermarkText,
-            watermarkAnchor = this.watermarkAnchor.name,
-            watermarkScale = this.watermarkScale,
-            watermarkOpacity = this.watermarkOpacity,
-        )
-    }
 }

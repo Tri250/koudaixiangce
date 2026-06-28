@@ -226,7 +226,7 @@ object ColorMath {
         val bNorm = b / maxComponent
 
         // Apply tint (green-magenta shift)
-        // tint 已在 convertToCoreAdjustments 中归一化到 [-1, 1]，无需再除 100
+        // tint 已在 NormAdj.from() 中归一化到 [-1, 1]，无需再除 100
         val tintFactor = tint.coerceIn(-1f, 1f)
         val rOut = rNorm
         val gOut = gNorm + tintFactor * 0.1f

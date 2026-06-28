@@ -5,6 +5,18 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Coord(val x: Float, val y: Float)
 
+/**
+ * Represents an AI inpaint patch applied to a region of the image.
+ */
+@Serializable
+data class AiPatch(
+    val id: String = "",
+    val maskPath: List<Coord> = emptyList(),
+    val boundingBox: Coord = Coord(0f, 0f),
+    val boundingBoxSize: Coord = Coord(0f, 0f),
+    val applied: Boolean = false,
+)
+
 @Serializable
 data class HslChannel(
     val hue: Float = 0f,
@@ -184,7 +196,7 @@ data class Adjustments(
     val masks: List<MaskContainer> = emptyList(),
 
     // ── AI Patches ────────────────────────────────────────────
-    val aiPatches: List<Nothing> = emptyList(),
+    val aiPatches: List<AiPatch> = emptyList(),
 ) {
     fun copyByField(key: String, value: Float): Adjustments = when (key) {
         // Basic
@@ -312,6 +324,13 @@ data class Adjustments(
         else -> this
     }
 
+    /**
+     * Apply film simulation parameters.
+     * Film base adjustments are only applied where user hasn't overridden (value == 0).
+     * This is intentional: user edits always take priority over film defaults.
+     * The model uses -100..100 scale for contrast etc., which is normalized to -1..1
+     * in the processing pipeline via NormAdj.from().
+     */
     fun withFilmSimulation(film: FilmSimulation): Adjustments {
         return this.copy(
             filmId = film.id,

@@ -10,6 +10,7 @@ import com.rapidraw.core.GpuPipeline
 import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.SmartOptimizer
 import com.rapidraw.data.model.Adjustments
+import com.rapidraw.data.model.ExifData
 import com.rapidraw.data.model.ExportSettings
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.ImageFile
@@ -115,7 +116,9 @@ class EditorViewModel(
         private set
     internal var previewBitmapCache: Bitmap? = null
         private set
-    internal var originalExifData: com.rapidraw.core.ExifData? = null
+    internal var originalExifData: com.rapidraw.data.model.ExifData? = null
+        private set
+    internal var originalOrientation: Int = 0
         private set
     private var gpuPipeline: GpuPipeline? = null
     private var previewJob: Job? = null
@@ -152,6 +155,7 @@ class EditorViewModel(
                 originalBitmap = processed.original
                 previewBitmapCache = processed.preview
                 originalExifData = processed.exif
+                originalOrientation = processed.orientation
 
                 withContext(Dispatchers.Main) {
                     _previewBitmap.value = processed.preview
@@ -626,23 +630,7 @@ class EditorViewModel(
                     _adjustments.value, source, allowDownsample = false
                 )
 
-                val coreExportSettings = com.rapidraw.core.ExportSettings(
-                    format = settings.format.name,
-                    quality = settings.quality,
-                    maxWidth = if (settings.resizeMode == com.rapidraw.data.model.ResizeMode.ORIGINAL) 0
-                    else settings.resizeValue,
-                    maxHeight = 0,
-                    preserveMetadata = settings.keepMetadata,
-                    stripGps = settings.stripGps,
-                    socialAspectRatio = settings.socialPlatform.aspectRatio,
-                    addWatermark = settings.addWatermark,
-                    watermarkText = settings.watermarkText,
-                    watermarkAnchor = settings.watermarkAnchor.name,
-                    watermarkScale = settings.watermarkScale,
-                    watermarkOpacity = settings.watermarkOpacity,
-                )
-
-                imageProcessor.exportImage(processed, coreExportSettings, context, originalExifData)
+                imageProcessor.exportImage(processed, settings, context, originalExifData, originalOrientation)
 
                 withContext(Dispatchers.Main) {
                     _isLoading.value = false
@@ -781,11 +769,6 @@ class EditorViewModel(
                 // Bitmap may have been recycled
             }
         }
-    }
-
-    private fun convertToCoreAdjustments(adj: Adjustments): com.rapidraw.core.Adjustments {
-        // 委托给 ImageProcessor 的归一化方法，确保预览与导出路径一致
-        return imageProcessor.convertToCoreAdjustments(adj)
     }
 
     override fun onCleared() {
