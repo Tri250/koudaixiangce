@@ -3,38 +3,45 @@ package com.rapidraw.ui.editor
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.rapidraw.core.AdjustmentClipboard
+import com.rapidraw.core.AiDenoiser
+import com.rapidraw.core.AiInpainter
+import com.rapidraw.core.AiMaskGenerator
+import com.rapidraw.core.CubeLutParser
+import com.rapidraw.core.FlowMaskManager
 import com.rapidraw.core.GpuPipeline
+import com.rapidraw.core.HighlightReconstructor
 import com.rapidraw.core.ImageProcessor
+import com.rapidraw.core.LutManager
+import com.rapidraw.core.SceneClassifier
+import com.rapidraw.core.SceneType
+import com.rapidraw.core.SidecarManager
 import com.rapidraw.core.SmartOptimizer
+import com.rapidraw.core.UserPreferenceLearning
 import com.rapidraw.data.model.Adjustments
 import com.rapidraw.data.model.ExifData
 import com.rapidraw.data.model.ExportSettings
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.ImageFile
 import com.rapidraw.data.model.Preset
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import com.rapidraw.core.SceneClassifier
-import com.rapidraw.core.AiInpainter
-import com.rapidraw.core.AiDenoiser
-import com.rapidraw.core.AiMaskGenerator
-import com.rapidraw.core.FlowMaskManager
-import com.rapidraw.core.UserPreferenceLearning
-import com.rapidraw.core.SceneType
-import com.rapidraw.core.AdjustmentClipboard
-import com.rapidraw.core.CubeLutParser
-import com.rapidraw.core.HighlightReconstructor
-import com.rapidraw.core.LutManager
+import java.util.concurrent.atomic.AtomicBoolean
 
 enum class EditorTab {
     FILM,
@@ -43,13 +50,21 @@ enum class EditorTab {
     EXPORT,
 }
 
+sealed class EditorEvent {
+    data class Error(val message: String) : EditorEvent()
+    data class ExportComplete(val uri: Uri) : EditorEvent()
+    data object Idle : EditorEvent()
+}
+
 class EditorViewModel(
     private val imageFile: ImageFile?,
-    private val context: Context,
+    context: Context,
 ) : ViewModel() {
 
+    private val appContext = context.applicationContext
     private val imageProcessor = ImageProcessor()
 
+    // region UI State Flows
     private val _currentImage = MutableStateFlow<ImageFile?>(imageFile)
     val currentImage: StateFlow<ImageFile?> = _currentImage.asStateFlow()
 
@@ -58,6 +73,10 @@ class EditorViewModel(
 
     private val _previewBitmap = MutableStateFlow<Bitmap?>(null)
     val previewBitmap: StateFlow<Bitmap?> = _previewBitmap.asStateFlow()
+
+    // 原图预览（用于长按对比），避免 UI 直接访问内部 previewBitmapCache
+    private val _originalPreviewBitmap = MutableStateFlow<Bitmap?>(null)
+    val originalPreviewBitmap: StateFlow<Bitmap?> = _originalPreviewBitmap.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -109,21 +128,45 @@ class EditorViewModel(
     private val _showClipping = MutableStateFlow(false)
     val showClipping: StateFlow<Boolean> = _showClipping.asStateFlow()
 
+    private val _event = MutableStateFlow<EditorEvent>(EditorEvent.Idle)
+    val event: StateFlow<EditorEvent> = _event.asStateFlow()
+
+    private val _aiDenoiseProgress = MutableStateFlow(0f)
+    val aiDenoiseProgress: StateFlow<Float> = _aiDenoiseProgress.asStateFlow()
+
+    private val _isAiProcessing = MutableStateFlow(false)
+    val isAiProcessing: StateFlow<Boolean> = _isAiProcessing.asStateFlow()
+    // endregion
+
+    // region Internal State
     private val undoStack = ArrayDeque<Adjustments>(maxSize = 50)
     private val redoStack = ArrayDeque<Adjustments>(maxSize = 50)
 
-    internal var originalBitmap: Bitmap? = null
-        private set
-    internal var previewBitmapCache: Bitmap? = null
-        private set
-    internal var originalExifData: com.rapidraw.data.model.ExifData? = null
-        private set
-    internal var originalOrientation: Int = 0
-        private set
+    // 所有 Bitmap 状态通过 bitmapMutex 保护，避免并发访问/回收导致崩溃
+    private val bitmapMutex = Mutex()
+    private var originalBitmap: Bitmap? = null
+    private var previewBitmapCache: Bitmap? = null
+    private var originalExifData: ExifData? = null
+    private var originalOrientation: Int = 0
+
     private var gpuPipeline: GpuPipeline? = null
+    private val gpuMutex = Mutex()
+
     private var previewJob: Job? = null
     private var smartOptimizeJob: Job? = null
-    private val lutManager = LutManager(context)
+    private var histogramJob: Job? = null
+    private var aiJob: Job? = null
+    private var exportJob: Job? = null
+    private var loadJob: Job? = null
+
+    private val lutManager = LutManager(appContext)
+    private var flowMaskManager: FlowMaskManager? = null
+
+    private val isCleared = AtomicBoolean(false)
+
+    // 用于 ViewModel 销毁后异步释放 GPU/Bitmap 资源，避免 onCleared 阻塞主线程
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // endregion
 
     init {
         if (imageFile != null) {
@@ -131,15 +174,74 @@ class EditorViewModel(
         }
     }
 
+    fun consumeEvent() {
+        _event.value = EditorEvent.Idle
+    }
+
     fun setGpuPipeline(pipeline: GpuPipeline?) {
-        gpuPipeline = pipeline
+        // GPU pipeline 仅在 EditorScreen 初始化时从主线程设置一次，
+        // 使用 viewModelScope 确保后续释放逻辑串行化。
+        viewModelScope.launch {
+            gpuMutex.withLock {
+                gpuPipeline = pipeline
+            }
+        }
     }
 
     fun loadImage(imageFile: ImageFile) {
-        _currentImage.value = imageFile
-        _isLoading.value = true
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            resetEditorState()
+            _currentImage.value = imageFile
+            _isLoading.value = true
 
-        // 先重置状态，再加载
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    val uri = Uri.parse(imageFile.path)
+                        ?: throw IllegalArgumentException("Invalid image path: ${imageFile.path}")
+                    imageProcessor.loadAndDecode(appContext, uri)
+                }
+            }
+
+            result.onSuccess { processed ->
+                bitmapMutex.withLock {
+                    recycleBitmapsInternal()
+                    originalBitmap = processed.original
+                    previewBitmapCache = processed.preview
+                    originalExifData = processed.exif
+                    originalOrientation = processed.orientation
+                }
+                // 原图预览用于对比模式：复制一份避免与 previewBitmapCache 共享引用
+                val originalPreview = processed.preview.let { src ->
+                    if (src.isRecycled) null else src.copy(src.config ?: Bitmap.Config.ARGB_8888, false)
+                }
+                _originalPreviewBitmap.value?.let { old ->
+                    if (!old.isRecycled && old !== previewBitmapCache && old !== originalBitmap) old.recycle()
+                }
+                _originalPreviewBitmap.value = originalPreview
+                _previewBitmap.value = processed.preview
+                _isLoading.value = false
+                updateHistogramAsync(processed.preview)
+
+                // 恢复 sidecar
+                val sidecarManager = SidecarManager(appContext)
+                val savedAdj = sidecarManager.loadSidecar(imageFile.path)
+                if (savedAdj != null) {
+                    _adjustments.value = savedAdj.adjustments
+                    savedAdj.filmId?.let { _selectedFilmId.value = it }
+                } else {
+                    smartOptimize()
+                }
+                detectSceneAsync(processed.preview)
+            }.onFailure { throwable ->
+                Log.e(TAG, "Failed to load image: ${imageFile.path}", throwable)
+                _isLoading.value = false
+                _event.value = EditorEvent.Error("无法加载图片: ${throwable.localizedMessage}")
+            }
+        }
+    }
+
+    private fun resetEditorState() {
         undoStack.clear()
         redoStack.clear()
         _canUndo.value = false
@@ -147,83 +249,54 @@ class EditorViewModel(
         _adjustments.value = Adjustments()
         _selectedFilmId.value = null
         _isSmartOptimized.value = false
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val uri = Uri.parse(imageFile.path)
-                val processed = imageProcessor.loadAndDecode(context, uri)
-                originalBitmap = processed.original
-                previewBitmapCache = processed.preview
-                originalExifData = processed.exif
-                originalOrientation = processed.orientation
-
-                withContext(Dispatchers.Main) {
-                    _previewBitmap.value = processed.preview
-                    _isLoading.value = false
-                    updateHistogram(processed.preview)
-
-                    // 恢复 sidecar
-                    val sidecarManager = com.rapidraw.core.SidecarManager(context)
-                    val savedAdj = sidecarManager.loadSidecar(imageFile.path)
-                    if (savedAdj != null) {
-                        _adjustments.value = savedAdj.adjustments
-                        if (savedAdj.filmId != null) {
-                            _selectedFilmId.value = savedAdj.filmId
-                        }
-                        // 有已保存的编辑，不自动智能优化
-                    } else {
-                        // 仅在首次打开（无 sidecar）时自动智能优化
-                        smartOptimize()
-                    }
-
-                    detectScene(processed.preview)
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    _isLoading.value = false
-                }
-            }
-        }
+        _showSmartOptimizeConfirm.value = false
+        _smartOptimizedAdjustments.value = null
+        _detectedScene.value = null
+        _sceneConfidence.value = 0f
+        _showClipping.value = false
+        _zoomLevel.value = 1f
     }
 
-    // ── Quick Adjust Mapping ──────────────────────────────────────────
-
+    // region Adjustment Updates
     fun getQuickAdjustValue(key: String): Float {
         val adj = _adjustments.value
         return when (key) {
             "filmIntensity" -> adj.filmIntensity
-            "softGlow"      -> adj.softGlow
-            "toneLevel"     -> adj.toneLevel
-            "saturation"    -> adj.saturation
-            "temperature"   -> adj.temperature
-            "greenMagenta"  -> adj.greenMagenta
-            "sharpness"     -> adj.sharpness.coerceIn(0f, 100f)
+            "softGlow" -> adj.softGlow
+            "toneLevel" -> adj.toneLevel
+            "saturation" -> adj.saturation
+            "temperature" -> adj.temperature
+            "greenMagenta" -> adj.greenMagenta
+            "sharpness" -> adj.sharpness.coerceIn(0f, 100f)
             "vignetteAmount" -> adj.vignetteAmount.coerceIn(0f, 100f)
-            "dehaze"        -> adj.dehaze.coerceIn(0f, 100f)
-            else            -> 0f
+            "dehaze" -> adj.dehaze.coerceIn(0f, 100f)
+            else -> 0f
         }
     }
 
     fun updateAdjustment(key: String, value: Float) {
+        // 用户主动编辑时取消正在进行的智能优化，避免结果被覆盖
+        smartOptimizeJob?.cancel()
         pushUndo()
         _adjustments.value = _adjustments.value.copyByField(key, value)
         schedulePreviewUpdate()
     }
 
     fun updateQuickAdjust(key: String, value: Float) {
+        smartOptimizeJob?.cancel()
         pushUndo()
-        // 直接映射到 Adjustments 的新字段，不做间接转换
         _adjustments.value = when (key) {
             "filmIntensity" -> _adjustments.value.copy(filmIntensity = value.coerceIn(0f, 1f))
-            "softGlow"      -> _adjustments.value.copy(softGlow = value.coerceIn(0f, 1f))
-            "toneLevel"     -> _adjustments.value.copy(toneLevel = value.coerceIn(-1f, 1f))
-            "greenMagenta"  -> _adjustments.value.copy(greenMagenta = value.coerceIn(-1f, 1f))
-            else            -> _adjustments.value.copyByField(key, value)
+            "softGlow" -> _adjustments.value.copy(softGlow = value.coerceIn(0f, 1f))
+            "toneLevel" -> _adjustments.value.copy(toneLevel = value.coerceIn(-1f, 1f))
+            "greenMagenta" -> _adjustments.value.copy(greenMagenta = value.coerceIn(-1f, 1f))
+            else -> _adjustments.value.copyByField(key, value)
         }
         schedulePreviewUpdate()
     }
 
     fun applyPreset(preset: Preset) {
+        smartOptimizeJob?.cancel()
         pushUndo()
         _adjustments.value = preset.adjustments
         preset.filmId?.let { fid ->
@@ -236,21 +309,21 @@ class EditorViewModel(
         }
         schedulePreviewUpdate()
     }
+    // endregion
 
-    // ── Film Simulation ───────────────────────────────────────────────
-
+    // region Film Simulation
     fun selectFilm(film: FilmSimulation) {
+        smartOptimizeJob?.cancel()
         pushUndo()
         _selectedFilmId.value = film.id
-        // 使用 withFilmSimulation 正确传递所有胶片模拟参数到着色器
         _adjustments.value = _adjustments.value.withFilmSimulation(film)
         schedulePreviewUpdate()
     }
 
     fun clearFilm() {
+        smartOptimizeJob?.cancel()
         pushUndo()
         _selectedFilmId.value = null
-        // 清除所有胶片模拟参数，保留用户已调整的基础参数
         _adjustments.value = _adjustments.value.copy(
             filmId = "",
             filmIntensity = 0f,
@@ -265,13 +338,16 @@ class EditorViewModel(
             filmGrainAmount = 0f,
             filmGrainSize = 0f,
             filmGrainRoughness = 0f,
-            filmCurvePoints = listOf(0f to 0f, 51f to 51f, 102f to 102f, 153f to 153f, 204f to 204f, 255f to 255f),
+            filmCurvePoints = listOf(
+                0f to 0f, 51f to 51f, 102f to 102f,
+                153f to 153f, 204f to 204f, 255f to 255f
+            ),
         )
         schedulePreviewUpdate()
     }
+    // endregion
 
-    // ── Tab Navigation ────────────────────────────────────────────────
-
+    // region Tab & UI Controls
     fun setTab(tab: EditorTab) {
         _activeTab.value = tab
     }
@@ -279,8 +355,6 @@ class EditorViewModel(
     fun toggleAdvanced() {
         _showAdvanced.value = !_showAdvanced.value
     }
-
-    // ── Long-Press Original ───────────────────────────────────────────
 
     fun onPreviewLongPressStart() {
         _isShowingOriginal.value = true
@@ -290,63 +364,71 @@ class EditorViewModel(
         _isShowingOriginal.value = false
     }
 
-    // ── Smart Optimize ────────────────────────────────────────────────
+    fun toggleShowOriginal() {
+        _isShowingOriginal.value = !_isShowingOriginal.value
+    }
 
+    fun toggleClipping() {
+        _showClipping.value = !_showClipping.value
+        _adjustments.value = _adjustments.value.copy(showClipping = _showClipping.value)
+        schedulePreviewUpdate()
+    }
+
+    fun resetAdjustments() {
+        smartOptimizeJob?.cancel()
+        pushUndo()
+        _adjustments.value = Adjustments()
+        _selectedFilmId.value = null
+        _isSmartOptimized.value = false
+        schedulePreviewUpdate()
+    }
+
+    fun setZoomLevel(level: Float) {
+        _zoomLevel.value = level.coerceIn(0.5f, 5f)
+    }
+    // endregion
+
+    // region Smart Optimize
     fun smartOptimize() {
-        val bitmap = previewBitmapCache ?: return
-        if (bitmap.isRecycled) return
-
-        _isSmartOptimizing.value = true
-
         smartOptimizeJob?.cancel()
         smartOptimizeJob = viewModelScope.launch(Dispatchers.Default) {
-            delay(100) // Brief delay to show loading state
+            if (isCleared.get()) return@launch
 
-            val w = bitmap.width
-            val h = bitmap.height
-            val pixels = IntArray(w * h)
+            val bitmap = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launch
 
-            try {
-                bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+            _isSmartOptimizing.value = true
+            delay(100) // 让用户感知到 loading 状态
 
-                val redHist = IntArray(256)
-                val greenHist = IntArray(256)
-                val blueHist = IntArray(256)
+            runCatching {
+                val optimized = imageProcessor.smartOptimize(bitmap)
 
-                for (pixel in pixels) {
-                    val r = (pixel shr 16) and 0xFF
-                    val g = (pixel shr 8) and 0xFF
-                    val b = pixel and 0xFF
-                    redHist[r]++
-                    greenHist[g]++
-                    blueHist[b]++
-                }
-
-                val optimized = SmartOptimizer.quickEnhance(
-                    redHist, greenHist, blueHist, w, h, _adjustments.value
-                )
-
-                // Run scene classifier on the preview bitmap
                 val classifier = SceneClassifier()
                 val analysis = classifier.classify(bitmap)
-                _detectedScene.value = analysis.sceneType
-                _sceneConfidence.value = analysis.confidence
 
-                // Use UserPreferenceLearning to personalize the optimization
-                val userLearning = UserPreferenceLearning(context)
+                val userLearning = UserPreferenceLearning(appContext)
                 val profile = userLearning.learn()
-                val personalized = userLearning.personalizedOptimize(optimized, analysis.sceneType, profile)
+                val personalized = userLearning.personalizedOptimize(
+                    optimized, analysis.sceneType, profile
+                )
 
                 withContext(Dispatchers.Main) {
+                    if (isCleared.get()) return@withContext
                     val originalAdjustments = _adjustments.value
                     pushUndo()
                     _adjustments.value = personalized
                     _smartOptimizedAdjustments.value = originalAdjustments
                     _showSmartOptimizeConfirm.value = true
+                    _isSmartOptimized.value = true
+                    _detectedScene.value = analysis.sceneType
+                    _sceneConfidence.value = analysis.confidence
                     _isSmartOptimizing.value = false
                     schedulePreviewUpdate()
                 }
-            } catch (_: Exception) {
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "Smart optimize failed", throwable)
                 withContext(Dispatchers.Main) {
                     _isSmartOptimizing.value = false
                 }
@@ -363,7 +445,7 @@ class EditorViewModel(
     fun undoSmartOptimize() {
         _showSmartOptimizeConfirm.value = false
         _smartOptimizedAdjustments.value?.let { original ->
-            _adjustments.value = original  // Revert to original
+            _adjustments.value = original
         }
         _smartOptimizedAdjustments.value = null
         schedulePreviewUpdate()
@@ -374,207 +456,243 @@ class EditorViewModel(
         AdjustmentClipboard.copy(adj)
         return adj
     }
+    // endregion
 
-    // ── AI 模块串联 ──────────────────────────────────────────────────
-
-    private val _aiDenoiseProgress = MutableStateFlow(0f)
-    val aiDenoiseProgress: StateFlow<Float> = _aiDenoiseProgress.asStateFlow()
-
-    private val _isAiProcessing = MutableStateFlow(false)
-    val isAiProcessing: StateFlow<Boolean> = _isAiProcessing.asStateFlow()
-
-    private var flowMaskManager: FlowMaskManager? = null
-
-    /**
-     * AI 去噪：使用 Guided Filter 保边降噪
-     */
+    // region AI Modules
     fun applyAiDenoise(preserveDetails: Float = 0.5f, chromaStrength: Float = 0.3f) {
-        val source = previewBitmapCache ?: return
-        if (source.isRecycled) return
+        launchAiJob {
+            val source = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launchAiJob
 
-        _isAiProcessing.value = true
-        _aiDenoiseProgress.value = 0f
+            _isAiProcessing.value = true
+            _aiDenoiseProgress.value = 0f
 
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
+            runCatching {
                 val denoiser = AiDenoiser()
                 _aiDenoiseProgress.value = 0.3f
                 val denoised = denoiser.denoise(source, preserveDetails, chromaStrength)
                 _aiDenoiseProgress.value = 0.8f
 
-                withContext(Dispatchers.Main) {
+                bitmapMutex.withLock {
+                    previewBitmapCache?.recycle()
                     previewBitmapCache = denoised
-                    _previewBitmap.value = denoised
-                    updateHistogram(denoised)
-                    _aiDenoiseProgress.value = 1f
-                    _isAiProcessing.value = false
                 }
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) {
-                    _isAiProcessing.value = false
-                    _aiDenoiseProgress.value = 0f
-                }
+                _previewBitmap.value = denoised
+                updateHistogramAsync(denoised)
+                _aiDenoiseProgress.value = 1f
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "AI denoise failed", throwable)
+                _event.value = EditorEvent.Error("AI 去噪失败: ${throwable.localizedMessage}")
             }
+
+            _isAiProcessing.value = false
         }
     }
 
-    /**
-     * AI 遮罩生成：天空 / 主体 / 前景 / 深度
-     */
     fun generateAiMask(maskType: AiMaskGenerator.MaskType, onResult: (Bitmap) -> Unit) {
-        val source = previewBitmapCache ?: return
-        if (source.isRecycled) return
+        launchAiJob {
+            val source = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launchAiJob
 
-        _isAiProcessing.value = true
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
+            _isAiProcessing.value = true
+            runCatching {
                 val generator = AiMaskGenerator()
                 val mask = generator.generateMask(source, maskType)
                 withContext(Dispatchers.Main) {
-                    _isAiProcessing.value = false
-                    onResult(mask)
+                    if (!isCleared.get()) onResult(mask)
                 }
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) {
-                    _isAiProcessing.value = false
-                }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "AI mask generation failed", throwable)
+                _event.value = EditorEvent.Error("AI 遮罩生成失败: ${throwable.localizedMessage}")
             }
+            _isAiProcessing.value = false
         }
     }
 
-    /**
-     * AI 消除：对指定区域的像素进行扩散式修复
-     */
-    fun applyAiInpaint(maskBitmap: Bitmap, onResult: (Bitmap) -> Unit) {
-        val source = previewBitmapCache ?: return
-        if (source.isRecycled) return
+    fun applyAiMaskResult(mask: Bitmap) {
+        launchAiJob {
+            val source = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launchAiJob
 
-        _isAiProcessing.value = true
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
+            _isAiProcessing.value = true
+            runCatching {
+                val generator = AiMaskGenerator()
+                val result = withContext(Dispatchers.Default) {
+                    generator.applyMaskToBitmap(source, mask)
+                }
+                bitmapMutex.withLock {
+                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                    previewBitmapCache = result
+                }
+                _previewBitmap.value = result
+                updateHistogramAsync(result)
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "AI mask apply failed", throwable)
+                _event.value = EditorEvent.Error("AI 遮罩应用失败: ${throwable.localizedMessage}")
+            }
+            _isAiProcessing.value = false
+        }
+    }
+
+    fun applyAiInpaint(maskBitmap: Bitmap, onResult: (Bitmap) -> Unit) {
+        launchAiJob {
+            val source = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launchAiJob
+
+            _isAiProcessing.value = true
+            runCatching {
                 val inpainter = AiInpainter()
                 val result = inpainter.removeObject(source, maskBitmap, iterations = 3)
-                withContext(Dispatchers.Main) {
+                bitmapMutex.withLock {
+                    previewBitmapCache?.recycle()
                     previewBitmapCache = result
-                    _previewBitmap.value = result
-                    updateHistogram(result)
-                    _isAiProcessing.value = false
-                    onResult(result)
                 }
-            } catch (_: Exception) {
+                _previewBitmap.value = result
+                updateHistogramAsync(result)
                 withContext(Dispatchers.Main) {
-                    _isAiProcessing.value = false
+                    if (!isCleared.get()) onResult(result)
                 }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "AI inpaint failed", throwable)
+                _event.value = EditorEvent.Error("AI 消除失败: ${throwable.localizedMessage}")
             }
+            _isAiProcessing.value = false
         }
     }
 
-    /**
-     * 应用 AI 修复结果：将修复后的位图作为新的源位图
-     */
     fun applyAiInpaintResult(bitmap: Bitmap) {
-        originalBitmap = bitmap
-        previewBitmapCache = bitmap
-        _previewBitmap.value = bitmap
-        schedulePreviewUpdate()
+        viewModelScope.launch {
+            val previewCopy = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
+            bitmapMutex.withLock {
+                // 安全回收：避免释放即将重新赋值的同一对象
+                originalBitmap?.takeIf { !it.isRecycled && it !== previewBitmapCache && it !== bitmap }?.recycle()
+                previewBitmapCache?.takeIf { !it.isRecycled && it !== bitmap }?.recycle()
+                originalBitmap = bitmap
+                previewBitmapCache = previewCopy
+            }
+            _previewBitmap.value = previewCopy
+            _originalPreviewBitmap.value?.takeIf { !it.isRecycled && it !== previewCopy && it !== bitmap }?.recycle()
+            _originalPreviewBitmap.value = previewCopy.copy(previewCopy.config ?: Bitmap.Config.ARGB_8888, false)
+            schedulePreviewUpdate()
+        }
     }
 
-    /**
-     * 导入 LUT 文件
-     */
     fun importLut(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val lut = CubeLutParser().parse(context.contentResolver.openInputStream(uri))
-                lut?.let { l ->
-                    val name = uri.lastPathSegment?.substringAfterLast("/")?.removeSuffix(".cube")
-                        ?: "imported_lut"
-                    lutManager.importLut(l, name)
-                    withContext(Dispatchers.Main) {
-                        pushUndo()
-                        imageProcessor.currentLut = l
-                        _adjustments.value = _adjustments.value.copy(lutIntensity = 100f)
-                        // Update GPU LUT texture
-                        gpuPipeline?.updateLutTexture(l, 1f)
-                        schedulePreviewUpdate()
+            runCatching {
+                appContext.contentResolver.openInputStream(uri)?.use { stream ->
+                    val lut = CubeLutParser().parse(stream)
+                    lut?.let { l ->
+                        val name = uri.lastPathSegment?.substringAfterLast("/")?.removeSuffix(".cube")
+                            ?: "imported_lut"
+                        lutManager.importLut(l, name)
+                        withContext(Dispatchers.Main) {
+                            pushUndo()
+                            imageProcessor.currentLut = l
+                            _adjustments.value = _adjustments.value.copy(lutIntensity = 100f)
+                            gpuMutex.withLock {
+                                gpuPipeline?.updateLutTexture(l, 1f)
+                            }
+                            schedulePreviewUpdate()
+                        }
                     }
-                }
-            } catch (_: Exception) {
+                } ?: throw IllegalArgumentException("Cannot open LUT URI")
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "Import LUT failed", throwable)
+                _event.value = EditorEvent.Error("导入 LUT 失败: ${throwable.localizedMessage}")
             }
         }
     }
 
-    /**
-     * 高光重建
-     */
     fun applyHighlightReconstruction() {
-        val source = previewBitmapCache ?: return
-        if (source.isRecycled) return
+        launchAiJob {
+            val source = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launchAiJob
 
-        _isAiProcessing.value = true
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
+            _isAiProcessing.value = true
+            runCatching {
                 val reconstructor = HighlightReconstructor()
                 val reconstructed = reconstructor.reconstruct(source)
-                withContext(Dispatchers.Main) {
+                bitmapMutex.withLock {
+                    previewBitmapCache?.recycle()
                     previewBitmapCache = reconstructed
-                    _previewBitmap.value = reconstructed
-                    updateHistogram(reconstructed)
-                    _isAiProcessing.value = false
                 }
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) {
-                    _isAiProcessing.value = false
-                }
+                _previewBitmap.value = reconstructed
+                updateHistogramAsync(reconstructed)
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "Highlight reconstruction failed", throwable)
+                _event.value = EditorEvent.Error("高光重建失败: ${throwable.localizedMessage}")
             }
+            _isAiProcessing.value = false
         }
     }
 
-    /**
-     * Flow Mask 初始化：创建与预览图同尺寸的笔刷蒙版
-     */
+    private fun launchAiJob(block: suspend () -> Unit) {
+        aiJob?.cancel()
+        aiJob = viewModelScope.launch(Dispatchers.Default) {
+            if (isCleared.get()) return@launch
+            runCatching { block() }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "AI job failed", throwable)
+            }
+        }
+    }
+    // endregion
+
+    // region Flow Mask
     fun initFlowMask() {
-        val source = previewBitmapCache ?: return
-        flowMaskManager = FlowMaskManager(source.width, source.height)
+        val source = bitmapMutex.withLock { previewBitmapCache?.takeIf { !it.isRecycled } }
+        source?.let { flowMaskManager = FlowMaskManager(it.width, it.height) }
     }
 
-    /**
-     * Flow Mask 绘制：添加笔刷到蒙版
-     */
     fun paintFlowMask(x: Float, y: Float, brushSize: Float, opacity: Float, hardness: Float) {
         flowMaskManager?.paintStroke(x, y, brushSize, opacity, hardness)
     }
 
-    /**
-     * Flow Mask 擦除
-     */
     fun eraseFlowMask(x: Float, y: Float, brushSize: Float) {
         flowMaskManager?.eraseStroke(x, y, brushSize)
     }
 
-    /**
-     * Flow Mask 清除
-     */
     fun clearFlowMask() {
         flowMaskManager?.clear()
     }
 
-    /**
-     * 获取当前 Flow Mask Bitmap
-     */
     fun getFlowMaskBitmap(): Bitmap? = flowMaskManager?.getMaskBitmap()
+    // endregion
 
-    fun detectScene(bitmap: Bitmap) {
+    // region Scene Detection
+    private fun detectSceneAsync(bitmap: Bitmap) {
         viewModelScope.launch(Dispatchers.Default) {
-            val classifier = SceneClassifier()
-            val analysis = classifier.classify(bitmap)
-            _detectedScene.value = analysis.sceneType
-            _sceneConfidence.value = analysis.confidence
+            if (isCleared.get()) return@launch
+            runCatching {
+                val classifier = SceneClassifier()
+                val analysis = classifier.classify(bitmap)
+                withContext(Dispatchers.Main) {
+                    if (!isCleared.get()) {
+                        _detectedScene.value = analysis.sceneType
+                        _sceneConfidence.value = analysis.confidence
+                    }
+                }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "Scene detection failed", throwable)
+            }
         }
     }
+    // endregion
 
-    // ── Undo/Redo ─────────────────────────────────────────────────────
-
+    // region Undo/Redo
     fun undo() {
         if (undoStack.isEmpty()) return
         redoStack.addLast(_adjustments.value)
@@ -593,59 +711,20 @@ class EditorViewModel(
         schedulePreviewUpdate()
     }
 
-    // ── Other Controls ────────────────────────────────────────────────
-
-    fun toggleShowOriginal() {
-        _isShowingOriginal.value = !_isShowingOriginal.value
-    }
-
-    fun toggleClipping() {
-        _showClipping.value = !_showClipping.value
-        _adjustments.value = _adjustments.value.copy(showClipping = _showClipping.value)
-        schedulePreviewUpdate()
-    }
-
-    fun resetAdjustments() {
-        pushUndo()
-        _adjustments.value = Adjustments()
-        _selectedFilmId.value = null
-        _isSmartOptimized.value = false
-        schedulePreviewUpdate()
-    }
-
-    fun setZoomLevel(level: Float) {
-        _zoomLevel.value = level.coerceIn(0.5f, 5f)
-    }
-
-    // ── Export ────────────────────────────────────────────────────────
-
-    fun exportImage(settings: ExportSettings) {
-        val source = originalBitmap ?: return
-
-        _isLoading.value = true
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val processed = imageProcessor.processFullResolution(
-                    _adjustments.value, source, allowDownsample = false
-                )
-
-                imageProcessor.exportImage(processed, settings, context, originalExifData, originalOrientation)
-
-                withContext(Dispatchers.Main) {
-                    _isLoading.value = false
-                }
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) {
-                    _isLoading.value = false
-                }
-            }
+    private fun pushUndo() {
+        undoStack.addLast(_adjustments.value)
+        if (undoStack.size > 50) {
+            undoStack.removeFirst()
         }
+        redoStack.clear()
+        _canUndo.value = true
+        _canRedo.value = false
     }
+    // endregion
 
-    // ── Curve Update ──────────────────────────────────────────────────
-
+    // region Curve Update
     fun updateCurve(key: String, points: List<com.rapidraw.data.model.Coord>) {
+        smartOptimizeJob?.cancel()
         pushUndo()
         _adjustments.value = when (key) {
             "lumaCurve" -> _adjustments.value.copy(lumaCurve = points)
@@ -656,153 +735,215 @@ class EditorViewModel(
         }
         schedulePreviewUpdate()
     }
+    // endregion
 
-    // ── Internal Helpers ──────────────────────────────────────────────
+    // region Export
+    fun exportImage(settings: ExportSettings) {
+        exportJob?.cancel()
+        exportJob = viewModelScope.launch(Dispatchers.IO) {
+            val source = bitmapMutex.withLock {
+                originalBitmap?.takeIf { !it.isRecycled }
+            } ?: run {
+                _event.value = EditorEvent.Error("没有可导出的原图")
+                return@launch
+            }
 
-    private fun pushUndo() {
-        undoStack.addLast(_adjustments.value)
-        if (undoStack.size > 50) {
-            undoStack.removeFirst()
+            _isLoading.value = true
+            runCatching {
+                val processed = imageProcessor.processFullResolution(
+                    _adjustments.value, source, allowDownsample = false
+                )
+                val uri = imageProcessor.exportImage(
+                    processed, settings, appContext, originalExifData, originalOrientation
+                )
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
+                    _event.value = EditorEvent.ExportComplete(uri)
+                }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.e(TAG, "Export failed", throwable)
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
+                    _event.value = EditorEvent.Error("导出失败: ${throwable.localizedMessage}")
+                }
+            }
         }
-        redoStack.clear()
-        _canUndo.value = true
-        _canRedo.value = false
     }
+    // endregion
 
-    private fun isDefaultAdjustments(adj: Adjustments): Boolean {
-        return adj.exposure == 0f && adj.brightness == 0f && adj.contrast == 0f &&
-            adj.highlights == 0f && adj.shadows == 0f && adj.whites == 0f &&
-            adj.blacks == 0f && adj.temperature == 0f && adj.tint == 0f &&
-            adj.saturation == 0f && adj.vibrance == 0f && adj.sharpness == 0f &&
-            adj.dehaze == 0f && adj.clarity == 0f && adj.vignetteAmount == 0f &&
-            adj.glowAmount == 0f && adj.lutIntensity == 100f
-    }
-
+    // region Preview Pipeline
     private fun schedulePreviewUpdate() {
         if (_isShowingOriginal.value) return
 
         previewJob?.cancel()
         previewJob = viewModelScope.launch(Dispatchers.Default) {
+            if (isCleared.get()) return@launch
             delay(50)
 
             val currentAdjustments = _adjustments.value
-            val sourceBitmap = previewBitmapCache ?: return@launch
+            val sourceBitmap = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launch
 
-            try {
-                // 优先使用 GPU 管线（实时预览），CPU 管线作为降级
-                val gpu = gpuPipeline
-                if (gpu != null && gpu.isInitialized()) {
-                    withContext(Dispatchers.Main) {
-                        // Update mask texture if flow mask is active
-                        flowMaskManager?.getMaskBitmap()?.let { mask ->
-                            gpu.updateMaskTexture(mask, currentAdjustments.flowMaskIntensity / 100f)
-                        }
-                        gpu.updateAdjustments(currentAdjustments)
-                        gpu.renderFrame(sourceBitmap)
-                        val processed = gpu.getProcessedBitmap()
-                        _previewBitmap.value = processed
-                        updateHistogram(processed)
-                    }
-                } else {
-                    // CPU 降级路径
-                    val processed = imageProcessor.processFullResolution(currentAdjustments, sourceBitmap)
+            val processed = runCatching {
+                processPreviewInternal(currentAdjustments, sourceBitmap)
+            }.getOrNull() ?: return@launch
 
-                    withContext(Dispatchers.Main) {
-                        val oldPreview = _previewBitmap.value
-                        if (oldPreview != null && oldPreview !== previewBitmapCache && !oldPreview.isRecycled) {
-                            oldPreview.recycle()
-                        }
-                        _previewBitmap.value = processed
-                        updateHistogram(processed)
+            withContext(Dispatchers.Main) {
+                if (isCleared.get()) {
+                    if (processed !== sourceBitmap && processed !== previewBitmapCache) {
+                        processed.recycle()
                     }
+                    return@withContext
                 }
-            } catch (_: Exception) {
-                // GPU 管线失败时降级到 CPU
-                try {
-                    val processed = imageProcessor.processFullResolution(currentAdjustments, sourceBitmap)
-                    withContext(Dispatchers.Main) {
-                        val oldPreview = _previewBitmap.value
-                        if (oldPreview != null && oldPreview !== previewBitmapCache && !oldPreview.isRecycled) {
-                            oldPreview.recycle()
-                        }
-                        _previewBitmap.value = processed
-                        updateHistogram(processed)
-                    }
-                } catch (_: Exception) {
-                    // 处理失败，保持当前预览
+                val oldPreview = _previewBitmap.value
+                if (oldPreview != null && oldPreview !== sourceBitmap && oldPreview !== previewBitmapCache && oldPreview !== originalBitmap && !oldPreview.isRecycled) {
+                    oldPreview.recycle()
                 }
+                _previewBitmap.value = processed
+                updateHistogramAsync(processed)
             }
         }
     }
 
-    private fun updateHistogram(bitmap: Bitmap) {
-        if (bitmap.isRecycled) return
-
-        viewModelScope.launch(Dispatchers.Default) {
-            val redHist = IntArray(256)
-            val greenHist = IntArray(256)
-            val blueHist = IntArray(256)
-            val lumaHist = IntArray(256)
-
-            val w = bitmap.width
-            val h = bitmap.height
-            val pixels = IntArray(w * h)
-
-            try {
-                bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
-
-                for (pixel in pixels) {
-                    val r = (pixel shr 16) and 0xFF
-                    val g = (pixel shr 8) and 0xFF
-                    val b = pixel and 0xFF
-
-                    redHist[r]++
-                    greenHist[g]++
-                    blueHist[b]++
-
-                    val luma = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255)
-                    lumaHist[luma]++
+    private suspend fun processPreviewInternal(
+        currentAdjustments: Adjustments,
+        sourceBitmap: Bitmap
+    ): Bitmap? {
+        // 优先使用 GPU 管线
+        val gpu = gpuMutex.withLock { gpuPipeline }
+        if (gpu != null && gpu.isInitialized()) {
+            return runCatching {
+                withContext(Dispatchers.Main) {
+                    flowMaskManager?.getMaskBitmap()?.let { mask ->
+                        gpu.updateMaskTexture(mask, currentAdjustments.flowMaskIntensity / 100f)
+                    }
+                    gpu.updateAdjustments(currentAdjustments)
+                    gpu.renderFrame(sourceBitmap)
+                    gpu.getProcessedBitmap()
                 }
+            }.getOrElse { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "GPU preview failed, falling back to CPU", throwable)
+                fallbackCpuPreview(currentAdjustments, sourceBitmap)
+            }
+        }
+        return fallbackCpuPreview(currentAdjustments, sourceBitmap)
+    }
 
-                _histogramData.value = arrayOf(redHist, greenHist, blueHist, lumaHist)
-            } catch (_: Exception) {
-                // Bitmap may have been recycled
+    private suspend fun fallbackCpuPreview(
+        currentAdjustments: Adjustments,
+        sourceBitmap: Bitmap
+    ): Bitmap? {
+        return runCatching {
+            imageProcessor.processFullResolution(currentAdjustments, sourceBitmap)
+        }.getOrElse { throwable ->
+            if (throwable is CancellationException) throw throwable
+            Log.w(TAG, "CPU preview also failed", throwable)
+            null
+        }
+    }
+    // endregion
+
+    // region Histogram
+    private fun updateHistogramAsync(bitmap: Bitmap) {
+        histogramJob?.cancel()
+        histogramJob = viewModelScope.launch(Dispatchers.Default) {
+            if (isCleared.get()) return@launch
+            if (bitmap.isRecycled) return@launch
+
+            runCatching {
+                val histograms = imageProcessor.computeHistograms(bitmap)
+                withContext(Dispatchers.Main) {
+                    if (!isCleared.get()) {
+                        _histogramData.value = histograms
+                    }
+                }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "Histogram computation failed", throwable)
             }
         }
     }
+    // endregion
 
+    // region Lifecycle
     override fun onCleared() {
-        super.onCleared()
+        isCleared.set(true)
 
-        // 保存编辑状态到 sidecar
+        // 取消所有协程任务
+        loadJob?.cancel()
+        previewJob?.cancel()
+        smartOptimizeJob?.cancel()
+        histogramJob?.cancel()
+        aiJob?.cancel()
+        exportJob?.cancel()
+
+        // 保存 sidecar
         val currentImg = _currentImage.value
         if (currentImg != null) {
             try {
-                val sidecarManager = com.rapidraw.core.SidecarManager(context)
+                val sidecarManager = SidecarManager(appContext)
                 sidecarManager.saveSidecar(currentImg.path, _adjustments.value, _selectedFilmId.value)
-            } catch (_: Exception) {
-                // Sidecar 保存失败不影响应用
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to save sidecar", e)
             }
         }
 
-        previewJob?.cancel()
-        smartOptimizeJob?.cancel()
-        gpuPipeline?.release()
-        // 先清空引用防止 UI 使用已回收的 Bitmap
-        _previewBitmap.value = null
-        previewBitmapCache?.recycle()
-        originalBitmap?.recycle()
-        previewBitmapCache = null
-        originalBitmap = null
+        // 异步释放 GPU/Bitmap 资源，避免 onCleared 阻塞主线程导致 ANR
+        val pipeline = gpuPipeline
+        gpuPipeline = null
+        cleanupScope.launch {
+            try {
+                gpuMutex.withLock {
+                    pipeline?.release()
+                }
+                bitmapMutex.withLock {
+                    recycleBitmapsInternal()
+                }
+            } finally {
+                // 清理完成后取消作用域，防止协程泄漏
+                cleanupScope.cancel()
+            }
+        }
+
+        _originalPreviewBitmap.value?.let { old ->
+            if (!old.isRecycled) old.recycle()
+        }
+        _originalPreviewBitmap.value = null
+
+        super.onCleared()
     }
 
+    private fun recycleBitmapsInternal() {
+        _previewBitmap.value?.let {
+            if (!it.isRecycled) it.recycle()
+        }
+        _previewBitmap.value = null
+        previewBitmapCache?.recycle()
+        previewBitmapCache = null
+        originalBitmap?.recycle()
+        originalBitmap = null
+    }
+    // endregion
+
+    // region Factory
     class Factory(
         private val imageFile: ImageFile?,
         private val context: Context,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return EditorViewModel(imageFile, context) as T
+            if (!modelClass.isAssignableFrom(EditorViewModel::class.java)) {
+                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            }
+            return EditorViewModel(imageFile, context.applicationContext) as T
         }
+    }
+    // endregion
+
+    companion object {
+        private const val TAG = "EditorViewModel"
     }
 }

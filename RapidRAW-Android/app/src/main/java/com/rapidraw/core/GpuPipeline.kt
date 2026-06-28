@@ -3,6 +3,7 @@ package com.rapidraw.core
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
+import android.opengl.EGLExt
 import android.opengl.GLES30
 import android.opengl.GLUtils
 import android.opengl.Matrix
@@ -104,6 +105,7 @@ class GpuPipeline(private val context: Context) {
     private var eglContext: android.opengl.EGLContext? = null
     private var eglSurface: android.opengl.EGLSurface? = null
     private var eglConfig: android.opengl.EGLConfig? = null
+    private var isOffscreen = false
 
     // Texture coordinate buffer for flipped Y
     private val quadVertices = floatArrayOf(
@@ -121,6 +123,7 @@ class GpuPipeline(private val context: Context) {
     fun initialize(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
         this.width = width
         this.height = height
+        this.isOffscreen = false
 
         setupEgl(surfaceTexture)
         compileShaders()
@@ -139,6 +142,7 @@ class GpuPipeline(private val context: Context) {
     fun initializeOffscreen(width: Int, height: Int) {
         this.width = width
         this.height = height
+        this.isOffscreen = true
 
         setupEglOffscreen()
         compileShaders()
@@ -165,9 +169,9 @@ class GpuPipeline(private val context: Context) {
             throw RuntimeException("Unable to initialize EGL")
         }
 
-        // Choose config
+        // Choose config: request OpenGL ES 3.0 capable config
         val attribList = intArrayOf(
-            android.opengl.EGL14.EGL_RENDERABLE_TYPE, android.opengl.EGL14.EGL_OPENGL_ES2_BIT,
+            android.opengl.EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
             android.opengl.EGL14.EGL_RED_SIZE, 8,
             android.opengl.EGL14.EGL_GREEN_SIZE, 8,
             android.opengl.EGL14.EGL_BLUE_SIZE, 8,
@@ -224,7 +228,7 @@ class GpuPipeline(private val context: Context) {
         }
 
         val attribList = intArrayOf(
-            android.opengl.EGL14.EGL_RENDERABLE_TYPE, android.opengl.EGL14.EGL_OPENGL_ES2_BIT,
+            android.opengl.EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
             android.opengl.EGL14.EGL_RED_SIZE, 8,
             android.opengl.EGL14.EGL_GREEN_SIZE, 8,
             android.opengl.EGL14.EGL_BLUE_SIZE, 8,
@@ -798,17 +802,19 @@ class GpuPipeline(private val context: Context) {
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
 
-        // Also render to default surface (eglSurface) for display
-        GLES30.glViewport(0, 0, width, height)
-        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
-        GLES30.glBindVertexArray(vao)
-        GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
-        GLES30.glBindVertexArray(0)
+        // 仅窗口 surface 需要额外绘制到默认 surface 并 swap；离屏模式直接读取 FBO 即可
+        if (!isOffscreen) {
+            GLES30.glViewport(0, 0, width, height)
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+            GLES30.glBindVertexArray(vao)
+            GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
+            GLES30.glBindVertexArray(0)
 
-        // Swap buffers
-        val display = eglDisplay ?: return
-        val surface = eglSurface ?: return
-        android.opengl.EGL14.eglSwapBuffers(display, surface)
+            // Swap buffers
+            val display = eglDisplay ?: return
+            val surface = eglSurface ?: return
+            android.opengl.EGL14.eglSwapBuffers(display, surface)
+        }
     }
 
     /**
@@ -886,16 +892,16 @@ class GpuPipeline(private val context: Context) {
 
         makeCurrent()
 
-        if (program != 0) GLES30.glDeleteProgram(program)
-        if (vertexShader != 0) GLES30.glDeleteShader(vertexShader)
-        if (fragmentShader != 0) GLES30.glDeleteShader(fragmentShader)
-        if (textureId != 0) GLES30.glDeleteTextures(1, intArrayOf(textureId), 0)
-        if (maskTextureId != 0) GLES30.glDeleteTextures(1, intArrayOf(maskTextureId), 0)
-        if (lutTextureId != 0) GLES30.glDeleteTextures(1, intArrayOf(lutTextureId), 0)
-        if (fboTextureId != 0) GLES30.glDeleteTextures(1, intArrayOf(fboTextureId), 0)
-        if (fbo != 0) GLES30.glDeleteFramebuffers(1, intArrayOf(fbo), 0)
-        if (vao != 0) GLES30.glDeleteVertexArrays(1, intArrayOf(vao), 0)
-        if (vbo != 0) GLES30.glDeleteBuffers(1, intArrayOf(vbo), 0)
+        if (program != 0) { GLES30.glDeleteProgram(program); program = 0 }
+        if (vertexShader != 0) { GLES30.glDeleteShader(vertexShader); vertexShader = 0 }
+        if (fragmentShader != 0) { GLES30.glDeleteShader(fragmentShader); fragmentShader = 0 }
+        if (textureId != 0) { GLES30.glDeleteTextures(1, intArrayOf(textureId), 0); textureId = 0 }
+        if (maskTextureId != 0) { GLES30.glDeleteTextures(1, intArrayOf(maskTextureId), 0); maskTextureId = 0 }
+        if (lutTextureId != 0) { GLES30.glDeleteTextures(1, intArrayOf(lutTextureId), 0); lutTextureId = 0 }
+        if (fboTextureId != 0) { GLES30.glDeleteTextures(1, intArrayOf(fboTextureId), 0); fboTextureId = 0 }
+        if (fbo != 0) { GLES30.glDeleteFramebuffers(1, intArrayOf(fbo), 0); fbo = 0 }
+        if (vao != 0) { GLES30.glDeleteVertexArrays(1, intArrayOf(vao), 0); vao = 0 }
+        if (vbo != 0) { GLES30.glDeleteBuffers(1, intArrayOf(vbo), 0); vbo = 0 }
 
         // Recycle readback bitmap before EGL teardown
         readBackBitmap?.recycle()

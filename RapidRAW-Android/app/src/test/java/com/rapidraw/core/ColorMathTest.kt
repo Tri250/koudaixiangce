@@ -50,4 +50,48 @@ class ColorMathTest {
         assertEquals(1f, m[1], 0.1f)
         assertEquals(1f, m[2], 0.1f)
     }
+
+    @Test
+    fun linearToSrgb_zero() {
+        assertEquals(0f, ColorMath.linearToSrgb(0f), 0.001f)
+    }
+
+    @Test
+    fun linearToSrgb_one() {
+        assertEquals(1f, ColorMath.linearToSrgb(1f), 0.001f)
+    }
+
+    @Test
+    fun hsvToRgb_red_roundtrip() {
+        val rgb = ColorMath.hsvToRgb(0f, 1f, 1f)
+        assertEquals(1f, rgb[0], 0.001f)
+        assertEquals(0f, rgb[1], 0.001f)
+        assertEquals(0f, rgb[2], 0.001f)
+    }
+
+    @Test
+    fun applyCurve_clampsOutsideRange() {
+        val points = listOf(0f to 0f, 0.5f to 0.25f, 1f to 1f)
+        assertEquals(0f, ColorMath.applyCurve(-0.1f, points), 0.001f)
+        assertEquals(1f, ColorMath.applyCurve(1.1f, points), 0.001f)
+    }
+
+    @Test
+    fun smoothstep_edges() {
+        assertEquals(0f, ColorMath.smoothstep(0f, 1f, 0f), 0.001f)
+        assertEquals(1f, ColorMath.smoothstep(0f, 1f, 1f), 0.001f)
+        assertEquals(0.5f, ColorMath.smoothstep(0f, 1f, 0.5f), 0.001f)
+    }
+
+    @Test
+    fun hslRangeWeight_fullAtCenter() {
+        val weight = ColorMath.hslRangeWeight(25f, 25f, 45f)
+        assertEquals(1f, weight, 0.001f)
+    }
+
+    @Test
+    fun hslRangeWeight_zeroOutsideSpan() {
+        val weight = ColorMath.hslRangeWeight(180f, 25f, 45f)
+        assertEquals(0f, weight, 0.001f)
+    }
 }

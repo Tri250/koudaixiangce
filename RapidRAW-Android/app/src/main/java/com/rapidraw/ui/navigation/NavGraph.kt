@@ -9,6 +9,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import android.graphics.BitmapFactory
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.rapidraw.ui.ai.AiInpaintScreen
@@ -68,18 +69,21 @@ fun RapidNavHost(
             )
         ) { backStackEntry ->
             val imagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
-            val image = ImageFile(
-                path = imagePath,
-                fileName = imagePath.substringAfterLast("/"),
-                folderPath = imagePath.substringBeforeLast("/"),
-                isRaw = ImageFile.isRawFile(imagePath),
-            )
-            val context = androidx.compose.ui.platform.LocalContext.current
+            val image = remember(imagePath) {
+                val safePath = imagePath.ifBlank { "" }
+                ImageFile(
+                    path = safePath,
+                    fileName = safePath.substringAfterLast("/", "image"),
+                    folderPath = safePath.substringBeforeLast("/", ""),
+                    isRaw = ImageFile.isRawFile(safePath),
+                )
+            }
+            val context = LocalContext.current
             val vm: com.rapidraw.ui.editor.EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                 key = "editor_${image.path}",
                 factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext)
             )
-            com.rapidraw.ui.editor.EditorScreen(
+            EditorScreen(
                 navController = navController,
                 viewModel = vm,
             )
@@ -92,19 +96,22 @@ fun RapidNavHost(
             )
         ) { backStackEntry ->
             val uriString = backStackEntry.arguments?.getString("uri") ?: ""
-            val uri = Uri.parse(uriString)
-            val image = ImageFile(
-                path = uriString,
-                fileName = uri.lastPathSegment ?: "image",
-                folderPath = "",
-                isRaw = false,
-            )
-            val context = androidx.compose.ui.platform.LocalContext.current
+            val uri = remember(uriString) { Uri.parse(uriString) }
+            val image = remember(uriString) {
+                val displayName = uri.lastPathSegment?.substringAfterLast("/") ?: "image"
+                ImageFile(
+                    path = uriString,
+                    fileName = displayName,
+                    folderPath = "",
+                    isRaw = ImageFile.isRawFile(displayName),
+                )
+            }
+            val context = LocalContext.current
             val vm: com.rapidraw.ui.editor.EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                 key = "editor_${image.path}",
                 factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext)
             )
-            com.rapidraw.ui.editor.EditorScreen(
+            EditorScreen(
                 navController = navController,
                 viewModel = vm,
             )
@@ -121,10 +128,24 @@ fun RapidNavHost(
             val bitmap = remember(imagePath) {
                 try {
                     val uri = Uri.parse(imagePath)
+                    val options = BitmapFactory.Options().apply {
+                        inJustDecodeBounds = true
+                    }
                     when (uri.scheme) {
-                        "file" -> BitmapFactory.decodeFile(uri.path)
+                        "file" -> BitmapFactory.decodeFile(uri.path, options)
                         "content" -> context.contentResolver.openInputStream(uri)?.use {
-                            BitmapFactory.decodeStream(it)
+                            BitmapFactory.decodeStream(it, null, options)
+                        }
+                        else -> {}
+                    }
+                    // 限制 AI 消除输入图尺寸，避免 OOM
+                    val maxDim = 2048
+                    options.inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
+                    options.inJustDecodeBounds = false
+                    when (uri.scheme) {
+                        "file" -> BitmapFactory.decodeFile(uri.path, options)
+                        "content" -> context.contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, options)
                         }
                         else -> null
                     }
@@ -139,6 +160,16 @@ fun RapidNavHost(
                     },
                     onCancel = { navController.popBackStack() },
                 )
+            } else {
+                // 加载失败时提示用户并返回，避免空白页面
+                LaunchedEffect(Unit) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "无法加载 AI 消除源图",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                    navController.popBackStack()
+                }
             }
         }
 
@@ -152,4 +183,13 @@ fun RapidNavHost(
             )
         }
     }
+}
+
+private fun calculateInSampleSize(width: Int, height: Int, reqWidth: Int, reqHeight: Int): Int {
+    if (width <= 0 || height <= 0) return 1
+    var inSampleSize = 1
+    while (width / inSampleSize > reqWidth || height / inSampleSize > reqHeight) {
+        inSampleSize *= 2
+    }
+    return inSampleSize
 }

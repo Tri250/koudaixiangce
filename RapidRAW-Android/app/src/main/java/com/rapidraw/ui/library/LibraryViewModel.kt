@@ -12,7 +12,9 @@ import androidx.lifecycle.viewModelScope
 import com.rapidraw.data.model.ImageFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +22,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlin.math.max
 
 enum class SortOrder {
     DATE,
@@ -55,6 +60,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _thumbnails = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
     val thumbnails: StateFlow<Map<String, Bitmap>> = _thumbnails.asStateFlow()
+
+    private var thumbnailJob: Job? = null
 
     private val _isBatchMode = MutableStateFlow(false)
     val isBatchMode: StateFlow<Boolean> = _isBatchMode.asStateFlow()
@@ -190,32 +197,46 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
 
     fun loadThumbnails() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val thumbnailMap = mutableMapOf<String, Bitmap>()
-            val currentImages = _images.value
+        // 取消上一次未完成的缩略图加载，避免结果覆盖与资源浪费
+        thumbnailJob?.cancel()
+        thumbnailJob = viewModelScope.launch(Dispatchers.IO) {
+            val currentImages = _images.value.take(128)
+            // 限制并发数为 4，防止同时解码过多 Bitmap 导致内存峰值过高
+            val semaphore = Semaphore(4)
 
-            for (image in currentImages) {
-                try {
-                    // Resolve the MediaStore ID from the image path (must be a content URI)
-                    val mediaStoreId = if (image.path.startsWith("content://")) {
-                        Uri.parse(image.path).lastPathSegment?.toLongOrNull()
-                    } else {
+            val results = currentImages.map { image ->
+                async {
+                    ensureActive()
+                    try {
+                        semaphore.withPermit {
+                            ensureActive()
+                            loadThumbnailForImage(image)?.let { image.path to it }
+                        }
+                    } catch (_: Exception) {
                         null
                     }
-                    if (mediaStoreId == null) continue
+                }
+            }.awaitAll().filterNotNull()
 
-                    val uri = ContentUris.withAppendedId(
-                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        mediaStoreId
-                    )
+            ensureActive()
+            _thumbnails.update { results.toMap() }
+        }
+    }
 
-                    val thumbnail = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        contentResolver.loadThumbnail(
-                            uri,
-                            android.util.Size(256, 256),
-                            null,
-                        )
+    private fun loadThumbnailForImage(image: ImageFile): Bitmap? {
+        return when {
+            image.path.startsWith("content://") -> {
+                val parsedUri = Uri.parse(image.path)
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        // Android 10+ 可直接对任意 content URI 加载缩略图
+                        contentResolver.loadThumbnail(parsedUri, android.util.Size(256, 256), null)
                     } else {
+                        // 低版本仅处理 MediaStore URI，兼容 document id 形式 image:123
+                        val mediaStoreId = parsedUri.lastPathSegment
+                            ?.substringAfterLast(":", "")
+                            ?.toLongOrNull()
+                            ?: return null
                         @Suppress("DEPRECATION")
                         MediaStore.Images.Thumbnails.getThumbnail(
                             contentResolver,
@@ -224,16 +245,28 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             null,
                         )
                     }
-
-                    if (thumbnail != null) {
-                        thumbnailMap[image.path] = thumbnail
-                    }
                 } catch (_: Exception) {
-                    // Skip failed thumbnails
+                    null
                 }
             }
+            image.path.startsWith("file://") || image.path.startsWith("/") -> {
+                val filePath = image.path.removePrefix("file://")
+                val file = java.io.File(filePath)
+                if (!file.exists()) return null
 
-            _thumbnails.value = thumbnailMap
+                // 先获取图片尺寸，再计算 inSampleSize，复用同一个 Options 对象
+                val options = android.graphics.BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                android.graphics.BitmapFactory.decodeFile(filePath, options)
+                if (options.outWidth <= 0 || options.outHeight <= 0) return null
+
+                android.graphics.BitmapFactory.decodeFile(filePath, android.graphics.BitmapFactory.Options().apply {
+                    inSampleSize = max(options.outWidth / 256, options.outHeight / 256).coerceAtLeast(1)
+                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                })
+            }
+            else -> null
         }
     }
 
@@ -412,7 +445,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             if (file.exists()) {
                                 // 清理 Sidecar
                                 sidecarManager.deleteSidecar(path)
-                                file.delete()
+                                val deleted = file.delete()
+                                if (deleted) {
+                                    // 通知 MediaStore 文件已删除，避免图库仍显示
+                                    try {
+                                        getApplication<Application>().sendBroadcast(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE,
+                                                android.net.Uri.fromFile(file)
+                                            )
+                                        )
+                                    } catch (_: Exception) { }
+                                }
                             }
                         }
                         "content" -> {

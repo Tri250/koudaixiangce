@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import java.io.OutputStream
 import kotlin.math.abs
 import kotlin.math.max
@@ -548,13 +549,15 @@ class ImageProcessor {
             }
             BitmapFactory.decodeStream(stream, null, options)
 
-            // Second pass: decode full
+            // Second pass: decode with size guard to avoid OOM on extremely large images
             val decodeStream = context.contentResolver.openInputStream(uri)
                 ?: throw IllegalArgumentException("Cannot reopen URI")
             decodeStream.use { ds ->
                 val decodeOptions = BitmapFactory.Options().apply {
                     inPreferredConfig = Bitmap.Config.ARGB_8888
                     inMutable = true
+                    val maxDim = 8192
+                    inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
                 }
                 return BitmapFactory.decodeStream(ds, null, decodeOptions)
                     ?: throw IllegalArgumentException("Failed to decode image")
@@ -593,7 +596,8 @@ class ImageProcessor {
     private fun createPreview(original: Bitmap): Bitmap {
         val maxDim = PREVIEW_MAX_DIMENSION
         if (original.width <= maxDim && original.height <= maxDim) {
-            return original
+            // 始终创建独立副本，避免 originalBitmap 与 previewBitmapCache 共享引用导致重复回收或并发问题
+            return original.copy(original.config ?: Bitmap.Config.ARGB_8888, false)
         }
 
         val scale = min(maxDim.toFloat() / original.width, maxDim.toFloat() / original.height)
@@ -718,6 +722,9 @@ class ImageProcessor {
 
         // Process each pixel
         for (y in 0 until h) {
+            // 每 256 行让出一次线程，避免超大图处理时阻塞 Dispatchers.Default 导致 ANR/卡顿
+            if (y % 256 == 0) yield()
+            if (sourceBitmap.isRecycled) throw CancellationException("Source bitmap recycled during processing")
             for (x in 0 until w) {
                 val idx = y * w + x
                 val pixel = pixels[idx]
@@ -1765,8 +1772,16 @@ class ImageProcessor {
         originalExif: ExifData? = null,
         orientation: Int = 0
     ): Uri = withContext(Dispatchers.IO) {
+        if (bitmap.isRecycled) throw IllegalArgumentException("Cannot export recycled bitmap")
+
         // Apply resize if needed
         var exportBitmap = bitmap
+        fun replaceExport(new: Bitmap?) {
+            if (new == null || new === exportBitmap) return
+            if (exportBitmap !== bitmap) exportBitmap.recycle()
+            exportBitmap = new
+        }
+
         if (settings.resizeMode != ResizeMode.ORIGINAL && settings.resizeValue > 0) {
             var maxWidth = 0
             var maxHeight = 0
@@ -1784,18 +1799,18 @@ class ImageProcessor {
                 ResizeMode.ORIGINAL -> { /* no resize */ }
             }
             if (maxWidth > 0 || maxHeight > 0) {
-                exportBitmap = resizeBitmap(exportBitmap, maxWidth, maxHeight)
+                replaceExport(resizeBitmap(exportBitmap, maxWidth, maxHeight))
             }
         }
 
         // Apply social platform aspect ratio crop (center crop)
         settings.socialPlatform.aspectRatio?.let { aspectRatio ->
-            exportBitmap = cropToAspectRatio(exportBitmap, aspectRatio)
+            replaceExport(cropToAspectRatio(exportBitmap, aspectRatio))
         }
 
         // Apply watermark
         if (settings.addWatermark && settings.watermarkText.isNotEmpty()) {
-            exportBitmap = drawTextWatermark(exportBitmap, settings)
+            replaceExport(drawTextWatermark(exportBitmap, settings))
         }
 
         val mimeType = when (settings.format) {
@@ -1812,71 +1827,74 @@ class ImageProcessor {
         // Write to temporary file first (required for EXIF writing)
         val cacheDir = context.cacheDir
         val tempFile = java.io.File(cacheDir, "export_temp_${System.currentTimeMillis()}$extension")
-        tempFile.outputStream().use { fos ->
-            compressBitmap(exportBitmap, settings.format, settings.quality, fos)
-        }
 
-        // Apply EXIF metadata for JPEG
-        if (settings.format == ExportFormat.JPEG && settings.keepMetadata && originalExif != null) {
-            try {
-                val exif = androidx.exifinterface.media.ExifInterface(tempFile.absolutePath)
-                originalExif.make?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE, it) }
-                originalExif.model?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL, it) }
-                originalExif.dateTime?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME, it) }
-                originalExif.iso?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, it) }
-                originalExif.shutterSpeed?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, it) }
-                originalExif.focalLength?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, it) }
-                originalExif.aperture?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, it) }
-                val orientationValue = when (orientation) {
-                    90 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90
-                    180 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180
-                    270 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270
-                    else -> androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
-                }
-                exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, orientationValue.toString())
-                if (settings.stripGps) {
-                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE, null)
-                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE, null)
-                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE_REF, null)
-                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE_REF, null)
-                }
-                exif.saveAttributes()
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to write EXIF: ${e.message}")
+        try {
+            tempFile.outputStream().use { fos ->
+                compressBitmap(exportBitmap, settings.format, settings.quality, fos)
             }
-        }
 
-        // Copy temp file to MediaStore
-        val contentValues = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, "RapidRAW_${System.currentTimeMillis()}$extension")
-            put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+            // Apply EXIF metadata for JPEG
+            if (settings.format == ExportFormat.JPEG && settings.keepMetadata && originalExif != null) {
+                try {
+                    val exif = androidx.exifinterface.media.ExifInterface(tempFile.absolutePath)
+                    originalExif.make?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE, it) }
+                    originalExif.model?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL, it) }
+                    originalExif.dateTime?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME, it) }
+                    originalExif.iso?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, it) }
+                    originalExif.shutterSpeed?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, it) }
+                    originalExif.focalLength?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, it) }
+                    originalExif.aperture?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, it) }
+                    val orientationValue = when (orientation) {
+                        90 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90
+                        180 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180
+                        270 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270
+                        else -> androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                    }
+                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, orientationValue.toString())
+                    if (settings.stripGps) {
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE, null)
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE, null)
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE_REF, null)
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE_REF, null)
+                    }
+                    exif.saveAttributes()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to write EXIF: ${e.message}")
+                }
+            }
+
+            // Copy temp file to MediaStore
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "RapidRAW_${System.currentTimeMillis()}$extension")
+                put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/RapidRAW")
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+            }
+
+            val contentResolver = context.contentResolver
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                ?: throw RuntimeException("Failed to create MediaStore entry")
+
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                tempFile.inputStream().use { input ->
+                    input.copyTo(outputStream)
+                }
+            } ?: throw RuntimeException("Failed to open output stream")
+
+            // Clear IS_PENDING flag
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/RapidRAW")
-                put(MediaStore.Images.Media.IS_PENDING, 1)
+                contentValues.clear()
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                contentResolver.update(uri, contentValues, null, null)
             }
+
+            uri
+        } finally {
+            if (exportBitmap !== bitmap) exportBitmap.recycle()
+            tempFile.delete()
         }
-
-        val contentResolver = context.contentResolver
-        val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-            ?: throw RuntimeException("Failed to create MediaStore entry")
-
-        contentResolver.openOutputStream(uri)?.use { outputStream ->
-            tempFile.inputStream().use { input ->
-                input.copyTo(outputStream)
-            }
-        } ?: throw RuntimeException("Failed to open output stream")
-
-        // Clear IS_PENDING flag
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            contentValues.clear()
-            contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-            contentResolver.update(uri, contentValues, null, null)
-        }
-
-        if (exportBitmap != bitmap) exportBitmap.recycle()
-        tempFile.delete()
-
-        uri
     }
 
     private fun resizeBitmap(bitmap: Bitmap, maxWidth: Int, maxHeight: Int): Bitmap {
@@ -2053,7 +2071,14 @@ class ImageProcessor {
      * Apply geometric transformations: flip, orientation rotation, fine rotation, crop, perspective.
      */
     private fun applyGeometricTransform(source: Bitmap, n: NormAdj): Bitmap {
+        if (source.isRecycled) return source
         var result = source
+
+        fun transform(new: Bitmap?) {
+            if (new == null || new === result) return
+            if (result !== source) result.recycle()
+            result = new
+        }
 
         // 1. Flip
         if (n.flipHorizontal || n.flipVertical) {
@@ -2062,14 +2087,14 @@ class ImageProcessor {
                 if (n.flipHorizontal) -1f else 1f,
                 if (n.flipVertical) -1f else 1f
             )
-            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
         }
 
         // 2. Orientation rotation (90° multiples)
         if (n.orientationSteps != 0) {
             val matrix = android.graphics.Matrix()
             matrix.postRotate((n.orientationSteps * 90).toFloat())
-            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
         }
 
         // 3. Fine rotation
@@ -2079,23 +2104,21 @@ class ImageProcessor {
             val rect = android.graphics.RectF(0f, 0f, result.width.toFloat(), result.height.toFloat())
             matrix.mapRect(rect)
             matrix.postTranslate(-rect.left, -rect.top)
-            val newW = rect.width().toInt().coerceAtLeast(1)
-            val newH = rect.height().toInt().coerceAtLeast(1)
-            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
         }
 
         // 4. Scale
         if (n.transformScale != 1f) {
             val matrix = android.graphics.Matrix()
             matrix.postScale(n.transformScale, n.transformScale, result.width / 2f, result.height / 2f)
-            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
         }
 
         // 4b. Aspect ratio
         if (n.transformAspect != 0f) {
             val matrix = android.graphics.Matrix()
             matrix.postScale(1f + n.transformAspect * 0.5f, 1f, result.width / 2f, result.height / 2f)
-            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
         }
 
         // 4c. Transform rotate (perspective panel fine rotation)
@@ -2105,16 +2128,14 @@ class ImageProcessor {
             val rect = android.graphics.RectF(0f, 0f, result.width.toFloat(), result.height.toFloat())
             matrix.mapRect(rect)
             matrix.postTranslate(-rect.left, -rect.top)
-            val newW = rect.width().toInt().coerceAtLeast(1)
-            val newH = rect.height().toInt().coerceAtLeast(1)
-            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
         }
 
         // 5. Offset
         if (n.transformXOffset != 0f || n.transformYOffset != 0f) {
             val matrix = android.graphics.Matrix()
             matrix.postTranslate(n.transformXOffset * result.width * 0.1f, n.transformYOffset * result.height * 0.1f)
-            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
         }
 
         // 6. Crop
@@ -2141,7 +2162,7 @@ class ImageProcessor {
             cropX = cropX.coerceIn(0, imgW - cropW)
             cropY = cropY.coerceIn(0, imgH - cropH)
             if (cropW > 0 && cropH > 0) {
-                result = Bitmap.createBitmap(result, cropX, cropY, cropW, cropH)
+                transform(Bitmap.createBitmap(result, cropX, cropY, cropW, cropH))
             }
         }
 
