@@ -1,3 +1,6 @@
+// 2026 toolchain: Android Gradle Plugin 8.6 + Kotlin 2.0
+// 用于 Android 16 (API 36) 兼容与 16KB page size 支持
+// 注意：AGP 8.6+ 已支持 16KB page size；Kotlin 2.0+ 启用 K2 编译器
 plugins {
     id("com.android.application") version "8.6.1" apply false
     id("org.jetbrains.kotlin.android") version "2.0.21" apply false

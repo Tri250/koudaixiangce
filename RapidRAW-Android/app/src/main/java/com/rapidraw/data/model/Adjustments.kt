@@ -198,6 +198,25 @@ data class Adjustments(
     val agxContrast: Float = 0f,                 // 0..1
     val agxPedestal: Float = 0f,                 // 0..0.5
 
+    // ── 2026 Color Science (AlcedoStudio integration) ──────────
+    // 0=AgX, 1=ACES 2.0, 2=OpenDRT, 3=Standard
+    val colorScienceMode: Int = 0,
+    // 0=sRGB, 1=Display P3, 2=Rec.2020
+    val displayColorSpace: Int = 0,
+    // 0=SDR, 1=HDR10/PQ, 2=HLG
+    val eotf: Int = 0,
+    val peakLuminanceNits: Float = 1000f,        // HDR peak luminance
+
+    // ── LUT Library (AlcedoStudio integration) ────────────────
+    val activeLutId: String = "",                // 当前应用的 LUT ID
+    val activeLutBlend: Float = 1f,              // 0..1 强度
+
+    // ── HDR Export (2026 Android 14+ Ultra HDR) ───────────────
+    // 0=SDR JPEG, 1=Ultra HDR JPEG, 2=HEIF 10-bit
+    val hdrExportFormat: Int = 0,
+    val hdrPeakLuminance: Float = 1000f,         // nits
+    val hdrMaxBoostStop: Float = 4f,             // stops
+
     // ── Lens Correction ───────────────────────────────────────
     val lensDistortion: Float = 0f,              // -100..100
     val lensVignette: Float = 0f,                // -100..100
@@ -349,6 +368,17 @@ data class Adjustments(
         "orientationSteps" -> copy(orientationSteps = value.toInt() % 4)
         "flipHorizontal" -> copy(flipHorizontal = value != 0f)
         "flipVertical" -> copy(flipVertical = value != 0f)
+        // 2026 Color Science (AlcedoStudio integration)
+        "colorScienceMode" -> copy(colorScienceMode = value.toInt().coerceIn(0, 3))
+        "displayColorSpace" -> copy(displayColorSpace = value.toInt().coerceIn(0, 2))
+        "eotf" -> copy(eotf = value.toInt().coerceIn(0, 2))
+        "peakLuminanceNits" -> copy(peakLuminanceNits = value.coerceIn(100f, 10000f))
+        // LUT
+        "activeLutBlend" -> copy(activeLutBlend = value.coerceIn(0f, 1f))
+        // HDR export
+        "hdrExportFormat" -> copy(hdrExportFormat = value.toInt().coerceIn(0, 2))
+        "hdrPeakLuminance" -> copy(hdrPeakLuminance = value.coerceIn(100f, 10000f))
+        "hdrMaxBoostStop" -> copy(hdrMaxBoostStop = value.coerceIn(1f, 8f))
         else -> this
     }
 

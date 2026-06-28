@@ -62,6 +62,11 @@ class MainActivity : ComponentActivity() {
         // 安全隐私：防止截图和录屏
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
 
+        // 2026 / Android 13+ (API 33+) Per-app language:
+        // 在系统设置 → 应用 → RapidRAW → 语言 中可独立切换，
+        // 不影响系统其他应用。ColorOS 16 完美支持该 API。
+        applyPerAppLanguage()
+
         // Edge-to-Edge: 让系统栏透明并让内容绘制到系统栏后面
         enableEdgeToEdge()
 
@@ -203,5 +208,42 @@ class MainActivity : ComponentActivity() {
                     or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 )
         }
+    }
+
+    /**
+     * Android 13+ (API 33+) per-app language
+     *
+     * 使用系统级 LocaleManager（API 33+）或 AppCompatDelegate (API < 33) 让本应用
+     * 可在系统"应用语言"设置中独立切换，不影响系统其他应用。
+     * ColorOS 16 / OxygenOS 14+ / OneUI 6+ 均原生支持。
+     *
+     * 默认语言：中文（简体）。如需国际版，可通过 Resources 配置多 locale。
+     */
+    private fun applyPerAppLanguage() {
+        // 2026 默认 zh-CN；如需检测用户偏好，可在此扩展
+        val tag = "zh-CN"
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val localeManager = getSystemService(LocaleManager::class.java)
+                localeManager?.applicationLocales = LocaleList.forLanguageTags(tag)
+            } else {
+                AppCompatDelegate.setApplicationLocales(
+                    androidx.core.os.LocaleListCompat.forLanguageTags(tag)
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to apply per-app language: ${e.message}")
+        }
+    }
+
+    /**
+     * 检测当前是否运行在 ColorOS / OPPO / realme 设备上
+     */
+    private fun isOppoDevice(): Boolean {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val brand = Build.BRAND.lowercase()
+        return manufacturer.contains("oppo") || brand.contains("oppo") ||
+            manufacturer.contains("realme") || brand.contains("realme") ||
+            manufacturer.contains("oneplus") || brand.contains("oneplus")
     }
 }

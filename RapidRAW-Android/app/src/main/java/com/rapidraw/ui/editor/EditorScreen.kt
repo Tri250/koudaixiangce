@@ -200,7 +200,12 @@ fun EditorScreen(
     val lutPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        uri?.let { viewModel.importLut(it) }
+        uri?.let {
+            // 导入到 2026 LUT 库（AlcedoStudio 集成）
+            viewModel.importLutFromUri(it)
+            // 同时也兼容旧版 LutManager
+            viewModel.importLut(it)
+        }
     }
 
     // Apply pending preset from PresetsDiscoveryScreen
@@ -1181,6 +1186,55 @@ fun EditorScreen(
             )
             showRecipeSheet = false
         },
+    )
+
+    // ── Color Science Sheet (AlcedoStudio 集成) ───────────────────────
+    val showColorScienceSheet by viewModel.showColorScienceSheet.collectAsState()
+    ColorScienceSheet(
+        visible = showColorScienceSheet,
+        currentConfig = adjustments.toColorScienceConfig(),
+        onConfigChange = { viewModel.updateColorScience(it) },
+        onDismiss = { viewModel.hideColorScience() },
+    )
+
+    // ── HDR Export Sheet (Android 14+ Ultra HDR) ──────────────────────
+    val showHdrExportSheet by viewModel.showHdrExportSheet.collectAsState()
+    HdrExportSheet(
+        visible = showHdrExportSheet,
+        currentConfig = adjustments.toHdrConfig(),
+        onConfigChange = { viewModel.updateHdrConfig(it) },
+        onExport = { config ->
+            viewModel.exportHdrImage(config)
+            viewModel.hideHdrExport()
+        },
+        onDismiss = { viewModel.hideHdrExport() },
+    )
+
+    // ── LUT Library Sheet (AlcedoStudio 集成) ───────────────────────
+    val showLutLibrarySheet by viewModel.showLutLibrarySheet.collectAsState()
+    LutLibrarySheet(
+        visible = showLutLibrarySheet,
+        manager = viewModel.lutLibrary,
+        currentLutId = adjustments.activeLutId,
+        onSelectLut = { entry, intensity ->
+            viewModel.applyLut(entry, intensity)
+        },
+        onImportRequest = { lutPicker.launch(arrayOf("*/*")) },
+        onToggleFavorite = { id -> viewModel.lutLibrary.toggleFavorite(id) },
+        onDismiss = { viewModel.hideLutLibrary() },
+    )
+
+    // ── Edit History Panel (AlcedoStudio Git-like 版本控制) ─────────────
+    val showEditHistoryPanel by viewModel.showEditHistoryPanel.collectAsState()
+    val editHistory by viewModel.editHistory.collectAsState()
+    EditHistoryPanel(
+        visible = showEditHistoryPanel,
+        history = editHistory,
+        onUndo = { viewModel.undo() },
+        onRedo = { viewModel.redo() },
+        onCheckout = { entry -> viewModel.checkoutEntry(entry) },
+        onCreateBranch = { entry -> viewModel.createBranchFromEntry(entry) },
+        onDismiss = { viewModel.hideEditHistory() },
     )
 }
 

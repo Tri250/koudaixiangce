@@ -158,6 +158,32 @@ class EditorViewModel(
 
     private val _editHistory = MutableStateFlow<EditHistoryTree?>(null)
     val editHistory: StateFlow<EditHistoryTree?> = _editHistory.asStateFlow()
+
+    // ── 2026 / AlcedoStudio / RapidRAW 集成状态 ──────────────────────
+    private val _showColorScienceSheet = MutableStateFlow(false)
+    val showColorScienceSheet: StateFlow<Boolean> = _showColorScienceSheet.asStateFlow()
+
+    private val _showHdrExportSheet = MutableStateFlow(false)
+    val showHdrExportSheet: StateFlow<Boolean> = _showHdrExportSheet.asStateFlow()
+
+    private val _showLutLibrarySheet = MutableStateFlow(false)
+    val showLutLibrarySheet: StateFlow<Boolean> = _showLutLibrarySheet.asStateFlow()
+
+    private val _showEditHistoryPanel = MutableStateFlow(false)
+    val showEditHistoryPanel: StateFlow<Boolean> = _showEditHistoryPanel.asStateFlow()
+
+    private val _showScopePanel = MutableStateFlow(false)
+    val showScopePanel: StateFlow<Boolean> = _showScopePanel.asStateFlow()
+
+    // LUT 库（独立于 LutManager，提供 UI 浏览 + 收藏 + 搜索能力）
+    val lutLibrary: LutLibraryManager = LutLibraryManager(appContext)
+
+    init {
+        // 异步初始化 LUT 库
+        viewModelScope.launch(Dispatchers.IO) {
+            lutLibrary.initialize()
+        }
+    }
     // endregion
 
     // region Internal State
@@ -828,6 +854,149 @@ class EditorViewModel(
             parent.children.removeAll { it.id == entry.id }
         }
     }
+    // endregion
+
+    // region 2026 / AlcedoStudio / RapidRAW 集成功能
+
+    // ── Color Science (AlcedoStudio 标志性功能) ────────────────────
+
+    /** 当前色彩科学配置 */
+    val colorScienceConfig: ColorScience.Config
+        get() = _adjustments.value.toColorScienceConfig()
+
+    /** 更新色彩科学 */
+    fun updateColorScience(config: ColorScience.Config) {
+        pushUndo("色彩科学: ${config.mode.displayName}")
+        _adjustments.value = _adjustments.value.copyWithColorScience(config)
+        schedulePreviewUpdate()
+    }
+
+    /** 切换色彩科学预设（AgX / ACES 2.0 / OpenDRT / Standard） */
+    fun applyColorScienceMode(mode: ColorScience.Mode) {
+        updateColorScience(colorScienceConfig.copy(mode = mode))
+    }
+
+    // ── HDR Export (Android 14+ Ultra HDR) ─────────────────────────
+
+    fun showHdrExport() {
+        _showHdrExportSheet.value = true
+    }
+
+    fun hideHdrExport() {
+        _showHdrExportSheet.value = false
+    }
+
+    /** 当前 HDR 导出配置 */
+    val hdrConfig: HdrExporter.HdrConfig
+        get() = _adjustments.value.toHdrConfig()
+
+    fun updateHdrConfig(config: HdrExporter.HdrConfig) {
+        _adjustments.value = _adjustments.value.copyWithHdrConfig(config)
+    }
+
+    /**
+     * 导出 HDR 图像（Ultra HDR JPEG / HEIF 10-bit / SDR JPEG）
+     * 在 IO 线程执行，不阻塞主线程
+     */
+    fun exportHdrImage(config: HdrExporter.HdrConfig) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val bitmap = _previewBitmap.value
+            if (bitmap == null || bitmap.isRecycled) {
+                _event.value = EditorEvent.Error("无可用预览，请先打开图片")
+                return@launch
+            }
+            val name = "RapidRAW_HDR_${System.currentTimeMillis()}"
+            val uri = HdrExporter.exportHdr(appContext, bitmap, config, name)
+            if (uri != null) {
+                _event.value = EditorEvent.ExportComplete(uri)
+            } else {
+                _event.value = EditorEvent.Error("HDR 导出失败")
+            }
+        }
+    }
+
+    // ── LUT Library (AlcedoStudio 特色) ────────────────────────────
+
+    fun showLutLibrary() {
+        _showLutLibrarySheet.value = true
+    }
+
+    fun hideLutLibrary() {
+        _showLutLibrarySheet.value = false
+    }
+
+    /**
+     * 应用选中的 LUT（异步加载并应用）
+     */
+    fun applyLut(lutEntry: LutLibraryManager.LutEntry, intensity: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val lut = lutLibrary.loadLut(lutEntry) ?: return@launch
+            pushUndo("LUT: ${lutEntry.name}")
+            _adjustments.value = _adjustments.value.copy(
+                activeLutId = lutEntry.id,
+                activeLutBlend = intensity,
+            )
+            // 触发 LUT 应用（写入调整值即可，ImageProcessor 会处理）
+            withContext(Dispatchers.Main) {
+                schedulePreviewUpdate()
+            }
+        }
+    }
+
+    /** 取消激活 LUT */
+    fun clearLut() {
+        pushUndo("清除 LUT")
+        _adjustments.value = _adjustments.value.copy(
+            activeLutId = "",
+            activeLutBlend = 0f,
+        )
+        schedulePreviewUpdate()
+    }
+
+    fun importLutFromUri(uri: android.net.Uri, displayName: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            lutLibrary.importLut(uri, displayName)
+        }
+    }
+
+    // ── Edit History Panel ────────────────────────────────────────
+
+    fun showEditHistory() {
+        _showEditHistoryPanel.value = true
+    }
+
+    fun hideEditHistory() {
+        _showEditHistoryPanel.value = false
+    }
+
+    fun checkoutEntry(entry: EditHistoryEntry) {
+        jumpToHistoryEntry(entry)
+    }
+
+    fun createBranchFromEntry(entry: EditHistoryEntry) {
+        branchFromHistoryEntry(entry)
+    }
+
+    // ── Color Science Sheet ───────────────────────────────────────
+
+    fun showColorScience() {
+        _showColorScienceSheet.value = true
+    }
+
+    fun hideColorScience() {
+        _showColorScienceSheet.value = false
+    }
+
+    // ── Scope Panel (AlcedoStudio 标志性示波器) ────────────────────
+
+    fun showScopes() {
+        _showScopePanel.value = true
+    }
+
+    fun hideScopes() {
+        _showScopePanel.value = false
+    }
+
     // endregion
 
     // region Curve Update

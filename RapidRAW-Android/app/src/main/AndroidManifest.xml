@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- 网络：崩溃上报、云服务、诊断 -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -27,8 +28,10 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <!-- OpenGL ES 3.0 为必须，低版本设备将在安装阶段过滤 -->
     <uses-feature android:glEsVersion="0x00030000" android:required="true" />
-    <!-- HDR 显示（可选，仅 HDR 设备上启用增强预览） -->
+    <!-- Vulkan compute 用于 AI 加速（可选，ColorOS 16 设备有硬件加速） -->
     <uses-feature android:name="android.hardware.vulkan.compute" android:required="false" />
+    <!-- Vulkan 1.3（Android 16 默认）支持 HDR 显示管线 -->
+    <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401003" android:required="false" />
     <!-- 触觉反馈硬件（可选，OPPO Find 等线性马达设备增强滑块交互） -->
     <uses-feature android:name="android.hardware.sensor.hifi_sensors" android:required="false" />
 
@@ -43,13 +46,19 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true"
-        android:largeHeap="true">
+        android:largeHeap="true"
+        tools:targetApi="36">
+
+        <!-- 2026 正式版本：APP 主题使用 3 色调暗色 (AMOLED 友好) -->
+        <!-- Android 16 (API 36) 应用行为：edge-to-edge 已默认开启 -->
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density"
-            android:windowSoftInputMode="adjustResize">
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density|colorMode|fontWeightAdjustment|fontScale"
+            android:windowSoftInputMode="adjustResize"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="false">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -74,6 +83,11 @@
                 <data android:mimeType="image/x-panasonic-rw2" />
                 <data android:mimeType="image/x-pentax-pef" />
                 <data android:mimeType="image/x-samsung-srw" />
+            </intent-filter>
+            <!-- ColorOS / OPPO Find 设备接收来自相册的"编辑图片"意图 -->
+            <intent-filter>
+                <action android:name="com.coloros.gallery3d.action.EDIT_IMAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
     </application>

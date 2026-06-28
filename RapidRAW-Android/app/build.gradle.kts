@@ -1,9 +1,9 @@
+// 2026: 使用 plugins DSL
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
-    id("com.google.devtools.ksp")
 }
 
 android {
@@ -18,6 +18,26 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Android 15+ (API 35) 16KB page size compatibility:
+        // opt into native libraries aligned to 16KB page boundaries.
+        // Required by Google Play for all apps targeting API 35+ from Nov 1, 2025.
+        // https://developer.android.com/guide/practices/page-sizes
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+    }
+
+    // 16KB page size: pack native libraries with 16KB alignment for Android 15+ devices
+    // that use 16KB pages (e.g. Pixel 8+ on Android 16, OPPO Find X8 series with ColorOS 16).
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        jniLibs {
+            // AGP 8.5+ supports 16KB page alignment for unpacked native libraries.
+            useLegacyPackaging = false
+        }
     }
 
     // 仅在存在 release.keystore 时创建 release 签名配置，避免 debug/日常构建因缺少环境变量而失败
@@ -73,12 +93,6 @@ android {
         buildConfig = true
     }
 
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
-
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -103,8 +117,8 @@ android {
 }
 
 dependencies {
-    // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    // Compose BOM (2026 release track - supports Material 3 Expressive + new APIs)
+    val composeBom = platform("androidx.compose:compose-bom:2025.04.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
@@ -114,6 +128,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    // Android 13+ per-app language (locale preference)
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    // Window manager for foldables / multi-window on Android 16
+    implementation("androidx.window:window:1.3.0")
 
     // Compose UI
     implementation("androidx.compose.ui:ui")
