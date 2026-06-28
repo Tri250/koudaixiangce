@@ -893,6 +893,7 @@ fun EditorScreen(
         }
 
         // ── Bottom Tab Row ─────────────────────────────────────────────
+        // ColorOS 16：选中态使用哈苏橙品牌色（下划线 + 图标 + 文字）
         Surface(
             color = EditorSurface,
             modifier = Modifier.navigationBarsPadding(),
@@ -900,13 +901,13 @@ fun EditorScreen(
             TabRow(
                 selectedTabIndex = selectedTabIndex,
                 containerColor = EditorSurface,
-                contentColor = Color.White,
+                contentColor = HasselbladOrange,
                 indicator = { tabPositions ->
                     if (selectedTabIndex < tabPositions.size) {
                         SecondaryIndicator(
                             modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
                             height = 3.dp,
-                            color = Color.White,
+                            color = HasselbladOrange,
                         )
                     }
                 },
@@ -929,7 +930,7 @@ fun EditorScreen(
                         text = {
                             Text(
                                 text = label,
-                                color = if (isSelected) Color.White else TextSecondary,
+                                color = if (isSelected) HasselbladOrangeLight else TextSecondary,
                                 fontSize = 13.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             )

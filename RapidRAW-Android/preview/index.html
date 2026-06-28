@@ -101,11 +101,21 @@ body {
   background: var(--amoled-black);
   border-radius: 48px;
   border: 3px solid #1a1a1a;
-  box-shadow: 0 0 80px rgba(232,96,12,0.06), 0 20px 60px rgba(0,0,0,0.8);
+  box-shadow: 0 0 80px rgba(232,96,12,0.18), 0 0 24px rgba(232,96,12,0.10), 0 20px 60px rgba(0,0,0,0.8);
   overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
+}
+/* 哈苏橙氛围辉光（背景径向） */
+.phone::after {
+  content: '';
+  position: absolute;
+  top: -20%; right: -30%;
+  width: 60%; height: 60%;
+  background: radial-gradient(circle, rgba(232,96,12,0.12) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
 }
 /* 挖孔前摄 */
 .phone::before {
@@ -192,8 +202,8 @@ body {
 .title-chip .dot {
   width: 5px; height: 5px;
   border-radius: 50%;
-  background: var(--success-green);
-  box-shadow: 0 0 6px var(--success-green);
+  background: var(--hsb-orange);
+  box-shadow: 0 0 6px var(--hsb-orange);
 }
 
 /* 导出快捷按钮（哈苏橙品牌时刻） */
@@ -274,8 +284,9 @@ body {
 }
 .float-tool:hover { color: var(--text-high); background: rgba(255,255,255,0.08); }
 .float-tool.active {
-  color: var(--text-high);
-  background: rgba(255,255,255,0.14);
+  color: var(--hsb-orange-bright);
+  background: rgba(232,96,12,0.18);
+  box-shadow: 0 0 12px rgba(232,96,12,0.25);
 }
 .float-tool svg { width: 18px; height: 18px; }
 .float-tool .badge {
@@ -394,7 +405,7 @@ body {
   color: var(--tab-active);
   font-weight: 700;
 }
-/* 选中下划线（白色系） */
+/* 选中下划线（哈苏橙品牌色） */
 .tab.active::after {
   content: '';
   position: absolute;
@@ -403,8 +414,12 @@ body {
   transform: translateX(-50%);
   width: 28px;
   height: 3px;
-  background: var(--tab-active);
+  background: var(--hsb-orange);
   border-radius: var(--r-pill);
+  box-shadow: 0 0 8px rgba(232,96,12,0.6);
+}
+.tab.active .tab-icon {
+  color: var(--hsb-orange-bright);
 }
 
 /* 面板内容滚动区 */
@@ -591,6 +606,18 @@ body {
   border-radius: var(--r-pill);
   background: var(--slider-fill);
 }
+.slider-row.active .slider-fill {
+  background: linear-gradient(90deg, var(--hsb-orange-deep), var(--hsb-orange-bright));
+  box-shadow: 0 0 8px rgba(232,96,12,0.4);
+}
+.slider-row.active .slider-thumb {
+  background: var(--hsb-orange-bright);
+  box-shadow: 0 0 12px rgba(232,96,12,0.6);
+}
+.slider-row.active .slider-label {
+  color: var(--hsb-orange-bright);
+  font-weight: 700;
+}
 .slider-thumb {
   position: absolute;
   top: 50%;
@@ -636,10 +663,11 @@ body {
 }
 .cs-chip:hover { background: rgba(255,255,255,0.08); }
 .cs-chip.active {
-  color: var(--text-high);
-  background: rgba(255,255,255,0.12);
-  border-color: var(--hairline-strong);
+  color: var(--hsb-orange-bright);
+  background: rgba(232,96,12,0.15);
+  border-color: rgba(232,96,12,0.40);
   font-weight: 700;
+  box-shadow: 0 0 12px rgba(232,96,12,0.20);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -753,9 +781,9 @@ body {
 }
 .crop-chip:hover { background: rgba(255,255,255,0.08); }
 .crop-chip.active {
-  color: var(--text-high);
-  background: rgba(255,255,255,0.12);
-  border-color: var(--hairline-strong);
+  color: var(--hsb-orange-bright);
+  background: rgba(232,96,12,0.15);
+  border-color: rgba(232,96,12,0.40);
   font-weight: 700;
 }
 
@@ -802,9 +830,11 @@ body {
 }
 .format-card:hover { background: rgba(255,255,255,0.08); }
 .format-card.active {
-  background: rgba(232,96,12,0.10);
-  border-color: rgba(232,96,12,0.30);
+  background: rgba(232,96,12,0.15);
+  border-color: rgba(232,96,12,0.45);
+  box-shadow: 0 0 16px rgba(232,96,12,0.20);
 }
+.format-card.active .fmt-name { color: var(--hsb-orange-bright); }
 .format-card .fmt-name { font-size: 13px; font-weight: 700; color: var(--text-high); }
 .format-card .fmt-desc { font-size: 10px; color: var(--text-low); margin-top: 2px; }
 
@@ -906,7 +936,7 @@ body {
   <div class="status-bar">
     <span>9:41</span>
     <div class="right">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9zm0 16c-3.9 0-7-3.1-7-7s3.1-7 7-7 7 3.1 7 7-3.1 7-7 7z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--hsb-orange-bright)"><path d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9zm0 16c-3.9 0-7-3.1-7-7s3.1-7 7-7 7 3.1 7 7-3.1 7-7 7z"/></svg>
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9zm0 16c-3.9 0-7-3.1-7-7s3.1-7 7-7 7 3.1 7 7-3.1 7-7 7z"/></svg>
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20V2L2 22z"/></svg>
     </div>
@@ -1133,7 +1163,7 @@ const panels = {
       </div>
       <div class="adjust-group">
         <div class="adjust-group-title">基础</div>
-        <div class="slider-row">
+        <div class="slider-row active">
           <div class="slider-label">曝光</div>
           <div class="slider-track">
             <div class="slider-fill" style="left:50%; width:18%"></div>

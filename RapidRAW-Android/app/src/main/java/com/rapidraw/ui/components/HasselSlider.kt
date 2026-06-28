@@ -39,12 +39,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.HasselbladOrange
+import com.rapidraw.ui.theme.HasselbladOrangeBright
+import com.rapidraw.ui.theme.HasselbladOrangeDeep
 import com.rapidraw.ui.theme.SliderThumb
 import com.rapidraw.ui.theme.SliderTrackEmpty
 import com.rapidraw.ui.theme.SliderTrackFill
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import androidx.compose.ui.graphics.Brush
 import kotlin.math.roundToInt
 
 @Composable
@@ -63,9 +66,21 @@ fun HasselSlider(
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
 
+    // 是否已调整（非默认值）—— 已调整态使用哈苏橙品牌色高亮
+    val isAdjusted = value != defaultValue
+
     val valueColor by animateColorAsState(
-        targetValue = if (value != defaultValue) TextPrimary else TextTertiary,
+        targetValue = when {
+            isDragging -> HasselbladOrangeBright
+            isAdjusted -> HasselbladOrangeBright
+            else -> TextTertiary
+        },
         label = "valueColor"
+    )
+
+    val labelColor by animateColorAsState(
+        targetValue = if (isDragging || isAdjusted) HasselbladOrangeBright else TextSecondary,
+        label = "labelColor"
     )
 
     val thumbSize by animateDpAsState(
@@ -73,6 +88,20 @@ fun HasselSlider(
         animationSpec = SpringSpec(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
         label = "thumbSize"
     )
+
+    // 滑块填充色：已调整 → 哈苏橙渐变；未调整 → 白色
+    val fillColor = if (isAdjusted || isDragging) {
+        Brush.horizontalGradient(
+            colors = listOf(HasselbladOrangeDeep, HasselbladOrangeBright),
+        )
+    } else {
+        Brush.horizontalGradient(
+            colors = listOf(SliderTrackFill, SliderTrackFill),
+        )
+    }
+
+    // 拇指色：已调整/拖拽 → 哈苏橙；未调整 → 白色
+    val thumbColor = if (isAdjusted || isDragging) HasselbladOrangeBright else SliderThumb
 
     var showInputDialog by remember { mutableStateOf(false) }
 
@@ -92,10 +121,10 @@ fun HasselSlider(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Label
+        // Label（已调整/拖拽态使用哈苏橙高亮）
         Text(
             text = label,
-            color = TextSecondary,
+            color = labelColor,
             fontSize = with(density) { 12.dp.toSp() },
             modifier = Modifier.width(48.dp),
         )
@@ -117,7 +146,7 @@ fun HasselSlider(
                     .background(SliderTrackEmpty)
             )
 
-            // Filled portion (white)
+            // Filled portion (已调整态使用哈苏橙渐变)
             val fraction = if (range.endInclusive != range.start) {
                 ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
             } else 0f
@@ -127,7 +156,7 @@ fun HasselSlider(
                     .size(height = 2.dp, width = 1.dp)
                     .fillMaxWidth(fraction)
                     .clip(CircleShape)
-                    .background(SliderTrackFill)
+                    .background(fillColor)
             )
 
             // Thumb
@@ -137,7 +166,7 @@ fun HasselSlider(
                     .offset { IntOffset(thumbOffsetPx, 0) }
                     .size(thumbSize)
                     .clip(CircleShape)
-                    .background(SliderThumb)
+                    .background(thumbColor)
                     .pointerInput(range, stepSize, defaultValue) {
                         detectDragGestures(
                             onDragStart = { isDragging = true },
