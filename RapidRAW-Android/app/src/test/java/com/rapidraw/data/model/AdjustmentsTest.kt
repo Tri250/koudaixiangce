@@ -46,4 +46,40 @@ class AdjustmentsTest {
         assertEquals(a1, a2)
         assertEquals(a1.hashCode(), a2.hashCode())
     }
+
+    @Test
+    fun copyByField_orientationSteps_wrapsAndConvertsToInt() {
+        val adj = Adjustments().copyByField("orientationSteps", 5f)
+        assertEquals(1, adj.orientationSteps)
+    }
+
+    @Test
+    fun copyByField_flipHorizontal_convertsFloatToBoolean() {
+        val adj = Adjustments().copyByField("flipHorizontal", 1f)
+        assertTrue(adj.flipHorizontal)
+    }
+
+    @Test
+    fun copyByField_cropAspectRatio_createsCropData() {
+        val adj = Adjustments().copyByField("cropAspectRatio", 16f / 9f)
+        assertEquals(16f / 9f, adj.crop?.aspectRatio ?: 0f, 0.001f)
+    }
+
+    @Test
+    fun copyByField_hslRedsHue() {
+        val adj = Adjustments().copyByField("hslReds.hue", 50f)
+        assertEquals(50f, adj.hslReds.hue, 0.001f)
+    }
+
+    @Test
+    fun copyByField_colorGradingShadowsSaturation() {
+        val adj = Adjustments().copyByField("colorGrading.shadows.saturation", 75f)
+        assertEquals(75f, adj.colorGrading.shadows.saturation, 0.001f)
+    }
+
+    @Test
+    fun copyByField_clampsOutOfRangeValues() {
+        val adj = Adjustments().copyByField("contrast", 200f)
+        assertEquals(100f, adj.contrast, 0.001f)
+    }
 }

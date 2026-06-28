@@ -131,6 +131,21 @@ uniform float uHalationAmount;      // 0.0 - 1.0
 uniform float uFlareAmount;         // 0.0 - 1.0
 uniform float uColorGradingBalance; // -1.0 - 1.0
 uniform float uColorCalibrationShadowsTint; // -1.0 - 1.0
+
+// CDL Color Grading (per-channel R/G/B offsets for Lift/Gamma/Gain)
+uniform float uCdlShadowsR;      // -1.0 - 1.0
+uniform float uCdlShadowsG;
+uniform float uCdlShadowsB;
+uniform float uCdlMidtonesR;
+uniform float uCdlMidtonesG;
+uniform float uCdlMidtonesB;
+uniform float uCdlHighlightsR;
+uniform float uCdlHighlightsG;
+uniform float uCdlHighlightsB;
+
+// Blur-based creative effects
+uniform float uBlurGlow;         // 0.0 - 1.0
+uniform float uBlurHalation;     // 0.0 - 1.0
 uniform float uRotation;            // -180 - 180
 uniform int uOrientationSteps;      // 0 - 3
 uniform float uFlipHorizontal;      // 0.0 or 1.0
@@ -1206,6 +1221,38 @@ vec3 apply_color_calibration_shadows_tint(vec3 color) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// ── NEW: CDL Color Grading (Lift/Gamma/Gain per-channel offsets) ────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_cdl_grading(vec3 color) {
+    // Check if any CDL parameter is non-zero
+    float anyCdl = abs(uCdlShadowsR) + abs(uCdlShadowsG) + abs(uCdlShadowsB) +
+                   abs(uCdlMidtonesR) + abs(uCdlMidtonesG) + abs(uCdlMidtonesB) +
+                   abs(uCdlHighlightsR) + abs(uCdlHighlightsG) + abs(uCdlHighlightsB);
+    if (anyCdl < EPS) return color;
+
+    float luma = get_luma(color);
+
+    // Compute smoothstep masks for shadows, midtones, highlights
+    float sm = shadows_mask(luma);
+    float mm = midtones_mask(luma);
+    float hm = highlights_mask(luma);
+
+    // Normalize masks so they sum to 1
+    float maskSum = sm + mm + hm + EPS;
+    sm /= maskSum;
+    mm /= maskSum;
+    hm /= maskSum;
+
+    // Apply per-channel CDL offsets (Lift for shadows, Gamma for midtones, Gain for highlights)
+    float offsetR = (sm * uCdlShadowsR + mm * uCdlMidtonesR + hm * uCdlHighlightsR) * 0.15;
+    float offsetG = (sm * uCdlShadowsG + mm * uCdlMidtonesG + hm * uCdlHighlightsG) * 0.15;
+    float offsetB = (sm * uCdlShadowsB + mm * uCdlMidtonesB + hm * uCdlHighlightsB) * 0.15;
+
+    return clamp(color + vec3(offsetR, offsetG, offsetB), 0.0, 1.0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // ── MAIN ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1354,6 +1401,9 @@ void main() {
 
     // === Step 12b: Color calibration shadows tint ===
     color = apply_color_calibration_shadows_tint(color);
+
+    // === Step 12c: CDL color grading (Lift/Gamma/Gain per-channel offsets) ===
+    color = apply_cdl_grading(color);
 
     // === Step 13: Local contrast (clarity/structure) ===
     color = apply_local_contrast(color, uv);

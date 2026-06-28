@@ -1,4 +1,5 @@
 # RapidRAW ProGuard Rules
+
 # Room
 -keep class androidx.room.** { *; }
 -keep class com.rapidraw.data.db.** { *; }
@@ -27,6 +28,7 @@
 
 # Keep enum classes and their values
 -keepclassmembers enum com.rapidraw.data.model.** { *; }
+-keepclassmembers enum com.rapidraw.core.** { *; }
 
 # Keep Kotlin metadata
 -keepattributes KotlinMetadata
@@ -47,44 +49,24 @@
 -keep public class com.rapidraw.MainActivity { *; }
 -keep public class com.rapidraw.RapidRawApp { *; }
 
-# Compose
--keep class androidx.compose.** { *; }
+# Compose navigation & ViewModel factories
+-keep class com.rapidraw.ui.** { *; }
+-keepclassmembers class com.rapidraw.ui.** { *; }
 
 # OpenGL Shaders
 -keepclassmembers class com.rapidraw.core.GpuPipeline { *; }
 
-# AiInpainter / AiDenoiser / AiMaskGenerator
--keepclassmembers class com.rapidraw.core.AiInpainter { *; }
--keepclassmembers class com.rapidraw.core.AiDenoiser { *; }
--keepclassmembers class com.rapidraw.core.AiMaskGenerator { *; }
+# Core processing
+-keep class com.rapidraw.core.** { *; }
+-keepclassmembers class com.rapidraw.core.** { *; }
 
-# FlowMaskManager
--keepclassmembers class com.rapidraw.core.FlowMaskManager { *; }
+# ACRA
+-keep class org.acra.** { *; }
+-dontwarn org.acra.**
 
-# SidecarManager
--keepclassmembers class com.rapidraw.core.SidecarManager { *; }
+# Prevent stripping of line numbers for crash reports
+-keepattributes SourceFile,LineNumberTable
 
-# CubeLutParser / LutManager
--keepclassmembers class com.rapidraw.core.CubeLutParser { *; }
--keep class com.rapidraw.core.CubeLutParser$Lut3D { *; }
--keepclassmembers class com.rapidraw.core.LutManager { *; }
-
-# FilmGrainRenderer
--keepclassmembers class com.rapidraw.core.FilmGrainRenderer { *; }
-
-# HighlightReconstructor
--keepclassmembers class com.rapidraw.core.HighlightReconstructor { *; }
-
-# LensCorrector / PerspectiveCorrector
--keepclassmembers class com.rapidraw.core.LensCorrector { *; }
--keepclassmembers class com.rapidraw.core.PerspectiveCorrector { *; }
-
-# ColorMath
--keepclassmembers class com.rapidraw.core.ColorMath { *; }
-
-# SmartOptimizer / SceneClassifier
--keepclassmembers class com.rapidraw.core.SmartOptimizer { *; }
--keepclassmembers class com.rapidraw.core.SceneClassifier { *; }
-
-# UserPreferenceLearning
--keepclassmembers class com.rapidraw.core.UserPreferenceLearning { *; }
+# OkHttp / ACRA HTTP sender
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**

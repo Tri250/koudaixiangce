@@ -1,7 +1,10 @@
 package com.rapidraw.ui.library
 
 import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -100,11 +103,39 @@ fun LibraryScreen(
     val batchProgress by viewModel.batchProgress.collectAsState()
     val hasCopiedAdjustments by viewModel.hasCopiedAdjustments.collectAsState()
 
-    val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
+    // Android 16 Photo Picker: 优先使用 PickVisualMedia，低版本回退 OpenMultipleDocuments
+    val photoPickerSingle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickVisualMedia(),
+        ) { uri ->
+            if (uri != null) viewModel.importImages(listOf(uri))
+        }
+    } else null
+
+    val photoPickerMultiple = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickMultipleVisualMedia(),
+        ) { uris ->
+            if (uris.isNotEmpty()) viewModel.importImages(uris)
+        }
+    } else null
+
+    val legacyImagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
-        if (uris.isNotEmpty()) {
-            viewModel.importImages(uris)
+        if (uris.isNotEmpty()) viewModel.importImages(uris)
+    }
+
+    fun launchPhotoPicker(batchMode: Boolean = false) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val request = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            if (batchMode) {
+                photoPickerMultiple?.launch(request)
+            } else {
+                photoPickerSingle?.launch(request)
+            }
+        } else {
+            legacyImagePicker.launch(arrayOf("image/*"))
         }
     }
 
@@ -225,6 +256,34 @@ fun LibraryScreen(
                                         },
                                     )
                                 }
+                            }
+                        }
+
+                        // Import button (Android 16 Photo Picker)
+                        Surface(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .clickable { launchPhotoPicker() },
+                            color = HasselbladOrange,
+                            shape = RoundedCornerShape(4.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = "导入",
+                                    tint = EditorBackground,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Import",
+                                    color = EditorBackground,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
                             }
                         }
 
@@ -515,11 +574,11 @@ fun LibraryScreen(
             }
         }
 
-        // ── FAB: Import ──────────────────────────────────────────────────
+        // ── FAB: Import via Photo Picker ────────────────────────────────
         if (!isBatchMode) {
             FloatingActionButton(
                 onClick = {
-                    imagePicker.launch(arrayOf("image/*"))
+                    launchPhotoPicker(batchMode = false)
                 },
                 containerColor = HasselbladOrange,
                 contentColor = EditorBackground,

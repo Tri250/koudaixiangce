@@ -15,18 +15,25 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rapidraw.ui.navigation.Routes
 import com.rapidraw.ui.navigation.RapidNavHost
 import com.rapidraw.ui.theme.RapidRawTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
+@Suppress("SpellCheckingInspection")
 class MainActivity : ComponentActivity() {
 
     companion object {
@@ -36,13 +43,18 @@ class MainActivity : ComponentActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val allGranted = permissions.all { it.value }
-        if (!allGranted) {
-            Log.w(TAG, "Not all storage permissions granted")
+        val denied = permissions.filter { !it.value }.keys
+        if (denied.isNotEmpty()) {
+            Log.w(TAG, "Permissions denied: $denied")
+            // 如果关键存储权限被拒绝，仍然可以继续使用外部 intent 传入的图片，
+            // 但图库功能会受限。这里仅记录，不在启动时阻塞。
+        } else {
+            Log.d(TAG, "All requested permissions granted")
         }
     }
 
-    private var pendingImageUri by mutableStateOf<Uri?>(null)
+    private var pendingImageUri: Uri? = null
+    private var navController: NavHostController? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,37 +62,56 @@ class MainActivity : ComponentActivity() {
         // 安全隐私：防止截图和录屏
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
 
+        // Edge-to-Edge: 让系统栏透明并让内容绘制到系统栏后面
         enableEdgeToEdge()
+
+        // WindowCompat 设置：确保内容不会与系统栏重叠（由 Compose Insets 处理）
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         applyImmersiveMode()
-        requestStoragePermissions()
 
         val initialUri = handleIncomingIntent(intent)
         if (initialUri != null) {
             pendingImageUri = initialUri
         }
 
+        // 延迟请求权限，避免阻塞首帧渲染
+        lifecycleScope.launch {
+            delay(300)
+            requestStoragePermissions()
+        }
+
         setContent {
             RapidRawTheme {
                 val navController = rememberNavController()
+                this@MainActivity.navController = navController
+                DisposableEffect(Unit) {
+                    onDispose { this@MainActivity.navController = null }
+                }
+
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                // Handle back press: if in editor, go to library; else finish()
+                // Predictive Back: 在非 Library 页面拦截返回键，
+                // 配合 android:enableOnBackInvokedCallback 使 Navigation Compose
+                // 在 Android 14+ 上自动提供预测性返回动画。
                 BackHandler(enabled = currentRoute != Routes.LIBRARY) {
                     navController.popBackStack(Routes.LIBRARY, inclusive = false)
                 }
 
                 RapidNavHost(
                     navController = navController,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .imePadding(),  // 正确处理键盘弹出时的布局
                 )
 
                 // Navigate to editor if app was opened with an image from external intent
-                pendingImageUri?.let { uri ->
-                    navController.navigate(Routes.editorUri(uri.toString())) {
-                        popUpTo(Routes.LIBRARY) { inclusive = false }
+                LaunchedEffect(pendingImageUri) {
+                    pendingImageUri?.let { uri ->
+                        navigateToEditor(navController, uri)
+                        pendingImageUri = null
                     }
-                    pendingImageUri = null
                 }
             }
         }
@@ -90,7 +121,27 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIncomingIntent(intent)?.let { uri ->
-            pendingImageUri = uri
+            val controller = findNavController()
+            if (controller != null) {
+                navigateToEditor(controller, uri)
+            } else {
+                pendingImageUri = uri
+            }
+        }
+    }
+
+    private fun findNavController(): NavHostController? {
+        return navController
+    }
+
+    private fun navigateToEditor(navController: NavHostController, uri: Uri) {
+        // 避免重复导航到同一个 editor 页面
+        val currentRoute = navController.currentDestination?.route
+        if (currentRoute?.startsWith("editor") == true) {
+            navController.popBackStack(Routes.LIBRARY, inclusive = false)
+        }
+        navController.navigate(Routes.editorUri(uri.toString())) {
+            popUpTo(Routes.LIBRARY) { inclusive = false }
         }
     }
 
@@ -106,10 +157,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestStoragePermissions() {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
-        } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        val permissions = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                arrayOf(
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+                )
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+            }
+            else -> {
+                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
         }
 
         val needsRequest = permissions.any {
@@ -122,13 +182,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyImmersiveMode() {
+        // 系统栏颜色由 enableEdgeToEdge() 设置为透明，这里只控制行为
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+: 使用 WindowInsetsController 配合 BEHAVIOR_DEFAULT
+            // 以支持 Predictive Back 手势（BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            // 会与 Predictive Back 冲突）
             window.insetsController?.let { controller ->
                 controller.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    WindowInsetsController.BEHAVIOR_DEFAULT
             }
         } else {
             @Suppress("DEPRECATION")
