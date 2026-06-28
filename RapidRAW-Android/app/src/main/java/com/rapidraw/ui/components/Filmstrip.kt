@@ -1,6 +1,7 @@
 package com.rapidraw.ui.components
 
 import androidx.compose.foundation.Image
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,11 +18,15 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.rapidraw.data.model.ImageFile
 import com.rapidraw.ui.theme.EditorBorder
@@ -37,6 +42,7 @@ fun Filmstrip(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(selectedIndex) {
         if (selectedIndex >= 0 && selectedIndex < images.size) {
@@ -61,24 +67,26 @@ fun Filmstrip(
             val isSelected = index == selectedIndex
             val bitmap = thumbnails[image.path]
 
+            val borderColor by animateColorAsState(
+                targetValue = if (isSelected) HasselbladOrange else Color.Transparent,
+                label = "borderColor"
+            )
+
             Box(
                 modifier = Modifier
                     .width(48.dp)
                     .height(64.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .background(EditorBorder)
-                    .then(
-                        if (isSelected) {
-                            Modifier.border(
-                                width = 3.dp,
-                                color = HasselbladOrange,
-                                shape = RoundedCornerShape(4.dp),
-                            )
-                        } else {
-                            Modifier
-                        }
+                    .border(
+                        width = 3.dp,
+                        color = borderColor,
+                        shape = RoundedCornerShape(4.dp),
                     )
-                    .clickable { onSelect(index) },
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onSelect(index)
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 if (bitmap != null && !bitmap.isRecycled) {

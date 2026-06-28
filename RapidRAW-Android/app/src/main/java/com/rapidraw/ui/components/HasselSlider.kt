@@ -1,5 +1,6 @@
 package com.rapidraw.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.animateDpAsState
@@ -29,14 +30,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.SliderThumb
+import com.rapidraw.ui.theme.SliderTrackEmpty
 import com.rapidraw.ui.theme.SliderTrackFill
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
@@ -57,6 +61,12 @@ fun HasselSlider(
     var isDragging by remember { mutableStateOf(false) }
     var trackWidth by remember { mutableStateOf(0) }
     val density = LocalDensity.current
+    val haptic = LocalHapticFeedback.current
+
+    val valueColor by animateColorAsState(
+        targetValue = if (value != defaultValue) TextPrimary else TextTertiary,
+        label = "valueColor"
+    )
 
     val thumbSize by animateDpAsState(
         targetValue = if (isDragging) 18.dp else 14.dp,
@@ -104,7 +114,7 @@ fun HasselSlider(
                     .fillMaxWidth()
                     .size(height = 2.dp, width = 1.dp)
                     .clip(CircleShape)
-                    .background(EditorBorder)
+                    .background(SliderTrackEmpty)
             )
 
             // Filled portion (white)
@@ -152,6 +162,7 @@ fun HasselSlider(
                     .pointerInput(defaultValue) {
                         detectTapGestures(
                             onDoubleTap = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 onValueChange(defaultValue)
                             }
                         )
@@ -162,7 +173,7 @@ fun HasselSlider(
         // Value display
         Text(
             text = format(value),
-            color = if (value != defaultValue) TextPrimary else TextTertiary,
+            color = valueColor,
             fontSize = with(density) { 12.dp.toSp() },
             modifier = Modifier
                 .width(40.dp)

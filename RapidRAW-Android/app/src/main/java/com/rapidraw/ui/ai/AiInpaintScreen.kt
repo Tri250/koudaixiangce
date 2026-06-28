@@ -38,7 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -62,6 +62,7 @@ import com.rapidraw.core.AiInpainter
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.EditorBackground
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -76,6 +77,7 @@ fun AiInpaintScreen(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
     var isProcessing by remember { mutableStateOf(false) }
     var resultBitmap by remember { mutableStateOf<Bitmap?>(null) }
     androidx.compose.runtime.DisposableEffect(resultBitmap) {
@@ -306,7 +308,7 @@ fun AiInpaintScreen(
                         onClick = {
                             if (maskPoints.isEmpty()) return@Button
                             isProcessing = true
-                            LaunchedEffect(Unit) {
+                            scope.launch {
                                 withContext(Dispatchers.Default) {
                                     val maskBitmap = createMaskBitmap(
                                         workingBitmap.width,

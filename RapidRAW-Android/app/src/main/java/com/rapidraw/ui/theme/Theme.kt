@@ -85,12 +85,13 @@ fun RapidRawTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = EditorBackground.toArgb()
-            window.navigationBarColor = EditorBackground.toArgb()
+            val surfaceColor = if (darkTheme) EditorBackground else Color(0xFFFAFAFA)
+            window.statusBarColor = surfaceColor.toArgb()
+            window.navigationBarColor = surfaceColor.toArgb()
 
             val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = false
-            insetsController.isAppearanceLightNavigationBars = false
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
 
             WindowCompat.setDecorFitsSystemWindows(window, false)
         }

@@ -1228,7 +1228,7 @@ class ImageProcessor {
             filmGrainAmount = src.filmGrainAmount,
             filmGrainSize = src.filmGrainSize,
             filmGrainRoughness = src.filmGrainRoughness,
-            filmCurvePoints = src.filmCurvePoints,
+            filmCurvePoints = src.filmCurvePoints.map { (it.first / 255f) to (it.second / 255f) },
             temperature = 6500f + src.temperature * 50f,                       // offset → Kelvin
             tint = src.tint / 100f,                                            // -100..100 → -1..1
             contrast = src.contrast / 100f,                                    // -100..100 → -1..1
@@ -1262,7 +1262,7 @@ class ImageProcessor {
             hueMagenta = src.hslMagentas.hue / 100f,
             satMagenta = src.hslMagentas.saturation / 100f,
             lumMagenta = src.hslMagentas.luminance / 100f,
-            toneCurvePoints = src.lumaCurve.map { it.x to it.y },
+            toneCurvePoints = src.lumaCurve.map { (it.x / 255f) to (it.y / 255f) },
             colorGradingShadows = floatArrayOf(
                 src.colorGrading.shadows.hue / 360f,
                 src.colorGrading.shadows.saturation / 100f,

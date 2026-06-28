@@ -86,7 +86,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.rapidraw.data.model.ExportFormat
 import com.rapidraw.data.model.ExportSettings
@@ -115,7 +114,7 @@ private val BOTTOM_TABS = listOf("胶片", "调节", "裁剪", "导出")
 @Composable
 fun EditorScreen(
     navController: NavController,
-    viewModel: EditorViewModel = viewModel(),
+    viewModel: EditorViewModel,
     initialImage: ImageFile? = null,
 ) {
     val adjustments by viewModel.adjustments.collectAsState()
@@ -149,6 +148,14 @@ fun EditorScreen(
         com.rapidraw.ui.navigation.Routes.SelectedPresetHolder.pendingPreset?.let { preset ->
             viewModel.applyPreset(preset)
             com.rapidraw.ui.navigation.Routes.SelectedPresetHolder.pendingPreset = null
+        }
+    }
+
+    // Apply pending AI inpaint result from AiInpaintScreen
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.rapidraw.ui.navigation.Routes.AiInpaintResultHolder.pendingResult?.let { bitmap ->
+            viewModel.applyAiInpaintResult(bitmap)
+            com.rapidraw.ui.navigation.Routes.AiInpaintResultHolder.pendingResult = null
         }
     }
 
@@ -373,8 +380,8 @@ fun EditorScreen(
                                         if (lastTime > 0) {
                                             val dt = (now - lastTime).coerceAtLeast(1)
                                             lastVelocity = Offset(
-                                                (panOffset.x - lastPan.x) / dt * 16f,
-                                                (panOffset.y - lastPan.y) / dt * 16f,
+                                                (panOffset.x - lastPan.x) / dt * 1000f,
+                                                (panOffset.y - lastPan.y) / dt * 1000f,
                                             )
                                         }
                                         lastPan = panOffset

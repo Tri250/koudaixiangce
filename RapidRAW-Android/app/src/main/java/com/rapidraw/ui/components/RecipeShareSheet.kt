@@ -44,12 +44,11 @@ fun RecipeShareSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
-    
-    if (!visible) return
-    
     var recipeName by remember { mutableStateOf("我的配方") }
     var importJson by remember { mutableStateOf("") }
     var showImport by remember { mutableStateOf(false) }
+
+    if (!visible) return
     
     val currentRecipe = Recipe(
         id = System.currentTimeMillis().toString(),

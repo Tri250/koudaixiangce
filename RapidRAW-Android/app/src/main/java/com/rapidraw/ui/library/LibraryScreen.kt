@@ -1,6 +1,8 @@
 package com.rapidraw.ui.library
 
 import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -97,6 +99,14 @@ fun LibraryScreen(
     val isBatchMode by viewModel.isBatchMode.collectAsState()
     val batchProgress by viewModel.batchProgress.collectAsState()
     val hasCopiedAdjustments by viewModel.hasCopiedAdjustments.collectAsState()
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            viewModel.importImages(uris)
+        }
+    }
 
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isSortDropdownExpanded by remember { mutableStateOf(false) }
@@ -509,7 +519,7 @@ fun LibraryScreen(
         if (!isBatchMode) {
             FloatingActionButton(
                 onClick = {
-                    // Import images
+                    imagePicker.launch(arrayOf("image/*"))
                 },
                 containerColor = HasselbladOrange,
                 contentColor = EditorBackground,

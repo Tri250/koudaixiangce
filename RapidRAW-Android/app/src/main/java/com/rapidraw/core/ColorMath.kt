@@ -219,10 +219,11 @@ object ColorMath {
             0.5441f + 0.4559f * (1f / (1f + 0.0005583f * (temp - 10f) * (temp - 10f)))
         }
 
-        // Normalize so that 6500K gives (1,1,1)
-        val rNorm = r / 1f
-        val gNorm = g / 1f
-        val bNorm = b / 1f
+        // Normalize so that 6500K gives (1,1,1): divide by the brightest channel
+        val maxComponent = maxOf(r, g, b)
+        val rNorm = r / maxComponent
+        val gNorm = g / maxComponent
+        val bNorm = b / maxComponent
 
         // Apply tint (green-magenta shift)
         // tint 已在 convertToCoreAdjustments 中归一化到 [-1, 1]，无需再除 100
@@ -244,6 +245,11 @@ object ColorMath {
     /** Smooth luminance mask for highlights: high for bright areas */
     fun highlightsMask(luma: Float): Float {
         return smoothstep(0.5f, 1f, luma)
+    }
+
+    /** Smooth luminance mask for midtones: high for mid-range areas */
+    fun midtonesMask(luma: Float): Float {
+        return smoothstep(0.2f, 0.4f, luma) * (1f - smoothstep(0.6f, 0.8f, luma))
     }
 
     /** Smooth luminance mask for whites */

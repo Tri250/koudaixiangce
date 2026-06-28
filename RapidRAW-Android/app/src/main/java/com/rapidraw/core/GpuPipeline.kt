@@ -797,6 +797,11 @@ class GpuPipeline(private val context: Context) {
         if (vao != 0) GLES30.glDeleteVertexArrays(1, intArrayOf(vao), 0)
         if (vbo != 0) GLES30.glDeleteBuffers(1, intArrayOf(vbo), 0)
 
+        // Recycle readback bitmap before EGL teardown
+        readBackBitmap?.recycle()
+        readBackBuffer = null
+        readBackBitmap = null
+
         // Destroy EGL
         val display = eglDisplay
         val surface = eglSurface

@@ -151,7 +151,7 @@ class EditorViewModel(
                     _isLoading.value = false
                     updateHistogram(processed.preview)
 
-                    // 尝试恢复非破坏性编辑状态
+                    // 恢复 sidecar
                     val sidecarManager = com.rapidraw.core.SidecarManager(context)
                     val savedAdj = sidecarManager.loadSidecar(imageFile.path)
                     if (savedAdj != null) {
@@ -159,12 +159,13 @@ class EditorViewModel(
                         if (savedAdj.filmId != null) {
                             _selectedFilmId.value = savedAdj.filmId
                         }
+                        // 有已保存的编辑，不自动智能优化
+                    } else {
+                        // 仅在首次打开（无 sidecar）时自动智能优化
+                        smartOptimize()
                     }
 
                     detectScene(processed.preview)
-
-                    // 加载完成后自动智能优化
-                    smartOptimize()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -214,6 +215,14 @@ class EditorViewModel(
     fun applyPreset(preset: Preset) {
         pushUndo()
         _adjustments.value = preset.adjustments
+        preset.filmId?.let { fid ->
+            _selectedFilmId.value = fid
+            FilmSimulation.getById(fid)?.let { film ->
+                _adjustments.value = _adjustments.value.withFilmSimulation(film)
+            }
+        } ?: run {
+            _selectedFilmId.value = null
+        }
         schedulePreviewUpdate()
     }
 
@@ -346,6 +355,7 @@ class EditorViewModel(
             _adjustments.value = original  // Revert to original
         }
         _smartOptimizedAdjustments.value = null
+        schedulePreviewUpdate()
     }
 
     fun copyCurrentAdjustments(): Adjustments {
@@ -449,6 +459,16 @@ class EditorViewModel(
     }
 
     /**
+     * 应用 AI 修复结果：将修复后的位图作为新的源位图
+     */
+    fun applyAiInpaintResult(bitmap: Bitmap) {
+        originalBitmap = bitmap
+        previewBitmapCache = bitmap
+        _previewBitmap.value = bitmap
+        schedulePreviewUpdate()
+    }
+
+    /**
      * Flow Mask 初始化：创建与预览图同尺寸的笔刷蒙版
      */
     fun initFlowMask() {
@@ -538,7 +558,7 @@ class EditorViewModel(
     // ── Export ────────────────────────────────────────────────────────
 
     fun exportImage(settings: ExportSettings) {
-        val source = originalBitmap ?: return
+        val source = previewBitmapCache ?: originalBitmap ?: return
 
         _isLoading.value = true
 

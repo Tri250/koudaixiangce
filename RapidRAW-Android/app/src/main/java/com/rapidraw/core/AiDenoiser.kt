@@ -78,7 +78,12 @@ class AiDenoiser {
         
         val denoisedBitmap = Bitmap.createBitmap(ww, wh, Bitmap.Config.ARGB_8888)
         denoisedBitmap.setPixels(result, 0, ww, 0, 0, ww, wh)
-        
+
+        // Recycle the work bitmap (scaled copy of source, no longer needed)
+        if (workBitmap !== source) {
+            workBitmap.recycle()
+        }
+
         // 上采样回原尺寸
         return if (needDownsample) {
             val upsampled = Bitmap.createScaledBitmap(denoisedBitmap, w, h, true)

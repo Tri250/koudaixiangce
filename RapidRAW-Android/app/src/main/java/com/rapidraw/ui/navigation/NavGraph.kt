@@ -39,6 +39,10 @@ object Routes {
     object SelectedPresetHolder {
         var pendingPreset: com.rapidraw.data.model.Preset? = null
     }
+
+    object AiInpaintResultHolder {
+        var pendingResult: android.graphics.Bitmap? = null
+    }
 }
 
 @Composable
@@ -64,14 +68,20 @@ fun RapidNavHost(
             )
         ) { backStackEntry ->
             val imagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
-            EditorScreen(
+            val image = ImageFile(
+                path = imagePath,
+                fileName = imagePath.substringAfterLast("/"),
+                folderPath = imagePath.substringBeforeLast("/"),
+                isRaw = ImageFile.isRawFile(imagePath),
+            )
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val vm: com.rapidraw.ui.editor.EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                key = "editor_${image.path}",
+                factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext)
+            )
+            com.rapidraw.ui.editor.EditorScreen(
                 navController = navController,
-                initialImage = ImageFile(
-                    path = imagePath,
-                    fileName = imagePath.substringAfterLast("/"),
-                    folderPath = imagePath.substringBeforeLast("/"),
-                    isRaw = ImageFile.isRawFile(imagePath),
-                ),
+                viewModel = vm,
             )
         }
 
@@ -83,14 +93,20 @@ fun RapidNavHost(
         ) { backStackEntry ->
             val uriString = backStackEntry.arguments?.getString("uri") ?: ""
             val uri = Uri.parse(uriString)
-            EditorScreen(
+            val image = ImageFile(
+                path = uriString,
+                fileName = uri.lastPathSegment ?: "image",
+                folderPath = "",
+                isRaw = false,
+            )
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val vm: com.rapidraw.ui.editor.EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                key = "editor_${image.path}",
+                factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext)
+            )
+            com.rapidraw.ui.editor.EditorScreen(
                 navController = navController,
-                initialImage = ImageFile(
-                    path = uriString,
-                    fileName = uri.lastPathSegment ?: "image",
-                    folderPath = "",
-                    isRaw = false,
-                ),
+                viewModel = vm,
             )
         }
 
@@ -117,7 +133,10 @@ fun RapidNavHost(
             if (bitmap != null) {
                 AiInpaintScreen(
                     sourceBitmap = bitmap,
-                    onComplete = { navController.popBackStack() },
+                    onComplete = { resultBitmap ->
+                        Routes.AiInpaintResultHolder.pendingResult = resultBitmap
+                        navController.popBackStack()
+                    },
                     onCancel = { navController.popBackStack() },
                 )
             }

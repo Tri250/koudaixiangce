@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ContentUris
 import android.database.Cursor
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
@@ -195,9 +196,17 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
             for (image in currentImages) {
                 try {
+                    // Resolve the MediaStore ID from the image path (must be a content URI)
+                    val mediaStoreId = if (image.path.startsWith("content://")) {
+                        Uri.parse(image.path).lastPathSegment?.toLongOrNull()
+                    } else {
+                        null
+                    }
+                    if (mediaStoreId == null) continue
+
                     val uri = ContentUris.withAppendedId(
                         MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        image.path.hashCode().toLong().let { if (it > 0) it else -it }
+                        mediaStoreId
                     )
 
                     val thumbnail = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -210,7 +219,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         @Suppress("DEPRECATION")
                         MediaStore.Images.Thumbnails.getThumbnail(
                             contentResolver,
-                            image.path.hashCode().toLong().let { if (it > 0) it else -it },
+                            mediaStoreId,
                             MediaStore.Images.Thumbnails.MINI_KIND,
                             null,
                         )
@@ -225,6 +234,27 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             }
 
             _thumbnails.value = thumbnailMap
+        }
+    }
+
+    /**
+     * 导入用户通过 Photo Picker 选择的图片。
+     * 获取持久化读取权限并刷新图库（MediaStore 会扫描到新图片）。
+     */
+    fun importImages(uris: List<Uri>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            uris.forEach { uri ->
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                } catch (_: Exception) {
+                    // 某些 provider 不支持持久化权限，忽略
+                }
+            }
+            // 刷新图片列表，新导入的图片会被 MediaStore 扫描到
+            loadImages(_selectedFolder.value)
         }
     }
 

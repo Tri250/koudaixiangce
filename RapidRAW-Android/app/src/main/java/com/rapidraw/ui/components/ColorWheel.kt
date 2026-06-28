@@ -19,7 +19,9 @@ import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.ui.theme.EditorSurface
@@ -31,6 +33,7 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun ColorWheel(
     hue: Float,
@@ -43,6 +46,7 @@ fun ColorWheel(
     modifier: Modifier = Modifier,
 ) {
     var isDragging by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
     Column(
         modifier = modifier,
@@ -56,8 +60,14 @@ fun ColorWheel(
                     .size(120.dp)
                     .pointerInput(Unit) {
                         detectDragGestures(
-                            onDragStart = { isDragging = true },
-                            onDragEnd = { isDragging = false },
+                            onDragStart = {
+                                isDragging = true
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
+                            onDragEnd = {
+                                isDragging = false
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
                             onDragCancel = { isDragging = false },
                         ) { change, _ ->
                             change.consume()

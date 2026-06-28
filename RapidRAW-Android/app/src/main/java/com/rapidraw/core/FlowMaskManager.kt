@@ -46,7 +46,9 @@ class FlowMaskManager(
      */
     fun paintStroke(x: Float, y: Float, brushSize: Float, opacity: Float, hardness: Float) {
         val alpha = (opacity * 255).toInt().coerceIn(0, 255)
-        paintBrush.alpha = alpha
+        // SRC_OVER with reduced single-stroke alpha so repeated strokes accumulate gradually
+        paintBrush.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_OVER)
+        paintBrush.alpha = (alpha * 0.3f).toInt().coerceIn(1, 255)
         
         // 软边使用 BlurMaskFilter
         paintBrush.maskFilter = if (hardness < 0.9f) {
@@ -70,6 +72,15 @@ class FlowMaskManager(
      */
     fun clear() {
         maskCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+    }
+
+    /**
+     * 释放蒙版 Bitmap 占用的内存
+     */
+    fun release() {
+        if (!maskBitmap.isRecycled) {
+            maskBitmap.recycle()
+        }
     }
     
     /**
