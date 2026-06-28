@@ -55,6 +55,7 @@ import com.rapidraw.ui.theme.TextTertiary
  * 大师配方推荐页。
  * 9 款哈苏大师预设 + 分类筛选。
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PresetsDiscoveryScreen(
     onApplyPreset: (Preset) -> Unit,
@@ -276,7 +277,7 @@ private fun PresetCard(
         )
 
         Text(
-            text = preset.description,
+            text = preset.description ?: "",
             color = TextTertiary,
             fontSize = 12.sp,
             maxLines = 1,
@@ -286,7 +287,7 @@ private fun PresetCard(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = preset.category,
+            text = preset.category ?: "",
             color = HasselbladOrange,
             fontSize = 11.sp,
         )

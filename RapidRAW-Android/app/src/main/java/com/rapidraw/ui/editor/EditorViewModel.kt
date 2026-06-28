@@ -10,19 +10,26 @@ import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.AdjustmentClipboard
 import com.rapidraw.core.AiDenoiser
 import com.rapidraw.core.AiInpainter
-import com.rapidraw.core.AiMaskGenerator
+import com.rapidraw.core.HeuristicMaskGenerator
+import com.rapidraw.core.ColorScience
 import com.rapidraw.core.CubeLutParser
 import com.rapidraw.core.EditHistorySnapshot
 import com.rapidraw.core.FlowMaskManager
 import com.rapidraw.core.GpuPipeline
+import com.rapidraw.core.HdrExporter
 import com.rapidraw.core.HighlightReconstructor
 import com.rapidraw.core.ImageProcessor
+import com.rapidraw.core.LutLibraryManager
 import com.rapidraw.core.LutManager
 import com.rapidraw.core.SceneClassifier
 import com.rapidraw.core.SceneType
 import com.rapidraw.core.SidecarManager
 import com.rapidraw.core.SmartOptimizer
 import com.rapidraw.core.UserPreferenceLearning
+import com.rapidraw.core.copyWithColorScience
+import com.rapidraw.core.copyWithHdrConfig
+import com.rapidraw.core.toColorScienceConfig
+import com.rapidraw.core.toHdrConfig
 import com.rapidraw.data.model.Adjustments
 import com.rapidraw.data.model.EditHistoryEntry
 import com.rapidraw.data.model.EditHistoryTree
@@ -189,8 +196,9 @@ class EditorViewModel(
     // endregion
 
     // region Internal State
-    private val undoStack = ArrayDeque<Adjustments>(maxSize = 50)
-    private val redoStack = ArrayDeque<Adjustments>(maxSize = 50)
+    private val undoStack = ArrayDeque<Adjustments>()
+    private val redoStack = ArrayDeque<Adjustments>()
+    private val maxUndoSize = 50
 
     // 所有 Bitmap 状态通过 bitmapMutex 保护，避免并发访问/回收导致崩溃
     private val bitmapMutex = Mutex()
@@ -567,7 +575,7 @@ class EditorViewModel(
         }
     }
 
-    fun generateAiMask(maskType: AiMaskGenerator.MaskType, onResult: (Bitmap) -> Unit) {
+    fun generateAiMask(maskType: HeuristicMaskGenerator.MaskType, onResult: (Bitmap) -> Unit) {
         launchAiJob {
             val source = bitmapMutex.withLock {
                 previewBitmapCache?.takeIf { !it.isRecycled }
@@ -575,7 +583,7 @@ class EditorViewModel(
 
             _isAiProcessing.value = true
             runCatching {
-                val generator = AiMaskGenerator()
+                val generator = HeuristicMaskGenerator()
                 val mask = generator.generateMask(source, maskType)
                 withContext(Dispatchers.Main) {
                     if (!isCleared.get()) onResult(mask)
@@ -597,7 +605,7 @@ class EditorViewModel(
 
             _isAiProcessing.value = true
             runCatching {
-                val generator = AiMaskGenerator()
+                val generator = HeuristicMaskGenerator()
                 val result = withContext(Dispatchers.Default) {
                     generator.applyMaskToBitmap(source, mask)
                 }
@@ -728,8 +736,10 @@ class EditorViewModel(
 
     // region Flow Mask
     fun initFlowMask() {
-        val source = bitmapMutex.withLock { previewBitmapCache?.takeIf { !it.isRecycled } }
-        source?.let { flowMaskManager = FlowMaskManager(it.width, it.height) }
+        viewModelScope.launch(Dispatchers.Default) {
+            val source = bitmapMutex.withLock { previewBitmapCache?.takeIf { !it.isRecycled } }
+            source?.let { flowMaskManager = FlowMaskManager(it.width, it.height) }
+        }
     }
 
     fun paintFlowMask(x: Float, y: Float, brushSize: Float, opacity: Float, hardness: Float) {
@@ -835,7 +845,7 @@ class EditorViewModel(
 
     private fun pushUndo(description: String?) {
         undoStack.addLast(_adjustments.value)
-        if (undoStack.size > 50) {
+        while (undoStack.size > maxUndoSize) {
             undoStack.removeFirst()
         }
         redoStack.clear()
@@ -1055,6 +1065,13 @@ class EditorViewModel(
     fun importLutFromUri(uri: android.net.Uri, displayName: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             lutLibrary.importLut(uri, displayName)
+        }
+    }
+
+    /** 切换 LUT 收藏状态（UI 回调友好） */
+    fun toggleLutFavorite(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            lutLibrary.toggleFavorite(id)
         }
     }
 
@@ -1309,7 +1326,7 @@ class EditorViewModel(
             return runCatching {
                 withContext(Dispatchers.Main) {
                     flowMaskManager?.getMaskBitmap()?.let { mask ->
-                        gpu.updateMaskTexture(mask, currentAdjustments.flowMaskIntensity / 100f)
+                        gpu.updateMaskTexture(mask, 1f)
                     }
                     gpu.updateAdjustments(currentAdjustments)
                     gpu.renderFrame(sourceBitmap)

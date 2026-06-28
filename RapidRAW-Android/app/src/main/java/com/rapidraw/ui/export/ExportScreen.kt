@@ -315,7 +315,6 @@ fun ExportSheet(
                             keepMetadata = keepMetadata,
                             stripGps = stripGps,
                             watermarkOpacity = if (watermarkEnabled) watermarkOpacity / 100f else 0.5f,
-                            watermarkPath = if (watermarkEnabled) "" else null,
                         )
                     )
                 }

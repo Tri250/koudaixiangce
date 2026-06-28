@@ -124,11 +124,18 @@ import com.rapidraw.ui.components.MaskType
 import com.rapidraw.ui.components.SmartOptimizeConfirm
 import com.rapidraw.ui.components.LiquidGlassSurface
 import com.rapidraw.ui.components.RecipeShareSheet
+import com.rapidraw.ui.components.ColorScienceSheet
+import com.rapidraw.ui.components.HdrExportSheet
+import com.rapidraw.ui.components.LutLibrarySheet
+import com.rapidraw.ui.components.EditHistoryPanel
+import com.rapidraw.core.toColorScienceConfig
+import com.rapidraw.core.toHdrConfig
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.EditorSurfaceVariant
 import com.rapidraw.ui.theme.HasselbladOrange
+import com.rapidraw.ui.theme.HasselbladOrangeLight
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
@@ -1029,9 +1036,9 @@ fun EditorScreen(
                         isAiProcessing = isAiProcessing,
                         onGenerateAiMask = {
                             val aiType = when (maskType) {
-                                MaskType.AI_SUBJECT -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
-                                MaskType.AI_SKY -> com.rapidraw.core.AiMaskGenerator.MaskType.SKY
-                                else -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
+                                MaskType.AI_SUBJECT -> com.rapidraw.core.HeuristicMaskGenerator.MaskType.SUBJECT
+                                MaskType.AI_SKY -> com.rapidraw.core.HeuristicMaskGenerator.MaskType.SKY
+                                else -> com.rapidraw.core.HeuristicMaskGenerator.MaskType.SUBJECT
                             }
                             viewModel.generateAiMask(aiType) { _ ->
                                 hasAiMaskResult = true
@@ -1167,10 +1174,10 @@ fun EditorScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 val maskTypes = listOf(
-                    "天空" to com.rapidraw.core.AiMaskGenerator.MaskType.SKY,
-                    "主体" to com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT,
-                    "前景" to com.rapidraw.core.AiMaskGenerator.MaskType.FOREGROUND,
-                    "深度" to com.rapidraw.core.AiMaskGenerator.MaskType.DEPTH,
+                    "天空" to com.rapidraw.core.HeuristicMaskGenerator.MaskType.SKY,
+                    "主体" to com.rapidraw.core.HeuristicMaskGenerator.MaskType.SUBJECT,
+                    "前景" to com.rapidraw.core.HeuristicMaskGenerator.MaskType.FOREGROUND,
+                    "深度" to com.rapidraw.core.HeuristicMaskGenerator.MaskType.DEPTH,
                 )
                 maskTypes.forEach { (label, type) ->
                     Box(
@@ -1249,7 +1256,7 @@ fun EditorScreen(
             viewModel.applyLut(entry, intensity)
         },
         onImportRequest = { lutPicker.launch(arrayOf("*/*")) },
-        onToggleFavorite = { id -> viewModel.lutLibrary.toggleFavorite(id) },
+        onToggleFavorite = { id -> viewModel.toggleLutFavorite(id) },
         onDismiss = { viewModel.hideLutLibrary() },
     )
 
