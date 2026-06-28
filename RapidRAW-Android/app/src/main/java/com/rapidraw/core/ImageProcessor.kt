@@ -193,7 +193,7 @@ data class Adjustments(
     val transformDistortion: Float = 0f, // -1.0 .. 1.0
     val transformVertical: Float = 0f,   // -1.0 .. 1.0
     val transformHorizontal: Float = 0f, // -1.0 .. 1.0
-    val transformRotate: Float = 0f,     // -1.0 .. 1.0
+    val transformRotate: Float = 0f,     // -45 .. 45
     val transformAspect: Float = 0f,     // -1.0 .. 1.0
     val transformScale: Float = 1f,      // 0.1 .. 2.0
     val transformXOffset: Float = 0f,    // -1.0 .. 1.0
@@ -233,6 +233,9 @@ class ImageProcessor {
         private const val TAG = "ImageProcessor"
         private const val PREVIEW_MAX_DIMENSION = 2048
     }
+
+    /** Current 3D LUT to apply during CPU processing (GPU preview uses texture directly) */
+    var currentLut: CubeLutParser.Lut3D? = null
 
     // ── Load & Decode ──────────────────────────────────────────────
 
@@ -809,6 +812,15 @@ class ImageProcessor {
                     r = r + (bloomR - r) * adj.softGlow * 0.5f
                     g = g + (bloomG - g) * adj.softGlow * 0.5f
                     b = b + (bloomB - b) * adj.softGlow * 0.5f
+                }
+
+                // ── 19b. 3D LUT (CPU path) ──
+                val lut = currentLut
+                if (lut != null && adj.lutIntensity > 1e-6f) {
+                    val lutColor = lut.sample(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f))
+                    r = r + (lutColor.first - r) * adj.lutIntensity
+                    g = g + (lutColor.second - g) * adj.lutIntensity
+                    b = b + (lutColor.third - b) * adj.lutIntensity
                 }
 
                 // ── 20. Linear to sRGB ──
@@ -1531,7 +1543,7 @@ class ImageProcessor {
             transformDistortion = src.transformDistortion / 100f,
             transformVertical = src.transformVertical / 100f,
             transformHorizontal = src.transformHorizontal / 100f,
-            transformRotate = src.transformRotate / 100f,
+            transformRotate = src.transformRotate,
             transformAspect = src.transformAspect / 100f,
             transformScale = src.transformScale / 100f,
             transformXOffset = src.transformXOffset / 100f,
@@ -2063,6 +2075,25 @@ class ImageProcessor {
             result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
         }
 
+        // 4b. Aspect ratio
+        if (adj.transformAspect != 0f) {
+            val matrix = android.graphics.Matrix()
+            matrix.postScale(1f + adj.transformAspect * 0.5f, 1f, result.width / 2f, result.height / 2f)
+            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+        }
+
+        // 4c. Transform rotate (perspective panel fine rotation)
+        if (adj.transformRotate != 0f) {
+            val matrix = android.graphics.Matrix()
+            matrix.postRotate(adj.transformRotate, result.width / 2f, result.height / 2f)
+            val rect = android.graphics.RectF(0f, 0f, result.width.toFloat(), result.height.toFloat())
+            matrix.mapRect(rect)
+            matrix.postTranslate(-rect.left, -rect.top)
+            val newW = rect.width().toInt().coerceAtLeast(1)
+            val newH = rect.height().toInt().coerceAtLeast(1)
+            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+        }
+
         // 5. Offset
         if (adj.transformXOffset != 0f || adj.transformYOffset != 0f) {
             val matrix = android.graphics.Matrix()
@@ -2125,19 +2156,22 @@ class ImageProcessor {
                 val r2 = nx * nx + ny * ny
                 val r4 = r2 * r2
 
+                // Focal length factor: shorter focal length = stronger effects
+                val focalFactor = 50f / adj.lensFocalLength.coerceAtLeast(1f)
+
                 // Distortion correction (reverse mapping)
-                val k1 = adj.lensDistortion * 0.15f
+                val k1 = adj.lensDistortion * 0.15f * focalFactor
                 val radial = 1f + k1 * r2
                 var srcNx = nx / radial
                 var srcNy = ny / radial
 
                 // TCA: separate R/B channel offsets
-                val tca = adj.lensTca * 0.02f
+                val tca = adj.lensTca * 0.02f * focalFactor
                 val tcaOffsetR = tca * r2
                 val tcaOffsetB = -tca * r2
 
                 // Vignette correction: brighten edges
-                val vignetteCorr = 1f + adj.lensVignette * 0.5f * r2
+                val vignetteCorr = 1f + adj.lensVignette * 0.5f * r2 * focalFactor
 
                 val srcX = srcNx * maxR + cx
                 val srcY = srcNy * maxR + cy
@@ -2155,7 +2189,20 @@ class ImageProcessor {
                     val p10 = srcPixels[y1 * w + x0]
                     val p11 = srcPixels[y1 * w + x1]
 
-                    val r = bilinearChannel(p00, p01, p10, p11, fx, fy, 16) * vignetteCorr
+                    // R channel with TCA offset
+                    val srcXR = srcX + tcaOffsetR * maxR
+                    val x0r = srcXR.toInt()
+                    val fxR = srcXR - x0r
+                    val x1r = x0r + 1
+                    val rVal = if (x0r >= 0 && x1r < w && y0 >= 0 && y1 < h) {
+                        val p00r = srcPixels[y0 * w + x0r]
+                        val p01r = srcPixels[y0 * w + x1r]
+                        val p10r = srcPixels[y1 * w + x0r]
+                        val p11r = srcPixels[y1 * w + x1r]
+                        bilinearChannel(p00r, p01r, p10r, p11r, fxR, fy, 16) * vignetteCorr
+                    } else {
+                        bilinearChannel(p00, p01, p10, p11, fx, fy, 16) * vignetteCorr
+                    }
                     val g = bilinearChannel(p00, p01, p10, p11, fx, fy, 8) * vignetteCorr
                     // B channel with TCA offset
                     val srcXB = srcX + tcaOffsetB * maxR
@@ -2172,7 +2219,7 @@ class ImageProcessor {
                         bilinearChannel(p00, p01, p10, p11, fx, fy, 0) * vignetteCorr
                     }
 
-                    val ri = r.toInt().coerceIn(0, 255)
+                    val ri = rVal.toInt().coerceIn(0, 255)
                     val gi = g.toInt().coerceIn(0, 255)
                     val bi = bVal.toInt().coerceIn(0, 255)
                     result[y * w + x] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi

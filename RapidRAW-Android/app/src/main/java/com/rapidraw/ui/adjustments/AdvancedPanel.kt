@@ -433,7 +433,7 @@ fun AdvancedPanel(
             HasselSlider(
                 label = "锐化",
                 value = adjustments.sharpness,
-                range = 0f..100f,
+                range = 0f..150f,
                 onValueChange = { onUpdate("sharpness", it) },
                 defaultValue = 0f,
                 stepSize = 1f,
@@ -577,7 +577,7 @@ fun AdvancedPanel(
             HasselSlider(
                 label = "大小",
                 value = adjustments.grainSize,
-                range = 0f..50f,
+                range = 0f..100f,
                 onValueChange = { onUpdate("grainSize", it) },
                 defaultValue = 25f,
                 stepSize = 1f,

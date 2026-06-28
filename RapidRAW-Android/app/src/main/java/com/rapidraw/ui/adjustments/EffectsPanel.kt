@@ -68,7 +68,7 @@ fun EffectsPanel(
             HasselSlider(
                 label = "圆度",
                 value = adjustments.vignetteRoundness,
-                range = 0f..100f,
+                range = -100f..100f,
                 onValueChange = { onUpdate("vignetteRoundness", it) },
                 defaultValue = 0f,
                 stepSize = 1f,

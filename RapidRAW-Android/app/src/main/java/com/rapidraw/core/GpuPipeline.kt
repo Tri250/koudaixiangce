@@ -350,7 +350,7 @@ class GpuPipeline(private val context: Context) {
             "uTransformDistortion", "uTransformVertical", "uTransformHorizontal",
             "uTransformRotate", "uTransformAspect", "uTransformScale",
             "uTransformXOffset", "uTransformYOffset",
-            "uLensDistortion", "uLensVignette", "uLensTca",
+            "uLensDistortion", "uLensVignette", "uLensTca", "uLensFocalLength",
             "uRedCurve[0]", "uRedCurve[1]", "uRedCurve[2]", "uRedCurve[3]", "uRedCurve[4]", "uRedCurve[5]",
             "uGreenCurve[0]", "uGreenCurve[1]", "uGreenCurve[2]", "uGreenCurve[3]", "uGreenCurve[4]", "uGreenCurve[5]",
             "uBlueCurve[0]", "uBlueCurve[1]", "uBlueCurve[2]", "uBlueCurve[3]", "uBlueCurve[4]", "uBlueCurve[5]",
@@ -643,7 +643,7 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uTransformDistortion", adjustments.transformDistortion / 100f)
         setUniform1f("uTransformVertical", adjustments.transformVertical / 100f)
         setUniform1f("uTransformHorizontal", adjustments.transformHorizontal / 100f)
-        setUniform1f("uTransformRotate", adjustments.transformRotate / 100f)
+        setUniform1f("uTransformRotate", adjustments.transformRotate)
         setUniform1f("uTransformAspect", adjustments.transformAspect / 100f)
         setUniform1f("uTransformScale", adjustments.transformScale / 100f)
         setUniform1f("uTransformXOffset", adjustments.transformXOffset / 100f)
@@ -653,6 +653,7 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uLensDistortion", adjustments.lensDistortion / 100f)
         setUniform1f("uLensVignette", adjustments.lensVignette / 100f)
         setUniform1f("uLensTca", adjustments.lensTca / 100f)
+        setUniform1f("uLensFocalLength", adjustments.lensFocalLength)
 
         // RGB Curves: pack up to 12 points into 6 vec4s
         fun uploadCurve(name: String, curve: List<com.rapidraw.data.model.Coord>) {

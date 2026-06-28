@@ -12,7 +12,7 @@ uniform float uBrightness;     // -1.0 .. 1.0
 
 // White Balance
 uniform float uTemperature;    // 2000 .. 15000
-uniform float uTint;           // -100 .. 100
+uniform float uTint;           // -1.0 .. 1.0
 
 // Tonal
 uniform float uContrast;       // -1.0 .. 1.0
@@ -139,7 +139,7 @@ uniform float uCropAspectRatio;     // 0.0 = off
 uniform float uTransformDistortion; // -1.0 - 1.0
 uniform float uTransformVertical;   // -1.0 - 1.0
 uniform float uTransformHorizontal; // -1.0 - 1.0
-uniform float uTransformRotate;     // -1.0 - 1.0
+uniform float uTransformRotate;     // -45 .. 45
 uniform float uTransformAspect;     // -1.0 - 1.0
 uniform float uTransformScale;      // 0.1 - 2.0
 uniform float uTransformXOffset;    // -1.0 - 1.0
@@ -149,6 +149,7 @@ uniform float uTransformYOffset;    // -1.0 - 1.0
 uniform float uLensDistortion;      // -1.0 - 1.0
 uniform float uLensVignette;        // -1.0 - 1.0
 uniform float uLensTca;             // -1.0 - 1.0
+uniform float uLensFocalLength;     // 1.0 - 1000.0
 
 uniform vec4 uRedCurve[6];          // RGB red curve points (x0,y0,x1,y1)
 uniform vec4 uGreenCurve[6];        // RGB green curve points
@@ -369,7 +370,8 @@ vec3 temperature_tint_multipliers(float temperature, float tint) {
     }
 
     // Apply tint (green-magenta shift)
-    float tintFactor = tint / 100.0;
+    // tint is already normalized to [-1, 1] by GpuPipeline
+    float tintFactor = tint;
     g += tintFactor * 0.1;
 
     return vec3(r, g, b);
@@ -1236,6 +1238,22 @@ void main() {
         uv.y += uTransformYOffset * 0.01;
     }
 
+    // 4b. Aspect ratio
+    if (abs(uTransformAspect) > EPS) {
+        uv = (uv - 0.5);
+        uv.x *= (1.0 + uTransformAspect * 0.5);
+        uv += 0.5;
+    }
+
+    // 4c. Transform rotate (perspective panel fine rotation, degrees)
+    if (abs(uTransformRotate) > 0.5) {
+        vec2 center = uv - 0.5;
+        float angleRad = radians(uTransformRotate);
+        float c = cos(angleRad);
+        float s = sin(angleRad);
+        uv = vec2(center.x * c - center.y * s, center.x * s + center.y * c) + 0.5;
+    }
+
     // 5. Perspective / distortion
     if (abs(uTransformDistortion) > EPS || abs(uTransformVertical) > EPS || abs(uTransformHorizontal) > EPS) {
         vec2 centered = uv - 0.5;
@@ -1250,18 +1268,44 @@ void main() {
     }
 
     // 6. Lens correction
-    if (abs(uLensDistortion) > EPS || abs(uLensVignette) > EPS || abs(uLensTca) > EPS) {
-        vec2 centered = uv - 0.5;
-        float dist = length(centered);
-        float r2 = dist * dist;
-        // Distortion correction
-        float k1 = uLensDistortion * 0.15;
-        float radial = 1.0 + k1 * r2;
-        uv = centered / radial + 0.5;
-    }
+    vec3 originalLinear;
+    {
+        vec2 sampleUv = uv;
+        if (abs(uLensDistortion) > EPS || abs(uLensVignette) > EPS || abs(uLensTca) > EPS) {
+            vec2 centered = sampleUv - 0.5;
+            float dist = length(centered);
+            float r2 = dist * dist;
+            // Focal length factor: shorter focal length = stronger effects
+            float focalFactor = 50.0 / max(uLensFocalLength, 1.0);
 
-    vec4 texColor = texture(uTexture, uv);
-    vec3 originalLinear = texColor.rgb; // already in linear space from upload
+            // Distortion correction
+            float k1 = uLensDistortion * 0.15 * focalFactor;
+            float radial = 1.0 + k1 * r2;
+            vec2 uvCorrected = centered / radial + 0.5;
+
+            // TCA: separate R/B channel radial offsets
+            float tca = uLensTca * 0.02 * focalFactor;
+            float tcaR = tca * r2;
+            float tcaB = -tca * r2;
+            vec2 centeredCorr = uvCorrected - 0.5;
+            vec2 uvR = centeredCorr * (1.0 + tcaR) + 0.5;
+            vec2 uvB = centeredCorr * (1.0 + tcaB) + 0.5;
+
+            float r = texture(uTexture, uvR).r;
+            float g = texture(uTexture, uvCorrected).g;
+            float b = texture(uTexture, uvB).b;
+            originalLinear = vec3(r, g, b);
+
+            // Vignette correction: brighten edges
+            float vignetteCorr = 1.0 + uLensVignette * 0.5 * r2 * focalFactor;
+            originalLinear *= vignetteCorr;
+
+            // Update uv for any downstream use
+            uv = uvCorrected;
+        } else {
+            originalLinear = texture(uTexture, sampleUv).rgb;
+        }
+    }
 
     // Store original for film intensity blending
     vec3 noFilmColor = originalLinear;
@@ -1368,7 +1412,7 @@ void main() {
     // === Step 26: Flow Mask blending ===
     if (uMaskIntensity > 0.001) {
         float maskAlpha = texture(uMaskTexture, vTexCoord).a * uMaskIntensity;
-        vec3 original = texColor.rgb;
+        vec3 original = noFilmColor;
         color = mix(original, color, maskAlpha);
     }
 

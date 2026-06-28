@@ -488,6 +488,7 @@ class EditorViewModel(
                     lutManager.importLut(l, name)
                     withContext(Dispatchers.Main) {
                         pushUndo()
+                        imageProcessor.currentLut = l
                         _adjustments.value = _adjustments.value.copy(lutIntensity = 100f)
                         // Update GPU LUT texture
                         gpuPipeline?.updateLutTexture(l, 1f)

@@ -16,7 +16,88 @@ class CubeLutParser {
     data class Lut3D(
         val size: Int,           // 每维大小（如 33 = 33x33x33）
         val data: FloatArray,    // RGB interleaved: [R,G,B,R,G,B,...]
-    )
+    ) {
+        /**
+         * 3D LUT 三线性插值采样
+         * @param r 红色通道值 [0,1]
+         * @param g 绿色通道值 [0,1]
+         * @param b 蓝色通道值 [0,1]
+         * @return 采样后的 RGB 值
+         */
+        fun sample(r: Float, g: Float, b: Float): Triple<Float, Float, Float> {
+            val maxIndex = size - 1
+            val rf = (r.coerceIn(0f, 1f) * maxIndex)
+            val gf = (g.coerceIn(0f, 1f) * maxIndex)
+            val bf = (b.coerceIn(0f, 1f) * maxIndex)
+
+            val r0 = rf.toInt().coerceIn(0, maxIndex)
+            val g0 = gf.toInt().coerceIn(0, maxIndex)
+            val b0 = bf.toInt().coerceIn(0, maxIndex)
+            val r1 = (r0 + 1).coerceAtMost(maxIndex)
+            val g1 = (g0 + 1).coerceAtMost(maxIndex)
+            val b1 = (b0 + 1).coerceAtMost(maxIndex)
+
+            val dr = rf - r0
+            val dg = gf - g0
+            val db = bf - b0
+
+            fun idx(r: Int, g: Int, b: Int): Int {
+                return (b * size * size + g * size + r) * 3
+            }
+
+            fun fetch(r: Int, g: Int, b: Int): Triple<Float, Float, Float> {
+                val i = idx(r, g, b)
+                return Triple(data[i], data[i + 1], data[i + 2])
+            }
+
+            val c000 = fetch(r0, g0, b0)
+            val c100 = fetch(r1, g0, b0)
+            val c010 = fetch(r0, g1, b0)
+            val c110 = fetch(r1, g1, b0)
+            val c001 = fetch(r0, g0, b1)
+            val c101 = fetch(r1, g0, b1)
+            val c011 = fetch(r0, g1, b1)
+            val c111 = fetch(r1, g1, b1)
+
+            val c00 = Triple(
+                c000.first * (1 - dr) + c100.first * dr,
+                c000.second * (1 - dr) + c100.second * dr,
+                c000.third * (1 - dr) + c100.third * dr
+            )
+            val c10 = Triple(
+                c010.first * (1 - dr) + c110.first * dr,
+                c010.second * (1 - dr) + c110.second * dr,
+                c010.third * (1 - dr) + c110.third * dr
+            )
+            val c01 = Triple(
+                c001.first * (1 - dr) + c101.first * dr,
+                c001.second * (1 - dr) + c101.second * dr,
+                c001.third * (1 - dr) + c101.third * dr
+            )
+            val c11 = Triple(
+                c011.first * (1 - dr) + c111.first * dr,
+                c011.second * (1 - dr) + c111.second * dr,
+                c011.third * (1 - dr) + c111.third * dr
+            )
+
+            val c0 = Triple(
+                c00.first * (1 - dg) + c10.first * dg,
+                c00.second * (1 - dg) + c10.second * dg,
+                c00.third * (1 - dg) + c10.third * dg
+            )
+            val c1 = Triple(
+                c01.first * (1 - dg) + c11.first * dg,
+                c01.second * (1 - dg) + c11.second * dg,
+                c01.third * (1 - dg) + c11.third * dg
+            )
+
+            return Triple(
+                c0.first * (1 - db) + c1.first * db,
+                c0.second * (1 - db) + c1.second * db,
+                c0.third * (1 - db) + c1.third * db
+            )
+        }
+    }
 
     /**
      * 解析 .cube 文件
