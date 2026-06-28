@@ -12,6 +12,7 @@ import com.rapidraw.core.AiDenoiser
 import com.rapidraw.core.AiInpainter
 import com.rapidraw.core.AiMaskGenerator
 import com.rapidraw.core.CubeLutParser
+import com.rapidraw.core.EditHistorySnapshot
 import com.rapidraw.core.FlowMaskManager
 import com.rapidraw.core.GpuPipeline
 import com.rapidraw.core.HighlightReconstructor
@@ -278,6 +279,8 @@ class EditorViewModel(
                 if (savedAdj != null) {
                     _adjustments.value = savedAdj.adjustments
                     savedAdj.filmId?.let { _selectedFilmId.value = it }
+                    // 恢复编辑历史
+                    restoreEditHistory(savedAdj.editHistory)
                 } else {
                     smartOptimize()
                 }
@@ -855,6 +858,68 @@ class EditorViewModel(
             parent.children.removeAll { it.id == entry.id }
         }
     }
+
+    /**
+     * 收集从根到当前节点的编辑历史路径，用于 Sidecar 持久化。
+     * 遍历 EditHistoryTree 的 currentBranch，提取每个条目的快照。
+     */
+    private fun collectEditHistoryEntries(): List<EditHistoryEntry> {
+        val tree = _editHistory.value ?: return emptyList()
+        val entries = mutableListOf<EditHistoryEntry>()
+        val branch = tree.currentBranch
+        // 从根开始，沿分支路径收集条目
+        var node: EditHistoryEntry? = tree.root
+        while (node != null) {
+            entries.add(node)
+            // 查找分支中下一个节点
+            val nextId = branch.getOrNull(branch.indexOf(node.id) + 1)
+                ?: node.children.firstOrNull()?.id
+            if (nextId != null) {
+                node = tree.findById(nextId)
+            } else {
+                node = null
+            }
+        }
+        return entries
+    }
+
+    /**
+     * 从 Sidecar 快照恢复编辑历史树。
+     * 将扁平的快照列表重建为树结构。
+     */
+    private fun restoreEditHistory(snapshots: List<EditHistorySnapshot>?) {
+        if (snapshots.isNullOrEmpty()) return
+        // 重建树：第一个快照是根，后续按 parentId 链接
+        val root = EditHistoryEntry(
+            id = snapshots.first().id,
+            adjustments = snapshots.first().adjustments,
+            description = snapshots.first().description,
+            parentId = snapshots.first().parentId,
+            timestamp = snapshots.first().timestamp,
+        )
+        val tree = EditHistoryTree(
+            root = root,
+            current = root,
+            currentBranch = mutableListOf(root.id),
+        )
+        // 添加后续节点
+        var parent: EditHistoryEntry = root
+        for (i in 1 until snapshots.size) {
+            val snap = snapshots[i]
+            val entry = EditHistoryEntry(
+                id = snap.id,
+                adjustments = snap.adjustments,
+                description = snap.description,
+                parentId = snap.parentId,
+                timestamp = snap.timestamp,
+            )
+            parent.children.add(entry)
+            tree.currentBranch.add(entry.id)
+            tree.current = entry
+            parent = entry
+        }
+        _editHistory.value = tree
+    }
     // endregion
 
     // region 2026 / AlcedoStudio / RapidRAW 集成功能
@@ -897,17 +962,20 @@ class EditorViewModel(
 
     /**
      * 导出 HDR 图像（Ultra HDR JPEG / HEIF 10-bit / SDR JPEG）
-     * 在 IO 线程执行，不阻塞主线程
+     * 在 IO 线程执行，使用全分辨率处理而非预览
      */
     fun exportHdrImage(config: HdrExporter.HdrConfig) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val bitmap = _previewBitmap.value
-            if (bitmap == null || bitmap.isRecycled) {
-                _event.value = EditorEvent.Error("无可用预览，请先打开图片")
+        exportJob?.cancel()
+        exportJob = viewModelScope.launch(Dispatchers.IO) {
+            val source = bitmapMutex.withLock { originalBitmap }
+            if (source == null || source.isRecycled) {
+                _event.value = EditorEvent.Error("无可用图像，请先打开图片")
                 return@launch
             }
+            // 全分辨率处理
+            val processed = imageProcessor.processFullResolution(_adjustments.value, source)
             val name = "RapidRAW_HDR_${System.currentTimeMillis()}"
-            val uri = HdrExporter.exportHdr(appContext, bitmap, config, name)
+            val uri = HdrExporter.exportHdr(appContext, processed, config, name)
             if (uri != null) {
                 _event.value = EditorEvent.ExportComplete(uri)
             } else {
@@ -1257,7 +1325,10 @@ class EditorViewModel(
         if (currentImg != null) {
             try {
                 val sidecarManager = SidecarManager(appContext)
-                sidecarManager.saveSidecar(currentImg.path, _adjustments.value, _selectedFilmId.value)
+                sidecarManager.saveSidecar(
+                    currentImg.path, _adjustments.value, _selectedFilmId.value,
+                    editHistoryEntries = collectEditHistoryEntries(),
+                )
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to save sidecar", e)
             }

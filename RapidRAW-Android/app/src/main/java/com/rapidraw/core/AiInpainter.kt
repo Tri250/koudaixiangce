@@ -10,7 +10,14 @@ import android.graphics.Rect
 import kotlin.math.max
 import kotlin.math.min
 
-class AiInpainter {
+/**
+ * 扩散修复器：基于迭代邻域扩散的图像修复。
+ * 从边界像素向内逐步扩散颜色，支持遮罩区域修复。
+ *
+ * 注：前身为 AiInpainter，因不使用 AI/ML 模型而重命名以避免误导。
+ * 保留 AiInpainter 类型别名以兼容现有引用。
+ */
+class DiffusionInpainter {
 
     /**
      * Remove object from image using mask-based inpainting.
@@ -110,3 +117,6 @@ class AiInpainter {
         return mask
     }
 }
+
+/** 向后兼容别名 */
+typealias AiInpainter = DiffusionInpainter

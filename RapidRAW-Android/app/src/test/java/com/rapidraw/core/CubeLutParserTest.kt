@@ -112,10 +112,31 @@ class CubeLutParserTest {
         val tempFile = File.createTempFile("identity", ".cube")
         tempFile.writeText(createIdentityCube(3))
 
-        val lut = parser.parse(tempFile)
+        val lut = parser.parseFile(tempFile)
         assertNotNull(lut)
         assertEquals(3, lut?.size)
 
         tempFile.delete()
+    }
+
+    @Test
+    fun parse_overSizedLut_returnsNull() {
+        val parser = CubeLutParser()
+        // 创建一个超过 MAX_LUT_SIZE 的 LUT 头
+        val content = """
+            LUT_3D_SIZE 65
+            0.0 0.0 0.0
+        """.trimIndent()
+        assertNull(parser.parse(ByteArrayInputStream(content.toByteArray())))
+    }
+
+    @Test
+    fun parse_invalidSize_returnsNull() {
+        val parser = CubeLutParser()
+        val content = """
+            LUT_3D_SIZE 1
+            0.0 0.0 0.0
+        """.trimIndent()
+        assertNull(parser.parse(ByteArrayInputStream(content.toByteArray())))
     }
 }

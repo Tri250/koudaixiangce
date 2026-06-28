@@ -5,10 +5,13 @@ import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
- * 纯端侧 AI 去噪：基于 He et al. 2010 Guided Filter + YUV 亮度-色度分离降噪。
- * 无 ML 框架依赖，纯 Kotlin 实现。
+ * 保边去噪器：基于 He et al. 2010 Guided Filter + YUV 亮度-色度分离降噪。
+ * 使用引导滤波实现保边降噪，无 ML 模型依赖，纯 Kotlin 实现。
+ *
+ * 注：前身为 AiDenoiser，因不使用 AI/ML 模型而重命名以避免误导。
+ * 保留 AiDenoiser 类型别名以兼容现有引用。
  */
-class AiDenoiser {
+class GuidedFilterDenoiser {
 
     /**
      * 对图像进行保边降噪。
@@ -184,3 +187,6 @@ class AiDenoiser {
         return result
     }
 }
+
+/** 向后兼容别名 */
+typealias AiDenoiser = GuidedFilterDenoiser

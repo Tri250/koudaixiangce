@@ -1,5 +1,6 @@
 package com.rapidraw.core
 
+import android.os.Build
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
@@ -169,40 +170,63 @@ object ColorScience {
      * OpenDRT (Open Display Rendering Transform) 简化版
      * 强调黑位下沉与肤色还原，电影监看常用
      * Reference: OpenDRT.dctl by Jed Smith
+     *
+     * 实现要点：
+     * 1. 线性 → PQ 感知量化曲线（比简单 gamma 更接近人眼感知）
+     * 2. 黑位下沉 toe 曲线（暗部对比度增强）
+     * 3. HDR 峰值亮度归一化
+     * 4. 中间调对比度控制
      */
     fun openDrtToneMap(
         r: Float, g: Float, b: Float,
         contrast: Float = 0.5f,
         peakLuminanceNits: Float = 1000f,
     ): Triple<Float, Float, Float> {
-        // Per-channel logarithmic toe + shoulder (3x3 matrix pre-tone-map)
-        val rT = r.toDouble().pow(1.0 / 2.2)
-        val gT = g.toDouble().pow(1.0 / 2.2)
-        val bT = b.toDouble().pow(1.0 / 2.2)
+        // Step 1: 线性 → 感知域（PQ ST.2084 近似）
+        // m1 = 2610/16384 ≈ 0.15930, m2 = 1.7 × 2523/32 ≈ 78.843
+        // 使用简化 PQ 曲线避免完全依赖 gamma 2.2
+        val m1 = 0.15930f
+        val m2 = 78.843f
+        val c1 = 0.8359375f
+        val c2 = 18.8515625f
+        val c3 = 18.6875f
 
-        // OpenDRT 关键：黑位下沉的"toe"曲线
-        val toeAmount = 0.04
-        val rToe = rT + (rT - rT.toDouble().pow(2.0)).toFloat() * toeAmount.toFloat() * 0.5f
-        val gToe = gT + (gT - gT.toDouble().pow(2.0)).toFloat() * toeAmount.toFloat() * 0.5f
-        val bToe = bT + (bT - bT.toDouble().pow(2.0)).toFloat() * toeAmount.toFloat() * 0.5f
+        fun perceptual(x: Float): Float {
+            if (x <= 0f) return 0f
+            val xp = (x * 10000f / peakLuminanceNits).coerceIn(0f, 1f)
+            val num = c1 + c2 * xp.toDouble().pow(m1.toDouble())
+            val den = 1.0 + c3 * xp.toDouble().pow(m1.toDouble())
+            return (num / den).toFloat().pow(m2).coerceIn(0f, 1f)
+        }
 
-        // HDR 峰值亮度归一化（SDR = 100 nits; HDR = peakLuminanceNits）
-        val normalizeFactor = if (peakLuminanceNits > 100f) {
-            (100f / peakLuminanceNits).toDouble().pow(1.0 / 2.2)
-        } else 1.0
+        var rP = perceptual(r)
+        var gP = perceptual(g)
+        var bP = perceptual(b)
 
-        var rOut = (rToe * normalizeFactor).toFloat()
-        var gOut = (gToe * normalizeFactor).toFloat()
-        var bOut = (bToe * normalizeFactor).toFloat()
+        // Step 2: 黑位下沉 toe 曲线
+        // OpenDRT 的核心特性：暗部区域进一步压暗，提升黑位对比度
+        val toeStrength = 0.3f + contrast * 0.4f // 0.3..0.7
+        fun toe(x: Float): Float {
+            if (x <= 0f) return 0f
+            // toe 曲线：x^(1 + toeStrength * (1-x))
+            // 在暗部 (x≈0) 指数更大 → 值更小 → 黑更深
+            // 在亮部 (x≈1) 指数接近1 → 几乎不变
+            val exponent = 1.0 + toeStrength * (1.0 - x.toDouble())
+            return x.toDouble().pow(exponent).toFloat()
+        }
 
-        // Contrast
+        rP = toe(rP)
+        gP = toe(gP)
+        bP = toe(bP)
+
+        // Step 3: 中间调对比度控制
         val mid = 0.5f
         val contrastMul = 0.6f + contrast * 0.8f
-        rOut = mid + (rOut - mid) * contrastMul
-        gOut = mid + (gOut - mid) * contrastMul
-        bOut = mid + (bOut - mid) * contrastMul
+        rP = mid + (rP - mid) * contrastMul
+        gP = mid + (gP - mid) * contrastMul
+        bP = mid + (bP - mid) * contrastMul
 
-        return Triple(rOut.coerceIn(0f, 1f), gOut.coerceIn(0f, 1f), bOut.coerceIn(0f, 1f))
+        return Triple(rP.coerceIn(0f, 1f), gP.coerceIn(0f, 1f), bP.coerceIn(0f, 1f))
     }
 
     /**
@@ -263,14 +287,33 @@ object ColorScience {
     }
 
     /**
-     * 检测当前设备是否支持广色域显示（OPPO Find X 系列通常支持 Display P3）
+     * 检测当前设备是否支持广色域显示。
+     *
+     * Android 8.0+ (API 26+) 通过 Display.isWideColorGamut 检测。
+     * OPPO Find X 系列通常支持 Display P3。
      */
-    fun deviceSupportsWideColor(): Boolean = try {
-        val clazz = Class.forName("android.content.res.Configuration")
-        // Android 8.0+ (API 26+) 默认支持
-        // 实际检测需要 Activity.window.colorMode
-        true
-    } catch (e: Exception) {
-        false
+    fun deviceSupportsWideColor(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                // 需要 Activity Context 的 display 来检测
+                // 此处使用系统属性作为备选方案
+                val wideColorProp = getSystemProperty("persist.sys.wcg", "0")
+                wideColorProp == "1"
+            } catch (_: Exception) {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    private fun getSystemProperty(key: String, default: String): String {
+        return try {
+            val clazz = Class.forName("android.os.SystemProperties")
+            val method = clazz.getMethod("get", String::class.java, String::class.java)
+            method.invoke(null, key, default) as String
+        } catch (_: Exception) {
+            default
+        }
     }
 }

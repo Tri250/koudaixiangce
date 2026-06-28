@@ -3,6 +3,7 @@ package com.rapidraw.core
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
+import java.io.File
 
 /**
  * 设备优化工具类。
@@ -122,20 +123,19 @@ object DeviceOptimizer {
     }
 
     private fun getAvailableMemoryMb(): Long {
+        // 无 Context 版本：无法调用 getMemoryInfo()，使用系统属性估算
+        // 注意：此方法仅用于不需要精确值的场景
         return try {
-            val memInfo = ActivityManager.MemoryInfo()
-            // 注意：此方法需要在有 Context 的环境下调用
-            // 这里使用总内存作为近似值（totalMem 在 API 16+ 可用）
-            memInfo.totalMem / (1024 * 1024)
-        } catch (_: Exception) {
-            // 回退：通过系统属性读取
-            val gb = try {
-                val prop = getSystemProperty("ro.build.display.id", "")
-                extractGbFromProp(prop)
-            } catch (_: Exception) {
-                6L
+            val memTotalPath = File("/proc/meminfo")
+            if (memTotalPath.exists()) {
+                val firstLine = memTotalPath.readLines().firstOrNull() ?: ""
+                val match = Regex("MemTotal:\\s+(\\d+)\\s+kB").find(firstLine)
+                match?.groupValues?.get(1)?.toLongOrNull()?.let { it / 1024 } ?: 6144L
+            } else {
+                6144L // 默认 6GB
             }
-            gb * 1024
+        } catch (_: Exception) {
+            6144L
         }
     }
 

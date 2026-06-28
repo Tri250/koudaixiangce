@@ -10,8 +10,20 @@ import java.io.File
 /**
  * .cube LUT 文件解析器
  * 支持标准 Adobe Cube LUT 格式（3D LUT）
+ *
+ * 安全限制：
+ * - 最大 LUT 维度：64（64x64x64 = 262,144 项，约 3MB 内存）
+ * - 最大文件大小：50MB
+ * - 超出限制的文件将返回 null 并记录警告
  */
 class CubeLutParser {
+
+    companion object {
+        /** LUT 每维最大允许尺寸 */
+        const val MAX_LUT_SIZE = 64
+        /** 最大允许文件大小（字节） */
+        const val MAX_FILE_SIZE = 50L * 1024 * 1024 // 50 MB
+    }
 
     data class Lut3D(
         val size: Int,           // 每维大小（如 33 = 33x33x33）
@@ -102,7 +114,14 @@ class CubeLutParser {
     /**
      * 解析 .cube 文件
      */
-    fun parse(file: File): Lut3D? = parse(file.inputStream())
+    fun parseFile(file: File): Lut3D? {
+        // 检查文件大小限制
+        if (file.length() > MAX_FILE_SIZE) {
+            android.util.Log.w("CubeLutParser", "LUT file too large: ${file.length()} bytes (max ${MAX_FILE_SIZE})")
+            return null
+        }
+        return parse(file.inputStream())
+    }
 
     /**
      * 解析 .cube 文件输入流
@@ -118,6 +137,15 @@ class CubeLutParser {
             when {
                 trimmed.startsWith("LUT_3D_SIZE", ignoreCase = true) -> {
                     size = trimmed.substringAfter(" ").trim().toIntOrNull() ?: 0
+                    // 检查 LUT 维度限制
+                    if (size > MAX_LUT_SIZE) {
+                        android.util.Log.w("CubeLutParser", "LUT size $size exceeds max ${MAX_LUT_SIZE}")
+                        return null
+                    }
+                    if (size < 2) {
+                        android.util.Log.w("CubeLutParser", "Invalid LUT size: $size")
+                        return null
+                    }
                 }
                 trimmed.startsWith("LUT_1D_SIZE", ignoreCase = true) -> {
                     // 不支持 1D LUT
@@ -133,14 +161,24 @@ class CubeLutParser {
                     if (parts.size == 3) {
                         parts.forEach { p ->
                             val v = p.toFloatOrNull()
-                            if (v != null) values.add(v)
+                            if (v != null) {
+                                // 检查值范围合法性
+                                if (v < -1f || v > 2f) {
+                                    android.util.Log.w("CubeLutParser", "LUT value out of range: $v")
+                                }
+                                values.add(v.coerceIn(-1f, 2f))
+                            }
                         }
                     }
                 }
             }
         }
 
-        if (size == 0 || values.size != size * size * size * 3) return null
+        val expectedSize = size * size * size * 3
+        if (size == 0 || values.size != expectedSize) {
+            android.util.Log.w("CubeLutParser", "LUT data mismatch: expected $expectedSize values, got ${values.size} (size=$size)")
+            return null
+        }
         return Lut3D(size, values.toFloatArray())
     }
 
