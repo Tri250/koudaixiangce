@@ -791,8 +791,6 @@
     $('#btn-exif').addEventListener('click', () => showToast('EXIF 信息'));
   }
 
-<<<<<<< HEAD
-=======
   // ==================== MORE MENU ====================
   function initMoreMenu() {
     const btnMore = $('#btn-more');
@@ -996,7 +994,6 @@
     });
   }
 
->>>>>>> trae/agent-Iea5wr
   // ==================== INITIALIZATION ====================
 
   function init() {
@@ -1011,11 +1008,8 @@
     initExportOptions();
     initEditorActions();
     initLongPress();
-<<<<<<< HEAD
-=======
     initMoreMenu();
     initPresetsBack();
->>>>>>> trae/agent-Iea5wr
 
     // Hide optimized badge initially
     const badge = $('#optimized-badge');
