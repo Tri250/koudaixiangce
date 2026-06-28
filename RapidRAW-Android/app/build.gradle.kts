@@ -114,6 +114,47 @@ android {
         htmlReport = true
     }
 
+    // 将 Rust NDK 构建产物打包进 APK
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDirs("src/main/jniLibs")
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Rust NDK integration
+// ---------------------------------------------------------------------------
+val buildRust = tasks.register<Exec>("buildRust") {
+    group = "rust"
+    description = "Build the Rust core as Android cdylib for all ABIs"
+
+    val rustCoreDir = rootProject.file("rust-core")
+    workingDir = rustCoreDir
+
+    // cargo-ndk builds for the requested targets and copies .so files into jniLibs.
+    commandLine(
+        "cargo", "ndk",
+        "-t", "arm64-v8a",
+        "-t", "armeabi-v7a",
+        "-t", "x86_64",
+        "-o", "../app/src/main/jniLibs",
+        "build",
+        "--release"
+    )
+
+    // Re-run when Rust source changes.
+    inputs.dir(rustCoreDir.resolve("src"))
+    inputs.file(rustCoreDir.resolve("Cargo.toml"))
+    outputs.dir(rootProject.file("app/src/main/jniLibs"))
+}
+
+// Make sure native libs are built before APK packaging.
+tasks.named("mergeDebugJniLibFolders") {
+    dependsOn(buildRust)
+}
+tasks.named("mergeReleaseJniLibFolders") {
+    dependsOn(buildRust)
 }
 
 dependencies {

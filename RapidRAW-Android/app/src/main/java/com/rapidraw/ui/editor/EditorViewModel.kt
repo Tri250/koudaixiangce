@@ -1,8 +1,11 @@
 package com.rapidraw.ui.editor
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -81,6 +84,16 @@ class EditorViewModel(
 
     private val appContext = context.applicationContext
     private val imageProcessor = ImageProcessor()
+
+    // Native Rust image handle. 0L means no image is loaded.
+    private var nativeHandle: Long = 0L
+
+    // Dimensions of the full-resolution image held by the Rust core.
+    private var nativeWidth: Int = 0
+    private var nativeHeight: Int = 0
+
+    // Whether to prefer the Rust core pipeline for preview/export.
+    private val useRustPipeline: Boolean = true
 
     // region UI State Flows
     private val _currentImage = MutableStateFlow<ImageFile?>(imageFile)
@@ -202,6 +215,8 @@ class EditorViewModel(
     private var gpuPipeline: GpuPipeline? = null
     private val gpuMutex = Mutex()
 
+    private val previewMaxDimension = 2048
+
     private var previewJob: Job? = null
     private var smartOptimizeJob: Job? = null
     private var histogramJob: Job? = null
@@ -249,29 +264,72 @@ class EditorViewModel(
                 withContext(Dispatchers.IO) {
                     val uri = Uri.parse(imageFile.path)
                         ?: throw IllegalArgumentException("Invalid image path: ${imageFile.path}")
-                    imageProcessor.loadAndDecode(appContext, uri)
+
+                    // Kotlin pipeline provides EXIF/orientation/bitmaps for auxiliary features.
+                    val processed = imageProcessor.loadAndDecode(appContext, uri)
+
+                    // Rust core loads the full-resolution image for high-quality preview/export.
+                    val localPath = resolveLocalPath(imageFile.path)
+                    val handle = if (localPath != null && java.io.File(localPath).exists()) {
+                        RapidRawNative.loadImage(
+                            localPath,
+                            fastDemosaic = false,
+                            highlightCompression = 1.5f,
+                        )
+                    } else 0L
+
+                    if (handle != 0L) {
+                        val dims = RapidRawNative.getImageDimensions(handle)
+                        nativeWidth = dims[0]
+                        nativeHeight = dims[1]
+                    }
+
+                    processed to handle
                 }
             }
 
-            result.onSuccess { processed ->
+            result.onSuccess { (processed, handle) ->
                 bitmapMutex.withLock {
                     recycleBitmapsInternal()
+                    freeNativeHandleLocked()
+                    nativeHandle = handle
                     originalBitmap = processed.original
                     previewBitmapCache = processed.preview
                     originalExifData = processed.exif
                     originalOrientation = processed.orientation
                 }
+
+                // Try to generate the first preview through the Rust core so the cache
+                // matches the pipeline that will be used for subsequent edits.
+                if (handle != 0L && nativeWidth > 0 && nativeHeight > 0) {
+                    val defaultAdj = Adjustments()
+                    val (pw, ph) = calculatePreviewSize(nativeWidth, nativeHeight, previewMaxDimension)
+                    val rustPreview = RapidRawNative.processPreviewToBitmap(
+                        handle,
+                        defaultAdj.toRustAdjustments().toJson(),
+                        pw,
+                        ph,
+                    )
+                    if (rustPreview != null) {
+                        bitmapMutex.withLock {
+                            previewBitmapCache?.takeIf { !it.isRecycled && it !== originalBitmap }?.recycle()
+                            previewBitmapCache = rustPreview
+                        }
+                    }
+                }
+
                 // 原图预览用于对比模式：复制一份避免与 previewBitmapCache 共享引用
-                val originalPreview = processed.preview.let { src ->
+                val sourceForOriginalPreview = previewBitmapCache ?: processed.preview
+                val originalPreview = sourceForOriginalPreview.let { src ->
                     if (src.isRecycled) null else src.copy(src.config ?: Bitmap.Config.ARGB_8888, false)
                 }
                 _originalPreviewBitmap.value?.let { old ->
                     if (!old.isRecycled && old !== previewBitmapCache && old !== originalBitmap) old.recycle()
                 }
                 _originalPreviewBitmap.value = originalPreview
-                _previewBitmap.value = processed.preview
+                _previewBitmap.value = previewBitmapCache ?: processed.preview
                 _isLoading.value = false
-                updateHistogramAsync(processed.preview)
+                updateHistogramAsync(previewBitmapCache ?: processed.preview)
 
                 // 恢复 sidecar
                 val sidecarManager = SidecarManager(appContext)
@@ -284,13 +342,52 @@ class EditorViewModel(
                 } else {
                     smartOptimize()
                 }
-                detectSceneAsync(processed.preview)
+                detectSceneAsync(previewBitmapCache ?: processed.preview)
             }.onFailure { throwable ->
                 Log.e(TAG, "Failed to load image: ${imageFile.path}", throwable)
                 _isLoading.value = false
                 _event.value = EditorEvent.Error("无法加载图片: ${throwable.localizedMessage}")
             }
         }
+    }
+
+    private suspend fun resolveLocalPath(path: String): String? = withContext(Dispatchers.IO) {
+        when {
+            path.startsWith("content://") -> {
+                runCatching {
+                    val uri = Uri.parse(path)
+                    val tempFile = java.io.File(
+                        appContext.cacheDir,
+                        "rapidraw_import_${System.currentTimeMillis()}.tmp"
+                    )
+                    appContext.contentResolver.openInputStream(uri)?.use { input ->
+                        tempFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    tempFile.absolutePath
+                }.getOrNull()
+            }
+            path.startsWith("file://") -> Uri.parse(path).path ?: path
+            else -> path
+        }
+    }
+
+    private fun freeNativeHandleLocked() {
+        if (nativeHandle != 0L) {
+            try {
+                RapidRawNative.freeImage(nativeHandle)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to free native image handle", e)
+            }
+            nativeHandle = 0L
+            nativeWidth = 0
+            nativeHeight = 0
+        }
+    }
+
+    private fun calculatePreviewSize(width: Int, height: Int, maxDim: Int): Pair<Int, Int> {
+        if (width <= maxDim && height <= maxDim) return width to height
+        val scale = maxDim.toFloat() / maxOf(width, height)
+        return ((width * scale).toInt().coerceAtLeast(1)) to ((height * scale).toInt().coerceAtLeast(1))
     }
 
     private fun resetEditorState() {
@@ -1251,6 +1348,13 @@ class EditorViewModel(
         currentAdjustments: Adjustments,
         sourceBitmap: Bitmap
     ): Bitmap? {
+        // 优先使用 Rust 核心管线（方案 A）
+        if (useRustPipeline && nativeHandle != 0L && !sourceBitmap.isRecycled) {
+            val rustPreview = processRustPreview(currentAdjustments, sourceBitmap.width, sourceBitmap.height)
+            if (rustPreview != null) return rustPreview
+            Log.w(TAG, "Rust preview failed, falling back to GPU/CPU pipeline")
+        }
+
         // 优先使用 GPU 管线
         val gpu = gpuMutex.withLock { gpuPipeline }
         if (gpu != null && gpu.isInitialized()) {
@@ -1270,6 +1374,26 @@ class EditorViewModel(
             }
         }
         return fallbackCpuPreview(currentAdjustments, sourceBitmap)
+    }
+
+    private suspend fun processRustPreview(
+        adjustments: Adjustments,
+        targetWidth: Int,
+        targetHeight: Int,
+    ): Bitmap? = withContext(Dispatchers.Default) {
+        if (nativeHandle == 0L) return@withContext null
+        runCatching {
+            RapidRawNative.processPreviewToBitmap(
+                nativeHandle,
+                adjustments.toRustAdjustments().toJson(),
+                targetWidth.coerceAtLeast(1),
+                targetHeight.coerceAtLeast(1),
+            )
+        }.getOrElse { throwable ->
+            if (throwable is CancellationException) throw throwable
+            Log.w(TAG, "Rust preview processing failed", throwable)
+            null
+        }
     }
 
     private suspend fun fallbackCpuPreview(

@@ -1,0 +1,67 @@
+[package]
+name = "rapidraw-core"
+version = "1.5.4"
+edition = "2021"
+authors = ["RapidRAW Team"]
+description = "RapidRAW core image processing library for Android (Rust NDK cdylib)"
+license = "AGPL-3.0"
+
+[lib]
+name = "rapidraw_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+# RAW decoding - rawler is the Rust library used by the original RapidRAW desktop app
+# If rawler is not available as a crate, LibRaw can be used via bindgen
+# rawler = "0.6"
+
+# Image processing primitives
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff", "webp"] }
+
+# 16-bit float support
+half = { version = "2.4", features = ["bytemuck"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Math & colors
+glam = "0.29"
+nalgebra = "0.33"
+
+# Parallelism
+rayon = "1.10"
+
+# Logging
+log = "0.4"
+android_logger = "0.14"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# EXIF metadata
+kamadak-exif = "0.6"
+
+# Color management
+lcms2 = { version = "6.1", optional = true }
+
+# For future AI inference (ONNX Runtime)
+# ort = { version = "2.0.0-rc.9", features = ["ndarray", "load-dynamic"], optional = true }
+# ndarray = { version = "0.16", optional = true }
+
+[features]
+default = ["color-management"]
+color-management = ["lcms2"]
+# ai = ["ort", "ndarray"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+# JNI bindings
+jni = "0.21"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"

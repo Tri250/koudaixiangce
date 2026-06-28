@@ -1,0 +1,58 @@
+{
+  "canon ef 50mm f/1.2l usm": {
+    "found": true,
+    "maker": "Canon",
+    "model": "EF 50mm f/1.2L USM",
+    "crop_factor": 1.0,
+    "k1": 0.025,
+    "k2": -0.085,
+    "k3": 0.045,
+    "vig_k1": -0.35,
+    "vig_k2": 0.12,
+    "vig_k3": -0.02,
+    "tca_vr": 1.0001,
+    "tca_vb": 0.9999
+  },
+  "sony fe 24-70mm f/2.8 gm": {
+    "found": true,
+    "maker": "Sony",
+    "model": "FE 24-70mm F2.8 GM",
+    "crop_factor": 1.0,
+    "k1": 0.018,
+    "k2": -0.062,
+    "k3": 0.031,
+    "vig_k1": -0.28,
+    "vig_k2": 0.09,
+    "vig_k3": -0.01,
+    "tca_vr": 1.0002,
+    "tca_vb": 0.9998
+  },
+  "fujifilm xf 35mm f/1.4 r": {
+    "found": true,
+    "maker": "Fujifilm",
+    "model": "XF 35mm F1.4 R",
+    "crop_factor": 1.53,
+    "k1": 0.015,
+    "k2": -0.055,
+    "k3": 0.028,
+    "vig_k1": -0.22,
+    "vig_k2": 0.07,
+    "vig_k3": -0.01,
+    "tca_vr": 1.0001,
+    "tca_vb": 0.9999
+  },
+  "nikon z 50mm f/1.8 s": {
+    "found": true,
+    "maker": "Nikon",
+    "model": "NIKKOR Z 50mm f/1.8 S",
+    "crop_factor": 1.0,
+    "k1": 0.012,
+    "k2": -0.048,
+    "k3": 0.024,
+    "vig_k1": -0.18,
+    "vig_k2": 0.05,
+    "vig_k3": -0.005,
+    "tca_vr": 1.0000,
+    "tca_vb": 1.0000
+  }
+}
