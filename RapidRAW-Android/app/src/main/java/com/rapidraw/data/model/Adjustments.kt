@@ -133,8 +133,19 @@ data class Adjustments(
     val greenCurve: List<Coord> = listOf(Coord(0f, 0f), Coord(255f, 255f)),
     val blueCurve: List<Coord> = listOf(Coord(0f, 0f), Coord(255f, 255f)),
 
-    // ── Color Grading ─────────────────────────────────────────
+    // ── Color Grading ─────────────────────────────────────────────
     val colorGrading: ColorGrading = ColorGrading(),
+
+    // ── CDL Color Grading (Lift/Gamma/Gain per-channel offsets) ──
+    val colorGradingShadowsR: Float = 0f,
+    val colorGradingShadowsG: Float = 0f,
+    val colorGradingShadowsB: Float = 0f,
+    val colorGradingMidtonesR: Float = 0f,
+    val colorGradingMidtonesG: Float = 0f,
+    val colorGradingMidtonesB: Float = 0f,
+    val colorGradingHighlightsR: Float = 0f,
+    val colorGradingHighlightsG: Float = 0f,
+    val colorGradingHighlightsB: Float = 0f,
 
     // ── Color Calibration ──────────────────────────────────────
     val colorCalibration: ColorCalibration = ColorCalibration(),
@@ -162,6 +173,10 @@ data class Adjustments(
     val glowAmount: Float = 0f,
     val halationAmount: Float = 0f,
     val flareAmount: Float = 0f,
+
+    // ── Blur-based Creative Effects ────────────────────────────
+    val halation: Float = 0f,          // 0..100, red/orange bloom around bright highlights
+    val glow: Float = 0f,              // 0..100, soft glow around bright tones
 
     // ── Transform ─────────────────────────────────────────────
     val rotation: Float = 0f,
@@ -271,6 +286,16 @@ data class Adjustments(
         "colorGrading.highlights.luminance" -> copy(colorGrading = colorGrading.copy(highlights = colorGrading.highlights.copy(luminance = value.coerceIn(-100f, 100f))))
         "colorGrading.blending" -> copy(colorGrading = colorGrading.copy(blending = value.coerceIn(0f, 100f)))
         "colorGrading.balance" -> copy(colorGrading = colorGrading.copy(balance = value.coerceIn(-100f, 100f)))
+        // CDL Color Grading
+        "colorGradingShadowsR" -> copy(colorGradingShadowsR = value.coerceIn(-100f, 100f))
+        "colorGradingShadowsG" -> copy(colorGradingShadowsG = value.coerceIn(-100f, 100f))
+        "colorGradingShadowsB" -> copy(colorGradingShadowsB = value.coerceIn(-100f, 100f))
+        "colorGradingMidtonesR" -> copy(colorGradingMidtonesR = value.coerceIn(-100f, 100f))
+        "colorGradingMidtonesG" -> copy(colorGradingMidtonesG = value.coerceIn(-100f, 100f))
+        "colorGradingMidtonesB" -> copy(colorGradingMidtonesB = value.coerceIn(-100f, 100f))
+        "colorGradingHighlightsR" -> copy(colorGradingHighlightsR = value.coerceIn(-100f, 100f))
+        "colorGradingHighlightsG" -> copy(colorGradingHighlightsG = value.coerceIn(-100f, 100f))
+        "colorGradingHighlightsB" -> copy(colorGradingHighlightsB = value.coerceIn(-100f, 100f))
         // Color Calibration
         "colorCalibration.shadowsTint" -> copy(colorCalibration = colorCalibration.copy(shadowsTint = value.coerceIn(-100f, 100f)))
         "colorCalibration.redHue" -> copy(colorCalibration = colorCalibration.copy(redHue = value.coerceIn(-100f, 100f)))
@@ -301,6 +326,9 @@ data class Adjustments(
         "glowAmount" -> copy(glowAmount = value.coerceIn(0f, 100f))
         "halationAmount" -> copy(halationAmount = value.coerceIn(0f, 100f))
         "flareAmount" -> copy(flareAmount = value.coerceIn(0f, 100f))
+        // Blur-based creative effects
+        "halation" -> copy(halation = value.coerceIn(0f, 100f))
+        "glow" -> copy(glow = value.coerceIn(0f, 100f))
         // Transform
         "rotation" -> copy(rotation = value.coerceIn(-180f, 180f))
         "transformDistortion" -> copy(transformDistortion = value.coerceIn(-100f, 100f))

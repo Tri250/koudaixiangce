@@ -42,7 +42,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Compare
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
@@ -54,6 +56,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.DropdownMenu
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.rapidraw.ui.components.InteractiveCropOverlay
 import com.rapidraw.ui.components.WaveformScope
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -103,6 +106,9 @@ import com.rapidraw.data.model.ResizeMode
 import com.rapidraw.ui.adjustments.AdvancedPanel
 import com.rapidraw.ui.adjustments.QuickAdjustPanel
 import com.rapidraw.ui.components.HistogramView
+import com.rapidraw.ui.components.MaskOverlay
+import com.rapidraw.ui.components.MaskToolPanel
+import com.rapidraw.ui.components.MaskType
 import com.rapidraw.ui.components.SmartOptimizeConfirm
 import com.rapidraw.ui.components.LiquidGlassSurface
 import com.rapidraw.ui.components.RecipeShareSheet
@@ -146,6 +152,7 @@ fun EditorScreen(
     val sceneConfidence by viewModel.sceneConfidence.collectAsState()
     val event by viewModel.event.collectAsState()
     val originalPreviewBitmap by viewModel.originalPreviewBitmap.collectAsState()
+    val isAiProcessing by viewModel.isAiProcessing.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -174,6 +181,21 @@ fun EditorScreen(
     var flowMaskBrushSize by remember { mutableFloatStateOf(50f) }
     var flowMaskIsErasing by remember { mutableStateOf(false) }
     var showAiMaskSheet by remember { mutableStateOf(false) }
+    var showInteractiveCrop by remember { mutableStateOf(false) }
+
+    // Mask editing mode state
+    var isMaskMode by remember { mutableStateOf(false) }
+    var maskType by remember { mutableStateOf(MaskType.BRUSH) }
+    var maskBrushSize by remember { mutableFloatStateOf(50f) }
+    var maskBrushOpacity by remember { mutableFloatStateOf(100f) }
+    var maskBrushHardness by remember { mutableFloatStateOf(50f) }
+    var maskIsErasing by remember { mutableStateOf(false) }
+    var maskGradientOpacity by remember { mutableFloatStateOf(100f) }
+    var maskGradientFeather by remember { mutableFloatStateOf(50f) }
+    var maskVisible by remember { mutableStateOf(true) }
+    var maskInverted by remember { mutableStateOf(false) }
+    var maskIntensity by remember { mutableFloatStateOf(100f) }
+    var hasAiMaskResult by remember { mutableStateOf(false) }
 
     val lutPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -342,6 +364,21 @@ fun EditorScreen(
                         imageVector = Icons.Default.Compare,
                         contentDescription = "对比",
                         tint = if (displayOriginal) Color.White else TextSecondary,
+                    )
+                }
+
+                // Mask mode toggle
+                IconButton(onClick = {
+                    isMaskMode = !isMaskMode
+                    if (isMaskMode) {
+                        viewModel.initFlowMask()
+                        hasAiMaskResult = false
+                    }
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Brush,
+                        contentDescription = "遮罩",
+                        tint = if (isMaskMode) HasselbladOrange else TextSecondary,
                     )
                 }
 
@@ -772,12 +809,87 @@ fun EditorScreen(
                 }
             }
 
+            // Mask overlay
+            if (isMaskMode) {
+                MaskOverlay(
+                    maskBitmap = viewModel.getFlowMaskBitmap(),
+                    maskType = maskType,
+                    maskVisible = maskVisible,
+                    maskInverted = maskInverted,
+                    gradientOpacity = maskGradientOpacity,
+                    gradientFeather = maskGradientFeather,
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                // Brush painting overlay
+                if (maskType == MaskType.BRUSH) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(maskIsErasing, maskBrushSize, maskBrushOpacity, maskBrushHardness) {
+                                awaitEachGesture {
+                                    val down = awaitPointerEvent()
+                                    val change = down.changes.firstOrNull() ?: return@awaitEachGesture
+                                    val pos = change.position
+                                    val brushRadius = maskBrushSize / 2f
+                                    if (maskIsErasing) {
+                                        viewModel.eraseFlowMask(pos.x, pos.y, brushRadius)
+                                    } else {
+                                        viewModel.paintFlowMask(
+                                            pos.x, pos.y, brushRadius,
+                                            maskBrushOpacity / 100f, maskBrushHardness / 100f,
+                                        )
+                                    }
+
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        for (c in event.changes) {
+                                            if (c.pressed) {
+                                                c.consume()
+                                                val p = c.position
+                                                if (maskIsErasing) {
+                                                    viewModel.eraseFlowMask(p.x, p.y, brushRadius)
+                                                } else {
+                                                    viewModel.paintFlowMask(
+                                                        p.x, p.y, brushRadius,
+                                                        maskBrushOpacity / 100f, maskBrushHardness / 100f,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                }
+                            },
+                    )
+                }
+            }
+
             // Viewfinder corner marks (Hasselblad style)
             ViewfinderCorners(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxSize(0.92f),
             )
+
+            // Interactive crop overlay
+            if (showInteractiveCrop) {
+                val crop = adjustments.crop
+                InteractiveCropOverlay(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .fillMaxSize(),
+                    initialCropX = crop?.x ?: 0.05f,
+                    initialCropY = crop?.y ?: 0.05f,
+                    initialCropWidth = crop?.width ?: 0.9f,
+                    initialCropHeight = crop?.height ?: 0.9f,
+                    initialRotation = crop?.rotation ?: adjustments.rotation,
+                    aspectRatio = crop?.aspectRatio,
+                    onCropChanged = { x, y, w, h, rot ->
+                        viewModel.updateCropData(x, y, w, h, rot)
+                    },
+                    onDismiss = { showInteractiveCrop = false },
+                )
+            }
         }
 
         // ── Smart Optimize Confirm ────────────────────────────────────
@@ -890,35 +1002,77 @@ fun EditorScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
             ) {
-                when (activeTab) {
-                    EditorTab.FILM -> FilmPanel(
-                        selectedFilmId = selectedFilmId,
-                        onSelectFilm = { viewModel.selectFilm(it) },
-                        onClearFilm = { viewModel.clearFilm() },
+                if (isMaskMode) {
+                    MaskToolPanel(
+                        selectedMaskType = maskType,
+                        onSelectMaskType = { maskType = it },
+                        brushSize = maskBrushSize,
+                        onBrushSizeChange = { maskBrushSize = it },
+                        brushOpacity = maskBrushOpacity,
+                        onBrushOpacityChange = { maskBrushOpacity = it },
+                        brushHardness = maskBrushHardness,
+                        onBrushHardnessChange = { maskBrushHardness = it },
+                        isErasing = maskIsErasing,
+                        onErasingChange = { maskIsErasing = it },
+                        gradientOpacity = maskGradientOpacity,
+                        onGradientOpacityChange = { maskGradientOpacity = it },
+                        gradientFeather = maskGradientFeather,
+                        onGradientFeatherChange = { maskGradientFeather = it },
+                        maskVisible = maskVisible,
+                        onMaskVisibleChange = { maskVisible = it },
+                        maskInverted = maskInverted,
+                        onMaskInvertedChange = { maskInverted = it },
+                        flowMaskIntensity = maskIntensity,
+                        onFlowMaskIntensityChange = { maskIntensity = it },
+                        isAiProcessing = isAiProcessing,
+                        onGenerateAiMask = {
+                            val aiType = when (maskType) {
+                                MaskType.AI_SUBJECT -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
+                                MaskType.AI_SKY -> com.rapidraw.core.AiMaskGenerator.MaskType.SKY
+                                else -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
+                            }
+                            viewModel.generateAiMask(aiType) { _ ->
+                                hasAiMaskResult = true
+                            }
+                        },
+                        hasAiMaskResult = hasAiMaskResult,
+                        onDeleteMask = {
+                            viewModel.clearFlowMask()
+                            hasAiMaskResult = false
+                        },
                     )
-                    EditorTab.ADJUST -> {
-                        if (showAdvanced) {
-                            AdvancedPanel(
-                                adjustments = adjustments,
-                                onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
-                                onCurveUpdate = { key, value -> viewModel.updateCurve(key, value as List<com.rapidraw.data.model.Coord>) },
-                                onBack = { viewModel.toggleAdvanced() },
-                            )
-                        } else {
-                            QuickAdjustPanel(
-                                adjustments = adjustments,
-                                onUpdate = { key, value -> viewModel.updateQuickAdjust(key, value) },
-                                onAdvancedClick = { viewModel.toggleAdvanced() },
-                            )
+                } else {
+                    when (activeTab) {
+                        EditorTab.FILM -> FilmPanel(
+                            selectedFilmId = selectedFilmId,
+                            onSelectFilm = { viewModel.selectFilm(it) },
+                            onClearFilm = { viewModel.clearFilm() },
+                        )
+                        EditorTab.ADJUST -> {
+                            if (showAdvanced) {
+                                AdvancedPanel(
+                                    adjustments = adjustments,
+                                    onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
+                                    onCurveUpdate = { key, value -> viewModel.updateCurve(key, value as List<com.rapidraw.data.model.Coord>) },
+                                    onBack = { viewModel.toggleAdvanced() },
+                                )
+                            } else {
+                                QuickAdjustPanel(
+                                    adjustments = adjustments,
+                                    onUpdate = { key, value -> viewModel.updateQuickAdjust(key, value) },
+                                    onAdvancedClick = { viewModel.toggleAdvanced() },
+                                )
+                            }
                         }
+                        EditorTab.CROP -> CropPanel(
+                            adjustments = adjustments,
+                            onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
+                            onInteractiveCrop = { showInteractiveCrop = true },
+                        )
+                        EditorTab.EXPORT -> ExportPanel(
+                            onExport = { settings -> viewModel.exportImage(settings) },
+                        )
                     }
-                    EditorTab.CROP -> CropPanel(
-                        adjustments = adjustments,
-                        onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
-                    )
-                    EditorTab.EXPORT -> ExportPanel(
-                        onExport = { settings -> viewModel.exportImage(settings) },
-                    )
                 }
             }
         }
@@ -1157,6 +1311,7 @@ private fun FilmCard(
 private fun CropPanel(
     adjustments: com.rapidraw.data.model.Adjustments,
     onUpdate: (String, Float) -> Unit,
+    onInteractiveCrop: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -1230,6 +1385,40 @@ private fun CropPanel(
                 onClick = { onUpdate("cropAspectRatio", 9f / 16f) },
                 modifier = Modifier.weight(1f),
             )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Interactive crop button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = HasselbladOrange,
+                    shape = RoundedCornerShape(8.dp),
+                )
+                .clickable { onInteractiveCrop() }
+                .padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Crop,
+                    contentDescription = "交互裁剪",
+                    tint = TextPrimary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "交互裁剪",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))

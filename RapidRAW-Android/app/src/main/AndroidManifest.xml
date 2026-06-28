@@ -27,6 +27,10 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <!-- OpenGL ES 3.0 为必须，低版本设备将在安装阶段过滤 -->
     <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+    <!-- HDR 显示（可选，仅 HDR 设备上启用增强预览） -->
+    <uses-feature android:name="android.hardware.vulkan.compute" android:required="false" />
+    <!-- 触觉反馈硬件（可选，OPPO Find 等线性马达设备增强滑块交互） -->
+    <uses-feature android:name="android.hardware.sensor.hifi_sensors" android:required="false" />
 
     <application
         android:name=".RapidRawApp"

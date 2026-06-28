@@ -169,6 +169,21 @@ class ImageProcessor {
         val halationAmount: Float = 0f,
         val flareAmount: Float = 0f,
 
+        // Blur-based creative effects
+        val blurGlow: Float = 0f,
+        val blurHalation: Float = 0f,
+
+        // CDL Color Grading (per-channel R/G/B offsets for Lift/Gamma/Gain)
+        val cdlShadowsR: Float = 0f,
+        val cdlShadowsG: Float = 0f,
+        val cdlShadowsB: Float = 0f,
+        val cdlMidtonesR: Float = 0f,
+        val cdlMidtonesG: Float = 0f,
+        val cdlMidtonesB: Float = 0f,
+        val cdlHighlightsR: Float = 0f,
+        val cdlHighlightsG: Float = 0f,
+        val cdlHighlightsB: Float = 0f,
+
         // LUT
         val lutIntensity: Float = 1f,
 
@@ -326,6 +341,19 @@ class ImageProcessor {
                 glowAmount = src.glowAmount / 100f,
                 halationAmount = src.halationAmount / 100f,
                 flareAmount = src.flareAmount / 100f,
+                // Blur-based creative effects
+                blurGlow = src.glow / 100f,
+                blurHalation = src.halation / 100f,
+                // CDL Color Grading
+                cdlShadowsR = src.colorGradingShadowsR / 100f,
+                cdlShadowsG = src.colorGradingShadowsG / 100f,
+                cdlShadowsB = src.colorGradingShadowsB / 100f,
+                cdlMidtonesR = src.colorGradingMidtonesR / 100f,
+                cdlMidtonesG = src.colorGradingMidtonesG / 100f,
+                cdlMidtonesB = src.colorGradingMidtonesB / 100f,
+                cdlHighlightsR = src.colorGradingHighlightsR / 100f,
+                cdlHighlightsG = src.colorGradingHighlightsG / 100f,
+                cdlHighlightsB = src.colorGradingHighlightsB / 100f,
                 // LUT
                 lutIntensity = src.lutIntensity / 100f,
                 // Detail (additional)
@@ -1015,6 +1043,27 @@ class ImageProcessor {
         }
 
         outputBitmap.setPixels(pixels, 0, w, 0, 0, w, h)
+
+        // Post-processing: Blur-based creative effects (Glow, Halation, CDL)
+        var effectPixels = pixels
+        if (n.blurGlow > 1e-6f) {
+            effectPixels = applyGlow(effectPixels, w, h, n.blurGlow)
+        }
+        if (n.blurHalation > 1e-6f) {
+            effectPixels = applyHalation(effectPixels, w, h, n.blurHalation)
+        }
+        val hasCdl = abs(n.cdlShadowsR) > 1e-6f || abs(n.cdlShadowsG) > 1e-6f ||
+            abs(n.cdlShadowsB) > 1e-6f || abs(n.cdlMidtonesR) > 1e-6f ||
+            abs(n.cdlMidtonesG) > 1e-6f || abs(n.cdlMidtonesB) > 1e-6f ||
+            abs(n.cdlHighlightsR) > 1e-6f || abs(n.cdlHighlightsG) > 1e-6f ||
+            abs(n.cdlHighlightsB) > 1e-6f
+        if (hasCdl) {
+            effectPixels = applyCdlGrading(effectPixels, w, h, n)
+        }
+        // Update bitmap if any effect was applied
+        if (effectPixels !== pixels) {
+            outputBitmap.setPixels(effectPixels, 0, w, 0, 0, w, h)
+        }
 
         // Post-processing: Sharpness & Clarity (spatial operations)
         val finalBitmap = applySpatialOperations(outputBitmap, n)
@@ -1758,6 +1807,210 @@ class ImageProcessor {
             result[i * 3] = ((p shr 16) and 0xFF) / 255f
             result[i * 3 + 1] = ((p shr 8) and 0xFF) / 255f
             result[i * 3 + 2] = (p and 0xFF) / 255f
+        }
+
+        return result
+    }
+
+    // ── Blur-based Glow (soft halation around bright tones) ──────
+
+    /**
+     * Apply a blur-based soft glow effect.
+     * Extracts bright pixels (luminance > threshold), blurs them,
+     * and blends the blurred light back additively.
+     *
+     * @param pixels Source pixel array (ARGB packed ints)
+     * @param w Image width
+     * @param h Image height
+     * @param intensity Glow intensity 0..1
+     * @return New pixel array with glow applied
+     */
+    fun applyGlow(pixels: IntArray, w: Int, h: Int, intensity: Float): IntArray {
+        if (intensity < 1e-6f) return pixels
+
+        val threshold = 0.6f
+        val bloomRadius = (2 + (intensity * 8).toInt()).coerceIn(2, 12)
+
+        // Extract bright pixels above threshold
+        val brightPixels = IntArray(pixels.size)
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            val r = ((p shr 16) and 0xFF) / 255f
+            val g = ((p shr 8) and 0xFF) / 255f
+            val b = (p and 0xFF) / 255f
+            val luma = ColorMath.getLuma(r, g, b)
+            if (luma > threshold) {
+                val excess = ((luma - threshold) / (1f - threshold)).coerceIn(0f, 1f)
+                val ri = (r * excess * 255f).toInt().coerceIn(0, 255)
+                val gi = (g * excess * 255f).toInt().coerceIn(0, 255)
+                val bi = (b * excess * 255f).toInt().coerceIn(0, 255)
+                brightPixels[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+            } else {
+                brightPixels[i] = 0xFF shl 24
+            }
+        }
+
+        // Blur the bright pixels
+        val blurredPixels = boxBlur(brightPixels, w, h, bloomRadius)
+
+        // Blend additively
+        val result = IntArray(pixels.size)
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            val r = ((p shr 16) and 0xFF) / 255f
+            val g = ((p shr 8) and 0xFF) / 255f
+            val b = (p and 0xFF) / 255f
+
+            val bp = blurredPixels[i]
+            val br = ((bp shr 16) and 0xFF) / 255f
+            val bg = ((bp shr 8) and 0xFF) / 255f
+            val bb = (bp and 0xFF) / 255f
+
+            // Additive blend with glow intensity control
+            val outR = (r + br * intensity * 0.5f).coerceIn(0f, 1f)
+            val outG = (g + bg * intensity * 0.5f).coerceIn(0f, 1f)
+            val outB = (b + bb * intensity * 0.5f).coerceIn(0f, 1f)
+
+            val ri = (outR * 255f).toInt().coerceIn(0, 255)
+            val gi = (outG * 255f).toInt().coerceIn(0, 255)
+            val bi = (outB * 255f).toInt().coerceIn(0, 255)
+            result[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+        }
+
+        return result
+    }
+
+    // ── Blur-based Halation (red/orange bloom around highlights) ─
+
+    /**
+     * Apply a blur-based halation effect emulating film halation.
+     * Targets very bright highlights (luminance > 0.85) and applies
+     * a warm (red/orange tinted) bloom, emulating the red/orange halo
+     * seen on color film around blown highlights.
+     *
+     * @param pixels Source pixel array (ARGB packed ints)
+     * @param w Image width
+     * @param h Image height
+     * @param intensity Halation intensity 0..1
+     * @return New pixel array with halation applied
+     */
+    fun applyHalation(pixels: IntArray, w: Int, h: Int, intensity: Float): IntArray {
+        if (intensity < 1e-6f) return pixels
+
+        val threshold = 0.85f
+        val bloomRadius = (3 + (intensity * 10).toInt()).coerceIn(3, 15)
+
+        // Extract very bright highlights with warm tint
+        val brightPixels = IntArray(pixels.size)
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            val r = ((p shr 16) and 0xFF) / 255f
+            val g = ((p shr 8) and 0xFF) / 255f
+            val b = (p and 0xFF) / 255f
+            val luma = ColorMath.getLuma(r, g, b)
+            if (luma > threshold) {
+                val excess = ((luma - threshold) / (1f - threshold)).coerceIn(0f, 1f)
+                // Warm tint: emphasize red, reduce blue for orange/red bloom
+                val warmR = r * excess * 1.2f
+                val warmG = g * excess * 0.6f
+                val warmB = b * excess * 0.2f
+                val ri = (warmR.coerceIn(0f, 1f) * 255f).toInt().coerceIn(0, 255)
+                val gi = (warmG.coerceIn(0f, 1f) * 255f).toInt().coerceIn(0, 255)
+                val bi = (warmB.coerceIn(0f, 1f) * 255f).toInt().coerceIn(0, 255)
+                brightPixels[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+            } else {
+                brightPixels[i] = 0xFF shl 24
+            }
+        }
+
+        // Blur the warm-tinted highlights
+        val blurredPixels = boxBlur(brightPixels, w, h, bloomRadius)
+
+        // Blend additively with warm color weighting
+        val result = IntArray(pixels.size)
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            val r = ((p shr 16) and 0xFF) / 255f
+            val g = ((p shr 8) and 0xFF) / 255f
+            val b = (p and 0xFF) / 255f
+
+            val bp = blurredPixels[i]
+            val br = ((bp shr 16) and 0xFF) / 255f
+            val bg = ((bp shr 8) and 0xFF) / 255f
+            val bb = (bp and 0xFF) / 255f
+
+            // Additive blend with warm emphasis: red gets more, blue gets less
+            val outR = (r + br * intensity * 0.6f).coerceIn(0f, 1f)
+            val outG = (g + bg * intensity * 0.25f).coerceIn(0f, 1f)
+            val outB = (b + bb * intensity * 0.1f).coerceIn(0f, 1f)
+
+            val ri = (outR * 255f).toInt().coerceIn(0, 255)
+            val gi = (outG * 255f).toInt().coerceIn(0, 255)
+            val bi = (outB * 255f).toInt().coerceIn(0, 255)
+            result[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+        }
+
+        return result
+    }
+
+    // ── CDL Color Grading (Lift/Gamma/Gain per-channel offsets) ──
+
+    /**
+     * Apply CDL (Color Decision List) style color grading with
+     * per-channel R/G/B offsets for shadows, midtones, and highlights.
+     * Uses smoothstep-based luminance masks for smooth blending between ranges.
+     *
+     * @param pixels Source pixel array (ARGB packed ints)
+     * @param w Image width
+     * @param h Image height
+     * @param adj Normalized adjustments containing CDL parameters
+     * @return New pixel array with CDL grading applied
+     */
+    fun applyCdlGrading(pixels: IntArray, w: Int, h: Int, adj: NormAdj): IntArray {
+        // Check if any CDL adjustment is non-zero
+        val hasCdl = abs(adj.cdlShadowsR) > 1e-6f || abs(adj.cdlShadowsG) > 1e-6f ||
+            abs(adj.cdlShadowsB) > 1e-6f || abs(adj.cdlMidtonesR) > 1e-6f ||
+            abs(adj.cdlMidtonesG) > 1e-6f || abs(adj.cdlMidtonesB) > 1e-6f ||
+            abs(adj.cdlHighlightsR) > 1e-6f || abs(adj.cdlHighlightsG) > 1e-6f ||
+            abs(adj.cdlHighlightsB) > 1e-6f
+
+        if (!hasCdl) return pixels
+
+        val result = IntArray(pixels.size)
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            var r = ((p shr 16) and 0xFF) / 255f
+            var g = ((p shr 8) and 0xFF) / 255f
+            var b = (p and 0xFF) / 255f
+
+            // Compute luminance for tonal range classification
+            val luma = ColorMath.getLuma(r, g, b)
+
+            // Compute smoothstep masks for shadows, midtones, highlights
+            val sm = ColorMath.shadowsMask(luma)
+            val mm = ColorMath.midtonesMask(luma)
+            val hm = ColorMath.highlightsMask(luma)
+
+            // Normalize masks so they sum to 1
+            val maskSum = sm + mm + hm + 1e-6f
+            val nsm = sm / maskSum
+            val nmm = mm / maskSum
+            val nhm = hm / maskSum
+
+            // Apply per-channel CDL offsets (Lift for shadows, Gamma for midtones, Gain for highlights)
+            // Scale factor 0.15 keeps the adjustments perceptually balanced
+            val offsetR = (nsm * adj.cdlShadowsR + nmm * adj.cdlMidtonesR + nhm * adj.cdlHighlightsR) * 0.15f
+            val offsetG = (nsm * adj.cdlShadowsG + nmm * adj.cdlMidtonesG + nhm * adj.cdlHighlightsG) * 0.15f
+            val offsetB = (nsm * adj.cdlShadowsB + nmm * adj.cdlMidtonesB + nhm * adj.cdlHighlightsB) * 0.15f
+
+            r = (r + offsetR).coerceIn(0f, 1f)
+            g = (g + offsetG).coerceIn(0f, 1f)
+            b = (b + offsetB).coerceIn(0f, 1f)
+
+            val ri = (r * 255f).toInt().coerceIn(0, 255)
+            val gi = (g * 255f).toInt().coerceIn(0, 255)
+            val bi = (b * 255f).toInt().coerceIn(0, 255)
+            result[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
         }
 
         return result

@@ -380,6 +380,12 @@ class GpuPipeline(private val context: Context) {
             "uGlowAmount", "uHalationAmount", "uFlareAmount",
             "uColorGradingBalance",
             "uColorCalibrationShadowsTint",
+            // CDL Color Grading
+            "uCdlShadowsR", "uCdlShadowsG", "uCdlShadowsB",
+            "uCdlMidtonesR", "uCdlMidtonesG", "uCdlMidtonesB",
+            "uCdlHighlightsR", "uCdlHighlightsG", "uCdlHighlightsB",
+            // Blur-based creative effects
+            "uBlurGlow", "uBlurHalation",
             "uRotation", "uOrientationSteps",
             "uFlipHorizontal", "uFlipVertical",
             "uCropAspectRatio",
@@ -671,6 +677,19 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uFlareAmount", adjustments.flareAmount / 100f)
         setUniform1f("uColorGradingBalance", adjustments.colorGrading.balance / 100f)
         setUniform1f("uColorCalibrationShadowsTint", adjustments.colorCalibration.shadowsTint / 100f)
+        // CDL Color Grading
+        setUniform1f("uCdlShadowsR", adjustments.colorGradingShadowsR / 100f)
+        setUniform1f("uCdlShadowsG", adjustments.colorGradingShadowsG / 100f)
+        setUniform1f("uCdlShadowsB", adjustments.colorGradingShadowsB / 100f)
+        setUniform1f("uCdlMidtonesR", adjustments.colorGradingMidtonesR / 100f)
+        setUniform1f("uCdlMidtonesG", adjustments.colorGradingMidtonesG / 100f)
+        setUniform1f("uCdlMidtonesB", adjustments.colorGradingMidtonesB / 100f)
+        setUniform1f("uCdlHighlightsR", adjustments.colorGradingHighlightsR / 100f)
+        setUniform1f("uCdlHighlightsG", adjustments.colorGradingHighlightsG / 100f)
+        setUniform1f("uCdlHighlightsB", adjustments.colorGradingHighlightsB / 100f)
+        // Blur-based creative effects
+        setUniform1f("uBlurGlow", adjustments.glow / 100f)
+        setUniform1f("uBlurHalation", adjustments.halation / 100f)
         setUniform1f("uRotation", adjustments.rotation)
         setUniform1i("uOrientationSteps", adjustments.orientationSteps)
         setUniform1f("uFlipHorizontal", if (adjustments.flipHorizontal) 1f else 0f)

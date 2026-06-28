@@ -15,6 +15,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,7 +62,12 @@ class MainActivity : ComponentActivity() {
         // 安全隐私：防止截图和录屏
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
 
+        // Edge-to-Edge: 让系统栏透明并让内容绘制到系统栏后面
         enableEdgeToEdge()
+
+        // WindowCompat 设置：确保内容不会与系统栏重叠（由 Compose Insets 处理）
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         applyImmersiveMode()
 
         val initialUri = handleIncomingIntent(intent)
@@ -84,14 +92,18 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                // Handle back press: if in editor, go to library; else finish()
+                // Predictive Back: 在非 Library 页面拦截返回键，
+                // 配合 android:enableOnBackInvokedCallback 使 Navigation Compose
+                // 在 Android 14+ 上自动提供预测性返回动画。
                 BackHandler(enabled = currentRoute != Routes.LIBRARY) {
                     navController.popBackStack(Routes.LIBRARY, inclusive = false)
                 }
 
                 RapidNavHost(
                     navController = navController,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .imePadding(),  // 正确处理键盘弹出时的布局
                 )
 
                 // Navigate to editor if app was opened with an image from external intent
@@ -170,13 +182,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyImmersiveMode() {
+        // 系统栏颜色由 enableEdgeToEdge() 设置为透明，这里只控制行为
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+: 使用 WindowInsetsController 配合 BEHAVIOR_DEFAULT
+            // 以支持 Predictive Back 手势（BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            // 会与 Predictive Back 冲突）
             window.insetsController?.let { controller ->
                 controller.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    WindowInsetsController.BEHAVIOR_DEFAULT
             }
         } else {
             @Suppress("DEPRECATION")

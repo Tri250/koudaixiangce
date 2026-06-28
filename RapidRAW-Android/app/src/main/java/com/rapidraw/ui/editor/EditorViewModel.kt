@@ -23,11 +23,14 @@ import com.rapidraw.core.SidecarManager
 import com.rapidraw.core.SmartOptimizer
 import com.rapidraw.core.UserPreferenceLearning
 import com.rapidraw.data.model.Adjustments
+import com.rapidraw.data.model.EditHistoryEntry
+import com.rapidraw.data.model.EditHistoryTree
 import com.rapidraw.data.model.ExifData
 import com.rapidraw.data.model.ExportSettings
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.ImageFile
 import com.rapidraw.data.model.Preset
+import com.rapidraw.data.model.describeAdjustmentChange
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +59,18 @@ sealed class EditorEvent {
     data class ExportComplete(val uri: Uri) : EditorEvent()
     data object Idle : EditorEvent()
 }
+
+enum class ExportJobStatus { QUEUED, EXPORTING, COMPLETED, FAILED }
+
+data class ExportJob(
+    val id: String,
+    val imagePath: String,
+    val status: ExportJobStatus,
+    val progress: Float,
+    val resultUri: Uri? = null,
+    val error: String? = null,
+    val fileSize: Long = 0L,
+)
 
 class EditorViewModel(
     private val imageFile: ImageFile?,
@@ -137,6 +152,12 @@ class EditorViewModel(
 
     private val _isAiProcessing = MutableStateFlow(false)
     val isAiProcessing: StateFlow<Boolean> = _isAiProcessing.asStateFlow()
+
+    private val _exportQueue = MutableStateFlow<List<ExportJob>>(emptyList())
+    val exportQueue: StateFlow<List<ExportJob>> = _exportQueue.asStateFlow()
+
+    private val _editHistory = MutableStateFlow<EditHistoryTree?>(null)
+    val editHistory: StateFlow<EditHistoryTree?> = _editHistory.asStateFlow()
     // endregion
 
     // region Internal State
@@ -256,6 +277,8 @@ class EditorViewModel(
         _sceneConfidence.value = 0f
         _showClipping.value = false
         _zoomLevel.value = 1f
+        _exportQueue.value = emptyList()
+        _editHistory.value = null
     }
 
     // region Adjustment Updates
@@ -278,14 +301,32 @@ class EditorViewModel(
     fun updateAdjustment(key: String, value: Float) {
         // 用户主动编辑时取消正在进行的智能优化，避免结果被覆盖
         smartOptimizeJob?.cancel()
-        pushUndo()
+        pushUndo(describeAdjustmentChange(key, value))
         _adjustments.value = _adjustments.value.copyByField(key, value)
+        schedulePreviewUpdate()
+    }
+
+    fun updateCropData(x: Float, y: Float, width: Float, height: Float, rotation: Float) {
+        smartOptimizeJob?.cancel()
+        pushUndo("裁剪调整")
+        val current = _adjustments.value
+        _adjustments.value = current.copy(
+            crop = com.rapidraw.data.model.CropData(
+                x = x.coerceIn(0f, 1f),
+                y = y.coerceIn(0f, 1f),
+                width = width.coerceIn(0.05f, 1f),
+                height = height.coerceIn(0.05f, 1f),
+                aspectRatio = current.crop?.aspectRatio,
+                rotation = rotation.coerceIn(-45f, 45f),
+            ),
+            rotation = rotation.coerceIn(-180f, 180f),
+        )
         schedulePreviewUpdate()
     }
 
     fun updateQuickAdjust(key: String, value: Float) {
         smartOptimizeJob?.cancel()
-        pushUndo()
+        pushUndo(describeAdjustmentChange(key, value))
         _adjustments.value = when (key) {
             "filmIntensity" -> _adjustments.value.copy(filmIntensity = value.coerceIn(0f, 1f))
             "softGlow" -> _adjustments.value.copy(softGlow = value.coerceIn(0f, 1f))
@@ -298,7 +339,7 @@ class EditorViewModel(
 
     fun applyPreset(preset: Preset) {
         smartOptimizeJob?.cancel()
-        pushUndo()
+        pushUndo("应用预设: ${preset.name}")
         _adjustments.value = preset.adjustments
         preset.filmId?.let { fid ->
             _selectedFilmId.value = fid
@@ -315,7 +356,7 @@ class EditorViewModel(
     // region Film Simulation
     fun selectFilm(film: FilmSimulation) {
         smartOptimizeJob?.cancel()
-        pushUndo()
+        pushUndo("应用胶片: ${film.displayName}")
         _selectedFilmId.value = film.id
         _adjustments.value = _adjustments.value.withFilmSimulation(film)
         schedulePreviewUpdate()
@@ -323,7 +364,7 @@ class EditorViewModel(
 
     fun clearFilm() {
         smartOptimizeJob?.cancel()
-        pushUndo()
+        pushUndo("清除胶片模拟")
         _selectedFilmId.value = null
         _adjustments.value = _adjustments.value.copy(
             filmId = "",
@@ -377,7 +418,7 @@ class EditorViewModel(
 
     fun resetAdjustments() {
         smartOptimizeJob?.cancel()
-        pushUndo()
+        pushUndo("重置所有调整")
         _adjustments.value = Adjustments()
         _selectedFilmId.value = null
         _isSmartOptimized.value = false
@@ -417,7 +458,7 @@ class EditorViewModel(
                 withContext(Dispatchers.Main) {
                     if (isCleared.get()) return@withContext
                     val originalAdjustments = _adjustments.value
-                    pushUndo()
+                    pushUndo("智能优化")
                     _adjustments.value = personalized
                     _smartOptimizedAdjustments.value = originalAdjustments
                     _showSmartOptimizeConfirm.value = true
@@ -596,7 +637,7 @@ class EditorViewModel(
                             ?: "imported_lut"
                         lutManager.importLut(l, name)
                         withContext(Dispatchers.Main) {
-                            pushUndo()
+                            pushUndo("导入 LUT")
                             imageProcessor.currentLut = l
                             _adjustments.value = _adjustments.value.copy(lutIntensity = 100f)
                             gpuMutex.withLock {
@@ -700,6 +741,14 @@ class EditorViewModel(
         _adjustments.value = undoStack.removeLast()
         _canUndo.value = undoStack.isNotEmpty()
         _canRedo.value = true
+
+        // 同步编辑历史指针
+        _editHistory.value?.let { tree ->
+            val parent = tree.current.parentId?.let { tree.findById(it) }
+            if (parent != null) {
+                tree.jumpTo(parent)
+            }
+        }
         schedulePreviewUpdate()
     }
 
@@ -709,10 +758,22 @@ class EditorViewModel(
         _adjustments.value = redoStack.removeLast()
         _canUndo.value = true
         _canRedo.value = redoStack.isNotEmpty()
+
+        // 同步编辑历史指针
+        _editHistory.value?.let { tree ->
+            val currentEntry = tree.findById(tree.current.id)
+            currentEntry?.children?.firstOrNull()?.let { child ->
+                tree.jumpTo(child)
+            }
+        }
         schedulePreviewUpdate()
     }
 
     private fun pushUndo() {
+        pushUndo(null)
+    }
+
+    private fun pushUndo(description: String?) {
         undoStack.addLast(_adjustments.value)
         if (undoStack.size > 50) {
             undoStack.removeFirst()
@@ -720,13 +781,66 @@ class EditorViewModel(
         redoStack.clear()
         _canUndo.value = true
         _canRedo.value = false
+
+        // 构建编辑历史条目
+        val desc = description ?: "调整参数"
+        val tree = _editHistory.value
+        if (tree != null) {
+            tree.pushEntry(desc, _adjustments.value)
+        } else {
+            val root = EditHistoryEntry(
+                adjustments = _adjustments.value,
+                description = "初始状态",
+            )
+            val newTree = EditHistoryTree(
+                root = root,
+                current = root,
+                currentBranch = mutableListOf(root.id),
+            )
+            newTree.pushEntry(desc, _adjustments.value)
+            _editHistory.value = newTree
+        }
+    }
+
+    fun jumpToHistoryEntry(entry: EditHistoryEntry) {
+        _editHistory.value?.let { tree ->
+            tree.jumpTo(entry)
+            _adjustments.value = entry.adjustments
+            schedulePreviewUpdate()
+        }
+    }
+
+    fun branchFromHistoryEntry(entry: EditHistoryEntry) {
+        _editHistory.value?.let { tree ->
+            val desc = "分支: ${entry.description}"
+            tree.branchFrom(entry, desc, _adjustments.value)
+            pushUndo(desc)
+        }
+    }
+
+    fun deleteHistoryEntry(entry: EditHistoryEntry) {
+        _editHistory.value?.let { tree ->
+            // 不允许删除根节点或当前节点
+            if (entry.id == tree.root.id || entry.id == tree.current.id) return
+            // 从父节点的 children 中移除
+            val parentId = entry.parentId ?: return
+            val parent = tree.findById(parentId) ?: return
+            parent.children.removeAll { it.id == entry.id }
+        }
     }
     // endregion
 
     // region Curve Update
     fun updateCurve(key: String, points: List<com.rapidraw.data.model.Coord>) {
         smartOptimizeJob?.cancel()
-        pushUndo()
+        val curveLabel = when (key) {
+            "lumaCurve" -> "亮度曲线"
+            "redCurve" -> "红色曲线"
+            "greenCurve" -> "绿色曲线"
+            "blueCurve" -> "蓝色曲线"
+            else -> "曲线"
+        }
+        pushUndo(curveLabel)
         _adjustments.value = when (key) {
             "lumaCurve" -> _adjustments.value.copy(lumaCurve = points)
             "redCurve" -> _adjustments.value.copy(redCurve = points)
@@ -740,36 +854,123 @@ class EditorViewModel(
 
     // region Export
     fun exportImage(settings: ExportSettings) {
+        val currentImageFile = _currentImage.value ?: return
+        val jobId = java.util.UUID.randomUUID().toString()
+        val job = ExportJob(
+            id = jobId,
+            imagePath = currentImageFile.path,
+            status = ExportJobStatus.QUEUED,
+            progress = 0f,
+        )
+        _exportQueue.value = _exportQueue.value + job
+        processExportQueue(settings)
+    }
+
+    private fun processExportQueue(pendingSettings: ExportSettings? = null) {
+        val queue = _exportQueue.value
+        val hasActiveJob = queue.any { it.status == ExportJobStatus.EXPORTING }
+        if (hasActiveJob) return
+
+        val nextJob = queue.firstOrNull { it.status == ExportJobStatus.QUEUED } ?: return
+        val jobId = nextJob.id
+        val settings = pendingSettings ?: ExportSettings()
+
         exportJob?.cancel()
         exportJob = viewModelScope.launch(Dispatchers.IO) {
             val source = bitmapMutex.withLock {
                 originalBitmap?.takeIf { !it.isRecycled }
             } ?: run {
-                _event.value = EditorEvent.Error("没有可导出的原图")
+                updateJobStatus(jobId, ExportJobStatus.FAILED, error = "没有可导出的原图")
                 return@launch
             }
 
-            _isLoading.value = true
+            updateJobStatus(jobId, ExportJobStatus.EXPORTING, progress = 0.1f)
+
             runCatching {
+                updateJobProgress(jobId, 0.3f)
                 val processed = imageProcessor.processFullResolution(
                     _adjustments.value, source, allowDownsample = false
                 )
+                updateJobProgress(jobId, 0.7f)
                 val uri = imageProcessor.exportImage(
-                    processed, settings, appContext, originalExifData, originalOrientation
+                    processed, settings, appContext, originalExifData, originalOrientation,
                 )
+                updateJobProgress(jobId, 0.95f)
+
+                val file = uri.path?.let { java.io.File(it) }
+                val fileSize = file?.length() ?: 0L
+
                 withContext(Dispatchers.Main) {
-                    _isLoading.value = false
+                    _exportQueue.value = _exportQueue.value.map {
+                        if (it.id == jobId) it.copy(
+                            status = ExportJobStatus.COMPLETED,
+                            progress = 1f,
+                            resultUri = uri,
+                            fileSize = fileSize,
+                        ) else it
+                    }
                     _event.value = EditorEvent.ExportComplete(uri)
                 }
             }.onFailure { throwable ->
                 if (throwable is CancellationException) throw throwable
                 Log.e(TAG, "Export failed", throwable)
                 withContext(Dispatchers.Main) {
-                    _isLoading.value = false
-                    _event.value = EditorEvent.Error("导出失败: ${throwable.localizedMessage}")
+                    updateJobStatus(jobId, ExportJobStatus.FAILED, error = throwable.localizedMessage)
                 }
             }
+
+            // 处理队列中的下一个任务
+            processExportQueue()
         }
+    }
+
+    private suspend fun updateJobStatus(jobId: String, status: ExportJobStatus, error: String? = null, progress: Float? = null) {
+        withContext(Dispatchers.Main) {
+            _exportQueue.value = _exportQueue.value.map {
+                if (it.id == jobId) it.copy(status = status, error = error, progress = progress ?: it.progress) else it
+            }
+        }
+    }
+
+    private suspend fun updateJobProgress(jobId: String, progress: Float) {
+        withContext(Dispatchers.Main) {
+            _exportQueue.value = _exportQueue.value.map {
+                if (it.id == jobId) it.copy(progress = progress) else it
+            }
+        }
+    }
+
+    fun cancelExportJob(jobId: String) {
+        _exportQueue.value = _exportQueue.value.map {
+            if (it.id == jobId) it.copy(status = ExportJobStatus.FAILED, error = "已取消") else it
+        }
+        if (_exportQueue.value.none { it.status == ExportJobStatus.EXPORTING }) {
+            processExportQueue()
+        }
+    }
+
+    fun dismissExportJob(jobId: String) {
+        _exportQueue.value = _exportQueue.value.filter { it.id != jobId }
+    }
+
+    fun reorderExportQueue(fromIndex: Int, toIndex: Int) {
+        val queue = _exportQueue.value.toMutableList()
+        val queuedItems = queue.filter {
+            it.status == ExportJobStatus.QUEUED || it.status == ExportJobStatus.EXPORTING
+        }
+        if (fromIndex !in queuedItems.indices || toIndex !in queuedItems.indices) return
+        val item = queuedItems[fromIndex]
+        val targetIdx = if (toIndex < 0) 0 else if (toIndex >= queuedItems.size) queuedItems.lastIndex else toIndex
+        val target = queuedItems[targetIdx]
+
+        val newQueue = queue.map {
+            when {
+                it.id == item.id && targetIdx < fromIndex -> it.copy(status = it.status)
+                it.id == target.id -> it
+                else -> it
+            }
+        }
+        _exportQueue.value = newQueue
     }
     // endregion
 
