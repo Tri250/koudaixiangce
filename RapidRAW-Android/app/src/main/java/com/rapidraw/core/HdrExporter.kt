@@ -440,12 +440,6 @@ object HdrExporter {
         return xmp.toByteArray(Charsets.US_ASCII)
     }
 
-    /**
-     * 在 JPEG 数据中插入 XMP APP1 marker。
-     *
-     * JPEG 结构：SOI (0xFFD8) + [markers...] + SOS + [image data] + EOI (0xFFD9)
-     * XMP 应插入在 SOI 之后、SOS 之前。
-     */
     private fun insertXmpIntoJpeg(jpeg: ByteArray, xmpData: ByteArray): ByteArray {
         // 验证 JPEG SOI marker
         if (jpeg.size < 2 || jpeg[0] != 0xFF.toByte() || jpeg[1] != 0xD8.toByte()) {

@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -69,11 +70,11 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
             // 启用测试覆盖率仅在 debug，release 保持关闭避免性能损耗
-            isTestCoverageEnabled = false
+            enableUnitTestCoverage = false
+            enableAndroidTestCoverage = false
         }
         debug {
             isMinifyEnabled = false
-            isTestCoverageEnabled = true
             enableUnitTestCoverage = true
             enableAndroidTestCoverage = true
         }
