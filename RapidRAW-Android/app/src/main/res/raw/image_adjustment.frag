@@ -80,8 +80,9 @@ uniform float uVignette;      // -1.0 .. 1.0
 uniform float uGrain;         // 0.0 .. 1.0
 uniform float uGrainSize;     // 0.5 .. 3.0
 
-// Chromatic Aberration
-uniform float uChromaticAberration; // -1.0 .. 1.0
+// Chromatic Aberration (dual-axis)
+uniform float uChromaticAberrationRedCyan;   // -1.0 .. 1.0
+uniform float uChromaticAberrationBlueYellow; // -1.0 .. 1.0
 
 // Tone Mapping
 uniform float uAgXEnabled;    // 0.0 or 1.0
@@ -143,6 +144,12 @@ uniform float uTransformAspect;     // -1.0 - 1.0
 uniform float uTransformScale;      // 0.1 - 2.0
 uniform float uTransformXOffset;    // -1.0 - 1.0
 uniform float uTransformYOffset;    // -1.0 - 1.0
+
+// Lens Correction
+uniform float uLensDistortion;      // -1.0 - 1.0
+uniform float uLensVignette;        // -1.0 - 1.0
+uniform float uLensTca;             // -1.0 - 1.0
+
 uniform vec4 uRedCurve[6];          // RGB red curve points (x0,y0,x1,y1)
 uniform vec4 uGreenCurve[6];        // RGB green curve points
 uniform vec4 uBlueCurve[6];         // RGB blue curve points
@@ -703,25 +710,30 @@ vec3 apply_sharpness(vec3 color, vec2 uv) {
     return color + highPass * uSharpness;
 }
 
-// ── 12. Chromatic Aberration ──────────────────────────────────────────
+// ── 12. Chromatic Aberration (Dual-Axis) ──────────────────────────────
 
 vec3 apply_chromatic_aberration(vec3 color, vec2 uv) {
-    if (abs(uChromaticAberration) < EPS) return color;
+    bool hasCa = abs(uChromaticAberrationRedCyan) > EPS || abs(uChromaticAberrationBlueYellow) > EPS;
+    if (!hasCa) return color;
 
     vec2 dir = uv - 0.5;
     float dist = length(dir);
-    vec2 offset = dir * dist * uChromaticAberration * 0.02;
 
-    // Re-sample original texture with CA offsets for R and B channels
-    float r = texture(uTexture, uv + offset).r;
-    float g = color.g;
-    float b = texture(uTexture, uv - offset).b;
+    // Red-Cyan axis: offset red channel outward/inward
+    vec2 offsetR = dir * dist * uChromaticAberrationRedCyan * 0.02;
+    // Blue-Yellow axis: offset blue channel outward/inward (opposite direction)
+    vec2 offsetB = dir * dist * uChromaticAberrationBlueYellow * 0.02;
 
-    // Convert CA-sampled channels to linear and blend with processed color
-    float blend = clamp(abs(uChromaticAberration), 0.0, 1.0);
+    // Re-sample original texture with separate CA offsets
+    float r = texture(uTexture, uv + offsetR).r;
+    float b = texture(uTexture, uv - offsetB).b;
+
+    // Blend with processed color
+    float blendR = clamp(abs(uChromaticAberrationRedCyan), 0.0, 1.0);
+    float blendB = clamp(abs(uChromaticAberrationBlueYellow), 0.0, 1.0);
     vec3 result = color;
-    result.r = mix(color.r, srgb_to_linear(r), blend);
-    result.b = mix(color.b, srgb_to_linear(b), blend);
+    result.r = mix(color.r, srgb_to_linear(r), blendR);
+    result.b = mix(color.b, srgb_to_linear(b), blendB);
 
     return result;
 }
@@ -1077,10 +1089,21 @@ vec3 apply_centre(vec3 color) {
 
 vec3 apply_noise_reduction(vec3 color) {
     if (uLumaNoiseReduction < EPS && uColorNoiseReduction < EPS) return color;
-    // TODO: implement spatial denoising; for now subtle luma damping
     float lum = get_luma(color);
-    float damp = 1.0 - uLumaNoiseReduction * 0.05;
-    return vec3(lum) + (color - vec3(lum)) * damp;
+    vec3 chroma = color - vec3(lum);
+    // Chroma damping: reduce color noise (more aggressive, human eye is less sensitive to chroma noise)
+    float chromaDamp = 1.0 - uColorNoiseReduction * 0.4;
+    vec3 newChroma = chroma * chromaDamp;
+    // Apply luma smoothing with neighbor sampling for spatial approximation
+    vec2 texel = 1.0 / uResolution;
+    vec3 n1 = texture(uTexture, vTexCoord + vec2(texel.x, 0.0)).rgb;
+    vec3 n2 = texture(uTexture, vTexCoord - vec2(texel.x, 0.0)).rgb;
+    vec3 n3 = texture(uTexture, vTexCoord + vec2(0.0, texel.y)).rgb;
+    vec3 n4 = texture(uTexture, vTexCoord - vec2(0.0, texel.y)).rgb;
+    float neighborLum = (get_luma(n1) + get_luma(n2) + get_luma(n3) + get_luma(n4)) * 0.25;
+    float spatialBlend = uLumaNoiseReduction * 0.25;
+    float newLum = mix(lum, neighborLum, spatialBlend);
+    return vec3(newLum) + newChroma;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1123,17 +1146,42 @@ vec3 apply_flare(vec3 color) {
 
 float apply_rgb_curve_channel(float x, vec4 curve[6]) {
     x = clamp(x, 0.0, 1.0);
+    // Flatten vec4 array to points
+    float xs[12];
+    float ys[12];
     for (int i = 0; i < 6; i++) {
-        float x0 = curve[i].x;
-        float y0 = curve[i].y;
-        float x1 = curve[i].z;
-        float y1 = curve[i].w;
-        if (x >= x0 && x <= x1 && x1 > x0 + EPS) {
-            float t = (x - x0) / (x1 - x0);
-            return mix(y0, y1, t);
+        xs[i * 2] = curve[i].x;
+        ys[i * 2] = curve[i].y;
+        xs[i * 2 + 1] = curve[i].z;
+        ys[i * 2 + 1] = curve[i].w;
+    }
+    // Clamp
+    if (x <= xs[0]) return ys[0];
+    if (x >= xs[11]) return ys[11];
+    // Find segment
+    int idx = 0;
+    for (int i = 0; i < 11; i++) {
+        if (x >= xs[i] && x <= xs[i + 1]) {
+            idx = i;
+            break;
         }
     }
-    return x;
+    float dx = xs[idx + 1] - xs[idx];
+    if (dx < EPS) return ys[idx];
+    float t = (x - xs[idx]) / dx;
+    // Catmull-Rom tangents
+    float m0, m1;
+    if (idx == 0) m0 = (ys[1] - ys[0]) / dx;
+    else m0 = ((ys[idx + 1] - ys[idx - 1]) / (xs[idx + 1] - xs[idx - 1])) * dx * 0.5;
+    if (idx >= 10) m1 = (ys[11] - ys[10]) / dx;
+    else m1 = ((ys[idx + 2] - ys[idx]) / (xs[idx + 2] - xs[idx])) * dx * 0.5;
+    float t2 = t * t;
+    float t3 = t2 * t;
+    float h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
+    float h10 = t3 - 2.0 * t2 + t;
+    float h01 = -2.0 * t3 + 3.0 * t2;
+    float h11 = t3 - t2;
+    return h00 * ys[idx] + h10 * m0 + h01 * ys[idx + 1] + h11 * m1;
 }
 
 vec3 apply_rgb_curves(vec3 color) {
@@ -1162,13 +1210,55 @@ vec3 apply_color_calibration_shadows_tint(vec3 color) {
 void main() {
     vec2 uv = vTexCoord;
 
-    // Consume transform uniforms to prevent optimization
+    // === Geometric Transform ===
+    // 1. Flip
+    if (uFlipHorizontal > 0.5) uv.x = 1.0 - uv.x;
+    if (uFlipVertical > 0.5) uv.y = 1.0 - uv.y;
+
+    // 2. Orientation rotation (90° multiples)
+    if (uOrientationSteps == 1) uv = vec2(1.0 - uv.y, uv.x);
+    else if (uOrientationSteps == 2) uv = vec2(1.0 - uv.x, 1.0 - uv.y);
+    else if (uOrientationSteps == 3) uv = vec2(uv.y, 1.0 - uv.x);
+
+    // 3. Fine rotation
+    if (abs(uRotation) > 0.5) {
+        vec2 center = uv - 0.5;
+        float angleRad = radians(uRotation);
+        float c = cos(angleRad);
+        float s = sin(angleRad);
+        uv = vec2(center.x * c - center.y * s, center.x * s + center.y * c) + 0.5;
+    }
+
+    // 4. Scale and offset
     if (uTransformScale > 0.0) {
         uv = (uv - 0.5) * (1.0 / max(uTransformScale, 0.1)) + 0.5;
         uv.x += uTransformXOffset * 0.01;
         uv.y += uTransformYOffset * 0.01;
     }
-    // TODO: implement full geometric transform (rotation, flip, crop, perspective)
+
+    // 5. Perspective / distortion
+    if (abs(uTransformDistortion) > EPS || abs(uTransformVertical) > EPS || abs(uTransformHorizontal) > EPS) {
+        vec2 centered = uv - 0.5;
+        float dist = length(centered);
+        float r2 = dist * dist;
+        float k = uTransformDistortion * 0.3;
+        float radial = 1.0 + k * r2;
+        vec2 persp = centered;
+        persp.x += uTransformHorizontal * centered.y * centered.y * 0.3;
+        persp.y += uTransformVertical * centered.x * centered.x * 0.3;
+        uv = persp / radial + 0.5;
+    }
+
+    // 6. Lens correction
+    if (abs(uLensDistortion) > EPS || abs(uLensVignette) > EPS || abs(uLensTca) > EPS) {
+        vec2 centered = uv - 0.5;
+        float dist = length(centered);
+        float r2 = dist * dist;
+        // Distortion correction
+        float k1 = uLensDistortion * 0.15;
+        float radial = 1.0 + k1 * r2;
+        uv = centered / radial + 0.5;
+    }
 
     vec4 texColor = texture(uTexture, uv);
     vec3 originalLinear = texColor.rgb; // already in linear space from upload
@@ -1269,7 +1359,9 @@ void main() {
 
     // === Step 25: LUT color grading ===
     if (uLutIntensity > 0.001) {
-        vec3 lutColor = texture(uLutTexture, clamp(color, 0.0, 1.0)).rgb;
+        // Proper 3D LUT sampling with edge padding
+        vec3 lutCoord = clamp(color, 0.0, 1.0) * 0.9375 + 0.03125; // scale for 32-size LUT edge
+        vec3 lutColor = texture(uLutTexture, lutCoord).rgb;
         color = mix(color, lutColor, uLutIntensity);
     }
 

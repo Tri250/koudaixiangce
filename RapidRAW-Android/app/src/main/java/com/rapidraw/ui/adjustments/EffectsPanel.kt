@@ -52,7 +52,7 @@ fun EffectsPanel(
             HasselSlider(
                 label = "数量",
                 value = adjustments.vignetteAmount,
-                range = 0f..100f,
+                range = -100f..100f,
                 onValueChange = { onUpdate("vignetteAmount", it) },
                 defaultValue = 0f,
                 stepSize = 1f,
@@ -100,7 +100,7 @@ fun EffectsPanel(
             HasselSlider(
                 label = "大小",
                 value = adjustments.grainSize,
-                range = 0f..50f,
+                range = 0f..100f,
                 onValueChange = { onUpdate("grainSize", it) },
                 defaultValue = 25f,
                 stepSize = 1f,

@@ -162,7 +162,8 @@ data class Adjustments(
     val grain: Float = 0f,             // 0.0 .. 1.0
     val grainSize: Float = 1.0f,       // 0.5 .. 3.0
     val grainRoughness: Float = 0f,    // 0.0 .. 1.0
-    val chromaticAberration: Float = 0f, // -1.0 .. 1.0
+    val chromaticAberrationRedCyan: Float = 0f,    // -1.0 .. 1.0
+    val chromaticAberrationBlueYellow: Float = 0f, // -1.0 .. 1.0
 
     // Creative light effects
     val glowAmount: Float = 0f,        // 0.0 .. 1.0
@@ -210,6 +211,12 @@ data class Adjustments(
     val agxEnabled: Boolean = false,
     val agxContrast: Float = 0.0f,
     val agxPedestal: Float = 0.0f,
+
+    // Lens Correction
+    val lensDistortion: Float = 0f,      // -1.0 .. 1.0
+    val lensVignette: Float = 0f,        // -1.0 .. 1.0
+    val lensTca: Float = 0f,             // -1.0 .. 1.0
+    val lensFocalLength: Float = 50f,    // mm
 
     // Debug
     val clippingPreview: Boolean = false
@@ -505,8 +512,8 @@ class ImageProcessor {
         val greenCurve = adj.greenCurvePoints.sortedBy { it.first }
         val blueCurve = adj.blueCurvePoints.sortedBy { it.first }
 
-        // Transform parameters are captured; full geometric transform should be applied
-        // before the pixel loop for efficiency. TODO: implement rotation, flip, crop, perspective.
+        // Apply geometric transform before pixel processing
+        var workBitmap = source
         val hasTransform = adj.rotation != 0f || adj.orientationSteps != 0 ||
             adj.flipHorizontal || adj.flipVertical || adj.cropAspectRatio != null ||
             abs(adj.transformDistortion) > 1e-6f || abs(adj.transformVertical) > 1e-6f ||
@@ -514,7 +521,34 @@ class ImageProcessor {
             abs(adj.transformAspect) > 1e-6f || adj.transformScale != 1f ||
             abs(adj.transformXOffset) > 1e-6f || abs(adj.transformYOffset) > 1e-6f
         if (hasTransform) {
-            // TODO: apply geometric transform (rotation, flip, crop, perspective)
+            workBitmap = applyGeometricTransform(workBitmap, adj)
+        }
+
+        // Re-read pixels after geometric transform
+        if (workBitmap !== source) {
+            workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        }
+
+        // Apply lens correction if enabled
+        if (abs(adj.lensDistortion) > 1e-6f || abs(adj.lensVignette) > 1e-6f || abs(adj.lensTca) > 1e-6f) {
+            val lensCorrected = applyLensCorrection(workBitmap, adj)
+            if (lensCorrected !== workBitmap && workBitmap !== source) workBitmap.recycle()
+            workBitmap = lensCorrected
+            workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        }
+
+        // Apply AI denoising if requested
+        if (adj.lumaNoiseReduction > 10f || adj.colorNoiseReduction > 10f) {
+            val denoised = aiDenoiser.denoise(
+                workBitmap,
+                preserveDetails = 1f - (adj.lumaNoiseReduction / 150f).coerceIn(0f, 1f),
+                chromaStrength = (adj.colorNoiseReduction / 100f).coerceIn(0f, 1f)
+            )
+            if (denoised !== workBitmap) {
+                if (workBitmap !== source) workBitmap.recycle()
+                workBitmap = denoised
+                workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+            }
         }
 
         // Process each pixel
@@ -638,6 +672,12 @@ class ImageProcessor {
                 // ── 14. Vignette ──
                 val vignetteResult = applyVignette(r, g, b, x.toFloat() / w, y.toFloat() / h, adj.vignette, adj.vignetteMidpoint, adj.vignetteRoundness, adj.vignetteFeather)
                 r = vignetteResult[0]; g = vignetteResult[1]; b = vignetteResult[2]
+
+                // ── 14b. Chromatic Aberration (dual-axis) ──
+                if (abs(adj.chromaticAberrationRedCyan) > 1e-6f || abs(adj.chromaticAberrationBlueYellow) > 1e-6f) {
+                    val caResult = applyChromaticAberration(pixels, w, h, x, y, r, g, b, adj.chromaticAberrationRedCyan, adj.chromaticAberrationBlueYellow)
+                    r = caResult[0]; g = caResult[1]; b = caResult[2]
+                }
 
                 // ── 15. Grain ──
                 val grainResult = applyGrain(r, g, b, x.toFloat(), y.toFloat(), adj.grain, adj.grainSize, adj.grainRoughness, w, h)
@@ -810,6 +850,8 @@ class ImageProcessor {
         val finalBitmap = applySpatialOperations(outputBitmap, adj)
         if (finalBitmap != outputBitmap) outputBitmap.recycle()
 
+        // Recycle intermediate bitmaps if created
+        if (workBitmap !== sourceBitmap) workBitmap.recycle()
         if (sourceBitmap !== originalBitmap) sourceBitmap.recycle()
 
         finalBitmap
@@ -1450,11 +1492,16 @@ class ImageProcessor {
             vignette = src.vignetteAmount / 100f,                              // -100..100 → -1..1
             grain = src.grainAmount / 100f,                                    // 0..100 → 0..1
             grainSize = src.grainSize / 100f * 3f,                             // 0..100 → 0..3
-            chromaticAberration = (src.chromaticAberrationRedCyan +
-                src.chromaticAberrationBlueYellow) / 200f,                     // combined → -1..1
+            chromaticAberrationRedCyan = src.chromaticAberrationRedCyan / 100f,
+            chromaticAberrationBlueYellow = src.chromaticAberrationBlueYellow / 100f,
             agxEnabled = src.toneMapper == "agx",
-            agxContrast = 0f,
-            agxPedestal = 0f,
+            agxContrast = src.agxContrast,
+            agxPedestal = src.agxPedestal,
+            // Lens correction
+            lensDistortion = src.lensDistortion / 100f,
+            lensVignette = src.lensVignette / 100f,
+            lensTca = src.lensTca / 100f,
+            lensFocalLength = src.lensFocalLength,
             // Vignette sub-parameters
             vignetteMidpoint = src.vignetteMidpoint / 100f,
             vignetteRoundness = src.vignetteRoundness / 100f,
@@ -1970,5 +2017,251 @@ class ImageProcessor {
         }
 
         out.write(buf.array())
+    }
+
+    // ── Geometric Transform ────────────────────────────────────────
+
+    /**
+     * Apply geometric transformations: flip, orientation rotation, fine rotation, crop, perspective.
+     */
+    private fun applyGeometricTransform(source: Bitmap, adj: Adjustments): Bitmap {
+        var result = source
+
+        // 1. Flip
+        if (adj.flipHorizontal || adj.flipVertical) {
+            val matrix = android.graphics.Matrix()
+            matrix.preScale(
+                if (adj.flipHorizontal) -1f else 1f,
+                if (adj.flipVertical) -1f else 1f
+            )
+            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+        }
+
+        // 2. Orientation rotation (90° multiples)
+        if (adj.orientationSteps != 0) {
+            val matrix = android.graphics.Matrix()
+            matrix.postRotate((adj.orientationSteps * 90).toFloat())
+            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+        }
+
+        // 3. Fine rotation
+        if (adj.rotation != 0f) {
+            val matrix = android.graphics.Matrix()
+            matrix.postRotate(adj.rotation, result.width / 2f, result.height / 2f)
+            val rect = android.graphics.RectF(0f, 0f, result.width.toFloat(), result.height.toFloat())
+            matrix.mapRect(rect)
+            matrix.postTranslate(-rect.left, -rect.top)
+            val newW = rect.width().toInt().coerceAtLeast(1)
+            val newH = rect.height().toInt().coerceAtLeast(1)
+            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+        }
+
+        // 4. Scale
+        if (adj.transformScale != 1f) {
+            val matrix = android.graphics.Matrix()
+            matrix.postScale(adj.transformScale, adj.transformScale, result.width / 2f, result.height / 2f)
+            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+        }
+
+        // 5. Offset
+        if (adj.transformXOffset != 0f || adj.transformYOffset != 0f) {
+            val matrix = android.graphics.Matrix()
+            matrix.postTranslate(adj.transformXOffset * result.width * 0.1f, adj.transformYOffset * result.height * 0.1f)
+            result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+        }
+
+        // 6. Crop
+        if (adj.cropAspectRatio != null) {
+            val imgW = result.width
+            val imgH = result.height
+            val targetRatio = adj.cropAspectRatio
+            val currentRatio = imgW.toFloat() / imgH
+            var cropW = imgW
+            var cropH = imgH
+            var cropX = 0
+            var cropY = 0
+            if (kotlin.math.abs(currentRatio - targetRatio) > 0.01f) {
+                if (currentRatio > targetRatio) {
+                    cropW = (imgH * targetRatio).toInt()
+                    cropX = (imgW - cropW) / 2
+                } else {
+                    cropH = (imgW / targetRatio).toInt()
+                    cropY = (imgH - cropH) / 2
+                }
+            }
+            cropW = cropW.coerceIn(1, imgW - cropX)
+            cropH = cropH.coerceIn(1, imgH - cropY)
+            cropX = cropX.coerceIn(0, imgW - cropW)
+            cropY = cropY.coerceIn(0, imgH - cropH)
+            if (cropW > 0 && cropH > 0) {
+                result = Bitmap.createBitmap(result, cropX, cropY, cropW, cropH)
+            }
+        }
+
+        return result
+    }
+
+    // ── Lens Correction ────────────────────────────────────────────
+
+    /**
+     * Apply lens distortion, vignette, and TCA correction.
+     * Uses Brown-Conrady model for distortion and radial mapping for vignette/TCA.
+     */
+    private fun applyLensCorrection(source: Bitmap, adj: Adjustments): Bitmap {
+        val w = source.width
+        val h = source.height
+        val srcPixels = IntArray(w * h)
+        source.getPixels(srcPixels, 0, w, 0, 0, w, h)
+        val result = IntArray(w * h) { 0xFF000000.toInt() }
+
+        val cx = w / 2f
+        val cy = h / 2f
+        val maxR = kotlin.math.sqrt(cx * cx + cy * cy)
+
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val nx = (x - cx) / maxR
+                val ny = (y - cy) / maxR
+                val r2 = nx * nx + ny * ny
+                val r4 = r2 * r2
+
+                // Distortion correction (reverse mapping)
+                val k1 = adj.lensDistortion * 0.15f
+                val radial = 1f + k1 * r2
+                var srcNx = nx / radial
+                var srcNy = ny / radial
+
+                // TCA: separate R/B channel offsets
+                val tca = adj.lensTca * 0.02f
+                val tcaOffsetR = tca * r2
+                val tcaOffsetB = -tca * r2
+
+                // Vignette correction: brighten edges
+                val vignetteCorr = 1f + adj.lensVignette * 0.5f * r2
+
+                val srcX = srcNx * maxR + cx
+                val srcY = srcNy * maxR + cy
+
+                val x0 = srcX.toInt()
+                val y0 = srcY.toInt()
+                val x1 = x0 + 1
+                val y1 = y0 + 1
+                val fx = srcX - x0
+                val fy = srcY - y0
+
+                if (x0 >= 0 && x1 < w && y0 >= 0 && y1 < h) {
+                    val p00 = srcPixels[y0 * w + x0]
+                    val p01 = srcPixels[y0 * w + x1]
+                    val p10 = srcPixels[y1 * w + x0]
+                    val p11 = srcPixels[y1 * w + x1]
+
+                    val r = bilinearChannel(p00, p01, p10, p11, fx, fy, 16) * vignetteCorr
+                    val g = bilinearChannel(p00, p01, p10, p11, fx, fy, 8) * vignetteCorr
+                    // B channel with TCA offset
+                    val srcXB = srcX + tcaOffsetB * maxR
+                    val x0b = srcXB.toInt()
+                    val fxB = srcXB - x0b
+                    val x1b = x0b + 1
+                    val bVal = if (x0b >= 0 && x1b < w && y0 >= 0 && y1 < h) {
+                        val p00b = srcPixels[y0 * w + x0b]
+                        val p01b = srcPixels[y0 * w + x1b]
+                        val p10b = srcPixels[y1 * w + x0b]
+                        val p11b = srcPixels[y1 * w + x1b]
+                        bilinearChannel(p00b, p01b, p10b, p11b, fxB, fy, 0) * vignetteCorr
+                    } else {
+                        bilinearChannel(p00, p01, p10, p11, fx, fy, 0) * vignetteCorr
+                    }
+
+                    val ri = r.toInt().coerceIn(0, 255)
+                    val gi = g.toInt().coerceIn(0, 255)
+                    val bi = bVal.toInt().coerceIn(0, 255)
+                    result[y * w + x] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+                }
+            }
+        }
+
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        bitmap.setPixels(result, 0, w, 0, 0, w, h)
+        return bitmap
+    }
+
+    private fun bilinearChannel(p00: Int, p01: Int, p10: Int, p11: Int, fx: Float, fy: Float, shift: Int): Float {
+        val v00 = ((p00 ushr shift) and 0xFF).toFloat()
+        val v01 = ((p01 ushr shift) and 0xFF).toFloat()
+        val v10 = ((p10 ushr shift) and 0xFF).toFloat()
+        val v11 = ((p11 ushr shift) and 0xFF).toFloat()
+        val top = v00 * (1f - fx) + v01 * fx
+        val bot = v10 * (1f - fx) + v11 * fx
+        return top * (1f - fy) + bot * fy
+    }
+
+    /**
+     * Apply dual-axis chromatic aberration by sampling R and B channels with radial offsets.
+     */
+    private fun applyChromaticAberration(
+        srcPixels: IntArray, w: Int, h: Int,
+        x: Int, y: Int,
+        r: Float, g: Float, b: Float,
+        caRedCyan: Float, caBlueYellow: Float
+    ): FloatArray {
+        val cx = w / 2f
+        val cy = h / 2f
+        val maxR = kotlin.math.sqrt(cx * cx + cy * cy)
+        val nx = (x - cx) / maxR
+        val ny = (y - cy) / maxR
+        val dist = kotlin.math.sqrt(nx * nx + ny * ny)
+        val dirX = if (dist > 1e-6f) nx / dist else 0f
+        val dirY = if (dist > 1e-6f) ny / dist else 0f
+
+        // Red-Cyan axis: offset red channel
+        val offsetR = dist * caRedCyan * 0.03f * maxR
+        val srcXR = x + dirX * offsetR
+        val srcYR = y + dirY * offsetR
+        val x0r = srcXR.toInt()
+        val y0r = srcYR.toInt()
+        val fxR = srcXR - x0r
+        val fyR = srcYR - y0r
+        val x1r = x0r + 1
+        val y1r = y0r + 1
+        val rSampled = if (x0r >= 0 && x1r < w && y0r >= 0 && y1r < h) {
+            val p00 = srcPixels[y0r * w + x0r]
+            val p01 = srcPixels[y0r * w + x1r]
+            val p10 = srcPixels[y1r * w + x0r]
+            val p11 = srcPixels[y1r * w + x1r]
+            bilinearChannel(p00, p01, p10, p11, fxR, fyR, 16) / 255f
+        } else {
+            r
+        }
+
+        // Blue-Yellow axis: offset blue channel (opposite direction)
+        val offsetB = dist * caBlueYellow * 0.03f * maxR
+        val srcXB = x - dirX * offsetB
+        val srcYB = y - dirY * offsetB
+        val x0b = srcXB.toInt()
+        val y0b = srcYB.toInt()
+        val fxB = srcXB - x0b
+        val fyB = srcYB - y0b
+        val x1b = x0b + 1
+        val y1b = y0b + 1
+        val bSampled = if (x0b >= 0 && x1b < w && y0b >= 0 && y1b < h) {
+            val p00 = srcPixels[y0b * w + x0b]
+            val p01 = srcPixels[y0b * w + x1b]
+            val p10 = srcPixels[y1b * w + x0b]
+            val p11 = srcPixels[y1b * w + x1b]
+            bilinearChannel(p00, p01, p10, p11, fxB, fyB, 0) / 255f
+        } else {
+            b
+        }
+
+        // Convert sampled sRGB to linear and blend
+        val blendR = kotlin.math.abs(caRedCyan).coerceIn(0f, 1f)
+        val blendB = kotlin.math.abs(caBlueYellow).coerceIn(0f, 1f)
+        val rLin = ColorMath.srgbToLinear(rSampled)
+        val bLin = ColorMath.srgbToLinear(bSampled)
+        return floatArrayOf(
+            r + (rLin - r) * blendR,
+            g,
+            b + (bLin - b) * blendB
+        )
     }
 }

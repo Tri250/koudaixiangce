@@ -282,50 +282,36 @@ fun TransformPanel(
             )
             HasselSlider(
                 label = "畸变",
-                value = 0f,
-                range = 0f..100f,
+                value = adjustments.lensDistortion,
+                range = -100f..100f,
                 onValueChange = { onUpdate("lensDistortion", it) },
                 defaultValue = 0f,
                 stepSize = 1f,
             )
             HasselSlider(
                 label = "暗角",
-                value = 0f,
-                range = 0f..100f,
+                value = adjustments.lensVignette,
+                range = -100f..100f,
                 onValueChange = { onUpdate("lensVignette", it) },
                 defaultValue = 0f,
                 stepSize = 1f,
             )
             HasselSlider(
                 label = "TCA",
-                value = 0f,
-                range = 0f..100f,
+                value = adjustments.lensTca,
+                range = -100f..100f,
                 onValueChange = { onUpdate("lensTca", it) },
                 defaultValue = 0f,
                 stepSize = 1f,
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                LensToggleChip(
-                    label = "畸变",
-                    isEnabled = true,
-                    onToggle = { onUpdate("lensDistortionEnabled", it) },
-                )
-                LensToggleChip(
-                    label = "暗角",
-                    isEnabled = true,
-                    onToggle = { onUpdate("lensVignetteEnabled", it) },
-                )
-                LensToggleChip(
-                    label = "TCA",
-                    isEnabled = true,
-                    onToggle = { onUpdate("lensTcaEnabled", it) },
-                )
-            }
+            HasselSlider(
+                label = "焦距 (mm)",
+                value = adjustments.lensFocalLength,
+                range = 1f..1000f,
+                onValueChange = { onUpdate("lensFocalLength", it) },
+                defaultValue = 50f,
+                stepSize = 1f,
+            )
         }
     }
 }

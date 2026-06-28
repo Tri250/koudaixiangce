@@ -322,7 +322,7 @@ class GpuPipeline(private val context: Context) {
             "uSharpness", "uClarity", "uStructure",
             "uDehaze", "uVignette",
             "uGrain", "uGrainSize",
-            "uChromaticAberration",
+            "uChromaticAberrationRedCyan", "uChromaticAberrationBlueYellow",
             "uAgXEnabled", "uAgXContrast", "uAgXPedestal",
             "uClippingPreview",
             // New uniforms for film simulation & advanced controls
@@ -350,6 +350,7 @@ class GpuPipeline(private val context: Context) {
             "uTransformDistortion", "uTransformVertical", "uTransformHorizontal",
             "uTransformRotate", "uTransformAspect", "uTransformScale",
             "uTransformXOffset", "uTransformYOffset",
+            "uLensDistortion", "uLensVignette", "uLensTca",
             "uRedCurve[0]", "uRedCurve[1]", "uRedCurve[2]", "uRedCurve[3]", "uRedCurve[4]", "uRedCurve[5]",
             "uGreenCurve[0]", "uGreenCurve[1]", "uGreenCurve[2]", "uGreenCurve[3]", "uGreenCurve[4]", "uGreenCurve[5]",
             "uBlueCurve[0]", "uBlueCurve[1]", "uBlueCurve[2]", "uBlueCurve[3]", "uBlueCurve[4]", "uBlueCurve[5]",
@@ -609,15 +610,17 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uVignette", adjustments.vignetteAmount / 100f)     // -100..100 → -1..1
         setUniform1f("uGrain", adjustments.grainAmount / 100f)           // 0..100 → 0..1
         setUniform1f("uGrainSize", adjustments.grainSize / 100f * 3f)    // 0..100 → 0..3
-        val chromaticAberration = (adjustments.chromaticAberrationRedCyan +
-            adjustments.chromaticAberrationBlueYellow) / 200f            // combined → -1..1
-        setUniform1f("uChromaticAberration", chromaticAberration)
+        // Chromatic aberration: pass red-cyan and blue-yellow separately
+        val caRedCyan = adjustments.chromaticAberrationRedCyan / 100f
+        val caBlueYellow = adjustments.chromaticAberrationBlueYellow / 100f
+        setUniform1f("uChromaticAberrationRedCyan", caRedCyan)
+        setUniform1f("uChromaticAberrationBlueYellow", caBlueYellow)
 
         // ── Tone Mapping ──
         val agxEnabled = adjustments.toneMapper == "agx"
         setUniform1f("uAgXEnabled", if (agxEnabled) 1f else 0f)
-        setUniform1f("uAgXContrast", 0f)
-        setUniform1f("uAgXPedestal", 0f)
+        setUniform1f("uAgXContrast", adjustments.agxContrast.coerceIn(0f, 1f))
+        setUniform1f("uAgXPedestal", adjustments.agxPedestal.coerceIn(0f, 0.5f))
 
         // ── Missing fields fix ──
         setUniform1f("uLumaNoiseReduction", adjustments.lumaNoiseReduction / 100f)
@@ -645,6 +648,11 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uTransformScale", adjustments.transformScale / 100f)
         setUniform1f("uTransformXOffset", adjustments.transformXOffset / 100f)
         setUniform1f("uTransformYOffset", adjustments.transformYOffset / 100f)
+
+        // ── Lens Correction ──
+        setUniform1f("uLensDistortion", adjustments.lensDistortion / 100f)
+        setUniform1f("uLensVignette", adjustments.lensVignette / 100f)
+        setUniform1f("uLensTca", adjustments.lensTca / 100f)
 
         // RGB Curves: pack up to 12 points into 6 vec4s
         fun uploadCurve(name: String, curve: List<com.rapidraw.data.model.Coord>) {

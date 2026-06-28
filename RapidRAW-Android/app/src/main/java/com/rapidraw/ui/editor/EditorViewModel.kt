@@ -489,6 +489,8 @@ class EditorViewModel(
                     withContext(Dispatchers.Main) {
                         pushUndo()
                         _adjustments.value = _adjustments.value.copy(lutIntensity = 100f)
+                        // Update GPU LUT texture
+                        gpuPipeline?.updateLutTexture(l, 1f)
                         schedulePreviewUpdate()
                     }
                 }
@@ -702,6 +704,10 @@ class EditorViewModel(
                 val gpu = gpuPipeline
                 if (gpu != null && gpu.isInitialized()) {
                     withContext(Dispatchers.Main) {
+                        // Update mask texture if flow mask is active
+                        flowMaskManager?.getMaskBitmap()?.let { mask ->
+                            gpu.updateMaskTexture(mask, currentAdjustments.flowMaskIntensity / 100f)
+                        }
                         gpu.updateAdjustments(currentAdjustments)
                         gpu.renderFrame(sourceBitmap)
                         val processed = gpu.getProcessedBitmap()

@@ -37,7 +37,7 @@ fun DetailsPanel(
             HasselSlider(
                 label = "锐化",
                 value = adjustments.sharpness,
-                range = 0f..100f,
+                range = 0f..150f,
                 onValueChange = { onUpdate("sharpness", it) },
                 defaultValue = 0f,
                 stepSize = 1f,
@@ -109,7 +109,7 @@ fun DetailsPanel(
             HasselSlider(
                 label = "去雾",
                 value = adjustments.dehaze,
-                range = 0f..100f,
+                range = -100f..100f,
                 onValueChange = { onUpdate("dehaze", it) },
                 defaultValue = 0f,
                 stepSize = 1f,
