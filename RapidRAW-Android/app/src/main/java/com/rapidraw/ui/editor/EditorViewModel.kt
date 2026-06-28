@@ -48,10 +48,11 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 
 enum class EditorTab {
-    FILM,
-    ADJUST,
-    CROP,
-    EXPORT,
+    AI,        // AI 能力聚合：智能优化 / AI消除 / AI去噪 / AI遮罩 / 高光重建
+    FILTER,    // 风格化聚合：胶片模拟 / LUT 库 / 色彩科学
+    ADJUST,    // 调节：基础 / 高级 / 曲线 / HSL / Color Grading
+    COMPOSE,   // 构图：裁剪 / 旋转 / 翻转 / 镜头校正
+    EXPORT,    // 导出：SDR/HDR / 配方分享 / 编辑历史
 }
 
 sealed class EditorEvent {

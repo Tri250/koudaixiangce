@@ -4,19 +4,19 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import kotlin.math.abs
 
-enum class SceneType {
-    PORTRAIT,      // 人像
-    LANDSCAPE,     // 风景
-    NIGHT,         // 夜景
-    FOOD,          // 美食
-    ARCHITECTURE,  // 建筑
-    PET,           // 宠物
-    DOCUMENT,      // 文档
-    SKY,           // 天空/云海
-    BEACH,         // 海滩
-    SNOW,          // 雪景
-    INDOOR,        // 室内
-    GENERAL,       // 通用
+enum class SceneType(val displayName: String) {
+    PORTRAIT("人像"),
+    LANDSCAPE("风景"),
+    NIGHT("夜景"),
+    FOOD("美食"),
+    ARCHITECTURE("建筑"),
+    PET("宠物"),
+    DOCUMENT("文档"),
+    SKY("天空"),
+    BEACH("海滩"),
+    SNOW("雪景"),
+    INDOOR("室内"),
+    GENERAL("通用"),
 }
 
 class SceneClassifier {

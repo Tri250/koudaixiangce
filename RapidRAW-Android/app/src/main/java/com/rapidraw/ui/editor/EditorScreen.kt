@@ -41,18 +41,30 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Compare
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.filled.Gesture
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Rotate90DegreesCcw
 import androidx.compose.material.icons.filled.Rotate90DegreesCw
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.DropdownMenu
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -122,7 +134,9 @@ import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
 import kotlinx.coroutines.launch
 
-private val BOTTOM_TABS = listOf("胶片", "调节", "裁剪", "导出")
+// 2026 OPPO Find X9 布局：底部 5 Tab（拇指友好，高频功能直达）
+// AI → 滤镜 → 调节 → 构图 → 导出
+private val BOTTOM_TABS = listOf("AI", "滤镜", "调节", "构图", "导出")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -262,10 +276,11 @@ fun EditorScreen(
     val panelMaxHeight = (screenHeightDp * 0.45f).dp
 
     val selectedTabIndex = when (activeTab) {
-        EditorTab.FILM -> 0
-        EditorTab.ADJUST -> 1
-        EditorTab.CROP -> 2
-        EditorTab.EXPORT -> 3
+        EditorTab.AI -> 0
+        EditorTab.FILTER -> 1
+        EditorTab.ADJUST -> 2
+        EditorTab.COMPOSE -> 3
+        EditorTab.EXPORT -> 4
     }
 
     val sheetState = rememberModalBottomSheetState(
@@ -301,16 +316,14 @@ fun EditorScreen(
                     )
                 }
 
+                // 状态标题：显示当前色彩科学 / HDR / 智能优化状态（2026 Find X9）
                 Spacer(modifier = Modifier.weight(1f))
-
-                // EXIF
-                IconButton(onClick = { showExifSheet = true }) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "EXIF",
-                        tint = TextSecondary,
-                    )
-                }
+                EditorStatusBar(
+                    colorScienceMode = adjustments.colorScienceMode,
+                    hdrExportFormat = adjustments.hdrExportFormat,
+                    isSmartOptimized = isSmartOptimized,
+                )
+                Spacer(modifier = Modifier.weight(1f))
 
                 // Undo
                 IconButton(
@@ -336,34 +349,7 @@ fun EditorScreen(
                     )
                 }
 
-                // Clipping toggle
-                IconButton(onClick = { viewModel.toggleClipping() }) {
-                    Icon(
-                        imageVector = Icons.Default.Visibility,
-                        contentDescription = "裁切显示",
-                        tint = if (showClipping) Color.White else TextSecondary,
-                    )
-                }
-
-                // Histogram toggle
-                IconButton(onClick = { showHistogram = !showHistogram }) {
-                    Icon(
-                        imageVector = Icons.Default.BarChart,
-                        contentDescription = "直方图",
-                        tint = if (showHistogram) Color.White else TextSecondary,
-                    )
-                }
-
-                // Waveform toggle
-                IconButton(onClick = { showWaveform = !showWaveform }) {
-                    Icon(
-                        imageVector = Icons.Default.BarChart,
-                        contentDescription = "波形",
-                        tint = if (showWaveform) Color.White else TextSecondary,
-                    )
-                }
-
-                // Compare (long press)
+                // Compare (长按对比原图)
                 IconButton(onClick = { viewModel.toggleShowOriginal() }) {
                     Icon(
                         imageVector = Icons.Default.Compare,
@@ -372,22 +358,7 @@ fun EditorScreen(
                     )
                 }
 
-                // Mask mode toggle
-                IconButton(onClick = {
-                    isMaskMode = !isMaskMode
-                    if (isMaskMode) {
-                        viewModel.initFlowMask()
-                        hasAiMaskResult = false
-                    }
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Brush,
-                        contentDescription = "遮罩",
-                        tint = if (isMaskMode) HasselbladOrange else TextSecondary,
-                    )
-                }
-
-                // More menu
+                // More menu（低频项：重置/EXIF/复制参数/大师配方）
                 Box {
                     IconButton(onClick = { showMoreMenu = true }) {
                         Icon(
@@ -401,6 +372,7 @@ fun EditorScreen(
                         onDismissRequest = { showMoreMenu = false },
                         containerColor = EditorSurface,
                     ) {
+                        // 精简后仅保留低频项（高频项已移至底部 Tab）
                         DropdownMenuItem(
                             text = { Text("全部重置", color = TextPrimary) },
                             onClick = {
@@ -409,9 +381,9 @@ fun EditorScreen(
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("智能优化", color = TextPrimary) },
+                            text = { Text("EXIF 信息", color = TextPrimary) },
                             onClick = {
-                                viewModel.smartOptimize()
+                                showExifSheet = true
                                 showMoreMenu = false
                             },
                         )
@@ -423,62 +395,9 @@ fun EditorScreen(
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("配方分享", color = TextPrimary) },
-                            onClick = {
-                                showRecipeSheet = true
-                                showMoreMenu = false
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("AI 消除", color = TextPrimary) },
-                            onClick = {
-                                val img = currentImage
-                                if (img != null) {
-                                    navController.navigate(com.rapidraw.ui.navigation.Routes.aiInpaintPath(img.path))
-                                }
-                                showMoreMenu = false
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("大师配方", color = TextPrimary) },
+                            text = { Text("大师配方社区", color = TextPrimary) },
                             onClick = {
                                 navController.navigate(com.rapidraw.ui.navigation.Routes.PRESETS_DISCOVERY)
-                                showMoreMenu = false
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("AI 去噪", color = TextPrimary) },
-                            onClick = {
-                                viewModel.applyAiDenoise()
-                                showMoreMenu = false
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("AI 遮罩", color = TextPrimary) },
-                            onClick = {
-                                showAiMaskSheet = true
-                                showMoreMenu = false
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("局部调整", color = TextPrimary) },
-                            onClick = {
-                                viewModel.initFlowMask()
-                                showFlowMaskPanel = true
-                                showMoreMenu = false
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("导入 LUT", color = TextPrimary) },
-                            onClick = {
-                                lutPicker.launch(arrayOf("*/*"))
-                                showMoreMenu = false
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("高光重建", color = TextPrimary) },
-                            onClick = {
-                                viewModel.applyHighlightReconstruction()
                                 showMoreMenu = false
                             },
                         )
@@ -743,6 +662,31 @@ fun EditorScreen(
                 }
             }
 
+            // 2026 浮层专业工具条（示波器/裁切/遮罩，按需展开）
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 4.dp),
+            ) {
+                PreviewFloatingToolbar(
+                    showHistogram = showHistogram,
+                    onHistogramToggle = { showHistogram = !showHistogram },
+                    showWaveform = showWaveform,
+                    onWaveformToggle = { showWaveform = !showWaveform },
+                    showClipping = showClipping,
+                    onClippingToggle = { viewModel.toggleClipping() },
+                    isMaskMode = isMaskMode,
+                    onMaskToggle = {
+                        isMaskMode = !isMaskMode
+                        if (isMaskMode) {
+                            viewModel.initFlowMask()
+                        } else {
+                            hasAiMaskResult = false
+                        }
+                    },
+                )
+            }
+
             // Flow Mask brush toolbar
             if (showFlowMaskPanel) {
                 Surface(
@@ -974,9 +918,10 @@ fun EditorScreen(
                         selected = isSelected,
                         onClick = {
                             val tab = when (index) {
-                                0 -> EditorTab.FILM
-                                1 -> EditorTab.ADJUST
-                                2 -> EditorTab.CROP
+                                0 -> EditorTab.AI
+                                1 -> EditorTab.FILTER
+                                2 -> EditorTab.ADJUST
+                                3 -> EditorTab.COMPOSE
                                 else -> EditorTab.EXPORT
                             }
                             viewModel.setTab(tab)
@@ -1048,10 +993,36 @@ fun EditorScreen(
                     )
                 } else {
                     when (activeTab) {
-                        EditorTab.FILM -> FilmPanel(
+                        EditorTab.AI -> AiPanel(
+                            isSmartOptimizing = isSmartOptimizing,
+                            isSmartOptimized = isSmartOptimized,
+                            isAiProcessing = isAiProcessing,
+                            detectedScene = detectedScene,
+                            sceneConfidence = sceneConfidence,
+                            onSmartOptimize = { viewModel.smartOptimize() },
+                            onAiInpaint = {
+                                val img = currentImage
+                                if (img != null) {
+                                    navController.navigate(com.rapidraw.ui.navigation.Routes.aiInpaintPath(img.path))
+                                }
+                            },
+                            onAiDenoise = { viewModel.applyAiDenoise() },
+                            onAiMask = { showAiMaskSheet = true },
+                            onHighlightReconstruct = { viewModel.applyHighlightReconstruction() },
+                            onFlowMask = {
+                                viewModel.initFlowMask()
+                                showFlowMaskPanel = true
+                            },
+                        )
+                        EditorTab.FILTER -> FilterPanel(
                             selectedFilmId = selectedFilmId,
                             onSelectFilm = { viewModel.selectFilm(it) },
                             onClearFilm = { viewModel.clearFilm() },
+                            activeLutId = adjustments.activeLutId,
+                            colorScienceMode = adjustments.colorScienceMode,
+                            onOpenLutLibrary = { viewModel.showLutLibrary() },
+                            onOpenColorScience = { viewModel.showColorScience() },
+                            onClearLut = { viewModel.clearLut() },
                         )
                         EditorTab.ADJUST -> {
                             if (showAdvanced) {
@@ -1069,13 +1040,18 @@ fun EditorScreen(
                                 )
                             }
                         }
-                        EditorTab.CROP -> CropPanel(
+                        EditorTab.COMPOSE -> CropPanel(
                             adjustments = adjustments,
                             onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
                             onInteractiveCrop = { showInteractiveCrop = true },
                         )
                         EditorTab.EXPORT -> ExportPanel(
                             onExport = { settings -> viewModel.exportImage(settings) },
+                            onHdrExport = { viewModel.showHdrExport() },
+                            onRecipeShare = { showRecipeSheet = true },
+                            onEditHistory = { viewModel.showEditHistory() },
+                            hdrExportFormat = adjustments.hdrExportFormat,
+                            colorScienceMode = adjustments.colorScienceMode,
                         )
                     }
                 }
@@ -1562,6 +1538,11 @@ private fun AspectRatioButton(
 @Composable
 private fun ExportPanel(
     onExport: (ExportSettings) -> Unit,
+    onHdrExport: () -> Unit = {},
+    onRecipeShare: () -> Unit = {},
+    onEditHistory: () -> Unit = {},
+    hdrExportFormat: Int = 0,
+    colorScienceMode: Int = 0,
 ) {
     var selectedFormat by remember { mutableStateOf(ExportFormat.JPEG) }
     var quality by remember { mutableFloatStateOf(95f) }
@@ -1871,6 +1852,39 @@ private fun ExportPanel(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // 2026 高级导出入口行（HDR / 配方分享 / 编辑历史）
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // HDR 导出
+            ExportShortcutButton(
+                label = "HDR 导出",
+                sublabel = if (hdrExportFormat > 0) "已设置" else "Ultra HDR",
+                icon = Icons.Default.WbSunny,
+                onClick = onHdrExport,
+                modifier = Modifier.weight(1f),
+            )
+            // 配方分享
+            ExportShortcutButton(
+                label = "配方分享",
+                sublabel = "导出调色参数",
+                icon = Icons.Default.Share,
+                onClick = onRecipeShare,
+                modifier = Modifier.weight(1f),
+            )
+            // 编辑历史
+            ExportShortcutButton(
+                label = "编辑历史",
+                sublabel = "版本分支",
+                icon = Icons.Default.History,
+                onClick = onEditHistory,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1906,6 +1920,43 @@ private fun ExportPanel(
                 textAlign = TextAlign.Center,
             )
         }
+    }
+}
+
+@Composable
+private fun ExportShortcutButton(
+    label: String,
+    sublabel: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(EditorBorder.copy(alpha = 0.3f))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = TextSecondary,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            color = TextPrimary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            text = sublabel,
+            color = TextTertiary,
+            fontSize = 9.sp,
+        )
     }
 }
 
@@ -1967,5 +2018,501 @@ private fun formatFileSize(size: Long): String {
         size < 1024 * 1024 -> "${size / 1024} KB"
         size < 1024 * 1024 * 1024 -> "${"%.1f".format(size / (1024.0 * 1024.0))} MB"
         else -> "${"%.2f".format(size / (1024.0 * 1024.0 * 1024.0))} GB"
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 2026 OPPO Find X9 重构面板
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * 顶栏状态指示器
+ *
+ * 显示当前色彩科学模式 / HDR 导出格式 / 智能优化标记，
+ * 让用户一眼看到当前图像的处理状态（Find X9 简洁信息设计）。
+ */
+@Composable
+private fun EditorStatusBar(
+    colorScienceMode: Int,
+    hdrExportFormat: Int,
+    isSmartOptimized: Boolean,
+) {
+    val csLabel = when (colorScienceMode) {
+        0 -> "AgX"
+        1 -> "ACES 2.0"
+        2 -> "OpenDRT"
+        3 -> "Standard"
+        else -> "AgX"
+    }
+    val hdrLabel = if (hdrExportFormat > 0) " · HDR" else ""
+    val aiLabel = if (isSmartOptimized) " · AI" else ""
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(EditorSurface.copy(alpha = 0.6f))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        if (isSmartOptimized) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(HasselbladOrange),
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+        Text(
+            text = "$csLabel$hdrLabel$aiLabel",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/**
+ * AI 面板（底部 Tab 首位）
+ *
+ * 聚合所有 AI 能力，符合 2026 旗舰机"一键 AI"定位：
+ * - 智能优化（场景识别 + 自动调整）
+ * - AI 消除（移除路人/杂物）
+ * - AI 去噪（低光降噪）
+ * - AI 遮罩（主体/天空/前景/深度分离）
+ * - 高光重建（RAW 过曝恢复）
+ * - 局部调整（Flow Mask 笔刷）
+ */
+@Composable
+private fun AiPanel(
+    isSmartOptimizing: Boolean,
+    isSmartOptimized: Boolean,
+    isAiProcessing: Boolean,
+    detectedScene: com.rapidraw.core.SceneType?,
+    sceneConfidence: Float,
+    onSmartOptimize: () -> Unit,
+    onAiInpaint: () -> Unit,
+    onAiDenoise: () -> Unit,
+    onAiMask: () -> Unit,
+    onHighlightReconstruct: () -> Unit,
+    onFlowMask: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        // 场景识别结果
+        if (detectedScene != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(EditorBorder.copy(alpha = 0.3f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = "检测场景",
+                    color = TextTertiary,
+                    fontSize = 11.sp,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = detectedScene.displayName,
+                    color = HasselbladOrange,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "${(sceneConfidence * 100).toInt()}%",
+                    color = TextTertiary,
+                    fontSize = 11.sp,
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // 智能优化（首要按钮，最大）
+        AiFeatureCard(
+            title = "智能优化",
+            subtitle = "AI 场景识别 + 自动调色，一键出片",
+            icon = Icons.Default.AutoFixHigh,
+            isLoading = isSmartOptimizing || isAiProcessing,
+            isDone = isSmartOptimized,
+            isPrimary = true,
+            onClick = onSmartOptimize,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 二级 AI 功能网格
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AiFeatureCard(
+                title = "AI 消除",
+                subtitle = "移除路人杂物",
+                icon = Icons.Default.AutoAwesome,
+                onClick = onAiInpaint,
+                modifier = Modifier.weight(1f),
+            )
+            AiFeatureCard(
+                title = "AI 去噪",
+                subtitle = "低光降噪",
+                icon = Icons.Default.BlurOn,
+                onClick = onAiDenoise,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AiFeatureCard(
+                title = "AI 遮罩",
+                subtitle = "主体/天空分离",
+                icon = Icons.Default.Brush,
+                onClick = onAiMask,
+                modifier = Modifier.weight(1f),
+            )
+            AiFeatureCard(
+                title = "高光重建",
+                subtitle = "RAW 过曝恢复",
+                icon = Icons.Default.WbSunny,
+                onClick = onHighlightReconstruct,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        AiFeatureCard(
+            title = "局部调整",
+            subtitle = "笔刷蒙版 + 流量控制，精细局部编辑",
+            icon = Icons.Default.Gesture,
+            onClick = onFlowMask,
+        )
+    }
+}
+
+@Composable
+private fun AiFeatureCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    isDone: Boolean = false,
+    isPrimary: Boolean = false,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (isPrimary) HasselbladOrange.copy(alpha = 0.15f)
+                else EditorBorder.copy(alpha = 0.3f),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = if (isPrimary) 14.dp else 10.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(if (isPrimary) 36.dp else 30.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    if (isPrimary) HasselbladOrange
+                    else EditorBorder,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isLoading) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(if (isPrimary) 18.dp else 14.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White,
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isPrimary) Color.Black else TextSecondary,
+                    modifier = Modifier.size(if (isPrimary) 20.dp else 16.dp),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    color = if (isPrimary) Color.White else TextPrimary,
+                    fontSize = if (isPrimary) 15.sp else 13.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (isDone) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = HasselbladOrange,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+            Text(
+                text = subtitle,
+                color = TextTertiary,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+    }
+}
+
+/**
+ * 滤镜面板（底部 Tab 第二位）
+ *
+ * 聚合所有风格化能力：
+ * - 胶片模拟（原生 FilmPanel）
+ * - LUT 库（AlcedoStudio 集成）
+ * - 色彩科学（AgX / ACES 2.0 / OpenDRT / Standard）
+ *
+ * 用户操作链路：选胶片 → 叠加 LUT → 切换色彩科学 → 实时预览
+ */
+@Composable
+private fun FilterPanel(
+    selectedFilmId: String?,
+    onSelectFilm: (FilmSimulation) -> Unit,
+    onClearFilm: () -> Unit,
+    activeLutId: String,
+    colorScienceMode: Int,
+    onOpenLutLibrary: () -> Unit,
+    onOpenColorScience: () -> Unit,
+    onClearLut: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        // 风格化工具入口行（LUT 库 + 色彩科学）
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // LUT 库入口
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (activeLutId.isNotEmpty()) HasselbladOrange.copy(alpha = 0.15f)
+                        else EditorBorder.copy(alpha = 0.3f),
+                    )
+                    .clickable(onClick = onOpenLutLibrary)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Icon(
+                    Icons.Default.Palette,
+                    contentDescription = null,
+                    tint = if (activeLutId.isNotEmpty()) HasselbladOrange else TextSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "LUT 库",
+                        color = if (activeLutId.isNotEmpty()) HasselbladOrange else TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        text = if (activeLutId.isNotEmpty()) "已应用" else "胶片 LUT / .cube",
+                        color = TextTertiary,
+                        fontSize = 10.sp,
+                    )
+                }
+                if (activeLutId.isNotEmpty()) {
+                    IconButton(onClick = onClearLut, modifier = Modifier.size(24.dp)) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "清除 LUT",
+                            tint = TextTertiary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                }
+            }
+
+            // 色彩科学入口
+            val csName = when (colorScienceMode) {
+                0 -> "AgX"
+                1 -> "ACES 2.0"
+                2 -> "OpenDRT"
+                3 -> "Standard"
+                else -> "AgX"
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(EditorBorder.copy(alpha = 0.3f))
+                    .clickable(onClick = onOpenColorScience)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Icon(
+                    Icons.Default.Tune,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "色彩科学",
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        text = csName,
+                        color = HasselbladOrange,
+                        fontSize = 10.sp,
+                    )
+                }
+            }
+        }
+
+        // 胶片模拟（复用现有 FilmPanel）
+        FilmPanel(
+            selectedFilmId = selectedFilmId,
+            onSelectFilm = onSelectFilm,
+            onClearFilm = onClearFilm,
+        )
+    }
+}
+
+/**
+ * 预览区浮层工具条（专业工具按需展开）
+ *
+ * 从顶栏移出的低频专业工具，以浮层形式叠加在预览区右上角：
+ * - 示波器（直方图 / 波形 / 矢量示波器 / RGB Parade）
+ * - 裁切显示
+ * - 遮罩模式
+ *
+ * 默认收起，点击展开，避免视觉噪音（ColorOS 16 简洁设计）。
+ */
+@Composable
+fun PreviewFloatingToolbar(
+    showHistogram: Boolean,
+    onHistogramToggle: () -> Unit,
+    showWaveform: Boolean,
+    onWaveformToggle: () -> Unit,
+    showClipping: Boolean,
+    onClippingToggle: () -> Unit,
+    isMaskMode: Boolean,
+    onMaskToggle: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .padding(8.dp),
+        horizontalAlignment = Alignment.End,
+    ) {
+        // 展开后的工具按钮列表
+        if (expanded) {
+            FloatingToolButton(
+                icon = Icons.Default.BarChart,
+                label = "直方图",
+                isActive = showHistogram,
+                onClick = onHistogramToggle,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            FloatingToolButton(
+                icon = Icons.Default.ShowChart,
+                label = "波形",
+                isActive = showWaveform,
+                onClick = onWaveformToggle,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            FloatingToolButton(
+                icon = Icons.Default.Visibility,
+                label = "裁切",
+                isActive = showClipping,
+                onClick = onClippingToggle,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            FloatingToolButton(
+                icon = Icons.Default.Brush,
+                label = "遮罩",
+                isActive = isMaskMode,
+                onClick = onMaskToggle,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
+        // 展开/收起按钮
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(EditorSurface.copy(alpha = 0.8f))
+                .clickable { expanded = !expanded },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (expanded) Icons.Default.Close else Icons.Default.Tune,
+                contentDescription = if (expanded) "收起工具" else "专业工具",
+                tint = TextSecondary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FloatingToolButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    isActive: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (isActive) HasselbladOrange.copy(alpha = 0.2f)
+                else EditorSurface.copy(alpha = 0.8f),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (isActive) HasselbladOrange else TextSecondary,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            color = if (isActive) HasselbladOrange else TextSecondary,
+            fontSize = 11.sp,
+        )
     }
 }
