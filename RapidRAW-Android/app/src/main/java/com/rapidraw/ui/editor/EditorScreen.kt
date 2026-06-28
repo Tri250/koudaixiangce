@@ -98,6 +98,7 @@ import com.rapidraw.ui.adjustments.AdvancedPanel
 import com.rapidraw.ui.adjustments.QuickAdjustPanel
 import com.rapidraw.ui.components.HistogramView
 import com.rapidraw.ui.components.SmartOptimizeConfirm
+import com.rapidraw.ui.components.LiquidGlassSurface
 import com.rapidraw.ui.components.RecipeShareSheet
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorBorder
@@ -142,6 +143,14 @@ fun EditorScreen(
     var showExifSheet by remember { mutableStateOf(false) }
     var showRecipeSheet by remember { mutableStateOf(false) }
     var isLongPressing by remember { mutableStateOf(false) }
+
+    // Apply pending preset from PresetsDiscoveryScreen
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.rapidraw.ui.navigation.Routes.SelectedPresetHolder.pendingPreset?.let { preset ->
+            viewModel.applyPreset(preset)
+            com.rapidraw.ui.navigation.Routes.SelectedPresetHolder.pendingPreset = null
+        }
+    }
 
     val displayOriginal = isShowingOriginal || isLongPressing
 
@@ -456,49 +465,50 @@ fun EditorScreen(
 
             // Smart optimizing loading state
             if (isSmartOptimizing) {
-                Surface(
-                    color = EditorBackground.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(8.dp),
+                LiquidGlassSurface(
+                    cornerRadius = 12.dp,
+                    backgroundAlpha = 0.25f,
                     modifier = Modifier.align(Alignment.Center),
                 ) {
                     Text(
                         text = "智能优化中...",
                         color = Color.White,
                         fontSize = 14.sp,
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                 }
             }
 
             // Loading indicator
             if (isLoading && !isSmartOptimizing) {
-                Surface(
-                    color = EditorBackground.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(8.dp),
+                LiquidGlassSurface(
+                    cornerRadius = 12.dp,
+                    backgroundAlpha = 0.25f,
                     modifier = Modifier.align(Alignment.Center),
                 ) {
                     Text(
                         text = "处理中...",
                         color = Color.White,
                         fontSize = 14.sp,
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                 }
             }
 
             // "已优化" badge
             if (isSmartOptimized && !isSmartOptimizing && !displayOriginal) {
-                Surface(
-                    color = Color.Black.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(4.dp),
+                LiquidGlassSurface(
+                    cornerRadius = 4.dp,
+                    backgroundAlpha = 0.15f,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(12.dp),
                 ) {
                     Text(
                         text = "已优化",
-                        color = Color.White,
+                        color = HasselbladOrange,
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     )
                 }
@@ -522,16 +532,16 @@ fun EditorScreen(
                     else -> ""
                 }
                 if (sceneLabel.isNotEmpty()) {
-                    Surface(
-                        color = HasselbladOrange.copy(alpha = 0.85f),
-                        shape = RoundedCornerShape(4.dp),
+                    LiquidGlassSurface(
+                        cornerRadius = 4.dp,
+                        backgroundAlpha = 0.15f,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(top = 44.dp, end = 12.dp),
                     ) {
                         Text(
                             text = "$sceneLabel ${(sceneConfidence * 100).toInt()}%",
-                            color = Color.White,
+                            color = HasselbladOrange,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),

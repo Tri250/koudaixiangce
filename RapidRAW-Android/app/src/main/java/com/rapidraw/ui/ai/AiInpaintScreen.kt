@@ -59,6 +59,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.core.AiInpainter
+import com.rapidraw.ui.theme.HasselbladOrange
+import com.rapidraw.ui.theme.EditorBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -76,12 +78,24 @@ fun AiInpaintScreen(
     val haptic = LocalHapticFeedback.current
     var isProcessing by remember { mutableStateOf(false) }
     var resultBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    androidx.compose.runtime.DisposableEffect(resultBitmap) {
+        onDispose {
+            resultBitmap?.let { if (!it.isRecycled) it.recycle() }
+        }
+    }
     var brushSize by remember { mutableFloatStateOf(50f) }
     var isEraser by remember { mutableStateOf(false) }
     val maskPoints = remember { mutableStateListOf<Pair<Offset, Float>>() }
     val erasedPoints = remember { mutableStateListOf<Pair<Offset, Float>>() }
 
     val workingBitmap = remember(sourceBitmap) { sourceBitmap.copy(Bitmap.Config.ARGB_8888, false) }
+    androidx.compose.runtime.DisposableEffect(workingBitmap) {
+        onDispose {
+            if (!workingBitmap.isRecycled) {
+                workingBitmap.recycle()
+            }
+        }
+    }
     val displayBitmap = resultBitmap ?: workingBitmap
 
     Scaffold(
@@ -125,18 +139,18 @@ fun AiInpaintScreen(
                             Icon(
                                 imageVector = Icons.Filled.Check,
                                 contentDescription = "完成",
-                                tint = Color(0xFFE8600C),
+                                tint = HasselbladOrange,
                             )
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1A1A1A),
+                    containerColor = EditorBackground,
                     titleContentColor = Color.White,
                 ),
             )
         },
-        containerColor = Color(0xFF1A1A1A),
+        containerColor = EditorBackground,
     ) { padding ->
         Column(
             modifier = Modifier
@@ -148,7 +162,7 @@ fun AiInpaintScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .background(Color(0xFF0A0A0A)),
+                    .background(EditorBackground),
                 contentAlignment = Alignment.Center,
             ) {
                 androidx.compose.foundation.Image(
@@ -180,13 +194,13 @@ fun AiInpaintScreen(
                         // 绘制标记区域
                         for ((pos, size) in maskPoints) {
                             drawCircle(
-                                color = Color(0xFFE8600C).copy(alpha = 0.4f),
+                                color = HasselbladOrange.copy(alpha = 0.4f),
                                 radius = size / 2,
                                 center = pos,
                                 style = Stroke(width = 2f),
                             )
                             drawCircle(
-                                color = Color(0xFFE8600C).copy(alpha = 0.1f),
+                                color = HasselbladOrange.copy(alpha = 0.1f),
                                 radius = size / 2,
                                 center = pos,
                             )
@@ -211,7 +225,7 @@ fun AiInpaintScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator(
-                            color = Color(0xFFE8600C),
+                            color = HasselbladOrange,
                             modifier = Modifier.size(48.dp),
                         )
                     }
@@ -222,7 +236,7 @@ fun AiInpaintScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF1A1A1A))
+                    .background(EditorBackground)
                     .padding(16.dp),
             ) {
                 // 画笔大小
@@ -237,8 +251,8 @@ fun AiInpaintScreen(
                     valueRange = 10f..200f,
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFFE8600C),
-                        activeTrackColor = Color(0xFFE8600C),
+                        thumbColor = HasselbladOrange,
+                        activeTrackColor = HasselbladOrange,
                         inactiveTrackColor = Color(0x33FFFFFF),
                     ),
                 )
@@ -257,7 +271,7 @@ fun AiInpaintScreen(
                         modifier = Modifier
                             .size(48.dp)
                             .background(
-                                color = if (!isEraser) Color(0xFFE8600C) else Color(0x33FFFFFF),
+                                color = if (!isEraser) HasselbladOrange else Color(0x33FFFFFF),
                                 shape = CircleShape,
                             ),
                     ) {
@@ -300,8 +314,8 @@ fun AiInpaintScreen(
                                         maskPoints,
                                         erasedPoints,
                                     )
-                                    val inpainter = AiInpainter(workingBitmap)
-                                    val result = inpainter.removeObject(maskBitmap, iterations = 3)
+                                    val inpainter = AiInpainter()
+                                    val result = inpainter.removeObject(workingBitmap, maskBitmap, iterations = 3)
                                     withContext(Dispatchers.Main) {
                                         resultBitmap = result
                                         isProcessing = false
@@ -311,7 +325,7 @@ fun AiInpaintScreen(
                         },
                         enabled = !isProcessing && maskPoints.isNotEmpty() && resultBitmap == null,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFE8600C),
+                            containerColor = HasselbladOrange,
                             disabledContainerColor = Color(0x33FFFFFF),
                         ),
                     ) {

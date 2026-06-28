@@ -35,6 +35,10 @@ object Routes {
     fun aiInpaintPath(imagePath: String): String {
         return "ai_inpaint/${Uri.encode(imagePath)}"
     }
+
+    object SelectedPresetHolder {
+        var pendingPreset: com.rapidraw.data.model.Preset? = null
+    }
 }
 
 @Composable
@@ -122,6 +126,7 @@ fun RapidNavHost(
         composable(route = Routes.PRESETS_DISCOVERY) {
             PresetsDiscoveryScreen(
                 onApplyPreset = { preset ->
+                    Routes.SelectedPresetHolder.pendingPreset = preset
                     navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() },

@@ -49,3 +49,42 @@
 
 # Compose
 -keep class androidx.compose.** { *; }
+
+# OpenGL Shaders
+-keepclassmembers class com.rapidraw.core.GpuPipeline { *; }
+
+# AiInpainter / AiDenoiser / AiMaskGenerator
+-keepclassmembers class com.rapidraw.core.AiInpainter { *; }
+-keepclassmembers class com.rapidraw.core.AiDenoiser { *; }
+-keepclassmembers class com.rapidraw.core.AiMaskGenerator { *; }
+
+# FlowMaskManager
+-keepclassmembers class com.rapidraw.core.FlowMaskManager { *; }
+
+# SidecarManager
+-keepclassmembers class com.rapidraw.core.SidecarManager { *; }
+
+# CubeLutParser / LutManager
+-keepclassmembers class com.rapidraw.core.CubeLutParser { *; }
+-keep class com.rapidraw.core.CubeLutParser$Lut3D { *; }
+-keepclassmembers class com.rapidraw.core.LutManager { *; }
+
+# FilmGrainRenderer
+-keepclassmembers class com.rapidraw.core.FilmGrainRenderer { *; }
+
+# HighlightReconstructor
+-keepclassmembers class com.rapidraw.core.HighlightReconstructor { *; }
+
+# LensCorrector / PerspectiveCorrector
+-keepclassmembers class com.rapidraw.core.LensCorrector { *; }
+-keepclassmembers class com.rapidraw.core.PerspectiveCorrector { *; }
+
+# ColorMath
+-keepclassmembers class com.rapidraw.core.ColorMath { *; }
+
+# SmartOptimizer / SceneClassifier
+-keepclassmembers class com.rapidraw.core.SmartOptimizer { *; }
+-keepclassmembers class com.rapidraw.core.SceneClassifier { *; }
+
+# UserPreferenceLearning
+-keepclassmembers class com.rapidraw.core.UserPreferenceLearning { *; }

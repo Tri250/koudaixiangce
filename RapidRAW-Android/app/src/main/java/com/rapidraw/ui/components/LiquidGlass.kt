@@ -10,9 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 
 /**
@@ -33,17 +34,17 @@ fun LiquidGlassSurface(
                 color = Color.White.copy(alpha = backgroundAlpha),
                 shape = RoundedCornerShape(cornerRadius),
             )
-            // 顶部边缘高光（模拟玻璃折射）
             .drawBehind {
-                // 顶部高光线
+                // 顶部高光折射
                 drawRect(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.25f),
+                            Color.White.copy(alpha = 0.30f),
+                            Color.White.copy(alpha = 0.08f),
                             Color.Transparent,
                         ),
                         startY = 0f,
-                        endY = size.height * 0.3f,
+                        endY = size.height * 0.4f,
                     ),
                     size = size,
                 )
@@ -52,12 +53,19 @@ fun LiquidGlassSurface(
                     brush = Brush.verticalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            Color.White.copy(alpha = 0.05f),
+                            Color.White.copy(alpha = 0.06f),
                         ),
                         startY = size.height * 0.7f,
                         endY = size.height,
                     ),
                     size = size,
+                )
+                // 边框高光（模拟玻璃边缘反射）
+                val strokeWidth = 1.dp.toPx()
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.12f),
+                    cornerRadius = CornerRadius(cornerRadius.toPx()),
+                    style = Stroke(width = strokeWidth),
                 )
             },
     ) {

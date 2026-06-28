@@ -150,6 +150,17 @@ class EditorViewModel(
                     _previewBitmap.value = processed.preview
                     _isLoading.value = false
                     updateHistogram(processed.preview)
+
+                    // 尝试恢复非破坏性编辑状态
+                    val sidecarManager = com.rapidraw.core.SidecarManager(context)
+                    val savedAdj = sidecarManager.loadSidecar(imageFile.path)
+                    if (savedAdj != null) {
+                        _adjustments.value = savedAdj.adjustments
+                        if (savedAdj.filmId != null) {
+                            _selectedFilmId.value = savedAdj.filmId
+                        }
+                    }
+
                     detectScene(processed.preview)
 
                     // 加载完成后自动智能优化
@@ -542,6 +553,7 @@ class EditorViewModel(
                     else settings.resizeValue,
                     maxHeight = 0,
                     preserveMetadata = settings.keepMetadata,
+                    stripGps = settings.stripGps,
                     socialAspectRatio = settings.socialPlatform.aspectRatio,
                     addWatermark = settings.addWatermark,
                     watermarkText = settings.watermarkText,
@@ -624,6 +636,10 @@ class EditorViewModel(
                     val processed = imageProcessor.processFullResolution(currentAdjustments, sourceBitmap)
 
                     withContext(Dispatchers.Main) {
+                        val oldPreview = _previewBitmap.value
+                        if (oldPreview != null && oldPreview !== previewBitmapCache && !oldPreview.isRecycled) {
+                            oldPreview.recycle()
+                        }
                         _previewBitmap.value = processed
                         updateHistogram(processed)
                     }
@@ -633,6 +649,10 @@ class EditorViewModel(
                 try {
                     val processed = imageProcessor.processFullResolution(currentAdjustments, sourceBitmap)
                     withContext(Dispatchers.Main) {
+                        val oldPreview = _previewBitmap.value
+                        if (oldPreview != null && oldPreview !== previewBitmapCache && !oldPreview.isRecycled) {
+                            oldPreview.recycle()
+                        }
                         _previewBitmap.value = processed
                         updateHistogram(processed)
                     }
@@ -686,11 +706,27 @@ class EditorViewModel(
 
     override fun onCleared() {
         super.onCleared()
+
+        // 保存编辑状态到 sidecar
+        val currentImg = _currentImage.value
+        if (currentImg != null) {
+            try {
+                val sidecarManager = com.rapidraw.core.SidecarManager(context)
+                sidecarManager.saveSidecar(currentImg.path, _adjustments.value, _selectedFilmId.value)
+            } catch (_: Exception) {
+                // Sidecar 保存失败不影响应用
+            }
+        }
+
         previewJob?.cancel()
         smartOptimizeJob?.cancel()
         gpuPipeline?.release()
-        originalBitmap?.recycle()
+        // 先清空引用防止 UI 使用已回收的 Bitmap
+        _previewBitmap.value = null
         previewBitmapCache?.recycle()
+        originalBitmap?.recycle()
+        previewBitmapCache = null
+        originalBitmap = null
     }
 
     class Factory(

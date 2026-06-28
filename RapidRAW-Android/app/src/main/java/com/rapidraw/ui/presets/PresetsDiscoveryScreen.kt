@@ -45,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.Preset
+import com.rapidraw.ui.theme.HasselbladOrange
+import com.rapidraw.ui.theme.EditorBackground
+import com.rapidraw.ui.theme.TextTertiary
 
 /**
  * 大师配方推荐页。
@@ -164,12 +167,12 @@ fun PresetsDiscoveryScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1A1A1A),
+                    containerColor = EditorBackground,
                     titleContentColor = Color.White,
                 ),
             )
         },
-        containerColor = Color(0xFF0A0A0A),
+        containerColor = EditorBackground,
     ) { padding ->
         Column(
             modifier = Modifier
@@ -190,7 +193,7 @@ fun PresetsDiscoveryScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
                             .background(
-                                if (isSelected) Color(0xFFE8600C) else Color(0x1AFFFFFF),
+                                if (isSelected) HasselbladOrange else Color.White.copy(alpha = 0.1f),
                             )
                             .clickable { selectedCategory = category }
                             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -236,7 +239,7 @@ private fun PresetCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF1A1A1A))
+            .background(EditorBackground)
             .clickable(onClick = onApply)
             .padding(12.dp),
     ) {
@@ -272,7 +275,7 @@ private fun PresetCard(
 
         Text(
             text = preset.description,
-            color = Color(0xFF8A8A8A),
+            color = TextTertiary,
             fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -282,7 +285,7 @@ private fun PresetCard(
 
         Text(
             text = preset.category,
-            color = Color(0xFFE8600C),
+            color = HasselbladOrange,
             fontSize = 11.sp,
         )
     }
