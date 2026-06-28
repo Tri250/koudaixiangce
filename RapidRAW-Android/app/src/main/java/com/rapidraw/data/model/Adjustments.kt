@@ -231,6 +231,25 @@ data class Adjustments(
 
     // ── AI Patches ────────────────────────────────────────────
     val aiPatches: List<AiPatch> = emptyList(),
+
+    // ── 人像 / 肤色（PixelFruit 面部美白集成） ────────────────
+    val skinWhitening: Float = 0f,        // 美白 0..100
+    val skinBrightening: Float = 0f,      // 提亮 0..100
+    val skinSmoothing: Float = 0f,        // 磨皮 0..100
+    val skinRednessReduce: Float = 0f,    // 红润抑制 0..100
+
+    // ── 颜色替换（PixelFruit 颜色替换集成） ──────────────────
+    val colorReplaceEnabled: Boolean = false,
+    val colorReplaceSourceHue: Float = 0f,       // 源色相 0..360
+    val colorReplaceSourceSat: Float = 50f,      // 源饱和 0..100
+    val colorReplaceSourceLum: Float = 50f,      // 源亮度 0..100
+    val colorReplaceTargetHue: Float = 0f,       // 目标色相 0..360
+    val colorReplaceTargetSat: Float = 50f,      // 目标饱和 0..100
+    val colorReplaceTargetLum: Float = 50f,      // 目标亮度 0..100
+    val colorReplaceHueRange: Float = 20f,       // 色相容差 0..180
+    val colorReplaceSatRange: Float = 25f,       // 饱和容差 0..100
+    val colorReplaceLumRange: Float = 25f,       // 亮度容差 0..100
+    val colorReplaceStrength: Float = 100f,     // 强度 0..100
 ) {
     fun copyByField(key: String, value: Float): Adjustments = when (key) {
         // Basic
@@ -379,6 +398,23 @@ data class Adjustments(
         "hdrExportFormat" -> copy(hdrExportFormat = value.toInt().coerceIn(0, 2))
         "hdrPeakLuminance" -> copy(hdrPeakLuminance = value.coerceIn(100f, 10000f))
         "hdrMaxBoostStop" -> copy(hdrMaxBoostStop = value.coerceIn(1f, 8f))
+        // 人像 / 肤色（PixelFruit 面部美白）
+        "skinWhitening" -> copy(skinWhitening = value.coerceIn(0f, 100f))
+        "skinBrightening" -> copy(skinBrightening = value.coerceIn(0f, 100f))
+        "skinSmoothing" -> copy(skinSmoothing = value.coerceIn(0f, 100f))
+        "skinRednessReduce" -> copy(skinRednessReduce = value.coerceIn(0f, 100f))
+        // 颜色替换（PixelFruit 颜色替换）
+        "colorReplaceEnabled" -> copy(colorReplaceEnabled = value != 0f)
+        "colorReplaceSourceHue" -> copy(colorReplaceSourceHue = value.coerceIn(0f, 360f))
+        "colorReplaceSourceSat" -> copy(colorReplaceSourceSat = value.coerceIn(0f, 100f))
+        "colorReplaceSourceLum" -> copy(colorReplaceSourceLum = value.coerceIn(0f, 100f))
+        "colorReplaceTargetHue" -> copy(colorReplaceTargetHue = value.coerceIn(0f, 360f))
+        "colorReplaceTargetSat" -> copy(colorReplaceTargetSat = value.coerceIn(0f, 100f))
+        "colorReplaceTargetLum" -> copy(colorReplaceTargetLum = value.coerceIn(0f, 100f))
+        "colorReplaceHueRange" -> copy(colorReplaceHueRange = value.coerceIn(0f, 180f))
+        "colorReplaceSatRange" -> copy(colorReplaceSatRange = value.coerceIn(0f, 100f))
+        "colorReplaceLumRange" -> copy(colorReplaceLumRange = value.coerceIn(0f, 100f))
+        "colorReplaceStrength" -> copy(colorReplaceStrength = value.coerceIn(0f, 100f))
         else -> this
     }
 

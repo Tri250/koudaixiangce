@@ -4,10 +4,13 @@ import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import android.graphics.RadialGradient
 import android.graphics.RectF
+import android.graphics.Shader
 import java.io.File
 import java.io.FileOutputStream
 
@@ -72,6 +75,109 @@ class FlowMaskManager(
      */
     fun clear() {
         maskCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+    }
+
+    // ── 渐变蒙版（PixelFruit/RapidRAW 操作链路完整性补全） ───────────
+    // 之前的 UI 仅渲染 Compose Brush 视觉，未生成实际 Alpha 蒙版喂入管线，
+    // 导致线性/径向渐变蒙版对输出零影响。这里把与 MaskOverlay 完全一致的
+    // 渐变数学写入 maskBitmap 的 Alpha 通道，复用现有 GPU/CPU 蒙版混合路径。
+
+    private val gradientPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.FILL
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC)
+    }
+
+    /**
+     * 生成线性渐变蒙版（与 MaskOverlay.LinearGradientOverlay 数学一致）。
+     * 渐变沿水平方向：左半 solid → 过渡带 → 右半 transparent（未反转）。
+     *
+     * @param opacity 不透明度 [0,1]
+     * @param feather 羽化宽度占比 [0,1]，控制过渡带占图像宽度的比例
+     * @param inverted 是否反转（右半 solid）
+     */
+    fun generateLinearGradientMask(opacity: Float, feather: Float, inverted: Boolean) {
+        maskCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+
+        val op = opacity.coerceIn(0f, 1f)
+        val ft = feather.coerceIn(0f, 1f)
+        if (op <= 0f) return
+
+        val w = width.toFloat()
+        val h = height.toFloat()
+
+        val featherPx = w * ft * 0.5f
+        val center = w / 2f
+        val gradientStart = (center - featherPx).coerceIn(0f, w)
+        val gradientEnd = (center + featherPx).coerceIn(0f, w)
+
+        val solidAlpha = (op * 255f).toInt().coerceIn(0, 255)
+        val solid = Color.argb(solidAlpha, 255, 255, 255)
+        val trans = Color.argb(0, 255, 255, 255)
+
+        val colors = if (!inverted) {
+            intArrayOf(solid, solid, trans, trans)
+        } else {
+            intArrayOf(trans, trans, solid, solid)
+        }
+        val stops = if (gradientStart == gradientEnd) {
+            floatArrayOf(0f, 0.5f, 0.5f, 1f)
+        } else {
+            floatArrayOf(
+                0f,
+                (gradientStart / w).coerceIn(0f, 1f),
+                (gradientEnd / w).coerceIn(0f, 1f),
+                1f,
+            )
+        }
+
+        gradientPaint.shader = LinearGradient(0f, 0f, w, 0f, colors, stops, Shader.TileMode.CLAMP)
+        maskCanvas.drawRect(0f, 0f, w, h, gradientPaint)
+        gradientPaint.shader = null
+    }
+
+    /**
+     * 生成径向渐变蒙版（与 MaskOverlay.RadialGradientOverlay 数学一致）。
+     * 中心 solid → 内半径后过渡 → 边缘 transparent（未反转）。
+     *
+     * @param opacity 不透明度 [0,1]
+     * @param feather 羽化占比 [0,1]，1=无 solid 区，0=满圆 solid
+     * @param inverted 是否反转（中心 transparent，边缘 solid）
+     */
+    fun generateRadialGradientMask(opacity: Float, feather: Float, inverted: Boolean) {
+        maskCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+
+        val op = opacity.coerceIn(0f, 1f)
+        val ft = feather.coerceIn(0f, 1f)
+        if (op <= 0f) return
+
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val cx = w / 2f
+        val cy = h / 2f
+        val radius = minOf(w, h) / 2f
+        if (radius <= 0f) return
+
+        val innerRadius = (radius * (1f - ft)).coerceIn(0f, radius)
+
+        val solidAlpha = (op * 255f).toInt().coerceIn(0, 255)
+        val solid = Color.argb(solidAlpha, 255, 255, 255)
+        val trans = Color.argb(0, 255, 255, 255)
+
+        val colors = if (!inverted) {
+            intArrayOf(solid, solid, trans)
+        } else {
+            intArrayOf(trans, solid, solid)
+        }
+        val stops = if (innerRadius == 0f) {
+            floatArrayOf(0f, 0f, 1f)
+        } else {
+            floatArrayOf(0f, (innerRadius / radius).coerceIn(0f, 1f), 1f)
+        }
+
+        gradientPaint.shader = RadialGradient(cx, cy, radius, colors, stops, Shader.TileMode.CLAMP)
+        maskCanvas.drawRect(0f, 0f, w, h, gradientPaint)
+        gradientPaint.shader = null
     }
 
     /**

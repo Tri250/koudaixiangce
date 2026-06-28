@@ -249,6 +249,26 @@ fun EditorScreen(
         }
     }
 
+    // 渐变蒙版端到端：当处于蒙版模式且选中线性/径向渐变时，
+    // 把 UI 渐变参数同步生成真实 Alpha 蒙版位图并喂入处理管线，
+    // 使渐变蒙版真正作用于输出（修复 UI-only 缺陷）。
+    LaunchedEffect(
+        isMaskMode,
+        maskType,
+        maskGradientOpacity,
+        maskGradientFeather,
+        maskInverted,
+    ) {
+        if (!isMaskMode) return@LaunchedEffect
+        val op = maskGradientOpacity / 100f
+        val ft = maskGradientFeather / 100f
+        when (maskType) {
+            MaskType.LINEAR_GRADIENT -> viewModel.applyLinearGradientMask(op, ft, maskInverted)
+            MaskType.RADIAL_GRADIENT -> viewModel.applyRadialGradientMask(op, ft, maskInverted)
+            else -> { /* 笔刷 / AI 蒙版由各自交互生成，不在此处处理 */ }
+        }
+    }
+
     val displayOriginal = isShowingOriginal || isLongPressing
 
     val animatedZoom by animateFloatAsState(
@@ -1097,6 +1117,7 @@ fun EditorScreen(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 16.dp),
         )
+        }
     }
 
     // ── EXIF Bottom Sheet ────────────────────────────────────────────────

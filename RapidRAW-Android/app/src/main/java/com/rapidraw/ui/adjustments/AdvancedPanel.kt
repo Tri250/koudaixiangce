@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -621,6 +623,207 @@ fun AdvancedPanel(
                 onValueChange = { onUpdate("flareAmount", it) },
                 defaultValue = 0f,
                 stepSize = 1f,
+            )
+        }
+
+        // ── 人像 Section（PixelFruit 面部美白集成） ───────────────────
+        CollapsibleSection(
+            title = "人像",
+            expanded = expandedSection == "portrait",
+            onToggle = {
+                expandedSection = if (expandedSection == "portrait") null else "portrait"
+            },
+        ) {
+            Text(
+                text = "智能肤色检测（YCbCr + HSV），仅作用于肤色区域",
+                color = TextTertiary,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+            HasselSlider(
+                label = "美白",
+                value = adjustments.skinWhitening,
+                range = 0f..100f,
+                onValueChange = { onUpdate("skinWhitening", it) },
+                defaultValue = 0f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+            HasselSlider(
+                label = "提亮",
+                value = adjustments.skinBrightening,
+                range = 0f..100f,
+                onValueChange = { onUpdate("skinBrightening", it) },
+                defaultValue = 0f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+            HasselSlider(
+                label = "磨皮",
+                value = adjustments.skinSmoothing,
+                range = 0f..100f,
+                onValueChange = { onUpdate("skinSmoothing", it) },
+                defaultValue = 0f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+            HasselSlider(
+                label = "红润抑制",
+                value = adjustments.skinRednessReduce,
+                range = 0f..100f,
+                onValueChange = { onUpdate("skinRednessReduce", it) },
+                defaultValue = 0f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+        }
+
+        // ── 颜色替换 Section（PixelFruit 颜色替换集成） ───────────────
+        CollapsibleSection(
+            title = "颜色替换",
+            expanded = expandedSection == "color_replace",
+            onToggle = {
+                expandedSection = if (expandedSection == "color_replace") null else "color_replace"
+            },
+        ) {
+            // 启用开关
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "启用颜色替换",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = adjustments.colorReplaceEnabled,
+                    onCheckedChange = { enabled ->
+                        onUpdate("colorReplaceEnabled", if (enabled) 1f else 0f)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = HasselbladOrange,
+                        checkedTrackColor = HasselbladOrange.copy(alpha = 0.4f),
+                    ),
+                )
+            }
+
+            Text(
+                text = "源颜色（要被替换的颜色）",
+                color = TextTertiary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+            HasselSlider(
+                label = "色相",
+                value = adjustments.colorReplaceSourceHue,
+                range = 0f..360f,
+                onValueChange = { onUpdate("colorReplaceSourceHue", it) },
+                defaultValue = 0f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}°" },
+            )
+            HasselSlider(
+                label = "饱和",
+                value = adjustments.colorReplaceSourceSat,
+                range = 0f..100f,
+                onValueChange = { onUpdate("colorReplaceSourceSat", it) },
+                defaultValue = 50f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+            HasselSlider(
+                label = "亮度",
+                value = adjustments.colorReplaceSourceLum,
+                range = 0f..100f,
+                onValueChange = { onUpdate("colorReplaceSourceLum", it) },
+                defaultValue = 50f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "容差范围",
+                color = TextTertiary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            HasselSlider(
+                label = "色相容差",
+                value = adjustments.colorReplaceHueRange,
+                range = 0f..180f,
+                onValueChange = { onUpdate("colorReplaceHueRange", it) },
+                defaultValue = 20f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}°" },
+            )
+            HasselSlider(
+                label = "饱和容差",
+                value = adjustments.colorReplaceSatRange,
+                range = 0f..100f,
+                onValueChange = { onUpdate("colorReplaceSatRange", it) },
+                defaultValue = 25f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+            HasselSlider(
+                label = "亮度容差",
+                value = adjustments.colorReplaceLumRange,
+                range = 0f..100f,
+                onValueChange = { onUpdate("colorReplaceLumRange", it) },
+                defaultValue = 25f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "目标颜色（替换为）",
+                color = TextTertiary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            HasselSlider(
+                label = "色相",
+                value = adjustments.colorReplaceTargetHue,
+                range = 0f..360f,
+                onValueChange = { onUpdate("colorReplaceTargetHue", it) },
+                defaultValue = 0f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}°" },
+            )
+            HasselSlider(
+                label = "饱和",
+                value = adjustments.colorReplaceTargetSat,
+                range = 0f..100f,
+                onValueChange = { onUpdate("colorReplaceTargetSat", it) },
+                defaultValue = 50f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+            HasselSlider(
+                label = "亮度",
+                value = adjustments.colorReplaceTargetLum,
+                range = 0f..100f,
+                onValueChange = { onUpdate("colorReplaceTargetLum", it) },
+                defaultValue = 50f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HasselSlider(
+                label = "替换强度",
+                value = adjustments.colorReplaceStrength,
+                range = 0f..100f,
+                onValueChange = { onUpdate("colorReplaceStrength", it) },
+                defaultValue = 100f,
+                stepSize = 1f,
+                format = { v -> "${v.toInt()}%" },
             )
         }
 

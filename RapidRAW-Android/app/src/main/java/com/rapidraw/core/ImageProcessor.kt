@@ -232,6 +232,16 @@ class ImageProcessor {
         val lensTca: Float = 0f,
         val lensFocalLength: Float = 50f,
 
+        // 人像 / 肤色（PixelFruit 面部美白）
+        val skinWhitening: Float = 0f,
+        val skinBrightening: Float = 0f,
+        val skinSmoothing: Float = 0f,
+        val skinRednessReduce: Float = 0f,
+
+        // 颜色替换（PixelFruit 颜色替换）
+        val colorReplaceEnabled: Boolean = false,
+        val colorReplaceConfig: com.rapidraw.core.ColorReplaceConfig = com.rapidraw.core.ColorReplaceConfig(),
+
         // Debug
         val clippingPreview: Boolean = false
     ) {
@@ -384,6 +394,26 @@ class ImageProcessor {
                 blueCurvePoints = src.blueCurve.map { it.x / 255f to it.y / 255f },
                 // Masks
                 masks = src.masks,
+                // 人像 / 肤色（0..100 → 0..1）
+                skinWhitening = src.skinWhitening / 100f,
+                skinBrightening = src.skinBrightening / 100f,
+                skinSmoothing = src.skinSmoothing / 100f,
+                skinRednessReduce = src.skinRednessReduce / 100f,
+                // 颜色替换
+                colorReplaceEnabled = src.colorReplaceEnabled,
+                colorReplaceConfig = com.rapidraw.core.ColorReplaceConfig.fromUi(
+                    enabled = src.colorReplaceEnabled,
+                    sourceHue = src.colorReplaceSourceHue,
+                    sourceSat = src.colorReplaceSourceSat,
+                    sourceLum = src.colorReplaceSourceLum,
+                    targetHue = src.colorReplaceTargetHue,
+                    targetSat = src.colorReplaceTargetSat,
+                    targetLum = src.colorReplaceTargetLum,
+                    hueRange = src.colorReplaceHueRange,
+                    satRange = src.colorReplaceSatRange,
+                    lumRange = src.colorReplaceLumRange,
+                    strength = src.colorReplaceStrength,
+                ),
                 clippingPreview = src.showClipping,
             )
         }
@@ -1014,6 +1044,30 @@ class ImageProcessor {
                 g = ColorMath.linearToSrgb(g)
                 b = ColorMath.linearToSrgb(b)
 
+                // ── 20b. 颜色替换（PixelFruit 颜色替换，sRGB 空间） ──
+                if (n.colorReplaceEnabled) {
+                    val cr = ColorReplacer.apply(r, g, b, n.colorReplaceConfig)
+                    r = cr[0]; g = cr[1]; b = cr[2]
+                }
+
+                // ── 20c. 人像肤色处理（PixelFruit 面部美白，sRGB 空间） ──
+                // 平滑在 spatial pass 完成；此处仅做美白 / 提亮 / 红润抑制
+                val hasSkinAdj = n.skinWhitening > 1e-4f ||
+                    n.skinBrightening > 1e-4f ||
+                    n.skinRednessReduce > 1e-4f
+                if (hasSkinAdj) {
+                    val mask = SkinToneProcessor.skinMask(r, g, b)
+                    if (mask > 1e-3f) {
+                        val sk = SkinToneProcessor.apply(
+                            r, g, b, mask,
+                            whitening = n.skinWhitening,
+                            brightening = n.skinBrightening,
+                            rednessReduce = n.skinRednessReduce,
+                        )
+                        r = sk[0]; g = sk[1]; b = sk[2]
+                    }
+                }
+
                 // Dither
                 r = (r + ColorMath.gradientNoise(x.toFloat(), y.toFloat()) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
                 g = (g + ColorMath.gradientNoise(x.toFloat() + 100f, y.toFloat() + 100f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
@@ -1059,6 +1113,22 @@ class ImageProcessor {
             abs(n.cdlHighlightsB) > 1e-6f
         if (hasCdl) {
             effectPixels = applyCdlGrading(effectPixels, w, h, n)
+        }
+        // Post-processing: 人像肤色平滑（PixelFruit 磨皮，sRGB 空间 spatial pass）
+        // 在肤色区域将原图与轻度模糊版本混合，保留五官细节的同时柔化肤纹/痘印
+        if (n.skinSmoothing > 1e-4f) {
+            val currentPixels = effectPixels
+            val blurred = boxBlur(currentPixels, w, h, radius = 3)
+            val skinMask = SkinToneProcessor.computeSkinMaskBuffer(currentPixels, w, h)
+            val smoothed = IntArray(currentPixels.size)
+            SkinToneProcessor.blendSmooth(
+                src = currentPixels,
+                blurred = blurred,
+                dst = smoothed,
+                skinMask = skinMask,
+                smoothing = n.skinSmoothing,
+            )
+            effectPixels = smoothed
         }
         // Update bitmap if any effect was applied
         if (effectPixels !== pixels) {

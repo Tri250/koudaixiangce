@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -68,12 +69,10 @@ android {
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            // 启用测试覆盖率仅在 debug，release 保持关闭避免性能损耗
-            isTestCoverageEnabled = false
+            // release 保持覆盖率关闭避免性能损耗（AGP 8.6+ 默认关闭）
         }
         debug {
             isMinifyEnabled = false
-            isTestCoverageEnabled = true
             enableUnitTestCoverage = true
             enableAndroidTestCoverage = true
         }

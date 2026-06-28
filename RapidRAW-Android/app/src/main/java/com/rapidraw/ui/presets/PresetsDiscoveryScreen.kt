@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rapidraw.data.model.Adjustments
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.HasselbladMasterFilter
 import com.rapidraw.data.model.Preset
@@ -63,7 +64,8 @@ fun PresetsDiscoveryScreen(
     val categories = listOf("全部", "人像", "风景", "夜景", "街拍", "美食")
 
     val allPresets = remember {
-        HasselbladMasterFilter.entries.map { filter ->
+        // 哈苏大师预设
+        val master = HasselbladMasterFilter.entries.map { filter ->
             Preset(
                 id = filter.id,
                 name = filter.displayName,
@@ -74,6 +76,68 @@ fun PresetsDiscoveryScreen(
                 previewGradient = filter.previewGradient,
             )
         }
+        // 人像预设：运用 PixelFruit 集成的智能肤色处理（美白/提亮/磨皮/红润抑制）
+        val portrait = listOf(
+            Preset(
+                id = "portrait_porcelain_skin",
+                name = "瓷肌",
+                description = "智能肤色美白提亮 + 柔和磨皮，打造通透瓷肌人像",
+                category = "人像",
+                filmId = "hasselblad_hewa",
+                previewGradient = listOf(0xFFFCE4D6, 0xFFF5E6D3),
+                adjustments = Adjustments(
+                    exposure = 0.12f,
+                    highlights = -18f,
+                    shadows = 12f,
+                    contrast = -6f,
+                    vibrance = 6f,
+                    temperature = 4f,
+                    clarity = -4f,
+                    skinWhitening = 45f,
+                    skinBrightening = 35f,
+                    skinSmoothing = 55f,
+                    skinRednessReduce = 30f,
+                ),
+            ),
+            Preset(
+                id = "portrait_warm_glow",
+                name = "暖肤",
+                description = "暖调肤色提亮 + 轻度磨皮，保留质感的人像肤调",
+                category = "人像",
+                filmId = "hasselblad_nuandiao",
+                previewGradient = listOf(0xFFF4D9B5, 0xFFE8B98A),
+                adjustments = Adjustments(
+                    temperature = 9f,
+                    contrast = 6f,
+                    saturation = 4f,
+                    shadows = 6f,
+                    highlights = -8f,
+                    skinWhitening = 20f,
+                    skinBrightening = 30f,
+                    skinSmoothing = 35f,
+                    skinRednessReduce = 15f,
+                ),
+            ),
+            Preset(
+                id = "portrait_clean_cool",
+                name = "净肤",
+                description = "冷调净肤：肤色提亮 + 红润抑制，清透冷调人像",
+                category = "人像",
+                filmId = "hasselblad_lengdiao",
+                previewGradient = listOf(0xFFE8DDE0, 0xFFC9D6E8),
+                adjustments = Adjustments(
+                    temperature = -10f,
+                    contrast = 8f,
+                    saturation = -4f,
+                    highlights = -6f,
+                    skinWhitening = 30f,
+                    skinBrightening = 40f,
+                    skinSmoothing = 40f,
+                    skinRednessReduce = 45f,
+                ),
+            ),
+        )
+        master + portrait
     }
 
     val filteredPresets = if (selectedCategory == "全部") {

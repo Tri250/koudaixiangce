@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Per-app language 配置（Android 13+ / API 33+）。
+  系统设置 → 应用 → RapidRAW → 语言 中可独立切换，
+  ColorOS 16 / OPPO Find 原生支持。
+  默认 zh-CN（简体中文），同时声明 en 供国际版切换。
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="zh-CN" />
+    <locale android:name="en" />
+</locale-config>

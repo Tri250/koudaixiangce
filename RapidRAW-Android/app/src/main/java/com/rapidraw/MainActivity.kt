@@ -97,10 +97,14 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                // Predictive Back: 在非 Library 页面拦截返回键，
+                // Predictive Back: 在非 Library / 非 Onboarding 页面拦截返回键，
                 // 配合 android:enableOnBackInvokedCallback 使 Navigation Compose
                 // 在 Android 14+ 上自动提供预测性返回动画。
-                BackHandler(enabled = currentRoute != Routes.LIBRARY) {
+                // 引导页不拦截：按返回直接退出 App（符合系统预期）。
+                BackHandler(
+                    enabled = currentRoute != Routes.LIBRARY &&
+                        currentRoute != Routes.ONBOARDING,
+                ) {
                     navController.popBackStack(Routes.LIBRARY, inclusive = false)
                 }
 
@@ -217,19 +221,26 @@ class MainActivity : ComponentActivity() {
      * 可在系统"应用语言"设置中独立切换，不影响系统其他应用。
      * ColorOS 16 / OxygenOS 14+ / OneUI 6+ 均原生支持。
      *
-     * 默认语言：中文（简体）。如需国际版，可通过 Resources 配置多 locale。
+     * 默认语言：中文（简体）。仅在用户尚未设置应用语言时（空列表）写入默认，
+     * 一旦用户在系统设置中选择了语言，后续启动不再覆盖，尊重用户偏好。
+     * 支持语言见 res/xml/locales_config.xml（zh-CN / en）。
      */
     private fun applyPerAppLanguage() {
-        // 2026 默认 zh-CN；如需检测用户偏好，可在此扩展
-        val tag = "zh-CN"
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val localeManager = getSystemService(LocaleManager::class.java)
-                localeManager?.applicationLocales = LocaleList.forLanguageTags(tag)
+                val localeManager = getSystemService(android.app.LocaleManager::class.java) ?: return
+                val current = localeManager.applicationLocales
+                if (current == null || current.isEmpty) {
+                    localeManager.applicationLocales =
+                        android.os.LocaleList.forLanguageTags("zh-CN")
+                }
             } else {
-                AppCompatDelegate.setApplicationLocales(
-                    androidx.core.os.LocaleListCompat.forLanguageTags(tag)
-                )
+                val current = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales()
+                if (current == null || current.isEmpty) {
+                    androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(
+                        androidx.core.os.LocaleListCompat.forLanguageTags("zh-CN")
+                    )
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to apply per-app language: ${e.message}")

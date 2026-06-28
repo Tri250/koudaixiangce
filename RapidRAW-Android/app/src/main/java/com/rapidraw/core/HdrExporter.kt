@@ -443,7 +443,7 @@ object HdrExporter {
     /**
      * 在 JPEG 数据中插入 XMP APP1 marker。
      *
-     * JPEG 结构：SOI (0xFFD8) + [markers...] + SOS + [image data] + EOI (0xFFD9)
+     * JPEG 结构：SOI (0xFFD8) + markers + SOS + image data + EOI (0xFFD9)
      * XMP 应插入在 SOI 之后、SOS 之前。
      */
     private fun insertXmpIntoJpeg(jpeg: ByteArray, xmpData: ByteArray): ByteArray {

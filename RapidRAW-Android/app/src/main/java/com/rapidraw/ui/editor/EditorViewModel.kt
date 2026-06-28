@@ -208,6 +208,8 @@ class EditorViewModel(
     private var aiJob: Job? = null
     private var exportJob: Job? = null
     private var loadJob: Job? = null
+    // 用户偏好学习：用户停止调整 3s 后，记录当前参数供 smartOptimize 个性化
+    private var preferenceLearningJob: Job? = null
 
     private val lutManager = LutManager(appContext)
     private var flowMaskManager: FlowMaskManager? = null
@@ -334,6 +336,7 @@ class EditorViewModel(
         pushUndo(describeAdjustmentChange(key, value))
         _adjustments.value = _adjustments.value.copyByField(key, value)
         schedulePreviewUpdate()
+        schedulePreferenceLearning()
     }
 
     fun updateCropData(x: Float, y: Float, width: Float, height: Float, rotation: Float) {
@@ -365,6 +368,7 @@ class EditorViewModel(
             else -> _adjustments.value.copyByField(key, value)
         }
         schedulePreviewUpdate()
+        schedulePreferenceLearning()
     }
 
     fun applyPreset(preset: Preset) {
@@ -741,6 +745,32 @@ class EditorViewModel(
     }
 
     fun getFlowMaskBitmap(): Bitmap? = flowMaskManager?.getMaskBitmap()
+
+    /**
+     * 应用线性渐变蒙版。将渐变写入 flowMaskManager 的 Alpha 蒙版位图，
+     * 复用现有 GPU updateMaskTexture 路径，使渐变真正作用于输出。
+     * 仅在 flowMaskManager 已初始化（蒙版模式已开启）时生效。
+     */
+    fun applyLinearGradientMask(opacity: Float, feather: Float, inverted: Boolean) {
+        val mgr = flowMaskManager ?: run {
+            initFlowMask()
+            flowMaskManager
+        } ?: return
+        mgr.generateLinearGradientMask(opacity, feather, inverted)
+        schedulePreviewUpdate()
+    }
+
+    /**
+     * 应用径向渐变蒙版。同上，作用于中心向外的径向过渡。
+     */
+    fun applyRadialGradientMask(opacity: Float, feather: Float, inverted: Boolean) {
+        val mgr = flowMaskManager ?: run {
+            initFlowMask()
+            flowMaskManager
+        } ?: return
+        mgr.generateRadialGradientMask(opacity, feather, inverted)
+        schedulePreviewUpdate()
+    }
     // endregion
 
     // region Scene Detection
@@ -1243,6 +1273,28 @@ class EditorViewModel(
                 }
                 _previewBitmap.value = processed
                 updateHistogramAsync(processed)
+            }
+        }
+    }
+
+    /**
+     * 用户停止调整 3s 后，把当前参数记录到偏好学习模块，供 smartOptimize 个性化。
+     * 防抖：每次新的调整都会重置计时，避免记录中间态。
+     * 场景取已检测结果；若尚未检测，回落到 GENERAL。
+     */
+    private fun schedulePreferenceLearning() {
+        preferenceLearningJob?.cancel()
+        preferenceLearningJob = viewModelScope.launch(Dispatchers.Default) {
+            if (isCleared.get()) return@launch
+            delay(3000)
+            if (isCleared.get()) return@launch
+            val current = _adjustments.value
+            val scene = _detectedScene.value ?: SceneType.GENERAL
+            runCatching {
+                UserPreferenceLearning(appContext).recordAdjustment(scene, current)
+            }.onFailure { e ->
+                if (e is CancellationException) throw e
+                Log.w(TAG, "Preference learning record failed: ${e.message}")
             }
         }
     }

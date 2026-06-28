@@ -47,6 +47,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true"
         android:largeHeap="true"
+        android:localeConfig="@xml/locales_config"
         tools:targetApi="36">
 
         <!-- 2026 正式版本：APP 主题使用 3 色调暗色 (AMOLED 友好) -->

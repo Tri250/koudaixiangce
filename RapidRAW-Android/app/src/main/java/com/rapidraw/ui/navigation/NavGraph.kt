@@ -24,6 +24,7 @@ object Routes {
     const val EDITOR_URI = "editor_uri/{uri}"
     const val AI_INPAINT = "ai_inpaint/{imagePath}"
     const val PRESETS_DISCOVERY = "presets_discovery"
+    const val ONBOARDING = "onboarding"
 
     fun editorPath(imagePath: String): String {
         return "editor/${Uri.encode(imagePath)}"
@@ -35,6 +36,15 @@ object Routes {
 
     fun aiInpaintPath(imagePath: String): String {
         return "ai_inpaint/${Uri.encode(imagePath)}"
+    }
+
+    /**
+     * 是否已完成首次启动引导。基于 OnboardingViewModel 使用的同一 SharedPreferences。
+     * 由 NavGraph 决定起始路由：未完成 → ONBOARDING，已完成 → LIBRARY。
+     */
+    fun isOnboardingCompleted(context: android.content.Context): Boolean {
+        val prefs = context.getSharedPreferences("rapidraw_onboarding", 0)
+        return prefs.getBoolean("onboarding_completed", false)
     }
 
     object SelectedPresetHolder {
@@ -51,11 +61,28 @@ fun RapidNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    // 起始路由：首次启动进入引导页，完成后进入图库
+    val startDestination = remember {
+        if (Routes.isOnboardingCompleted(context)) Routes.LIBRARY else Routes.ONBOARDING
+    }
+
     NavHost(
         navController = navController,
-        startDestination = Routes.LIBRARY,
+        startDestination = startDestination,
         modifier = modifier,
     ) {
+        composable(route = Routes.ONBOARDING) {
+            com.rapidraw.ui.onboarding.OnboardingScreen(
+                onComplete = {
+                    navController.navigate(Routes.LIBRARY) {
+                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+
         composable(route = Routes.LIBRARY) {
             LibraryScreen(
                 navController = navController,
