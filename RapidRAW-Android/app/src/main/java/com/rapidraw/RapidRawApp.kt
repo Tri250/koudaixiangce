@@ -5,7 +5,12 @@ import android.app.Application
 import android.os.Bundle
 import android.util.Log
 import com.rapidraw.core.ImageProcessor
+import org.acra.annotation.AcraCore
+import org.acra.annotation.AcraHttpSender
+import org.acra.sender.HttpSender
 
+@AcraCore(buildConfigClass = BuildConfig::class, reportFormat = org.acra.data.StringFormat.KEY_VALUE_LIST)
+@AcraHttpSender(uri = "https://your-crash-server.com/acra", httpMethod = HttpSender.Method.POST)
 class RapidRawApp : Application() {
 
     companion object {

@@ -189,7 +189,7 @@ fun LibraryScreen(
                         IconButton(onClick = { isSearchExpanded = !isSearchExpanded }) {
                             Icon(
                                 imageVector = Icons.Default.Search,
-                                contentDescription = "Search",
+                                contentDescription = "搜索",
                                 tint = if (isSearchExpanded) HasselbladOrange else TextSecondary,
                             )
                         }
@@ -198,7 +198,7 @@ fun LibraryScreen(
                             IconButton(onClick = { isSortDropdownExpanded = true }) {
                                 Icon(
                                     imageVector = Icons.Default.Sort,
-                                    contentDescription = "Sort",
+                                    contentDescription = "排序",
                                     tint = TextSecondary,
                                 )
                             }
@@ -529,7 +529,7 @@ fun LibraryScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Import",
+                    contentDescription = "导入",
                 )
             }
         }

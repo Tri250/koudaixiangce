@@ -10,7 +10,13 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import com.rapidraw.data.model.ExportFormat
+import com.rapidraw.data.model.ExportSettings
+import com.rapidraw.data.model.ExifData
 import com.rapidraw.data.model.FilmSimulation
+import com.rapidraw.data.model.MaskContainer
+import com.rapidraw.data.model.ResizeMode
+import com.rapidraw.data.model.WatermarkAnchor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -22,208 +28,17 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-// ── Data Classes ───────────────────────────────────────────────────────
+// ── Decoded Image (internal transport, uses model ExifData) ────────────
 
-data class ExifData(
-    val orientation: Int = 1,
-    val make: String = "",
-    val model: String = "",
-    val dateTime: String = "",
-    val iso: Int = 0,
-    val exposureTime: Double = 0.0,
-    val focalLength: Float = 0f,
-    val aperture: Float = 0f
-)
-
-data class ProcessedImage(
+data class DecodedImage(
     val original: Bitmap,
     val preview: Bitmap,
     val width: Int,
     val height: Int,
     val isRaw: Boolean,
-    val exif: ExifData
+    val exif: ExifData,
+    val orientation: Int = 0,
 )
-
-data class ExportSettings(
-    val format: String = "JPEG",       // JPEG, PNG, TIFF
-    val quality: Int = 95,             // JPEG quality 1-100
-    val maxWidth: Int = 0,             // 0 = no resize
-    val maxHeight: Int = 0,
-    val preserveMetadata: Boolean = true,
-    val stripGps: Boolean = false,     // Strip GPS data from metadata
-    val socialAspectRatio: Float? = null, // null = original, otherwise crop to aspect ratio
-    val addWatermark: Boolean = false,
-    val watermarkText: String = "RapidRAW",
-    val watermarkAnchor: String = "BOTTOM_RIGHT",
-    val watermarkScale: Float = 0.15f,
-    val watermarkOpacity: Float = 0.5f,
-)
-
-data class Adjustments(
-    // Exposure & Brightness
-    val exposure: Float = 0f,          // -5.0 .. 5.0
-    val brightness: Float = 0f,        // -1.0 .. 1.0
-
-    // Tone / Film
-    val toneLevel: Float = 0f,         // -1.0 .. 1.0
-    val filmIntensity: Float = 1f,     // 0.0 .. 1.0
-    val greenMagenta: Float = 0f,      // -1.0 .. 1.0
-    val softGlow: Float = 0f,          // 0.0 .. 1.0
-
-    // Film simulation parameters
-    val filmId: String = "",
-    val filmHighlightRollOff: Float = 0f,   // 0..1
-    val filmShadowLift: Float = 0f,         // 0..1
-    val filmDrCompression: Float = 0f,      // 0..1
-    val filmRedShift: Float = 0f,           // -1..1
-    val filmGreenShift: Float = 0f,         // -1..1
-    val filmBlueShift: Float = 0f,          // -1..1
-    val filmSaturation: Float = 0f,         // -1..1
-    val filmContrast: Float = 0f,           // -1..1
-    val filmGrainAmount: Float = 0f,        // 0..1
-    val filmGrainSize: Float = 0f,          // 0..1
-    val filmGrainRoughness: Float = 0f,     // 0..1
-    val filmCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 51f to 51f, 102f to 102f, 153f to 153f, 204f to 204f, 255f to 255f),
-
-    // White Balance
-    val temperature: Float = 6500f,    // 2000 .. 15000
-    val tint: Float = 0f,              // -100 .. 100
-
-    // Tonal
-    val contrast: Float = 0f,          // -1.0 .. 1.0
-    val highlights: Float = 0f,        // -1.0 .. 1.0
-    val shadows: Float = 0f,           // -1.0 .. 1.0
-    val whites: Float = 0f,            // -1.0 .. 1.0
-    val blacks: Float = 0f,            // -1.0 .. 1.0
-
-    // Color
-    val saturation: Float = 0f,        // -1.0 .. 1.0
-    val vibrance: Float = 0f,          // -1.0 .. 1.0
-
-    // HSL 8-color panel
-    val hueRed: Float = 0f,
-    val satRed: Float = 0f,
-    val lumRed: Float = 0f,
-    val hueOrange: Float = 0f,
-    val satOrange: Float = 0f,
-    val lumOrange: Float = 0f,
-    val hueYellow: Float = 0f,
-    val satYellow: Float = 0f,
-    val lumYellow: Float = 0f,
-    val hueGreen: Float = 0f,
-    val satGreen: Float = 0f,
-    val lumGreen: Float = 0f,
-    val hueAqua: Float = 0f,
-    val satAqua: Float = 0f,
-    val lumAqua: Float = 0f,
-    val hueBlue: Float = 0f,
-    val satBlue: Float = 0f,
-    val lumBlue: Float = 0f,
-    val huePurple: Float = 0f,
-    val satPurple: Float = 0f,
-    val lumPurple: Float = 0f,
-    val hueMagenta: Float = 0f,
-    val satMagenta: Float = 0f,
-    val lumMagenta: Float = 0f,
-
-    // Tone Curve (10 control points: x,y pairs)
-    val toneCurvePoints: List<Pair<Float, Float>> = listOf(
-        0f to 0f, 0.1f to 0.1f, 0.25f to 0.25f, 0.5f to 0.5f,
-        0.75f to 0.75f, 0.9f to 0.9f, 1f to 1f,
-        0.125f to 0.125f, 0.375f to 0.375f, 0.625f to 0.625f
-    ),
-
-    // Color Grading
-    val colorGradingShadows: FloatArray = floatArrayOf(0f, 0f, 0f),
-    val colorGradingMidtones: FloatArray = floatArrayOf(0f, 0f, 0f),
-    val colorGradingHighlights: FloatArray = floatArrayOf(0f, 0f, 0f),
-    val colorGradingBlend: Float = 1f,
-    val colorGradingGlobalSat: Float = 0f,
-
-    // Color Calibration
-    val calibRedHue: Float = 0f,
-    val calibRedSat: Float = 0f,
-    val calibGreenHue: Float = 0f,
-    val calibGreenSat: Float = 0f,
-    val calibBlueHue: Float = 0f,
-    val calibBlueSat: Float = 0f,
-
-    // Detail
-    val sharpness: Float = 0f,         // 0.0 .. 4.0
-    val clarity: Float = 0f,           // -1.0 .. 1.0
-    val structure: Float = 0f,         // -1.0 .. 1.0
-
-    // Effects
-    val dehaze: Float = 0f,            // -1.0 .. 1.0
-    val vignette: Float = 0f,          // -1.0 .. 1.0
-    val vignetteMidpoint: Float = 0.5f, // 0.0 .. 1.0
-    val vignetteRoundness: Float = 0f,  // -1.0 .. 1.0
-    val vignetteFeather: Float = 0.5f,  // 0.0 .. 1.0
-    val grain: Float = 0f,             // 0.0 .. 1.0
-    val grainSize: Float = 1.0f,       // 0.5 .. 3.0
-    val grainRoughness: Float = 0f,    // 0.0 .. 1.0
-    val chromaticAberrationRedCyan: Float = 0f,    // -1.0 .. 1.0
-    val chromaticAberrationBlueYellow: Float = 0f, // -1.0 .. 1.0
-
-    // Creative light effects
-    val glowAmount: Float = 0f,        // 0.0 .. 1.0
-    val halationAmount: Float = 0f,    // 0.0 .. 1.0
-    val flareAmount: Float = 0f,       // 0.0 .. 1.0
-
-    // LUT
-    val lutIntensity: Float = 1f,      // 0.0 .. 1.0
-
-    // Detail (additional)
-    val lumaNoiseReduction: Float = 0f, // 0.0 .. 1.0
-    val colorNoiseReduction: Float = 0f, // 0.0 .. 1.0
-    val centre: Float = 0f,            // -1.0 .. 1.0
-
-    // Color Grading (additional)
-    val colorGradingBalance: Float = 0f, // -1.0 .. 1.0
-
-    // Color Calibration (additional)
-    val colorCalibrationShadowsTint: Float = 0f, // -1.0 .. 1.0
-
-    // Transform
-    val rotation: Float = 0f,          // -180 .. 180
-    val orientationSteps: Int = 0,     // 0 .. 3
-    val flipHorizontal: Boolean = false,
-    val flipVertical: Boolean = false,
-    val cropAspectRatio: Float? = null,
-    val transformDistortion: Float = 0f, // -1.0 .. 1.0
-    val transformVertical: Float = 0f,   // -1.0 .. 1.0
-    val transformHorizontal: Float = 0f, // -1.0 .. 1.0
-    val transformRotate: Float = 0f,     // -45 .. 45
-    val transformAspect: Float = 0f,     // -1.0 .. 1.0
-    val transformScale: Float = 1f,      // 0.1 .. 2.0
-    val transformXOffset: Float = 0f,    // -1.0 .. 1.0
-    val transformYOffset: Float = 0f,    // -1.0 .. 1.0
-
-    // RGB Curves
-    val redCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 1f to 1f),
-    val greenCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 1f to 1f),
-    val blueCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 1f to 1f),
-
-    // Masks (placeholder)
-    val masks: List<Any> = emptyList(),
-
-    // Tone Mapping
-    val agxEnabled: Boolean = false,
-    val agxContrast: Float = 0.0f,
-    val agxPedestal: Float = 0.0f,
-
-    // Lens Correction
-    val lensDistortion: Float = 0f,      // -1.0 .. 1.0
-    val lensVignette: Float = 0f,        // -1.0 .. 1.0
-    val lensTca: Float = 0f,             // -1.0 .. 1.0
-    val lensFocalLength: Float = 50f,    // mm
-
-    // Debug
-    val clippingPreview: Boolean = false
-) {
-    override fun equals(other: Any?): Boolean = this === other
-    override fun hashCode(): Int = System.identityHashCode(this)
-}
 
 // ── Image Processor ────────────────────────────────────────────────────
 
@@ -234,12 +49,325 @@ class ImageProcessor {
         private const val PREVIEW_MAX_DIMENSION = 2048
     }
 
+    // ── Normalised Adjustments (private, proper equals/hashCode) ──────
+
+    /**
+     * Internal normalised adjustments used by the CPU processing pipeline.
+     * All values are in the internal processing range (not UI scale).
+     * Replaces the old core.Adjustments; uses List<Float> instead of
+     * FloatArray and List<MaskContainer> instead of List<Any>.
+     */
+    private data class NormAdj(
+        // Exposure & Brightness
+        val exposure: Float = 0f,
+        val brightness: Float = 0f,
+
+        // Tone / Film
+        val toneLevel: Float = 0f,
+        val filmIntensity: Float = 1f,
+        val greenMagenta: Float = 0f,
+        val softGlow: Float = 0f,
+
+        // Film simulation parameters
+        val filmId: String = "",
+        val filmHighlightRollOff: Float = 0f,
+        val filmShadowLift: Float = 0f,
+        val filmDrCompression: Float = 0f,
+        val filmRedShift: Float = 0f,
+        val filmGreenShift: Float = 0f,
+        val filmBlueShift: Float = 0f,
+        val filmSaturation: Float = 0f,
+        val filmContrast: Float = 0f,
+        val filmGrainAmount: Float = 0f,
+        val filmGrainSize: Float = 0f,
+        val filmGrainRoughness: Float = 0f,
+        val filmCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 0.2f to 0.2f, 0.4f to 0.4f, 0.6f to 0.6f, 0.8f to 0.8f, 1f to 1f),
+
+        // White Balance
+        val temperature: Float = 6500f,
+        val tint: Float = 0f,
+
+        // Tonal
+        val contrast: Float = 0f,
+        val highlights: Float = 0f,
+        val shadows: Float = 0f,
+        val whites: Float = 0f,
+        val blacks: Float = 0f,
+
+        // Color
+        val saturation: Float = 0f,
+        val vibrance: Float = 0f,
+
+        // HSL 8-color panel
+        val hueRed: Float = 0f,
+        val satRed: Float = 0f,
+        val lumRed: Float = 0f,
+        val hueOrange: Float = 0f,
+        val satOrange: Float = 0f,
+        val lumOrange: Float = 0f,
+        val hueYellow: Float = 0f,
+        val satYellow: Float = 0f,
+        val lumYellow: Float = 0f,
+        val hueGreen: Float = 0f,
+        val satGreen: Float = 0f,
+        val lumGreen: Float = 0f,
+        val hueAqua: Float = 0f,
+        val satAqua: Float = 0f,
+        val lumAqua: Float = 0f,
+        val hueBlue: Float = 0f,
+        val satBlue: Float = 0f,
+        val lumBlue: Float = 0f,
+        val huePurple: Float = 0f,
+        val satPurple: Float = 0f,
+        val lumPurple: Float = 0f,
+        val hueMagenta: Float = 0f,
+        val satMagenta: Float = 0f,
+        val lumMagenta: Float = 0f,
+
+        // Tone Curve
+        val toneCurvePoints: List<Pair<Float, Float>> = listOf(
+            0f to 0f, 0.1f to 0.1f, 0.25f to 0.25f, 0.5f to 0.5f,
+            0.75f to 0.75f, 0.9f to 0.9f, 1f to 1f,
+            0.125f to 0.125f, 0.375f to 0.375f, 0.625f to 0.625f
+        ),
+
+        // Color Grading
+        val colorGradingShadows: List<Float> = listOf(0f, 0f, 0f),
+        val colorGradingMidtones: List<Float> = listOf(0f, 0f, 0f),
+        val colorGradingHighlights: List<Float> = listOf(0f, 0f, 0f),
+        val colorGradingBlend: Float = 1f,
+        val colorGradingGlobalSat: Float = 0f,
+
+        // Color Calibration
+        val calibRedHue: Float = 0f,
+        val calibRedSat: Float = 0f,
+        val calibGreenHue: Float = 0f,
+        val calibGreenSat: Float = 0f,
+        val calibBlueHue: Float = 0f,
+        val calibBlueSat: Float = 0f,
+
+        // Detail
+        val sharpness: Float = 0f,
+        val clarity: Float = 0f,
+        val structure: Float = 0f,
+
+        // Effects
+        val dehaze: Float = 0f,
+        val vignette: Float = 0f,
+        val vignetteMidpoint: Float = 0.5f,
+        val vignetteRoundness: Float = 0f,
+        val vignetteFeather: Float = 0.5f,
+        val grain: Float = 0f,
+        val grainSize: Float = 1.0f,
+        val grainRoughness: Float = 0f,
+        val chromaticAberrationRedCyan: Float = 0f,
+        val chromaticAberrationBlueYellow: Float = 0f,
+
+        // Creative light effects
+        val glowAmount: Float = 0f,
+        val halationAmount: Float = 0f,
+        val flareAmount: Float = 0f,
+
+        // LUT
+        val lutIntensity: Float = 1f,
+
+        // Detail (additional)
+        val lumaNoiseReduction: Float = 0f,
+        val colorNoiseReduction: Float = 0f,
+        val centre: Float = 0f,
+
+        // Color Grading (additional)
+        val colorGradingBalance: Float = 0f,
+
+        // Color Calibration (additional)
+        val colorCalibrationShadowsTint: Float = 0f,
+
+        // Transform
+        val rotation: Float = 0f,
+        val orientationSteps: Int = 0,
+        val flipHorizontal: Boolean = false,
+        val flipVertical: Boolean = false,
+        val cropAspectRatio: Float? = null,
+        val transformDistortion: Float = 0f,
+        val transformVertical: Float = 0f,
+        val transformHorizontal: Float = 0f,
+        val transformRotate: Float = 0f,
+        val transformAspect: Float = 0f,
+        val transformScale: Float = 1f,
+        val transformXOffset: Float = 0f,
+        val transformYOffset: Float = 0f,
+
+        // RGB Curves
+        val redCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 1f to 1f),
+        val greenCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 1f to 1f),
+        val blueCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 1f to 1f),
+
+        // Masks
+        val masks: List<MaskContainer> = emptyList(),
+
+        // Tone Mapping
+        val agxEnabled: Boolean = false,
+        val agxContrast: Float = 0.0f,
+        val agxPedestal: Float = 0.0f,
+
+        // Lens Correction
+        val lensDistortion: Float = 0f,
+        val lensVignette: Float = 0f,
+        val lensTca: Float = 0f,
+        val lensFocalLength: Float = 50f,
+
+        // Debug
+        val clippingPreview: Boolean = false
+    ) {
+        companion object {
+            /**
+             * Convert the canonical data.model.Adjustments to NormAdj.
+             * Normalises value ranges from the UI scale to the internal processing scale.
+             */
+            fun from(src: com.rapidraw.data.model.Adjustments): NormAdj = NormAdj(
+                exposure = src.exposure,
+                brightness = src.brightness / 5f,                                  // -5..5 → -1..1
+                toneLevel = src.toneLevel,
+                filmIntensity = src.filmIntensity,
+                greenMagenta = src.greenMagenta,
+                softGlow = src.softGlow,
+                filmId = src.filmId,
+                filmHighlightRollOff = src.filmHighlightRollOff,
+                filmShadowLift = src.filmShadowLift,
+                filmDrCompression = src.filmDrCompression,
+                filmRedShift = src.filmRedShift,
+                filmGreenShift = src.filmGreenShift,
+                filmBlueShift = src.filmBlueShift,
+                filmSaturation = src.filmSaturation,
+                filmContrast = src.filmContrast,
+                filmGrainAmount = src.filmGrainAmount,
+                filmGrainSize = src.filmGrainSize,
+                filmGrainRoughness = src.filmGrainRoughness,
+                filmCurvePoints = src.filmCurvePoints.map { (it.first / 255f) to (it.second / 255f) },
+                temperature = 6500f + src.temperature * 50f,                       // offset → Kelvin
+                tint = src.tint / 100f,                                            // -100..100 → -1..1
+                contrast = src.contrast / 100f,                                    // -100..100 → -1..1
+                highlights = src.highlights / 150f,                                // -150..150 → -1..1
+                shadows = src.shadows / 100f,                                      // -100..100 → -1..1
+                whites = src.whites / 30f,                                         // -30..30 → -1..1
+                blacks = src.blacks / 60f,                                         // -60..60 → -1..1
+                saturation = src.saturation / 100f,                                // -100..100 → -1..1
+                vibrance = src.vibrance / 100f,                                    // -100..100 → -1..1
+                hueRed = src.hslReds.hue / 100f,
+                satRed = src.hslReds.saturation / 100f,
+                lumRed = src.hslReds.luminance / 100f,
+                hueOrange = src.hslOranges.hue / 100f,
+                satOrange = src.hslOranges.saturation / 100f,
+                lumOrange = src.hslOranges.luminance / 100f,
+                hueYellow = src.hslYellows.hue / 100f,
+                satYellow = src.hslYellows.saturation / 100f,
+                lumYellow = src.hslYellows.luminance / 100f,
+                hueGreen = src.hslGreens.hue / 100f,
+                satGreen = src.hslGreens.saturation / 100f,
+                lumGreen = src.hslGreens.luminance / 100f,
+                hueAqua = src.hslAquas.hue / 100f,
+                satAqua = src.hslAquas.saturation / 100f,
+                lumAqua = src.hslAquas.luminance / 100f,
+                hueBlue = src.hslBlues.hue / 100f,
+                satBlue = src.hslBlues.saturation / 100f,
+                lumBlue = src.hslBlues.luminance / 100f,
+                huePurple = src.hslPurples.hue / 100f,
+                satPurple = src.hslPurples.saturation / 100f,
+                lumPurple = src.hslPurples.luminance / 100f,
+                hueMagenta = src.hslMagentas.hue / 100f,
+                satMagenta = src.hslMagentas.saturation / 100f,
+                lumMagenta = src.hslMagentas.luminance / 100f,
+                toneCurvePoints = src.lumaCurve.map { (it.x / 255f) to (it.y / 255f) },
+                colorGradingShadows = listOf(
+                    src.colorGrading.shadows.hue / 360f,
+                    src.colorGrading.shadows.saturation / 100f,
+                    src.colorGrading.shadows.luminance / 100f),
+                colorGradingMidtones = listOf(
+                    src.colorGrading.midtones.hue / 360f,
+                    src.colorGrading.midtones.saturation / 100f,
+                    src.colorGrading.midtones.luminance / 100f),
+                colorGradingHighlights = listOf(
+                    src.colorGrading.highlights.hue / 360f,
+                    src.colorGrading.highlights.saturation / 100f,
+                    src.colorGrading.highlights.luminance / 100f),
+                colorGradingBlend = src.colorGrading.blending / 100f,
+                colorGradingGlobalSat = 0f,
+                calibRedHue = src.colorCalibration.redHue / 100f,
+                calibRedSat = src.colorCalibration.redSaturation / 100f,
+                calibGreenHue = src.colorCalibration.greenHue / 100f,
+                calibGreenSat = src.colorCalibration.greenSaturation / 100f,
+                calibBlueHue = src.colorCalibration.blueHue / 100f,
+                calibBlueSat = src.colorCalibration.blueSaturation / 100f,
+                sharpness = src.sharpness / 150f * 4f,                             // 0..150 → 0..4
+                clarity = src.clarity / 100f,                                      // -100..100 → -1..1
+                structure = src.structure / 100f,                                   // -100..100 → -1..1
+                dehaze = src.dehaze / 100f,                                        // -100..100 → -1..1
+                vignette = src.vignetteAmount / 100f,                              // -100..100 → -1..1
+                grain = src.grainAmount / 100f,                                    // 0..100 → 0..1
+                grainSize = src.grainSize / 100f * 3f,                             // 0..100 → 0..3
+                chromaticAberrationRedCyan = src.chromaticAberrationRedCyan / 100f,
+                chromaticAberrationBlueYellow = src.chromaticAberrationBlueYellow / 100f,
+                agxEnabled = src.toneMapper == "agx",
+                agxContrast = src.agxContrast,
+                agxPedestal = src.agxPedestal,
+                // Lens correction
+                lensDistortion = src.lensDistortion / 100f,
+                lensVignette = src.lensVignette / 100f,
+                lensTca = src.lensTca / 100f,
+                lensFocalLength = src.lensFocalLength,
+                // Vignette sub-parameters
+                vignetteMidpoint = src.vignetteMidpoint / 100f,
+                vignetteRoundness = src.vignetteRoundness / 100f,
+                vignetteFeather = src.vignetteFeather / 100f,
+                // Grain roughness
+                grainRoughness = src.grainRoughness / 100f,
+                // Creative light effects
+                glowAmount = src.glowAmount / 100f,
+                halationAmount = src.halationAmount / 100f,
+                flareAmount = src.flareAmount / 100f,
+                // LUT
+                lutIntensity = src.lutIntensity / 100f,
+                // Detail (additional)
+                lumaNoiseReduction = src.lumaNoiseReduction / 100f,
+                colorNoiseReduction = src.colorNoiseReduction / 100f,
+                centre = src.centre / 100f,
+                // Color grading balance
+                colorGradingBalance = src.colorGrading.balance / 100f,
+                // Color calibration shadows tint
+                colorCalibrationShadowsTint = src.colorCalibration.shadowsTint / 100f,
+                // Transform
+                rotation = src.rotation,
+                orientationSteps = src.orientationSteps,
+                flipHorizontal = src.flipHorizontal,
+                flipVertical = src.flipVertical,
+                cropAspectRatio = src.crop?.aspectRatio,
+                transformDistortion = src.transformDistortion / 100f,
+                transformVertical = src.transformVertical / 100f,
+                transformHorizontal = src.transformHorizontal / 100f,
+                transformRotate = src.transformRotate,
+                transformAspect = src.transformAspect / 100f,
+                transformScale = src.transformScale / 100f,
+                transformXOffset = src.transformXOffset / 100f,
+                transformYOffset = src.transformYOffset / 100f,
+                // RGB Curves
+                redCurvePoints = src.redCurve.map { it.x / 255f to it.y / 255f },
+                greenCurvePoints = src.greenCurve.map { it.x / 255f to it.y / 255f },
+                blueCurvePoints = src.blueCurve.map { it.x / 255f to it.y / 255f },
+                // Masks
+                masks = src.masks,
+                clippingPreview = src.showClipping,
+            )
+        }
+    }
+
     /** Current 3D LUT to apply during CPU processing (GPU preview uses texture directly) */
     var currentLut: CubeLutParser.Lut3D? = null
 
+    private val aiDenoiser = AiDenoiser()
+
     // ── Load & Decode ──────────────────────────────────────────────
 
-    suspend fun loadAndDecode(context: Context, uri: Uri): ProcessedImage =
+    suspend fun loadAndDecode(context: Context, uri: Uri): DecodedImage =
         withContext(Dispatchers.IO) {
             val inputStream = context.contentResolver.openInputStream(uri)
                 ?: throw IllegalArgumentException("Cannot open URI: $uri")
@@ -258,7 +386,7 @@ class ImageProcessor {
                 }
 
             // Extract EXIF
-            val exif = readExifData(context, uri)
+            val (exif, orientation) = readExifData(context, uri)
 
             // Decode bitmap
             val originalBitmap = if (isDng && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -270,18 +398,19 @@ class ImageProcessor {
             }
 
             // Apply EXIF orientation
-            val orientedBitmap = applyExifOrientation(originalBitmap, exif.orientation)
+            val orientedBitmap = applyExifOrientation(originalBitmap, orientation)
 
             // Create preview
             val previewBitmap = createPreview(orientedBitmap)
 
-            ProcessedImage(
+            DecodedImage(
                 original = orientedBitmap,
                 preview = previewBitmap,
                 width = orientedBitmap.width,
                 height = orientedBitmap.height,
                 isRaw = isRaw,
-                exif = exif
+                exif = exif,
+                orientation = orientation
             )
         }
 
@@ -298,14 +427,14 @@ class ImageProcessor {
         return name
     }
 
-    private fun readExifData(context: Context, uri: Uri): ExifData {
-        val exif = ExifData()
+    private fun readExifData(context: Context, uri: Uri): Pair<ExifData, Int> {
+        var orientation = 0
         try {
-            val inputStream = context.contentResolver.openInputStream(uri) ?: return exif
+            val inputStream = context.contentResolver.openInputStream(uri) ?: return ExifData() to 0
             inputStream.use { stream ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     val exifInterface = android.media.ExifInterface(stream)
-                    val orientation = when (exifInterface.getAttributeInt(
+                    orientation = when (exifInterface.getAttributeInt(
                         android.media.ExifInterface.TAG_ORIENTATION,
                         android.media.ExifInterface.ORIENTATION_NORMAL
                     )) {
@@ -315,30 +444,38 @@ class ImageProcessor {
                         else -> 0
                     }
 
-                    return ExifData(
-                        orientation = orientation,
-                        make = exifInterface.getAttribute(android.media.ExifInterface.TAG_MAKE) ?: "",
-                        model = exifInterface.getAttribute(android.media.ExifInterface.TAG_MODEL) ?: "",
-                        dateTime = exifInterface.getAttribute(android.media.ExifInterface.TAG_DATETIME) ?: "",
-                        iso = exifInterface.getAttributeInt(android.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0),
-                        exposureTime = exifInterface.getAttributeDouble(android.media.ExifInterface.TAG_EXPOSURE_TIME, 0.0),
-                        focalLength = exifInterface.getAttributeDouble(android.media.ExifInterface.TAG_FOCAL_LENGTH, 0.0).toFloat(),
-                        aperture = exifInterface.getAttributeDouble(android.media.ExifInterface.TAG_F_NUMBER, 0.0).toFloat()
+                    val exifData = ExifData(
+                        make = exifInterface.getAttribute(android.media.ExifInterface.TAG_MAKE),
+                        model = exifInterface.getAttribute(android.media.ExifInterface.TAG_MODEL),
+                        dateTime = exifInterface.getAttribute(android.media.ExifInterface.TAG_DATETIME),
+                        iso = exifInterface.getAttributeInt(android.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0)
+                            .takeIf { it > 0 }?.toString(),
+                        shutterSpeed = exifInterface.getAttributeDouble(android.media.ExifInterface.TAG_EXPOSURE_TIME, 0.0)
+                            .takeIf { it > 0.0 }?.toString(),
+                        focalLength = exifInterface.getAttributeDouble(android.media.ExifInterface.TAG_FOCAL_LENGTH, 0.0)
+                            .takeIf { it > 0.0 }?.toString(),
+                        aperture = exifInterface.getAttributeDouble(android.media.ExifInterface.TAG_F_NUMBER, 0.0)
+                            .takeIf { it > 0.0 }?.toString(),
                     )
+                    return exifData to orientation
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not read EXIF: ${e.message}")
         }
-        return exif
+        return ExifData() to orientation
     }
 
     private fun decodeDng(context: Context, uri: Uri): Bitmap {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
-            return android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-                decoder.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE)
-                decoder.isMutableRequired = true
+            try {
+                val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+                return android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                    decoder.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE)
+                    decoder.isMutableRequired = true
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "ImageDecoder failed for DNG, falling back: ${e.message}")
             }
         }
         return decodeRawFallback(context, uri)
@@ -346,32 +483,57 @@ class ImageProcessor {
 
     private fun decodeRawFallback(context: Context, uri: Uri): Bitmap {
         // Try to decode RAW with BitmapFactory - some Android versions support this
-        val inputStream = context.contentResolver.openInputStream(uri)
-            ?: throw IllegalArgumentException("Cannot open URI")
+        try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: throw IllegalArgumentException("Cannot open URI")
 
-        inputStream.use { stream ->
-            // First pass: get dimensions
-            val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-            }
-            BitmapFactory.decodeStream(stream, null, options)
-
-            // Calculate inSampleSize for manageable size
-            val maxDim = 4096
-            val inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
-
-            // Second pass: decode
-            val decodeStream = context.contentResolver.openInputStream(uri)
-                ?: throw IllegalArgumentException("Cannot reopen URI")
-            decodeStream.use { ds ->
-                val decodeOptions = BitmapFactory.Options().apply {
-                    inSampleSize = inSampleSize
-                    inMutable = true
-                    inPreferredConfig = Bitmap.Config.ARGB_8888
+            inputStream.use { stream ->
+                // First pass: get dimensions
+                val options = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
                 }
-                return BitmapFactory.decodeStream(ds, null, decodeOptions)
-                    ?: throw IllegalArgumentException("Failed to decode RAW image")
+                BitmapFactory.decodeStream(stream, null, options)
+
+                // Calculate inSampleSize for manageable size
+                val maxDim = 4096
+                val inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
+
+                // Second pass: decode
+                val decodeStream = context.contentResolver.openInputStream(uri)
+                    ?: throw IllegalArgumentException("Cannot reopen URI")
+                decodeStream.use { ds ->
+                    val decodeOptions = BitmapFactory.Options().apply {
+                        this.inSampleSize = inSampleSize
+                        inMutable = true
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                    }
+                    val result = BitmapFactory.decodeStream(ds, null, decodeOptions)
+                    if (result != null) return result
+                }
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "BitmapFactory failed to decode RAW: ${e.message}")
+        }
+
+        // Last resort: extract thumbnail from ExifInterface
+        return try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: throw IllegalArgumentException("Cannot open URI for thumbnail")
+            inputStream.use { stream ->
+                val exifInterface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    android.media.ExifInterface(stream)
+                } else {
+                    throw IllegalArgumentException("Cannot extract thumbnail on API < 24")
+                }
+                val thumbnail = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    exifInterface.thumbnailBitmap
+                } else null
+                thumbnail?.copy(Bitmap.Config.ARGB_8888, true)
+                    ?: throw IllegalArgumentException("No thumbnail available for RAW image")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Thumbnail fallback also failed for RAW: ${e.message}")
+            throw IllegalArgumentException("Failed to decode RAW image and no thumbnail available")
         }
     }
 
@@ -467,8 +629,8 @@ class ImageProcessor {
         originalBitmap: Bitmap,
         allowDownsample: Boolean = true
     ): Bitmap = withContext(Dispatchers.Default) {
-        // Convert to core Adjustments for internal processing
-        val adj = convertToCoreAdjustments(adjustments)
+        // Convert to NormAdj for internal processing
+        val n = NormAdj.from(adjustments)
 
         // 内存保护：对于超大图（>64MP），可选降采样处理
         val maxPixels = 64_000_000 // 64MP
@@ -495,60 +657,60 @@ class ImageProcessor {
 
         // Pre-compute white balance multipliers
         val wbMultipliers = ColorMath.temperatureTintToMultipliers(
-            adj.temperature, adj.tint
+            n.temperature, n.tint
         )
 
         // Pre-compute tone curve (identity if no changes)
-        val curvePoints = adj.toneCurvePoints.sortedBy { it.first }
+        val curvePoints = n.toneCurvePoints.sortedBy { it.first }
 
         // Pre-compute film curve points
-        val filmCurve = adj.filmCurvePoints.sortedBy { it.first }
+        val filmCurve = n.filmCurvePoints.sortedBy { it.first }
 
         // Pre-compute color calibration matrix
-        val calibMatrix = computeCalibrationMatrix(adj)
+        val calibMatrix = computeCalibrationMatrix(n)
 
         // Pre-compute soft glow bloom buffer if needed
-        val bloomBuffer = if (adj.softGlow > 1e-6f) computeBloomBuffer(pixels, w, h, adj.softGlow) else null
+        val bloomBuffer = if (n.softGlow > 1e-6f) computeBloomBuffer(pixels, w, h, n.softGlow) else null
 
         // Pre-compute RGB curve points
-        val redCurve = adj.redCurvePoints.sortedBy { it.first }
-        val greenCurve = adj.greenCurvePoints.sortedBy { it.first }
-        val blueCurve = adj.blueCurvePoints.sortedBy { it.first }
+        val redCurve = n.redCurvePoints.sortedBy { it.first }
+        val greenCurve = n.greenCurvePoints.sortedBy { it.first }
+        val blueCurve = n.blueCurvePoints.sortedBy { it.first }
 
         // Apply geometric transform before pixel processing
-        var workBitmap = source
-        val hasTransform = adj.rotation != 0f || adj.orientationSteps != 0 ||
-            adj.flipHorizontal || adj.flipVertical || adj.cropAspectRatio != null ||
-            abs(adj.transformDistortion) > 1e-6f || abs(adj.transformVertical) > 1e-6f ||
-            abs(adj.transformHorizontal) > 1e-6f || abs(adj.transformRotate) > 1e-6f ||
-            abs(adj.transformAspect) > 1e-6f || adj.transformScale != 1f ||
-            abs(adj.transformXOffset) > 1e-6f || abs(adj.transformYOffset) > 1e-6f
+        var workBitmap = sourceBitmap
+        val hasTransform = n.rotation != 0f || n.orientationSteps != 0 ||
+            n.flipHorizontal || n.flipVertical || n.cropAspectRatio != null ||
+            abs(n.transformDistortion) > 1e-6f || abs(n.transformVertical) > 1e-6f ||
+            abs(n.transformHorizontal) > 1e-6f || abs(n.transformRotate) > 1e-6f ||
+            abs(n.transformAspect) > 1e-6f || n.transformScale != 1f ||
+            abs(n.transformXOffset) > 1e-6f || abs(n.transformYOffset) > 1e-6f
         if (hasTransform) {
-            workBitmap = applyGeometricTransform(workBitmap, adj)
+            workBitmap = applyGeometricTransform(workBitmap, n)
         }
 
         // Re-read pixels after geometric transform
-        if (workBitmap !== source) {
+        if (workBitmap !== sourceBitmap) {
             workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
         }
 
         // Apply lens correction if enabled
-        if (abs(adj.lensDistortion) > 1e-6f || abs(adj.lensVignette) > 1e-6f || abs(adj.lensTca) > 1e-6f) {
-            val lensCorrected = applyLensCorrection(workBitmap, adj)
-            if (lensCorrected !== workBitmap && workBitmap !== source) workBitmap.recycle()
+        if (abs(n.lensDistortion) > 1e-6f || abs(n.lensVignette) > 1e-6f || abs(n.lensTca) > 1e-6f) {
+            val lensCorrected = applyLensCorrection(workBitmap, n)
+            if (lensCorrected !== workBitmap && workBitmap !== sourceBitmap) workBitmap.recycle()
             workBitmap = lensCorrected
             workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
         }
 
         // Apply AI denoising if requested
-        if (adj.lumaNoiseReduction > 10f || adj.colorNoiseReduction > 10f) {
+        if (n.lumaNoiseReduction > 10f || n.colorNoiseReduction > 10f) {
             val denoised = aiDenoiser.denoise(
                 workBitmap,
-                preserveDetails = 1f - (adj.lumaNoiseReduction / 150f).coerceIn(0f, 1f),
-                chromaStrength = (adj.colorNoiseReduction / 100f).coerceIn(0f, 1f)
+                preserveDetails = 1f - (n.lumaNoiseReduction / 150f).coerceIn(0f, 1f),
+                chromaStrength = (n.colorNoiseReduction / 100f).coerceIn(0f, 1f)
             )
             if (denoised !== workBitmap) {
-                if (workBitmap !== source) workBitmap.recycle()
+                if (workBitmap !== sourceBitmap) workBitmap.recycle()
                 workBitmap = denoised
                 workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
             }
@@ -571,20 +733,20 @@ class ImageProcessor {
                 b = ColorMath.srgbToLinear(b)
 
                 // ── 2. Linear Exposure ──
-                r = r * 2f.pow(adj.exposure)
-                g = g * 2f.pow(adj.exposure)
-                b = b * 2f.pow(adj.exposure)
+                r = r * 2f.pow(n.exposure)
+                g = g * 2f.pow(n.exposure)
+                b = b * 2f.pow(n.exposure)
 
                 // ── 3. Filmic Brightness (rational curve with midtone emphasis) ──
-                val br = adj.brightness * 2f
+                val br = n.brightness * 2f
                 r = applyFilmicBrightness(r, br)
                 g = applyFilmicBrightness(g, br)
                 b = applyFilmicBrightness(b, br)
 
                 // ── 3b. Tone Level (影调: combined brightness control) ──
-                if (abs(adj.toneLevel) > 1e-6f) {
+                if (abs(n.toneLevel) > 1e-6f) {
                     val luma = ColorMath.getLuma(r, g, b)
-                    val shift = adj.toneLevel * 0.3f
+                    val shift = n.toneLevel * 0.3f
                     val target = (luma + shift).coerceIn(0f, 1f)
                     val factor = if (luma > 1e-6f) target / luma else 1f
                     r *= factor
@@ -598,36 +760,25 @@ class ImageProcessor {
                 b *= wbMultipliers[2]
 
                 // ── 4b. Green-Magenta axis (青品) ──
-                if (abs(adj.greenMagenta) > 1e-6f) {
+                if (abs(n.greenMagenta) > 1e-6f) {
                     // Positive = magenta (reduce green, add red+blue), Negative = green
-                    g += adj.greenMagenta * -0.1f
-                    r += adj.greenMagenta * 0.05f
-                    b += adj.greenMagenta * 0.05f
-                }
-
-                // ── 4c. Noise Reduction (TODO: implement spatial denoising) ──
-                if (adj.lumaNoiseReduction > 1e-6f || adj.colorNoiseReduction > 1e-6f) {
-                    // Parameters captured; full NR should be a spatial pass.
-                    // For now, subtle luma damping to prevent parameter from being unused.
-                    val lum = ColorMath.getLuma(r, g, b)
-                    val damp = 1f - adj.lumaNoiseReduction * 0.05f
-                    r = lum + (r - lum) * damp
-                    g = lum + (g - lum) * damp
-                    b = lum + (b - lum) * damp
+                    g += n.greenMagenta * -0.1f
+                    r += n.greenMagenta * 0.05f
+                    b += n.greenMagenta * 0.05f
                 }
 
                 // ── 5. Highlights Adjustment ──
-                val highlightsResult = applyHighlightsAdjustment(r, g, b, adj.highlights)
+                val highlightsResult = applyHighlightsAdjustment(r, g, b, n.highlights)
                 r = highlightsResult[0]; g = highlightsResult[1]; b = highlightsResult[2]
 
                 // ── 6. Tonal: Contrast/Shadows/Whites/Blacks ──
-                val tonalResult = applyTonalAdjustments(r, g, b, adj)
+                val tonalResult = applyTonalAdjustments(r, g, b, n)
                 r = tonalResult[0]; g = tonalResult[1]; b = tonalResult[2]
 
                 // ── 6b. Centre (midtone emphasis) ──
-                if (abs(adj.centre) > 1e-6f) {
+                if (abs(n.centre) > 1e-6f) {
                     val luma = ColorMath.getLuma(r, g, b)
-                    val shift = adj.centre * 0.3f
+                    val shift = n.centre * 0.3f
                     val target = (luma + shift).coerceIn(0f, 1f)
                     val factor = if (luma > 1e-6f) target / luma else 1f
                     r *= factor
@@ -636,11 +787,11 @@ class ImageProcessor {
                 }
 
                 // ── 7. Saturation/Vibrance ──
-                val satResult = applyCreativeColor(r, g, b, adj.saturation, adj.vibrance)
+                val satResult = applyCreativeColor(r, g, b, n.saturation, n.vibrance)
                 r = satResult[0]; g = satResult[1]; b = satResult[2]
 
                 // ── 8. HSL 8-color panel ──
-                val hslResult = applyHslPanel(r, g, b, adj)
+                val hslResult = applyHslPanel(r, g, b, n)
                 r = hslResult[0]; g = hslResult[1]; b = hslResult[2]
 
                 // ── 9. Tone Curves ──
@@ -660,7 +811,7 @@ class ImageProcessor {
                 }
 
                 // ── 10. Color Grading ──
-                val cgResult = applyColorGrading(r, g, b, adj)
+                val cgResult = applyColorGrading(r, g, b, n)
                 r = cgResult[0]; g = cgResult[1]; b = cgResult[2]
 
                 // ── 11. Sharpness (unsharp mask) - applied in post ──
@@ -669,29 +820,29 @@ class ImageProcessor {
                 // ── 12. Clarity/Structure (local contrast) - applied in post ──
 
                 // ── 13. Dehaze ──
-                val dehazeResult = applyDehaze(r, g, b, adj.dehaze)
+                val dehazeResult = applyDehaze(r, g, b, n.dehaze)
                 r = dehazeResult[0]; g = dehazeResult[1]; b = dehazeResult[2]
 
                 // ── 14. Vignette ──
-                val vignetteResult = applyVignette(r, g, b, x.toFloat() / w, y.toFloat() / h, adj.vignette, adj.vignetteMidpoint, adj.vignetteRoundness, adj.vignetteFeather)
+                val vignetteResult = applyVignette(r, g, b, x.toFloat() / w, y.toFloat() / h, n.vignette, n.vignetteMidpoint, n.vignetteRoundness, n.vignetteFeather)
                 r = vignetteResult[0]; g = vignetteResult[1]; b = vignetteResult[2]
 
                 // ── 14b. Chromatic Aberration (dual-axis) ──
-                if (abs(adj.chromaticAberrationRedCyan) > 1e-6f || abs(adj.chromaticAberrationBlueYellow) > 1e-6f) {
-                    val caResult = applyChromaticAberration(pixels, w, h, x, y, r, g, b, adj.chromaticAberrationRedCyan, adj.chromaticAberrationBlueYellow)
+                if (abs(n.chromaticAberrationRedCyan) > 1e-6f || abs(n.chromaticAberrationBlueYellow) > 1e-6f) {
+                    val caResult = applyChromaticAberration(pixels, w, h, x, y, r, g, b, n.chromaticAberrationRedCyan, n.chromaticAberrationBlueYellow)
                     r = caResult[0]; g = caResult[1]; b = caResult[2]
                 }
 
                 // ── 15. Grain ──
-                val grainResult = applyGrain(r, g, b, x.toFloat(), y.toFloat(), adj.grain, adj.grainSize, adj.grainRoughness, w, h)
+                val grainResult = applyGrain(r, g, b, x.toFloat(), y.toFloat(), n.grain, n.grainSize, n.grainRoughness, w, h)
                 r = grainResult[0]; g = grainResult[1]; b = grainResult[2]
 
                 // ── 15b. Creative Light Effects ──
-                val glowResult = applyGlow(r, g, b, adj.glowAmount)
+                val glowResult = applyGlow(r, g, b, n.glowAmount)
                 r = glowResult[0]; g = glowResult[1]; b = glowResult[2]
-                val halationResult = applyHalation(r, g, b, adj.halationAmount)
+                val halationResult = applyHalation(r, g, b, n.halationAmount)
                 r = halationResult[0]; g = halationResult[1]; b = halationResult[2]
-                val flareResult = applyFlare(r, g, b, adj.flareAmount)
+                val flareResult = applyFlare(r, g, b, n.flareAmount)
                 r = flareResult[0]; g = flareResult[1]; b = flareResult[2]
 
                 // ── 16. Color Calibration ──
@@ -702,40 +853,40 @@ class ImageProcessor {
                 r = cal[0]; g = cal[1]; b = cal[2]
 
                 // ── 16b. Color Calibration Shadows Tint ──
-                if (abs(adj.colorCalibrationShadowsTint) > 1e-6f) {
+                if (abs(n.colorCalibrationShadowsTint) > 1e-6f) {
                     val luma = ColorMath.getLuma(r, g, b)
                     val sMask = ColorMath.shadowsMask(luma)
-                    val tint = adj.colorCalibrationShadowsTint * 0.15f * sMask
+                    val tint = n.colorCalibrationShadowsTint * 0.15f * sMask
                     r += tint
                     g -= tint * 0.5f
                     b += tint
                 }
 
                 // ── 17. AgX Tone Mapping ──
-                if (adj.agxEnabled) {
-                    val agxResult = applyAgxToneMap(r, g, b, adj.agxContrast, adj.agxPedestal)
+                if (n.agxEnabled) {
+                    val agxResult = applyAgxToneMap(r, g, b, n.agxContrast, n.agxPedestal)
                     r = agxResult[0]; g = agxResult[1]; b = agxResult[2]
                 }
 
                 // ── 18. Film Simulation Processing ──
-                if (adj.filmId.isNotEmpty() && adj.filmIntensity > 1e-6f) {
+                if (n.filmId.isNotEmpty() && n.filmIntensity > 1e-6f) {
                     // Film color shifts (applied in linear space)
-                    r += adj.filmRedShift * 0.15f
-                    g += adj.filmGreenShift * 0.15f
-                    b += adj.filmBlueShift * 0.15f
+                    r += n.filmRedShift * 0.15f
+                    g += n.filmGreenShift * 0.15f
+                    b += n.filmBlueShift * 0.15f
 
                     // Film saturation modifier
-                    if (abs(adj.filmSaturation) > 1e-6f) {
+                    if (abs(n.filmSaturation) > 1e-6f) {
                         val lum = ColorMath.getLuma(r, g, b)
-                        val satMod = 1f + adj.filmSaturation
+                        val satMod = 1f + n.filmSaturation
                         r = lum + (r - lum) * satMod
                         g = lum + (g - lum) * satMod
                         b = lum + (b - lum) * satMod
                     }
 
                     // Film contrast modifier
-                    if (abs(adj.filmContrast) > 1e-6f) {
-                        val contrastPow = 1f + adj.filmContrast * 0.5f
+                    if (abs(n.filmContrast) > 1e-6f) {
+                        val contrastPow = 1f + n.filmContrast * 0.5f
                         val mid = 0.18f
                         r = mid + (r - mid) * contrastPow
                         g = mid + (g - mid) * contrastPow
@@ -743,33 +894,33 @@ class ImageProcessor {
                     }
 
                     // Film highlight roll-off
-                    if (adj.filmHighlightRollOff > 1e-6f) {
+                    if (n.filmHighlightRollOff > 1e-6f) {
                         val luma = ColorMath.getLuma(r, g, b)
                         val hMask = ColorMath.highlightsMask(luma)
-                        val shoulder = 1f - (1f - r).toDouble().pow(1.0 + adj.filmHighlightRollOff * 2.0).toFloat()
-                        val shoulderg = 1f - (1f - g).toDouble().pow(1.0 + adj.filmHighlightRollOff * 2.0).toFloat()
-                        val shoulderb = 1f - (1f - b).toDouble().pow(1.0 + adj.filmHighlightRollOff * 2.0).toFloat()
-                        r = r + (shoulder - r) * hMask * adj.filmIntensity
-                        g = g + (shoulderg - g) * hMask * adj.filmIntensity
-                        b = b + (shoulderb - b) * hMask * adj.filmIntensity
+                        val shoulder = 1f - (1f - r).toDouble().pow(1.0 + n.filmHighlightRollOff * 2.0).toFloat()
+                        val shoulderg = 1f - (1f - g).toDouble().pow(1.0 + n.filmHighlightRollOff * 2.0).toFloat()
+                        val shoulderb = 1f - (1f - b).toDouble().pow(1.0 + n.filmHighlightRollOff * 2.0).toFloat()
+                        r = r + (shoulder - r) * hMask * n.filmIntensity
+                        g = g + (shoulderg - g) * hMask * n.filmIntensity
+                        b = b + (shoulderb - b) * hMask * n.filmIntensity
                     }
 
                     // Film shadow lift
-                    if (adj.filmShadowLift > 1e-6f) {
+                    if (n.filmShadowLift > 1e-6f) {
                         val luma = ColorMath.getLuma(r, g, b)
                         val sMask = ColorMath.shadowsMask(luma)
-                        val lift = adj.filmShadowLift * 0.2f * sMask * adj.filmIntensity
+                        val lift = n.filmShadowLift * 0.2f * sMask * n.filmIntensity
                         r += lift
                         g += lift
                         b += lift
                     }
 
                     // Film DR compression
-                    if (adj.filmDrCompression > 1e-6f) {
+                    if (n.filmDrCompression > 1e-6f) {
                         val luma = ColorMath.getLuma(r, g, b)
-                        val compressed = luma / (luma + adj.filmDrCompression * 0.5f + 1e-6f) * (1f + adj.filmDrCompression * 0.5f)
+                        val compressed = luma / (luma + n.filmDrCompression * 0.5f + 1e-6f) * (1f + n.filmDrCompression * 0.5f)
                         val factor = if (luma > 1e-6f) compressed / luma else 1f
-                        val blend = adj.filmDrCompression * adj.filmIntensity
+                        val blend = n.filmDrCompression * n.filmIntensity
                         val blendedFactor = 1f + (factor - 1f) * blend
                         r *= blendedFactor
                         g *= blendedFactor
@@ -777,30 +928,30 @@ class ImageProcessor {
                     }
 
                     // Film curve
-                    val hasFilmCurve = adj.filmCurvePoints.size >= 2 &&
-                        adj.filmCurvePoints.any { abs(it.first - it.second) > 0.1f }
+                    val hasFilmCurve = n.filmCurvePoints.size >= 2 &&
+                        n.filmCurvePoints.any { abs(it.first - it.second) > 0.1f }
                     if (hasFilmCurve) {
                         val filmR = ColorMath.applyCurve(r, filmCurve)
                         val filmG = ColorMath.applyCurve(g, filmCurve)
                         val filmB = ColorMath.applyCurve(b, filmCurve)
-                        r = r + (filmR - r) * adj.filmIntensity
-                        g = g + (filmG - g) * adj.filmIntensity
-                        b = b + (filmB - b) * adj.filmIntensity
+                        r = r + (filmR - r) * n.filmIntensity
+                        g = g + (filmG - g) * n.filmIntensity
+                        b = b + (filmB - b) * n.filmIntensity
                     }
 
                     // Film grain (blended on top of base grain)
-                    if (adj.filmGrainAmount > 1e-6f) {
-                        val fGrainSize = 1f + adj.filmGrainSize * 4f
+                    if (n.filmGrainAmount > 1e-6f) {
+                        val fGrainSize = 1f + n.filmGrainSize * 4f
                         val noise = ColorMath.gradientNoise(x * fGrainSize, y * fGrainSize)
-                        val grainOffset = (noise - 0.5f) * adj.filmGrainAmount * 0.4f
+                        val grainOffset = (noise - 0.5f) * n.filmGrainAmount * 0.4f
                         val luma = ColorMath.getLuma(r, g, b)
                         var grainMod = 1f - abs(luma - 0.5f) * 1.5f
                         grainMod = grainMod.coerceIn(0.2f, 1f)
                         // Roughness modulates grain sharpness
-                        val roughnessMod = 0.5f + adj.filmGrainRoughness * 0.5f
-                        r += grainOffset * grainMod * roughnessMod * adj.filmIntensity
-                        g += grainOffset * grainMod * roughnessMod * adj.filmIntensity
-                        b += grainOffset * grainMod * roughnessMod * adj.filmIntensity
+                        val roughnessMod = 0.5f + n.filmGrainRoughness * 0.5f
+                        r += grainOffset * grainMod * roughnessMod * n.filmIntensity
+                        g += grainOffset * grainMod * roughnessMod * n.filmIntensity
+                        b += grainOffset * grainMod * roughnessMod * n.filmIntensity
                     }
                 }
 
@@ -809,18 +960,18 @@ class ImageProcessor {
                     val bloomR = bloomBuffer[idx * 3]
                     val bloomG = bloomBuffer[idx * 3 + 1]
                     val bloomB = bloomBuffer[idx * 3 + 2]
-                    r = r + (bloomR - r) * adj.softGlow * 0.5f
-                    g = g + (bloomG - g) * adj.softGlow * 0.5f
-                    b = b + (bloomB - b) * adj.softGlow * 0.5f
+                    r = r + (bloomR - r) * n.softGlow * 0.5f
+                    g = g + (bloomG - g) * n.softGlow * 0.5f
+                    b = b + (bloomB - b) * n.softGlow * 0.5f
                 }
 
                 // ── 19b. 3D LUT (CPU path) ──
                 val lut = currentLut
-                if (lut != null && adj.lutIntensity > 1e-6f) {
+                if (lut != null && n.lutIntensity > 1e-6f) {
                     val lutColor = lut.sample(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f))
-                    r = r + (lutColor.first - r) * adj.lutIntensity
-                    g = g + (lutColor.second - g) * adj.lutIntensity
-                    b = b + (lutColor.third - b) * adj.lutIntensity
+                    r = r + (lutColor.first - r) * n.lutIntensity
+                    g = g + (lutColor.second - g) * n.lutIntensity
+                    b = b + (lutColor.third - b) * n.lutIntensity
                 }
 
                 // ── 20. Linear to sRGB ──
@@ -839,7 +990,7 @@ class ImageProcessor {
                 b = b.coerceIn(0f, 1f)
 
                 // Clipping preview
-                if (adj.clippingPreview) {
+                if (n.clippingPreview) {
                     if (r >= 1f || g >= 1f || b >= 1f) {
                         r = 1f; g = 0f; b = 0f
                     } else if (r <= 0f || g <= 0f || b <= 0f) {
@@ -859,7 +1010,7 @@ class ImageProcessor {
         outputBitmap.setPixels(pixels, 0, w, 0, 0, w, h)
 
         // Post-processing: Sharpness & Clarity (spatial operations)
-        val finalBitmap = applySpatialOperations(outputBitmap, adj)
+        val finalBitmap = applySpatialOperations(outputBitmap, n)
         if (finalBitmap != outputBitmap) outputBitmap.recycle()
 
         // Recycle intermediate bitmaps if created
@@ -912,7 +1063,7 @@ class ImageProcessor {
     }
 
     /** Tonal adjustments: contrast, shadows, whites, blacks */
-    private fun applyTonalAdjustments(r: Float, g: Float, b: Float, adj: Adjustments): FloatArray {
+    private fun applyTonalAdjustments(r: Float, g: Float, b: Float, n: NormAdj): FloatArray {
         var outR = r
         var outG = g
         var outB = b
@@ -920,8 +1071,8 @@ class ImageProcessor {
         val luma = ColorMath.getLuma(r, g, b)
 
         // Contrast (perceptual gamma curve around middle gray)
-        if (abs(adj.contrast) > 1e-6f) {
-            val contrastPow = 1f + adj.contrast
+        if (abs(n.contrast) > 1e-6f) {
+            val contrastPow = 1f + n.contrast
             val mid = 0.18f
             outR = mid + (outR - mid) * contrastPow
             outG = mid + (outG - mid) * contrastPow
@@ -929,27 +1080,27 @@ class ImageProcessor {
         }
 
         // Shadows
-        if (abs(adj.shadows) > 1e-6f) {
+        if (abs(n.shadows) > 1e-6f) {
             val sm = ColorMath.shadowsMask(luma)
-            outR += adj.shadows * sm * 0.3f
-            outG += adj.shadows * sm * 0.3f
-            outB += adj.shadows * sm * 0.3f
+            outR += n.shadows * sm * 0.3f
+            outG += n.shadows * sm * 0.3f
+            outB += n.shadows * sm * 0.3f
         }
 
         // Whites
-        if (abs(adj.whites) > 1e-6f) {
+        if (abs(n.whites) > 1e-6f) {
             val wm = ColorMath.whitesMask(luma)
-            outR += adj.whites * wm * 0.25f
-            outG += adj.whites * wm * 0.25f
-            outB += adj.whites * wm * 0.25f
+            outR += n.whites * wm * 0.25f
+            outG += n.whites * wm * 0.25f
+            outB += n.whites * wm * 0.25f
         }
 
         // Blacks
-        if (abs(adj.blacks) > 1e-6f) {
+        if (abs(n.blacks) > 1e-6f) {
             val bm = ColorMath.blacksMask(luma)
-            outR += adj.blacks * bm * 0.25f
-            outG += adj.blacks * bm * 0.25f
-            outB += adj.blacks * bm * 0.25f
+            outR += n.blacks * bm * 0.25f
+            outG += n.blacks * bm * 0.25f
+            outB += n.blacks * bm * 0.25f
         }
 
         return floatArrayOf(outR, outG, outB)
@@ -979,16 +1130,16 @@ class ImageProcessor {
     }
 
     /** HSL 8-color panel adjustments */
-    private fun applyHslPanel(r: Float, g: Float, b: Float, adj: Adjustments): FloatArray {
+    private fun applyHslPanel(r: Float, g: Float, b: Float, n: NormAdj): FloatArray {
         // Check if any HSL adjustment is non-zero
-        val hasHslAdjustment = adj.hueRed != 0f || adj.satRed != 0f || adj.lumRed != 0f ||
-            adj.hueOrange != 0f || adj.satOrange != 0f || adj.lumOrange != 0f ||
-            adj.hueYellow != 0f || adj.satYellow != 0f || adj.lumYellow != 0f ||
-            adj.hueGreen != 0f || adj.satGreen != 0f || adj.lumGreen != 0f ||
-            adj.hueAqua != 0f || adj.satAqua != 0f || adj.lumAqua != 0f ||
-            adj.hueBlue != 0f || adj.satBlue != 0f || adj.lumBlue != 0f ||
-            adj.huePurple != 0f || adj.satPurple != 0f || adj.lumPurple != 0f ||
-            adj.hueMagenta != 0f || adj.satMagenta != 0f || adj.lumMagenta != 0f
+        val hasHslAdjustment = n.hueRed != 0f || n.satRed != 0f || n.lumRed != 0f ||
+            n.hueOrange != 0f || n.satOrange != 0f || n.lumOrange != 0f ||
+            n.hueYellow != 0f || n.satYellow != 0f || n.lumYellow != 0f ||
+            n.hueGreen != 0f || n.satGreen != 0f || n.lumGreen != 0f ||
+            n.hueAqua != 0f || n.satAqua != 0f || n.lumAqua != 0f ||
+            n.hueBlue != 0f || n.satBlue != 0f || n.lumBlue != 0f ||
+            n.huePurple != 0f || n.satPurple != 0f || n.lumPurple != 0f ||
+            n.hueMagenta != 0f || n.satMagenta != 0f || n.lumMagenta != 0f
 
         if (!hasHslAdjustment) return floatArrayOf(r, g, b)
 
@@ -1001,14 +1152,14 @@ class ImageProcessor {
 
         // HSL ranges: (center, span)
         val ranges = listOf(
-            Triple(358f, 35f, Triple(adj.hueRed, adj.satRed, adj.lumRed)),
-            Triple(25f, 45f, Triple(adj.hueOrange, adj.satOrange, adj.lumOrange)),
-            Triple(60f, 40f, Triple(adj.hueYellow, adj.satYellow, adj.lumYellow)),
-            Triple(115f, 90f, Triple(adj.hueGreen, adj.satGreen, adj.lumGreen)),
-            Triple(180f, 60f, Triple(adj.hueAqua, adj.satAqua, adj.lumAqua)),
-            Triple(225f, 60f, Triple(adj.hueBlue, adj.satBlue, adj.lumBlue)),
-            Triple(280f, 55f, Triple(adj.huePurple, adj.satPurple, adj.lumPurple)),
-            Triple(330f, 50f, Triple(adj.hueMagenta, adj.satMagenta, adj.lumMagenta))
+            Triple(358f, 35f, Triple(n.hueRed, n.satRed, n.lumRed)),
+            Triple(25f, 45f, Triple(n.hueOrange, n.satOrange, n.lumOrange)),
+            Triple(60f, 40f, Triple(n.hueYellow, n.satYellow, n.lumYellow)),
+            Triple(115f, 90f, Triple(n.hueGreen, n.satGreen, n.lumGreen)),
+            Triple(180f, 60f, Triple(n.hueAqua, n.satAqua, n.lumAqua)),
+            Triple(225f, 60f, Triple(n.hueBlue, n.satBlue, n.lumBlue)),
+            Triple(280f, 55f, Triple(n.huePurple, n.satPurple, n.lumPurple)),
+            Triple(330f, 50f, Triple(n.hueMagenta, n.satMagenta, n.lumMagenta))
         )
 
         for ((center, span, shifts) in ranges) {
@@ -1037,12 +1188,12 @@ class ImageProcessor {
     }
 
     /** Color grading: shadows/midtones/highlights tinting */
-    private fun applyColorGrading(r: Float, g: Float, b: Float, adj: Adjustments): FloatArray {
-        val hasGrading = adj.colorGradingShadows.any { abs(it) > 1e-6f } ||
-            adj.colorGradingMidtones.any { abs(it) > 1e-6f } ||
-            adj.colorGradingHighlights.any { abs(it) > 1e-6f } ||
-            abs(adj.colorGradingGlobalSat) > 1e-6f ||
-            abs(adj.colorGradingBalance) > 1e-6f
+    private fun applyColorGrading(r: Float, g: Float, b: Float, n: NormAdj): FloatArray {
+        val hasGrading = n.colorGradingShadows.any { abs(it) > 1e-6f } ||
+            n.colorGradingMidtones.any { abs(it) > 1e-6f } ||
+            n.colorGradingHighlights.any { abs(it) > 1e-6f } ||
+            abs(n.colorGradingGlobalSat) > 1e-6f ||
+            abs(n.colorGradingBalance) > 1e-6f
 
         if (!hasGrading) return floatArrayOf(r, g, b)
 
@@ -1053,7 +1204,7 @@ class ImageProcessor {
         val hm = ColorMath.highlightsMask(luma)
 
         // Apply balance: shift weight between shadows and highlights
-        val balance = adj.colorGradingBalance
+        val balance = n.colorGradingBalance
         val balancedSm = sm * (1f + balance * 0.5f)
         val balancedHm = hm * (1f - balance * 0.5f)
 
@@ -1063,20 +1214,20 @@ class ImageProcessor {
         val nmm = mm / maskSum
         val nhm = balancedHm / maskSum
 
-        val tintR = nsm * adj.colorGradingShadows[0] + nmm * adj.colorGradingMidtones[0] + nhm * adj.colorGradingHighlights[0]
-        val tintG = nsm * adj.colorGradingShadows[1] + nmm * adj.colorGradingMidtones[1] + nhm * adj.colorGradingHighlights[1]
-        val tintB = nsm * adj.colorGradingShadows[2] + nmm * adj.colorGradingMidtones[2] + nhm * adj.colorGradingHighlights[2]
+        val tintR = nsm * n.colorGradingShadows[0] + nmm * n.colorGradingMidtones[0] + nhm * n.colorGradingHighlights[0]
+        val tintG = nsm * n.colorGradingShadows[1] + nmm * n.colorGradingMidtones[1] + nhm * n.colorGradingHighlights[1]
+        val tintB = nsm * n.colorGradingShadows[2] + nmm * n.colorGradingMidtones[2] + nhm * n.colorGradingHighlights[2]
 
-        var outR = r * (1f - adj.colorGradingBlend) + (r + tintR) * adj.colorGradingBlend
-        var outG = g * (1f - adj.colorGradingBlend) + (g + tintG) * adj.colorGradingBlend
-        var outB = b * (1f - adj.colorGradingBlend) + (b + tintB) * adj.colorGradingBlend
+        var outR = r * (1f - n.colorGradingBlend) + (r + tintR) * n.colorGradingBlend
+        var outG = g * (1f - n.colorGradingBlend) + (g + tintG) * n.colorGradingBlend
+        var outB = b * (1f - n.colorGradingBlend) + (b + tintB) * n.colorGradingBlend
 
         // Global saturation
-        if (abs(adj.colorGradingGlobalSat) > 1e-6f) {
+        if (abs(n.colorGradingGlobalSat) > 1e-6f) {
             val lum = ColorMath.getLuma(outR, outG, outB)
-            outR = lum + (outR - lum) * (1f + adj.colorGradingGlobalSat)
-            outG = lum + (outG - lum) * (1f + adj.colorGradingGlobalSat)
-            outB = lum + (outB - lum) * (1f + adj.colorGradingGlobalSat)
+            outR = lum + (outR - lum) * (1f + n.colorGradingGlobalSat)
+            outG = lum + (outG - lum) * (1f + n.colorGradingGlobalSat)
+            outB = lum + (outB - lum) * (1f + n.colorGradingGlobalSat)
         }
 
         return floatArrayOf(outR, outG, outB)
@@ -1087,10 +1238,10 @@ class ImageProcessor {
     }
 
     /** Compute 3x3 color calibration matrix from adjustment parameters */
-    private fun computeCalibrationMatrix(adj: Adjustments): FloatArray {
-        val hasCalib = abs(adj.calibRedHue) > 1e-6f || abs(adj.calibRedSat) > 1e-6f ||
-            abs(adj.calibGreenHue) > 1e-6f || abs(adj.calibGreenSat) > 1e-6f ||
-            abs(adj.calibBlueHue) > 1e-6f || abs(adj.calibBlueSat) > 1e-6f
+    private fun computeCalibrationMatrix(n: NormAdj): FloatArray {
+        val hasCalib = abs(n.calibRedHue) > 1e-6f || abs(n.calibRedSat) > 1e-6f ||
+            abs(n.calibGreenHue) > 1e-6f || abs(n.calibGreenSat) > 1e-6f ||
+            abs(n.calibBlueHue) > 1e-6f || abs(n.calibBlueSat) > 1e-6f
 
         if (!hasCalib) {
             // Identity matrix
@@ -1101,12 +1252,12 @@ class ImageProcessor {
             )
         }
 
-        val rh = adj.calibRedHue * 60f
-        val rs = 1f + adj.calibRedSat
-        val gh = adj.calibGreenHue * 60f
-        val gs = 1f + adj.calibGreenSat
-        val bh = adj.calibBlueHue * 60f
-        val bs = 1f + adj.calibBlueSat
+        val rh = n.calibRedHue * 60f
+        val rs = 1f + n.calibRedSat
+        val gh = n.calibGreenHue * 60f
+        val gs = 1f + n.calibGreenSat
+        val bh = n.calibBlueHue * 60f
+        val bs = 1f + n.calibBlueSat
 
         // Convert each primary to HSV, adjust, convert back
         val redPrimary = ColorMath.hsvToRgb(((rh) % 360f + 360f) % 360f, rs.coerceIn(0f, 2f), 1f)
@@ -1256,8 +1407,8 @@ class ImageProcessor {
     }
 
     /** Spatial operations: sharpness (unsharp mask) and clarity/structure (local contrast) */
-    private fun applySpatialOperations(bitmap: Bitmap, adj: Adjustments): Bitmap {
-        if (adj.sharpness < 1e-6f && abs(adj.clarity) < 1e-6f && abs(adj.structure) < 1e-6f) {
+    private fun applySpatialOperations(bitmap: Bitmap, n: NormAdj): Bitmap {
+        if (n.sharpness < 1e-6f && abs(n.clarity) < 1e-6f && abs(n.structure) < 1e-6f) {
             return bitmap
         }
 
@@ -1270,25 +1421,25 @@ class ImageProcessor {
         val dstPixels = srcPixels.copyOf()
 
         // ── Clarity/Structure (local contrast via box blur high-pass) ──
-        if (abs(adj.clarity) > 1e-6f || abs(adj.structure) > 1e-6f) {
+        if (abs(n.clarity) > 1e-6f || abs(n.structure) > 1e-6f) {
             val clarityRadius = 5
             val structureRadius = 2
 
             // Box blur for clarity
-            if (abs(adj.clarity) > 1e-6f) {
+            if (abs(n.clarity) > 1e-6f) {
                 val blurred = boxBlur(srcPixels, w, h, clarityRadius)
-                applyLocalContrastPass(srcPixels, blurred, dstPixels, w, h, adj.clarity * 2f)
+                applyLocalContrastPass(srcPixels, blurred, dstPixels, w, h, n.clarity * 2f)
             }
 
             // Box blur for structure (finer)
-            if (abs(adj.structure) > 1e-6f) {
+            if (abs(n.structure) > 1e-6f) {
                 val blurred = boxBlur(srcPixels, w, h, structureRadius)
-                applyLocalContrastPass(srcPixels, blurred, dstPixels, w, h, adj.structure * 1.5f)
+                applyLocalContrastPass(srcPixels, blurred, dstPixels, w, h, n.structure * 1.5f)
             }
         }
 
         // ── Sharpness (unsharp mask) ──
-        if (adj.sharpness > 1e-6f) {
+        if (n.sharpness > 1e-6f) {
             val sharpRadius = 1
             val blurred = boxBlur(dstPixels, w, h, sharpRadius)
             for (i in dstPixels.indices) {
@@ -1303,9 +1454,9 @@ class ImageProcessor {
                 val bb = (bp and 0xFF) / 255f
 
                 // Unsharp mask: original + (original - blurred) * amount
-                r = (r + (r - br) * adj.sharpness).coerceIn(0f, 1f)
-                g = (g + (g - bg) * adj.sharpness).coerceIn(0f, 1f)
-                b = (b + (b - bb) * adj.sharpness).coerceIn(0f, 1f)
+                r = (r + (r - br) * n.sharpness).coerceIn(0f, 1f)
+                g = (g + (g - bg) * n.sharpness).coerceIn(0f, 1f)
+                b = (b + (b - bb) * n.sharpness).coerceIn(0f, 1f)
 
                 val ri = (r * 255f).toInt().coerceIn(0, 255)
                 val gi = (g * 255f).toInt().coerceIn(0, 255)
@@ -1413,149 +1564,6 @@ class ImageProcessor {
             val bi = (outB * 255f).toInt().coerceIn(0, 255)
             dst[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
         }
-    }
-
-    // ── Convert data.model.Adjustments → core Adjustments ──────────
-
-    /**
-     * Convert the canonical data.model.Adjustments to the core Adjustments
-     * used internally by the CPU processing pipeline.
-     * Normalises value ranges from the UI scale to the internal processing scale.
-     */
-    fun convertToCoreAdjustments(src: com.rapidraw.data.model.Adjustments): Adjustments {
-        return Adjustments(
-            exposure = src.exposure,
-            brightness = src.brightness / 5f,                                  // -5..5 → -1..1
-            toneLevel = src.toneLevel,
-            filmIntensity = src.filmIntensity,
-            greenMagenta = src.greenMagenta,
-            softGlow = src.softGlow,
-            filmId = src.filmId,
-            filmHighlightRollOff = src.filmHighlightRollOff,
-            filmShadowLift = src.filmShadowLift,
-            filmDrCompression = src.filmDrCompression,
-            filmRedShift = src.filmRedShift,
-            filmGreenShift = src.filmGreenShift,
-            filmBlueShift = src.filmBlueShift,
-            filmSaturation = src.filmSaturation,
-            filmContrast = src.filmContrast,
-            filmGrainAmount = src.filmGrainAmount,
-            filmGrainSize = src.filmGrainSize,
-            filmGrainRoughness = src.filmGrainRoughness,
-            filmCurvePoints = src.filmCurvePoints.map { (it.first / 255f) to (it.second / 255f) },
-            temperature = 6500f + src.temperature * 50f,                       // offset → Kelvin
-            tint = src.tint / 100f,                                            // -100..100 → -1..1
-            contrast = src.contrast / 100f,                                    // -100..100 → -1..1
-            highlights = src.highlights / 150f,                                // -150..150 → -1..1
-            shadows = src.shadows / 100f,                                      // -100..100 → -1..1
-            whites = src.whites / 30f,                                         // -30..30 → -1..1
-            blacks = src.blacks / 60f,                                         // -60..60 → -1..1
-            saturation = src.saturation / 100f,                                // -100..100 → -1..1
-            vibrance = src.vibrance / 100f,                                    // -100..100 → -1..1
-            hueRed = src.hslReds.hue / 100f,
-            satRed = src.hslReds.saturation / 100f,
-            lumRed = src.hslReds.luminance / 100f,
-            hueOrange = src.hslOranges.hue / 100f,
-            satOrange = src.hslOranges.saturation / 100f,
-            lumOrange = src.hslOranges.luminance / 100f,
-            hueYellow = src.hslYellows.hue / 100f,
-            satYellow = src.hslYellows.saturation / 100f,
-            lumYellow = src.hslYellows.luminance / 100f,
-            hueGreen = src.hslGreens.hue / 100f,
-            satGreen = src.hslGreens.saturation / 100f,
-            lumGreen = src.hslGreens.luminance / 100f,
-            hueAqua = src.hslAquas.hue / 100f,
-            satAqua = src.hslAquas.saturation / 100f,
-            lumAqua = src.hslAquas.luminance / 100f,
-            hueBlue = src.hslBlues.hue / 100f,
-            satBlue = src.hslBlues.saturation / 100f,
-            lumBlue = src.hslBlues.luminance / 100f,
-            huePurple = src.hslPurples.hue / 100f,
-            satPurple = src.hslPurples.saturation / 100f,
-            lumPurple = src.hslPurples.luminance / 100f,
-            hueMagenta = src.hslMagentas.hue / 100f,
-            satMagenta = src.hslMagentas.saturation / 100f,
-            lumMagenta = src.hslMagentas.luminance / 100f,
-            toneCurvePoints = src.lumaCurve.map { (it.x / 255f) to (it.y / 255f) },
-            colorGradingShadows = floatArrayOf(
-                src.colorGrading.shadows.hue / 360f,
-                src.colorGrading.shadows.saturation / 100f,
-                src.colorGrading.shadows.luminance / 100f),
-            colorGradingMidtones = floatArrayOf(
-                src.colorGrading.midtones.hue / 360f,
-                src.colorGrading.midtones.saturation / 100f,
-                src.colorGrading.midtones.luminance / 100f),
-            colorGradingHighlights = floatArrayOf(
-                src.colorGrading.highlights.hue / 360f,
-                src.colorGrading.highlights.saturation / 100f,
-                src.colorGrading.highlights.luminance / 100f),
-            colorGradingBlend = src.colorGrading.blending / 100f,
-            colorGradingGlobalSat = 0f,
-            calibRedHue = src.colorCalibration.redHue / 100f,
-            calibRedSat = src.colorCalibration.redSaturation / 100f,
-            calibGreenHue = src.colorCalibration.greenHue / 100f,
-            calibGreenSat = src.colorCalibration.greenSaturation / 100f,
-            calibBlueHue = src.colorCalibration.blueHue / 100f,
-            calibBlueSat = src.colorCalibration.blueSaturation / 100f,
-            sharpness = src.sharpness / 150f * 4f,                             // 0..150 → 0..4
-            clarity = src.clarity / 100f,                                      // -100..100 → -1..1
-            structure = src.structure / 100f,                                   // -100..100 → -1..1
-            dehaze = src.dehaze / 100f,                                        // -100..100 → -1..1
-            vignette = src.vignetteAmount / 100f,                              // -100..100 → -1..1
-            grain = src.grainAmount / 100f,                                    // 0..100 → 0..1
-            grainSize = src.grainSize / 100f * 3f,                             // 0..100 → 0..3
-            chromaticAberrationRedCyan = src.chromaticAberrationRedCyan / 100f,
-            chromaticAberrationBlueYellow = src.chromaticAberrationBlueYellow / 100f,
-            agxEnabled = src.toneMapper == "agx",
-            agxContrast = src.agxContrast,
-            agxPedestal = src.agxPedestal,
-            // Lens correction
-            lensDistortion = src.lensDistortion / 100f,
-            lensVignette = src.lensVignette / 100f,
-            lensTca = src.lensTca / 100f,
-            lensFocalLength = src.lensFocalLength,
-            // Vignette sub-parameters
-            vignetteMidpoint = src.vignetteMidpoint / 100f,
-            vignetteRoundness = src.vignetteRoundness / 100f,
-            vignetteFeather = src.vignetteFeather / 100f,
-            // Grain roughness
-            grainRoughness = src.grainRoughness / 100f,
-            // Creative light effects
-            glowAmount = src.glowAmount / 100f,
-            halationAmount = src.halationAmount / 100f,
-            flareAmount = src.flareAmount / 100f,
-            // LUT
-            lutIntensity = src.lutIntensity / 100f,
-            // Detail (additional)
-            lumaNoiseReduction = src.lumaNoiseReduction / 100f,
-            colorNoiseReduction = src.colorNoiseReduction / 100f,
-            centre = src.centre / 100f,
-            // Color grading balance
-            colorGradingBalance = src.colorGrading.balance / 100f,
-            // Color calibration shadows tint
-            colorCalibrationShadowsTint = src.colorCalibration.shadowsTint / 100f,
-            // Transform
-            rotation = src.rotation,
-            orientationSteps = src.orientationSteps,
-            flipHorizontal = src.flipHorizontal,
-            flipVertical = src.flipVertical,
-            cropAspectRatio = src.crop?.aspectRatio,
-            transformDistortion = src.transformDistortion / 100f,
-            transformVertical = src.transformVertical / 100f,
-            transformHorizontal = src.transformHorizontal / 100f,
-            transformRotate = src.transformRotate,
-            transformAspect = src.transformAspect / 100f,
-            transformScale = src.transformScale / 100f,
-            transformXOffset = src.transformXOffset / 100f,
-            transformYOffset = src.transformYOffset / 100f,
-            // RGB Curves
-            redCurvePoints = src.redCurve.map { it.x / 255f to it.y / 255f },
-            greenCurvePoints = src.greenCurve.map { it.x / 255f to it.y / 255f },
-            blueCurvePoints = src.blueCurve.map { it.x / 255f to it.y / 255f },
-            // Masks placeholder
-            masks = emptyList(),
-            clippingPreview = src.showClipping,
-        )
     }
 
     // ── Smart Optimizer Integration ────────────────────────────────
@@ -1750,118 +1758,126 @@ class ImageProcessor {
 
     // ── Export ─────────────────────────────────────────────────────
 
-    suspend fun exportImage(bitmap: Bitmap, settings: ExportSettings, context: Context, originalExif: ExifData? = null): Uri =
-        withContext(Dispatchers.IO) {
-            // Apply resize if needed
-            var exportBitmap = bitmap
-            if (settings.maxWidth > 0 || settings.maxHeight > 0) {
-                exportBitmap = resizeBitmap(exportBitmap, settings.maxWidth, settings.maxHeight)
-            }
-
-            // Apply social platform aspect ratio crop (center crop)
-            if (settings.socialAspectRatio != null) {
-                exportBitmap = cropToAspectRatio(exportBitmap, settings.socialAspectRatio)
-            }
-
-            // Apply watermark
-            if (settings.addWatermark && settings.watermarkText.isNotEmpty()) {
-                exportBitmap = drawTextWatermark(exportBitmap, settings)
-            }
-
-            val mimeType = when (settings.format.uppercase()) {
-                "PNG" -> "image/png"
-                "TIFF" -> "image/tiff"
-                else -> "image/jpeg"
-            }
-            val extension = when (settings.format.uppercase()) {
-                "PNG" -> ".png"
-                "TIFF" -> ".tiff"
-                else -> ".jpg"
-            }
-
-            // Write to temporary file first (required for EXIF writing)
-            val cacheDir = context.cacheDir
-            val tempFile = java.io.File(cacheDir, "export_temp_${System.currentTimeMillis()}$extension")
-            tempFile.outputStream().use { fos ->
-                compressBitmap(exportBitmap, settings.format, settings.quality, fos)
-            }
-
-            // Apply EXIF metadata for JPEG
-            if (settings.format.uppercase() == "JPEG" && settings.preserveMetadata && originalExif != null) {
-                try {
-                    val exif = androidx.exifinterface.media.ExifInterface(tempFile.absolutePath)
-                    if (originalExif.make.isNotEmpty()) {
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE, originalExif.make)
-                    }
-                    if (originalExif.model.isNotEmpty()) {
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL, originalExif.model)
-                    }
-                    if (originalExif.dateTime.isNotEmpty()) {
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME, originalExif.dateTime)
-                    }
-                    if (originalExif.iso > 0) {
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, originalExif.iso.toString())
-                    }
-                    if (originalExif.exposureTime > 0) {
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, originalExif.exposureTime.toString())
-                    }
-                    if (originalExif.focalLength > 0) {
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, originalExif.focalLength.toString())
-                    }
-                    if (originalExif.aperture > 0) {
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, originalExif.aperture.toString())
-                    }
-                    val orientationValue = when (originalExif.orientation) {
-                        90 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90
-                        180 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180
-                        270 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270
-                        else -> androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
-                    }
-                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, orientationValue.toString())
-                    if (settings.stripGps) {
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE, null)
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE, null)
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE_REF, null)
-                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE_REF, null)
-                    }
-                    exif.saveAttributes()
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to write EXIF: ${e.message}")
+    suspend fun exportImage(
+        bitmap: Bitmap,
+        settings: ExportSettings,
+        context: Context,
+        originalExif: ExifData? = null,
+        orientation: Int = 0
+    ): Uri = withContext(Dispatchers.IO) {
+        // Apply resize if needed
+        var exportBitmap = bitmap
+        if (settings.resizeMode != ResizeMode.ORIGINAL && settings.resizeValue > 0) {
+            var maxWidth = 0
+            var maxHeight = 0
+            when (settings.resizeMode) {
+                ResizeMode.WIDTH -> maxWidth = settings.resizeValue
+                ResizeMode.HEIGHT -> maxHeight = settings.resizeValue
+                ResizeMode.LONG_EDGE -> {
+                    maxWidth = settings.resizeValue
+                    maxHeight = settings.resizeValue
                 }
-            }
-
-            // Copy temp file to MediaStore
-            val contentValues = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "RapidRAW_${System.currentTimeMillis()}$extension")
-                put(MediaStore.Images.Media.MIME_TYPE, mimeType)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/RapidRAW")
-                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                ResizeMode.SHORT_EDGE -> {
+                    maxWidth = settings.resizeValue
+                    maxHeight = settings.resizeValue
                 }
+                ResizeMode.ORIGINAL -> { /* no resize */ }
             }
-
-            val contentResolver = context.contentResolver
-            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                ?: throw RuntimeException("Failed to create MediaStore entry")
-
-            contentResolver.openOutputStream(uri)?.use { outputStream ->
-                tempFile.inputStream().use { input ->
-                    input.copyTo(outputStream)
-                }
-            } ?: throw RuntimeException("Failed to open output stream")
-
-            // Clear IS_PENDING flag
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                contentValues.clear()
-                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-                contentResolver.update(uri, contentValues, null, null)
+            if (maxWidth > 0 || maxHeight > 0) {
+                exportBitmap = resizeBitmap(exportBitmap, maxWidth, maxHeight)
             }
-
-            if (exportBitmap != bitmap) exportBitmap.recycle()
-            tempFile.delete()
-
-            uri
         }
+
+        // Apply social platform aspect ratio crop (center crop)
+        settings.socialPlatform.aspectRatio?.let { aspectRatio ->
+            exportBitmap = cropToAspectRatio(exportBitmap, aspectRatio)
+        }
+
+        // Apply watermark
+        if (settings.addWatermark && settings.watermarkText.isNotEmpty()) {
+            exportBitmap = drawTextWatermark(exportBitmap, settings)
+        }
+
+        val mimeType = when (settings.format) {
+            ExportFormat.PNG -> "image/png"
+            ExportFormat.TIFF -> "image/tiff"
+            ExportFormat.JPEG -> "image/jpeg"
+        }
+        val extension = when (settings.format) {
+            ExportFormat.PNG -> ".png"
+            ExportFormat.TIFF -> ".tiff"
+            ExportFormat.JPEG -> ".jpg"
+        }
+
+        // Write to temporary file first (required for EXIF writing)
+        val cacheDir = context.cacheDir
+        val tempFile = java.io.File(cacheDir, "export_temp_${System.currentTimeMillis()}$extension")
+        tempFile.outputStream().use { fos ->
+            compressBitmap(exportBitmap, settings.format, settings.quality, fos)
+        }
+
+        // Apply EXIF metadata for JPEG
+        if (settings.format == ExportFormat.JPEG && settings.keepMetadata && originalExif != null) {
+            try {
+                val exif = androidx.exifinterface.media.ExifInterface(tempFile.absolutePath)
+                originalExif.make?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE, it) }
+                originalExif.model?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL, it) }
+                originalExif.dateTime?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME, it) }
+                originalExif.iso?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, it) }
+                originalExif.shutterSpeed?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, it) }
+                originalExif.focalLength?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, it) }
+                originalExif.aperture?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, it) }
+                val orientationValue = when (orientation) {
+                    90 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90
+                    180 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180
+                    270 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270
+                    else -> androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                }
+                exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, orientationValue.toString())
+                if (settings.stripGps) {
+                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE, null)
+                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE, null)
+                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE_REF, null)
+                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE_REF, null)
+                }
+                exif.saveAttributes()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to write EXIF: ${e.message}")
+            }
+        }
+
+        // Copy temp file to MediaStore
+        val contentValues = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "RapidRAW_${System.currentTimeMillis()}$extension")
+            put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/RapidRAW")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+
+        val contentResolver = context.contentResolver
+        val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+            ?: throw RuntimeException("Failed to create MediaStore entry")
+
+        contentResolver.openOutputStream(uri)?.use { outputStream ->
+            tempFile.inputStream().use { input ->
+                input.copyTo(outputStream)
+            }
+        } ?: throw RuntimeException("Failed to open output stream")
+
+        // Clear IS_PENDING flag
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            contentValues.clear()
+            contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+            contentResolver.update(uri, contentValues, null, null)
+        }
+
+        if (exportBitmap != bitmap) exportBitmap.recycle()
+        tempFile.delete()
+
+        uri
+    }
 
     private fun resizeBitmap(bitmap: Bitmap, maxWidth: Int, maxHeight: Int): Bitmap {
         if (maxWidth <= 0 && maxHeight <= 0) return bitmap
@@ -1922,24 +1938,24 @@ class ImageProcessor {
 
         val padding = (bitmap.width * 0.02f).coerceAtLeast(8f)
         val x = when (settings.watermarkAnchor) {
-            "TOP_LEFT", "CENTER_LEFT", "BOTTOM_LEFT" -> padding
-            "TOP_CENTER", "CENTER", "BOTTOM_CENTER" -> (bitmap.width - textWidth) / 2f
-            else -> bitmap.width - textWidth - padding
+            WatermarkAnchor.TOP_LEFT, WatermarkAnchor.CENTER_LEFT, WatermarkAnchor.BOTTOM_LEFT -> padding
+            WatermarkAnchor.TOP_CENTER, WatermarkAnchor.CENTER, WatermarkAnchor.BOTTOM_CENTER -> (bitmap.width - textWidth) / 2f
+            WatermarkAnchor.TOP_RIGHT, WatermarkAnchor.CENTER_RIGHT, WatermarkAnchor.BOTTOM_RIGHT -> bitmap.width - textWidth - padding
         }
         val y = when (settings.watermarkAnchor) {
-            "TOP_LEFT", "TOP_CENTER", "TOP_RIGHT" -> textHeight + padding
-            "CENTER_LEFT", "CENTER", "CENTER_RIGHT" -> (bitmap.height + textHeight) / 2f
-            else -> bitmap.height - padding
+            WatermarkAnchor.TOP_LEFT, WatermarkAnchor.TOP_CENTER, WatermarkAnchor.TOP_RIGHT -> textHeight + padding
+            WatermarkAnchor.CENTER_LEFT, WatermarkAnchor.CENTER, WatermarkAnchor.CENTER_RIGHT -> (bitmap.height + textHeight) / 2f
+            WatermarkAnchor.BOTTOM_LEFT, WatermarkAnchor.BOTTOM_CENTER, WatermarkAnchor.BOTTOM_RIGHT -> bitmap.height - padding
         }
 
         canvas.drawText(text, x, y, paint)
         return result
     }
 
-    private fun compressBitmap(bitmap: Bitmap, format: String, quality: Int, outputStream: OutputStream) {
-        when (format.uppercase()) {
-            "PNG" -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-            "TIFF" -> {
+    private fun compressBitmap(bitmap: Bitmap, format: ExportFormat, quality: Int, outputStream: OutputStream) {
+        when (format) {
+            ExportFormat.PNG -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+            ExportFormat.TIFF -> {
                 // Android doesn't natively support TIFF compression via Bitmap.
                 // Write as highest-quality JPEG as fallback (true TIFF encoding
                 // would require a third-party library like Apache Commons Imaging).
@@ -1947,7 +1963,7 @@ class ImageProcessor {
                 // container: write raw pixel data as uncompressed TIFF.
                 writeUncompressedTiff(bitmap, outputStream)
             }
-            else -> bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+            ExportFormat.JPEG -> bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
         }
         outputStream.flush()
     }
@@ -2036,30 +2052,30 @@ class ImageProcessor {
     /**
      * Apply geometric transformations: flip, orientation rotation, fine rotation, crop, perspective.
      */
-    private fun applyGeometricTransform(source: Bitmap, adj: Adjustments): Bitmap {
+    private fun applyGeometricTransform(source: Bitmap, n: NormAdj): Bitmap {
         var result = source
 
         // 1. Flip
-        if (adj.flipHorizontal || adj.flipVertical) {
+        if (n.flipHorizontal || n.flipVertical) {
             val matrix = android.graphics.Matrix()
             matrix.preScale(
-                if (adj.flipHorizontal) -1f else 1f,
-                if (adj.flipVertical) -1f else 1f
+                if (n.flipHorizontal) -1f else 1f,
+                if (n.flipVertical) -1f else 1f
             )
             result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
         }
 
         // 2. Orientation rotation (90° multiples)
-        if (adj.orientationSteps != 0) {
+        if (n.orientationSteps != 0) {
             val matrix = android.graphics.Matrix()
-            matrix.postRotate((adj.orientationSteps * 90).toFloat())
+            matrix.postRotate((n.orientationSteps * 90).toFloat())
             result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
         }
 
         // 3. Fine rotation
-        if (adj.rotation != 0f) {
+        if (n.rotation != 0f) {
             val matrix = android.graphics.Matrix()
-            matrix.postRotate(adj.rotation, result.width / 2f, result.height / 2f)
+            matrix.postRotate(n.rotation, result.width / 2f, result.height / 2f)
             val rect = android.graphics.RectF(0f, 0f, result.width.toFloat(), result.height.toFloat())
             matrix.mapRect(rect)
             matrix.postTranslate(-rect.left, -rect.top)
@@ -2069,23 +2085,23 @@ class ImageProcessor {
         }
 
         // 4. Scale
-        if (adj.transformScale != 1f) {
+        if (n.transformScale != 1f) {
             val matrix = android.graphics.Matrix()
-            matrix.postScale(adj.transformScale, adj.transformScale, result.width / 2f, result.height / 2f)
+            matrix.postScale(n.transformScale, n.transformScale, result.width / 2f, result.height / 2f)
             result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
         }
 
         // 4b. Aspect ratio
-        if (adj.transformAspect != 0f) {
+        if (n.transformAspect != 0f) {
             val matrix = android.graphics.Matrix()
-            matrix.postScale(1f + adj.transformAspect * 0.5f, 1f, result.width / 2f, result.height / 2f)
+            matrix.postScale(1f + n.transformAspect * 0.5f, 1f, result.width / 2f, result.height / 2f)
             result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
         }
 
         // 4c. Transform rotate (perspective panel fine rotation)
-        if (adj.transformRotate != 0f) {
+        if (n.transformRotate != 0f) {
             val matrix = android.graphics.Matrix()
-            matrix.postRotate(adj.transformRotate, result.width / 2f, result.height / 2f)
+            matrix.postRotate(n.transformRotate, result.width / 2f, result.height / 2f)
             val rect = android.graphics.RectF(0f, 0f, result.width.toFloat(), result.height.toFloat())
             matrix.mapRect(rect)
             matrix.postTranslate(-rect.left, -rect.top)
@@ -2095,17 +2111,17 @@ class ImageProcessor {
         }
 
         // 5. Offset
-        if (adj.transformXOffset != 0f || adj.transformYOffset != 0f) {
+        if (n.transformXOffset != 0f || n.transformYOffset != 0f) {
             val matrix = android.graphics.Matrix()
-            matrix.postTranslate(adj.transformXOffset * result.width * 0.1f, adj.transformYOffset * result.height * 0.1f)
+            matrix.postTranslate(n.transformXOffset * result.width * 0.1f, n.transformYOffset * result.height * 0.1f)
             result = Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
         }
 
         // 6. Crop
-        if (adj.cropAspectRatio != null) {
+        if (n.cropAspectRatio != null) {
             val imgW = result.width
             val imgH = result.height
-            val targetRatio = adj.cropAspectRatio
+            val targetRatio = n.cropAspectRatio
             val currentRatio = imgW.toFloat() / imgH
             var cropW = imgW
             var cropH = imgH
@@ -2138,7 +2154,7 @@ class ImageProcessor {
      * Apply lens distortion, vignette, and TCA correction.
      * Uses Brown-Conrady model for distortion and radial mapping for vignette/TCA.
      */
-    private fun applyLensCorrection(source: Bitmap, adj: Adjustments): Bitmap {
+    private fun applyLensCorrection(source: Bitmap, n: NormAdj): Bitmap {
         val w = source.width
         val h = source.height
         val srcPixels = IntArray(w * h)
@@ -2157,21 +2173,21 @@ class ImageProcessor {
                 val r4 = r2 * r2
 
                 // Focal length factor: shorter focal length = stronger effects
-                val focalFactor = 50f / adj.lensFocalLength.coerceAtLeast(1f)
+                val focalFactor = 50f / n.lensFocalLength.coerceAtLeast(1f)
 
                 // Distortion correction (reverse mapping)
-                val k1 = adj.lensDistortion * 0.15f * focalFactor
+                val k1 = n.lensDistortion * 0.15f * focalFactor
                 val radial = 1f + k1 * r2
                 var srcNx = nx / radial
                 var srcNy = ny / radial
 
                 // TCA: separate R/B channel offsets
-                val tca = adj.lensTca * 0.02f * focalFactor
+                val tca = n.lensTca * 0.02f * focalFactor
                 val tcaOffsetR = tca * r2
                 val tcaOffsetB = -tca * r2
 
                 // Vignette correction: brighten edges
-                val vignetteCorr = 1f + adj.lensVignette * 0.5f * r2 * focalFactor
+                val vignetteCorr = 1f + n.lensVignette * 0.5f * r2 * focalFactor
 
                 val srcX = srcNx * maxR + cx
                 val srcY = srcNy * maxR + cy

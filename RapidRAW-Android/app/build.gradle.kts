@@ -18,6 +18,15 @@ android {
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "changeit"
+            keyAlias = "rapidraw"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "changeit"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -26,6 +35,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -85,6 +95,15 @@ dependencies {
 
     // WorkManager (导出队列)
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+
+    // Crash reporting
+    implementation("ch.acra:acra-http:5.11.3")
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
