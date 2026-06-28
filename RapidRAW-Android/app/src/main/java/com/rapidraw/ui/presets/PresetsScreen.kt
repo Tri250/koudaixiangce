@@ -66,7 +66,7 @@ fun PresetsSheet(
     onClearFilm: () -> Unit,
     onSavePreset: (String) -> Unit,
     savedPresets: List<Preset> = emptyList(),
-    onDeletePreset: (Long) -> Unit = {},
+    onDeletePreset: (String) -> Unit = {},
 ) {
     var selectedFilmId by remember { mutableStateOf<String?>(null) }
     var activeCategory by remember { mutableStateOf(FilmCategory.CLASSIC) }

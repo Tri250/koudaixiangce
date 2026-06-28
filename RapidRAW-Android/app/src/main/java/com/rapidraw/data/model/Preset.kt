@@ -4,12 +4,15 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Preset(
-    val id: Long,
+    val id: String,
     val name: String,
-    val folder: String? = null,
-    val adjustments: Adjustments,
+    val description: String? = null,
+    val category: String? = null,
+    val filmId: String? = null,
+    val adjustments: Adjustments = Adjustments(),
     val isBuiltIn: Boolean = false,
     val thumbnailPath: String? = null,
+    val previewGradient: List<Long> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
 )
 

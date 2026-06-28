@@ -49,6 +49,10 @@ fun BeforeAfterToggle(
                             isLongPressing = true
                         },
                         onTap = { onToggle() },
+                        onPress = {
+                            awaitRelease()
+                            isLongPressing = false
+                        },
                     )
                 }
         ) {
@@ -114,7 +118,7 @@ fun BeforeAfterToggle(
         }
 
         Text(
-            text = if (showingOriginal) "Original" else "Edited",
+            text = if (showingOriginal) "原图" else "效果",
             color = TextSecondary,
             fontSize = 10.sp,
             modifier = Modifier.padding(top = 2.dp),

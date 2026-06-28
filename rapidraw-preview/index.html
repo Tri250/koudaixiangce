@@ -56,9 +56,28 @@
         <button class="icon-btn" id="btn-exif"><span class="material-icons-round">info</span></button>
         <button class="icon-btn" id="btn-undo"><span class="material-icons-round">undo</span></button>
         <button class="icon-btn" id="btn-redo"><span class="material-icons-round">redo</span></button>
+<<<<<<< HEAD
       </div>
     </div>
 
+=======
+        <button class="icon-btn" id="btn-clipping"><span class="material-icons-round">visibility</span></button>
+        <button class="icon-btn" id="btn-histogram"><span class="material-icons-round">bar_chart</span></button>
+        <button class="icon-btn" id="btn-compare"><span class="material-icons-round">compare</span></button>
+        <button class="icon-btn" id="btn-more"><span class="material-icons-round">more_vert</span></button>
+      </div>
+    </div>
+
+    <div class="more-menu" id="more-menu" style="display:none;">
+      <button class="more-menu-item" id="menu-reset"><span class="material-icons-round" style="font-size:18px">restart_alt</span>全部重置</button>
+      <button class="more-menu-item" id="menu-smart-optimize"><span class="material-icons-round" style="font-size:18px">auto_fix_high</span>智能优化</button>
+      <button class="more-menu-item" id="menu-copy-params"><span class="material-icons-round" style="font-size:18px">content_copy</span>复制编辑参数</button>
+      <button class="more-menu-item" id="menu-recipe"><span class="material-icons-round" style="font-size:18px">share</span>配方分享</button>
+      <button class="more-menu-item" id="menu-ai-inpaint"><span class="material-icons-round" style="font-size:18px">auto_fix_off</span>AI 消除</button>
+      <button class="more-menu-item" id="menu-presets"><span class="material-icons-round" style="font-size:18px">palette</span>大师配方</button>
+    </div>
+
+>>>>>>> trae/agent-Iea5wr
     <!-- Image Preview Area -->
     <div class="preview-area" id="preview-area">
       <img id="preview-image" src="" alt="Preview">
@@ -326,6 +345,69 @@
       </div>
       <button class="export-btn" id="btn-export">导出</button>
     </div>
+<<<<<<< HEAD
+=======
+
+    <!-- ==================== AI INPAINT OVERLAY ==================== -->
+    <div class="ai-inpaint-view" id="ai-inpaint-view" style="display:none;">
+      <div class="editor-top-bar">
+        <button class="icon-btn" id="btn-inpaint-back"><span class="material-icons-round">arrow_back</span></button>
+        <div class="editor-title">AI 消除</div>
+        <div class="editor-top-actions">
+          <button class="icon-btn" id="btn-inpaint-reset"><span class="material-icons-round">refresh</span></button>
+          <button class="icon-btn" id="btn-inpaint-done" style="color:var(--primary)"><span class="material-icons-round">check</span></button>
+        </div>
+      </div>
+      <div class="preview-area" style="padding-bottom:0">
+        <img id="inpaint-image" src="" alt="Inpaint Preview">
+        <canvas id="inpaint-canvas" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+        <div class="inpaint-processing" id="inpaint-processing" style="display:none;">
+          <div class="processing-spinner"></div>
+          <span>修复中...</span>
+        </div>
+      </div>
+      <div class="inpaint-toolbar">
+        <div class="brush-size-control">
+          <span style="font-size:12px;color:var(--text-secondary)">画笔大小</span>
+          <input type="range" min="10" max="200" value="50" id="brush-size-slider" class="brush-slider">
+          <span id="brush-size-val" style="font-size:12px;color:var(--text-primary)">50px</span>
+        </div>
+        <div class="inpaint-modes">
+          <button class="inpaint-mode-btn active" id="btn-mark-mode">
+            <span class="material-icons-round" style="font-size:18px">delete</span>
+            <span>标记</span>
+          </button>
+          <button class="inpaint-mode-btn" id="btn-erase-mode">
+            <span class="material-icons-round" style="font-size:18px">close</span>
+            <span>擦除</span>
+          </button>
+          <div style="flex:1"></div>
+          <button class="inpaint-fix-btn" id="btn-start-fix">开始修复</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== PRESETS DISCOVERY OVERLAY ==================== -->
+    <div class="presets-discovery-view" id="presets-discovery-view" style="display:none;">
+      <div class="editor-top-bar">
+        <button class="icon-btn" id="btn-presets-back"><span class="material-icons-round">arrow_back</span></button>
+        <div class="editor-title">大师配方</div>
+      </div>
+      <div class="presets-discovery-content">
+        <div class="presets-filter-chips">
+          <button class="preset-chip active" data-pcat="全部">全部</button>
+          <button class="preset-chip" data-pcat="人像">人像</button>
+          <button class="preset-chip" data-pcat="风景">风景</button>
+          <button class="preset-chip" data-pcat="夜景">夜景</button>
+          <button class="preset-chip" data-pcat="街拍">街拍</button>
+          <button class="preset-chip" data-pcat="美食">美食</button>
+        </div>
+        <div class="presets-discovery-grid" id="presets-discovery-grid">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </div>
+>>>>>>> trae/agent-Iea5wr
   </div>
 </div>
 

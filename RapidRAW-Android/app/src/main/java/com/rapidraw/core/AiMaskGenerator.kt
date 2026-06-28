@@ -7,267 +7,194 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sqrt
 
 /**
- * Pure on-device AI masking engine.
- * Implements heuristic computer-vision segmentation without external ML frameworks:
- * - Sky detection: color + position heuristics
- * - Subject detection: saliency via color contrast
- * - Foreground/Depth: edge + blur-based depth estimation
+ * 纯端侧 AI 遮罩生成：基于颜色直方图+启发式规则的语义分割。
+ * 支持：天空 / 主体 / 前景 / 深度 四种遮罩类型。零 ML 框架。
  */
 class AiMaskGenerator {
 
-    enum class MaskType {
-        SKY,
-        SUBJECT,
-        FOREGROUND,
-        DEPTH
-    }
-
-    data class MaskResult(
-        val maskBitmap: Bitmap, // Grayscale: 0=transparent, 255=opaque
-        val type: MaskType,
-        val confidence: Float,
-    )
+    enum class MaskType { SKY, SUBJECT, FOREGROUND, DEPTH }
 
     /**
-     * Generate a mask of the requested type from the source bitmap.
+     * 生成语义遮罩。
+     * @param source 输入 Bitmap
+     * @param type 遮罩类型
+     * @return 遮罩 Bitmap（ALPHA_8 格式，白色=选中区域）
      */
-    fun generateMask(bitmap: Bitmap, type: MaskType): MaskResult {
-        return when (type) {
-            MaskType.SKY -> detectSky(bitmap)
-            MaskType.SUBJECT -> detectSubject(bitmap)
-            MaskType.FOREGROUND -> detectForeground(bitmap)
-            MaskType.DEPTH -> estimateDepth(bitmap)
-        }
-    }
-
-    // ── Sky Detection ────────────────────────────────────────────────
-
-    private fun detectSky(bitmap: Bitmap): MaskResult {
-        val w = bitmap.width
-        val h = bitmap.height
+    fun generateMask(source: Bitmap, type: MaskType): Bitmap {
+        val w = source.width
+        val h = source.height
         val pixels = IntArray(w * h)
-        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
-
-        val mask = IntArray(w * h)
-        var confidenceSum = 0f
-        var count = 0
-
-        for (y in 0 until h) {
-            val rowWeight = 1f - (y.toFloat() / h * 0.7f) // Sky is usually in upper 30-50%
-            for (x in 0 until w) {
-                val i = y * w + x
-                val p = pixels[i]
-                val r = (p shr 16) and 0xFF
-                val g = (p shr 8) and 0xFF
-                val b = p and 0xFF
-
-                // Sky is blue/cyan/white, low saturation, high brightness in upper area
-                val maxC = max(max(r, g), b)
-                val minC = min(min(r, g), b)
-                val saturation = if (maxC == 0) 0f else (maxC - minC).toFloat() / maxC
-                val brightness = maxC / 255f
-
-                val isBlueish = b > r && b > g && b > 80
-                val isWhite = maxC > 180 && saturation < 0.15f
-                val isCyan = g > 120 && b > 120 && r < 150 && saturation < 0.4f
-
-                val skyScore = when {
-                    isBlueish -> 0.85f * rowWeight
-                    isWhite -> 0.7f * rowWeight
-                    isCyan -> 0.6f * rowWeight
-                    else -> 0.05f * rowWeight
-                }
-
-                val alpha = (skyScore * 255).toInt().coerceIn(0, 255)
-                mask[i] = (alpha shl 24) or (0xFF shl 16) or (0xFF shl 8) or 0xFF
-                confidenceSum += skyScore
-                count++
-            }
+        source.getPixels(pixels, 0, w, 0, 0, w, h)
+        
+        // 计算图像统计
+        var avgR = 0f
+        var avgG = 0f
+        var avgB = 0f
+        for (pixel in pixels) {
+            avgR += ((pixel shr 16) and 0xFF)
+            avgG += ((pixel shr 8) and 0xFF)
+            avgB += (pixel and 0xFF)
         }
-
-        val maskBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        maskBitmap.setPixels(mask, 0, w, 0, 0, w, h)
-        return MaskResult(maskBitmap, MaskType.SKY, confidenceSum / count)
-    }
-
-    // ── Subject Detection (Saliency) ─────────────────────────────────
-
-    private fun detectSubject(bitmap: Bitmap): MaskResult {
-        val w = bitmap.width
-        val h = bitmap.height
-        val pixels = IntArray(w * h)
-        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
-
-        // Compute mean color
-        var sumR = 0L
-        var sumG = 0L
-        var sumB = 0L
-        for (p in pixels) {
-            sumR += (p shr 16) and 0xFF
-            sumG += (p shr 8) and 0xFF
-            sumB += p and 0xFF
-        }
-        val meanR = sumR / pixels.size
-        val meanG = sumG / pixels.size
-        val meanB = sumB / pixels.size
-
-        val mask = IntArray(w * h)
-        var confidenceSum = 0f
-        var count = 0
-
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                val i = y * w + x
-                val p = pixels[i]
-                val r = (p shr 16) and 0xFF
-                val g = (p shr 8) and 0xFF
-                val b = p and 0xFF
-
-                // Color contrast from mean = saliency
-                val dist = sqrt(
-                    (r - meanR) * (r - meanR) +
-                    (g - meanG) * (g - meanG) +
-                    (b - meanB) * (b - meanB)
-                ).toFloat()
-
-                val normalizedDist = (dist / 441f).coerceIn(0f, 1f) // 441 ≈ sqrt(3*255^2)
-
-                // Center bias: subjects often near center
-                val cx = abs(x - w / 2f) / (w / 2f)
-                val cy = abs(y - h / 2f) / (h / 2f)
-                val centerBias = 1f - (cx * cx + cy * cy) / 2f
-
-                val score = (normalizedDist * 0.7f + centerBias * 0.3f).coerceIn(0f, 1f)
-                val alpha = (score * 255).toInt().coerceIn(0, 255)
-                mask[i] = (alpha shl 24) or (0xFF shl 16) or (0xFF shl 8) or 0xFF
-                confidenceSum += score
-                count++
-            }
-        }
-
-        val maskBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        maskBitmap.setPixels(mask, 0, w, 0, 0, w, h)
-        return MaskResult(maskBitmap, MaskType.SUBJECT, confidenceSum / count)
-    }
-
-    // ── Foreground Detection ─────────────────────────────────────────
-
-    private fun detectForeground(bitmap: Bitmap): MaskResult {
-        val w = bitmap.width
-        val h = bitmap.height
-        val depth = estimateDepth(bitmap)
-        // Foreground = closest depth (highest value in our depth estimation)
+        avgR /= pixels.size
+        avgG /= pixels.size
+        avgB /= pixels.size
+        
         val maskPixels = IntArray(w * h)
-        depth.maskBitmap.getPixels(maskPixels, 0, w, 0, 0, w, h)
-
-        val fgMask = IntArray(w * h)
-        var confidenceSum = 0f
-        var count = 0
-
-        for (i in maskPixels.indices) {
-            val alpha = (maskPixels[i] shr 24) and 0xFF
-            // Invert depth: foreground = high alpha, background = low alpha
-            val fgScore = (alpha / 255f).coerceIn(0f, 1f)
-            val outAlpha = (fgScore * 255).toInt().coerceIn(0, 255)
-            fgMask[i] = (outAlpha shl 24) or (0xFF shl 16) or (0xFF shl 8) or 0xFF
-            confidenceSum += fgScore
-            count++
+        
+        when (type) {
+            MaskType.SKY -> {
+                // 天空检测：蓝色/白色/青色 + 行权重（上方权重高）
+                for (y in 0 until h) {
+                    val rowWeight = 1f - (y.toFloat() / h) * 0.7f
+                    for (x in 0 until w) {
+                        val idx = y * w + x
+                        val r = ((pixels[idx] shr 16) and 0xFF)
+                        val g = ((pixels[idx] shr 8) and 0xFF)
+                        val b = (pixels[idx] and 0xFF)
+                        
+                        val isBlue = b > r + 15 && b > g + 5
+                        val isWhite = abs(r - g) < 15 && abs(g - b) < 15 && r > 180
+                        val isCyan = b > r + 10 && g > r + 10
+                        
+                        val skyScore = when {
+                            isBlue -> 0.9f * rowWeight
+                            isWhite -> 0.7f * rowWeight
+                            isCyan -> 0.6f * rowWeight
+                            else -> 0f
+                        }
+                        
+                        val alpha = (skyScore * 255).toInt().coerceIn(0, 255)
+                        maskPixels[idx] = (alpha shl 24) or 0x00FFFFFF
+                    }
+                }
+            }
+            MaskType.SUBJECT -> {
+                // 主体检测：与均值颜色距离 + 中心偏置
+                val cx = w / 2f
+                val cy = h / 2f
+                val maxDist = sqrt(cx * cx + cy * cy)
+                for (y in 0 until h) {
+                    for (x in 0 until w) {
+                        val idx = y * w + x
+                        val r = ((pixels[idx] shr 16) and 0xFF)
+                        val g = ((pixels[idx] shr 8) and 0xFF)
+                        val b = (pixels[idx] and 0xFF)
+                        
+                        val colorDist = sqrt(
+                            (r - avgR).pow(2) + (g - avgG).pow(2) + (b - avgB).pow(2)
+                        ) / 441f // 归一化到 [0,1]
+                        
+                        val centerDist = sqrt((x - cx).pow(2) + (y - cy).pow(2)) / maxDist
+                        val centerBias = 1f - centerDist * 0.5f
+                        
+                        val subjectScore = (colorDist * 0.7f + centerBias * 0.3f).coerceIn(0f, 1f)
+                        val alpha = (subjectScore * 255).toInt().coerceIn(0, 255)
+                        maskPixels[idx] = (alpha shl 24) or 0x00FFFFFF
+                    }
+                }
+            }
+            MaskType.FOREGROUND -> {
+                // 前景检测：基于深度图反转
+                val depthMap = computeDepthMap(pixels, w, h)
+                for (i in pixels.indices) {
+                    val fgScore = 1f - depthMap[i]
+                    val alpha = (fgScore * 255).toInt().coerceIn(0, 255)
+                    maskPixels[i] = (alpha shl 24) or 0x00FFFFFF
+                }
+            }
+            MaskType.DEPTH -> {
+                // 深度图：下采样局部方差作为深度代理（锐=近，糊=远）
+                val depthMap = computeDepthMap(pixels, w, h)
+                for (i in pixels.indices) {
+                    val alpha = (depthMap[i] * 255).toInt().coerceIn(0, 255)
+                    maskPixels[i] = (alpha shl 24) or 0x00FFFFFF
+                }
+            }
         }
-
-        val maskBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        maskBitmap.setPixels(fgMask, 0, w, 0, 0, w, h)
-        return MaskResult(maskBitmap, MaskType.FOREGROUND, confidenceSum / count)
+        
+        val mask = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        mask.setPixels(maskPixels, 0, w, 0, 0, w, h)
+        return mask
     }
-
-    // ── Depth Estimation (Blur-based) ────────────────────────────────
-
-    private fun estimateDepth(bitmap: Bitmap): MaskResult {
-        val w = bitmap.width
-        val h = bitmap.height
-
-        // Downsample for performance
-        val scale = 0.25f
-        val sw = (w * scale).toInt().coerceAtLeast(1)
-        val sh = (h * scale).toInt().coerceAtLeast(1)
-        val small = Bitmap.createScaledBitmap(bitmap, sw, sh, true)
-
-        val pixels = IntArray(sw * sh)
-        small.getPixels(pixels, 0, sw, 0, 0, sw, sh)
-
-        // Compute local variance (sharpness) as depth proxy
-        // Sharper = closer, blurrier = farther
-        val variance = FloatArray(sw * sh)
-        val radius = 2
-
+    
+    /**
+     * 计算深度图：下采样 0.25x，局部 5x5 方差作为深度代理
+     */
+    private fun computeDepthMap(pixels: IntArray, w: Int, h: Int): FloatArray {
+        val sw = (w * 0.25f).toInt().coerceAtLeast(1)
+        val sh = (h * 0.25f).toInt().coerceAtLeast(1)
+        val small = IntArray(sw * sh)
+        
+        // 下采样
         for (y in 0 until sh) {
             for (x in 0 until sw) {
-                var sumLum = 0f
-                var sumLumSq = 0f
+                val sx = (x * w / sw).coerceIn(0, w - 1)
+                val sy = (y * h / sh).coerceIn(0, h - 1)
+                small[y * sw + x] = pixels[sy * w + sx]
+            }
+        }
+        
+        // 计算亮度
+        val luma = FloatArray(sw * sh)
+        for (i in small.indices) {
+            val r = ((small[i] shr 16) and 0xFF)
+            val g = ((small[i] shr 8) and 0xFF)
+            val b = (small[i] and 0xFF)
+            luma[i] = 0.299f * r + 0.587f * g + 0.114f * b
+        }
+        
+        // 5x5 局部方差
+        val variance = FloatArray(sw * sh)
+        for (y in 0 until sh) {
+            for (x in 0 until sw) {
+                val idx = y * sw + x
+                var sum = 0f
+                var sumSq = 0f
                 var count = 0
-                for (dy in -radius..radius) {
-                    for (dx in -radius..radius) {
-                        val sy = (y + dy).coerceIn(0, sh - 1)
-                        val sx = (x + dx).coerceIn(0, sw - 1)
-                        val p = pixels[sy * sw + sx]
-                        val lum = (((p shr 16) and 0xFF) * 0.299f +
-                                   ((p shr 8) and 0xFF) * 0.587f +
-                                   (p and 0xFF) * 0.114f)
-                        sumLum += lum
-                        sumLumSq += lum * lum
+                for (dy in -2..2) {
+                    for (dx in -2..2) {
+                        val nx = (x + dx).coerceIn(0, sw - 1)
+                        val ny = (y + dy).coerceIn(0, sh - 1)
+                        val v = luma[ny * sw + nx]
+                        sum += v
+                        sumSq += v * v
                         count++
                     }
                 }
-                val mean = sumLum / count
-                val meanSq = sumLumSq / count
-                variance[y * sw + x] = (meanSq - mean * mean).coerceAtLeast(0f)
+                val mean = sum / count
+                val varVal = (sumSq / count - mean * mean).coerceAtLeast(0f)
+                variance[idx] = (varVal / 255f).coerceIn(0f, 1f)
             }
         }
-
-        // Normalize variance to 0..1
-        val maxVar = variance.maxOrNull() ?: 1f
-        val minVar = variance.minOrNull() ?: 0f
-        val range = max(maxVar - minVar, 1f)
-
-        val mask = IntArray(sw * sh)
-        var confidenceSum = 0f
-        for (i in variance.indices) {
-            val normalized = ((variance[i] - minVar) / range).coerceIn(0f, 1f)
-            val alpha = (normalized * 255).toInt().coerceIn(0, 255)
-            mask[i] = (alpha shl 24) or (0xFF shl 16) or (0xFF shl 8) or 0xFF
-            confidenceSum += normalized
+        
+        // 上采样回原尺寸
+        val depthMap = FloatArray(w * h)
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val sx = (x * sw / w).coerceIn(0, sw - 1)
+                val sy = (y * sh / h).coerceIn(0, sh - 1)
+                depthMap[y * w + x] = variance[sy * sw + sx]
+            }
         }
-
-        val smallMask = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888)
-        smallMask.setPixels(mask, 0, sw, 0, 0, sw, sh)
-
-        // Upsample back to original size
-        val fullMask = Bitmap.createScaledBitmap(smallMask, w, h, true)
-        small.recycle()
-        smallMask.recycle()
-
-        return MaskResult(fullMask, MaskType.DEPTH, confidenceSum / variance.size)
+        return depthMap
     }
-
-    // ── Mask Application ─────────────────────────────────────────────
-
+    
     /**
-     * Apply a mask to a source bitmap, returning a new bitmap where the masked
-     * area is preserved and the rest is transparent.
+     * 将遮罩应用到 Bitmap
      */
-    fun applyMaskToBitmap(source: Bitmap, mask: MaskResult): Bitmap {
+    fun applyMaskToBitmap(source: Bitmap, mask: Bitmap): Bitmap {
         val result = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
         canvas.drawBitmap(source, 0f, 0f, null)
-
         val paint = Paint().apply {
             xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
         }
-        canvas.drawBitmap(mask.maskBitmap, 0f, 0f, paint)
+        canvas.drawBitmap(mask, 0f, 0f, paint)
         return result
     }
+    
+    private fun Float.pow(n: Float): Float = Math.pow(this.toDouble(), n.toDouble()).toFloat()
 }

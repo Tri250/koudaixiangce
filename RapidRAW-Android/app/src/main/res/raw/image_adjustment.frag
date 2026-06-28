@@ -111,6 +111,12 @@ uniform float uGreenMagenta;        // -1.0 - 1.0, green-magenta tint axis
 uniform float uSoftGlow;            // 0.0 - 1.0, soft glow/bloom intensity
 uniform float uToneLevel;           // -1.0 - 1.0, combined tone/brightness control
 
+// ── Flow Mask & LUT ──────────────────────────────────────────────────
+uniform sampler2D uMaskTexture;     // Flow mask alpha texture
+uniform float uMaskIntensity;       // 0.0 - 1.0
+uniform sampler3D uLutTexture;      // 3D LUT for color grading
+uniform float uLutIntensity;        // 0.0 - 1.0
+
 in vec2 vTexCoord;
 out vec4 fragColor;
 
@@ -1091,7 +1097,20 @@ void main() {
     // === Step 24: Dither ===
     color += (gradient_noise(uv.x, uv.y) - 0.5) / 255.0;
 
-    // === Step 25: Clipping visualization ===
+    // === Step 25: LUT color grading ===
+    if (uLutIntensity > 0.001) {
+        vec3 lutColor = texture(uLutTexture, clamp(color, 0.0, 1.0)).rgb;
+        color = mix(color, lutColor, uLutIntensity);
+    }
+
+    // === Step 26: Flow Mask blending ===
+    if (uMaskIntensity > 0.001) {
+        float maskAlpha = texture(uMaskTexture, vTexCoord).a * uMaskIntensity;
+        vec3 original = texColor.rgb;
+        color = mix(original, color, maskAlpha);
+    }
+
+    // === Step 27: Clipping visualization ===
     if (uClippingPreview > 0.5) {
         color = apply_clipping_preview(color);
     }

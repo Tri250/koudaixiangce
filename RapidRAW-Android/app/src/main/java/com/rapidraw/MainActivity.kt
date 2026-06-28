@@ -47,6 +47,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 安全隐私：防止截图和录屏
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+
         enableEdgeToEdge()
         applyImmersiveMode()
         requestStoragePermissions()

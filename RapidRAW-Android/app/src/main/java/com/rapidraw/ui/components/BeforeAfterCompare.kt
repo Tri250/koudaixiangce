@@ -32,9 +32,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,6 +82,7 @@ private fun LongPressCompare(
 ) {
     var isLongPressing by remember { mutableStateOf(false) }
     val crossfadeAlpha = remember { Animatable(0f) }
+    val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(isLongPressing) {
         if (isLongPressing) {
@@ -146,6 +149,7 @@ private fun LongPressCompare(
                     detectTapGestures(
                         onLongPress = {
                             isLongPressing = true
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         },
                         onPress = {
                             awaitRelease()
@@ -295,6 +299,7 @@ private fun ToggleCompare(
 ) {
     var isShowingOriginal by remember { mutableStateOf(false) }
     val flashAlpha = remember { Animatable(0f) }
+    val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(isShowingOriginal) {
         // Brief white flash on toggle
@@ -343,6 +348,7 @@ private fun ToggleCompare(
                 .pointerInput(Unit) {
                     detectTapGestures {
                         isShowingOriginal = !isShowingOriginal
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     }
                 },
         )

@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.Adjustments
 import com.rapidraw.ui.theme.BadgeBg
-import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.EditorSurfaceVariant
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
@@ -43,13 +42,15 @@ fun SmartOptimizeConfirm(
         enter = fadeIn(),
         exit = fadeOut(),
     ) {
-        Column(
+        LiquidGlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .background(EditorSurface, RoundedCornerShape(16.dp))
                 .padding(16.dp),
+            cornerRadius = 16.dp,
         ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+            ) {
             // Title row with badge
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -124,6 +125,7 @@ fun SmartOptimizeConfirm(
                 ) {
                     Text("接受", color = TextPrimary)
                 }
+            }
             }
         }
     }

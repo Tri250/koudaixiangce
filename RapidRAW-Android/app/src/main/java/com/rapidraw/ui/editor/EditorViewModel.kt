@@ -25,8 +25,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.rapidraw.core.SceneClassifier
 import com.rapidraw.core.AiInpainter
+import com.rapidraw.core.AiDenoiser
+import com.rapidraw.core.AiMaskGenerator
+import com.rapidraw.core.FlowMaskManager
 import com.rapidraw.core.UserPreferenceLearning
 import com.rapidraw.core.SceneType
+import com.rapidraw.core.AdjustmentClipboard
 
 enum class EditorTab {
     FILM,
@@ -146,10 +150,22 @@ class EditorViewModel(
                     _previewBitmap.value = processed.preview
                     _isLoading.value = false
                     updateHistogram(processed.preview)
-                    detectScene(processed.preview)
 
-                    // 加载完成后自动智能优化
-                    smartOptimize()
+                    // 恢复 sidecar
+                    val sidecarManager = com.rapidraw.core.SidecarManager(context)
+                    val savedAdj = sidecarManager.loadSidecar(imageFile.path)
+                    if (savedAdj != null) {
+                        _adjustments.value = savedAdj.adjustments
+                        if (savedAdj.filmId != null) {
+                            _selectedFilmId.value = savedAdj.filmId
+                        }
+                        // 有已保存的编辑，不自动智能优化
+                    } else {
+                        // 仅在首次打开（无 sidecar）时自动智能优化
+                        smartOptimize()
+                    }
+
+                    detectScene(processed.preview)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -199,6 +215,14 @@ class EditorViewModel(
     fun applyPreset(preset: Preset) {
         pushUndo()
         _adjustments.value = preset.adjustments
+        preset.filmId?.let { fid ->
+            _selectedFilmId.value = fid
+            FilmSimulation.getById(fid)?.let { film ->
+                _adjustments.value = _adjustments.value.withFilmSimulation(film)
+            }
+        } ?: run {
+            _selectedFilmId.value = null
+        }
         schedulePreviewUpdate()
     }
 
@@ -331,6 +355,7 @@ class EditorViewModel(
             _adjustments.value = original  // Revert to original
         }
         _smartOptimizedAdjustments.value = null
+        schedulePreviewUpdate()
     }
 
     fun copyCurrentAdjustments(): Adjustments {
@@ -338,6 +363,144 @@ class EditorViewModel(
         AdjustmentClipboard.copy(adj)
         return adj
     }
+
+    // ── AI 模块串联 ──────────────────────────────────────────────────
+
+    private val _aiDenoiseProgress = MutableStateFlow(0f)
+    val aiDenoiseProgress: StateFlow<Float> = _aiDenoiseProgress.asStateFlow()
+
+    private val _isAiProcessing = MutableStateFlow(false)
+    val isAiProcessing: StateFlow<Boolean> = _isAiProcessing.asStateFlow()
+
+    private var flowMaskManager: FlowMaskManager? = null
+
+    /**
+     * AI 去噪：使用 Guided Filter 保边降噪
+     */
+    fun applyAiDenoise(preserveDetails: Float = 0.5f, chromaStrength: Float = 0.3f) {
+        val source = previewBitmapCache ?: return
+        if (source.isRecycled) return
+
+        _isAiProcessing.value = true
+        _aiDenoiseProgress.value = 0f
+
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val denoiser = AiDenoiser()
+                _aiDenoiseProgress.value = 0.3f
+                val denoised = denoiser.denoise(source, preserveDetails, chromaStrength)
+                _aiDenoiseProgress.value = 0.8f
+
+                withContext(Dispatchers.Main) {
+                    previewBitmapCache = denoised
+                    _previewBitmap.value = denoised
+                    updateHistogram(denoised)
+                    _aiDenoiseProgress.value = 1f
+                    _isAiProcessing.value = false
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    _isAiProcessing.value = false
+                    _aiDenoiseProgress.value = 0f
+                }
+            }
+        }
+    }
+
+    /**
+     * AI 遮罩生成：天空 / 主体 / 前景 / 深度
+     */
+    fun generateAiMask(maskType: AiMaskGenerator.MaskType, onResult: (Bitmap) -> Unit) {
+        val source = previewBitmapCache ?: return
+        if (source.isRecycled) return
+
+        _isAiProcessing.value = true
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val generator = AiMaskGenerator()
+                val mask = generator.generateMask(source, maskType)
+                withContext(Dispatchers.Main) {
+                    _isAiProcessing.value = false
+                    onResult(mask)
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    _isAiProcessing.value = false
+                }
+            }
+        }
+    }
+
+    /**
+     * AI 消除：对指定区域的像素进行扩散式修复
+     */
+    fun applyAiInpaint(maskBitmap: Bitmap, onResult: (Bitmap) -> Unit) {
+        val source = previewBitmapCache ?: return
+        if (source.isRecycled) return
+
+        _isAiProcessing.value = true
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val inpainter = AiInpainter()
+                val result = inpainter.removeObject(source, maskBitmap, iterations = 3)
+                withContext(Dispatchers.Main) {
+                    previewBitmapCache = result
+                    _previewBitmap.value = result
+                    updateHistogram(result)
+                    _isAiProcessing.value = false
+                    onResult(result)
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    _isAiProcessing.value = false
+                }
+            }
+        }
+    }
+
+    /**
+     * 应用 AI 修复结果：将修复后的位图作为新的源位图
+     */
+    fun applyAiInpaintResult(bitmap: Bitmap) {
+        originalBitmap = bitmap
+        previewBitmapCache = bitmap
+        _previewBitmap.value = bitmap
+        schedulePreviewUpdate()
+    }
+
+    /**
+     * Flow Mask 初始化：创建与预览图同尺寸的笔刷蒙版
+     */
+    fun initFlowMask() {
+        val source = previewBitmapCache ?: return
+        flowMaskManager = FlowMaskManager(source.width, source.height)
+    }
+
+    /**
+     * Flow Mask 绘制：添加笔刷到蒙版
+     */
+    fun paintFlowMask(x: Float, y: Float, brushSize: Float, opacity: Float, hardness: Float) {
+        flowMaskManager?.paintStroke(x, y, brushSize, opacity, hardness)
+    }
+
+    /**
+     * Flow Mask 擦除
+     */
+    fun eraseFlowMask(x: Float, y: Float, brushSize: Float) {
+        flowMaskManager?.eraseStroke(x, y, brushSize)
+    }
+
+    /**
+     * Flow Mask 清除
+     */
+    fun clearFlowMask() {
+        flowMaskManager?.clear()
+    }
+
+    /**
+     * 获取当前 Flow Mask Bitmap
+     */
+    fun getFlowMaskBitmap(): Bitmap? = flowMaskManager?.getMaskBitmap()
 
     fun detectScene(bitmap: Bitmap) {
         viewModelScope.launch(Dispatchers.Default) {
@@ -395,14 +558,13 @@ class EditorViewModel(
     // ── Export ────────────────────────────────────────────────────────
 
     fun exportImage(settings: ExportSettings) {
-        val source = originalBitmap ?: return
+        val source = previewBitmapCache ?: originalBitmap ?: return
 
         _isLoading.value = true
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val coreAdjustments = convertToCoreAdjustments(_adjustments.value)
-                val processed = imageProcessor.processFullResolution(coreAdjustments, source)
+                val processed = imageProcessor.processFullResolution(_adjustments.value, source)
 
                 val coreExportSettings = com.rapidraw.core.ExportSettings(
                     format = settings.format.name,
@@ -411,6 +573,7 @@ class EditorViewModel(
                     else settings.resizeValue,
                     maxHeight = 0,
                     preserveMetadata = settings.keepMetadata,
+                    stripGps = settings.stripGps,
                     socialAspectRatio = settings.socialPlatform.aspectRatio,
                     addWatermark = settings.addWatermark,
                     watermarkText = settings.watermarkText,
@@ -478,15 +641,44 @@ class EditorViewModel(
             val sourceBitmap = previewBitmapCache ?: return@launch
 
             try {
-                val coreAdjustments = convertToCoreAdjustments(currentAdjustments)
-                val processed = imageProcessor.processFullResolution(coreAdjustments, sourceBitmap)
+                // 优先使用 GPU 管线（实时预览），CPU 管线作为降级
+                val gpu = gpuPipeline
+                if (gpu != null && gpu.isInitialized()) {
+                    withContext(Dispatchers.Main) {
+                        gpu.updateAdjustments(currentAdjustments)
+                        gpu.renderFrame(sourceBitmap)
+                        val processed = gpu.getProcessedBitmap()
+                        _previewBitmap.value = processed
+                        updateHistogram(processed)
+                    }
+                } else {
+                    // CPU 降级路径
+                    val processed = imageProcessor.processFullResolution(currentAdjustments, sourceBitmap)
 
-                withContext(Dispatchers.Main) {
-                    _previewBitmap.value = processed
-                    updateHistogram(processed)
+                    withContext(Dispatchers.Main) {
+                        val oldPreview = _previewBitmap.value
+                        if (oldPreview != null && oldPreview !== previewBitmapCache && !oldPreview.isRecycled) {
+                            oldPreview.recycle()
+                        }
+                        _previewBitmap.value = processed
+                        updateHistogram(processed)
+                    }
                 }
             } catch (_: Exception) {
-                // Processing failed, keep current preview
+                // GPU 管线失败时降级到 CPU
+                try {
+                    val processed = imageProcessor.processFullResolution(currentAdjustments, sourceBitmap)
+                    withContext(Dispatchers.Main) {
+                        val oldPreview = _previewBitmap.value
+                        if (oldPreview != null && oldPreview !== previewBitmapCache && !oldPreview.isRecycled) {
+                            oldPreview.recycle()
+                        }
+                        _previewBitmap.value = processed
+                        updateHistogram(processed)
+                    }
+                } catch (_: Exception) {
+                    // 处理失败，保持当前预览
+                }
             }
         }
     }
@@ -528,103 +720,33 @@ class EditorViewModel(
     }
 
     private fun convertToCoreAdjustments(adj: Adjustments): com.rapidraw.core.Adjustments {
-        return com.rapidraw.core.Adjustments(
-            exposure = adj.exposure,
-            brightness = adj.brightness,
-            toneLevel = adj.toneLevel,
-            filmIntensity = adj.filmIntensity,
-            greenMagenta = adj.greenMagenta,
-            softGlow = adj.softGlow,
-            filmId = adj.filmId,
-            filmHighlightRollOff = adj.filmHighlightRollOff,
-            filmShadowLift = adj.filmShadowLift,
-            filmDrCompression = adj.filmDrCompression,
-            filmRedShift = adj.filmRedShift,
-            filmGreenShift = adj.filmGreenShift,
-            filmBlueShift = adj.filmBlueShift,
-            filmSaturation = adj.filmSaturation,
-            filmContrast = adj.filmContrast,
-            filmGrainAmount = adj.filmGrainAmount,
-            filmGrainSize = adj.filmGrainSize,
-            filmGrainRoughness = adj.filmGrainRoughness,
-            filmCurvePoints = adj.filmCurvePoints,
-            temperature = adj.temperature,
-            tint = adj.tint,
-            contrast = adj.contrast,
-            highlights = adj.highlights,
-            shadows = adj.shadows,
-            whites = adj.whites,
-            blacks = adj.blacks,
-            saturation = adj.saturation,
-            vibrance = adj.vibrance,
-            hueRed = adj.hslReds.hue,
-            satRed = adj.hslReds.saturation,
-            lumRed = adj.hslReds.luminance,
-            hueOrange = adj.hslOranges.hue,
-            satOrange = adj.hslOranges.saturation,
-            lumOrange = adj.hslOranges.luminance,
-            hueYellow = adj.hslYellows.hue,
-            satYellow = adj.hslYellows.saturation,
-            lumYellow = adj.hslYellows.luminance,
-            hueGreen = adj.hslGreens.hue,
-            satGreen = adj.hslGreens.saturation,
-            lumGreen = adj.hslGreens.luminance,
-            hueAqua = adj.hslAquas.hue,
-            satAqua = adj.hslAquas.saturation,
-            lumAqua = adj.hslAquas.luminance,
-            hueBlue = adj.hslBlues.hue,
-            satBlue = adj.hslBlues.saturation,
-            lumBlue = adj.hslBlues.luminance,
-            huePurple = adj.hslPurples.hue,
-            satPurple = adj.hslPurples.saturation,
-            lumPurple = adj.hslPurples.luminance,
-            hueMagenta = adj.hslMagentas.hue,
-            satMagenta = adj.hslMagentas.saturation,
-            lumMagenta = adj.hslMagentas.luminance,
-            toneCurvePoints = adj.lumaCurve.map { Pair(it.x, it.y) },
-            colorGradingShadows = floatArrayOf(
-                adj.colorGrading.shadows.hue,
-                adj.colorGrading.shadows.saturation,
-                adj.colorGrading.shadows.luminance,
-            ),
-            colorGradingMidtones = floatArrayOf(
-                adj.colorGrading.midtones.hue,
-                adj.colorGrading.midtones.saturation,
-                adj.colorGrading.midtones.luminance,
-            ),
-            colorGradingHighlights = floatArrayOf(
-                adj.colorGrading.highlights.hue,
-                adj.colorGrading.highlights.saturation,
-                adj.colorGrading.highlights.luminance,
-            ),
-            colorGradingBlend = adj.colorGrading.blending,
-            colorGradingGlobalSat = adj.colorGrading.balance,
-            calibRedHue = adj.colorCalibration.redHue,
-            calibRedSat = adj.colorCalibration.redSaturation,
-            calibGreenHue = adj.colorCalibration.greenHue,
-            calibGreenSat = adj.colorCalibration.greenSaturation,
-            calibBlueHue = adj.colorCalibration.blueHue,
-            calibBlueSat = adj.colorCalibration.blueSaturation,
-            sharpness = adj.sharpness,
-            clarity = adj.clarity,
-            structure = adj.structure,
-            dehaze = adj.dehaze,
-            vignette = adj.vignetteAmount,
-            grain = adj.grainAmount,
-            grainSize = adj.grainSize,
-            chromaticAberration = adj.chromaticAberrationRedCyan,
-            agxEnabled = adj.toneMapper == "agx",
-            clippingPreview = adj.showClipping,
-        )
+        // 委托给 ImageProcessor 的归一化方法，确保预览与导出路径一致
+        return imageProcessor.convertToCoreAdjustments(adj)
     }
 
     override fun onCleared() {
         super.onCleared()
+
+        // 保存编辑状态到 sidecar
+        val currentImg = _currentImage.value
+        if (currentImg != null) {
+            try {
+                val sidecarManager = com.rapidraw.core.SidecarManager(context)
+                sidecarManager.saveSidecar(currentImg.path, _adjustments.value, _selectedFilmId.value)
+            } catch (_: Exception) {
+                // Sidecar 保存失败不影响应用
+            }
+        }
+
         previewJob?.cancel()
         smartOptimizeJob?.cancel()
         gpuPipeline?.release()
-        originalBitmap?.recycle()
+        // 先清空引用防止 UI 使用已回收的 Bitmap
+        _previewBitmap.value = null
         previewBitmapCache?.recycle()
+        originalBitmap?.recycle()
+        previewBitmapCache = null
+        originalBitmap = null
     }
 
     class Factory(

@@ -15,11 +15,13 @@ abstract class RecipeDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): RecipeDatabase {
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
+                val instance = Room.databaseBuilder(
                     context.applicationContext,
                     RecipeDatabase::class.java,
-                    "recipe_database"
-                ).build().also { INSTANCE = it }
+                    "rapidraw_recipes"
+                ).fallbackToDestructiveMigration().build()
+                INSTANCE = instance
+                instance
             }
         }
     }

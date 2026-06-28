@@ -1,194 +1,186 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
- * Pure on-device AI denoising engine.
- * Implements Edge-Preserving Guided Filter (He et al. 2010) combined with
- * luminance-chrominance separated denoising for natural, detail-preserving results.
+ * 纯端侧 AI 去噪：基于 He et al. 2010 Guided Filter + YUV 亮度-色度分离降噪。
+ * 无 ML 框架依赖，纯 Kotlin 实现。
  */
 class AiDenoiser {
 
-    data class DenoiseSettings(
-        val strength: Float = 0.5f,      // 0..1 overall strength
-        val preserveDetails: Float = 0.7f, // 0..1 edge preservation
-        val chromaStrength: Float = 0.8f,  // chroma noise is usually stronger
-    )
-
     /**
-     * Apply AI denoise to the given bitmap.
-     * Runs on CPU; for large images operates on downsampled guidance.
+     * 对图像进行保边降噪。
+     * @param source 输入 Bitmap
+     * @param preserveDetails 细节保留程度 [0,1]，越高越保留细节
+     * @param chromaStrength 色度降噪强度 [0,1]
+     * @return 降噪后的 Bitmap
      */
-    fun denoise(bitmap: Bitmap, settings: DenoiseSettings): Bitmap {
-        val w = bitmap.width
-        val h = bitmap.height
-
-        // For performance on mobile, process at half resolution then upsample
-        val useHalf = (w * h) > 2_000_000
-        val src = if (useHalf) {
-            Bitmap.createScaledBitmap(bitmap, w / 2, h / 2, true)
+    fun denoise(source: Bitmap, preserveDetails: Float = 0.5f, chromaStrength: Float = 0.3f): Bitmap {
+        val w = source.width
+        val h = source.height
+        
+        // 大图半分辨率处理再上采样
+        val needDownsample = w * h > 2_000_000
+        val workBitmap = if (needDownsample) {
+            val scale = sqrt(2_000_000f / (w * h))
+            val sw = (w * scale).toInt().coerceAtLeast(1)
+            val sh = (h * scale).toInt().coerceAtLeast(1)
+            Bitmap.createScaledBitmap(source, sw, sh, true)
         } else {
-            bitmap.copy(Bitmap.Config.ARGB_8888, true)
+            source.copy(Bitmap.Config.ARGB_8888, true)
         }
-
-        val sw = src.width
-        val sh = src.height
-        val pixels = IntArray(sw * sh)
-        src.getPixels(pixels, 0, sw, 0, 0, sw, sh)
-
-        // Convert to planar float RGB
-        val r = FloatArray(sw * sh)
-        val g = FloatArray(sw * sh)
-        val b = FloatArray(sw * sh)
+        
+        val ww = workBitmap.width
+        val wh = workBitmap.height
+        val pixels = IntArray(ww * wh)
+        workBitmap.getPixels(pixels, 0, ww, 0, 0, ww, wh)
+        
+        // RGB → YUV (BT.601)
+        val yChannel = FloatArray(ww * wh)
+        val uChannel = FloatArray(ww * wh)
+        val vChannel = FloatArray(ww * wh)
         for (i in pixels.indices) {
-            val p = pixels[i]
-            r[i] = ((p shr 16) and 0xFF) / 255f
-            g[i] = ((p shr 8) and 0xFF) / 255f
-            b[i] = (p and 0xFF) / 255f
+            val r = ((pixels[i] shr 16) and 0xFF) / 255f
+            val g = ((pixels[i] shr 8) and 0xFF) / 255f
+            val b = (pixels[i] and 0xFF) / 255f
+            yChannel[i] = 0.299f * r + 0.587f * g + 0.114f * b
+            uChannel[i] = -0.169f * r - 0.331f * g + 0.5f * b + 0.5f
+            vChannel[i] = 0.5f * r - 0.419f * g - 0.081f * b + 0.5f
+        }
+        
+        // 亮度通道：保边降噪（高细节保留）
+        val radiusLuma = 4
+        val epsLuma = 0.001f * (1f - preserveDetails.coerceIn(0f, 1f))
+        val denoisedY = guidedFilter(yChannel, yChannel, ww, wh, radiusLuma, epsLuma)
+        
+        // 色度通道：更激进去噪
+        val radiusChroma = 6
+        val epsChroma = 0.004f * chromaStrength.coerceIn(0f, 1f)
+        val denoisedU = guidedFilter(uChannel, uChannel, ww, wh, radiusChroma, epsChroma)
+        val denoisedV = guidedFilter(vChannel, vChannel, ww, wh, radiusChroma, epsChroma)
+        
+        // YUV → RGB
+        val result = IntArray(ww * wh)
+        for (i in result.indices) {
+            val y = denoisedY[i]
+            val u = denoisedU[i] - 0.5f
+            val v = denoisedV[i] - 0.5f
+            val r = (y + 1.402f * v).coerceIn(0f, 1f)
+            val g = (y - 0.344f * u - 0.714f * v).coerceIn(0f, 1f)
+            val b = (y + 1.772f * u).coerceIn(0f, 1f)
+            val ri = (r * 255f).toInt().coerceIn(0, 255)
+            val gi = (g * 255f).toInt().coerceIn(0, 255)
+            val bi = (b * 255f).toInt().coerceIn(0, 255)
+            result[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+        }
+        
+        val denoisedBitmap = Bitmap.createBitmap(ww, wh, Bitmap.Config.ARGB_8888)
+        denoisedBitmap.setPixels(result, 0, ww, 0, 0, ww, wh)
+
+        // Recycle the work bitmap (scaled copy of source, no longer needed)
+        if (workBitmap !== source) {
+            workBitmap.recycle()
         }
 
-        // Convert to YUV-like space: luminance + chrominance
-        val lum = FloatArray(sw * sh)
-        val cb = FloatArray(sw * sh)
-        val cr = FloatArray(sw * sh)
-        for (i in pixels.indices) {
-            lum[i] = 0.299f * r[i] + 0.587f * g[i] + 0.114f * b[i]
-            cb[i] = 0.5f + (-0.168736f * r[i] - 0.331264f * g[i] + 0.5f * b[i])
-            cr[i] = 0.5f + (0.5f * r[i] - 0.418688f * g[i] - 0.081312f * b[i])
-        }
-
-        // Denoise luminance with guided filter (preserves edges)
-        val denoisedLum = guidedFilter(lum, lum, sw, sh, radius = 4, eps = 0.001f * (1f - settings.preserveDetails))
-
-        // Denoise chrominance more aggressively (human eye is less sensitive to chroma detail)
-        val denoisedCb = guidedFilter(cb, cb, sw, sh, radius = 6, eps = 0.004f * settings.chromaStrength)
-        val denoisedCr = guidedFilter(cr, cr, sw, sh, radius = 6, eps = 0.004f * settings.chromaStrength)
-
-        // Blend based on strength
-        val outR = FloatArray(sw * sh)
-        val outG = FloatArray(sw * sh)
-        val outB = FloatArray(sw * sh)
-        val s = settings.strength
-        for (i in pixels.indices) {
-            val y = lum[i] * (1f - s) + denoisedLum[i] * s
-            val u = cb[i] * (1f - s * settings.chromaStrength) + denoisedCb[i] * s * settings.chromaStrength
-            val v = cr[i] * (1f - s * settings.chromaStrength) + denoisedCr[i] * s * settings.chromaStrength
-
-            outR[i] = (y + 1.402f * (v - 0.5f)).coerceIn(0f, 1f)
-            outG[i] = (y - 0.344136f * (u - 0.5f) - 0.714136f * (v - 0.5f)).coerceIn(0f, 1f)
-            outB[i] = (y + 1.772f * (u - 0.5f)).coerceIn(0f, 1f)
-        }
-
-        // Pack back to ARGB
-        val outPixels = IntArray(sw * sh)
-        for (i in pixels.indices) {
-            val ri = (outR[i] * 255).toInt().coerceIn(0, 255)
-            val gi = (outG[i] * 255).toInt().coerceIn(0, 255)
-            val bi = (outB[i] * 255).toInt().coerceIn(0, 255)
-            outPixels[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
-        }
-
-        val result = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888)
-        result.setPixels(outPixels, 0, sw, 0, 0, sw, sh)
-
-        return if (useHalf) {
-            Bitmap.createScaledBitmap(result, w, h, true).also {
-                src.recycle()
-                result.recycle()
-            }
+        // 上采样回原尺寸
+        return if (needDownsample) {
+            val upsampled = Bitmap.createScaledBitmap(denoisedBitmap, w, h, true)
+            if (denoisedBitmap != source) denoisedBitmap.recycle()
+            upsampled
         } else {
-            src.recycle()
-            result
+            denoisedBitmap
         }
     }
-
-    // ── Guided Filter ────────────────────────────────────────────────
-
+    
     /**
-     * Fast guided filter implementation.
-     * @param p input image to be filtered
-     * @param I guidance image (can be same as p for self-guidance)
-     * @param radius box radius
-     * @param eps regularization parameter
+     * Guided Filter (He et al. 2010)
+     * q = meanA * I + meanB
+     * where a = cov(I,p) / (var(I) + eps), b = mean(p) - a * mean(I)
      */
-    private fun guidedFilter(p: FloatArray, I: FloatArray, w: Int, h: Int, radius: Int, eps: Float): FloatArray {
-        // Compute mean(I), mean(p), mean(I.*I), mean(I.*p) via box filter
-        val meanI = boxFilter(I, w, h, radius)
-        val meanP = boxFilter(p, w, h, radius)
-        val meanII = boxFilter(FloatArray(I.size) { i -> I[i] * I[i] }, w, h, radius)
-        val meanIP = boxFilter(FloatArray(I.size) { i -> I[i] * p[i] }, w, h, radius)
-
-        val varI = FloatArray(w * h)
-        val covIP = FloatArray(w * h)
-        for (i in varI.indices) {
-            varI[i] = meanII[i] - meanI[i] * meanI[i]
-            covIP[i] = meanIP[i] - meanI[i] * meanP[i]
-        }
-
-        // a = cov(I,p) / (var(I) + eps), b = mean(p) - a * mean(I)
-        val a = FloatArray(w * h)
-        val b = FloatArray(w * h)
-        for (i in a.indices) {
+    private fun guidedFilter(guide: FloatArray, input: FloatArray, w: Int, h: Int, radius: Int, eps: Float): FloatArray {
+        val n = w * h
+        val meanI = boxFilter(guide, w, h, radius)
+        val meanP = boxFilter(input, w, h, radius)
+        val meanIP = boxFilter(multiply(guide, input, n), w, h, radius)
+        
+        // cov(I,p) = mean(IP) - mean(I)*mean(P)
+        val covIP = FloatArray(n)
+        for (i in 0 until n) covIP[i] = meanIP[i] - meanI[i] * meanP[i]
+        
+        val meanII = boxFilter(multiply(guide, guide, n), w, h, radius)
+        // var(I) = mean(II) - mean(I)^2
+        val varI = FloatArray(n)
+        for (i in 0 until n) varI[i] = meanII[i] - meanI[i] * meanI[i]
+        
+        // a = cov / (var + eps), b = meanP - a * meanI
+        val a = FloatArray(n)
+        val b = FloatArray(n)
+        for (i in 0 until n) {
             a[i] = covIP[i] / (varI[i] + eps)
             b[i] = meanP[i] - a[i] * meanI[i]
         }
-
-        // Smooth a and b
+        
+        // 平滑 a 和 b
         val meanA = boxFilter(a, w, h, radius)
         val meanB = boxFilter(b, w, h, radius)
-
-        // Output: q = meanA .* I + meanB
-        val q = FloatArray(w * h)
-        for (i in q.indices) {
-            q[i] = meanA[i] * I[i] + meanB[i]
-        }
+        
+        // q = meanA * I + meanB
+        val q = FloatArray(n)
+        for (i in 0 until n) q[i] = meanA[i] * guide[i] + meanB[i]
         return q
     }
-
-    private fun boxFilter(src: FloatArray, w: Int, h: Int, radius: Int): FloatArray {
-        val dst = FloatArray(w * h)
-        val temp = FloatArray(w * h)
-
-        // Horizontal pass
+    
+    /**
+     * 滑动窗口均值滤波 (O(N))
+     */
+    private fun boxFilter(data: FloatArray, w: Int, h: Int, radius: Int): FloatArray {
+        val n = w * h
+        val temp = FloatArray(n)
+        val result = FloatArray(n)
+        
+        // 水平方向
         for (y in 0 until h) {
+            val rowStart = y * w
             var sum = 0f
-            var count = 0
-            // Initial window
+            // 初始窗口
             for (x in -radius..radius) {
-                val sx = x.coerceIn(0, w - 1)
-                sum += src[y * w + sx]
-                count++
+                val cx = x.coerceIn(0, w - 1)
+                sum += data[rowStart + cx]
             }
-            temp[y * w] = sum / count
-
-            for (x in 1 until w) {
-                val leftOut = (x - radius - 1).coerceIn(0, w - 1)
-                val rightIn = (x + radius).coerceIn(0, w - 1)
-                sum += src[y * w + rightIn] - src[y * w + leftOut]
-                temp[y * w + x] = sum / (2 * radius + 1)
+            val windowSize = radius * 2 + 1
+            for (x in 0 until w) {
+                temp[rowStart + x] = sum / windowSize
+                // 滑动窗口
+                val xOut = (x - radius - 1).coerceIn(0, w - 1)
+                val xIn = (x + radius + 1).coerceIn(0, w - 1)
+                sum += data[rowStart + xIn] - data[rowStart + xOut]
             }
         }
-
-        // Vertical pass
+        
+        // 垂直方向
         for (x in 0 until w) {
             var sum = 0f
-            var count = 0
             for (y in -radius..radius) {
-                val sy = y.coerceIn(0, h - 1)
-                sum += temp[sy * w + x]
-                count++
+                val cy = y.coerceIn(0, h - 1)
+                sum += temp[cy * w + x]
             }
-            dst[x] = sum / count
-
-            for (y in 1 until h) {
-                val topOut = (y - radius - 1).coerceIn(0, h - 1)
-                val bottomIn = (y + radius).coerceIn(0, h - 1)
-                sum += temp[bottomIn * w + x] - temp[topOut * w + x]
-                dst[y * w + x] = sum / (2 * radius + 1)
+            val windowSize = radius * 2 + 1
+            for (y in 0 until h) {
+                result[y * w + x] = sum / windowSize
+                val yOut = (y - radius - 1).coerceIn(0, h - 1)
+                val yIn = (y + radius + 1).coerceIn(0, h - 1)
+                sum += temp[yIn * w + x] - temp[yOut * w + x]
             }
         }
-
-        return dst
+        
+        return result
+    }
+    
+    private fun multiply(a: FloatArray, b: FloatArray, n: Int): FloatArray {
+        val result = FloatArray(n)
+        for (i in 0 until n) result[i] = a[i] * b[i]
+        return result
     }
 }

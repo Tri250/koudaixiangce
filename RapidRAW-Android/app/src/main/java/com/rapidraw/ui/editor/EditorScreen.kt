@@ -6,8 +6,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculateCentroidSize
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,7 +86,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.rapidraw.data.model.ExportFormat
 import com.rapidraw.data.model.ExportSettings
@@ -91,6 +97,7 @@ import com.rapidraw.ui.adjustments.AdvancedPanel
 import com.rapidraw.ui.adjustments.QuickAdjustPanel
 import com.rapidraw.ui.components.HistogramView
 import com.rapidraw.ui.components.SmartOptimizeConfirm
+import com.rapidraw.ui.components.LiquidGlassSurface
 import com.rapidraw.ui.components.RecipeShareSheet
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorBorder
@@ -107,7 +114,7 @@ private val BOTTOM_TABS = listOf("胶片", "调节", "裁剪", "导出")
 @Composable
 fun EditorScreen(
     navController: NavController,
-    viewModel: EditorViewModel = viewModel(),
+    viewModel: EditorViewModel,
     initialImage: ImageFile? = null,
 ) {
     val adjustments by viewModel.adjustments.collectAsState()
@@ -136,6 +143,22 @@ fun EditorScreen(
     var showRecipeSheet by remember { mutableStateOf(false) }
     var isLongPressing by remember { mutableStateOf(false) }
 
+    // Apply pending preset from PresetsDiscoveryScreen
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.rapidraw.ui.navigation.Routes.SelectedPresetHolder.pendingPreset?.let { preset ->
+            viewModel.applyPreset(preset)
+            com.rapidraw.ui.navigation.Routes.SelectedPresetHolder.pendingPreset = null
+        }
+    }
+
+    // Apply pending AI inpaint result from AiInpaintScreen
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.rapidraw.ui.navigation.Routes.AiInpaintResultHolder.pendingResult?.let { bitmap ->
+            viewModel.applyAiInpaintResult(bitmap)
+            com.rapidraw.ui.navigation.Routes.AiInpaintResultHolder.pendingResult = null
+        }
+    }
+
     val displayOriginal = isShowingOriginal || isLongPressing
 
     val animatedZoom by animateFloatAsState(
@@ -145,6 +168,11 @@ fun EditorScreen(
     )
 
     var panOffset by remember { mutableStateOf(Offset.Zero) }
+
+    // 惯性动画状态
+    val animOffsetX = remember { Animatable(0f) }
+    val animOffsetY = remember { Animatable(0f) }
+    val haptic = LocalHapticFeedback.current
 
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp
@@ -294,8 +322,17 @@ fun EditorScreen(
                         DropdownMenuItem(
                             text = { Text("AI 消除", color = TextPrimary) },
                             onClick = {
-                                // AI消除入口：切换到调整Tab并准备画笔模式
-                                viewModel.setTab(EditorTab.ADJUST)
+                                val img = currentImage
+                                if (img != null) {
+                                    navController.navigate(com.rapidraw.ui.navigation.Routes.aiInpaintPath(img.path))
+                                }
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("大师配方", color = TextPrimary) },
+                            onClick = {
+                                navController.navigate(com.rapidraw.ui.navigation.Routes.PRESETS_DISCOVERY)
                                 showMoreMenu = false
                             },
                         )
@@ -319,13 +356,56 @@ fun EditorScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                val newZoom = (zoomLevel * zoom).coerceIn(0.5f, 5f)
-                                viewModel.setZoomLevel(newZoom)
-                                panOffset = Offset(
-                                    panOffset.x + pan.x,
-                                    panOffset.y + pan.y,
-                                )
+                            awaitEachGesture {
+                                var zoomStart = zoomLevel
+                                var panStart = panOffset
+                                var lastVelocity = Offset.Zero
+                                var lastPan = Offset.Zero
+                                var lastTime = 0L
+
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val changes = event.changes
+                                    if (changes.size >= 2) {
+                                        val zoom = calculateZoom(changes)
+                                        val pan = calculatePan(changes)
+                                        val newZoom = (zoomStart * zoom).coerceIn(0.5f, 5f)
+                                        viewModel.setZoomLevel(newZoom)
+                                        panOffset = Offset(
+                                            panStart.x + pan.x,
+                                            panStart.y + pan.y,
+                                        )
+                                        // 计算速度用于惯性
+                                        val now = System.currentTimeMillis()
+                                        if (lastTime > 0) {
+                                            val dt = (now - lastTime).coerceAtLeast(1)
+                                            lastVelocity = Offset(
+                                                (panOffset.x - lastPan.x) / dt * 1000f,
+                                                (panOffset.y - lastPan.y) / dt * 1000f,
+                                            )
+                                        }
+                                        lastPan = panOffset
+                                        lastTime = now
+                                    }
+                                } while (event.changes.any { it.pressed })
+
+                                // 手势结束：启动惯性动画
+                                if (lastVelocity.getDistance() > 0.5f) {
+                                    launch {
+                                        animOffsetX.snapTo(panOffset.x)
+                                        animOffsetY.snapTo(panOffset.y)
+                                        animOffsetX.animateDecay(
+                                            lastVelocity.x,
+                                            exponentialDecay(frictionMultiplier = 2f),
+                                        )
+                                    }
+                                    launch {
+                                        animOffsetY.animateDecay(
+                                            lastVelocity.y,
+                                            exponentialDecay(frictionMultiplier = 2f),
+                                        )
+                                    }
+                                }
                             }
                         }
                         .pointerInput(Unit) {
@@ -344,8 +424,9 @@ fun EditorScreen(
                         .graphicsLayer {
                             scaleX = animatedZoom
                             scaleY = animatedZoom
-                            translationX = panOffset.x
-                            translationY = panOffset.y
+                            // 惯性动画进行中时优先使用动画值
+                            translationX = if (animOffsetX.isRunning) animOffsetX.value else panOffset.x
+                            translationY = if (animOffsetY.isRunning) animOffsetY.value else panOffset.y
                         },
                     contentScale = ContentScale.Fit,
                 )
@@ -391,49 +472,50 @@ fun EditorScreen(
 
             // Smart optimizing loading state
             if (isSmartOptimizing) {
-                Surface(
-                    color = EditorBackground.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(8.dp),
+                LiquidGlassSurface(
+                    cornerRadius = 12.dp,
+                    backgroundAlpha = 0.25f,
                     modifier = Modifier.align(Alignment.Center),
                 ) {
                     Text(
                         text = "智能优化中...",
                         color = Color.White,
                         fontSize = 14.sp,
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                 }
             }
 
             // Loading indicator
             if (isLoading && !isSmartOptimizing) {
-                Surface(
-                    color = EditorBackground.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(8.dp),
+                LiquidGlassSurface(
+                    cornerRadius = 12.dp,
+                    backgroundAlpha = 0.25f,
                     modifier = Modifier.align(Alignment.Center),
                 ) {
                     Text(
                         text = "处理中...",
                         color = Color.White,
                         fontSize = 14.sp,
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                 }
             }
 
             // "已优化" badge
             if (isSmartOptimized && !isSmartOptimizing && !displayOriginal) {
-                Surface(
-                    color = Color.Black.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(4.dp),
+                LiquidGlassSurface(
+                    cornerRadius = 4.dp,
+                    backgroundAlpha = 0.15f,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(12.dp),
                 ) {
                     Text(
                         text = "已优化",
-                        color = Color.White,
+                        color = HasselbladOrange,
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     )
                 }
@@ -457,16 +539,16 @@ fun EditorScreen(
                     else -> ""
                 }
                 if (sceneLabel.isNotEmpty()) {
-                    Surface(
-                        color = HasselbladOrange.copy(alpha = 0.85f),
-                        shape = RoundedCornerShape(4.dp),
+                    LiquidGlassSurface(
+                        cornerRadius = 4.dp,
+                        backgroundAlpha = 0.15f,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(top = 44.dp, end = 12.dp),
                     ) {
                         Text(
                             text = "$sceneLabel ${(sceneConfidence * 100).toInt()}%",
-                            color = Color.White,
+                            color = HasselbladOrange,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -682,7 +764,7 @@ fun EditorScreen(
         onApplyRecipe = { recipe ->
             viewModel.applyPreset(
                 com.rapidraw.data.model.Preset(
-                    id = System.currentTimeMillis(),
+                    id = System.currentTimeMillis().toString(),
                     name = recipe.name,
                     adjustments = recipe.adjustments,
                 )

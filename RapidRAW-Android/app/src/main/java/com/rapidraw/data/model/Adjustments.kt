@@ -291,6 +291,10 @@ data class Adjustments(
         "transformScale" -> copy(transformScale = value.coerceIn(10f, 200f))
         "transformXOffset" -> copy(transformXOffset = value.coerceIn(-100f, 100f))
         "transformYOffset" -> copy(transformYOffset = value.coerceIn(-100f, 100f))
+        "cropAspectRatio" -> copy(crop = if (value != 0f) CropData(aspectRatio = value) else null)
+        "orientationSteps" -> copy(orientationSteps = value.toInt() % 4)
+        "flipHorizontal" -> copy(flipHorizontal = value != 0f)
+        "flipVertical" -> copy(flipVertical = value != 0f)
         else -> this
     }
 

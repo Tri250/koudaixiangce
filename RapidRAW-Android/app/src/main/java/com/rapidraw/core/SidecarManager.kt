@@ -2,92 +2,128 @@ package com.rapidraw.core
 
 import android.content.Context
 import android.net.Uri
-import com.rapidraw.data.model.Adjustments
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileOutputStream
 
 /**
- * Non-destructive sidecar workflow manager.
- * Persists edit parameters to `.rapidraw` JSON sidecar files alongside original images.
+ * 非破坏性编辑 Sidecar 管理器。
+ * 将编辑参数保存为 .rapidraw JSON 文件，与原图同目录。
+ * 支持 file:// 和 content:// URI。
  */
-object SidecarManager {
-
+class SidecarManager(private val context: Context) {
+    
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
-
+    
     /**
-     * Save adjustments to a sidecar file next to the original image.
-     * For MediaStore URIs, stores in app-private sidecar directory keyed by URI hash.
+     * 保存 Sidecar 文件
      */
-    fun saveSidecar(context: Context, imageUri: Uri, adjustments: Adjustments, filmId: String?) {
-        val sidecar = RapidRawSidecar(
+    fun saveSidecar(imageUri: String, adjustments: com.rapidraw.data.model.Adjustments, filmId: String? = null): Boolean {
+        val sidecarData = SidecarData(
             version = 1,
-            sourceUri = imageUri.toString(),
-            filmId = filmId,
             adjustments = adjustments,
+            filmId = filmId,
+            timestamp = System.currentTimeMillis(),
         )
-        val jsonText = json.encodeToString(sidecar)
-
-        // Try to write next to original if it's a file URI
-        if (imageUri.scheme == "file") {
-            val originalFile = File(imageUri.path!!)
-            val sidecarFile = File(originalFile.parent, originalFile.nameWithoutExtension + ".rapidraw")
-            sidecarFile.writeText(jsonText)
-        } else {
-            // For content URIs, store in app-private sidecar directory
-            val sidecarDir = File(context.filesDir, "sidecars").apply { mkdirs() }
-            val sidecarFile = File(sidecarDir, "${imageUri.toString().hashCode()}.rapidraw")
-            sidecarFile.writeText(jsonText)
+        val jsonStr = json.encodeToString(sidecarData)
+        
+        return try {
+            val uri = Uri.parse(imageUri)
+            when (uri.scheme) {
+                "file" -> {
+                    val imageFile = File(uri.path!!)
+                    val sidecarFile = File(imageFile.parentFile, imageFile.nameWithoutExtension + ".rapidraw")
+                    FileOutputStream(sidecarFile).use { it.write(jsonStr.toByteArray()) }
+                    true
+                }
+                "content" -> {
+                    // content:// URI 无法直接在同目录创建文件，存到 App 私有目录
+                    val fileName = uri.lastPathSegment?.replace("/", "_") ?: "image"
+                    val sidecarFile = File(context.filesDir, "$fileName.rapidraw")
+                    FileOutputStream(sidecarFile).use { it.write(jsonStr.toByteArray()) }
+                    true
+                }
+                else -> false
+            }
+        } catch (_: Exception) {
+            false
         }
     }
-
+    
     /**
-     * Load sidecar adjustments if they exist.
+     * 加载 Sidecar 文件
      */
-    fun loadSidecar(context: Context, imageUri: Uri): RapidRawSidecar? {
-        val sidecarFile = findSidecarFile(context, imageUri)
+    fun loadSidecar(imageUri: String): SidecarData? {
         return try {
-            sidecarFile?.let { json.decodeFromString<RapidRawSidecar>(it.readText()) }
+            val uri = Uri.parse(imageUri)
+            val sidecarFile = when (uri.scheme) {
+                "file" -> {
+                    val imageFile = File(uri.path!!)
+                    File(imageFile.parentFile, imageFile.nameWithoutExtension + ".rapidraw")
+                }
+                "content" -> {
+                    val fileName = uri.lastPathSegment?.replace("/", "_") ?: "image"
+                    File(context.filesDir, "$fileName.rapidraw")
+                }
+                else -> return null
+            }
+            
+            if (!sidecarFile.exists()) return null
+            val jsonStr = sidecarFile.readText()
+            json.decodeFromString<SidecarData>(jsonStr)
         } catch (_: Exception) {
             null
         }
     }
-
+    
     /**
-     * Check if a sidecar exists for the given image.
+     * 检查是否存在 Sidecar
      */
-    fun hasSidecar(context: Context, imageUri: Uri): Boolean {
-        return findSidecarFile(context, imageUri)?.exists() == true
-    }
-
-    /**
-     * Delete sidecar for the given image.
-     */
-    fun deleteSidecar(context: Context, imageUri: Uri) {
-        findSidecarFile(context, imageUri)?.delete()
-    }
-
-    private fun findSidecarFile(context: Context, imageUri: Uri): File? {
-        if (imageUri.scheme == "file") {
-            val originalFile = File(imageUri.path!!)
-            val sidecarFile = File(originalFile.parent, originalFile.nameWithoutExtension + ".rapidraw")
-            if (sidecarFile.exists()) return sidecarFile
+    fun hasSidecar(imageUri: String): Boolean {
+        val uri = Uri.parse(imageUri)
+        val sidecarFile = when (uri.scheme) {
+            "file" -> {
+                val imageFile = File(uri.path!!)
+                File(imageFile.parentFile, imageFile.nameWithoutExtension + ".rapidraw")
+            }
+            "content" -> {
+                val fileName = uri.lastPathSegment?.replace("/", "_") ?: "image"
+                File(context.filesDir, "$fileName.rapidraw")
+            }
+            else -> return false
         }
-        val sidecarDir = File(context.filesDir, "sidecars")
-        val sidecarFile = File(sidecarDir, "${imageUri.toString().hashCode()}.rapidraw")
-        return if (sidecarFile.exists()) sidecarFile else null
+        return sidecarFile.exists()
+    }
+    
+    /**
+     * 删除 Sidecar
+     */
+    fun deleteSidecar(imageUri: String): Boolean {
+        val uri = Uri.parse(imageUri)
+        val sidecarFile = when (uri.scheme) {
+            "file" -> {
+                val imageFile = File(uri.path!!)
+                File(imageFile.parentFile, imageFile.nameWithoutExtension + ".rapidraw")
+            }
+            "content" -> {
+                val fileName = uri.lastPathSegment?.replace("/", "_") ?: "image"
+                File(context.filesDir, "$fileName.rapidraw")
+            }
+            else -> return false
+        }
+        return sidecarFile.delete()
     }
 }
 
-@Serializable
-data class RapidRawSidecar(
+@kotlinx.serialization.Serializable
+data class SidecarData(
     val version: Int = 1,
-    val sourceUri: String,
+    val adjustments: com.rapidraw.data.model.Adjustments,
     val filmId: String? = null,
-    val adjustments: Adjustments,
+    val timestamp: Long = 0L,
 )

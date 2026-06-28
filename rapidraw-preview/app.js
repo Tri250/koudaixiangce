@@ -791,6 +791,212 @@
     $('#btn-exif').addEventListener('click', () => showToast('EXIF 信息'));
   }
 
+<<<<<<< HEAD
+=======
+  // ==================== MORE MENU ====================
+  function initMoreMenu() {
+    const btnMore = $('#btn-more');
+    const menu = $('#more-menu');
+    if (!btnMore || !menu) return;
+
+    btnMore.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    });
+
+    document.addEventListener('click', () => { menu.style.display = 'none'; });
+
+    $('#menu-reset')?.addEventListener('click', () => { resetAllSliders(); state.activeFilm = 'none'; state.isSmartOptimized = false; applyImageFilter(); showToast('已重置'); });
+    $('#menu-smart-optimize')?.addEventListener('click', () => { simulateSmartOptimize(); });
+    $('#menu-copy-params')?.addEventListener('click', () => { showToast('编辑参数已复制'); });
+    $('#menu-recipe')?.addEventListener('click', () => { showToast('配方分享功能'); });
+    $('#menu-ai-inpaint')?.addEventListener('click', () => { openAiInpaint(); });
+    $('#menu-presets')?.addEventListener('click', () => { openPresetsDiscovery(); });
+  }
+
+  // ==================== AI INPAINT ====================
+  function openAiInpaint() {
+    const view = $('#ai-inpaint-view');
+    if (!view) return;
+    const img = $('#inpaint-image');
+    if (img && state.currentImage) {
+      img.src = getImageUrl(state.currentImage.prompt);
+    }
+    view.style.display = 'flex';
+    initInpaintCanvas();
+  }
+
+  function initInpaintCanvas() {
+    const canvas = $('#inpaint-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let isEraser = false;
+    let brushSize = 50;
+    let isDrawing = false;
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+    resizeCanvas();
+
+    function drawCircle(x, y) {
+      ctx.beginPath();
+      ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+      if (isEraser) {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'rgba(255,0,0,0.3)';
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(232, 96, 12, 0.25)';
+      }
+      ctx.fill();
+      ctx.strokeStyle = isEraser ? 'rgba(255,0,0,0.5)' : 'rgba(232, 96, 12, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    canvas.addEventListener('mousedown', (e) => { isDrawing = true; drawCircle(e.offsetX, e.offsetY); });
+    canvas.addEventListener('mousemove', (e) => { if (isDrawing) drawCircle(e.offsetX, e.offsetY); });
+    canvas.addEventListener('mouseup', () => { isDrawing = false; });
+
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      isDrawing = true;
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      drawCircle(touch.clientX - rect.left, touch.clientY - rect.top);
+    });
+
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (!isDrawing) return;
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      drawCircle(touch.clientX - rect.left, touch.clientY - rect.top);
+    });
+
+    canvas.addEventListener('touchend', () => { isDrawing = false; });
+
+    // Mode buttons
+    $('#btn-mark-mode')?.addEventListener('click', () => {
+      isEraser = false;
+      $('#btn-mark-mode').classList.add('active');
+      $('#btn-erase-mode').classList.remove('active');
+    });
+
+    $('#btn-erase-mode')?.addEventListener('click', () => {
+      isEraser = true;
+      $('#btn-erase-mode').classList.add('active');
+      $('#btn-mark-mode').classList.remove('active');
+    });
+
+    // Brush size
+    $('#brush-size-slider')?.addEventListener('input', (e) => {
+      brushSize = parseInt(e.target.value);
+      const valEl = $('#brush-size-val');
+      if (valEl) valEl.textContent = brushSize + 'px';
+    });
+
+    // Fix button
+    $('#btn-start-fix')?.addEventListener('click', () => {
+      const processing = $('#inpaint-processing');
+      if (processing) processing.style.display = 'flex';
+      setTimeout(() => {
+        if (processing) processing.style.display = 'none';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        showToast('修复完成');
+      }, 2000);
+    });
+
+    // Back button
+    $('#btn-inpaint-back')?.addEventListener('click', () => {
+      const view = $('#ai-inpaint-view');
+      if (view) view.style.display = 'none';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    // Reset
+    $('#btn-inpaint-reset')?.addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      showToast('已重置');
+    });
+
+    // Done
+    $('#btn-inpaint-done')?.addEventListener('click', () => {
+      const view = $('#ai-inpaint-view');
+      if (view) view.style.display = 'none';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      showToast('修复已应用');
+    });
+  }
+
+  // ==================== PRESETS DISCOVERY ====================
+  const MASTER_PRESETS = [
+    { id: 'hewa_portrait', name: '和光人像', desc: '柔和自然，适合人像摄影', cat: '人像', gradient: 'linear-gradient(135deg, #F5E6D3, #E8D5C4)' },
+    { id: 'nongyu_street', name: '浓郁街拍', desc: '高饱和色彩，街头故事感', cat: '街拍', gradient: 'linear-gradient(135deg, #4A3728, #8B6914)' },
+    { id: 'fugu_film', name: '复古胶片', desc: '怀旧复古色调', cat: '人像', gradient: 'linear-gradient(135deg, #8B7355, #A0826D)' },
+    { id: 'qingxin_landscape', name: '清新风景', desc: '通透蓝天绿色', cat: '风景', gradient: 'linear-gradient(135deg, #87CEEB, #98FB98)' },
+    { id: 'tongtou_arch', name: '通透建筑', desc: '清晰锐利的建筑质感', cat: '风景', gradient: 'linear-gradient(135deg, #D3D3D3, #A9A9A9)' },
+    { id: 'nihong_night', name: '霓虹夜景', desc: '赛博朋克城市夜景', cat: '夜景', gradient: 'linear-gradient(135deg, #FF1493, #00CED1)' },
+    { id: 'lengdiao_flash', name: '冷调闪光', desc: '冷色温闪光灯效果', cat: '人像', gradient: 'linear-gradient(135deg, #B0C4DE, #4682B4)' },
+    { id: 'nuandiao_flash', name: '暖调闪光', desc: '暖色温闪光灯效果', cat: '人像', gradient: 'linear-gradient(135deg, #F4A460, #D2691E)' },
+    { id: 'heibai_noir', name: '反差黑白', desc: '高反差黑白胶片', cat: '街拍', gradient: 'linear-gradient(135deg, #333, #888)' },
+  ];
+
+  let activePresetCat = '全部';
+
+  function openPresetsDiscovery() {
+    const view = $('#presets-discovery-view');
+    if (!view) return;
+    view.style.display = 'flex';
+    renderPresetsDiscovery();
+  }
+
+  function renderPresetsDiscovery() {
+    const grid = $('#presets-discovery-grid');
+    if (!grid) return;
+    const filtered = activePresetCat === '全部' ? MASTER_PRESETS : MASTER_PRESETS.filter(p => p.cat === activePresetCat);
+
+    grid.innerHTML = '';
+    filtered.forEach(preset => {
+      const card = document.createElement('div');
+      card.className = 'discovery-card';
+      card.innerHTML = `
+        <div class="discovery-card-preview" style="background:${preset.gradient}"></div>
+        <div class="discovery-card-name">${preset.name}</div>
+        <div class="discovery-card-desc">${preset.desc}</div>
+        <div class="discovery-card-cat">${preset.cat}</div>
+      `;
+      card.addEventListener('click', () => {
+        showToast(`已应用: ${preset.name}`);
+        const view = $('#presets-discovery-view');
+        if (view) view.style.display = 'none';
+      });
+      grid.appendChild(card);
+    });
+
+    // Filter chips
+    $$('.preset-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        $$('.preset-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        activePresetCat = chip.dataset.pcat;
+        renderPresetsDiscovery();
+      });
+    });
+  }
+
+  // Presets back button
+  function initPresetsBack() {
+    $('#btn-presets-back')?.addEventListener('click', () => {
+      const view = $('#presets-discovery-view');
+      if (view) view.style.display = 'none';
+    });
+  }
+
+>>>>>>> trae/agent-Iea5wr
   // ==================== INITIALIZATION ====================
 
   function init() {
@@ -805,6 +1011,11 @@
     initExportOptions();
     initEditorActions();
     initLongPress();
+<<<<<<< HEAD
+=======
+    initMoreMenu();
+    initPresetsBack();
+>>>>>>> trae/agent-Iea5wr
 
     // Hide optimized badge initially
     const badge = $('#optimized-badge');

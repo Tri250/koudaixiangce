@@ -1,117 +1,109 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Matrix
-import android.graphics.Paint
-import kotlin.math.pow
+import android.graphics.Color
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
- * Lens distortion correction engine.
- * Supports radial (barrel/pincushion) and tangential distortion models.
- * Pure on-device CPU implementation using backward mapping with bilinear interpolation.
+ * 镜头畸变校正：Brown-Conrady 模型。
+ * 径向畸变: r' = r * (1 + k1*r^2 + k2*r^4)
+ * 切向畸变: + p1*(r^2+2x^2) + 2*p2*x*y
+ * 使用反向映射 + 双线性插值避免空洞。
  */
-class LensCorrector {
-
-    data class LensParams(
-        val k1: Float = 0f,  // Radial distortion coefficient 1
-        val k2: Float = 0f,  // Radial distortion coefficient 2
-        val p1: Float = 0f,  // Tangential distortion coefficient 1
-        val p2: Float = 0f,  // Tangential distortion coefficient 2
-        val scale: Float = 1.0f, // Output scale to avoid black corners
-    )
-
+class LensCorrector(
+    private val k1: Float = 0f,
+    private val k2: Float = 0f,
+    private val p1: Float = 0f,
+    private val p2: Float = 0f,
+    private val scale: Float = 1f,
+) {
+    data class LensParams(val k1: Float, val k2: Float, val p1: Float, val p2: Float, val scale: Float)
+    
     /**
-     * Apply lens correction to a bitmap.
-     * @param source Input bitmap
-     * @param params Lens distortion parameters
-     * @return Corrected bitmap
+     * 执行畸变校正。
+     * 反向映射：对输出图每个像素，找到输入图对应的源位置。
      */
-    fun correct(source: Bitmap, params: LensParams): Bitmap {
+    fun correct(source: Bitmap): Bitmap {
         val w = source.width
         val h = source.height
         val cx = w / 2f
         val cy = h / 2f
-        val maxR = kotlin.math.sqrt(cx * cx + cy * cy)
-
-        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val maxR = sqrt(cx * cx + cy * cy)
+        
         val srcPixels = IntArray(w * h)
         source.getPixels(srcPixels, 0, w, 0, 0, w, h)
-        val dstPixels = IntArray(w * h)
-
+        
+        val result = IntArray(w * h) { 0xFF000000.toInt() }
+        
         for (y in 0 until h) {
             for (x in 0 until w) {
-                // Normalize to [-1, 1] with aspect correction
+                // 归一化坐标到 [-1, 1]
                 val nx = (x - cx) / maxR
                 val ny = (y - cy) / maxR
                 val r2 = nx * nx + ny * ny
-                val r4 = r2 * r2
-
-                // Radial distortion
-                val radial = 1f + params.k1 * r2 + params.k2 * r4
-                var dx = nx * radial
-                var dy = ny * radial
-
-                // Tangential distortion
-                dx += params.p1 * (r2 + 2 * nx * nx) + 2 * params.p2 * nx * ny
-                dy += params.p2 * (r2 + 2 * ny * ny) + 2 * params.p1 * nx * ny
-
-                // Scale to avoid black corners
-                dx *= params.scale
-                dy *= params.scale
-
-                // Back to pixel coordinates
-                val sx = (dx * maxR + cx).toFloat()
-                val sy = (dy * maxR + cy).toFloat()
-
-                dstPixels[y * w + x] = bilinearSample(srcPixels, sx, sy, w, h)
+                
+                // 反向畸变：从输出坐标反推输入坐标
+                val radial = 1f + k1 * r2 + k2 * r2 * r2
+                val tx = p1 * (r2 + 2f * nx * nx) + 2f * p2 * nx * ny
+                val ty = 2f * p1 * nx * ny + p2 * (r2 + 2f * ny * ny)
+                
+                val srcNx = (nx / radial + tx) * scale
+                val srcNy = (ny / radial + ty) * scale
+                
+                // 转回像素坐标
+                val srcX = srcNx * maxR + cx
+                val srcY = srcNy * maxR + cy
+                
+                // 双线性插值
+                val x0 = srcX.toInt()
+                val y0 = srcY.toInt()
+                val x1 = x0 + 1
+                val y1 = y0 + 1
+                val fx = srcX - x0
+                val fy = srcY - y0
+                
+                if (x0 >= 0 && x1 < w && y0 >= 0 && y1 < h) {
+                    val p00 = srcPixels[y0 * w + x0]
+                    val p01 = srcPixels[y0 * w + x1]
+                    val p10 = srcPixels[y1 * w + x0]
+                    val p11 = srcPixels[y1 * w + x1]
+                    
+                    val r = bilinear(p00, p01, p10, p11, fx, fy, 16)
+                    val g = bilinear(p00, p01, p10, p11, fx, fy, 8)
+                    val b = bilinear(p00, p01, p10, p11, fx, fy, 0)
+                    result[y * w + x] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                }
             }
         }
-
-        result.setPixels(dstPixels, 0, w, 0, 0, w, h)
-        return result
+        
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        bitmap.setPixels(result, 0, w, 0, 0, w, h)
+        return bitmap
     }
-
-    /**
-     * Estimate lens parameters from EXIF maker notes (if available).
-     * Falls back to manual parameters.
-     */
-    fun autoEstimateParams(exifFocalLength: Float?, exifAperture: Float?): LensParams {
-        // Simple heuristic: wide-angle lenses (< 24mm equiv) tend to have barrel distortion
-        return when {
-            exifFocalLength != null && exifFocalLength < 24f -> LensParams(k1 = 0.05f, scale = 1.08f)
-            exifFocalLength != null && exifFocalLength > 50f -> LensParams(k1 = -0.02f, scale = 1.03f)
-            else -> LensParams()
+    
+    private fun bilinear(p00: Int, p01: Int, p10: Int, p11: Int, fx: Float, fy: Float, shift: Int): Int {
+        val v00 = (p00 ushr shift) and 0xFF
+        val v01 = (p01 ushr shift) and 0xFF
+        val v10 = (p10 ushr shift) and 0xFF
+        val v11 = (p11 ushr shift) and 0xFF
+        val top = v00 * (1 - fx) + v01 * fx
+        val bot = v10 * (1 - fx) + v11 * fx
+        return (top * (1 - fy) + bot * fy).toInt().coerceIn(0, 255)
+    }
+    
+    companion object {
+        /**
+         * 根据焦距自动估算畸变参数
+         */
+        fun autoEstimateParams(focalLength: Float): LensParams {
+            return when {
+                focalLength < 24f -> LensParams(k1 = 0.045f, k2 = 0.008f, p1 = 0.001f, p2 = 0.001f, scale = 1.08f)
+                focalLength > 50f -> LensParams(k1 = -0.018f, k2 = 0.002f, p1 = -0.0003f, p2 = 0.0002f, scale = 0.98f)
+                else -> LensParams(k1 = 0.01f, k2 = 0f, p1 = 0f, p2 = 0f, scale = 1.02f)
+            }
         }
-    }
-
-    private fun bilinearSample(pixels: IntArray, x: Float, y: Float, w: Int, h: Int): Int {
-        val x0 = kotlin.math.floor(x).toInt().coerceIn(0, w - 1)
-        val y0 = kotlin.math.floor(y).toInt().coerceIn(0, h - 1)
-        val x1 = kotlin.math.min(x0 + 1, w - 1)
-        val y1 = kotlin.math.min(y0 + 1, h - 1)
-
-        val fx = x - x0
-        val fy = y - y0
-        val f00 = (1 - fx) * (1 - fy)
-        val f10 = fx * (1 - fy)
-        val f01 = (1 - fx) * fy
-        val f11 = fx * fy
-
-        val p00 = pixels[y0 * w + x0]
-        val p10 = pixels[y0 * w + x1]
-        val p01 = pixels[y1 * w + x0]
-        val p11 = pixels[y1 * w + x1]
-
-        val a = interp((p00 shr 24) and 0xFF, (p10 shr 24) and 0xFF, (p01 shr 24) and 0xFF, (p11 shr 24) and 0xFF, f00, f10, f01, f11)
-        val r = interp((p00 shr 16) and 0xFF, (p10 shr 16) and 0xFF, (p01 shr 16) and 0xFF, (p11 shr 16) and 0xFF, f00, f10, f01, f11)
-        val g = interp((p00 shr 8) and 0xFF, (p10 shr 8) and 0xFF, (p01 shr 8) and 0xFF, (p11 shr 8) and 0xFF, f00, f10, f01, f11)
-        val b = interp(p00 and 0xFF, p10 and 0xFF, p01 and 0xFF, p11 and 0xFF, f00, f10, f01, f11)
-
-        return (a.toInt() shl 24) or (r.toInt() shl 16) or (g.toInt() shl 8) or b.toInt()
-    }
-
-    private fun interp(v00: Int, v10: Int, v01: Int, v11: Int, f00: Float, f10: Float, f01: Float, f11: Float): Float {
-        return v00 * f00 + v10 * f10 + v01 * f01 + v11 * f11
     }
 }

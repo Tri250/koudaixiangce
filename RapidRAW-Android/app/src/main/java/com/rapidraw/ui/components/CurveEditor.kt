@@ -26,7 +26,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +59,7 @@ fun CurveEditor(
     }
     var dragIndex by remember { mutableIntStateOf(-1) }
     val controlPointRadius = 5.dp
+    val haptic = LocalHapticFeedback.current
 
     // Threshold in normalized units for detecting if a tap hits a control point
     val hitThreshold = 15f // in 0-255 space
@@ -121,6 +124,7 @@ fun CurveEditor(
                                             newPoints.removeAt(nearestIndex)
                                             internalPoints = newPoints
                                             onPointsChanged(newPoints)
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         }
                                     }
                                 }
@@ -137,6 +141,7 @@ fun CurveEditor(
                                 newPoints.add(insertIndex, x to y)
                                 internalPoints = newPoints
                                 onPointsChanged(newPoints)
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             }
                         )
                     }

@@ -42,11 +42,23 @@ class GpuPipeline(private val context: Context) {
     private var vertexShader = 0
     private var fragmentShader = 0
     private var textureId = 0
+    private var maskTextureId = 0
+    private var lutTextureId = 0
     private var fbo = 0
     private var fboTextureId = 0
     private var width = 0
     private var height = 0
     private var initialized = false
+
+    // Flow mask / LUT intensity
+    private var maskIntensity = 0f
+    private var lutIntensity = 0f
+
+    // 性能优化：复用缓冲区避免频繁 GC
+    private var readBackBuffer: java.nio.ByteBuffer? = null
+    private var readBackBitmap: android.graphics.Bitmap? = null
+    private var lastInputWidth = 0
+    private var lastInputHeight = 0
 
     // Vertex buffers
     private var vao = 0
@@ -56,10 +68,10 @@ class GpuPipeline(private val context: Context) {
     private var uniformLocations = mutableMapOf<String, Int>()
 
     // EGL
-    private var eglDisplay = 0L
-    private var eglContext = 0L
-    private var eglSurface = 0L
-    private var eglConfig = 0L
+    private var eglDisplay: android.opengl.EGLDisplay? = null
+    private var eglContext: android.opengl.EGLContext? = null
+    private var eglSurface: android.opengl.EGLSurface? = null
+    private var eglConfig: android.opengl.EGLConfig? = null
 
     // Texture coordinate buffer for flipped Y
     private val quadVertices = floatArrayOf(
@@ -82,6 +94,8 @@ class GpuPipeline(private val context: Context) {
         compileShaders()
         setupGeometry()
         setupTexture()
+        setupMaskTexture()
+        setupLutTexture()
         setupFramebuffer(width, height)
 
         initialized = true
@@ -98,6 +112,8 @@ class GpuPipeline(private val context: Context) {
         compileShaders()
         setupGeometry()
         setupTexture()
+        setupMaskTexture()
+        setupLutTexture()
         setupFramebuffer(width, height)
 
         initialized = true
@@ -106,13 +122,14 @@ class GpuPipeline(private val context: Context) {
     // ── EGL Setup ──────────────────────────────────────────────────
 
     private fun setupEgl(surfaceTexture: SurfaceTexture) {
-        eglDisplay = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY)
-        if (eglDisplay == 0L) {
+        val display = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY)
+        if (display === android.opengl.EGL14.EGL_NO_DISPLAY) {
             throw RuntimeException("Unable to get EGL display")
         }
+        eglDisplay = display
 
         val version = IntArray(2)
-        if (!android.opengl.EGL14.eglInitialize(eglDisplay, version, 0, version, 1)) {
+        if (!android.opengl.EGL14.eglInitialize(display, version, 0, version, 1)) {
             throw RuntimeException("Unable to initialize EGL")
         }
 
@@ -130,10 +147,11 @@ class GpuPipeline(private val context: Context) {
 
         val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
         val numConfigs = IntArray(1)
-        if (!android.opengl.EGL14.eglChooseConfig(eglDisplay, attribList, 0, configs, 0, 1, numConfigs, 0)) {
+        if (!android.opengl.EGL14.eglChooseConfig(display, attribList, 0, configs, 0, 1, numConfigs, 0)) {
             throw RuntimeException("Unable to choose EGL config")
         }
-        eglConfig = configs[0]?.nativeHandle ?: 0L
+        val config = configs[0] ?: throw RuntimeException("No EGL config chosen")
+        eglConfig = config
 
         // Create context
         val contextAttribs = intArrayOf(
@@ -141,27 +159,35 @@ class GpuPipeline(private val context: Context) {
             android.opengl.EGL14.EGL_NONE
         )
 
-        eglContext = android.opengl.EGL14.eglCreateContext(
-            eglDisplay, configs[0], 0L, contextAttribs, 0
-        )?.nativeHandle ?: throw RuntimeException("Unable to create EGL context")
+        val context = android.opengl.EGL14.eglCreateContext(
+            display, config, android.opengl.EGL14.EGL_NO_CONTEXT, contextAttribs, 0
+        )
+        if (context === android.opengl.EGL14.EGL_NO_CONTEXT) {
+            throw RuntimeException("Unable to create EGL context")
+        }
+        eglContext = context
 
         // Create surface from SurfaceTexture
-        val eglSurfaceObj = android.opengl.EGL14.eglCreateWindowSurface(
-            eglDisplay, configs[0], surfaceTexture, intArrayOf(android.opengl.EGL14.EGL_NONE), 0
+        val surface = android.opengl.EGL14.eglCreateWindowSurface(
+            display, config, surfaceTexture, intArrayOf(android.opengl.EGL14.EGL_NONE), 0
         )
-        eglSurface = eglSurfaceObj?.nativeHandle ?: throw RuntimeException("Unable to create EGL surface")
+        if (surface === android.opengl.EGL14.EGL_NO_SURFACE) {
+            throw RuntimeException("Unable to create EGL surface")
+        }
+        eglSurface = surface
 
         makeCurrent()
     }
 
     private fun setupEglOffscreen() {
-        eglDisplay = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY)
-        if (eglDisplay == 0L) {
+        val display = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY)
+        if (display === android.opengl.EGL14.EGL_NO_DISPLAY) {
             throw RuntimeException("Unable to get EGL display")
         }
+        eglDisplay = display
 
         val version = IntArray(2)
-        if (!android.opengl.EGL14.eglInitialize(eglDisplay, version, 0, version, 1)) {
+        if (!android.opengl.EGL14.eglInitialize(display, version, 0, version, 1)) {
             throw RuntimeException("Unable to initialize EGL")
         }
 
@@ -177,19 +203,24 @@ class GpuPipeline(private val context: Context) {
 
         val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
         val numConfigs = IntArray(1)
-        if (!android.opengl.EGL14.eglChooseConfig(eglDisplay, attribList, 0, configs, 0, 1, numConfigs, 0)) {
+        if (!android.opengl.EGL14.eglChooseConfig(display, attribList, 0, configs, 0, 1, numConfigs, 0)) {
             throw RuntimeException("Unable to choose EGL config")
         }
-        eglConfig = configs[0]?.nativeHandle ?: 0L
+        val config = configs[0] ?: throw RuntimeException("No EGL config chosen")
+        eglConfig = config
 
         val contextAttribs = intArrayOf(
             android.opengl.EGL14.EGL_CONTEXT_CLIENT_VERSION, 3,
             android.opengl.EGL14.EGL_NONE
         )
 
-        eglContext = android.opengl.EGL14.eglCreateContext(
-            eglDisplay, configs[0], 0L, contextAttribs, 0
-        )?.nativeHandle ?: throw RuntimeException("Unable to create EGL context")
+        val context = android.opengl.EGL14.eglCreateContext(
+            display, config, android.opengl.EGL14.EGL_NO_CONTEXT, contextAttribs, 0
+        )
+        if (context === android.opengl.EGL14.EGL_NO_CONTEXT) {
+            throw RuntimeException("Unable to create EGL context")
+        }
+        eglContext = context
 
         // Create pbuffer surface for offscreen rendering
         val pbufferAttribs = intArrayOf(
@@ -198,22 +229,23 @@ class GpuPipeline(private val context: Context) {
             android.opengl.EGL14.EGL_NONE
         )
 
-        val eglSurfaceObj = android.opengl.EGL14.eglCreatePbufferSurface(
-            eglDisplay, configs[0], pbufferAttribs, 0
+        val surface = android.opengl.EGL14.eglCreatePbufferSurface(
+            display, config, pbufferAttribs, 0
         )
-        eglSurface = eglSurfaceObj?.nativeHandle ?: throw RuntimeException("Unable to create EGL pbuffer surface")
+        if (surface === android.opengl.EGL14.EGL_NO_SURFACE) {
+            throw RuntimeException("Unable to create EGL pbuffer surface")
+        }
+        eglSurface = surface
 
         makeCurrent()
     }
 
     private fun makeCurrent() {
-        val displayObj = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY)
+        val display = eglDisplay ?: return
+        val surface = eglSurface ?: return
+        val context = eglContext ?: return
 
-        // Reconstruct EGL objects from handles
-        val surfaceObj = android.opengl.EGLSurface.create(eglSurface)
-        val contextObj = android.opengl.EGLContext.create(eglContext)
-
-        if (!android.opengl.EGL14.eglMakeCurrent(displayObj, surfaceObj, surfaceObj, contextObj)) {
+        if (!android.opengl.EGL14.eglMakeCurrent(display, surface, surface, context)) {
             throw RuntimeException("Unable to make EGL context current")
         }
     }
@@ -295,12 +327,15 @@ class GpuPipeline(private val context: Context) {
             "uClippingPreview",
             // New uniforms for film simulation & advanced controls
             "uToneLevel", "uFilmIntensity", "uGreenMagenta", "uSoftGlow",
-            "uFilmHighlightRollOff", "uFilmShadowLift", "uFilmDrCompression",
+            "uHighlightRollOff", "uShadowLift", "uDrCompression",
             "uFilmRedShift", "uFilmGreenShift", "uFilmBlueShift",
             "uFilmSaturation", "uFilmContrast",
             "uFilmGrainAmount", "uFilmGrainSize", "uFilmGrainRoughness",
             "uFilmCurve[0]", "uFilmCurve[1]", "uFilmCurve[2]",
-            "uFilmCurve[3]", "uFilmCurve[4]", "uFilmCurve[5]"
+            "uFilmCurve[3]", "uFilmCurve[4]", "uFilmCurve[5]",
+            // Flow Mask & LUT
+            "uMaskTexture", "uMaskIntensity",
+            "uLutTexture", "uLutIntensity",
         )
 
         for (name in uniformNames) {
@@ -355,6 +390,53 @@ class GpuPipeline(private val context: Context) {
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+    }
+
+    private fun setupMaskTexture() {
+        val texArr = IntArray(1)
+        GLES30.glGenTextures(1, texArr, 0)
+        maskTextureId = texArr[0]
+
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, maskTextureId)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
+        // Upload a 1x1 transparent pixel as default
+        val pixel = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder())
+        pixel.put(byteArrayOf(0, 0, 0, 0))
+        pixel.rewind()
+        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RGBA, 1, 1, 0, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, pixel)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+    }
+
+    private fun setupLutTexture() {
+        val texArr = IntArray(1)
+        GLES30.glGenTextures(1, texArr, 0)
+        lutTextureId = texArr[0]
+
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, lutTextureId)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_3D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_3D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_3D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_3D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_3D, GLES30.GL_TEXTURE_WRAP_R, GLES30.GL_CLAMP_TO_EDGE)
+        // Upload a 2x2x2 identity LUT as default
+        val size = 2
+        val pixelCount = size * size * size * 3
+        val buffer = ByteBuffer.allocateDirect(pixelCount).order(ByteOrder.nativeOrder())
+        for (z in 0 until size) {
+            for (y in 0 until size) {
+                for (x in 0 until size) {
+                    buffer.put((x * 255 / (size - 1)).toByte())
+                    buffer.put((y * 255 / (size - 1)).toByte())
+                    buffer.put((z * 255 / (size - 1)).toByte())
+                }
+            }
+        }
+        buffer.rewind()
+        GLES30.glTexImage3D(GLES30.GL_TEXTURE_3D, 0, GLES30.GL_RGB8, size, size, size, 0, GLES30.GL_RGB, GLES30.GL_UNSIGNED_BYTE, buffer)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, 0)
     }
 
     private fun setupFramebuffer(width: Int, height: Int) {
@@ -418,9 +500,9 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uSoftGlow", adjustments.softGlow)
 
         // ── New: Film simulation parameters ──
-        setUniform1f("uFilmHighlightRollOff", adjustments.filmHighlightRollOff)
-        setUniform1f("uFilmShadowLift", adjustments.filmShadowLift)
-        setUniform1f("uFilmDrCompression", adjustments.filmDrCompression)
+        setUniform1f("uHighlightRollOff", adjustments.filmHighlightRollOff)
+        setUniform1f("uShadowLift", adjustments.filmShadowLift)
+        setUniform1f("uDrCompression", adjustments.filmDrCompression)
         setUniform1f("uFilmRedShift", adjustments.filmRedShift)
         setUniform1f("uFilmGreenShift", adjustments.filmGreenShift)
         setUniform1f("uFilmBlueShift", adjustments.filmBlueShift)
@@ -527,6 +609,48 @@ class GpuPipeline(private val context: Context) {
     // ── Render ─────────────────────────────────────────────────────
 
     /**
+     * Update the flow mask texture from a Bitmap.
+     */
+    fun updateMaskTexture(bitmap: Bitmap?, intensity: Float = 1f) {
+        if (!initialized) return
+        maskIntensity = intensity.coerceIn(0f, 1f)
+        if (bitmap == null) return
+
+        makeCurrent()
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, maskTextureId)
+        GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, bitmap, 0)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+    }
+
+    /**
+     * Update the 3D LUT texture from a parsed Cube LUT.
+     */
+    fun updateLutTexture(lut: CubeLutParser.Lut3D?, intensity: Float = 1f) {
+        if (!initialized) return
+        lutIntensity = intensity.coerceIn(0f, 1f)
+        if (lut == null) return
+
+        makeCurrent()
+        val size = lut.size
+        val pixelCount = size * size * size * 3
+        val buffer = ByteBuffer.allocateDirect(pixelCount).order(ByteOrder.nativeOrder())
+        for (i in lut.data.indices step 3) {
+            buffer.put((lut.data[i].coerceIn(0f, 1f) * 255f).toInt().toByte())
+            buffer.put((lut.data[i + 1].coerceIn(0f, 1f) * 255f).toInt().toByte())
+            buffer.put((lut.data[i + 2].coerceIn(0f, 1f) * 255f).toInt().toByte())
+        }
+        buffer.rewind()
+
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, lutTextureId)
+        GLES30.glTexImage3D(
+            GLES30.GL_TEXTURE_3D, 0, GLES30.GL_RGB8,
+            size, size, size, 0,
+            GLES30.GL_RGB, GLES30.GL_UNSIGNED_BYTE, buffer
+        )
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, 0)
+    }
+
+    /**
      * Upload bitmap as texture, run fragment shader, render to FBO.
      */
     fun renderFrame(inputBitmap: Bitmap) {
@@ -535,13 +659,32 @@ class GpuPipeline(private val context: Context) {
         makeCurrent()
         GLES30.glUseProgram(program)
 
-        // Upload bitmap to texture
+        // Upload bitmap to texture（仅在尺寸变化时重新分配纹理存储）
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, textureId)
-        GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, inputBitmap, 0)
+        if (inputBitmap.width != lastInputWidth || inputBitmap.height != lastInputHeight) {
+            GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, inputBitmap, 0)
+            lastInputWidth = inputBitmap.width
+            lastInputHeight = inputBitmap.height
+        } else {
+            // 尺寸不变时使用 texSubImage2D 避免重新分配
+            GLUtils.texSubImage2D(GLES30.GL_TEXTURE_2D, 0, 0, 0, inputBitmap)
+        }
 
         setUniform1i("uTexture", 0)
         setUniform2f("uResolution", inputBitmap.width.toFloat(), inputBitmap.height.toFloat())
+
+        // Bind mask texture to unit 1
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, maskTextureId)
+        setUniform1i("uMaskTexture", 1)
+        setUniform1f("uMaskIntensity", maskIntensity)
+
+        // Bind LUT texture to unit 2
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, lutTextureId)
+        setUniform1i("uLutTexture", 2)
+        setUniform1f("uLutIntensity", lutIntensity)
 
         // Render to FBO
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
@@ -563,9 +706,9 @@ class GpuPipeline(private val context: Context) {
         GLES30.glBindVertexArray(0)
 
         // Swap buffers
-        val displayObj = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY)
-        val surfaceObj = android.opengl.EGLSurface.create(eglSurface)
-        android.opengl.EGL14.eglSwapBuffers(displayObj, surfaceObj)
+        val display = eglDisplay ?: return
+        val surface = eglSurface ?: return
+        android.opengl.EGL14.eglSwapBuffers(display, surface)
     }
 
     /**
@@ -578,24 +721,33 @@ class GpuPipeline(private val context: Context) {
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
 
-        val buffer = ByteBuffer.allocateDirect(width * height * 4)
-            .order(ByteOrder.nativeOrder())
-        GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
+        // 复用 ByteBuffer 避免频繁分配
+        var buffer = readBackBuffer
+        if (buffer == null || buffer.capacity() < width * height * 4) {
+            buffer = ByteBuffer.allocateDirect(width * height * 4)
+                .order(ByteOrder.nativeOrder())
+            readBackBuffer = buffer
+        }
+        buffer.clear()
 
+        GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
 
         buffer.rewind()
 
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        // 复用 Bitmap 避免频繁创建
+        var bitmap = readBackBitmap
+        if (bitmap == null || bitmap.width != width || bitmap.height != height) {
+            bitmap?.recycle()
+            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            readBackBitmap = bitmap
+        }
         bitmap.copyPixelsFromBuffer(buffer)
 
         // OpenGL reads bottom-to-top, need to flip vertically
         val matrix = android.graphics.Matrix()
         matrix.postScale(1f, -1f)
-        val flipped = Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
-        bitmap.recycle()
-
-        return flipped
+        return Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
     }
 
     // ── Uniform Helpers ────────────────────────────────────────────
@@ -627,6 +779,8 @@ class GpuPipeline(private val context: Context) {
 
     // ── Cleanup ────────────────────────────────────────────────────
 
+    fun isInitialized(): Boolean = initialized
+
     fun release() {
         if (!initialized) return
 
@@ -636,24 +790,37 @@ class GpuPipeline(private val context: Context) {
         if (vertexShader != 0) GLES30.glDeleteShader(vertexShader)
         if (fragmentShader != 0) GLES30.glDeleteShader(fragmentShader)
         if (textureId != 0) GLES30.glDeleteTextures(1, intArrayOf(textureId), 0)
+        if (maskTextureId != 0) GLES30.glDeleteTextures(1, intArrayOf(maskTextureId), 0)
+        if (lutTextureId != 0) GLES30.glDeleteTextures(1, intArrayOf(lutTextureId), 0)
         if (fboTextureId != 0) GLES30.glDeleteTextures(1, intArrayOf(fboTextureId), 0)
         if (fbo != 0) GLES30.glDeleteFramebuffers(1, intArrayOf(fbo), 0)
         if (vao != 0) GLES30.glDeleteVertexArrays(1, intArrayOf(vao), 0)
         if (vbo != 0) GLES30.glDeleteBuffers(1, intArrayOf(vbo), 0)
 
+        // Recycle readback bitmap before EGL teardown
+        readBackBitmap?.recycle()
+        readBackBuffer = null
+        readBackBitmap = null
+
         // Destroy EGL
-        val displayObj = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY)
-        val surfaceObj = android.opengl.EGLSurface.create(eglSurface)
-        val contextObj = android.opengl.EGLContext.create(eglContext)
+        val display = eglDisplay
+        val surface = eglSurface
+        val context = eglContext
 
-        android.opengl.EGL14.eglMakeCurrent(displayObj,
-            android.opengl.EGL14.EGL_NO_SURFACE,
-            android.opengl.EGL14.EGL_NO_SURFACE,
-            android.opengl.EGL14.EGL_NO_CONTEXT)
-        android.opengl.EGL14.eglDestroySurface(displayObj, surfaceObj)
-        android.opengl.EGL14.eglDestroyContext(displayObj, contextObj)
-        android.opengl.EGL14.eglTerminate(displayObj)
+        if (display != null && surface != null && context != null) {
+            android.opengl.EGL14.eglMakeCurrent(display,
+                android.opengl.EGL14.EGL_NO_SURFACE,
+                android.opengl.EGL14.EGL_NO_SURFACE,
+                android.opengl.EGL14.EGL_NO_CONTEXT)
+            android.opengl.EGL14.eglDestroySurface(display, surface)
+            android.opengl.EGL14.eglDestroyContext(display, context)
+            android.opengl.EGL14.eglTerminate(display)
+        }
 
+        eglDisplay = null
+        eglSurface = null
+        eglContext = null
+        eglConfig = null
         initialized = false
     }
 }

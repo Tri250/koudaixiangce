@@ -44,12 +44,11 @@ fun RecipeShareSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
-    
-    if (!visible) return
-    
     var recipeName by remember { mutableStateOf("我的配方") }
     var importJson by remember { mutableStateOf("") }
     var showImport by remember { mutableStateOf(false) }
+
+    if (!visible) return
     
     val currentRecipe = Recipe(
         id = System.currentTimeMillis().toString(),
@@ -166,8 +165,11 @@ fun RecipeShareSheet(
                 
                 Button(
                     onClick = {
-                        Recipe.importFromJson(importJson)?.let { recipe ->
-                            onApplyRecipe(recipe)
+                        // 优先尝试分享码解析（Base64），失败则尝试 JSON
+                        val recipe = Recipe.fromShareCode(importJson.trim())
+                            ?: Recipe.importFromJson(importJson.trim())
+                        recipe?.let {
+                            onApplyRecipe(it)
                             onDismiss()
                         }
                     },

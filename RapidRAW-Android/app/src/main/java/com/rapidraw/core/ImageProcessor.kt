@@ -50,6 +50,7 @@ data class ExportSettings(
     val maxWidth: Int = 0,             // 0 = no resize
     val maxHeight: Int = 0,
     val preserveMetadata: Boolean = true,
+    val stripGps: Boolean = false,     // Strip GPS data from metadata
     val socialAspectRatio: Float? = null, // null = original, otherwise crop to aspect ratio
     val addWatermark: Boolean = false,
     val watermarkText: String = "RapidRAW",
@@ -412,16 +413,28 @@ class ImageProcessor {
         // Convert to core Adjustments for internal processing
         val adj = convertToCoreAdjustments(adjustments)
 
-        val w = originalBitmap.width
-        val h = originalBitmap.height
-        val totalPixels = w.toLong() * h.toLong()
+        // 内存保护：对于超大图（>24MP），降采样到预览尺寸处理
+        val maxPixels = 24_000_000 // 24MP
+        val totalPixels = originalBitmap.width.toLong() * originalBitmap.height.toLong()
+        val sourceBitmap = if (totalPixels > maxPixels) {
+            val scale = sqrt(maxPixels.toDouble() / totalPixels.toDouble()).toFloat()
+            val newW = (originalBitmap.width * scale).toInt()
+            val newH = (originalBitmap.height * scale).toInt()
+            Bitmap.createScaledBitmap(originalBitmap, newW, newH, true)
+        } else {
+            originalBitmap
+        }
+
+        val w = sourceBitmap.width
+        val h = sourceBitmap.height
+        val pixelCount = w.toLong() * h.toLong()
 
         // Create output bitmap
         val outputBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
 
         // Get pixels as int array
         val pixels = IntArray(w * h)
-        originalBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        sourceBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         // Pre-compute white balance multipliers
         val wbMultipliers = ColorMath.temperatureTintToMultipliers(
@@ -681,6 +694,8 @@ class ImageProcessor {
         // Post-processing: Sharpness & Clarity (spatial operations)
         val finalBitmap = applySpatialOperations(outputBitmap, adj)
         if (finalBitmap != outputBitmap) outputBitmap.recycle()
+
+        if (sourceBitmap !== originalBitmap) sourceBitmap.recycle()
 
         finalBitmap
     }
@@ -1213,7 +1228,7 @@ class ImageProcessor {
             filmGrainAmount = src.filmGrainAmount,
             filmGrainSize = src.filmGrainSize,
             filmGrainRoughness = src.filmGrainRoughness,
-            filmCurvePoints = src.filmCurvePoints,
+            filmCurvePoints = src.filmCurvePoints.map { (it.first / 255f) to (it.second / 255f) },
             temperature = 6500f + src.temperature * 50f,                       // offset → Kelvin
             tint = src.tint / 100f,                                            // -100..100 → -1..1
             contrast = src.contrast / 100f,                                    // -100..100 → -1..1
@@ -1247,7 +1262,7 @@ class ImageProcessor {
             hueMagenta = src.hslMagentas.hue / 100f,
             satMagenta = src.hslMagentas.saturation / 100f,
             lumMagenta = src.hslMagentas.luminance / 100f,
-            toneCurvePoints = src.lumaCurve.map { it.x to it.y },
+            toneCurvePoints = src.lumaCurve.map { (it.x / 255f) to (it.y / 255f) },
             colorGradingShadows = floatArrayOf(
                 src.colorGrading.shadows.hue / 360f,
                 src.colorGrading.shadows.saturation / 100f,

@@ -35,6 +35,9 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                     val processed = imageProcessor.loadAndDecode(context, uri)
                     // Apply film adjustments to full resolution
                     val adjusted = imageProcessor.processFullResolution(filmAdjustments, processed.original)
+                    // Release decoded bitmaps no longer needed (adjusted is a fresh bitmap)
+                    processed.original.recycle()
+                    processed.preview.recycle()
                     // Export
                     imageProcessor.exportImage(adjusted, exportSettings.toCore(), context)
                     // Clean up
@@ -65,6 +68,9 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                 withContext(Dispatchers.IO) {
                     val processed = imageProcessor.loadAndDecode(context, uri)
                     imageProcessor.exportImage(processed.original, exportSettings.toCore(), context)
+                    // Release decoded bitmaps after export
+                    processed.original.recycle()
+                    processed.preview.recycle()
                 }
             } catch (e: Exception) {
                 emit(BatchProgress(

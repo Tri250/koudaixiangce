@@ -31,6 +31,10 @@ val HasselbladGradient = Brush.horizontalGradient(
     colors = listOf(HasselbladOrangeDark, HasselbladOrange, HasselbladOrangeLight)
 )
 
+// 透明度变体（供 Theme ColorScheme 使用）
+val HasselbladOrange20Percent = HasselbladOrange.copy(alpha = 0.20f)
+val HasselbladOrange10Percent = HasselbladOrange.copy(alpha = 0.10f)
+
 // UI interaction colors - WHITE system (replaces orange for interactive elements)
 val SliderTrackFill = Color(0xDEFFFFFF)       // 87% white - slider fill
 val SliderTrackEmpty = Color(0x33FFFFFF)       // 20% white - slider empty track
