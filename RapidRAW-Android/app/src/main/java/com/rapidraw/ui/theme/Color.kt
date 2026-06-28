@@ -89,6 +89,37 @@ object ColorOS16Colors {
     /** 信息蓝（提示、链接） */
     val InfoBlue: Color = Color(0xFF64D2FF)
 
+    // ── 青绿二级色系（AI 功能、信息标识）──────────────────────────
+
+    /** 青绿核心色（AI 功能主色） */
+    val TealSecondaryCore: Color = Color(0xFF00BFA5)
+
+    /** 青绿亮色变体（AI 高亮态） */
+    val TealSecondaryBright: Color = Color(0xFF1DE9B6)
+
+    /** 青绿深色变体（AI 按压态） */
+    val TealSecondaryDeep: Color = Color(0xFF00897B)
+
+    /** 青绿柔光（AI 背景叠加） */
+    val TealSecondaryGlow: Color = Color(0x8000BFA5)
+
+    // ── HDR 高亮色（HDR 显示与编辑专用）────────────────────────────
+
+    /** HDR 高亮暖色（高光区域指示） */
+    val HdrHighlightWarm: Color = Color(0xFFFFB74D)
+
+    /** HDR 高亮冷色（HDR 色调映射指示） */
+    val HdrHighlightCool: Color = Color(0xFF4DD0E1)
+
+    /** HDR 峰值亮度指示（纯白以上区域） */
+    val HdrPeakBrightness: Color = Color(0xFFFFF176)
+
+    /** HDR 中灰基准（18% 灰，HDR 校准参考） */
+    val HdrMidGray: Color = Color(0xFF808080)
+
+    /** HDR 超亮警告（超出 HDR 显示范围的像素） */
+    val HdrOverBrightWarning: Color = Color(0xFFFF6D00)
+
     // ── 示波器专用色（摄影专业工具）────────────────────────────────
 
     /** 波形/直方图 trace 绿 */
@@ -216,9 +247,17 @@ val LiquidGlassEdgeGlow = Brush.horizontalGradient(
     ),
 )
 
+// ── 青绿二级色系（兼容别名）──────────────────────────────────────
+val TealSecondary = ColorOS16Colors.TealSecondaryCore
+val TealSecondaryLight = ColorOS16Colors.TealSecondaryBright
+val TealSecondaryDark = ColorOS16Colors.TealSecondaryDeep
+val TealSecondaryMuted = ColorOS16Colors.TealSecondaryGlow
+
 // ── 透明度变体（供 Theme ColorScheme 使用）──────────────────────
 val HasselbladOrange20Percent = HasselbladOrange.copy(alpha = 0.20f)
 val HasselbladOrange10Percent = HasselbladOrange.copy(alpha = 0.10f)
+val TealSecondary20Percent = TealSecondary.copy(alpha = 0.20f)
+val TealSecondary10Percent = TealSecondary.copy(alpha = 0.10f)
 
 // ── UI 交互色（白色系，替代橙色用于交互元素）──────────────────────
 val SliderTrackFill = ColorOS16Colors.SliderFillWhite
