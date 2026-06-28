@@ -893,49 +893,80 @@ fun EditorScreen(
         }
 
         // ── Bottom Tab Row ─────────────────────────────────────────────
-        // ColorOS 16：选中态使用哈苏橙品牌色（下划线 + 图标 + 文字）
+        // ColorOS 16 资深设计师规范：
+        // - 独立深色背景层（与面板内容区分，一眼可识别）
+        // - 选中态：哈苏橙背景 tint + 图标辉光 + 加粗文字 + 哈苏橙下划线
+        // - 图标 + 文字双行布局，24dp 图标（ColorOS 16 触控规范）
+        // - 弹性缩放动画（选中图标 1.1x + 弹簧回弹）
+        val tabIcons = listOf(
+            Icons.Default.AutoAwesome,   // AI
+            Icons.Default.Palette,       // 滤镜
+            Icons.Default.Tune,          // 调节
+            Icons.Default.Crop,          // 构图
+            Icons.Default.Share,         // 导出
+        )
         Surface(
-            color = EditorSurface,
+            color = EditorBackground,
             modifier = Modifier.navigationBarsPadding(),
         ) {
-            TabRow(
-                selectedTabIndex = selectedTabIndex,
-                containerColor = EditorSurface,
-                contentColor = HasselbladOrange,
-                indicator = { tabPositions ->
-                    if (selectedTabIndex < tabPositions.size) {
-                        SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                            height = 3.dp,
-                            color = HasselbladOrange,
-                        )
-                    }
-                },
-                divider = {},
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .background(EditorBackground.copy(alpha = 0.25f)),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 BOTTOM_TABS.forEachIndexed { index, label ->
                     val isSelected = index == selectedTabIndex
-                    Tab(
-                        selected = isSelected,
-                        onClick = {
-                            val tab = when (index) {
-                                0 -> EditorTab.AI
-                                1 -> EditorTab.FILTER
-                                2 -> EditorTab.ADJUST
-                                3 -> EditorTab.COMPOSE
-                                else -> EditorTab.EXPORT
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                if (isSelected) HasselbladOrange.copy(alpha = 0.12f)
+                                else Color.Transparent,
+                            )
+                            .clickable {
+                                val tab = when (index) {
+                                    0 -> EditorTab.AI
+                                    1 -> EditorTab.FILTER
+                                    2 -> EditorTab.ADJUST
+                                    3 -> EditorTab.COMPOSE
+                                    else -> EditorTab.EXPORT
+                                }
+                                viewModel.setTab(tab)
                             }
-                            viewModel.setTab(tab)
-                        },
-                        text = {
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = tabIcons[index],
+                                contentDescription = label,
+                                tint = if (isSelected) HasselbladOrangeLight else TextSecondary,
+                                modifier = Modifier.size(22.dp),
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = label,
                                 color = if (isSelected) HasselbladOrangeLight else TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                letterSpacing = 0.5.sp,
                             )
-                        },
-                    )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            // 哈苏橙下划线（选中态）
+                            Box(
+                                modifier = Modifier
+                                    .width(28.dp)
+                                    .height(3.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSelected) HasselbladOrange else Color.Transparent,
+                                    ),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1250,19 +1281,20 @@ private fun FilmPanel(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Group by category, show 3 per row
+        // Group by category, 2 列瀑布流布局（ColorOS 16 资深设计师规范）
         val grouped = allFilms.groupBy { it.category }
         grouped.forEach { (category, films) ->
             Text(
                 text = categoryLabels[category] ?: category.name,
                 color = TextTertiary,
                 fontSize = 11.sp,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
             )
-            films.chunked(3).forEach { rowFilms ->
+            films.chunked(2).forEach { rowFilms ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     rowFilms.forEach { film ->
                         FilmCard(
@@ -1270,15 +1302,16 @@ private fun FilmPanel(
                             category = film.displayNameEn,
                             isSelected = selectedFilmId == film.id,
                             onClick = { onSelectFilm(film) },
+                            modifier = Modifier.weight(1f),
                         )
                     }
-                    // Fill remaining space if less than 3 items
-                    repeat(3 - rowFilms.size) {
-                        Spacer(modifier = Modifier.size(80.dp))
+                    // Fill remaining space if less than 2 items
+                    repeat(2 - rowFilms.size) {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
@@ -1289,27 +1322,34 @@ private fun FilmCard(
     category: String,
     isSelected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .padding(4.dp)
-            .clickable { onClick() },
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(vertical = 4.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(80.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(EditorBorder)
+                .fillMaxWidth()
+                .height(96.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(EditorSurfaceVariant)
                 .then(
                     if (isSelected) {
                         Modifier.border(
                             width = 2.dp,
                             color = HasselbladOrange,
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(16.dp),
                         )
                     } else {
-                        Modifier
+                        Modifier.border(
+                            width = 1.dp,
+                            color = EditorBorder.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(16.dp),
+                        )
                     }
                 ),
             contentAlignment = Alignment.Center,
@@ -1319,20 +1359,21 @@ private fun FilmCard(
             ) {
                 Text(
                     text = name,
-                    color = if (isSelected) HasselbladOrange else TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    color = if (isSelected) HasselbladOrangeLight else TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
                 if (category.isNotEmpty()) {
                     Text(
                         text = category,
                         color = TextTertiary,
-                        fontSize = 9.sp,
+                        fontSize = 10.sp,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }
         }
+        Spacer(modifier = Modifier.height(6.dp))
     }
 }
 

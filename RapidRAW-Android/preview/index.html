@@ -3,85 +3,64 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RapidRAW · ColorOS 16 · Find X9 编辑器</title>
+<title>RapidRAW · ColorOS 16 · Find X9</title>
 <style>
 /* ═══════════════════════════════════════════════════════════════
-   ColorOS 16 设计系统 Token（对应 Kotlin 端 Color/Type/Shapes/Motion）
+   ColorOS 16 设计系统 Token — 资深设计师校准版
+   简洁 · 大气 · 瀑布流 · 哈苏橙主题
    ═══════════════════════════════════════════════════════════════ */
 :root {
   /* AMOLED 深黑基底 */
   --amoled-black: #060606;
-  --surface-1: #0F0F10;   /* 卡片、工具栏 */
-  --surface-2: #161618;   /* 底部面板、弹窗 */
-  --surface-3: #1E1E22;   /* 模态弹窗 */
-  --surface-4: #26262B;   /* 高亮卡片、选中态 */
-  --hairline: rgba(255,255,255,0.08);
-  --hairline-strong: rgba(255,255,255,0.16);
+  --surface-1: #0F0F10;
+  --surface-2: #161618;
+  --surface-3: #1E1E22;
+  --surface-4: #26262B;
+  --hairline: rgba(255,255,255,0.06);
+  --hairline-strong: rgba(255,255,255,0.12);
 
-  /* 文字色阶（WCAG AA+） */
-  --text-high: #F5F5F7;    /* 95% 白 */
-  --text-medium: #B4B4BA;  /* 70% 白 */
-  --text-low: #7A7A82;     /* 45% 白 */
-  --text-disabled: rgba(255,255,255,0.30);
+  /* 文字色阶 */
+  --text-high: #F5F5F7;
+  --text-medium: #B4B4BA;
+  --text-low: #7A7A82;
 
-  /* 哈苏橙品牌色（克制使用） */
+  /* 哈苏橙品牌色 */
   --hsb-orange: #E8600C;
   --hsb-orange-bright: #F2803F;
   --hsb-orange-deep: #B84D0A;
-  --hsb-orange-glow: rgba(232,96,12,0.50);
 
-  /* 功能色（高饱和） */
+  /* 功能色 */
   --clip-red: #FF453A;
-  --clip-blue: #0A84FF;
   --success-green: #30D158;
-  --warning-yellow: #FFD60A;
   --ai-purple: #BF5AF2;
 
-  /* 示波器色 */
-  --scope-green: #30D158;
-  --scope-skin: #FF9F0A;
-  --scope-r: #FF453A;
-  --scope-g: #30D158;
-  --scope-b: #0A84FF;
-
-  /* 白色系交互色 */
-  --slider-fill: rgba(255,255,255,0.87);
-  --slider-empty: rgba(255,255,255,0.20);
-  --slider-thumb: rgba(255,255,255,0.94);
-  --tab-active: rgba(255,255,255,0.94);
-  --tab-inactive: rgba(255,255,255,0.60);
-
-  /* ColorOS 16 圆角阶梯（4 级） */
+  /* 圆角阶梯 */
   --r-small: 8px;
   --r-medium: 16px;
   --r-large: 24px;
   --r-xlarge: 28px;
   --r-pill: 9999px;
 
-  /* Motion（OPPO 自定义缓动曲线） */
+  /* Motion */
   --ease-emphasized: cubic-bezier(0.2, 0.0, 0.0, 1.0);
-  --ease-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1.0);
-  --ease-accelerate: cubic-bezier(0.3, 0.0, 0.8, 0.15);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --dur-fast: 150ms;
   --dur-normal: 300ms;
   --dur-slow: 450ms;
 
-  /* 间距（4dp 网格） */
-  --sp-xxs: 4px;
+  /* 间距 */
   --sp-xs: 8px;
   --sp-sm: 12px;
   --sp-md: 16px;
   --sp-lg: 20px;
   --sp-xl: 24px;
-  --sp-xxl: 32px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 body {
-  /* OPPO Sans 优先 + 系统回退 */
   font-family: "OPPO Sans", "OPPO-Sans", "HarmonyOS Sans SC", -apple-system,
-    "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    "PingFang SC", "Microsoft YaHei", sans-serif;
   background: #000;
   color: var(--text-high);
   display: flex;
@@ -92,32 +71,28 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   手机外壳 — Find X9 比例
-   ═══════════════════════════════════════════════════════════════ */
+/* ═══ 手机外壳 ═══ */
 .phone {
   width: 412px;
   height: 915px;
   background: var(--amoled-black);
   border-radius: 48px;
   border: 3px solid #1a1a1a;
-  box-shadow: 0 0 80px rgba(232,96,12,0.18), 0 0 24px rgba(232,96,12,0.10), 0 20px 60px rgba(0,0,0,0.8);
+  box-shadow: 0 0 80px rgba(232,96,12,0.15), 0 20px 60px rgba(0,0,0,0.8);
   overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
 }
-/* 哈苏橙氛围辉光（背景径向，底层装饰，不挡内容） */
 .phone::after {
   content: '';
   position: absolute;
   top: -20%; right: -30%;
   width: 60%; height: 60%;
-  background: radial-gradient(circle, rgba(232,96,12,0.12) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(232,96,12,0.10) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
-/* 挖孔前摄 */
 .phone::before {
   content: '';
   position: absolute;
@@ -128,43 +103,32 @@ body {
   border-radius: var(--r-pill);
   z-index: 200;
 }
-/* 所有手机内子元素提升到辉光之上 */
 .phone > * { position: relative; z-index: 10; }
 
-/* ═══════════════════════════════════════════════════════════════
-   状态栏（沉浸式透明）
-   ═══════════════════════════════════════════════════════════════ */
+/* ═══ 状态栏 ═══ */
 .status-bar {
   height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--sp-xl) 0 28px;
-  font-size: 13px;
+  padding: 8px var(--sp-xl) 0 28px;
+  font-size: 14px;
   font-weight: 600;
   flex-shrink: 0;
-  padding-top: 8px;
-  position: relative;
-  z-index: 50;
-  background: linear-gradient(180deg, rgba(6,6,6,0.85) 0%, transparent 100%);
 }
 .status-bar .right { display: flex; gap: 6px; align-items: center; }
 .status-bar svg { width: 16px; height: 16px; }
 
-/* ═══════════════════════════════════════════════════════════════
-   顶栏 — 液态玻璃浮层
-   ═══════════════════════════════════════════════════════════════ */
+/* ═══ 顶栏 ═══ */
 .top-bar {
-  height: 48px;
+  height: 52px;
   display: flex;
   align-items: center;
   padding: 0 var(--sp-xs);
-  gap: var(--sp-xxs);
+  gap: 2px;
   flex-shrink: 0;
-  position: relative;
-  z-index: 40;
 }
-.top-bar .icon-btn {
+.icon-btn {
   width: 40px; height: 40px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
@@ -172,43 +136,27 @@ body {
   color: var(--text-medium);
   transition: all var(--dur-fast) var(--ease-emphasized);
 }
-.top-bar .icon-btn:hover {
-  background: var(--surface-3);
-  color: var(--text-high);
-  transform: scale(0.92);
-}
-.top-bar .icon-btn svg { width: 22px; height: 22px; }
-.top-bar .icon-btn.disabled { opacity: 0.3; pointer-events: none; }
+.icon-btn:hover { background: var(--surface-3); color: var(--text-high); transform: scale(0.92); }
+.icon-btn svg { width: 22px; height: 22px; }
 
-/* 顶部标题胶囊 */
-.title-pill {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-}
+.title-pill { flex: 1; display: flex; justify-content: center; }
 .title-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px var(--sp-md);
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px var(--sp-md);
   border-radius: var(--r-pill);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 12px; font-weight: 500;
   color: var(--text-medium);
-  /* 液态玻璃 */
   background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  border: 1px solid rgba(255,255,255,0.10);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.08);
 }
 .title-chip .dot {
-  width: 5px; height: 5px;
+  width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--hsb-orange);
-  box-shadow: 0 0 6px var(--hsb-orange);
+  box-shadow: 0 0 8px var(--hsb-orange);
 }
 
-/* 导出快捷按钮（哈苏橙品牌时刻） */
 .export-shortcut {
   width: 40px; height: 40px;
   display: flex; align-items: center; justify-content: center;
@@ -219,65 +167,52 @@ body {
   transition: all var(--dur-fast) var(--ease-emphasized);
   box-shadow: 0 4px 16px rgba(232,96,12,0.35);
 }
-.export-shortcut:hover { transform: scale(0.92); background: var(--hsb-orange-bright); }
+.export-shortcut:hover { transform: scale(0.92); }
 .export-shortcut svg { width: 20px; height: 20px; }
 
-/* ═══════════════════════════════════════════════════════════════
-   预览区 — AMOLED 纯黑取景
-   ═══════════════════════════════════════════════════════════════ */
+/* ═══ 预览区 ═══ */
 .preview-area {
   flex: 1;
   position: relative;
   overflow: hidden;
   background: var(--amoled-black);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .preview-img {
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
   object-fit: cover;
   filter: contrast(1.05) saturate(1.12);
 }
 
-/* 取景器四角（哈苏橙） */
-.viewfinder-corner {
+/* 取景器四角 */
+.vf-corner {
   position: absolute;
-  width: 24px; height: 24px;
+  width: 28px; height: 28px;
   border-color: var(--hsb-orange);
   border-style: solid;
   border-width: 0;
-  opacity: 0.7;
+  opacity: 0.8;
 }
 .vf-tl { top: 16px; left: 16px; border-top-width: 2px; border-left-width: 2px; border-top-left-radius: 6px; }
 .vf-tr { top: 16px; right: 16px; border-top-width: 2px; border-right-width: 2px; border-top-right-radius: 6px; }
 .vf-bl { bottom: 16px; left: 16px; border-bottom-width: 2px; border-left-width: 2px; border-bottom-left-radius: 6px; }
 .vf-br { bottom: 16px; right: 16px; border-bottom-width: 2px; border-right-width: 2px; border-bottom-right-radius: 6px; }
 
-/* 浮层工具条 — 液态玻璃浮层（28dp 圆角） */
+/* 浮动工具栏 — 液态玻璃 */
 .floating-toolbar {
   position: absolute;
-  top: 12px;
-  left: 50%;
+  top: 12px; left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  gap: 2px;
-  align-items: center;
+  display: flex; gap: 2px; align-items: center;
   padding: 6px;
   border-radius: var(--r-xlarge);
-  /* 液态玻璃：真实模糊 + 多层渐变 */
   background: rgba(255,255,255,0.08);
   backdrop-filter: blur(32px) saturate(1.3);
-  -webkit-backdrop-filter: blur(32px) saturate(1.3);
   border: 1px solid rgba(255,255,255,0.14);
   box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.32);
 }
 .float-tool {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
   border-radius: var(--r-large);
   cursor: pointer;
   color: var(--text-medium);
@@ -291,91 +226,65 @@ body {
   box-shadow: 0 0 12px rgba(232,96,12,0.25);
 }
 .float-tool svg { width: 18px; height: 18px; }
-.float-tool .badge {
-  position: absolute;
-  top: 2px; right: 2px;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--hsb-orange);
-}
 
-/* 场景识别标签 — 液态玻璃胶囊 */
+/* 场景/HDR 标签 */
 .scene-badge {
   position: absolute;
-  bottom: 16px;
-  left: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  bottom: 16px; left: 16px;
+  display: flex; align-items: center; gap: 8px;
   padding: 7px var(--sp-md);
   border-radius: var(--r-pill);
-  font-size: 11px;
-  /* 液态玻璃 */
+  font-size: 12px;
   background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px);
   border: 1px solid rgba(255,255,255,0.12);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
 }
 .scene-badge .label { color: var(--text-low); }
 .scene-badge .value { color: var(--hsb-orange-bright); font-weight: 700; }
-.scene-badge .conf { color: var(--text-low); font-size: 10px; }
 
-/* HDR 标签 */
 .hdr-badge {
   position: absolute;
-  bottom: 16px;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  bottom: 16px; right: 16px;
   padding: 5px 10px;
   border-radius: var(--r-pill);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
   color: var(--text-high);
   background: rgba(10,132,255,0.20);
   backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(10,132,255,0.35);
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   底部面板区 — 液态玻璃底部抽屉（28dp 顶部圆角）
+   底部面板 — 液态玻璃抽屉（大气 · 简洁）
    ═══════════════════════════════════════════════════════════════ */
 .panel-area {
   flex-shrink: 0;
-  height: 380px;
-  position: relative;
-  /* 液态玻璃底部面板 */
-  background: rgba(15,15,16,0.92);
-  backdrop-filter: blur(28px) saturate(1.2);
-  -webkit-backdrop-filter: blur(28px) saturate(1.2);
-  border-top: 1px solid rgba(255,255,255,0.10);
+  height: 400px;
+  background: rgba(10,10,11,0.95);
+  backdrop-filter: blur(32px) saturate(1.2);
+  border-top: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--r-xlarge) var(--r-xlarge) 0 0;
-  box-shadow: 0 -8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.20);
+  box-shadow: 0 -8px 40px rgba(0,0,0,0.6);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* 顶部把手 */
 .panel-handle {
   width: 36px; height: 4px;
   border-radius: var(--r-pill);
   background: rgba(255,255,255,0.30);
-  margin: 8px auto 4px;
+  margin: 8px auto 2px;
   flex-shrink: 0;
 }
 
-/* Tab 栏 — 强化可见性 */
+/* ═══ Tab 栏 — 强化可见性 ═══ */
 .bottom-tabs {
   display: flex;
   padding: 6px 8px 8px;
   flex-shrink: 0;
-  background: rgba(0,0,0,0.25);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(0,0,0,0.30);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .tab {
   flex: 1;
@@ -391,302 +300,310 @@ body {
   width: 24px; height: 24px;
   margin: 0 auto 4px;
   display: block;
-  color: var(--tab-inactive);
-  transition: all var(--dur-normal) var(--ease-emphasized);
+  color: var(--text-low);
+  transition: all var(--dur-normal) var(--ease-bounce);
 }
 .tab .tab-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--tab-inactive);
+  font-size: 11px; font-weight: 500;
+  color: var(--text-low);
   letter-spacing: 0.5px;
   transition: color var(--dur-normal) var(--ease-emphasized);
 }
-.tab.active {
-  background: rgba(232,96,12,0.10);
-}
+.tab.active { background: rgba(232,96,12,0.12); }
 .tab.active .tab-icon {
   color: var(--hsb-orange-bright);
-  transform: translateY(-1px) scale(1.10);
-  /* 弹性回弹 */
-  transition: all var(--dur-normal) cubic-bezier(0.34, 1.56, 0.64, 1);
-  filter: drop-shadow(0 0 6px rgba(232,96,12,0.5));
+  transform: translateY(-2px) scale(1.12);
+  filter: drop-shadow(0 0 8px rgba(232,96,12,0.6));
 }
-.tab.active .tab-label {
-  color: var(--hsb-orange-bright);
-  font-weight: 700;
-}
-/* 选中下划线（哈苏橙品牌色） */
+.tab.active .tab-label { color: var(--hsb-orange-bright); font-weight: 700; }
 .tab.active::after {
   content: '';
   position: absolute;
-  bottom: 2px;
-  left: 50%;
+  bottom: 2px; left: 50%;
   transform: translateX(-50%);
-  width: 32px;
-  height: 3px;
+  width: 32px; height: 3px;
   background: var(--hsb-orange);
   border-radius: var(--r-pill);
   box-shadow: 0 0 10px rgba(232,96,12,0.8);
 }
 
-/* 面板内容滚动区 */
+/* 面板内容 */
 .panel-content {
   flex: 1;
   overflow-y: auto;
-  padding: 4px var(--sp-md) var(--sp-md);
+  padding: var(--sp-md);
 }
 .panel-content::-webkit-scrollbar { width: 0; }
 
-/* ═══════════════════════════════════════════════════════════════
-   AI 面板
-   ═══════════════════════════════════════════════════════════════ */
-.ai-panel { padding: var(--sp-xs) 0; }
+/* 面板入场动画 */
+.panel-section { animation: panelEnter var(--dur-slow) var(--ease-emphasized); }
+@keyframes panelEnter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
-/* 场景识别卡片（液态玻璃卡片） */
-.scene-card {
+/* ═══════════════════════════════════════════════════════════════
+   AI 面板 — 瀑布流卡片（大气 · 简洁）
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Hero 卡片（一键智能优化）— 大气全宽 */
+.ai-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  padding: var(--sp-lg) var(--sp-md);
+  border-radius: var(--r-large);
+  margin-bottom: var(--sp-md);
+  cursor: pointer;
+  background: linear-gradient(135deg, rgba(232,96,12,0.18), rgba(232,96,12,0.06));
+  border: 1px solid rgba(232,96,12,0.30);
+  transition: all var(--dur-fast) var(--ease-emphasized);
+  position: relative;
+  overflow: hidden;
+}
+.ai-hero::before {
+  content: '';
+  position: absolute;
+  top: -50%; right: -20%;
+  width: 60%; height: 200%;
+  background: radial-gradient(circle, rgba(232,96,12,0.15), transparent 70%);
+  pointer-events: none;
+}
+.ai-hero:hover { transform: scale(0.98); border-color: rgba(232,96,12,0.5); }
+.ai-hero-icon {
+  width: 48px; height: 48px;
+  border-radius: var(--r-medium);
+  background: var(--hsb-orange);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(232,96,12,0.40);
+}
+.ai-hero-icon svg { width: 26px; height: 26px; stroke: #fff; }
+.ai-hero-text { flex: 1; }
+.ai-hero-title { font-size: 17px; font-weight: 700; color: var(--text-high); }
+.ai-hero-sub { font-size: 12px; color: var(--text-medium); margin-top: 3px; }
+
+/* 场景识别条 */
+.scene-strip {
   display: flex;
   align-items: center;
   gap: var(--sp-sm);
   padding: 10px var(--sp-md);
   border-radius: var(--r-medium);
   margin-bottom: var(--sp-md);
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(12px);
+  background: rgba(255,255,255,0.04);
 }
-.scene-card .sc-label { font-size: 11px; color: var(--text-low); }
-.scene-card .sc-value { font-size: 14px; color: var(--hsb-orange-bright); font-weight: 700; }
-.scene-card .sc-conf { margin-left: auto; font-size: 11px; color: var(--text-low); }
+.scene-strip .ss-label { font-size: 12px; color: var(--text-low); }
+.scene-strip .ss-value { font-size: 14px; color: var(--hsb-orange-bright); font-weight: 700; }
+.scene-strip .ss-conf { margin-left: auto; font-size: 11px; color: var(--text-low); }
 
-/* AI 功能卡片 */
-.ai-card {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-md);
+/* 瀑布流容器 — 2 列 masonry */
+.waterfall {
+  column-count: 2;
+  column-gap: var(--sp-sm);
+}
+.waterfall > * {
+  break-inside: avoid;
+  margin-bottom: var(--sp-sm);
+  display: inline-block;
+  width: 100%;
+}
+
+/* AI 功能卡片（瀑布流） */
+.ai-card-wf {
   padding: var(--sp-md);
   border-radius: var(--r-medium);
-  margin-bottom: var(--sp-xs);
   cursor: pointer;
-  transition: all var(--dur-fast) var(--ease-emphasized);
   background: rgba(255,255,255,0.04);
   border: 1px solid transparent;
+  transition: all var(--dur-fast) var(--ease-emphasized);
 }
-.ai-card:hover {
+.ai-card-wf:hover {
   background: rgba(255,255,255,0.08);
   border-color: var(--hairline-strong);
-  transform: scale(0.99);
+  transform: scale(0.97);
 }
-.ai-card.primary {
-  background: linear-gradient(135deg, rgba(232,96,12,0.12), rgba(232,96,12,0.04));
-  border-color: rgba(232,96,12,0.25);
-  padding: var(--sp-lg) var(--sp-md);
-}
-.ai-icon {
-  width: 40px; height: 40px;
-  border-radius: var(--r-medium);
+.ai-card-wf .acw-icon {
+  width: 36px; height: 36px;
+  border-radius: var(--r-small);
   background: var(--surface-3);
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+  margin-bottom: var(--sp-sm);
 }
-.ai-card.primary .ai-icon {
-  background: var(--hsb-orange);
-  box-shadow: 0 4px 12px rgba(232,96,12,0.30);
-}
-.ai-icon svg { width: 20px; height: 20px; stroke: var(--text-medium); }
-.ai-card.primary .ai-icon svg { stroke: #fff; }
-.ai-text { flex: 1; }
-.ai-title { font-size: 14px; font-weight: 600; color: var(--text-high); }
-.ai-card.primary .ai-title { font-size: 16px; }
-.ai-sub { font-size: 11px; color: var(--text-low); margin-top: 2px; line-height: 1.4; }
-.ai-badge {
-  width: 16px; height: 16px;
-  color: var(--hsb-orange-bright);
-}
+.ai-card-wf .acw-icon svg { width: 20px; height: 20px; stroke: var(--text-medium); }
+.ai-card-wf .acw-title { font-size: 14px; font-weight: 600; color: var(--text-high); }
+.ai-card-wf .acw-sub { font-size: 11px; color: var(--text-low); margin-top: 3px; line-height: 1.4; }
 
 /* ═══════════════════════════════════════════════════════════════
-   滤镜面板 — 胶片预设横向滚动
+   滤镜面板 — 瀑布流胶片预设（大气）
    ═══════════════════════════════════════════════════════════════ */
-.filter-panel { padding: var(--sp-xs) 0; }
-.filter-section-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-low);
-  letter-spacing: 0.5px;
-  margin: var(--sp-sm) var(--sp-xs) var(--sp-sm);
-  text-transform: uppercase;
-}
-.filter-row {
+
+/* 分类标签 */
+.cat-chips {
   display: flex;
-  gap: var(--sp-sm);
+  gap: var(--sp-xs);
   overflow-x: auto;
-  padding: 0 var(--sp-md) var(--sp-md);
+  padding-bottom: var(--sp-md);
   scrollbar-width: none;
 }
-.filter-row::-webkit-scrollbar { display: none; }
-.film-card {
+.cat-chips::-webkit-scrollbar { display: none; }
+.cat-chip {
   flex-shrink: 0;
-  width: 96px;
+  padding: 7px var(--sp-md);
+  border-radius: var(--r-pill);
+  font-size: 12px; font-weight: 500;
+  color: var(--text-medium);
+  background: rgba(255,255,255,0.04);
   cursor: pointer;
-  transition: transform var(--dur-normal) var(--ease-emphasized);
+  transition: all var(--dur-fast) var(--ease-emphasized);
 }
-.film-card:hover { transform: translateY(-2px); }
-.film-thumb {
-  width: 96px; height: 128px;
+.cat-chip.active {
+  color: var(--hsb-orange-bright);
+  background: rgba(232,96,12,0.15);
+  border: 1px solid rgba(232,96,12,0.40);
+  font-weight: 700;
+}
+
+/* 瀑布流胶片预设 — 2 列 masonry 变高度 */
+.film-waterfall {
+  column-count: 2;
+  column-gap: var(--sp-sm);
+}
+.film-wf-card {
+  break-inside: avoid;
+  margin-bottom: var(--sp-sm);
+  display: inline-block;
+  width: 100%;
+  cursor: pointer;
+  transition: transform var(--dur-normal) var(--ease-bounce);
+}
+.film-wf-card:hover { transform: translateY(-3px); }
+.film-wf-thumb {
   border-radius: var(--r-medium);
   overflow: hidden;
   border: 2px solid transparent;
-  transition: border-color var(--dur-fast) var(--ease-emphasized);
+  transition: all var(--dur-fast) var(--ease-emphasized);
   position: relative;
 }
-.film-card.active .film-thumb {
-  /* 哈苏橙仅用于胶片选中 */
+.film-wf-card.active .film-wf-thumb {
   border-color: var(--hsb-orange);
-  box-shadow: 0 0 16px rgba(232,96,12,0.30);
+  box-shadow: 0 0 20px rgba(232,96,12,0.35);
 }
-.film-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.film-name {
-  font-size: 11px;
+.film-wf-thumb img { width: 100%; display: block; }
+.film-wf-name {
+  font-size: 12px;
   color: var(--text-medium);
   text-align: center;
   margin-top: 6px;
   font-weight: 500;
 }
-.film-card.active .film-name { color: var(--text-high); font-weight: 700; }
+.film-wf-card.active .film-wf-name { color: var(--hsb-orange-bright); font-weight: 700; }
 
 /* LUT 库入口 */
 .lut-entry {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-sm);
+  display: flex; align-items: center; gap: var(--sp-sm);
   padding: var(--sp-md);
   border-radius: var(--r-medium);
-  margin: 0 var(--sp-md) var(--sp-sm);
+  margin-bottom: var(--sp-md);
   cursor: pointer;
   background: rgba(255,255,255,0.04);
   border: 1px solid var(--hairline);
-  transition: all var(--dur-fast) var(--ease-emphasized);
 }
 .lut-entry:hover { background: rgba(255,255,255,0.08); }
-.lut-entry svg { width: 20px; height: 20px; color: var(--text-medium); }
-.lut-entry .lut-title { font-size: 14px; font-weight: 500; color: var(--text-high); flex: 1; }
+.lut-entry svg { width: 22px; height: 22px; color: var(--hsb-orange-bright); }
+.lut-entry .lut-title { font-size: 14px; font-weight: 600; color: var(--text-high); flex: 1; }
 .lut-entry .lut-count { font-size: 11px; color: var(--text-low); }
 
 /* ═══════════════════════════════════════════════════════════════
-   调整面板 — 滑块组
+   调整面板 — 简洁分组滑块
    ═══════════════════════════════════════════════════════════════ */
-.adjust-panel { padding: var(--sp-xs) 0; }
-.adjust-group {
-  margin-bottom: var(--sp-lg);
-}
+.adjust-group { margin-bottom: var(--sp-lg); }
 .adjust-group-title {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 11px; font-weight: 600;
   color: var(--text-low);
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
   margin-bottom: var(--sp-xs);
-  padding: 0 var(--sp-xs);
+  text-transform: uppercase;
 }
+
+/* 色彩科学横向芯片 */
+.cs-row {
+  display: flex; gap: var(--sp-xs);
+  overflow-x: auto;
+  padding-bottom: var(--sp-md);
+  scrollbar-width: none;
+}
+.cs-row::-webkit-scrollbar { display: none; }
+.cs-chip {
+  flex-shrink: 0;
+  padding: 8px var(--sp-md);
+  border-radius: var(--r-pill);
+  font-size: 12px; font-weight: 500;
+  color: var(--text-medium);
+  background: rgba(255,255,255,0.04);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-emphasized);
+}
+.cs-chip.active {
+  color: var(--hsb-orange-bright);
+  background: rgba(232,96,12,0.15);
+  border: 1px solid rgba(232,96,12,0.40);
+  font-weight: 700;
+}
+
+/* 滑块行 */
 .slider-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-md);
-  padding: 10px var(--sp-xs);
-  height: 48px;
+  display: flex; align-items: center; gap: var(--sp-md);
+  padding: 10px 0;
+  height: 44px;
 }
 .slider-label {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 13px; font-weight: 500;
   color: var(--text-medium);
-  width: 64px;
-  flex-shrink: 0;
+  width: 60px; flex-shrink: 0;
 }
 .slider-track {
-  flex: 1;
-  height: 4px;
+  flex: 1; height: 4px;
   border-radius: var(--r-pill);
-  background: var(--slider-empty);
+  background: rgba(255,255,255,0.12);
   position: relative;
 }
 .slider-fill {
-  position: absolute;
-  top: 0; bottom: 0;
+  position: absolute; top: 0; bottom: 0;
   border-radius: var(--r-pill);
-  background: var(--slider-fill);
+  background: rgba(255,255,255,0.87);
 }
 .slider-row.active .slider-fill {
   background: linear-gradient(90deg, var(--hsb-orange-deep), var(--hsb-orange-bright));
   box-shadow: 0 0 8px rgba(232,96,12,0.4);
 }
+.slider-row.active .slider-label { color: var(--hsb-orange-bright); font-weight: 700; }
+.slider-thumb {
+  position: absolute; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.94);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
 .slider-row.active .slider-thumb {
   background: var(--hsb-orange-bright);
   box-shadow: 0 0 12px rgba(232,96,12,0.6);
 }
-.slider-row.active .slider-label {
-  color: var(--hsb-orange-bright);
-  font-weight: 700;
-}
-.slider-thumb {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  background: var(--slider-thumb);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-  transition: transform var(--dur-fast) var(--ease-emphasized);
-}
-.slider-thumb:hover { transform: translate(-50%, -50%) scale(1.15); }
 .slider-value {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 13px; font-weight: 500;
   color: var(--text-high);
-  width: 48px;
-  text-align: right;
-  flex-shrink: 0;
-  /* 等宽字体避免数值跳动 */
-  font-family: "Roboto Mono", "SF Mono", "Menlo", monospace;
+  width: 48px; text-align: right; flex-shrink: 0;
+  font-family: "Roboto Mono", monospace;
   font-variant-numeric: tabular-nums;
 }
 
-/* 色彩科学选择 */
-.color-science-row {
-  display: flex;
-  gap: var(--sp-xs);
-  padding: var(--sp-xs);
-  margin-bottom: var(--sp-md);
-}
-.cs-chip {
-  flex: 1;
-  padding: 10px var(--sp-xs);
-  border-radius: var(--r-medium);
-  text-align: center;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-medium);
-  background: rgba(255,255,255,0.04);
-  border: 1px solid transparent;
-  transition: all var(--dur-fast) var(--ease-emphasized);
-}
-.cs-chip:hover { background: rgba(255,255,255,0.08); }
-.cs-chip.active {
-  color: var(--hsb-orange-bright);
-  background: rgba(232,96,12,0.15);
-  border-color: rgba(232,96,12,0.40);
-  font-weight: 700;
-  box-shadow: 0 0 12px rgba(232,96,12,0.20);
-}
-
 /* ═══════════════════════════════════════════════════════════════
-   构图面板 — 示波器 + 裁剪
+   构图面板 — 示波器 + 工具瀑布流
    ═══════════════════════════════════════════════════════════════ */
-.compose-panel { padding: var(--sp-xs) 0; }
-
-/* 示波器区 */
 .scope-section {
-  display: flex;
-  gap: var(--sp-sm);
-  padding: 0 var(--sp-md) var(--sp-md);
+  display: flex; gap: var(--sp-xs);
+  margin-bottom: var(--sp-md);
 }
 .scope-card {
   flex: 1;
@@ -697,67 +614,39 @@ body {
   overflow: hidden;
 }
 .scope-title {
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 10px; font-weight: 500;
   color: var(--text-low);
   letter-spacing: 0.4px;
   margin-bottom: 4px;
 }
 .scope-canvas {
-  width: 100%;
-  height: 80px;
+  width: 100%; height: 70px;
   border-radius: var(--r-small);
   background: rgba(0,0,0,0.6);
   position: relative;
   overflow: hidden;
 }
-
-/* 直方图绘制 */
 .histo-bars {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
-  gap: 0;
+  position: absolute; bottom: 0; left: 0; right: 0; height: 100%;
+  display: flex; align-items: flex-end;
 }
 .histo-bar {
   flex: 1;
-  background: linear-gradient(180deg, var(--scope-green), rgba(48,209,88,0.3));
+  background: linear-gradient(180deg, var(--success-green), rgba(48,209,88,0.3));
   min-height: 1px;
-  border-radius: 1px 1px 0 0;
 }
-
-/* 波形图 */
 .waveform-canvas {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, transparent 0%, rgba(48,209,88,0.05) 100%),
-    repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(48,209,88,0.3) 2px, rgba(48,209,88,0.3) 3px);
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(48,209,88,0.3) 2px, rgba(48,209,88,0.3) 3px);
   opacity: 0.7;
 }
-
-/* 矢量图 */
-.vectorscope-canvas {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 .vs-ring {
-  width: 60px; height: 60px;
+  width: 50px; height: 50px;
   border: 1px solid rgba(255,255,255,0.20);
   border-radius: 50%;
-  position: relative;
-}
-.vs-ring::before {
-  content: '';
   position: absolute;
-  inset: 8px;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 50%;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
 }
 .vs-dot {
   position: absolute;
@@ -766,42 +655,40 @@ body {
 }
 
 /* 裁剪比例 */
-.crop-ratios {
-  display: flex;
-  gap: var(--sp-xs);
-  padding: 0 var(--sp-md) var(--sp-md);
+.crop-row {
+  display: flex; gap: var(--sp-xs);
   overflow-x: auto;
+  padding-bottom: var(--sp-md);
   scrollbar-width: none;
 }
-.crop-ratios::-webkit-scrollbar { display: none; }
+.crop-row::-webkit-scrollbar { display: none; }
 .crop-chip {
   flex-shrink: 0;
-  padding: 8px var(--sp-md);
+  padding: 7px var(--sp-md);
   border-radius: var(--r-pill);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 12px; font-weight: 500;
   color: var(--text-medium);
   background: rgba(255,255,255,0.04);
-  border: 1px solid transparent;
   cursor: pointer;
   transition: all var(--dur-fast) var(--ease-emphasized);
 }
-.crop-chip:hover { background: rgba(255,255,255,0.08); }
 .crop-chip.active {
   color: var(--hsb-orange-bright);
   background: rgba(232,96,12,0.15);
-  border-color: rgba(232,96,12,0.40);
+  border: 1px solid rgba(232,96,12,0.40);
   font-weight: 700;
 }
 
-/* 构图工具 */
-.compose-tools {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--sp-xs);
-  padding: 0 var(--sp-md);
+/* 构图工具瀑布流 */
+.compose-waterfall {
+  column-count: 4;
+  column-gap: var(--sp-xs);
 }
 .compose-tool {
+  break-inside: avoid;
+  margin-bottom: var(--sp-xs);
+  display: inline-block;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -811,20 +698,18 @@ body {
   cursor: pointer;
   transition: all var(--dur-fast) var(--ease-emphasized);
 }
-.compose-tool:hover { background: rgba(255,255,255,0.06); }
+.compose-tool:hover { background: rgba(232,96,12,0.10); }
 .compose-tool svg { width: 22px; height: 22px; color: var(--text-medium); }
-.compose-tool .ct-label { font-size: 11px; color: var(--text-low); }
+.compose-tool .ct-label { font-size: 10px; color: var(--text-low); text-align: center; }
 
 /* ═══════════════════════════════════════════════════════════════
-   导出面板
+   导出面板 — 大气卡片
    ═══════════════════════════════════════════════════════════════ */
-.export-panel { padding: var(--sp-xs) 0; }
-
 .format-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--sp-xs);
-  padding: 0 var(--sp-md) var(--sp-md);
+  margin-bottom: var(--sp-md);
 }
 .format-card {
   padding: var(--sp-md) var(--sp-xs);
@@ -842,22 +727,19 @@ body {
   box-shadow: 0 0 16px rgba(232,96,12,0.20);
 }
 .format-card.active .fmt-name { color: var(--hsb-orange-bright); }
-.format-card .fmt-name { font-size: 13px; font-weight: 700; color: var(--text-high); }
-.format-card .fmt-desc { font-size: 10px; color: var(--text-low); margin-top: 2px; }
+.format-card .fmt-name { font-size: 14px; font-weight: 700; color: var(--text-high); }
+.format-card .fmt-desc { font-size: 10px; color: var(--text-low); margin-top: 3px; }
 
 .export-option {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-md);
+  display: flex; align-items: center; gap: var(--sp-md);
   padding: var(--sp-md);
-  margin: 0 var(--sp-md) var(--sp-xs);
+  margin-bottom: var(--sp-xs);
   border-radius: var(--r-medium);
   background: rgba(255,255,255,0.04);
 }
 .export-option .eo-label { flex: 1; font-size: 14px; font-weight: 500; color: var(--text-high); }
 .export-option .eo-sub { font-size: 11px; color: var(--text-low); margin-top: 2px; }
 
-/* 开关 */
 .toggle {
   width: 44px; height: 26px;
   border-radius: var(--r-pill);
@@ -868,28 +750,21 @@ body {
 }
 .toggle.on { background: var(--hsb-orange); }
 .toggle-knob {
-  position: absolute;
-  top: 3px; left: 3px;
+  position: absolute; top: 3px; left: 3px;
   width: 20px; height: 20px;
   border-radius: 50%;
   background: #fff;
-  transition: transform var(--dur-normal) cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: transform var(--dur-normal) var(--ease-bounce);
 }
 .toggle.on .toggle-knob { transform: translateX(18px); }
 
-/* 导出按钮（哈苏橙品牌时刻） */
 .export-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-xs);
-  width: calc(100% - 32px);
-  margin: var(--sp-lg) var(--sp-md) var(--sp-md);
-  padding: 14px;
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-xs);
+  width: 100%;
+  margin-top: var(--sp-lg);
+  padding: 16px;
   border-radius: var(--r-large);
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 16px; font-weight: 700;
   color: #fff;
   cursor: pointer;
   border: none;
@@ -897,54 +772,27 @@ body {
   box-shadow: 0 8px 24px rgba(232,96,12,0.35);
   transition: all var(--dur-fast) var(--ease-emphasized);
 }
-.export-btn:hover { transform: scale(0.98); box-shadow: 0 4px 16px rgba(232,96,12,0.40); }
+.export-btn:hover { transform: scale(0.98); }
 .export-btn:active { transform: scale(0.96); }
 .export-btn svg { width: 20px; height: 20px; }
 
-/* ═══════════════════════════════════════════════════════════════
-   噪声纹理叠加（液态玻璃质感增强）
-   ═══════════════════════════════════════════════════════════════ */
-.noise-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.015;
-  background-image:
-    radial-gradient(circle at 20% 30%, #fff 0.5px, transparent 0.5px),
-    radial-gradient(circle at 60% 70%, #fff 0.5px, transparent 0.5px),
-    radial-gradient(circle at 80% 20%, #fff 0.5px, transparent 0.5px);
-  background-size: 3px 3px, 5px 5px, 7px 7px;
-}
-
-/* 面板切换动画 */
-.panel-section {
-  animation: panelEnter var(--dur-slow) var(--ease-decelerate);
-}
-@keyframes panelEnter {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* AI 脉冲动画 */
+/* AI 脉冲 */
 @keyframes aiPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(191,90,242,0.3); }
-  50% { box-shadow: 0 0 0 8px rgba(191,90,242,0); }
+  0%, 100% { box-shadow: 0 4px 16px rgba(232,96,12,0.40); }
+  50% { box-shadow: 0 4px 24px rgba(232,96,12,0.70); }
 }
-.ai-pulse { animation: aiPulse 2s ease-in-out infinite; }
+.ai-hero-icon { animation: aiPulse 2.5s ease-in-out infinite; }
 </style>
 </head>
 <body>
 
 <div class="phone">
-  <!-- 噪声纹理 -->
-  <div class="noise-overlay"></div>
-
   <!-- 状态栏 -->
   <div class="status-bar">
     <span>9:41</span>
     <div class="right">
       <svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--hsb-orange-bright)"><path d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9zm0 16c-3.9 0-7-3.1-7-7s3.1-7 7-7 7 3.1 7 7-3.1 7-7 7z"/></svg>
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9zm0 16c-3.9 0-7-3.1-7-7s3.1-7 7-7 7 3.1 7 7-3.1 7-7 7z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9z"/></svg>
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20V2L2 22z"/></svg>
     </div>
   </div>
@@ -966,11 +814,8 @@ body {
         <span>IMG_20260628_1542</span>
       </div>
     </div>
-    <div class="icon-btn" title="编辑历史">
+    <div class="icon-btn" title="历史">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>
-    </div>
-    <div class="icon-btn" title="分享">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
     </div>
     <div class="export-shortcut" title="导出">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 21h14"/></svg>
@@ -980,49 +825,30 @@ body {
   <!-- 预览区 -->
   <div class="preview-area">
     <img class="preview-img" src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=A%20stunning%20landscape%20photograph%20of%20misty%20mountains%20at%20golden%20hour%2C%20dramatic%20clouds%2C%20warm%20sunlight%2C%20professional%20photography%2C%20high%20dynamic%20range%2C%20cinematic%20color%20grading%2C%20OPPO%20Find%20X9%20camera%20quality&image_size=portrait_4_3" alt="预览">
+    <div class="vf-corner vf-tl"></div>
+    <div class="vf-corner vf-tr"></div>
+    <div class="vf-corner vf-bl"></div>
+    <div class="vf-corner vf-br"></div>
 
-    <!-- 取景器四角（哈苏橙） -->
-    <div class="viewfinder-corner vf-tl"></div>
-    <div class="viewfinder-corner vf-tr"></div>
-    <div class="viewfinder-corner vf-bl"></div>
-    <div class="viewfinder-corner vf-br"></div>
-
-    <!-- 浮动工具栏（液态玻璃） -->
     <div class="floating-toolbar">
-      <div class="float-tool active" title="对比">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 8l4-4 4 4M3 16l4 4 4-4"/></svg>
-      </div>
-      <div class="float-tool" title="长按查看原图">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/></svg>
-      </div>
-      <div class="float-tool" title="全屏">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"/></svg>
-      </div>
-      <div class="float-tool" title="网格">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
-      </div>
-      <div class="float-tool" title="溢出警告">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-        <div class="badge"></div>
-      </div>
+      <div class="float-tool active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 8l4-4 4 4M3 16l4 4 4-4"/></svg></div>
+      <div class="float-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/></svg></div>
+      <div class="float-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"/></svg></div>
+      <div class="float-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg></div>
+      <div class="float-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
     </div>
 
-    <!-- 场景识别标签 -->
     <div class="scene-badge">
       <span class="label">场景</span>
-      <span class="value">风景</span>
-      <span class="conf">92%</span>
+      <span class="value">风景 · 日落</span>
+      <span style="color:var(--text-low);font-size:11px">92%</span>
     </div>
-
-    <!-- HDR 标签 -->
     <div class="hdr-badge">HDR · 10BIT</div>
   </div>
 
-  <!-- 底部面板（液态玻璃底部抽屉） -->
+  <!-- 底部面板 -->
   <div class="panel-area">
     <div class="panel-handle"></div>
-
-    <!-- Tab 栏 -->
     <div class="bottom-tabs" id="tabBar">
       <div class="tab active" data-tab="ai">
         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5L12 2z"/></svg>
@@ -1034,7 +860,7 @@ body {
       </div>
       <div class="tab" data-tab="adjust">
         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
-        <div class="tab-label">调整</div>
+        <div class="tab-label">调节</div>
       </div>
       <div class="tab" data-tab="compose">
         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM3 9h18M9 3v18"/></svg>
@@ -1045,124 +871,112 @@ body {
         <div class="tab-label">导出</div>
       </div>
     </div>
-
-    <!-- 面板内容 -->
-    <div class="panel-content" id="panelContent">
-      <!-- 内容由 JS 动态填充 -->
-    </div>
+    <div class="panel-content" id="panelContent"></div>
   </div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
-// 面板内容模板 — ColorOS 16 视觉语言
-// ═══════════════════════════════════════════════════════════════
-
 const panels = {
   ai: `
-    <div class="panel-section ai-panel">
-      <div class="scene-card">
-        <div>
-          <div class="sc-label">智能场景识别</div>
-          <div class="sc-value">风景 · 日落</div>
-        </div>
-        <div class="sc-conf">置信度 92%</div>
+    <div class="panel-section">
+      <!-- 场景识别条 -->
+      <div class="scene-strip">
+        <span class="ss-label">智能识别</span>
+        <span class="ss-value">风景 · 日落</span>
+        <span class="ss-conf">置信度 92%</span>
       </div>
-      <div class="ai-card primary ai-pulse">
-        <div class="ai-icon">
+      <!-- Hero 卡片：一键智能优化 -->
+      <div class="ai-hero">
+        <div class="ai-hero-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5L12 2z"/></svg>
         </div>
-        <div class="ai-text">
-          <div class="ai-title">一键智能优化</div>
-          <div class="ai-sub">AI 分析画面，自动调整曝光、色彩、清晰度</div>
+        <div class="ai-hero-text">
+          <div class="ai-hero-title">一键智能优化</div>
+          <div class="ai-hero-sub">AI 分析画面，自动调整曝光、色彩、清晰度</div>
         </div>
-        <svg class="ai-badge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
       </div>
-      <div class="ai-card">
-        <div class="ai-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <!-- 瀑布流 AI 功能卡 -->
+      <div class="waterfall">
+        <div class="ai-card-wf">
+          <div class="acw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+          <div class="acw-title">画质增强</div>
+          <div class="acw-sub">超分辨率重建，细节更锐利</div>
         </div>
-        <div class="ai-text">
-          <div class="ai-title">画质增强</div>
-          <div class="ai-sub">超分辨率重建，细节更锐利</div>
+        <div class="ai-card-wf">
+          <div class="acw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div>
+          <div class="acw-title">智能消除</div>
+          <div class="acw-sub">移除路人杂物，画面纯净</div>
         </div>
-        <svg class="ai-badge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
-      <div class="ai-card">
-        <div class="ai-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+        <div class="ai-card-wf">
+          <div class="acw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg></div>
+          <div class="acw-title">天空替换</div>
+          <div class="acw-sub">智能识别天空，替换氛围</div>
         </div>
-        <div class="ai-text">
-          <div class="ai-title">智能消除</div>
-          <div class="ai-sub">移除画面中的路人、杂物</div>
+        <div class="ai-card-wf">
+          <div class="acw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <div class="acw-title">AI 去噪</div>
+          <div class="acw-sub">低光降噪，保留细节纹理</div>
         </div>
-        <svg class="ai-badge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
-      <div class="ai-card">
-        <div class="ai-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        <div class="ai-card-wf">
+          <div class="acw-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <div class="acw-title">高光重建</div>
+          <div class="acw-sub">RAW 过曝区域细节恢复</div>
         </div>
-        <div class="ai-text">
-          <div class="ai-title">天空替换</div>
-          <div class="ai-sub">智能识别天空区域，替换氛围</div>
-        </div>
-        <svg class="ai-badge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
       </div>
     </div>
   `,
 
   filter: `
-    <div class="panel-section filter-panel">
+    <div class="panel-section">
+      <!-- LUT 库入口 -->
       <div class="lut-entry">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
         <div class="lut-title">LUT 库</div>
         <div class="lut-count">128 个预设</div>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--text-low)"><path d="M9 18l6-6-6-6"/></svg>
       </div>
-      <div class="filter-section-title">哈苏胶片模拟</div>
-      <div class="filter-row">
-        <div class="film-card active">
-          <div class="film-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cinematic%20landscape%20warm%20golden%20tone%20film%20grain%20Hasselblad%20color%20science&image_size=portrait_4_3" alt=""></div>
-          <div class="film-name">和瓦</div>
-        </div>
-        <div class="film-card">
-          <div class="film-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cinematic%20landscape%20moody%20blue%20tone%20film%20noir%20color%20grading&image_size=portrait_4_3" alt=""></div>
-          <div class="film-name">霓虹</div>
-        </div>
-        <div class="film-card">
-          <div class="film-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cinematic%20landscape%20vibrant%20green%20nature%20film%20color%20rich%20saturation&image_size=portrait_4_3" alt=""></div>
-          <div class="film-name">浓郁</div>
-        </div>
-        <div class="film-card">
-          <div class="film-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cinematic%20landscape%20soft%20pastel%20dreamy%20film%20color%20gentle%20tone&image_size=portrait_4_3" alt=""></div>
-          <div class="film-name">清新</div>
-        </div>
-        <div class="film-card">
-          <div class="film-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cinematic%20landscape%20high%20contrast%20black%20and%20white%20monochrome%20film&image_size=portrait_4_3" alt=""></div>
-          <div class="film-name">通透</div>
-        </div>
+      <!-- 分类标签 -->
+      <div class="cat-chips">
+        <div class="cat-chip active">哈苏胶片</div>
+        <div class="cat-chip">电影感</div>
+        <div class="cat-chip">人像</div>
+        <div class="cat-chip">黑白</div>
+        <div class="cat-chip">复古</div>
       </div>
-      <div class="filter-section-title">电影感</div>
-      <div class="filter-row">
-        <div class="film-card">
-          <div class="film-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=teal%20and%20orange%20cinematic%20color%20grade%20movie%20still%20dramatic&image_size=portrait_4_3" alt=""></div>
-          <div class="film-name">青橙</div>
+      <!-- 瀑布流胶片预设 — 2 列变高度 masonry -->
+      <div class="film-waterfall">
+        <div class="film-wf-card active">
+          <div class="film-wf-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cinematic%20warm%20golden%20hour%20landscape%20Hasselblad%20color%20film%20grain&image_size=portrait_4_3" alt=""></div>
+          <div class="film-wf-name">和瓦</div>
         </div>
-        <div class="film-card">
-          <div class="film-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=vintage%20film%20fade%20color%20retro%20analog%20photography%20warm%20wash&image_size=portrait_4_3" alt=""></div>
-          <div class="film-name">复古</div>
+        <div class="film-wf-card">
+          <div class="film-wf-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=moody%20blue%20tone%20film%20noir%20night%20cinematic&image_size=portrait_16_9" alt=""></div>
+          <div class="film-wf-name">霓虹</div>
         </div>
-        <div class="film-card">
-          <div class="film-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cyberpunk%20neon%20night%20city%20purple%20pink%20blue%20color%20grade&image_size=portrait_4_3" alt=""></div>
-          <div class="film-name">赛博</div>
+        <div class="film-wf-card">
+          <div class="film-wf-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=vibrant%20green%20nature%20rich%20saturation%20film%20color&image_size=portrait_4_3" alt=""></div>
+          <div class="film-wf-name">浓郁</div>
+        </div>
+        <div class="film-wf-card">
+          <div class="film-wf-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=soft%20pastel%20dreamy%20gentle%20tone%20portrait%20film&image_size=square" alt=""></div>
+          <div class="film-wf-name">清新</div>
+        </div>
+        <div class="film-wf-card">
+          <div class="film-wf-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=high%20contrast%20monochrome%20black%20white%20film%20street&image_size=portrait_4_3" alt=""></div>
+          <div class="film-wf-name">通透</div>
+        </div>
+        <div class="film-wf-card">
+          <div class="film-wf-thumb"><img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=teal%20orange%20cinematic%20movie%20color%20grade%20dramatic&image_size=portrait_16_9" alt=""></div>
+          <div class="film-wf-name">青橙</div>
         </div>
       </div>
     </div>
   `,
 
   adjust: `
-    <div class="panel-section adjust-panel">
-      <div class="color-science-row">
+    <div class="panel-section">
+      <!-- 色彩科学横向芯片 -->
+      <div class="cs-row">
         <div class="cs-chip active">标准</div>
         <div class="cs-chip">AgX</div>
         <div class="cs-chip">ACES 2.0</div>
@@ -1172,34 +986,22 @@ const panels = {
         <div class="adjust-group-title">基础</div>
         <div class="slider-row active">
           <div class="slider-label">曝光</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:50%; width:18%"></div>
-            <div class="slider-thumb" style="left:68%"></div>
-          </div>
+          <div class="slider-track"><div class="slider-fill" style="left:50%;width:18%"></div><div class="slider-thumb" style="left:68%"></div></div>
           <div class="slider-value">+0.45</div>
         </div>
         <div class="slider-row">
           <div class="slider-label">对比度</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:50%; width:12%"></div>
-            <div class="slider-thumb" style="left:62%"></div>
-          </div>
+          <div class="slider-track"><div class="slider-fill" style="left:50%;width:12%"></div><div class="slider-thumb" style="left:62%"></div></div>
           <div class="slider-value">+12</div>
         </div>
         <div class="slider-row">
           <div class="slider-label">高光</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:32%; width:18%; background:var(--clip-blue)"></div>
-            <div class="slider-thumb" style="left:32%"></div>
-          </div>
+          <div class="slider-track"><div class="slider-fill" style="left:32%;width:18%"></div><div class="slider-thumb" style="left:32%"></div></div>
           <div class="slider-value">-18</div>
         </div>
         <div class="slider-row">
           <div class="slider-label">阴影</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:50%; width:20%"></div>
-            <div class="slider-thumb" style="left:70%"></div>
-          </div>
+          <div class="slider-track"><div class="slider-fill" style="left:50%;width:20%"></div><div class="slider-thumb" style="left:70%"></div></div>
           <div class="slider-value">+20</div>
         </div>
       </div>
@@ -1207,26 +1009,17 @@ const panels = {
         <div class="adjust-group-title">色彩</div>
         <div class="slider-row">
           <div class="slider-label">色温</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:50%; width:8%"></div>
-            <div class="slider-thumb" style="left:58%"></div>
-          </div>
+          <div class="slider-track"><div class="slider-fill" style="left:50%;width:8%"></div><div class="slider-thumb" style="left:58%"></div></div>
           <div class="slider-value">+8</div>
         </div>
         <div class="slider-row">
           <div class="slider-label">饱和度</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:50%; width:6%"></div>
-            <div class="slider-thumb" style="left:56%"></div>
-          </div>
+          <div class="slider-track"><div class="slider-fill" style="left:50%;width:6%"></div><div class="slider-thumb" style="left:56%"></div></div>
           <div class="slider-value">+6</div>
         </div>
         <div class="slider-row">
           <div class="slider-label">自然饱和</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:50%; width:14%"></div>
-            <div class="slider-thumb" style="left:64%"></div>
-          </div>
+          <div class="slider-track"><div class="slider-fill" style="left:50%;width:14%"></div><div class="slider-thumb" style="left:64%"></div></div>
           <div class="slider-value">+14</div>
         </div>
       </div>
@@ -1234,64 +1027,43 @@ const panels = {
         <div class="adjust-group-title">细节</div>
         <div class="slider-row">
           <div class="slider-label">清晰度</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:50%; width:16%"></div>
-            <div class="slider-thumb" style="left:66%"></div>
-          </div>
+          <div class="slider-track"><div class="slider-fill" style="left:50%;width:16%"></div><div class="slider-thumb" style="left:66%"></div></div>
           <div class="slider-value">+16</div>
         </div>
         <div class="slider-row">
           <div class="slider-label">去雾霾</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:50%; width:10%"></div>
-            <div class="slider-thumb" style="left:60%"></div>
-          </div>
+          <div class="slider-track"><div class="slider-fill" style="left:50%;width:10%"></div><div class="slider-thumb" style="left:60%"></div></div>
           <div class="slider-value">+10</div>
-        </div>
-        <div class="slider-row">
-          <div class="slider-label">锐度</div>
-          <div class="slider-track">
-            <div class="slider-fill" style="left:50%; width:4%"></div>
-            <div class="slider-thumb" style="left:54%"></div>
-          </div>
-          <div class="slider-value">+4</div>
         </div>
       </div>
     </div>
   `,
 
   compose: `
-    <div class="panel-section compose-panel">
-      <div class="filter-section-title">专业示波器</div>
+    <div class="panel-section">
+      <div class="adjust-group-title">专业示波器</div>
       <div class="scope-section">
         <div class="scope-card">
           <div class="scope-title">直方图</div>
-          <div class="scope-canvas">
-            <div class="histo-bars" id="histoBars"></div>
-          </div>
+          <div class="scope-canvas"><div class="histo-bars" id="histoBars"></div></div>
         </div>
         <div class="scope-card">
           <div class="scope-title">波形图</div>
-          <div class="scope-canvas">
-            <div class="waveform-canvas"></div>
-          </div>
+          <div class="scope-canvas"><div class="waveform-canvas"></div></div>
         </div>
         <div class="scope-card">
           <div class="scope-title">矢量图</div>
           <div class="scope-canvas">
-            <div class="vectorscope-canvas">
-              <div class="vs-ring">
-                <div class="vs-dot" style="background:var(--scope-r); top:20%; left:75%"></div>
-                <div class="vs-dot" style="background:var(--scope-g); top:65%; left:70%"></div>
-                <div class="vs-dot" style="background:var(--scope-b); top:70%; left:25%"></div>
-                <div class="vs-dot" style="background:var(--scope-skin); top:30%; left:60%"></div>
-              </div>
-            </div>
+            <div class="vs-ring"></div>
+            <div class="vs-dot" style="background:#FF453A;top:30%;left:65%"></div>
+            <div class="vs-dot" style="background:#30D158;top:55%;left:60%"></div>
+            <div class="vs-dot" style="background:#0A84FF;top:60%;left:35%"></div>
+            <div class="vs-dot" style="background:#FF9F0A;top:35%;left:55%"></div>
           </div>
         </div>
       </div>
-      <div class="filter-section-title">裁剪比例</div>
-      <div class="crop-ratios">
+      <div class="adjust-group-title">裁剪比例</div>
+      <div class="crop-row">
         <div class="crop-chip active">自由</div>
         <div class="crop-chip">1:1</div>
         <div class="crop-chip">4:3</div>
@@ -1300,92 +1072,43 @@ const panels = {
         <div class="crop-chip">9:16</div>
         <div class="crop-chip">2.35:1</div>
       </div>
-      <div class="filter-section-title">构图工具</div>
-      <div class="compose-tools">
-        <div class="compose-tool">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
-          <div class="ct-label">三分线</div>
-        </div>
-        <div class="compose-tool">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16.5H3L12 3z"/></svg>
-          <div class="ct-label">黄金三角</div>
-        </div>
-        <div class="compose-tool">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/></svg>
-          <div class="ct-label">中心十字</div>
-        </div>
-        <div class="compose-tool">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0zM3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
-          <div class="ct-label">螺旋线</div>
-        </div>
-        <div class="compose-tool">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-3-6.7M21 3v6h-6"/></svg>
-          <div class="ct-label">旋转</div>
-        </div>
-        <div class="compose-tool">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"/></svg>
-          <div class="ct-label">透视</div>
-        </div>
-        <div class="compose-tool">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-          <div class="ct-label">镜像</div>
-        </div>
-        <div class="compose-tool">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 8l4-4 4 4M3 16l4 4 4-4"/></svg>
-          <div class="ct-label">拉直</div>
-        </div>
+      <div class="adjust-group-title">构图工具</div>
+      <div class="compose-waterfall">
+        <div class="compose-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg><div class="ct-label">三分线</div></div>
+        <div class="compose-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16.5H3L12 3z"/></svg><div class="ct-label">黄金三角</div></div>
+        <div class="compose-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/></svg><div class="ct-label">中心十字</div></div>
+        <div class="compose-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/></svg><div class="ct-label">螺旋线</div></div>
+        <div class="compose-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-3-6.7M21 3v6h-6"/></svg><div class="ct-label">旋转</div></div>
+        <div class="compose-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"/></svg><div class="ct-label">透视</div></div>
+        <div class="compose-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 8l4-4 4 4M3 16l4 4 4-4"/></svg><div class="ct-label">拉直</div></div>
+        <div class="compose-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg><div class="ct-label">镜像</div></div>
       </div>
     </div>
   `,
 
   export: `
-    <div class="panel-section export-panel">
-      <div class="filter-section-title">导出格式</div>
+    <div class="panel-section">
+      <div class="adjust-group-title">导出格式</div>
       <div class="format-grid">
-        <div class="format-card active">
-          <div class="fmt-name">JPEG</div>
-          <div class="fmt-desc">8-bit SDR</div>
-        </div>
-        <div class="format-card">
-          <div class="fmt-name">Ultra HDR</div>
-          <div class="fmt-desc">10-bit HDR</div>
-        </div>
-        <div class="format-card">
-          <div class="fmt-name">HEIF</div>
-          <div class="fmt-desc">10-bit 高效</div>
-        </div>
+        <div class="format-card active"><div class="fmt-name">JPEG</div><div class="fmt-desc">8-bit SDR</div></div>
+        <div class="format-card"><div class="fmt-name">Ultra HDR</div><div class="fmt-desc">10-bit HDR</div></div>
+        <div class="format-card"><div class="fmt-name">HEIF</div><div class="fmt-desc">10-bit 高效</div></div>
       </div>
       <div class="export-option">
-        <div>
-          <div class="eo-label">分辨率</div>
-          <div class="eo-sub">原始尺寸 4096 × 3072</div>
-        </div>
+        <div><div class="eo-label">分辨率</div><div class="eo-sub">原始 4096 × 3072</div></div>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--text-low)"><path d="M9 18l6-6-6-6"/></svg>
       </div>
       <div class="export-option">
-        <div>
-          <div class="eo-label">画质</div>
-          <div class="eo-sub">JPEG 质量 95</div>
-        </div>
+        <div><div class="eo-label">画质</div><div class="eo-sub">JPEG 质量 95</div></div>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;color:var(--text-low)"><path d="M9 18l6-6-6-6"/></svg>
       </div>
       <div class="export-option">
-        <div>
-          <div class="eo-label">保留元数据</div>
-          <div class="eo-sub">EXIF · GPS · 方向</div>
-        </div>
-        <div class="toggle on" onclick="this.classList.toggle('on')">
-          <div class="toggle-knob"></div>
-        </div>
+        <div><div class="eo-label">保留元数据</div><div class="eo-sub">EXIF · GPS · 方向</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
       </div>
       <div class="export-option">
-        <div>
-          <div class="eo-label">峰值亮度</div>
-          <div class="eo-sub">HDR 1000 nits</div>
-        </div>
-        <div class="toggle on" onclick="this.classList.toggle('on')">
-          <div class="toggle-knob"></div>
-        </div>
+        <div><div class="eo-label">峰值亮度</div><div class="eo-sub">HDR 1000 nits</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
       </div>
       <button class="export-btn" onclick="showExportToast()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 21h14"/></svg>
@@ -1395,7 +1118,6 @@ const panels = {
   `,
 };
 
-// Tab 切换
 const tabBar = document.getElementById('tabBar');
 const panelContent = document.getElementById('panelContent');
 
@@ -1411,65 +1133,43 @@ tabBar.addEventListener('click', e => {
   if (tab) switchTab(tab.dataset.tab);
 });
 
-// 直方图渲染
 function renderHistogram() {
-  const container = document.getElementById('histoBars');
-  if (!container) return;
-  container.innerHTML = '';
-  // 模拟 RGB 直方图分布
-  const distribution = [
-    5,8,12,18,25,35,48,62,75,82,88,92,95,96,94,90,85,78,70,62,
-    55,48,42,38,35,32,30,28,27,26,25,24,23,22,21,20,19,18,17,16,
-    15,14,13,12,11,10,9,8,7,6,5,4,3,2,2,1,1,1,1,1
-  ];
-  distribution.forEach(v => {
-    const bar = document.createElement('div');
-    bar.className = 'histo-bar';
-    bar.style.height = (v * 0.9) + '%';
-    container.appendChild(bar);
+  const c = document.getElementById('histoBars');
+  if (!c) return;
+  c.innerHTML = '';
+  const dist = [5,8,12,18,25,35,48,62,75,82,88,92,95,96,94,90,85,78,70,62,55,48,42,38,35,32,30,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,2,1,1,1,1,1];
+  dist.forEach(v => {
+    const b = document.createElement('div');
+    b.className = 'histo-bar';
+    b.style.height = (v * 0.9) + '%';
+    c.appendChild(b);
   });
 }
 
-// 胶片卡片选中
 document.addEventListener('click', e => {
-  const film = e.target.closest('.film-card');
-  if (film) {
-    film.parentElement.querySelectorAll('.film-card').forEach(f => f.classList.remove('active'));
-    film.classList.add('active');
-  }
+  const f = e.target.closest('.film-wf-card');
+  if (f) { f.parentElement.querySelectorAll('.film-wf-card').forEach(x => x.classList.remove('active')); f.classList.add('active'); }
   const cs = e.target.closest('.cs-chip');
-  if (cs) {
-    cs.parentElement.querySelectorAll('.cs-chip').forEach(c => c.classList.remove('active'));
-    cs.classList.add('active');
-  }
+  if (cs) { cs.parentElement.querySelectorAll('.cs-chip').forEach(x => x.classList.remove('active')); cs.classList.add('active'); }
   const fmt = e.target.closest('.format-card');
-  if (fmt) {
-    fmt.parentElement.querySelectorAll('.format-card').forEach(f => f.classList.remove('active'));
-    fmt.classList.add('active');
-  }
+  if (fmt) { fmt.parentElement.querySelectorAll('.format-card').forEach(x => x.classList.remove('active')); fmt.classList.add('active'); }
   const crop = e.target.closest('.crop-chip');
-  if (crop) {
-    crop.parentElement.querySelectorAll('.crop-chip').forEach(c => c.classList.remove('active'));
-    crop.classList.add('active');
-  }
+  if (crop) { crop.parentElement.querySelectorAll('.crop-chip').forEach(x => x.classList.remove('active')); crop.classList.add('active'); }
+  const cat = e.target.closest('.cat-chip');
+  if (cat) { cat.parentElement.querySelectorAll('.cat-chip').forEach(x => x.classList.remove('active')); cat.classList.add('active'); }
 });
 
-// 浮动工具切换
 document.querySelectorAll('.float-tool').forEach(t => {
-  t.addEventListener('click', () => {
-    t.classList.toggle('active');
-  });
+  t.addEventListener('click', () => t.classList.toggle('active'));
 });
 
-// 导出提示
 function showExportToast() {
   const btn = document.querySelector('.export-btn');
-  const original = btn.innerHTML;
+  const o = btn.innerHTML;
   btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg> 导出成功';
-  setTimeout(() => { btn.innerHTML = original; }, 2000);
+  setTimeout(() => { btn.innerHTML = o; }, 2000);
 }
 
-// 初始加载 AI 面板
 switchTab('ai');
 </script>
 </body>
