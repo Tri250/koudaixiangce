@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.FilmSimulation
+import com.rapidraw.data.model.HasselbladMasterFilter
 import com.rapidraw.data.model.Preset
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.EditorBackground
@@ -62,80 +63,17 @@ fun PresetsDiscoveryScreen(
     val categories = listOf("全部", "人像", "风景", "夜景", "街拍", "美食")
 
     val allPresets = remember {
-        listOf(
+        HasselbladMasterFilter.entries.map { filter ->
             Preset(
-                id = "hewa_portrait",
-                name = "和光人像",
-                description = "柔和自然，适合人像摄影",
-                category = "人像",
-                filmId = "hasselblad_hewa",
-                previewGradient = listOf(0xFFF5E6D3, 0xFFE8D5C4),
-            ),
-            Preset(
-                id = "nongyu_street",
-                name = "浓郁街拍",
-                description = "高饱和色彩，街头故事感",
-                category = "街拍",
-                filmId = "hasselblad_nongyu",
-                previewGradient = listOf(0xFF4A3728, 0xFF8B6914),
-            ),
-            Preset(
-                id = "fugu_film",
-                name = "复古胶片",
-                description = "怀旧复古色调",
-                category = "人像",
-                filmId = "hasselblad_fugu",
-                previewGradient = listOf(0xFF8B7355, 0xFFA0826D),
-            ),
-            Preset(
-                id = "qingxin_landscape",
-                name = "清新风景",
-                description = "通透蓝天绿色",
-                category = "风景",
-                filmId = "hasselblad_qingxin",
-                previewGradient = listOf(0xFF87CEEB, 0xFF98FB98),
-            ),
-            Preset(
-                id = "tongtou_arch",
-                name = "通透建筑",
-                description = "清晰锐利的建筑质感",
-                category = "风景",
-                filmId = "hasselblad_tongtou",
-                previewGradient = listOf(0xFFD3D3D3, 0xFFA9A9A9),
-            ),
-            Preset(
-                id = "nihong_night",
-                name = "霓虹夜景",
-                description = "赛博朋克城市夜景",
-                category = "夜景",
-                filmId = "hasselblad_nihong",
-                previewGradient = listOf(0xFFFF1493, 0xFF00CED1),
-            ),
-            Preset(
-                id = "lengdiao_flash",
-                name = "冷调闪光",
-                description = "冷色温闪光灯效果",
-                category = "人像",
-                filmId = "hasselblad_lengdiao",
-                previewGradient = listOf(0xFFB0C4DE, 0xFF4682B4),
-            ),
-            Preset(
-                id = "nuandiao_flash",
-                name = "暖调闪光",
-                description = "暖色温闪光灯效果",
-                category = "人像",
-                filmId = "hasselblad_nuandiao",
-                previewGradient = listOf(0xFFF4A460, 0xFFD2691E),
-            ),
-            Preset(
-                id = "heibai_noir",
-                name = "反差黑白",
-                description = "高反差黑白胶片",
-                category = "街拍",
-                filmId = "hasselblad_heibai",
-                previewGradient = listOf(0xFF333333, 0xFF888888),
-            ),
-        )
+                id = filter.id,
+                name = filter.displayName,
+                filmId = filter.filmId,
+                adjustments = filter.adjustments,
+                description = filter.description,
+                category = filter.category,
+                previewGradient = filter.previewGradient,
+            )
+        }
     }
 
     val filteredPresets = if (selectedCategory == "全部") {

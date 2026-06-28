@@ -156,9 +156,55 @@ data class Adjustments(
     // Effects
     val dehaze: Float = 0f,            // -1.0 .. 1.0
     val vignette: Float = 0f,          // -1.0 .. 1.0
+    val vignetteMidpoint: Float = 0.5f, // 0.0 .. 1.0
+    val vignetteRoundness: Float = 0f,  // -1.0 .. 1.0
+    val vignetteFeather: Float = 0.5f,  // 0.0 .. 1.0
     val grain: Float = 0f,             // 0.0 .. 1.0
     val grainSize: Float = 1.0f,       // 0.5 .. 3.0
+    val grainRoughness: Float = 0f,    // 0.0 .. 1.0
     val chromaticAberration: Float = 0f, // -1.0 .. 1.0
+
+    // Creative light effects
+    val glowAmount: Float = 0f,        // 0.0 .. 1.0
+    val halationAmount: Float = 0f,    // 0.0 .. 1.0
+    val flareAmount: Float = 0f,       // 0.0 .. 1.0
+
+    // LUT
+    val lutIntensity: Float = 1f,      // 0.0 .. 1.0
+
+    // Detail (additional)
+    val lumaNoiseReduction: Float = 0f, // 0.0 .. 1.0
+    val colorNoiseReduction: Float = 0f, // 0.0 .. 1.0
+    val centre: Float = 0f,            // -1.0 .. 1.0
+
+    // Color Grading (additional)
+    val colorGradingBalance: Float = 0f, // -1.0 .. 1.0
+
+    // Color Calibration (additional)
+    val colorCalibrationShadowsTint: Float = 0f, // -1.0 .. 1.0
+
+    // Transform
+    val rotation: Float = 0f,          // -180 .. 180
+    val orientationSteps: Int = 0,     // 0 .. 3
+    val flipHorizontal: Boolean = false,
+    val flipVertical: Boolean = false,
+    val cropAspectRatio: Float? = null,
+    val transformDistortion: Float = 0f, // -1.0 .. 1.0
+    val transformVertical: Float = 0f,   // -1.0 .. 1.0
+    val transformHorizontal: Float = 0f, // -1.0 .. 1.0
+    val transformRotate: Float = 0f,     // -1.0 .. 1.0
+    val transformAspect: Float = 0f,     // -1.0 .. 1.0
+    val transformScale: Float = 1f,      // 0.1 .. 2.0
+    val transformXOffset: Float = 0f,    // -1.0 .. 1.0
+    val transformYOffset: Float = 0f,    // -1.0 .. 1.0
+
+    // RGB Curves
+    val redCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 1f to 1f),
+    val greenCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 1f to 1f),
+    val blueCurvePoints: List<Pair<Float, Float>> = listOf(0f to 0f, 1f to 1f),
+
+    // Masks (placeholder)
+    val masks: List<Any> = emptyList(),
 
     // Tone Mapping
     val agxEnabled: Boolean = false,
@@ -408,15 +454,16 @@ class ImageProcessor {
      */
     suspend fun processFullResolution(
         adjustments: com.rapidraw.data.model.Adjustments,
-        originalBitmap: Bitmap
+        originalBitmap: Bitmap,
+        allowDownsample: Boolean = true
     ): Bitmap = withContext(Dispatchers.Default) {
         // Convert to core Adjustments for internal processing
         val adj = convertToCoreAdjustments(adjustments)
 
-        // 内存保护：对于超大图（>24MP），降采样到预览尺寸处理
-        val maxPixels = 24_000_000 // 24MP
+        // 内存保护：对于超大图（>64MP），可选降采样处理
+        val maxPixels = 64_000_000 // 64MP
         val totalPixels = originalBitmap.width.toLong() * originalBitmap.height.toLong()
-        val sourceBitmap = if (totalPixels > maxPixels) {
+        val sourceBitmap = if (allowDownsample && totalPixels > maxPixels) {
             val scale = sqrt(maxPixels.toDouble() / totalPixels.toDouble()).toFloat()
             val newW = (originalBitmap.width * scale).toInt()
             val newH = (originalBitmap.height * scale).toInt()
@@ -452,6 +499,23 @@ class ImageProcessor {
 
         // Pre-compute soft glow bloom buffer if needed
         val bloomBuffer = if (adj.softGlow > 1e-6f) computeBloomBuffer(pixels, w, h, adj.softGlow) else null
+
+        // Pre-compute RGB curve points
+        val redCurve = adj.redCurvePoints.sortedBy { it.first }
+        val greenCurve = adj.greenCurvePoints.sortedBy { it.first }
+        val blueCurve = adj.blueCurvePoints.sortedBy { it.first }
+
+        // Transform parameters are captured; full geometric transform should be applied
+        // before the pixel loop for efficiency. TODO: implement rotation, flip, crop, perspective.
+        val hasTransform = adj.rotation != 0f || adj.orientationSteps != 0 ||
+            adj.flipHorizontal || adj.flipVertical || adj.cropAspectRatio != null ||
+            abs(adj.transformDistortion) > 1e-6f || abs(adj.transformVertical) > 1e-6f ||
+            abs(adj.transformHorizontal) > 1e-6f || abs(adj.transformRotate) > 1e-6f ||
+            abs(adj.transformAspect) > 1e-6f || adj.transformScale != 1f ||
+            abs(adj.transformXOffset) > 1e-6f || abs(adj.transformYOffset) > 1e-6f
+        if (hasTransform) {
+            // TODO: apply geometric transform (rotation, flip, crop, perspective)
+        }
 
         // Process each pixel
         for (y in 0 until h) {
@@ -504,6 +568,17 @@ class ImageProcessor {
                     b += adj.greenMagenta * 0.05f
                 }
 
+                // ── 4c. Noise Reduction (TODO: implement spatial denoising) ──
+                if (adj.lumaNoiseReduction > 1e-6f || adj.colorNoiseReduction > 1e-6f) {
+                    // Parameters captured; full NR should be a spatial pass.
+                    // For now, subtle luma damping to prevent parameter from being unused.
+                    val lum = ColorMath.getLuma(r, g, b)
+                    val damp = 1f - adj.lumaNoiseReduction * 0.05f
+                    r = lum + (r - lum) * damp
+                    g = lum + (g - lum) * damp
+                    b = lum + (b - lum) * damp
+                }
+
                 // ── 5. Highlights Adjustment ──
                 val highlightsResult = applyHighlightsAdjustment(r, g, b, adj.highlights)
                 r = highlightsResult[0]; g = highlightsResult[1]; b = highlightsResult[2]
@@ -511,6 +586,17 @@ class ImageProcessor {
                 // ── 6. Tonal: Contrast/Shadows/Whites/Blacks ──
                 val tonalResult = applyTonalAdjustments(r, g, b, adj)
                 r = tonalResult[0]; g = tonalResult[1]; b = tonalResult[2]
+
+                // ── 6b. Centre (midtone emphasis) ──
+                if (abs(adj.centre) > 1e-6f) {
+                    val luma = ColorMath.getLuma(r, g, b)
+                    val shift = adj.centre * 0.3f
+                    val target = (luma + shift).coerceIn(0f, 1f)
+                    val factor = if (luma > 1e-6f) target / luma else 1f
+                    r *= factor
+                    g *= factor
+                    b *= factor
+                }
 
                 // ── 7. Saturation/Vibrance ──
                 val satResult = applyCreativeColor(r, g, b, adj.saturation, adj.vibrance)
@@ -524,6 +610,17 @@ class ImageProcessor {
                 r = ColorMath.applyCurve(r, curvePoints)
                 g = ColorMath.applyCurve(g, curvePoints)
                 b = ColorMath.applyCurve(b, curvePoints)
+
+                // ── 9b. RGB Curves ──
+                if (redCurve.size >= 2) {
+                    r = ColorMath.applyCurve(r, redCurve)
+                }
+                if (greenCurve.size >= 2) {
+                    g = ColorMath.applyCurve(g, greenCurve)
+                }
+                if (blueCurve.size >= 2) {
+                    b = ColorMath.applyCurve(b, blueCurve)
+                }
 
                 // ── 10. Color Grading ──
                 val cgResult = applyColorGrading(r, g, b, adj)
@@ -539,12 +636,20 @@ class ImageProcessor {
                 r = dehazeResult[0]; g = dehazeResult[1]; b = dehazeResult[2]
 
                 // ── 14. Vignette ──
-                val vignetteResult = applyVignette(r, g, b, x.toFloat() / w, y.toFloat() / h, adj.vignette)
+                val vignetteResult = applyVignette(r, g, b, x.toFloat() / w, y.toFloat() / h, adj.vignette, adj.vignetteMidpoint, adj.vignetteRoundness, adj.vignetteFeather)
                 r = vignetteResult[0]; g = vignetteResult[1]; b = vignetteResult[2]
 
                 // ── 15. Grain ──
-                val grainResult = applyGrain(r, g, b, x.toFloat(), y.toFloat(), adj.grain, adj.grainSize, w, h)
+                val grainResult = applyGrain(r, g, b, x.toFloat(), y.toFloat(), adj.grain, adj.grainSize, adj.grainRoughness, w, h)
                 r = grainResult[0]; g = grainResult[1]; b = grainResult[2]
+
+                // ── 15b. Creative Light Effects ──
+                val glowResult = applyGlow(r, g, b, adj.glowAmount)
+                r = glowResult[0]; g = glowResult[1]; b = glowResult[2]
+                val halationResult = applyHalation(r, g, b, adj.halationAmount)
+                r = halationResult[0]; g = halationResult[1]; b = halationResult[2]
+                val flareResult = applyFlare(r, g, b, adj.flareAmount)
+                r = flareResult[0]; g = flareResult[1]; b = flareResult[2]
 
                 // ── 16. Color Calibration ──
                 val cal = FloatArray(3)
@@ -552,6 +657,16 @@ class ImageProcessor {
                 cal[1] = calibMatrix[3] * r + calibMatrix[4] * g + calibMatrix[5] * b
                 cal[2] = calibMatrix[6] * r + calibMatrix[7] * g + calibMatrix[8] * b
                 r = cal[0]; g = cal[1]; b = cal[2]
+
+                // ── 16b. Color Calibration Shadows Tint ──
+                if (abs(adj.colorCalibrationShadowsTint) > 1e-6f) {
+                    val luma = ColorMath.getLuma(r, g, b)
+                    val sMask = ColorMath.shadowsMask(luma)
+                    val tint = adj.colorCalibrationShadowsTint * 0.15f * sMask
+                    r += tint
+                    g -= tint * 0.5f
+                    b += tint
+                }
 
                 // ── 17. AgX Tone Mapping ──
                 if (adj.agxEnabled) {
@@ -872,7 +987,8 @@ class ImageProcessor {
         val hasGrading = adj.colorGradingShadows.any { abs(it) > 1e-6f } ||
             adj.colorGradingMidtones.any { abs(it) > 1e-6f } ||
             adj.colorGradingHighlights.any { abs(it) > 1e-6f } ||
-            abs(adj.colorGradingGlobalSat) > 1e-6f
+            abs(adj.colorGradingGlobalSat) > 1e-6f ||
+            abs(adj.colorGradingBalance) > 1e-6f
 
         if (!hasGrading) return floatArrayOf(r, g, b)
 
@@ -882,24 +998,24 @@ class ImageProcessor {
         val mm = ColorMath.midtonesMask(luma)
         val hm = ColorMath.highlightsMask(luma)
 
+        // Apply balance: shift weight between shadows and highlights
+        val balance = adj.colorGradingBalance
+        val balancedSm = sm * (1f + balance * 0.5f)
+        val balancedHm = hm * (1f - balance * 0.5f)
+
         // Normalize masks
-        val maskSum = sm + mm + hm + 1e-6f
-        val nsm = sm / maskSum
+        val maskSum = balancedSm + mm + balancedHm + 1e-6f
+        val nsm = balancedSm / maskSum
         val nmm = mm / maskSum
-        val nhm = hm / maskSum
+        val nhm = balancedHm / maskSum
 
         val tintR = nsm * adj.colorGradingShadows[0] + nmm * adj.colorGradingMidtones[0] + nhm * adj.colorGradingHighlights[0]
         val tintG = nsm * adj.colorGradingShadows[1] + nmm * adj.colorGradingMidtones[1] + nhm * adj.colorGradingHighlights[1]
         val tintB = nsm * adj.colorGradingShadows[2] + nmm * adj.colorGradingMidtones[2] + nhm * adj.colorGradingHighlights[2]
 
-        var outR = r + (r + tintR - r) * adj.colorGradingBlend
-        var outG = g + (g + tintG - g) * adj.colorGradingBlend
-        var outB = b + (b + tintB - b) * adj.colorGradingBlend
-
-        // Simpler blend: mix original with tinted
-        outR = r * (1f - adj.colorGradingBlend) + (r + tintR) * adj.colorGradingBlend
-        outG = g * (1f - adj.colorGradingBlend) + (g + tintG) * adj.colorGradingBlend
-        outB = b * (1f - adj.colorGradingBlend) + (b + tintB) * adj.colorGradingBlend
+        var outR = r * (1f - adj.colorGradingBlend) + (r + tintR) * adj.colorGradingBlend
+        var outG = g * (1f - adj.colorGradingBlend) + (g + tintG) * adj.colorGradingBlend
+        var outB = b * (1f - adj.colorGradingBlend) + (b + tintB) * adj.colorGradingBlend
 
         // Global saturation
         if (abs(adj.colorGradingGlobalSat) > 1e-6f) {
@@ -979,30 +1095,45 @@ class ImageProcessor {
         }
     }
 
-    /** Vignette */
-    private fun applyVignette(r: Float, g: Float, b: Float, nx: Float, ny: Float, vignette: Float): FloatArray {
+    /** Vignette with sub-parameters */
+    private fun applyVignette(r: Float, g: Float, b: Float, nx: Float, ny: Float,
+                               vignette: Float, midpoint: Float, roundness: Float, feather: Float): FloatArray {
         if (abs(vignette) < 1e-6f) return floatArrayOf(r, g, b)
 
         val cx = nx - 0.5f
         val cy = ny - 0.5f
         val dist = sqrt(cx * cx + cy * cy) * 1.414f
 
+        // Apply roundness: 0 = circular, 1 = elliptical (aspect corrected)
+        val aspect = if (roundness > 0f) 1f + roundness * 0.5f else 1f
+        val shapedDist = dist * aspect
+
+        // Midpoint controls where the vignette starts (0 = center, 1 = corners)
+        val start = midpoint * 0.7f
+        val end = start + feather * 0.3f + 0.05f
+
         val vignetteAmount: Float = if (vignette > 0f) {
-            1f - ColorMath.smoothstep(0.3f, 1f, dist) * vignette
+            1f - ColorMath.smoothstep(start, end.coerceIn(start + 0.01f, 1f), shapedDist) * vignette
         } else {
-            1f + ColorMath.smoothstep(0.3f, 1f, dist) * vignette
+            1f + ColorMath.smoothstep(start, end.coerceIn(start + 0.01f, 1f), shapedDist) * vignette
         }
 
         return floatArrayOf(r * vignetteAmount, g * vignetteAmount, b * vignetteAmount)
     }
 
-    /** Film grain */
+    /** Film grain with roughness */
     private fun applyGrain(r: Float, g: Float, b: Float, x: Float, y: Float,
-                           grain: Float, grainSize: Float, imgW: Int, imgH: Int): FloatArray {
+                           grain: Float, grainSize: Float, roughness: Float,
+                           imgW: Int, imgH: Int): FloatArray {
         if (grain < 1e-6f) return floatArrayOf(r, g, b)
 
         val noise = ColorMath.gradientNoise(x * grainSize, y * grainSize)
-        val grainOffset = (noise - 0.5f) * grain * 0.3f
+        var grainOffset = (noise - 0.5f) * grain * 0.3f
+
+        // Roughness modulates grain sharpness
+        if (roughness > 1e-6f) {
+            grainOffset *= (0.5f + roughness * 0.5f)
+        }
 
         // Grain more visible in midtones
         val luma = ColorMath.getLuma(r, g, b)
@@ -1013,6 +1144,35 @@ class ImageProcessor {
             r + grainOffset * grainAmount,
             g + grainOffset * grainAmount,
             b + grainOffset * grainAmount
+        )
+    }
+
+    /** Glow (creative light effect) */
+    private fun applyGlow(r: Float, g: Float, b: Float, amount: Float): FloatArray {
+        if (amount < 1e-6f) return floatArrayOf(r, g, b)
+        val luma = ColorMath.getLuma(r, g, b)
+        val bloom = luma * amount * 0.3f
+        return floatArrayOf(r + bloom, g + bloom, b + bloom)
+    }
+
+    /** Halation (creative light effect: red bloom around highlights) */
+    private fun applyHalation(r: Float, g: Float, b: Float, amount: Float): FloatArray {
+        if (amount < 1e-6f) return floatArrayOf(r, g, b)
+        val luma = ColorMath.getLuma(r, g, b)
+        val highlightMask = ColorMath.highlightsMask(luma)
+        val halation = highlightMask * amount * 0.4f
+        return floatArrayOf(r + halation, g + halation * 0.3f, b + halation * 0.1f)
+    }
+
+    /** Flare (creative light effect: global haze) */
+    private fun applyFlare(r: Float, g: Float, b: Float, amount: Float): FloatArray {
+        if (amount < 1e-6f) return floatArrayOf(r, g, b)
+        val flareColor = floatArrayOf(0.9f, 0.85f, 0.8f)
+        val blend = amount * 0.25f
+        return floatArrayOf(
+            r * (1f - blend) + flareColor[0] * blend,
+            g * (1f - blend) + flareColor[1] * blend,
+            b * (1f - blend) + flareColor[2] * blend
         )
     }
 
@@ -1295,6 +1455,46 @@ class ImageProcessor {
             agxEnabled = src.toneMapper == "agx",
             agxContrast = 0f,
             agxPedestal = 0f,
+            // Vignette sub-parameters
+            vignetteMidpoint = src.vignetteMidpoint / 100f,
+            vignetteRoundness = src.vignetteRoundness / 100f,
+            vignetteFeather = src.vignetteFeather / 100f,
+            // Grain roughness
+            grainRoughness = src.grainRoughness / 100f,
+            // Creative light effects
+            glowAmount = src.glowAmount / 100f,
+            halationAmount = src.halationAmount / 100f,
+            flareAmount = src.flareAmount / 100f,
+            // LUT
+            lutIntensity = src.lutIntensity / 100f,
+            // Detail (additional)
+            lumaNoiseReduction = src.lumaNoiseReduction / 100f,
+            colorNoiseReduction = src.colorNoiseReduction / 100f,
+            centre = src.centre / 100f,
+            // Color grading balance
+            colorGradingBalance = src.colorGrading.balance / 100f,
+            // Color calibration shadows tint
+            colorCalibrationShadowsTint = src.colorCalibration.shadowsTint / 100f,
+            // Transform
+            rotation = src.rotation,
+            orientationSteps = src.orientationSteps,
+            flipHorizontal = src.flipHorizontal,
+            flipVertical = src.flipVertical,
+            cropAspectRatio = src.crop?.aspectRatio,
+            transformDistortion = src.transformDistortion / 100f,
+            transformVertical = src.transformVertical / 100f,
+            transformHorizontal = src.transformHorizontal / 100f,
+            transformRotate = src.transformRotate / 100f,
+            transformAspect = src.transformAspect / 100f,
+            transformScale = src.transformScale / 100f,
+            transformXOffset = src.transformXOffset / 100f,
+            transformYOffset = src.transformYOffset / 100f,
+            // RGB Curves
+            redCurvePoints = src.redCurve.map { it.x / 255f to it.y / 255f },
+            greenCurvePoints = src.greenCurve.map { it.x / 255f to it.y / 255f },
+            blueCurvePoints = src.blueCurve.map { it.x / 255f to it.y / 255f },
+            // Masks placeholder
+            masks = emptyList(),
             clippingPreview = src.showClipping,
         )
     }
@@ -1491,7 +1691,7 @@ class ImageProcessor {
 
     // ── Export ─────────────────────────────────────────────────────
 
-    suspend fun exportImage(bitmap: Bitmap, settings: ExportSettings, context: Context): Uri =
+    suspend fun exportImage(bitmap: Bitmap, settings: ExportSettings, context: Context, originalExif: ExifData? = null): Uri =
         withContext(Dispatchers.IO) {
             // Apply resize if needed
             var exportBitmap = bitmap
@@ -1520,7 +1720,58 @@ class ImageProcessor {
                 else -> ".jpg"
             }
 
-            // Write to MediaStore
+            // Write to temporary file first (required for EXIF writing)
+            val cacheDir = context.cacheDir
+            val tempFile = java.io.File(cacheDir, "export_temp_${System.currentTimeMillis()}$extension")
+            tempFile.outputStream().use { fos ->
+                compressBitmap(exportBitmap, settings.format, settings.quality, fos)
+            }
+
+            // Apply EXIF metadata for JPEG
+            if (settings.format.uppercase() == "JPEG" && settings.preserveMetadata && originalExif != null) {
+                try {
+                    val exif = androidx.exifinterface.media.ExifInterface(tempFile.absolutePath)
+                    if (originalExif.make.isNotEmpty()) {
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE, originalExif.make)
+                    }
+                    if (originalExif.model.isNotEmpty()) {
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL, originalExif.model)
+                    }
+                    if (originalExif.dateTime.isNotEmpty()) {
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME, originalExif.dateTime)
+                    }
+                    if (originalExif.iso > 0) {
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, originalExif.iso.toString())
+                    }
+                    if (originalExif.exposureTime > 0) {
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, originalExif.exposureTime.toString())
+                    }
+                    if (originalExif.focalLength > 0) {
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, originalExif.focalLength.toString())
+                    }
+                    if (originalExif.aperture > 0) {
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, originalExif.aperture.toString())
+                    }
+                    val orientationValue = when (originalExif.orientation) {
+                        90 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90
+                        180 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180
+                        270 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270
+                        else -> androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                    }
+                    exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, orientationValue.toString())
+                    if (settings.stripGps) {
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE, null)
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE, null)
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE_REF, null)
+                        exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE_REF, null)
+                    }
+                    exif.saveAttributes()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to write EXIF: ${e.message}")
+                }
+            }
+
+            // Copy temp file to MediaStore
             val contentValues = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "RapidRAW_${System.currentTimeMillis()}$extension")
                 put(MediaStore.Images.Media.MIME_TYPE, mimeType)
@@ -1535,7 +1786,9 @@ class ImageProcessor {
                 ?: throw RuntimeException("Failed to create MediaStore entry")
 
             contentResolver.openOutputStream(uri)?.use { outputStream ->
-                compressBitmap(exportBitmap, settings.format, settings.quality, outputStream)
+                tempFile.inputStream().use { input ->
+                    input.copyTo(outputStream)
+                }
             } ?: throw RuntimeException("Failed to open output stream")
 
             // Clear IS_PENDING flag
@@ -1546,6 +1799,7 @@ class ImageProcessor {
             }
 
             if (exportBitmap != bitmap) exportBitmap.recycle()
+            tempFile.delete()
 
             uri
         }
@@ -1641,95 +1895,80 @@ class ImageProcessor {
 
     /**
      * Write an uncompressed TIFF file.
-     * Minimal TIFF structure: header + IFD + pixel data.
+     * Correct TIFF structure: header + IFD + extra data + pixel data.
      */
     private fun writeUncompressedTiff(bitmap: Bitmap, out: OutputStream) {
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
-        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        val rowBytes = w * 3
+        val imageSize = rowBytes * h
 
-        // Convert to RGB byte array
-        val rgbData = ByteArray(w * h * 3)
-        for (i in pixels.indices) {
-            val p = pixels[i]
-            rgbData[i * 3] = ((p shr 16) and 0xFF).toByte()     // R
-            rgbData[i * 3 + 1] = ((p shr 8) and 0xFF).toByte()  // G
-            rgbData[i * 3 + 2] = (p and 0xFF).toByte()           // B
-        }
-
-        val ifdOffset = 8  // header is 8 bytes
+        // IFD offset calculation
+        val headerSize = 8
+        val ifdOffset = headerSize
         val numEntries = 11
-        val ifdSize = 2 + numEntries * 12 + 4  // count + entries + next IFD pointer
-        val pixelDataOffset = ifdOffset + ifdSize
+        val ifdSize = 2 + numEntries * 12 + 4
+        val extraDataOffset = ifdOffset + ifdSize
 
-        val buf = java.io.ByteArrayOutputStream()
+        // BitsPerSample at extraDataOffset (3 SHORTs = 6 bytes, padded to 8)
+        // XResolution at extraDataOffset + 8 (RATIONAL = 8 bytes)
+        // YResolution at extraDataOffset + 16 (RATIONAL = 8 bytes)
+        val stripOffset = extraDataOffset + 24
 
-        // TIFF Header (little-endian)
-        buf.write(byteArrayOf(0x49, 0x49)) // "II" = little-endian
-        writeU16(buf, 42)       // TIFF magic number
-        writeU32(buf, ifdOffset.toLong())
+        val buf = java.nio.ByteBuffer.allocate(stripOffset + imageSize).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+
+        // TIFF header
+        buf.putShort(0x4949.toShort()) // Little endian
+        buf.putShort(42.toShort()) // Magic number
+        buf.putInt(ifdOffset)
 
         // IFD
-        writeU16(buf, numEntries)
+        buf.putShort(numEntries.toShort())
 
-        // Each IFD entry: tag(2) + type(2) + count(4) + value/offset(4)
-        // Type 3 = SHORT, Type 4 = LONG, Type 1 = BYTE
+        fun writeEntry(tag: Int, type: Int, count: Int, value: Int) {
+            buf.putShort(tag.toShort())
+            buf.putShort(type.toShort())
+            buf.putInt(count)
+            buf.putInt(value)
+        }
 
-        // ImageWidth (tag 256)
-        writeIfdEntry(buf, 256, 3, 1, w.toLong())
-        // ImageLength (tag 257)
-        writeIfdEntry(buf, 257, 3, 1, h.toLong())
-        // BitsPerSample (tag 258) = 8,8,8
-        writeIfdEntry(buf, 258, 3, 3, 0) // offset not needed for 3 shorts when packed
-        // Compression (tag 259) = 1 (no compression)
-        writeIfdEntry(buf, 259, 3, 1, 1)
-        // PhotometricInterpretation (tag 262) = 2 (RGB)
-        writeIfdEntry(buf, 262, 3, 1, 2)
-        // StripOffsets (tag 273)
-        writeIfdEntry(buf, 273, 4, 1, pixelDataOffset.toLong())
-        // SamplesPerPixel (tag 277) = 3
-        writeIfdEntry(buf, 277, 3, 1, 3)
-        // RowsPerStrip (tag 278) = h
-        writeIfdEntry(buf, 278, 3, 1, h.toLong())
-        // StripByteCounts (tag 279)
-        writeIfdEntry(buf, 279, 4, 1, rgbData.size.toLong())
-        // XResolution (tag 282) - rational (72/1)
-        writeIfdEntry(buf, 282, 5, 1, 0) // would need offset for rational, simplify
-        // YResolution (tag 283) - rational (72/1)
-        writeIfdEntry(buf, 283, 5, 1, 0)
+        writeEntry(256, 3, 1, w) // ImageWidth
+        writeEntry(257, 3, 1, h) // ImageLength
+        writeEntry(258, 3, 3, extraDataOffset) // BitsPerSample -> offset
+        writeEntry(259, 3, 1, 1) // Compression = none
+        writeEntry(262, 3, 1, 2) // PhotometricInterpretation = RGB
+        writeEntry(273, 4, 1, stripOffset) // StripOffsets
+        writeEntry(277, 3, 1, 3) // SamplesPerPixel
+        writeEntry(278, 4, 1, h) // RowsPerStrip
+        writeEntry(279, 4, 1, imageSize) // StripByteCounts
+        writeEntry(282, 5, 1, extraDataOffset + 8) // XResolution
+        writeEntry(283, 5, 1, extraDataOffset + 16) // YResolution
 
-        // Next IFD offset = 0 (no more IFDs)
-        writeU32(buf, 0)
+        buf.putInt(0) // Next IFD offset = 0
 
-        // BitsPerSample values (8, 8, 8) if needed
-        // For 3 SHORT values that fit in 12 bytes, they go inline if count <= 2,
-        // otherwise need offset. Since count=3, we write them after IFD.
-        // But for simplicity, the entry above has offset 0 which is incorrect.
-        // Let's fix: write BitsPerSample after IFD.
+        // Extra data: BitsPerSample (8, 8, 8) + 2 bytes padding
+        buf.putShort(8.toShort())
+        buf.putShort(8.toShort())
+        buf.putShort(8.toShort())
+        buf.putShort(0.toShort())
 
-        // Pixel data
-        buf.write(rgbData)
+        // XResolution: 72/1
+        buf.putInt(72)
+        buf.putInt(1)
 
-        out.write(buf.toByteArray())
-    }
+        // YResolution: 72/1
+        buf.putInt(72)
+        buf.putInt(1)
 
-    private fun writeU16(buf: java.io.ByteArrayOutputStream, value: Int) {
-        buf.write(value and 0xFF)
-        buf.write((value shr 8) and 0xFF)
-    }
+        // Pixel data (RGB, no alpha)
+        val pixels = IntArray(w * h)
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        for (pixel in pixels) {
+            buf.put((pixel shr 16 and 0xFF).toByte()) // R
+            buf.put((pixel shr 8 and 0xFF).toByte())  // G
+            buf.put((pixel and 0xFF).toByte())        // B
+        }
 
-    private fun writeU32(buf: java.io.ByteArrayOutputStream, value: Long) {
-        buf.write((value and 0xFF).toInt())
-        buf.write(((value shr 8) and 0xFF).toInt())
-        buf.write(((value shr 16) and 0xFF).toInt())
-        buf.write(((value shr 24) and 0xFF).toInt())
-    }
-
-    private fun writeIfdEntry(buf: java.io.ByteArrayOutputStream, tag: Int, type: Int, count: Long, value: Long) {
-        writeU16(buf, tag)
-        writeU16(buf, type)
-        writeU32(buf, count)
-        writeU32(buf, value)
+        out.write(buf.array())
     }
 }

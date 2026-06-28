@@ -31,6 +31,9 @@ import com.rapidraw.core.FlowMaskManager
 import com.rapidraw.core.UserPreferenceLearning
 import com.rapidraw.core.SceneType
 import com.rapidraw.core.AdjustmentClipboard
+import com.rapidraw.core.CubeLutParser
+import com.rapidraw.core.HighlightReconstructor
+import com.rapidraw.core.LutManager
 
 enum class EditorTab {
     FILM,
@@ -112,9 +115,12 @@ class EditorViewModel(
         private set
     internal var previewBitmapCache: Bitmap? = null
         private set
+    internal var originalExifData: com.rapidraw.core.ExifData? = null
+        private set
     private var gpuPipeline: GpuPipeline? = null
     private var previewJob: Job? = null
     private var smartOptimizeJob: Job? = null
+    private val lutManager = LutManager(context)
 
     init {
         if (imageFile != null) {
@@ -145,6 +151,7 @@ class EditorViewModel(
                 val processed = imageProcessor.loadAndDecode(context, uri)
                 originalBitmap = processed.original
                 previewBitmapCache = processed.preview
+                originalExifData = processed.exif
 
                 withContext(Dispatchers.Main) {
                     _previewBitmap.value = processed.preview
@@ -469,6 +476,54 @@ class EditorViewModel(
     }
 
     /**
+     * 导入 LUT 文件
+     */
+    fun importLut(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val lut = CubeLutParser().parse(context.contentResolver.openInputStream(uri))
+                lut?.let { l ->
+                    val name = uri.lastPathSegment?.substringAfterLast("/")?.removeSuffix(".cube")
+                        ?: "imported_lut"
+                    lutManager.importLut(l, name)
+                    withContext(Dispatchers.Main) {
+                        pushUndo()
+                        _adjustments.value = _adjustments.value.copy(lutIntensity = 100f)
+                        schedulePreviewUpdate()
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    /**
+     * 高光重建
+     */
+    fun applyHighlightReconstruction() {
+        val source = previewBitmapCache ?: return
+        if (source.isRecycled) return
+
+        _isAiProcessing.value = true
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val reconstructor = HighlightReconstructor()
+                val reconstructed = reconstructor.reconstruct(source)
+                withContext(Dispatchers.Main) {
+                    previewBitmapCache = reconstructed
+                    _previewBitmap.value = reconstructed
+                    updateHistogram(reconstructed)
+                    _isAiProcessing.value = false
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    _isAiProcessing.value = false
+                }
+            }
+        }
+    }
+
+    /**
      * Flow Mask 初始化：创建与预览图同尺寸的笔刷蒙版
      */
     fun initFlowMask() {
@@ -558,13 +613,15 @@ class EditorViewModel(
     // ── Export ────────────────────────────────────────────────────────
 
     fun exportImage(settings: ExportSettings) {
-        val source = previewBitmapCache ?: originalBitmap ?: return
+        val source = originalBitmap ?: return
 
         _isLoading.value = true
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val processed = imageProcessor.processFullResolution(_adjustments.value, source)
+                val processed = imageProcessor.processFullResolution(
+                    _adjustments.value, source, allowDownsample = false
+                )
 
                 val coreExportSettings = com.rapidraw.core.ExportSettings(
                     format = settings.format.name,
@@ -582,7 +639,7 @@ class EditorViewModel(
                     watermarkOpacity = settings.watermarkOpacity,
                 )
 
-                imageProcessor.exportImage(processed, coreExportSettings, context)
+                imageProcessor.exportImage(processed, coreExportSettings, context, originalExifData)
 
                 withContext(Dispatchers.Main) {
                     _isLoading.value = false

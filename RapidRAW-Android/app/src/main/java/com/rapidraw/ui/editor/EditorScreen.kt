@@ -52,6 +52,9 @@ import androidx.compose.material.icons.filled.Rotate90DegreesCw
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.DropdownMenu
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.rapidraw.ui.components.WaveformScope
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -142,6 +145,17 @@ fun EditorScreen(
     var showExifSheet by remember { mutableStateOf(false) }
     var showRecipeSheet by remember { mutableStateOf(false) }
     var isLongPressing by remember { mutableStateOf(false) }
+    var showWaveform by remember { mutableStateOf(false) }
+    var showFlowMaskPanel by remember { mutableStateOf(false) }
+    var flowMaskBrushSize by remember { mutableFloatStateOf(50f) }
+    var flowMaskIsErasing by remember { mutableStateOf(false) }
+    var showAiMaskSheet by remember { mutableStateOf(false) }
+
+    val lutPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { viewModel.importLut(it) }
+    }
 
     // Apply pending preset from PresetsDiscoveryScreen
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -268,6 +282,15 @@ fun EditorScreen(
                     )
                 }
 
+                // Waveform toggle
+                IconButton(onClick = { showWaveform = !showWaveform }) {
+                    Icon(
+                        imageVector = Icons.Default.BarChart,
+                        contentDescription = "波形",
+                        tint = if (showWaveform) Color.White else TextSecondary,
+                    )
+                }
+
                 // Compare (long press)
                 IconButton(onClick = { viewModel.toggleShowOriginal() }) {
                     Icon(
@@ -333,6 +356,42 @@ fun EditorScreen(
                             text = { Text("大师配方", color = TextPrimary) },
                             onClick = {
                                 navController.navigate(com.rapidraw.ui.navigation.Routes.PRESETS_DISCOVERY)
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("AI 去噪", color = TextPrimary) },
+                            onClick = {
+                                viewModel.applyAiDenoise()
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("AI 遮罩", color = TextPrimary) },
+                            onClick = {
+                                showAiMaskSheet = true
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("局部调整", color = TextPrimary) },
+                            onClick = {
+                                viewModel.initFlowMask()
+                                showFlowMaskPanel = true
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("导入 LUT", color = TextPrimary) },
+                            onClick = {
+                                lutPicker.launch(arrayOf("*/*"))
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("高光重建", color = TextPrimary) },
+                            onClick = {
+                                viewModel.applyHighlightReconstruction()
                                 showMoreMenu = false
                             },
                         )
@@ -576,6 +635,93 @@ fun EditorScreen(
                 }
             }
 
+            // Waveform overlay
+            if (showWaveform && previewBitmap != null && !previewBitmap!!.isRecycled) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                    color = EditorBackground.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(4.dp),
+                ) {
+                    WaveformScope(
+                        bitmap = previewBitmap!!,
+                        modifier = Modifier.size(200.dp, 120.dp),
+                    )
+                }
+            }
+
+            // Flow Mask brush toolbar
+            if (showFlowMaskPanel) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp),
+                    color = EditorSurface.copy(alpha = 0.9f),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = if (flowMaskIsErasing) "擦除" else "绘制",
+                            color = HasselbladOrange,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (flowMaskIsErasing) EditorBorder else HasselbladOrange)
+                                .clickable { flowMaskIsErasing = false }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        ) {
+                            Text("绘制", color = if (flowMaskIsErasing) TextSecondary else EditorBackground, fontSize = 12.sp)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (flowMaskIsErasing) HasselbladOrange else EditorBorder)
+                                .clickable { flowMaskIsErasing = true }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        ) {
+                            Text("擦除", color = if (flowMaskIsErasing) EditorBackground else TextSecondary, fontSize = 12.sp)
+                        }
+                        Text(
+                            text = "笔刷",
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                        )
+                        androidx.compose.material3.Slider(
+                            value = flowMaskBrushSize,
+                            onValueChange = { flowMaskBrushSize = it },
+                            valueRange = 10f..200f,
+                            modifier = Modifier.width(120.dp),
+                        )
+                        Text(
+                            text = "${flowMaskBrushSize.toInt()}px",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.width(40.dp),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(EditorBorder)
+                                .clickable {
+                                    viewModel.clearFlowMask()
+                                    showFlowMaskPanel = false
+                                }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        ) {
+                            Text("完成", color = TextPrimary, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
             // Viewfinder corner marks (Hasselblad style)
             ViewfinderCorners(
                 modifier = Modifier
@@ -749,6 +895,61 @@ fun EditorScreen(
                     ExifRow("尺寸", "${img.width} × ${img.height}")
                     ExifRow("大小", formatFileSize(img.fileSize))
                     ExifRow("类型", if (img.isRaw) "RAW" else "JPEG/PNG")
+                }
+            }
+        }
+    }
+
+    // ── AI Mask Bottom Sheet ───────────────────────────────────────────
+    if (showAiMaskSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAiMaskSheet = false },
+            containerColor = EditorSurface,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp, bottom = 32.dp),
+            ) {
+                Text(
+                    text = "选择遮罩类型",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                val maskTypes = listOf(
+                    "天空" to com.rapidraw.core.AiMaskGenerator.MaskType.SKY,
+                    "主体" to com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT,
+                    "前景" to com.rapidraw.core.AiMaskGenerator.MaskType.FOREGROUND,
+                    "深度" to com.rapidraw.core.AiMaskGenerator.MaskType.DEPTH,
+                )
+                maskTypes.forEach { (label, type) ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(EditorBorder)
+                            .clickable {
+                                viewModel.generateAiMask(type) { mask ->
+                                    val source = viewModel.previewBitmapCache
+                                    if (source != null && !source.isRecycled) {
+                                        val generator = com.rapidraw.core.AiMaskGenerator()
+                                        val result = generator.applyMaskToBitmap(source, mask)
+                                        viewModel.applyAiInpaintResult(result)
+                                    }
+                                }
+                                showAiMaskSheet = false
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                    ) {
+                        Text(
+                            text = label,
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
@@ -1067,10 +1268,15 @@ private fun ExportPanel(
     var selectedFormat by remember { mutableStateOf(ExportFormat.JPEG) }
     var quality by remember { mutableFloatStateOf(95f) }
     var resizeMode by remember { mutableStateOf(ResizeMode.ORIGINAL) }
+    var resizeValue by remember { mutableStateOf("2048") }
     var keepMetadata by remember { mutableStateOf(true) }
+    var stripGps by remember { mutableStateOf(false) }
     var socialPlatform by remember { mutableStateOf(com.rapidraw.data.model.SocialPlatform.ORIGINAL) }
     var addWatermark by remember { mutableStateOf(false) }
     var watermarkText by remember { mutableStateOf("RapidRAW") }
+    var watermarkAnchor by remember { mutableStateOf(com.rapidraw.data.model.WatermarkAnchor.BOTTOM_RIGHT) }
+    var watermarkScale by remember { mutableFloatStateOf(0.15f) }
+    var watermarkOpacity by remember { mutableFloatStateOf(0.5f) }
 
     Column(
         modifier = Modifier.padding(16.dp),
@@ -1140,6 +1346,21 @@ private fun ExportPanel(
             }
         }
 
+        if (resizeMode != ResizeMode.ORIGINAL) {
+            Spacer(modifier = Modifier.height(8.dp))
+            androidx.compose.material3.OutlinedTextField(
+                value = resizeValue,
+                onValueChange = { resizeValue = it.filter { c -> c.isDigit() } },
+                label = { Text("边长像素", color = TextSecondary) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                ),
+            )
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         // Social Platform
@@ -1164,6 +1385,70 @@ private fun ExportPanel(
                         fontSize = 11.sp,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                     )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Metadata toggle
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { keepMetadata = !keepMetadata }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "保留元数据",
+                color = TextPrimary,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Surface(
+                color = if (keepMetadata) HasselbladOrange else EditorBorder,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(44.dp, 24.dp),
+            ) {
+                Box(contentAlignment = if (keepMetadata) Alignment.CenterEnd else Alignment.CenterStart) {
+                    Box(
+                        modifier = Modifier
+                            .padding(2.dp)
+                            .size(20.dp)
+                            .background(Color.White, CircleShape),
+                    )
+                }
+            }
+        }
+
+        if (keepMetadata) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { stripGps = !stripGps }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "移除 GPS",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Surface(
+                    color = if (stripGps) HasselbladOrange else EditorBorder,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(44.dp, 24.dp),
+                ) {
+                    Box(contentAlignment = if (stripGps) Alignment.CenterEnd else Alignment.CenterStart) {
+                        Box(
+                            modifier = Modifier
+                                .padding(2.dp)
+                                .size(20.dp)
+                                .background(Color.White, CircleShape),
+                        )
+                    }
                 }
             }
         }
@@ -1213,6 +1498,77 @@ private fun ExportPanel(
                     unfocusedTextColor = TextPrimary,
                 ),
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "位置", color = TextSecondary, fontSize = 13.sp)
+            Column(
+                modifier = Modifier.padding(vertical = 4.dp),
+            ) {
+                val anchorRows = listOf(
+                    listOf(
+                        com.rapidraw.data.model.WatermarkAnchor.TOP_LEFT,
+                        com.rapidraw.data.model.WatermarkAnchor.TOP_CENTER,
+                        com.rapidraw.data.model.WatermarkAnchor.TOP_RIGHT
+                    ),
+                    listOf(
+                        com.rapidraw.data.model.WatermarkAnchor.CENTER_LEFT,
+                        com.rapidraw.data.model.WatermarkAnchor.CENTER,
+                        com.rapidraw.data.model.WatermarkAnchor.CENTER_RIGHT
+                    ),
+                    listOf(
+                        com.rapidraw.data.model.WatermarkAnchor.BOTTOM_LEFT,
+                        com.rapidraw.data.model.WatermarkAnchor.BOTTOM_CENTER,
+                        com.rapidraw.data.model.WatermarkAnchor.BOTTOM_RIGHT
+                    ),
+                )
+                anchorRows.forEach { row ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(vertical = 2.dp),
+                    ) {
+                        row.forEach { anchor ->
+                            val isSelected = anchor == watermarkAnchor
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(
+                                        if (isSelected) HasselbladOrange else EditorBorder,
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .clickable { watermarkAnchor = anchor },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(
+                                            if (isSelected) Color.White else TextTertiary,
+                                            CircleShape
+                                        ),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            com.rapidraw.ui.components.HasselSlider(
+                label = "大小",
+                value = watermarkScale,
+                range = 0.05f..0.5f,
+                onValueChange = { watermarkScale = it },
+                defaultValue = 0.15f,
+                format = { v -> "${(v * 100).toInt()}%" },
+            )
+            com.rapidraw.ui.components.HasselSlider(
+                label = "不透明度",
+                value = watermarkOpacity,
+                range = 0.1f..1f,
+                onValueChange = { watermarkOpacity = it },
+                defaultValue = 0.5f,
+                format = { v -> "${(v * 100).toInt()}%" },
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -1226,10 +1582,15 @@ private fun ExportPanel(
                             format = selectedFormat,
                             quality = quality.toInt(),
                             resizeMode = resizeMode,
+                            resizeValue = resizeValue.toIntOrNull() ?: 0,
                             keepMetadata = keepMetadata,
+                            stripGps = stripGps,
                             socialPlatform = socialPlatform,
                             addWatermark = addWatermark,
                             watermarkText = watermarkText,
+                            watermarkAnchor = watermarkAnchor,
+                            watermarkScale = watermarkScale,
+                            watermarkOpacity = watermarkOpacity,
                         )
                     )
                 },

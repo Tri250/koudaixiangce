@@ -21,8 +21,14 @@ class CubeLutParser {
     /**
      * 解析 .cube 文件
      */
-    fun parse(file: File): Lut3D? {
-        val lines = file.readLines()
+    fun parse(file: File): Lut3D? = parse(file.inputStream())
+
+    /**
+     * 解析 .cube 文件输入流
+     */
+    fun parse(inputStream: java.io.InputStream?): Lut3D? {
+        if (inputStream == null) return null
+        val lines = inputStream.bufferedReader().readLines()
         var size = 0
         val values = mutableListOf<Float>()
 
@@ -104,13 +110,29 @@ class LutManager(private val context: Context) {
      */
     fun importLut(file: File): Boolean {
         val lut = parser.parse(file) ?: return false
-        val id = "${System.currentTimeMillis()}_${file.nameWithoutExtension}"
+        return importLut(lut, file.nameWithoutExtension)
+    }
+
+    /**
+     * 从已解析的 Lut3D 导入
+     */
+    fun importLut(lut: CubeLutParser.Lut3D, name: String): Boolean {
+        val id = "${System.currentTimeMillis()}_$name"
         val dest = File(lutDir, "$id.cube")
-        file.copyTo(dest, overwrite = true)
+        dest.bufferedWriter().use { out ->
+            out.write("TITLE \"$name\"\n")
+            out.write("LUT_3D_SIZE ${lut.size}\n")
+            out.write("DOMAIN_MIN 0.0 0.0 0.0\n")
+            out.write("DOMAIN_MAX 1.0 1.0 1.0\n")
+            val data = lut.data
+            for (i in data.indices step 3) {
+                out.write("${data[i]} ${data[i + 1]} ${data[i + 2]}\n")
+            }
+        }
 
         val entry = LutEntry(
             id = id,
-            name = file.nameWithoutExtension,
+            name = name,
             category = "用户导入",
             filePath = dest.absolutePath,
             size = lut.size,

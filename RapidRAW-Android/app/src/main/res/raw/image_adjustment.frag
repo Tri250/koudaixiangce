@@ -117,6 +117,36 @@ uniform float uMaskIntensity;       // 0.0 - 1.0
 uniform sampler3D uLutTexture;      // 3D LUT for color grading
 uniform float uLutIntensity;        // 0.0 - 1.0
 
+// ── Missing Fields Fix ────────────────────────────────────────────────
+uniform float uLumaNoiseReduction;  // 0.0 - 1.0
+uniform float uColorNoiseReduction; // 0.0 - 1.0
+uniform float uCentre;              // -1.0 - 1.0
+uniform float uVignetteMidpoint;    // 0.0 - 1.0
+uniform float uVignetteRoundness;   // -1.0 - 1.0
+uniform float uVignetteFeather;     // 0.0 - 1.0
+uniform float uGrainRoughness;      // 0.0 - 1.0
+uniform float uGlowAmount;          // 0.0 - 1.0
+uniform float uHalationAmount;      // 0.0 - 1.0
+uniform float uFlareAmount;         // 0.0 - 1.0
+uniform float uColorGradingBalance; // -1.0 - 1.0
+uniform float uColorCalibrationShadowsTint; // -1.0 - 1.0
+uniform float uRotation;            // -180 - 180
+uniform int uOrientationSteps;      // 0 - 3
+uniform float uFlipHorizontal;      // 0.0 or 1.0
+uniform float uFlipVertical;        // 0.0 or 1.0
+uniform float uCropAspectRatio;     // 0.0 = off
+uniform float uTransformDistortion; // -1.0 - 1.0
+uniform float uTransformVertical;   // -1.0 - 1.0
+uniform float uTransformHorizontal; // -1.0 - 1.0
+uniform float uTransformRotate;     // -1.0 - 1.0
+uniform float uTransformAspect;     // -1.0 - 1.0
+uniform float uTransformScale;      // 0.1 - 2.0
+uniform float uTransformXOffset;    // -1.0 - 1.0
+uniform float uTransformYOffset;    // -1.0 - 1.0
+uniform vec4 uRedCurve[6];          // RGB red curve points (x0,y0,x1,y1)
+uniform vec4 uGreenCurve[6];        // RGB green curve points
+uniform vec4 uBlueCurve[6];         // RGB blue curve points
+
 in vec2 vTexCoord;
 out vec4 fragColor;
 
@@ -517,11 +547,16 @@ vec3 apply_color_grading(vec3 color) {
     float mm = midtones_mask(luma);
     float hm = highlights_mask(luma);
 
+    // Apply balance: shift weight between shadows and highlights
+    float balance = uColorGradingBalance;
+    float balancedSm = sm * (1.0 + balance * 0.5);
+    float balancedHm = hm * (1.0 - balance * 0.5);
+
     // Normalize masks
-    float maskSum = sm + mm + hm + EPS;
-    sm /= maskSum;
-    mm /= maskSum;
-    hm /= maskSum;
+    float maskSum = balancedSm + mm + balancedHm + EPS;
+    sm = balancedSm / maskSum;
+    mm = mm / maskSum;
+    hm = balancedHm / maskSum;
 
     vec3 tint = sm * uColorGradingShadows +
                 mm * uColorGradingMidtones +
@@ -724,13 +759,21 @@ vec3 apply_vignette(vec3 color, vec2 uv) {
     vec2 centered = uv - 0.5;
     float dist = length(centered) * 1.414; // normalize to [0,1] at corners
 
+    // Apply roundness
+    float aspect = 1.0 + uVignetteRoundness * 0.5;
+    float shapedDist = dist * aspect;
+
+    // Midpoint and feather
+    float start = uVignetteMidpoint * 0.7;
+    float end = start + uVignetteFeather * 0.3 + 0.05;
+
     float vignetteAmount;
     if (uVignette > 0.0) {
         // Darken edges
-        vignetteAmount = 1.0 - smoothstep_custom(0.3, 1.0, dist) * uVignette;
+        vignetteAmount = 1.0 - smoothstep_custom(start, clamp(end, start + 0.01, 1.0), shapedDist) * uVignette;
     } else {
         // Brighten edges (inverse vignette)
-        vignetteAmount = 1.0 + smoothstep_custom(0.3, 1.0, dist) * uVignette;
+        vignetteAmount = 1.0 + smoothstep_custom(start, clamp(end, start + 0.01, 1.0), shapedDist) * uVignette;
     }
 
     return color * vignetteAmount;
@@ -744,6 +787,11 @@ vec3 apply_grain(vec3 color, vec2 uv) {
     float noise = gradient_noise(uv.x * uGrainSize * uResolution.x,
                                   uv.y * uGrainSize * uResolution.y);
     noise = (noise - 0.5) * uGrain * 0.3;
+
+    // Roughness modulates grain sharpness
+    if (uGrainRoughness > EPS) {
+        noise *= (0.5 + uGrainRoughness * 0.5);
+    }
 
     // Grain is more visible in midtones
     float luma = get_luma(color);
@@ -1011,11 +1059,116 @@ vec3 apply_film_simulation(vec3 color, vec2 uv) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Centre (midtone emphasis) ────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_centre(vec3 color) {
+    if (abs(uCentre) < EPS) return color;
+    float luma = get_luma(color);
+    float shift = uCentre * 0.3;
+    float target = clamp(luma + shift, 0.0, 1.0);
+    float factor = (luma > EPS) ? target / luma : 1.0;
+    return color * factor;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Noise Reduction (placeholder) ────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_noise_reduction(vec3 color) {
+    if (uLumaNoiseReduction < EPS && uColorNoiseReduction < EPS) return color;
+    // TODO: implement spatial denoising; for now subtle luma damping
+    float lum = get_luma(color);
+    float damp = 1.0 - uLumaNoiseReduction * 0.05;
+    return vec3(lum) + (color - vec3(lum)) * damp;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Glow ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_glow(vec3 color) {
+    if (uGlowAmount < 0.001) return color;
+    float lum = get_luma(color);
+    float bloom = lum * uGlowAmount * 0.3;
+    return color + vec3(bloom);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Halation ─────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_halation(vec3 color) {
+    if (uHalationAmount < 0.001) return color;
+    float lum = get_luma(color);
+    float highlightMask = smoothstep_custom(0.5, 1.0, lum);
+    float halation = highlightMask * uHalationAmount * 0.4;
+    return vec3(color.r + halation, color.g + halation * 0.3, color.b + halation * 0.1);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Flare ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_flare(vec3 color) {
+    if (uFlareAmount < 0.001) return color;
+    vec3 flareColor = vec3(0.9, 0.85, 0.8);
+    float blend = uFlareAmount * 0.25;
+    return mix(color, flareColor, blend);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: RGB Curves ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+float apply_rgb_curve_channel(float x, vec4 curve[6]) {
+    x = clamp(x, 0.0, 1.0);
+    for (int i = 0; i < 6; i++) {
+        float x0 = curve[i].x;
+        float y0 = curve[i].y;
+        float x1 = curve[i].z;
+        float y1 = curve[i].w;
+        if (x >= x0 && x <= x1 && x1 > x0 + EPS) {
+            float t = (x - x0) / (x1 - x0);
+            return mix(y0, y1, t);
+        }
+    }
+    return x;
+}
+
+vec3 apply_rgb_curves(vec3 color) {
+    color.r = apply_rgb_curve_channel(color.r, uRedCurve);
+    color.g = apply_rgb_curve_channel(color.g, uGreenCurve);
+    color.b = apply_rgb_curve_channel(color.b, uBlueCurve);
+    return color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Color Calibration Shadows Tint ───────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_color_calibration_shadows_tint(vec3 color) {
+    if (abs(uColorCalibrationShadowsTint) < EPS) return color;
+    float luma = get_luma(color);
+    float sMask = shadows_mask(luma);
+    float tint = uColorCalibrationShadowsTint * 0.15 * sMask;
+    return vec3(color.r + tint, color.g - tint * 0.5, color.b + tint);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // ── MAIN ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════
 
 void main() {
     vec2 uv = vTexCoord;
+
+    // Consume transform uniforms to prevent optimization
+    if (uTransformScale > 0.0) {
+        uv = (uv - 0.5) * (1.0 / max(uTransformScale, 0.1)) + 0.5;
+        uv.x += uTransformXOffset * 0.01;
+        uv.y += uTransformYOffset * 0.01;
+    }
+    // TODO: implement full geometric transform (rotation, flip, crop, perspective)
 
     vec4 texColor = texture(uTexture, uv);
     vec3 originalLinear = texColor.rgb; // already in linear space from upload
@@ -1041,11 +1194,17 @@ void main() {
     // === Step 6: Green-Magenta tint ===
     color = apply_green_magenta(color);
 
+    // === Step 6b: Noise reduction ===
+    color = apply_noise_reduction(color);
+
     // === Step 7: Highlights adjustment ===
     color = apply_highlights_adjustment(color, uHighlights);
 
     // === Step 8: Tonal adjustments (contrast/shadows/whites/blacks) ===
     color = apply_tonal_adjustments(color, uContrast, uShadows, uWhites, uBlacks);
+
+    // === Step 8b: Centre (midtone emphasis) ===
+    color = apply_centre(color);
 
     // === Step 9: Creative color (saturation + vibrance) ===
     color = apply_creative_color(color, uSaturation, uVibrance);
@@ -1058,6 +1217,9 @@ void main() {
 
     // === Step 12: Color calibration ===
     color = apply_color_calibration(color);
+
+    // === Step 12b: Color calibration shadows tint ===
+    color = apply_color_calibration_shadows_tint(color);
 
     // === Step 13: Local contrast (clarity/structure) ===
     color = apply_local_contrast(color, uv);
@@ -1077,7 +1239,12 @@ void main() {
     // === Step 18: Vignette ===
     color = apply_vignette(color, uv);
 
-    // === Step 19: Film simulation (complete: curve + grain + color + DR) ===
+    // === Step 19: Creative light effects ===
+    color = apply_glow(color);
+    color = apply_halation(color);
+    color = apply_flare(color);
+
+    // === Step 20: Film simulation (complete: curve + grain + color + DR) ===
     vec3 filmColor = apply_film_simulation(color, uv);
 
     // === Step 20: Blend film with non-film based on intensity ===
@@ -1085,6 +1252,9 @@ void main() {
 
     // === Step 21: User tone curves ===
     color = apply_tone_curve(color);
+
+    // === Step 21b: RGB curves ===
+    color = apply_rgb_curves(color);
 
     // === Step 22: AgX tone mapping (if enabled) ===
     if (uAgXEnabled > 0.5) {

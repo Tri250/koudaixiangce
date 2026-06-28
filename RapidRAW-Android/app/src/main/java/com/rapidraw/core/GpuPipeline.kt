@@ -336,6 +336,23 @@ class GpuPipeline(private val context: Context) {
             // Flow Mask & LUT
             "uMaskTexture", "uMaskIntensity",
             "uLutTexture", "uLutIntensity",
+            // Missing fields fix
+            "uLumaNoiseReduction", "uColorNoiseReduction",
+            "uCentre",
+            "uVignetteMidpoint", "uVignetteRoundness", "uVignetteFeather",
+            "uGrainRoughness",
+            "uGlowAmount", "uHalationAmount", "uFlareAmount",
+            "uColorGradingBalance",
+            "uColorCalibrationShadowsTint",
+            "uRotation", "uOrientationSteps",
+            "uFlipHorizontal", "uFlipVertical",
+            "uCropAspectRatio",
+            "uTransformDistortion", "uTransformVertical", "uTransformHorizontal",
+            "uTransformRotate", "uTransformAspect", "uTransformScale",
+            "uTransformXOffset", "uTransformYOffset",
+            "uRedCurve[0]", "uRedCurve[1]", "uRedCurve[2]", "uRedCurve[3]", "uRedCurve[4]", "uRedCurve[5]",
+            "uGreenCurve[0]", "uGreenCurve[1]", "uGreenCurve[2]", "uGreenCurve[3]", "uGreenCurve[4]", "uGreenCurve[5]",
+            "uBlueCurve[0]", "uBlueCurve[1]", "uBlueCurve[2]", "uBlueCurve[3]", "uBlueCurve[4]", "uBlueCurve[5]",
         )
 
         for (name in uniformNames) {
@@ -601,6 +618,48 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uAgXEnabled", if (agxEnabled) 1f else 0f)
         setUniform1f("uAgXContrast", 0f)
         setUniform1f("uAgXPedestal", 0f)
+
+        // ── Missing fields fix ──
+        setUniform1f("uLumaNoiseReduction", adjustments.lumaNoiseReduction / 100f)
+        setUniform1f("uColorNoiseReduction", adjustments.colorNoiseReduction / 100f)
+        setUniform1f("uCentre", adjustments.centre / 100f)
+        setUniform1f("uVignetteMidpoint", adjustments.vignetteMidpoint / 100f)
+        setUniform1f("uVignetteRoundness", adjustments.vignetteRoundness / 100f)
+        setUniform1f("uVignetteFeather", adjustments.vignetteFeather / 100f)
+        setUniform1f("uGrainRoughness", adjustments.grainRoughness / 100f)
+        setUniform1f("uGlowAmount", adjustments.glowAmount / 100f)
+        setUniform1f("uHalationAmount", adjustments.halationAmount / 100f)
+        setUniform1f("uFlareAmount", adjustments.flareAmount / 100f)
+        setUniform1f("uColorGradingBalance", adjustments.colorGrading.balance / 100f)
+        setUniform1f("uColorCalibrationShadowsTint", adjustments.colorCalibration.shadowsTint / 100f)
+        setUniform1f("uRotation", adjustments.rotation)
+        setUniform1i("uOrientationSteps", adjustments.orientationSteps)
+        setUniform1f("uFlipHorizontal", if (adjustments.flipHorizontal) 1f else 0f)
+        setUniform1f("uFlipVertical", if (adjustments.flipVertical) 1f else 0f)
+        setUniform1f("uCropAspectRatio", adjustments.crop?.aspectRatio ?: 0f)
+        setUniform1f("uTransformDistortion", adjustments.transformDistortion / 100f)
+        setUniform1f("uTransformVertical", adjustments.transformVertical / 100f)
+        setUniform1f("uTransformHorizontal", adjustments.transformHorizontal / 100f)
+        setUniform1f("uTransformRotate", adjustments.transformRotate / 100f)
+        setUniform1f("uTransformAspect", adjustments.transformAspect / 100f)
+        setUniform1f("uTransformScale", adjustments.transformScale / 100f)
+        setUniform1f("uTransformXOffset", adjustments.transformXOffset / 100f)
+        setUniform1f("uTransformYOffset", adjustments.transformYOffset / 100f)
+
+        // RGB Curves: pack up to 12 points into 6 vec4s
+        fun uploadCurve(name: String, curve: List<com.rapidraw.data.model.Coord>) {
+            val normalized = curve.map { it.x / 255f to it.y / 255f }
+            for (i in 0 until 6) {
+                val default0 = (i * 2) * (1f / 11f) to (i * 2) * (1f / 11f)
+                val default1 = (i * 2 + 1) * (1f / 11f) to (i * 2 + 1) * (1f / 11f)
+                val p0 = normalized.getOrElse(i * 2) { default0 }
+                val p1 = normalized.getOrElse(i * 2 + 1) { default1 }
+                setUniform4f("$name[$i]", p0.first, p0.second, p1.first, p1.second)
+            }
+        }
+        uploadCurve("uRedCurve", adjustments.redCurve)
+        uploadCurve("uGreenCurve", adjustments.greenCurve)
+        uploadCurve("uBlueCurve", adjustments.blueCurve)
 
         // ── Debug ──
         setUniform1f("uClippingPreview", if (adjustments.showClipping) 1f else 0f)
