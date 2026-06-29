@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.Compare
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Gesture
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
@@ -72,6 +73,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.rapidraw.ui.components.ClippingOverlay
 import com.rapidraw.ui.components.InteractiveCropOverlay
 import com.rapidraw.ui.components.WaveformScope
+import com.rapidraw.ui.components.ScopeMode
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -133,6 +135,7 @@ import com.rapidraw.ui.components.MaskToolPanel
 import com.rapidraw.ui.components.MaskType
 import com.rapidraw.ui.components.RecipeShareSheet
 import com.rapidraw.ui.components.SmartOptimizeConfirm
+import com.rapidraw.core.FaceWhiteningProcessor
 import com.rapidraw.ui.navigation.Routes
 import com.rapidraw.ui.presets.PresetsSheet
 import com.rapidraw.ui.theme.EditorBackground
@@ -182,6 +185,13 @@ fun EditorScreen(
     val event by viewModel.event.collectAsState()
     val originalPreviewBitmap by viewModel.originalPreviewBitmap.collectAsState()
     val isAiProcessing by viewModel.isAiProcessing.collectAsState()
+    val scopeMode by viewModel.scopeMode.collectAsState()
+    val showBeautyPanel by viewModel.showBeautyPanel.collectAsState()
+    val faceWhiteningParams by viewModel.faceWhiteningParams.collectAsState()
+    val colorReplacementSourceHue by viewModel.colorReplacementSourceHue.collectAsState()
+    val colorReplacementTargetHue by viewModel.colorReplacementTargetHue.collectAsState()
+    val colorReplacementRange by viewModel.colorReplacementRange.collectAsState()
+    val colorReplacementIntensity by viewModel.colorReplacementIntensity.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -681,10 +691,40 @@ fun EditorScreen(
                     color = EditorBackground.copy(alpha = 0.6f),
                     shape = RoundedCornerShape(4.dp),
                 ) {
-                    WaveformScope(
-                        bitmap = waveformBitmap,
-                        modifier = Modifier.size(200.dp, 120.dp),
-                    )
+                    Column {
+                        WaveformScope(
+                            bitmap = waveformBitmap,
+                            mode = scopeMode,
+                            modifier = Modifier.size(200.dp, 120.dp),
+                        )
+                        // Scope mode selector row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(EditorSurface.copy(alpha = 0.8f))
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                        ) {
+                            ScopeMode.entries.forEach { mode ->
+                                val isSelected = mode == scopeMode
+                                val label = when (mode) {
+                                    ScopeMode.WAVEFORM -> "波形"
+                                    ScopeMode.PARADE -> "RGB"
+                                    ScopeMode.VECTORSCOPE -> "矢量"
+                                }
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) HasselbladOrange else TextTertiary,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable { viewModel.setScopeMode(mode) }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1094,6 +1134,7 @@ fun EditorScreen(
                                     viewModel.initFlowMask()
                                     showFlowMaskPanel = true
                                 },
+                                onBeautyPanel = { viewModel.showBeautyPanel() },
                             )
                             EditorTab.FILTER -> FilterPanel(
                                 selectedFilmId = selectedFilmId,
@@ -1135,6 +1176,7 @@ fun EditorScreen(
                                 onRecipeShare = { showRecipeSheet = true },
                                 onEditHistory = { viewModel.showEditHistory() },
                                 onShare = { settings -> viewModel.shareImage(settings) },
+                                onExportQueue = { navController.navigate(Routes.EXPORT_QUEUE) },
                                 hdrExportFormat = adjustments.hdrExportFormat,
                                 colorScienceMode = adjustments.colorScienceMode,
                             )
@@ -1318,6 +1360,29 @@ fun EditorScreen(
                 },
                 onRenamePreset = { id, name -> viewModel.renameUserPreset(id, name) },
                 onImportRequest = { navController.navigate(Routes.PRESET_IMPORT) },
+            )
+        }
+    }
+
+    // ── Beauty Panel Sheet (PixelFruit 集成) ──────────────────────────────
+    if (showBeautyPanel) {
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.hideBeautyPanel() },
+            containerColor = EditorSurface,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            BeautyPanel(
+                faceWhiteningParams = faceWhiteningParams,
+                onFaceWhiteningParamsChange = { viewModel.updateFaceWhiteningParams(it) },
+                colorReplacementSourceHue = colorReplacementSourceHue,
+                colorReplacementTargetHue = colorReplacementTargetHue,
+                colorReplacementRange = colorReplacementRange,
+                colorReplacementIntensity = colorReplacementIntensity,
+                onColorReplacementChange = { s, t, r, i -> viewModel.updateColorReplacement(s, t, r, i) },
+                onApply = {
+                    viewModel.applyBeautyEffects()
+                    viewModel.hideBeautyPanel()
+                },
             )
         }
     }
@@ -1714,6 +1779,7 @@ private fun ExportPanel(
     onRecipeShare: () -> Unit = {},
     onEditHistory: () -> Unit = {},
     onShare: ((ExportSettings) -> Unit)? = null,
+    onExportQueue: (() -> Unit)? = null,
     hdrExportFormat: Int = 0,
     colorScienceMode: Int = 0,
 ) {
@@ -2024,10 +2090,10 @@ private fun ExportPanel(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 2026 高级导出入口行（HDR / 配方分享 / 编辑历史）
+        // 2026 高级导出入口行（HDR / 配方分享 / 编辑历史 / 导出队列）
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             // HDR 导出
             ExportShortcutButton(
@@ -2051,6 +2117,22 @@ private fun ExportPanel(
                 sublabel = "版本分支",
                 icon = Icons.Default.History,
                 onClick = onEditHistory,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            // 导出队列
+            ExportShortcutButton(
+                label = "导出队列",
+                sublabel = "批量导出管理",
+                icon = Icons.Default.Schedule,
+                onClick = onExportQueue ?: {},
                 modifier = Modifier.weight(1f),
             )
         }
@@ -2307,6 +2389,7 @@ private fun AiPanel(
     onAiMask: () -> Unit,
     onHighlightReconstruct: () -> Unit,
     onFlowMask: () -> Unit,
+    onBeautyPanel: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -2407,6 +2490,15 @@ private fun AiPanel(
             subtitle = "笔刷蒙版 + 流量控制，精细局部编辑",
             icon = Icons.Default.Gesture,
             onClick = onFlowMask,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        AiFeatureCard(
+            title = "美颜",
+            subtitle = "面部美白 + 颜色替换 (PixelFruit)",
+            icon = Icons.Default.Face,
+            onClick = onBeautyPanel,
         )
     }
 }

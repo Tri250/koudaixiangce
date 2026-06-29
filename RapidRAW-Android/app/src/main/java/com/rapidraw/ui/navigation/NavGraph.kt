@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.rapidraw.ui.ai.AiInpaintScreen
 import com.rapidraw.ui.editor.EditorScreen
 import com.rapidraw.ui.library.LibraryScreen
+import com.rapidraw.ui.export.ExportQueueScreen
 import com.rapidraw.ui.presets.PresetImportScreen
 import com.rapidraw.ui.presets.PresetsDiscoveryScreen
 import com.rapidraw.ui.settings.SettingsScreen
@@ -44,6 +45,7 @@ object Routes {
     const val PRESETS_DISCOVERY = "presets_discovery"
     const val SETTINGS = "settings"
     const val PRESET_IMPORT = "preset_import"
+    const val EXPORT_QUEUE = "export_queue"
 
     /** 深层链接 URI 前缀 */
     const val DEEP_LINK_PREFIX = "rapidraw://"
@@ -336,6 +338,18 @@ fun RapidNavHost(
                         ?.set(Routes.ResultKeys.IMPORTED_PRESET_URI, preset)
                     navController.popBackStack()
                 },
+            )
+        }
+
+        composable(
+            route = Routes.EXPORT_QUEUE,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+            popEnterTransition = { Motion.enterSlideUp },
+            popExitTransition = { Motion.exitSlideDown },
+        ) {
+            ExportQueueScreen(
+                onBack = { navController.popBackStack() },
             )
         }
     }

@@ -9,6 +9,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.AdjustmentClipboard
 import com.rapidraw.core.AiDenoiser
+import com.rapidraw.core.BranchableHistory
+import com.rapidraw.core.BranchableHistoryFactory
+import com.rapidraw.core.ColorReplacementProcessor
+import com.rapidraw.core.HistoryNode
 import com.rapidraw.core.AiInpainter
 import com.rapidraw.core.AiMaskGenerator
 import com.rapidraw.core.AutoStraightener
@@ -172,6 +176,33 @@ class EditorViewModel(
     private val _editHistory = MutableStateFlow<EditHistoryTree?>(null)
     val editHistory: StateFlow<EditHistoryTree?> = _editHistory.asStateFlow()
 
+    private val _currentBranchName = MutableStateFlow("main")
+    val currentBranchName: StateFlow<String> = _currentBranchName.asStateFlow()
+
+    private val _branchList = MutableStateFlow<List<String>>(listOf("main"))
+    val branchList: StateFlow<List<String>> = _branchList.asStateFlow()
+
+    private val _scopeMode = MutableStateFlow(com.rapidraw.ui.components.ScopeMode.WAVEFORM)
+    val scopeMode: StateFlow<com.rapidraw.ui.components.ScopeMode> = _scopeMode.asStateFlow()
+
+    private val _showBeautyPanel = MutableStateFlow(false)
+    val showBeautyPanel: StateFlow<Boolean> = _showBeautyPanel.asStateFlow()
+
+    private val _faceWhiteningParams = MutableStateFlow(com.rapidraw.core.FaceWhiteningProcessor.Params())
+    val faceWhiteningParams: StateFlow<com.rapidraw.core.FaceWhiteningProcessor.Params> = _faceWhiteningParams.asStateFlow()
+
+    private val _colorReplacementSourceHue = MutableStateFlow(0f)
+    val colorReplacementSourceHue: StateFlow<Float> = _colorReplacementSourceHue.asStateFlow()
+
+    private val _colorReplacementTargetHue = MutableStateFlow(180f)
+    val colorReplacementTargetHue: StateFlow<Float> = _colorReplacementTargetHue.asStateFlow()
+
+    private val _colorReplacementRange = MutableStateFlow(30f)
+    val colorReplacementRange: StateFlow<Float> = _colorReplacementRange.asStateFlow()
+
+    private val _colorReplacementIntensity = MutableStateFlow(1f)
+    val colorReplacementIntensity: StateFlow<Float> = _colorReplacementIntensity.asStateFlow()
+
     // ── 2026 / AlcedoStudio / RapidRAW 集成状态 ──────────────────────
     private val _showColorScienceSheet = MutableStateFlow(false)
     val showColorScienceSheet: StateFlow<Boolean> = _showColorScienceSheet.asStateFlow()
@@ -215,6 +246,7 @@ class EditorViewModel(
     // region Internal State
     private val undoStack = ArrayDeque<Adjustments>(50)
     private val redoStack = ArrayDeque<Adjustments>(50)
+    private var branchableHistory: BranchableHistory? = null
 
     // 所有 Bitmap 状态通过 bitmapMutex 保护，避免并发访问/回收导致崩溃
     private val bitmapMutex = Mutex()
@@ -338,6 +370,10 @@ class EditorViewModel(
         _zoomLevel.value = 1f
         _exportQueue.value = emptyList()
         _editHistory.value = null
+        branchableHistory = null
+        _currentBranchName.value = "main"
+        _branchList.value = listOf("main")
+        _showBeautyPanel.value = false
     }
 
     // region Adjustment Updates
@@ -895,6 +931,9 @@ class EditorViewModel(
             }
         }
         schedulePreviewUpdate()
+        branchableHistory?.undo()?.let { node ->
+            _currentBranchName.value = branchableHistory?.currentBranch ?: "main"
+        }
     }
 
     fun redo() {
@@ -912,6 +951,9 @@ class EditorViewModel(
             }
         }
         schedulePreviewUpdate()
+        branchableHistory?.redo()?.let { node ->
+            _currentBranchName.value = branchableHistory?.currentBranch ?: "main"
+        }
     }
 
     private fun pushUndo() {
@@ -945,6 +987,17 @@ class EditorViewModel(
             newTree.pushEntry(desc, _adjustments.value)
             _editHistory.value = newTree
         }
+
+        // 同步到 BranchableHistory
+        val bh = branchableHistory
+        if (bh != null) {
+            bh.pushState(_adjustments.value, desc)
+        } else {
+            branchableHistory = BranchableHistoryFactory.create(_adjustments.value)
+            branchableHistory?.pushState(_adjustments.value, desc)
+        }
+        _currentBranchName.value = branchableHistory?.currentBranch ?: "main"
+        _branchList.value = branchableHistory?.branchNames ?: listOf("main")
     }
 
     fun jumpToHistoryEntry(entry: EditHistoryEntry) {
@@ -1192,6 +1245,94 @@ class EditorViewModel(
 
     fun hideScopes() {
         _showScopePanel.value = false
+    }
+
+    // ── BranchableHistory 分支管理 (AlcedoStudio Git-like) ──────────
+
+    fun createBranch(branchName: String) {
+        val bh = branchableHistory ?: return
+        val node = bh.getCurrentNode()
+        bh.branchFrom(node.id, branchName)
+        _currentBranchName.value = bh.currentBranch
+        _branchList.value = bh.branchNames
+    }
+
+    fun switchBranch(branchName: String) {
+        val bh = branchableHistory ?: return
+        val node = bh.switchBranch(branchName) ?: return
+        _adjustments.value = node.adjustments
+        _currentBranchName.value = bh.currentBranch
+        _branchList.value = bh.branchNames
+        schedulePreviewUpdate()
+    }
+
+    fun collapseBranch(branchName: String) {
+        val bh = branchableHistory ?: return
+        bh.collapseBranch(branchName)
+        _currentBranchName.value = bh.currentBranch
+        _branchList.value = bh.branchNames
+    }
+
+    // ── Scope Mode ────────────────────────────────────────────────
+
+    fun setScopeMode(mode: com.rapidraw.ui.components.ScopeMode) {
+        _scopeMode.value = mode
+    }
+
+    // ── Beauty Panel (PixelFruit 集成) ───────────────────────────
+
+    fun showBeautyPanel() {
+        _showBeautyPanel.value = true
+    }
+
+    fun hideBeautyPanel() {
+        _showBeautyPanel.value = false
+    }
+
+    fun updateFaceWhiteningParams(params: com.rapidraw.core.FaceWhiteningProcessor.Params) {
+        _faceWhiteningParams.value = params
+    }
+
+    fun updateColorReplacement(sourceHue: Float, targetHue: Float, range: Float, intensity: Float) {
+        _colorReplacementSourceHue.value = sourceHue
+        _colorReplacementTargetHue.value = targetHue
+        _colorReplacementRange.value = range
+        _colorReplacementIntensity.value = intensity
+    }
+
+    fun applyBeautyEffects() {
+        pushUndo("美颜效果")
+        // Apply face whitening
+        launchAiJob {
+            val source = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launchAiJob
+            _isAiProcessing.value = true
+            runCatching {
+                val whitened = com.rapidraw.core.FaceWhiteningProcessor.process(source, _faceWhiteningParams.value)
+                // 将 BeautyPanel 的色相参数转换为 ColorReplacementProcessor.Params
+                val srcColor = android.graphics.Color.HSVToColor(floatArrayOf(_colorReplacementSourceHue.value, 1f, 1f))
+                val tgtColor = android.graphics.Color.HSVToColor(floatArrayOf(_colorReplacementTargetHue.value, 1f, 1f))
+                val crParams = com.rapidraw.core.ColorReplacementProcessor.Params(
+                    sourceColor = srcColor,
+                    targetColor = tgtColor,
+                    hueTolerance = _colorReplacementRange.value,
+                    intensity = _colorReplacementIntensity.value,
+                )
+                val result = com.rapidraw.core.ColorReplacementProcessor.process(whitened, crParams)
+                bitmapMutex.withLock {
+                    previewBitmapCache?.recycle()
+                    previewBitmapCache = result
+                }
+                _previewBitmap.value = result
+                updateHistogramAsync(result)
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "Beauty effects failed", throwable)
+                _event.value = EditorEvent.Error("美颜效果应用失败: ${throwable.localizedMessage}")
+            }
+            _isAiProcessing.value = false
+        }
     }
 
     // endregion
