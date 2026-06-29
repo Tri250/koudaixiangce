@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -69,6 +70,9 @@ fun PresetsSheet(
     onSavePreset: (String) -> Unit,
     savedPresets: List<Preset> = emptyList(),
     onDeletePreset: (String) -> Unit = {},
+    onApplyPreset: (Preset) -> Unit = {},
+    onRenamePreset: (String, String) -> Unit = { _, _ -> },
+    onImportRequest: (() -> Unit)? = null,
 ) {
     var selectedFilmId by remember { mutableStateOf<String?>(null) }
     var activeCategory by remember { mutableStateOf(FilmCategory.CLASSIC) }
@@ -92,6 +96,7 @@ fun PresetsSheet(
         RenamePresetDialog(
             currentName = renamePreset.name,
             onConfirm = { name ->
+                onRenamePreset(renamePreset.id, name)
                 showRenameDialog = null
             },
             onDismiss = { showRenameDialog = null },
@@ -206,15 +211,32 @@ fun PresetsSheet(
                 fontSize = 14.sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
             )
-            IconButton(
-                onClick = { showSaveDialog = true },
-                modifier = Modifier.size(32.dp),
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "保存预设",
-                    tint = HasselbladOrange,
-                )
+                if (onImportRequest != null) {
+                    IconButton(
+                        onClick = onImportRequest,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Download,
+                            contentDescription = "导入预设",
+                            tint = HasselbladOrange,
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = { showSaveDialog = true },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = "保存预设",
+                        tint = HasselbladOrange,
+                    )
+                }
             }
         }
 
@@ -242,7 +264,7 @@ fun PresetsSheet(
                 items(savedPresets, key = { it.id }) { preset ->
                     PresetCard(
                         preset = preset,
-                        onClick = { /* apply preset */ },
+                        onClick = { onApplyPreset(preset) },
                         onLongPress = {
                             contextMenuPreset = preset
                             showContextMenu = true

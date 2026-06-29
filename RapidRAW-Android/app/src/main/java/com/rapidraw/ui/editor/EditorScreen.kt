@@ -133,6 +133,8 @@ import com.rapidraw.ui.components.MaskToolPanel
 import com.rapidraw.ui.components.MaskType
 import com.rapidraw.ui.components.RecipeShareSheet
 import com.rapidraw.ui.components.SmartOptimizeConfirm
+import com.rapidraw.ui.navigation.Routes
+import com.rapidraw.ui.presets.PresetsSheet
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.EditorSurface
@@ -220,6 +222,7 @@ fun EditorScreen(
     var flowMaskIsErasing by remember { mutableStateOf(false) }
     var showAiMaskSheet by remember { mutableStateOf(false) }
     var showInteractiveCrop by remember { mutableStateOf(false) }
+    var showPresetsSheet by remember { mutableStateOf(false) }
 
     // Mask editing mode state
     var isMaskMode by remember { mutableStateOf(false) }
@@ -1101,6 +1104,7 @@ fun EditorScreen(
                                 onOpenLutLibrary = { viewModel.showLutLibrary() },
                                 onOpenColorScience = { viewModel.showColorScience() },
                                 onClearLut = { viewModel.clearLut() },
+                                onOpenPresets = { showPresetsSheet = true },
                             )
                             EditorTab.ADJUST -> {
                                 if (showAdvanced) {
@@ -1290,6 +1294,33 @@ fun EditorScreen(
         onCreateBranch = { entry -> viewModel.createBranchFromEntry(entry) },
         onDismiss = { viewModel.hideEditHistory() },
     )
+
+    // ── User Presets Sheet ──────────────────────────────────────────────
+    val userPresets by viewModel.userPresets.collectAsState()
+    if (showPresetsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPresetsSheet = false },
+            containerColor = EditorSurface,
+        ) {
+            PresetsSheet(
+                adjustments = adjustments,
+                onApplyFilm = { film ->
+                    viewModel.selectFilm(film)
+                    showPresetsSheet = false
+                },
+                onClearFilm = { viewModel.clearFilm() },
+                onSavePreset = { name -> viewModel.saveCurrentAsPreset(name) },
+                savedPresets = userPresets,
+                onDeletePreset = { id -> viewModel.deleteUserPreset(id) },
+                onApplyPreset = { preset ->
+                    viewModel.applyPreset(preset)
+                    showPresetsSheet = false
+                },
+                onRenamePreset = { id, name -> viewModel.renameUserPreset(id, name) },
+                onImportRequest = { navController.navigate(Routes.PRESET_IMPORT) },
+            )
+        }
+    }
 }
 }
 
@@ -2476,6 +2507,7 @@ private fun FilterPanel(
     onOpenLutLibrary: () -> Unit,
     onOpenColorScience: () -> Unit,
     onClearLut: () -> Unit,
+    onOpenPresets: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -2570,6 +2602,46 @@ private fun FilterPanel(
                     )
                 }
             }
+        }
+
+        // 用户预设入口
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(EditorBorder.copy(alpha = 0.3f))
+                .clickable(onClick = onOpenPresets)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Icon(
+                Icons.Default.AutoAwesome,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "我的预设",
+                    color = TextPrimary,
+                    style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
+                )
+                Text(
+                    text = "保存 / 导入 / 应用",
+                    color = TextTertiary,
+                    style = com.rapidraw.ui.theme.EditorTypography.badge,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = null,
+                tint = TextTertiary,
+                modifier = Modifier
+                    .size(18.dp)
+                    .graphicsLayer(rotationZ = 180f),
+            )
         }
 
         // 胶片模拟（复用现有 FilmPanel）

@@ -23,6 +23,7 @@ import com.rapidraw.ui.presets.PresetImportScreen
 import com.rapidraw.ui.presets.PresetsDiscoveryScreen
 import com.rapidraw.ui.settings.SettingsScreen
 import com.rapidraw.data.model.ImageFile
+import com.rapidraw.data.model.Preset
 import com.rapidraw.ui.theme.Motion
 
 /**
@@ -148,6 +149,14 @@ fun RapidNavHost(
                 previousEntry?.savedStateHandle?.get<android.graphics.Bitmap>(Routes.ResultKeys.AI_INPAINT_RESULT)?.let { bitmap ->
                     vm.applyAiInpaintResult(bitmap)
                     previousEntry.savedStateHandle[Routes.ResultKeys.AI_INPAINT_RESULT] = null
+                }
+            }
+
+            // 处理从 PresetImport 返回的导入预设
+            LaunchedEffect(previousEntry) {
+                previousEntry?.savedStateHandle?.get<Preset>(Routes.ResultKeys.IMPORTED_PRESET_URI)?.let { preset ->
+                    vm.applyPreset(preset)
+                    previousEntry.savedStateHandle[Routes.ResultKeys.IMPORTED_PRESET_URI] = null
                 }
             }
 
@@ -321,6 +330,12 @@ fun RapidNavHost(
         ) {
             PresetImportScreen(
                 onBack = { navController.popBackStack() },
+                onImportPreset = { preset ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(Routes.ResultKeys.IMPORTED_PRESET_URI, preset)
+                    navController.popBackStack()
+                },
             )
         }
     }

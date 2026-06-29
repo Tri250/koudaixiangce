@@ -426,10 +426,19 @@ class ImageProcessor {
             val (exif, orientation) = readExifData(context, uri)
 
             // Decode bitmap
-            val originalBitmap = if (isDng && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                decodeDng(context, uri)
-            } else if (isRaw) {
-                decodeRawFallback(context, uri)
+            val originalBitmap = if (isRaw) {
+                // Try libraw-based decoder first (real RAW support for CR2/NEF/ARW/RAF/RW2/ORF/DNG)
+                val librawBitmap = try {
+                    RawDecoder.decodeRaw(context, uri)
+                } catch (e: Exception) {
+                    Log.w(TAG, "libraw decoder failed, falling back: ${e.message}")
+                    null
+                }
+                librawBitmap ?: if (isDng && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    decodeDng(context, uri)
+                } else {
+                    decodeRawFallback(context, uri)
+                }
             } else {
                 decodeRegular(context, uri)
             }

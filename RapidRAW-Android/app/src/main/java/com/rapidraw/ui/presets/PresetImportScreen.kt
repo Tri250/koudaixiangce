@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.ui.theme.EditorBackground
@@ -37,12 +38,18 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.core.PresetConverter
+import com.rapidraw.data.model.Preset
+import java.util.UUID
 
 @Composable
 fun PresetImportScreen(
     onBack: () -> Unit,
+    onImportPreset: (Preset) -> Unit,
 ) {
+    val context = LocalContext.current
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    var importError by remember { mutableStateOf<String?>(null) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -117,7 +124,23 @@ fun PresetImportScreen(
 
             // Import button
             Button(
-                onClick = { /* TODO: Implement preset import logic */ },
+                onClick = {
+                    val uri = selectedUri
+                    if (uri != null) {
+                        val result = PresetConverter.importFile(uri, context.contentResolver)
+                        if (result != null) {
+                            val preset = Preset(
+                                id = UUID.randomUUID().toString(),
+                                name = result.name,
+                                adjustments = result.adjustments,
+                                createdAt = System.currentTimeMillis(),
+                            )
+                            onImportPreset(preset)
+                        } else {
+                            importError = "无法识别该预设文件（仅支持 .xmp / .lrtemplate）"
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = selectedUri != null,
                 shape = RoundedCornerShape(12.dp),
@@ -130,6 +153,15 @@ fun PresetImportScreen(
                     text = "导入",
                     color = TextPrimary,
                     fontWeight = FontWeight.Medium,
+                )
+            }
+
+            if (importError != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = importError ?: "",
+                    color = HasselbladOrange,
+                    fontSize = 13.sp,
                 )
             }
         }

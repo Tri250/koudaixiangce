@@ -23,6 +23,7 @@ import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.LutLibraryManager
 import com.rapidraw.core.LutManager
 import com.rapidraw.core.NegativeConverter
+import com.rapidraw.core.PresetManager
 import com.rapidraw.core.SceneClassifier
 import com.rapidraw.core.SceneType
 import com.rapidraw.core.SidecarManager
@@ -190,6 +191,11 @@ class EditorViewModel(
     // LUT 库（独立于 LutManager，提供 UI 浏览 + 收藏 + 搜索能力）
     val lutLibrary: LutLibraryManager = LutLibraryManager(appContext)
 
+    // 用户预设管理（保存 / 重命名 / 删除）
+    private val presetManager = PresetManager(appContext)
+    private val _userPresets = MutableStateFlow<List<Preset>>(emptyList())
+    val userPresets: StateFlow<List<Preset>> = _userPresets.asStateFlow()
+
     init {
         // 异步初始化 LUT 库（防崩溃：asset 加载失败不阻塞启动）
         viewModelScope.launch(Dispatchers.IO) {
@@ -198,6 +204,10 @@ class EditorViewModel(
             } catch (e: Exception) {
                 Log.w(TAG, "LUT library initialization failed", e)
             }
+        }
+        // 异步加载用户预设
+        viewModelScope.launch(Dispatchers.IO) {
+            _userPresets.value = presetManager.getAll()
         }
     }
     // endregion
@@ -399,6 +409,33 @@ class EditorViewModel(
             _selectedFilmId.value = null
         }
         schedulePreviewUpdate()
+    }
+
+    fun saveCurrentAsPreset(name: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val filmId = _selectedFilmId.value
+            val current = _adjustments.value
+            presetManager.saveFromAdjustments(name, current, filmId)
+            _userPresets.value = presetManager.getAll()
+            withContext(Dispatchers.Main) {
+                pushUndo("保存预设: $name")
+                _event.value = EditorEvent.Error("预设已保存: $name")
+            }
+        }
+    }
+
+    fun deleteUserPreset(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            presetManager.delete(id)
+            _userPresets.value = presetManager.getAll()
+        }
+    }
+
+    fun renameUserPreset(id: String, name: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            presetManager.rename(id, name)
+            _userPresets.value = presetManager.getAll()
+        }
     }
     // endregion
 

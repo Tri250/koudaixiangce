@@ -44,3 +44,13 @@ app/jacoco.exec
 
 # Dependency directories (if vendored)
 /vendor/
+
+# Kotlin compiler session cache
+.kotlin/
+
+# Reference repositories downloaded for feature analysis (do not commit)
+/AlcedoStudio-ref/
+/RapidRAW-ref/
+/PixelFruit-ref/
+/libraw.tar.gz
+/LibRaw-0.21.2/

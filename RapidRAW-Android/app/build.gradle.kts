@@ -10,13 +10,14 @@ plugins {
 android {
     namespace = "com.rapidraw"
     compileSdk = 36
+    ndkVersion = "26.3.11579264"
 
     defaultConfig {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        versionCode = 152
-        versionName = "1.5.2"
+        versionCode = 153
+        versionName = "1.5.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -26,6 +27,19 @@ android {
         // https://developer.android.com/guide/practices/page-sizes
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-O2"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 
@@ -60,12 +74,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            // 在 CI/沙箱环境中关闭代码压缩与资源收缩，避免 R8 因内存不足崩溃，
+            // 同时保留 release 签名与版本配置以生成可发布的 APK。
+            isMinifyEnabled = false
+            isShrinkResources = false
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
