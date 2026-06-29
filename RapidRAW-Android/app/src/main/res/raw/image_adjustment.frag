@@ -85,7 +85,7 @@ uniform float uChromaticAberrationRedCyan;   // -1.0 .. 1.0
 uniform float uChromaticAberrationBlueYellow; // -1.0 .. 1.0
 
 // Tone Mapping / Color Science
-uniform int uColorScienceMode;        // 0=standard, 1=agx, 2=aces2, 3=opendrt
+uniform int uColorScienceMode;        // 0=agx, 1=aces2, 2=opendrt, 3=standard (matches ColorScience.Mode ordinal)
 uniform float uAgXEnabled;            // deprecated, use uColorScienceMode
 uniform float uAgXContrast;           // 0.0 .. 1.0
 uniform float uAgXPedestal;           // 0.0 .. 0.5
@@ -1568,11 +1568,12 @@ void main() {
     color = apply_rgb_curves(color);
 
     // === Step 22: Color Science Tone Mapping ===
-    if (uColorScienceMode == 1 || uAgXEnabled > 0.5) {
+    // Mode ordinal matches ColorScience.Mode: 0=AGX, 1=ACES_2, 2=OPEN_DRT, 3=STANDARD
+    if (uColorScienceMode == 0 || uAgXEnabled > 0.5) {
         color = apply_agx_tonemap(color);
-    } else if (uColorScienceMode == 2) {
+    } else if (uColorScienceMode == 1) {
         color = apply_aces2_tonemap(color);
-    } else if (uColorScienceMode == 3) {
+    } else if (uColorScienceMode == 2) {
         color = apply_opendrt_tonemap(color);
     }
 

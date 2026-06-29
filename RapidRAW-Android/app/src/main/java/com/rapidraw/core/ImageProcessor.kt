@@ -11,6 +11,7 @@ import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
 import com.rapidraw.data.model.ExrBitDepth
+import com.rapidraw.core.ColorScience
 import com.rapidraw.data.model.ExportFormat
 import com.rapidraw.data.model.ExportSettings
 import com.rapidraw.data.model.ExifData
@@ -225,10 +226,11 @@ class ImageProcessor {
         val masks: List<MaskContainer> = emptyList(),
 
         // Tone Mapping / Color Science
-        val colorScienceMode: Int = 0, // 0=standard, 1=agx, 2=aces2, 3=opendrt
+        val colorScienceMode: Int = 0, // 0=agx, 1=aces2, 2=opendrt, 3=standard
         val agxEnabled: Boolean = false,
         val agxContrast: Float = 0.0f,
         val agxPedestal: Float = 0.0f,
+        val peakLuminanceNits: Float = 1000f,
 
         // Lens Correction
         val lensDistortion: Float = 0f,
@@ -328,9 +330,10 @@ class ImageProcessor {
                 chromaticAberrationRedCyan = src.chromaticAberrationRedCyan / 100f,
                 chromaticAberrationBlueYellow = src.chromaticAberrationBlueYellow / 100f,
                 colorScienceMode = src.colorScienceMode.coerceIn(0, 3),
-                agxEnabled = src.toneMapper == "agx" || src.colorScienceMode == 1,
+                agxEnabled = src.toneMapper == "agx" || src.colorScienceMode == 0,
                 agxContrast = src.agxContrast,
                 agxPedestal = src.agxPedestal,
+                peakLuminanceNits = src.peakLuminanceNits.coerceIn(100f, 10000f),
                 // Lens correction
                 lensDistortion = src.lensDistortion / 100f,
                 lensVignette = src.lensVignette / 100f,
@@ -359,8 +362,8 @@ class ImageProcessor {
                 cdlHighlightsR = src.colorGradingHighlightsR / 100f,
                 cdlHighlightsG = src.colorGradingHighlightsG / 100f,
                 cdlHighlightsB = src.colorGradingHighlightsB / 100f,
-                // LUT
-                lutIntensity = src.lutIntensity / 100f,
+                // LUT: prefer new library blend when a LUT is active, fall back to legacy lutIntensity
+                lutIntensity = if (src.activeLutId.isNotEmpty()) src.activeLutBlend else src.lutIntensity / 100f,
                 // Detail (additional)
                 lumaNoiseReduction = src.lumaNoiseReduction / 100f,
                 colorNoiseReduction = src.colorNoiseReduction / 100f,
@@ -903,22 +906,18 @@ class ImageProcessor {
                 }
 
                 // ── 17. Color Science Tone Mapping ──
-                when (n.colorScienceMode) {
-                    1 -> { // AgX
-                        val agxResult = applyAgxToneMap(r, g, b, n.agxContrast, n.agxPedestal)
-                        r = agxResult[0]; g = agxResult[1]; b = agxResult[2]
-                    }
-                    2 -> { // ACES 2.0
-                        val acesResult = ColorScience.aces2ToneMap(r, g, b)
-                        r = acesResult.first; g = acesResult.second; b = acesResult.third
-                    }
-                    3 -> { // OpenDRT
-                        val openDrtResult = ColorScience.openDrtToneMap(r, g, b)
-                        r = openDrtResult.first; g = openDrtResult.second; b = openDrtResult.third
-                    }
-                    else -> { // Standard - no tone mapping, linear to sRGB handles it
-                    }
-                }
+                val colorScienceConfig = ColorScience.Config(
+                    mode = ColorScience.Mode.entries.getOrElse(n.colorScienceMode) { ColorScience.Mode.STANDARD },
+                    displaySpace = ColorScience.DisplayColorSpace.SRGB,
+                    eotf = ColorScience.Eotf.SDR,
+                    peakLuminanceNits = n.peakLuminanceNits,
+                    contrast = n.agxContrast,
+                    pedestal = n.agxPedestal,
+                )
+                val toneMapped = ColorScience.apply(r, g, b, colorScienceConfig)
+                r = toneMapped.first
+                g = toneMapped.second
+                b = toneMapped.third
 
                 // ── 18. Film Simulation Processing ──
                 if (n.filmId.isNotEmpty() && n.filmIntensity > 1e-6f) {
@@ -1452,31 +1451,6 @@ class ImageProcessor {
             g * (1f - blend) + flareColor[1] * blend,
             b * (1f - blend) + flareColor[2] * blend
         )
-    }
-
-    /** AgX tone mapping */
-    private fun applyAgxToneMap(r: Float, g: Float, b: Float, contrast: Float, pedestal: Float): FloatArray {
-        fun agxDefaultContrast(t: Float, contrastVal: Float): Float {
-            val lo = -10f
-            val hi = 13f
-            var v = if (t > 0f) (kotlin.math.log2(t.toDouble()).toFloat() - lo) / (hi - lo) else 0f
-            v = v.coerceIn(0f, 1f)
-            val contrastPow = 1.0 + contrastVal * 0.5
-            return v.toDouble().pow(contrastPow).toFloat()
-        }
-
-        var outR = agxDefaultContrast(r, contrast)
-        var outG = agxDefaultContrast(g, contrast)
-        var outB = agxDefaultContrast(b, contrast)
-
-        // Apply pedestal
-        if (pedestal > 0f) {
-            outR = max(outR - pedestal, 0f) / (1f - pedestal)
-            outG = max(outG - pedestal, 0f) / (1f - pedestal)
-            outB = max(outB - pedestal, 0f) / (1f - pedestal)
-        }
-
-        return floatArrayOf(outR, outG, outB)
     }
 
     /** Spatial operations: sharpness (unsharp mask) and clarity/structure (local contrast) */

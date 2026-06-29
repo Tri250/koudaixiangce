@@ -261,12 +261,19 @@ class LutLibraryManager(private val context: Context) {
      */
     suspend fun loadLut(entry: LutEntry): CubeLutParser.Lut3D? = withContext(Dispatchers.IO) {
         try {
-            val file = File(entry.path)
-            if (!file.exists()) {
-                Log.w(tag, "LUT file not found: ${entry.path}")
-                return@withContext null
+            if (entry.isBuiltIn) {
+                // 内置 LUT 从 assets 加载
+                context.assets.open(entry.path).use { stream ->
+                    CubeLutParser().parse(stream)
+                }
+            } else {
+                val file = File(entry.path)
+                if (!file.exists()) {
+                    Log.w(tag, "LUT file not found: ${entry.path}")
+                    return@withContext null
+                }
+                CubeLutParser().parseFile(file)
             }
-            CubeLutParser().parseFile(file)
         } catch (e: Exception) {
             Log.e(tag, "Failed to load LUT: ${e.message}", e)
             null

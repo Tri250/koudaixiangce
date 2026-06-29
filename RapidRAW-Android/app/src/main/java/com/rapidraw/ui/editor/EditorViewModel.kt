@@ -222,6 +222,9 @@ class EditorViewModel(
     private val lutManager = LutManager(appContext)
     private var flowMaskManager: FlowMaskManager? = null
 
+    // Latest LUT loaded from LutLibrary; uploaded to GPU once pipeline is ready
+    private var loadedLut: CubeLutParser.Lut3D? = null
+
     private val isCleared = AtomicBoolean(false)
 
     // 用于 ViewModel 销毁后异步释放 GPU/Bitmap 资源，避免 onCleared 阻塞主线程
@@ -244,6 +247,8 @@ class EditorViewModel(
         viewModelScope.launch {
             gpuMutex.withLock {
                 gpuPipeline = pipeline
+                // Upload any already-loaded LUT so the preview reflects current adjustments.
+                loadedLut?.let { pipeline?.updateLutTexture(it, _adjustments.value.activeLutBlend) }
             }
         }
     }
@@ -676,10 +681,15 @@ class EditorViewModel(
                         val name = uri.lastPathSegment?.substringAfterLast("/")?.removeSuffix(".cube")
                             ?: "imported_lut"
                         lutManager.importLut(l, name)
+                        loadedLut = l
                         withContext(Dispatchers.Main) {
                             pushUndo("导入 LUT")
                             imageProcessor.currentLut = l
-                            _adjustments.value = _adjustments.value.copy(lutIntensity = 100f)
+                            _adjustments.value = _adjustments.value.copy(
+                                activeLutId = name,
+                                activeLutBlend = 1f,
+                                lutIntensity = 100f,
+                            )
                             gpuMutex.withLock {
                                 gpuPipeline?.updateLutTexture(l, 1f)
                             }
@@ -1064,13 +1074,18 @@ class EditorViewModel(
     fun applyLut(lutEntry: LutLibraryManager.LutEntry, intensity: Float) {
         viewModelScope.launch(Dispatchers.IO) {
             val lut = lutLibrary.loadLut(lutEntry) ?: return@launch
-            pushUndo("LUT: ${lutEntry.name}")
-            _adjustments.value = _adjustments.value.copy(
-                activeLutId = lutEntry.id,
-                activeLutBlend = intensity,
-            )
-            // 触发 LUT 应用（写入调整值即可，ImageProcessor 会处理）
+            loadedLut = lut
+            imageProcessor.currentLut = lut
             withContext(Dispatchers.Main) {
+                pushUndo("LUT: ${lutEntry.name}")
+                _adjustments.value = _adjustments.value.copy(
+                    activeLutId = lutEntry.id,
+                    activeLutBlend = intensity.coerceIn(0f, 1f),
+                    lutIntensity = intensity.coerceIn(0f, 1f) * 100f,
+                )
+                gpuMutex.withLock {
+                    gpuPipeline?.updateLutTexture(lut, intensity.coerceIn(0f, 1f))
+                }
                 schedulePreviewUpdate()
             }
         }
@@ -1079,10 +1094,18 @@ class EditorViewModel(
     /** 取消激活 LUT */
     fun clearLut() {
         pushUndo("清除 LUT")
+        loadedLut = null
+        imageProcessor.currentLut = null
         _adjustments.value = _adjustments.value.copy(
             activeLutId = "",
             activeLutBlend = 0f,
+            lutIntensity = 0f,
         )
+        viewModelScope.launch {
+            gpuMutex.withLock {
+                gpuPipeline?.updateLutTexture(null, 0f)
+            }
+        }
         schedulePreviewUpdate()
     }
 
