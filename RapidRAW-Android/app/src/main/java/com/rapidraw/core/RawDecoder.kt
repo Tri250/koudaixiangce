@@ -20,11 +20,19 @@ object RawDecoder {
     private const val TAG = "RawDecoder"
 
     init {
+        // v1.5.3 加固：
+        // 部分 OEM ROM（特别是 ColorOS 16 / HyperOS 2）会在 System.loadLibrary 阶段
+        // 抛出除 UnsatisfiedLinkError 之外的其他 Throwable（SecurityException、
+        // VerifyError、NullPointerException 等）。这里统一兜底，绝不阻塞调用方。
         try {
             System.loadLibrary("rawdecoder")
             Log.i(TAG, "rawdecoder native library loaded")
         } catch (e: UnsatisfiedLinkError) {
-            Log.e(TAG, "Failed to load rawdecoder native library", e)
+            Log.e(TAG, "Failed to load rawdecoder native library (UnsatisfiedLinkError)", e)
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Failed to load rawdecoder native library (SecurityException)", e)
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to load rawdecoder native library (other)", e)
         }
     }
 

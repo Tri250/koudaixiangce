@@ -96,3 +96,29 @@
 # AutoService annotation processor references (not used at runtime)
 -dontwarn javax.annotation.processing.AbstractProcessor
 -dontwarn javax.annotation.processing.SupportedOptions
+
+# v1.5.3 新增：JNI / Native 桥接
+-keep class com.rapidraw.core.RawDecoder { *; }
+-keep class com.rapidraw.core.RawDecoder$* { *; }
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# v1.5.3 新增：AndroidX AppCompat / LocaleManager
+-keep class androidx.appcompat.app.** { *; }
+-keep class androidx.core.os.LocaleListCompat { *; }
+-keep class androidx.core.os.LocaleListCompat$* { *; }
+
+# v1.5.3 新增：CrashHandler 反射访问 BuildConfig 与 R.font
+-keep class com.rapidraw.BuildConfig { *; }
+-keepclassmembers class com.rapidraw.R$font {
+    public static <fields>;
+}
+
+# v1.5.3 新增：协程 / Flow 反射相关
+-dontwarn kotlinx.coroutines.flow.**
+-dontwarn java.lang.invoke.StringConcatFactory
+
+# v1.5.3 新增：Material 3 与 Material Icons Extended（部分图标在 R8 后会被错误剥离）
+-keep class androidx.compose.material3.** { *; }
+-keep class androidx.compose.material.icons.** { *; }

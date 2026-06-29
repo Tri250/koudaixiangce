@@ -16,7 +16,9 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        versionCode = 153
+        // v1.5.3 hotfix: versionName 保持 1.5.3（用户可见），versionCode 自 153 -> 1531
+        // 以便已安装 v1.5.3 旧包的设备可以正常升级覆盖安装。
+        versionCode = 1531
         versionName = "1.5.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -74,10 +76,11 @@ android {
 
     buildTypes {
         release {
-            // 在 CI/沙箱环境中关闭代码压缩与资源收缩，避免 R8 因内存不足崩溃，
-            // 同时保留 release 签名与版本配置以生成可发布的 APK。
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // v1.5.3: 默认开启 R8 与资源收缩，修复 v1.5.3 release 体积/性能问题。
+            // CI/沙箱环境可通过 -PdisableR8=true 关闭，避免 R8 OOM。
+            val disableR8 = (project.findProperty("disableR8") as String?)?.toBoolean() == true
+            isMinifyEnabled = !disableR8
+            isShrinkResources = !disableR8
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }

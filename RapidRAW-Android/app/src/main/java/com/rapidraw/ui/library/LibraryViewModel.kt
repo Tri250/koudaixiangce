@@ -229,7 +229,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun loadThumbnails() {
         // 取消上一次未完成的缩略图加载，避免结果覆盖与资源浪费
         thumbnailJob?.cancel()
-        thumbnailJob = viewModelScope.launch(Dispatchers.IO) {
+        thumbnailJob = viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val currentImages = _images.value.take(128)
             // 限制并发数为 4，防止同时解码过多 Bitmap 导致内存峰值过高
             val semaphore = Semaphore(4)
@@ -376,7 +376,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         if (selected.isEmpty()) return
 
         val uris = selected.map { android.net.Uri.parse(it) }
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             batchProcessor.batchApplyAdjustments(uris, adjustments, exportSettings)
                 .collect { progress ->
                     _batchProgress.value = progress
@@ -400,7 +400,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         val adjustments = com.rapidraw.data.model.Adjustments().withFilmSimulation(film)
         val uris = selected.map { android.net.Uri.parse(it) }
 
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             batchProcessor.batchApplyFilm(uris, adjustments, exportSettings)
                 .collect { progress ->
                     _batchProgress.value = progress
@@ -422,7 +422,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
         val uris = selected.map { android.net.Uri.parse(it) }
 
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             batchProcessor.batchExport(uris, exportSettings)
                 .collect { progress ->
                     _batchProgress.value = progress

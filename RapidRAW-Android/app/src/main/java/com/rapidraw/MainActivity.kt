@@ -19,6 +19,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.background
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.compose.runtime.DisposableEffect
@@ -33,6 +34,7 @@ import androidx.navigation.compose.rememberNavController
 import com.rapidraw.ui.navigation.Routes
 import com.rapidraw.ui.navigation.RapidNavHost
 import com.rapidraw.ui.theme.RapidRawTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -93,44 +95,87 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 延迟请求权限，避免阻塞首帧渲染
-        lifecycleScope.launch {
+        // v1.5.3: 注入 CoroutineExceptionHandler，避免权限请求阶段崩溃直接闪退
+        lifecycleScope.launch(Dispatchers.Main + com.rapidraw.core.CrashHandler.coroutineExceptionHandler(this)) {
             delay(300)
-            requestStoragePermissions()
+            try {
+                requestStoragePermissions()
+            } catch (t: Throwable) {
+                Log.w(TAG, "requestStoragePermissions failed", t)
+            }
         }
 
-        setContent {
-            RapidRawTheme {
-                val navController = rememberNavController()
-                this@MainActivity.navController = navController
-                DisposableEffect(Unit) {
-                    onDispose { this@MainActivity.navController = null }
-                }
+        // v1.5.3: setContent 自身 try-catch 兜底。
+        // Compose 第一次组合期间可能抛出的异常（字体/主题/资源缺失等）会被记录，
+        // 同时给用户展示一个最小可用的降级界面，避免冷启动即闪退。
+        try {
+            setContent {
+                RapidRawTheme {
+                    val navController = rememberNavController()
+                    this@MainActivity.navController = navController
+                    DisposableEffect(Unit) {
+                        onDispose { this@MainActivity.navController = null }
+                    }
 
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
 
-                // Predictive Back: 在非 Library 页面拦截返回键，
-                // 配合 android:enableOnBackInvokedCallback 使 Navigation Compose
-                // 在 Android 14+ 上自动提供预测性返回动画。
-                BackHandler(enabled = currentRoute != Routes.LIBRARY) {
-                    navController.popBackStack(Routes.LIBRARY, inclusive = false)
-                }
+                    // Predictive Back: 在非 Library 页面拦截返回键，
+                    // 配合 android:enableOnBackInvokedCallback 使 Navigation Compose
+                    // 在 Android 14+ 上自动提供预测性返回动画。
+                    BackHandler(enabled = currentRoute != Routes.LIBRARY) {
+                        navController.popBackStack(Routes.LIBRARY, inclusive = false)
+                    }
 
-                RapidNavHost(
-                    navController = navController,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .imePadding(),  // 正确处理键盘弹出时的布局
-                )
+                    RapidNavHost(
+                        navController = navController,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .imePadding(),  // 正确处理键盘弹出时的布局
+                    )
 
-                // Navigate to editor if app was opened with an image from external intent
-                LaunchedEffect(pendingImageUri) {
-                    pendingImageUri?.let { uri ->
-                        navigateToEditor(navController, uri)
-                        pendingImageUri = null
+                    // Navigate to editor if app was opened with an image from external intent
+                    LaunchedEffect(pendingImageUri) {
+                        pendingImageUri?.let { uri ->
+                            navigateToEditor(navController, uri)
+                            pendingImageUri = null
+                        }
                     }
                 }
             }
+        } catch (t: Throwable) {
+            // 记录到本地 crash log，并展示降级 UI
+            Log.e(TAG, "setContent failed, falling back to safe UI", t)
+            com.rapidraw.core.CrashHandler.coroutineExceptionHandler(this)
+                .handleException(this.lifecycleScope.coroutineContext, t)
+            showFallbackUi()
+        }
+    }
+
+    /**
+     * 极端情况（Compose/字体/资源异常）下的降级 UI：仅一个白底 + 应用名。
+     * 配合 CrashHandler 已落盘的日志，可在用户反馈后定位问题。
+     */
+    private fun showFallbackUi() {
+        try {
+            setContent {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(androidx.compose.ui.graphics.Color.Black),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    androidx.compose.material3.Text(
+                        text = "RapidRAW\n启动遇到问题，请重启或反馈。",
+                        color = androidx.compose.ui.graphics.Color.White,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+            }
+        } catch (t: Throwable) {
+            // 实在连 setContent 都不能调用时，依靠系统默认 UI（黑屏 + Log）
+            Log.e(TAG, "showFallbackUi also failed", t)
         }
     }
 

@@ -1,19 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
+    <!--
+        v1.5.3 加固：
+        - 数据库实际名为 rapidraw_recipes（见 RecipeDatabase.kt），已统一修正
+        - WAL/SHM 文件名同步修正
+        - 显式排除所有可写入的内部目录（sidecars / flow_masks / lut_cache / 偏好学习）
+    -->
     <cloud-backup>
         <exclude domain="sharedpref" path="."/>
         <exclude domain="database" path="."/>
         <exclude domain="file" path="."/>
         <!-- Room 数据库文件 -->
-        <exclude domain="database" path="rapidraw_db"/>
-        <exclude domain="database" path="rapidraw_db-wal"/>
-        <exclude domain="database" path="rapidraw_db-shm"/>
+        <exclude domain="database" path="rapidraw_recipes"/>
+        <exclude domain="database" path="rapidraw_recipes-wal"/>
+        <exclude domain="database" path="rapidraw_recipes-shm"/>
         <!-- Sidecar 文件 -->
         <exclude domain="file" path="sidecars/"/>
         <!-- Flow Mask PNG 文件 -->
         <exclude domain="file" path="flow_masks/"/>
         <!-- LUT 缓存 -->
         <exclude domain="file" path="lut_cache/"/>
+        <!-- 崩溃日志（v1.5.3 新增） -->
+        <exclude domain="file" path="crash_logs/"/>
         <!-- shared_prefs（可能包含用户偏好学习数据）-->
         <exclude domain="sharedpref" path="user_preference_learning.xml"/>
     </cloud-backup>
@@ -22,15 +30,17 @@
         <exclude domain="database" path="."/>
         <exclude domain="file" path="."/>
         <!-- Room 数据库文件 -->
-        <exclude domain="database" path="rapidraw_db"/>
-        <exclude domain="database" path="rapidraw_db-wal"/>
-        <exclude domain="database" path="rapidraw_db-shm"/>
+        <exclude domain="database" path="rapidraw_recipes"/>
+        <exclude domain="database" path="rapidraw_recipes-wal"/>
+        <exclude domain="database" path="rapidraw_recipes-shm"/>
         <!-- Sidecar 文件 -->
         <exclude domain="file" path="sidecars/"/>
         <!-- Flow Mask PNG 文件 -->
         <exclude domain="file" path="flow_masks/"/>
         <!-- LUT 缓存 -->
         <exclude domain="file" path="lut_cache/"/>
+        <!-- 崩溃日志（v1.5.3 新增） -->
+        <exclude domain="file" path="crash_logs/"/>
         <!-- shared_prefs（可能包含用户偏好学习数据）-->
         <exclude domain="sharedpref" path="user_preference_learning.xml"/>
     </device-transfer>
