@@ -26,8 +26,8 @@
 
     <!-- 硬件能力声明 -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
-    <!-- OpenGL ES 3.0 为必须，低版本设备将在安装阶段过滤 -->
-    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+    <!-- OpenGL ES 3.0（可选：无 GLES 3.0 时回退 CPU 管线） -->
+    <uses-feature android:glEsVersion="0x00030000" android:required="false" />
     <!-- Vulkan compute 用于 AI 加速（可选，ColorOS 16 设备有硬件加速） -->
     <uses-feature android:name="android.hardware.vulkan.compute" android:required="false" />
     <!-- Vulkan 1.3（Android 16 默认）支持 HDR 显示管线 -->

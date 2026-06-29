@@ -15,8 +15,8 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        versionCode = 150
-        versionName = "1.5.0"
+        versionCode = 151
+        versionName = "1.5.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -162,10 +162,6 @@ dependencies {
     // WorkManager (导出队列)
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     androidTestImplementation("androidx.work:work-testing:2.10.0")
-
-    // Crash reporting
-    implementation("ch.acra:acra-core:5.11.3")
-    implementation("ch.acra:acra-http:5.11.3")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

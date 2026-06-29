@@ -60,16 +60,34 @@
 -keep class com.rapidraw.core.** { *; }
 -keepclassmembers class com.rapidraw.core.** { *; }
 
-# ACRA
--keep class org.acra.** { *; }
--dontwarn org.acra.**
-
 # Prevent stripping of line numbers for crash reports
 -keepattributes SourceFile,LineNumberTable
 
-# OkHttp / ACRA HTTP sender
--dontwarn okhttp3.**
--dontwarn retrofit2.**
+# Kotlin coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembers class kotlinx.coroutines.** {
+    volatile *;
+}
+
+# Compose runtime
+-keep class androidx.compose.runtime.** { *; }
+-keep class androidx.compose.ui.** { *; }
+-dontwarn androidx.compose.**
+
+# Navigation
+-keep class androidx.navigation.** { *; }
+
+# Kotlin serialization — ensure all @Serializable classes are kept
+-keep @kotlinx.serialization.Serializable class * { *; }
+
+# ViewModel
+-keep class * extends androidx.lifecycle.ViewModel { *; }
+
+# Keep all Composable functions
+-keepclassmembers class * {
+    @androidx.compose.runtime.Composable <methods>;
+}
 
 # AutoService annotation processor references (not used at runtime)
 -dontwarn javax.annotation.processing.AbstractProcessor

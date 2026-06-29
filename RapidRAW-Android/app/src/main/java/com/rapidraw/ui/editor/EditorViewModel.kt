@@ -191,9 +191,13 @@ class EditorViewModel(
     val lutLibrary: LutLibraryManager = LutLibraryManager(appContext)
 
     init {
-        // 异步初始化 LUT 库
+        // 异步初始化 LUT 库（防崩溃：asset 加载失败不阻塞启动）
         viewModelScope.launch(Dispatchers.IO) {
-            lutLibrary.initialize()
+            try {
+                lutLibrary.initialize()
+            } catch (e: Exception) {
+                Log.w(TAG, "LUT library initialization failed", e)
+            }
         }
     }
     // endregion

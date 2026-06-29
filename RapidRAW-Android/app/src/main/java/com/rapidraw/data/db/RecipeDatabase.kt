@@ -15,6 +15,7 @@ abstract class RecipeDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: RecipeDatabase? = null
 
+        @Suppress("DEPRECATION") // fallbackToDestructiveMigration() deprecated in Room 2.6+; dropAllTables param added in 2.7
         fun getInstance(context: Context): RecipeDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(

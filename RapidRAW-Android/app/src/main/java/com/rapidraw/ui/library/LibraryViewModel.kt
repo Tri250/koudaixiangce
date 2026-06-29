@@ -85,7 +85,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     )
 
     init {
-        loadImages(null)
+        try {
+            loadImages(null)
+        } catch (e: Exception) {
+            // 防止 MediaStore 查询异常导致崩溃
+        }
     }
 
     fun loadImages(folder: String?) {

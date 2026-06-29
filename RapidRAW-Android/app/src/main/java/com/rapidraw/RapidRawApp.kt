@@ -27,8 +27,12 @@ class RapidRawApp : Application() {
         super.onCreate()
         instance = this
 
-        setupUncaughtExceptionHandler()
-        registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
+        try {
+            setupUncaughtExceptionHandler()
+            registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in Application.onCreate", e)
+        }
     }
 
     private fun setupUncaughtExceptionHandler() {
