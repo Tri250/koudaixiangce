@@ -1,9 +1,25 @@
 package com.rapidraw.data.model
 
+import com.rapidraw.core.ColorReplacementData
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class Coord(val x: Float, val y: Float)
+
+/**
+ * 降噪模式枚举
+ * - AI: 使用 Guided Filter 保边降噪（默认）
+ * - MEAN: 均值滤波降噪
+ * - MEDIAN: 中值滤波降噪（适合椒盐噪声）
+ * - GAUSSIAN: 高斯滤波降噪（可调 sigma）
+ */
+@Serializable
+enum class DenoiseMode {
+    AI,
+    MEAN,
+    MEDIAN,
+    GAUSSIAN,
+}
 
 /**
  * Represents an AI inpaint patch applied to a region of the image.
@@ -136,6 +152,13 @@ data class Adjustments(
     // ── Color Grading ─────────────────────────────────────────────
     val colorGrading: ColorGrading = ColorGrading(),
 
+    // ── Split Toning (色调分离) ───────────────────────────────────
+    val splitToningHighlightsHue: Float = 0f,         // 高光色调色相 [0,360]
+    val splitToningHighlightsSat: Float = 0f,         // 高光色调饱和度 [0,100]
+    val splitToningShadowsHue: Float = 0f,            // 阴影色调色相 [0,360]
+    val splitToningShadowsSat: Float = 0f,            // 阴影色调饱和度 [0,100]
+    val splitToningBalance: Float = 0f,               // 平衡 [-100,100]
+
     // ── CDL Color Grading (Lift/Gamma/Gain per-channel offsets) ──
     val colorGradingShadowsR: Float = 0f,
     val colorGradingShadowsG: Float = 0f,
@@ -160,6 +183,12 @@ data class Adjustments(
     val centre: Float = 0f,
     val chromaticAberrationRedCyan: Float = 0f,
     val chromaticAberrationBlueYellow: Float = 0f,
+
+    // ── Traditional Denoise (补充AI降噪) ───────────────────────
+    val denoiseMode: DenoiseMode = DenoiseMode.AI,      // 降噪模式
+    val denoiseStrength: Float = 0f,                    // 降噪强度 0..100
+    val denoiseWindowSize: Int = 3,                     // 窗口大小 3, 5, 7
+    val gaussianSigma: Float = 1.0f,                    // 高斯sigma 0.5..5.0
 
     // ── Effects ───────────────────────────────────────────────
     val vignetteAmount: Float = 0f,
@@ -217,11 +246,41 @@ data class Adjustments(
     val hdrPeakLuminance: Float = 1000f,         // nits
     val hdrMaxBoostStop: Float = 4f,             // stops
 
-    // ── Lens Correction ───────────────────────────────────────
-    val lensDistortion: Float = 0f,              // -100..100
-    val lensVignette: Float = 0f,                // -100..100
-    val lensTca: Float = 0f,                     // -100..100
-    val lensFocalLength: Float = 50f,            // mm
+    // ── Lens Correction (Brown-Conrady Model) ───────────────────
+    // 畸变校正系数 (径向畸变)
+    val lensDistortionK1: Float = 0f,            // -100..100 (二次项)
+    val lensDistortionK2: Float = 0f,            // -100..100 (四次项)
+    val lensDistortionK3: Float = 0f,            // -100..100 (六次项)
+    
+    // 切向畸变系数
+    val lensTangentialP1: Float = 0f,            // -100..100
+    val lensTangentialP2: Float = 0f,            // -100..100
+    
+    // 横向色差校正 (Lateral CA)
+    val lensLateralCA: Float = 0f,               // -100..100 (整体强度)
+    val lensTcaRedOffset: Float = 0f,            // -100..100 (红通道偏移)
+    val lensTcaBlueOffset: Float = 0f,           // -100..100 (蓝通道偏移)
+    
+    // 暗角校正
+    val lensVignetteCorrection: Float = 0f,      // 0..100 (校正强度)
+    val lensVignetteK1: Float = 0f,              // 暗角系数1
+    val lensVignetteK2: Float = 0f,              // 暗角系数2
+    val lensVignetteK3: Float = 0f,              // 暗角系数3
+    
+    // 镜头识别信息
+    val lensProfileId: String? = null,           // 自动识别的镜头ID
+    val lensFocalLength: Float = 50f,            // 焦距 (mm)
+    val lensAutoCorrection: Boolean = false,     // 是否启用自动校正
+    
+    // 兼容旧参数 (保持向后兼容)
+    val lensDistortion: Float = 0f,              // -100..100 (简化畸变)
+    val lensVignette: Float = 0f,                // -100..100 (简化暗角)
+    val lensTca: Float = 0f,                     // -100..100 (简化色差)
+
+    // ── Skin Whitening (面部美白) ────────────────────────────────────
+    val skinWhiteningIntensity: Float = 0f,      // 0..100 美白强度
+    val skinToneTarget: Float = 0f,              // -100..100 肤色目标色调（偏粉/偏黄）
+    val skinSmoothness: Float = 0f,              // 0..100 肤质平滑度
 
     // ── Clipping ──────────────────────────────────────────────
     val showClipping: Boolean = false,
@@ -231,6 +290,9 @@ data class Adjustments(
 
     // ── AI Patches ────────────────────────────────────────────
     val aiPatches: List<AiPatch> = emptyList(),
+
+    // ── Color Replacements (PixelFruit style) ──────────────────
+    val colorReplacements: List<ColorReplacementData> = emptyList(),
 ) {
     fun copyByField(key: String, value: Float): Adjustments = when (key) {
         // Basic
@@ -305,6 +367,12 @@ data class Adjustments(
         "colorGrading.highlights.luminance" -> copy(colorGrading = colorGrading.copy(highlights = colorGrading.highlights.copy(luminance = value.coerceIn(-100f, 100f))))
         "colorGrading.blending" -> copy(colorGrading = colorGrading.copy(blending = value.coerceIn(0f, 100f)))
         "colorGrading.balance" -> copy(colorGrading = colorGrading.copy(balance = value.coerceIn(-100f, 100f)))
+        // Split Toning
+        "splitToningHighlightsHue" -> copy(splitToningHighlightsHue = value.coerceIn(0f, 360f))
+        "splitToningHighlightsSat" -> copy(splitToningHighlightsSat = value.coerceIn(0f, 100f))
+        "splitToningShadowsHue" -> copy(splitToningShadowsHue = value.coerceIn(0f, 360f))
+        "splitToningShadowsSat" -> copy(splitToningShadowsSat = value.coerceIn(0f, 100f))
+        "splitToningBalance" -> copy(splitToningBalance = value.coerceIn(-100f, 100f))
         // CDL Color Grading
         "colorGradingShadowsR" -> copy(colorGradingShadowsR = value.coerceIn(-100f, 100f))
         "colorGradingShadowsG" -> copy(colorGradingShadowsG = value.coerceIn(-100f, 100f))
@@ -333,6 +401,10 @@ data class Adjustments(
         "centre" -> copy(centre = value.coerceIn(-100f, 100f))
         "chromaticAberrationRedCyan" -> copy(chromaticAberrationRedCyan = value.coerceIn(-100f, 100f))
         "chromaticAberrationBlueYellow" -> copy(chromaticAberrationBlueYellow = value.coerceIn(-100f, 100f))
+        // Traditional Denoise
+        "denoiseStrength" -> copy(denoiseStrength = value.coerceIn(0f, 100f))
+        "denoiseWindowSize" -> copy(denoiseWindowSize = value.toInt().coerceIn(3, 7))
+        "gaussianSigma" -> copy(gaussianSigma = value.coerceIn(0.5f, 5.0f))
         // Effects
         "vignetteAmount" -> copy(vignetteAmount = value.coerceIn(-100f, 100f))
         "vignetteMidpoint" -> copy(vignetteMidpoint = value.coerceIn(0f, 100f))
@@ -365,6 +437,23 @@ data class Adjustments(
         "lensVignette" -> copy(lensVignette = value.coerceIn(-100f, 100f))
         "lensTca" -> copy(lensTca = value.coerceIn(-100f, 100f))
         "lensFocalLength" -> copy(lensFocalLength = value.coerceIn(1f, 1000f))
+        // Lens Correction - Brown-Conrady Model
+        "lensDistortionK1" -> copy(lensDistortionK1 = value.coerceIn(-100f, 100f))
+        "lensDistortionK2" -> copy(lensDistortionK2 = value.coerceIn(-100f, 100f))
+        "lensDistortionK3" -> copy(lensDistortionK3 = value.coerceIn(-100f, 100f))
+        "lensTangentialP1" -> copy(lensTangentialP1 = value.coerceIn(-100f, 100f))
+        "lensTangentialP2" -> copy(lensTangentialP2 = value.coerceIn(-100f, 100f))
+        "lensLateralCA" -> copy(lensLateralCA = value.coerceIn(-100f, 100f))
+        "lensTcaRedOffset" -> copy(lensTcaRedOffset = value.coerceIn(-100f, 100f))
+        "lensTcaBlueOffset" -> copy(lensTcaBlueOffset = value.coerceIn(-100f, 100f))
+        "lensVignetteCorrection" -> copy(lensVignetteCorrection = value.coerceIn(0f, 100f))
+        "lensVignetteK1" -> copy(lensVignetteK1 = value.coerceIn(-100f, 100f))
+        "lensVignetteK2" -> copy(lensVignetteK2 = value.coerceIn(-100f, 100f))
+        "lensVignetteK3" -> copy(lensVignetteK3 = value.coerceIn(-100f, 100f))
+        // Skin Whitening
+        "skinWhiteningIntensity" -> copy(skinWhiteningIntensity = value.coerceIn(0f, 100f))
+        "skinToneTarget" -> copy(skinToneTarget = value.coerceIn(-100f, 100f))
+        "skinSmoothness" -> copy(skinSmoothness = value.coerceIn(0f, 100f))
         "orientationSteps" -> copy(orientationSteps = value.toInt() % 4)
         "flipHorizontal" -> copy(flipHorizontal = value != 0f)
         "flipVertical" -> copy(flipVertical = value != 0f)

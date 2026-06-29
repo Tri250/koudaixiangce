@@ -2,11 +2,11 @@ package com.rapidraw.ui.adjustments
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,136 +23,101 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.Adjustments
 import com.rapidraw.data.model.Coord
-import com.rapidraw.ui.components.CurveChannel
-import com.rapidraw.ui.components.CurveEditor
+import com.rapidraw.ui.components.BezierInterpolation
+import com.rapidraw.ui.components.CurveEditorChannel
+import com.rapidraw.ui.components.CurveEditorView
+import com.rapidraw.ui.components.toCoordList
+import com.rapidraw.ui.components.toCurvePointList
 import com.rapidraw.ui.theme.EditorSurfaceVariant
-import com.rapidraw.ui.theme.HasselbladOrange
-import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
-import com.rapidraw.ui.theme.TextTertiary
 
+/**
+ * Curves adjustment panel with professional curve editor.
+ * Supports RGB composite, R, G, B separate, and Luma curves.
+ * Includes curve presets and auto histogram matching.
+ */
 @Composable
 fun CurvesPanel(
     adjustments: Adjustments,
     onUpdate: (String, Any) -> Unit,
+    histogram: IntArray? = null,
+    modifier: Modifier = Modifier
 ) {
-    var activeChannel by remember { mutableStateOf(CurveChannel.LUMA) }
+    var activeChannel by remember { mutableStateOf(CurveEditorChannel.RGB) }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
     ) {
-        CurveEditor(
+        // Main curve editor
+        CurveEditorView(
             points = when (activeChannel) {
-                CurveChannel.LUMA -> adjustments.lumaCurve.map { Pair(it.x, it.y) }
-                CurveChannel.RED -> adjustments.redCurve.map { Pair(it.x, it.y) }
-                CurveChannel.GREEN -> adjustments.greenCurve.map { Pair(it.x, it.y) }
-                CurveChannel.BLUE -> adjustments.blueCurve.map { Pair(it.x, it.y) }
+                CurveEditorChannel.RGB -> adjustments.lumaCurve.toCurvePointList()
+                CurveEditorChannel.RED -> adjustments.redCurve.toCurvePointList()
+                CurveEditorChannel.GREEN -> adjustments.greenCurve.toCurvePointList()
+                CurveEditorChannel.BLUE -> adjustments.blueCurve.toCurvePointList()
+                CurveEditorChannel.LUMA -> adjustments.lumaCurve.toCurvePointList()
             },
             onPointsChanged = { newPoints ->
                 val key = when (activeChannel) {
-                    CurveChannel.LUMA -> "lumaCurve"
-                    CurveChannel.RED -> "redCurve"
-                    CurveChannel.GREEN -> "greenCurve"
-                    CurveChannel.BLUE -> "blueCurve"
+                    CurveEditorChannel.RGB -> "lumaCurve"
+                    CurveEditorChannel.RED -> "redCurve"
+                    CurveEditorChannel.GREEN -> "greenCurve"
+                    CurveEditorChannel.BLUE -> "blueCurve"
+                    CurveEditorChannel.LUMA -> "lumaCurve"
                 }
-                onUpdate(key, newPoints.map { Coord(it.first, it.second) })
+                onUpdate(key, newPoints.toCoordList())
             },
             activeChannel = activeChannel,
             onChannelChanged = { activeChannel = it },
+            histogram = histogram,
+            showPresets = true,
+            onAutoMatch = if (histogram != null) {
+                {
+                    // Apply auto curve matching
+                    val autoPoints = BezierInterpolation.autoMatchHistogram(
+                        histogram,
+                        targetMean = 128f,
+                        smoothness = 0.3f
+                    )
+                    val key = when (activeChannel) {
+                        CurveEditorChannel.RGB -> "lumaCurve"
+                        CurveEditorChannel.RED -> "redCurve"
+                        CurveEditorChannel.GREEN -> "greenCurve"
+                        CurveEditorChannel.BLUE -> "blueCurve"
+                        CurveEditorChannel.LUMA -> "lumaCurve"
+                    }
+                    onUpdate(key, autoPoints.toCoordList())
+                }
+            } else null,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         )
 
-        // Preset curve buttons
-        Text(
-            text = "预设曲线",
-            color = TextSecondary,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Row(
+        // Reset all curves button
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 16.dp)
+                .background(EditorSurfaceVariant, RoundedCornerShape(4.dp))
+                .clickable {
+                    onUpdate("lumaCurve", listOf(Coord(0f, 0f), Coord(255f, 255f)))
+                    onUpdate("redCurve", listOf(Coord(0f, 0f), Coord(255f, 255f)))
+                    onUpdate("greenCurve", listOf(Coord(0f, 0f), Coord(255f, 255f)))
+                    onUpdate("blueCurve", listOf(Coord(0f, 0f), Coord(255f, 255f)))
+                }
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center
         ) {
-            CurvePresetButton(
-                label = "线性",
-                onClick = {
-                    val key = when (activeChannel) {
-                        CurveChannel.LUMA -> "lumaCurve"
-                        CurveChannel.RED -> "redCurve"
-                        CurveChannel.GREEN -> "greenCurve"
-                        CurveChannel.BLUE -> "blueCurve"
-                    }
-                    onUpdate(key, listOf(Coord(0f, 0f), Coord(255f, 255f)))
-                },
-                modifier = Modifier.weight(1f),
-            )
-            CurvePresetButton(
-                label = "高对比",
-                onClick = {
-                    val key = when (activeChannel) {
-                        CurveChannel.LUMA -> "lumaCurve"
-                        CurveChannel.RED -> "redCurve"
-                        CurveChannel.GREEN -> "greenCurve"
-                        CurveChannel.BLUE -> "blueCurve"
-                    }
-                    onUpdate(key, listOf(Coord(0f, 0f), Coord(64f, 30f), Coord(192f, 225f), Coord(255f, 255f)))
-                },
-                modifier = Modifier.weight(1f),
-            )
-            CurvePresetButton(
-                label = "中对比",
-                onClick = {
-                    val key = when (activeChannel) {
-                        CurveChannel.LUMA -> "lumaCurve"
-                        CurveChannel.RED -> "redCurve"
-                        CurveChannel.GREEN -> "greenCurve"
-                        CurveChannel.BLUE -> "blueCurve"
-                    }
-                    onUpdate(key, listOf(Coord(0f, 0f), Coord(96f, 80f), Coord(160f, 175f), Coord(255f, 255f)))
-                },
-                modifier = Modifier.weight(1f),
-            )
-            CurvePresetButton(
-                label = "反相",
-                onClick = {
-                    val key = when (activeChannel) {
-                        CurveChannel.LUMA -> "lumaCurve"
-                        CurveChannel.RED -> "redCurve"
-                        CurveChannel.GREEN -> "greenCurve"
-                        CurveChannel.BLUE -> "blueCurve"
-                    }
-                    onUpdate(key, listOf(Coord(0f, 255f), Coord(255f, 0f)))
-                },
-                modifier = Modifier.weight(1f),
+            Text(
+                text = "重置全部曲线",
+                color = TextSecondary,
+                fontSize = 12.sp
             )
         }
-    }
-}
-
-@Composable
-private fun CurvePresetButton(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .background(EditorSurfaceVariant, RoundedCornerShape(6.dp))
-            .clickable { onClick() }
-            .padding(vertical = 10.dp, horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = TextPrimary,
-            fontSize = 12.sp,
-        )
     }
 }

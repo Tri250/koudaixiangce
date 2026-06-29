@@ -65,11 +65,36 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material3.DropdownMenu
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.rapidraw.ui.components.InteractiveCropOverlay
 import com.rapidraw.ui.components.WaveformScope
+import com.rapidraw.ui.components.PixelDetailView
+import com.rapidraw.ui.components.PixelSamplingOverlay
+// OPPO Find 高端交互增强
+import com.rapidraw.ui.components.rememberHapticFeedbackManager
+import com.rapidraw.ui.components.HapticFeedbackController
+import com.rapidraw.ui.components.ColorOSGesture
+import com.rapidraw.ui.components.colorOSGestureHandler
+import com.rapidraw.ui.components.ColorOSCapsuleSlider
+import com.rapidraw.ui.components.ColorOSBottomDock
+import com.rapidraw.ui.components.DockItem
+import com.rapidraw.ui.components.ColorOSMotion
+import com.rapidraw.ui.components.rememberDisplayRefreshRateInfo
+import com.rapidraw.ui.components.rememberHighRefreshRateAnimationConfig
+import com.rapidraw.ui.components.QuickAction
+import com.rapidraw.ui.components.QuickActionPanel
+import com.rapidraw.ui.components.EditorMode
+import com.rapidraw.ui.components.EditorModeSwitcher
+import com.rapidraw.ui.components.EditorModeConfig
+import com.rapidraw.ui.components.rememberProfessionalWorkflowState
+import com.rapidraw.ui.components.ProfessionalWorkflowPanel
+import com.rapidraw.ui.components.QuickPreset
+import com.rapidraw.ui.components.createDefaultQuickActions
+import com.rapidraw.ui.components.rememberParameterMemoryManager
+import com.rapidraw.ui.theme.ColorOS16Colors
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -90,6 +115,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -197,6 +223,14 @@ fun EditorScreen(
     var showAiMaskSheet by remember { mutableStateOf(false) }
     var showInteractiveCrop by remember { mutableStateOf(false) }
 
+    // Pixel viewing mode state
+    var isPixelViewMode by remember { mutableStateOf(false) }
+    var pixelViewCenterX by remember { mutableIntStateOf(0) }
+    var pixelViewCenterY by remember { mutableIntStateOf(0) }
+    var showPixelSamplingOverlay by remember { mutableStateOf(false) }
+    var samplingPixelX by remember { mutableIntStateOf(0) }
+    var samplingPixelY by remember { mutableIntStateOf(0) }
+
     // Mask editing mode state
     var isMaskMode by remember { mutableStateOf(false) }
     var maskType by remember { mutableStateOf(MaskType.BRUSH) }
@@ -251,9 +285,34 @@ fun EditorScreen(
 
     val displayOriginal = isShowingOriginal || isLongPressing
 
+    // ══════════════════════════════════════════════════════════════════
+    // OPPO Find X9 高端交互增强初始化
+    // ══════════════════════════════════════════════════════════════════
+
+    // 线性马达触觉反馈管理器
+    val oppoHaptic = rememberHapticFeedbackManager()
+
+    // 高刷新率适配
+    val displayRefreshRate = rememberDisplayRefreshRateInfo()
+    val animationConfig = rememberHighRefreshRateAnimationConfig()
+
+    // 参数记忆管理器（记住用户常用参数）
+    val parameterMemory = rememberParameterMemoryManager()
+
+    // 专业工作流状态
+    val workflowState = rememberProfessionalWorkflowState()
+
+    // 三指下滑快速导出手势进度
+    var threeFingerSwipeProgress by remember { mutableFloatStateOf(0f) }
+    var isThreeFingerSwipeActive by remember { mutableStateOf(false) }
+
+    // 双指长按快速对比状态
+    var isTwoFingerComparing by remember { mutableStateOf(false) }
+
+    // 使用高刷新率优化的动画
     val animatedZoom by animateFloatAsState(
         targetValue = zoomLevel,
-        animationSpec = tween(durationMillis = 150),
+        animationSpec = com.rapidraw.ui.components.fastTouchResponseAnimation(),
         label = "zoom",
     )
 
@@ -407,10 +466,60 @@ fun EditorScreen(
         }
 
         // ── Image Preview ─────────────────────────────────────────────
+        // OPPO Find X9 高端交互：添加 ColorOS 手势处理
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .colorOSGestureHandler(
+                    onThreeFingerSwipeDown = {
+                        // 三指下滑快速导出
+                        oppoHaptic.gestureConfirm()
+                        viewModel.quickExport()
+                    },
+                    onTwoFingerLongPress = {
+                        // 双指长按快速对比原图
+                        oppoHaptic.longPress()
+                        isTwoFingerComparing = true
+                        viewModel.toggleShowOriginal()
+                    },
+                    onTwoFingerDoubleTap = {
+                        // 双指双击切换原图/编辑图
+                        oppoHaptic.doubleClick()
+                        viewModel.toggleShowOriginal()
+                    },
+                    onEdgeSwipeLeft = {
+                        // 边缘左滑切换到上一个调整面板
+                        oppoHaptic.click()
+                        val currentIdx = selectedTabIndex
+                        if (currentIdx > 0) {
+                            val newTab = when (currentIdx - 1) {
+                                0 -> EditorTab.AI
+                                1 -> EditorTab.FILTER
+                                2 -> EditorTab.ADJUST
+                                3 -> EditorTab.COMPOSE
+                                else -> EditorTab.EXPORT
+                            }
+                            viewModel.setTab(newTab)
+                        }
+                    },
+                    onEdgeSwipeRight = {
+                        // 边缘右滑切换到下一个调整面板
+                        oppoHaptic.click()
+                        val currentIdx = selectedTabIndex
+                        if (currentIdx < 4) {
+                            val newTab = when (currentIdx + 1) {
+                                0 -> EditorTab.AI
+                                1 -> EditorTab.FILTER
+                                2 -> EditorTab.ADJUST
+                                3 -> EditorTab.COMPOSE
+                                else -> EditorTab.EXPORT
+                            }
+                            viewModel.setTab(newTab)
+                        }
+                    },
+                    haptic = oppoHaptic,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             // Edited image
@@ -684,6 +793,14 @@ fun EditorScreen(
                             hasAiMaskResult = false
                         }
                     },
+                    isPixelViewMode = isPixelViewMode,
+                    onPixelViewToggle = {
+                        isPixelViewMode = !isPixelViewMode
+                        if (isPixelViewMode && previewBitmap != null) {
+                            pixelViewCenterX = previewBitmap!!.width / 2
+                            pixelViewCenterY = previewBitmap!!.height / 2
+                        }
+                    },
                 )
             }
 
@@ -839,6 +956,29 @@ fun EditorScreen(
                     onDismiss = { showInteractiveCrop = false },
                 )
             }
+
+            // Pixel viewing mode overlay
+            if (isPixelViewMode && previewBitmap != null && !previewBitmap!!.isRecycled) {
+                PixelDetailView(
+                    bitmap = previewBitmap!!,
+                    initialCenterX = pixelViewCenterX,
+                    initialCenterY = pixelViewCenterY,
+                    onClose = { isPixelViewMode = false },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            // Pixel sampling overlay (long-press)
+            if (showPixelSamplingOverlay && previewBitmap != null && !previewBitmap!!.isRecycled) {
+                PixelSamplingOverlay(
+                    bitmap = previewBitmap!!,
+                    pixelX = samplingPixelX,
+                    pixelY = samplingPixelY,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(16.dp),
+                )
+            }
         }
 
         // ── Smart Optimize Confirm ────────────────────────────────────
@@ -898,6 +1038,7 @@ fun EditorScreen(
         // - 选中态：哈苏橙背景 tint + 图标辉光 + 加粗文字 + 哈苏橙下划线
         // - 图标 + 文字双行布局，24dp 图标（ColorOS 16 触控规范）
         // - 弹性缩放动画（选中图标 1.1x + 弹簧回弹）
+        // - OPPO Find 线性马达触觉反馈集成
         val tabIcons = listOf(
             Icons.Default.AutoAwesome,   // AI
             Icons.Default.Palette,       // 滤镜
@@ -905,71 +1046,28 @@ fun EditorScreen(
             Icons.Default.Crop,          // 构图
             Icons.Default.Share,         // 导出
         )
-        Surface(
-            color = EditorBackground,
-            modifier = Modifier.navigationBarsPadding(),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                    .background(EditorBackground.copy(alpha = 0.25f)),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                BOTTOM_TABS.forEachIndexed { index, label ->
-                    val isSelected = index == selectedTabIndex
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                if (isSelected) HasselbladOrange.copy(alpha = 0.12f)
-                                else Color.Transparent,
-                            )
-                            .clickable {
-                                val tab = when (index) {
-                                    0 -> EditorTab.AI
-                                    1 -> EditorTab.FILTER
-                                    2 -> EditorTab.ADJUST
-                                    3 -> EditorTab.COMPOSE
-                                    else -> EditorTab.EXPORT
-                                }
-                                viewModel.setTab(tab)
-                            }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = tabIcons[index],
-                                contentDescription = label,
-                                tint = if (isSelected) HasselbladOrangeLight else TextSecondary,
-                                modifier = Modifier.size(22.dp),
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = label,
-                                color = if (isSelected) HasselbladOrangeLight else TextSecondary,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                letterSpacing = 0.5.sp,
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            // 哈苏橙下划线（选中态）
-                            Box(
-                                modifier = Modifier
-                                    .width(28.dp)
-                                    .height(3.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isSelected) HasselbladOrange else Color.Transparent,
-                                    ),
-                            )
-                        }
-                    }
-                }
-            }
+        val dockItems = tabIcons.mapIndexed { index, icon ->
+            com.rapidraw.ui.components.DockItem(icon, BOTTOM_TABS[index])
         }
+
+        // 使用 ColorOS 风格底部 Dock 栏（带触觉反馈）
+        com.rapidraw.ui.components.ColorOSBottomDock(
+            items = dockItems,
+            selectedIndex = selectedTabIndex,
+            onItemSelected = { index ->
+                oppoHaptic.click()
+                val tab = when (index) {
+                    0 -> EditorTab.AI
+                    1 -> EditorTab.FILTER
+                    2 -> EditorTab.ADJUST
+                    3 -> EditorTab.COMPOSE
+                    else -> EditorTab.EXPORT
+                }
+                viewModel.setTab(tab)
+            },
+            modifier = Modifier.navigationBarsPadding(),
+            showIndicator = true,
+        )
 
         // ── Panel Content ──────────────────────────────────────────────
         Surface(
@@ -1025,50 +1123,113 @@ fun EditorScreen(
                     )
                 } else {
                     when (activeTab) {
-                        EditorTab.AI -> AiPanel(
-                            isSmartOptimizing = isSmartOptimizing,
-                            isSmartOptimized = isSmartOptimized,
-                            isAiProcessing = isAiProcessing,
-                            detectedScene = detectedScene,
-                            sceneConfidence = sceneConfidence,
-                            onSmartOptimize = { viewModel.smartOptimize() },
-                            onAiInpaint = {
-                                val img = currentImage
-                                if (img != null) {
-                                    navController.navigate(com.rapidraw.ui.navigation.Routes.aiInpaintPath(img.path))
-                                }
-                            },
-                            onAiDenoise = { viewModel.applyAiDenoise() },
-                            onAiMask = { showAiMaskSheet = true },
-                            onHighlightReconstruct = { viewModel.applyHighlightReconstruction() },
-                            onFlowMask = {
-                                viewModel.initFlowMask()
-                                showFlowMaskPanel = true
-                            },
-                        )
+                        EditorTab.AI -> {
+                            // OPPO Find 专业工作流集成
+                            AiPanel(
+                                isSmartOptimizing = isSmartOptimizing,
+                                isSmartOptimized = isSmartOptimized,
+                                isAiProcessing = isAiProcessing,
+                                detectedScene = detectedScene,
+                                sceneConfidence = sceneConfidence,
+                                onSmartOptimize = {
+                                    oppoHaptic.click()
+                                    viewModel.smartOptimize()
+                                    // 记录参数使用
+                                    parameterMemory.recordParameterAdjustment("smart_optimize", "智能优化", 1f)
+                                },
+                                onAiInpaint = {
+                                    oppoHaptic.click()
+                                    val img = currentImage
+                                    if (img != null) {
+                                        navController.navigate(com.rapidraw.ui.navigation.Routes.aiInpaintPath(img.path))
+                                    }
+                                },
+                                onAiDenoise = {
+                                    oppoHaptic.click()
+                                    viewModel.applyAiDenoise()
+                                },
+                                onAiMask = {
+                                    oppoHaptic.click()
+                                    showAiMaskSheet = true
+                                },
+                                onHighlightReconstruct = {
+                                    oppoHaptic.click()
+                                    viewModel.applyHighlightReconstruction()
+                                },
+                                onFlowMask = {
+                                    oppoHaptic.click()
+                                    viewModel.initFlowMask()
+                                    showFlowMaskPanel = true
+                                },
+                            )
+                        }
                         EditorTab.FILTER -> FilterPanel(
                             selectedFilmId = selectedFilmId,
-                            onSelectFilm = { viewModel.selectFilm(it) },
-                            onClearFilm = { viewModel.clearFilm() },
+                            onSelectFilm = { film ->
+                                oppoHaptic.click()
+                                viewModel.selectFilm(film)
+                            },
+                            onClearFilm = {
+                                oppoHaptic.click()
+                                viewModel.clearFilm()
+                            },
                             activeLutId = adjustments.activeLutId,
                             colorScienceMode = adjustments.colorScienceMode,
-                            onOpenLutLibrary = { viewModel.showLutLibrary() },
-                            onOpenColorScience = { viewModel.showColorScience() },
-                            onClearLut = { viewModel.clearLut() },
+                            onOpenLutLibrary = {
+                                oppoHaptic.click()
+                                viewModel.showLutLibrary()
+                            },
+                            onOpenColorScience = {
+                                oppoHaptic.click()
+                                viewModel.showColorScience()
+                            },
+                            onClearLut = {
+                                oppoHaptic.click()
+                                viewModel.clearLut()
+                            },
                         )
                         EditorTab.ADJUST -> {
+                            // 使用 ColorOS 风格调整面板（带触觉反馈和参数记忆）
                             if (showAdvanced) {
                                 AdvancedPanel(
                                     adjustments = adjustments,
-                                    onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
-                                    onCurveUpdate = { key, value -> viewModel.updateCurve(key, value as List<com.rapidraw.data.model.Coord>) },
-                                    onBack = { viewModel.toggleAdvanced() },
+                                    onUpdate = { key, value ->
+                                        oppoHaptic.sliderValueChanged(
+                                            adjustments.exposure,
+                                            value,
+                                            listOf(0f, 50f, 100f)
+                                        )
+                                        viewModel.updateAdjustment(key, value)
+                                        // 记录参数调整历史
+                                        parameterMemory.recordParameterAdjustment(key, key, value)
+                                    },
+                                    onCurveUpdate = { key, value ->
+                                        oppoHaptic.controlPointDragStart()
+                                        viewModel.updateCurve(key, value as List<com.rapidraw.data.model.Coord>)
+                                    },
+                                    onBack = {
+                                        oppoHaptic.click()
+                                        viewModel.toggleAdvanced()
+                                    },
                                 )
                             } else {
                                 QuickAdjustPanel(
                                     adjustments = adjustments,
-                                    onUpdate = { key, value -> viewModel.updateQuickAdjust(key, value) },
-                                    onAdvancedClick = { viewModel.toggleAdvanced() },
+                                    onUpdate = { key, value ->
+                                        // OPPO Find 触觉反馈：滑块值变化
+                                        oppoHaptic.sliderValueChanged(
+                                            adjustments.exposure,
+                                            value,
+                                            listOf(0f, 50f, 100f)
+                                        )
+                                        viewModel.updateQuickAdjust(key, value)
+                                        // 记录参数调整历史（用于智能推荐）
+                                        parameterMemory.recordParameterAdjustment(key, key, value)
+                                    },
+                                    onAdvancedClick = {
+                                        oppoHaptic.heavyClick()
+                                        viewModel.toggleAdvanced()
+                                    },
                                 )
                             }
                         }
@@ -2454,6 +2615,7 @@ private fun FilterPanel(
  * - 示波器（直方图 / 波形 / 矢量示波器 / RGB Parade）
  * - 裁切显示
  * - 遮罩模式
+ * - 像素查看模式
  *
  * 默认收起，点击展开，避免视觉噪音（ColorOS 16 简洁设计）。
  */
@@ -2467,6 +2629,8 @@ fun PreviewFloatingToolbar(
     onClippingToggle: () -> Unit,
     isMaskMode: Boolean,
     onMaskToggle: () -> Unit,
+    isPixelViewMode: Boolean = false,
+    onPixelViewToggle: () -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -2503,6 +2667,13 @@ fun PreviewFloatingToolbar(
                 label = "遮罩",
                 isActive = isMaskMode,
                 onClick = onMaskToggle,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            FloatingToolButton(
+                icon = Icons.Default.GpsFixed,
+                label = "像素",
+                isActive = isPixelViewMode,
+                onClick = onPixelViewToggle,
             )
             Spacer(modifier = Modifier.height(4.dp))
         }

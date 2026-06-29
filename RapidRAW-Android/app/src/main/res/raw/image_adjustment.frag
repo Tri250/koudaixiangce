@@ -132,6 +132,12 @@ uniform float uFlareAmount;         // 0.0 - 1.0
 uniform float uColorGradingBalance; // -1.0 - 1.0
 uniform float uColorCalibrationShadowsTint; // -1.0 - 1.0
 
+// Traditional Denoise (补充AI降噪)
+uniform int uDenoiseMode;        // 0=AI, 1=MEAN, 2=MEDIAN, 3=GAUSSIAN
+uniform float uDenoiseStrength;  // 0.0 - 1.0
+uniform int uDenoiseWindowSize;  // 3, 5, 7
+uniform float uGaussianSigma;    // 0.5 - 5.0
+
 // CDL Color Grading (per-channel R/G/B offsets for Lift/Gamma/Gain)
 uniform float uCdlShadowsR;      // -1.0 - 1.0
 uniform float uCdlShadowsG;
@@ -160,15 +166,52 @@ uniform float uTransformScale;      // 0.1 - 2.0
 uniform float uTransformXOffset;    // -1.0 - 1.0
 uniform float uTransformYOffset;    // -1.0 - 1.0
 
-// Lens Correction
+// Lens Correction (Legacy - Simple)
 uniform float uLensDistortion;      // -1.0 - 1.0
 uniform float uLensVignette;        // -1.0 - 1.0
 uniform float uLensTca;             // -1.0 - 1.0
 uniform float uLensFocalLength;     // 1.0 - 1000.0
 
+// Advanced Lens Correction (Brown-Conrady Model)
+uniform float uLensK1;              // Radial distortion k1 coefficient
+uniform float uLensK2;              // Radial distortion k2 coefficient
+uniform float uLensK3;              // Radial distortion k3 coefficient
+uniform float uLensP1;              // Tangential distortion p1 coefficient
+uniform float uLensP2;              // Tangential distortion p2 coefficient
+uniform float uLensLateralCA;       // Lateral CA overall intensity
+uniform float uLensTcaRed;          // TCA red channel offset
+uniform float uLensTcaBlue;         // TCA blue channel offset
+uniform float uLensVignetteCorrection; // Vignette correction intensity
+uniform float uLensVignetteK1;      // Vignette k1 coefficient
+uniform float uLensVignetteK2;      // Vignette k2 coefficient
+uniform float uLensVignetteK3;      // Vignette k3 coefficient
+uniform float uLensAutoCorrection;  // Auto correction flag (0 or 1)
+uniform float uLensScale;           // Scale factor for distortion correction
+
 uniform vec4 uRedCurve[6];          // RGB red curve points (x0,y0,x1,y1)
 uniform vec4 uGreenCurve[6];        // RGB green curve points
 uniform vec4 uBlueCurve[6];         // RGB blue curve points
+
+// Color Replacements (PixelFruit style) - up to 4 replacements
+uniform int uColorReplacementCount; // Number of active color replacements (0-4)
+uniform vec4 uColorReplacement0;    // sourceHueCenter, sourceHueRange, targetHue, feathering
+uniform vec4 uColorReplacement1;    // sourceSatMin, sourceSatMax, sourceLumMin, sourceLumMax
+uniform vec4 uColorReplacement2;    // saturationAdjust, lightnessAdjust, intensity, enabled
+// Repeat for each replacement (indices 3-11 for replacement 1, etc.)
+uniform vec4 uColorReplacement3;
+uniform vec4 uColorReplacement4;
+uniform vec4 uColorReplacement5;
+uniform vec4 uColorReplacement6;
+uniform vec4 uColorReplacement7;
+uniform vec4 uColorReplacement8;
+uniform vec4 uColorReplacement9;
+uniform vec4 uColorReplacement10;
+uniform vec4 uColorReplacement11;
+
+// ── Skin Whitening (面部美白) ────────────────────────────────────────
+uniform float uSkinWhiteningIntensity;  // 0.0 - 1.0 美白强度
+uniform float uSkinToneTarget;          // -1.0 - 1.0 肤色目标色调（偏粉/偏黄）
+uniform float uSkinSmoothness;          // 0.0 - 1.0 肤质平滑度
 
 in vec2 vTexCoord;
 out vec4 fragColor;
@@ -560,6 +603,164 @@ vec3 apply_hsl_panel(vec3 color) {
     rgb = luma + (rgb - luma) * (1.0 + lumShift);
 
     return rgb;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── Color Replacements (PixelFruit style) ─────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+// HSV to HSL conversion
+vec3 hsv_to_hsl(vec3 hsv) {
+    float h = hsv.x;
+    float s = hsv.y;
+    float v = hsv.z;
+    
+    float l = v * (1.0 - s / 2.0);
+    float sl = (l < EPS || l > 1.0 - EPS) ? 0.0 : (v - l) / min(l, 1.0 - l);
+    
+    return vec3(h, clamp(sl, 0.0, 1.0), clamp(l, 0.0, 1.0));
+}
+
+// HSL to HSV conversion
+vec3 hsl_to_hsv(vec3 hsl) {
+    float h = hsl.x;
+    float s = hsl.y;
+    float l = hsl.z;
+    
+    float v = l + s * min(l, 1.0 - l);
+    float sv = (v < EPS) ? 0.0 : 2.0 * (1.0 - l / v);
+    
+    return vec3(h, clamp(sv, 0.0, 1.0), clamp(v, 0.0, 1.0));
+}
+
+// Compute hue range weight with feathering
+float color_replacement_hue_weight(float hue, float center, float range, float feathering) {
+    float dist = hue_delta(hue, center);
+    float halfRange = range / 2.0;
+    
+    if (dist >= halfRange) return 0.0;
+    
+    float featherWidth = halfRange * feathering;
+    float hardEdge = halfRange - featherWidth;
+    
+    if (dist <= hardEdge) return 1.0;
+    
+    float t = (dist - hardEdge) / featherWidth;
+    return 1.0 - smoothstep_custom(0.0, 1.0, t);
+}
+
+// Compute saturation range weight with feathering
+float color_replacement_sat_weight(float sat, float minSat, float maxSat, float feathering) {
+    if (sat < minSat || sat > maxSat) return 0.0;
+    
+    float satRange = maxSat - minSat;
+    float featherWidth = satRange * feathering * 0.5;
+    
+    float lowerWeight = (sat < minSat + featherWidth) ? smoothstep_custom(minSat, minSat + featherWidth, sat) : 1.0;
+    float upperWeight = (sat > maxSat - featherWidth) ? 1.0 - smoothstep_custom(maxSat - featherWidth, maxSat, sat) : 1.0;
+    
+    return lowerWeight * upperWeight;
+}
+
+// Compute lightness range weight with feathering
+float color_replacement_lum_weight(float lum, float minLum, float maxLum, float feathering) {
+    if (lum < minLum || lum > maxLum) return 0.0;
+    
+    float lumRange = maxLum - minLum;
+    float featherWidth = lumRange * feathering * 0.5;
+    
+    float lowerWeight = (lum < minLum + featherWidth) ? smoothstep_custom(minLum, minLum + featherWidth, lum) : 1.0;
+    float upperWeight = (lum > maxLum - featherWidth) ? 1.0 - smoothstep_custom(maxLum - featherWidth, maxLum, lum) : 1.0;
+    
+    return lowerWeight * upperWeight;
+}
+
+// Apply single color replacement
+vec3 apply_single_color_replacement(vec3 hsl, vec4 params0, vec4 params1, vec4 params2) {
+    // Check if enabled
+    if (params2.w < 0.5) return hsl;
+    
+    float sourceHueCenter = params0.x;
+    float sourceHueRange = params0.y;
+    float targetHue = params0.z;
+    float feathering = params0.w;
+    
+    float sourceSatMin = params1.x;
+    float sourceSatMax = params1.y;
+    float sourceLumMin = params1.z;
+    float sourceLumMax = params1.w;
+    
+    float saturationAdjust = params2.x;
+    float lightnessAdjust = params2.y;
+    float intensity = params2.z;
+    
+    // Compute weight
+    float hueWeight = color_replacement_hue_weight(hsl.x, sourceHueCenter, sourceHueRange, feathering);
+    float satWeight = color_replacement_sat_weight(hsl.y, sourceSatMin, sourceSatMax, feathering);
+    float lumWeight = color_replacement_lum_weight(hsl.z, sourceLumMin, sourceLumMax, feathering);
+    
+    float weight = hueWeight * satWeight * lumWeight * intensity;
+    
+    if (weight < EPS) return hsl;
+    
+    vec3 result = hsl;
+    
+    // Hue replacement with relative offset preservation
+    float hueOffset = hue_delta(hsl.x, sourceHueCenter);
+    float hueDirection = (mod(hsl.x - sourceHueCenter + 360.0, 360.0) < 180.0) ? 1.0 : -1.0;
+    float newHue = mod(targetHue + hueOffset * hueDirection * (1.0 - weight * 0.5) + 360.0, 360.0);
+    result.x = hsl.x + (newHue - hsl.x) * weight;
+    
+    // Saturation adjustment
+    float targetSat = hsl.y + saturationAdjust;
+    result.y = hsl.y + (clamp(targetSat, 0.0, 1.0) - hsl.y) * weight;
+    
+    // Lightness adjustment
+    float targetLum = hsl.z + lightnessAdjust;
+    result.z = hsl.z + (clamp(targetLum, 0.0, 1.0) - hsl.z) * weight;
+    
+    return result;
+}
+
+// Apply all color replacements
+vec3 apply_color_replacements(vec3 color) {
+    if (uColorReplacementCount <= 0) return color;
+    
+    // Convert to HSL
+    vec3 hsv = rgb_to_hsv(color);
+    vec3 hsl = hsv_to_hsl(hsv);
+    
+    vec3 result = hsl;
+    
+    // Apply each replacement (up to 4)
+    for (int i = 0; i < uColorReplacementCount && i < 4; i++) {
+        vec4 params0, params1, params2;
+        
+        // Select the right uniforms for each replacement
+        if (i == 0) {
+            params0 = uColorReplacement0;
+            params1 = uColorReplacement1;
+            params2 = uColorReplacement2;
+        } else if (i == 1) {
+            params0 = uColorReplacement3;
+            params1 = uColorReplacement4;
+            params2 = uColorReplacement5;
+        } else if (i == 2) {
+            params0 = uColorReplacement6;
+            params1 = uColorReplacement7;
+            params2 = uColorReplacement8;
+        } else if (i == 3) {
+            params0 = uColorReplacement9;
+            params1 = uColorReplacement10;
+            params2 = uColorReplacement11;
+        }
+        
+        result = apply_single_color_replacement(result, params0, params1, params2);
+    }
+    
+    // Convert back to RGB via HSV
+    vec3 resultHsv = hsl_to_hsv(result);
+    return hsv_to_rgb(resultHsv);
 }
 
 // ── 8. Color Grading ──────────────────────────────────────────────────
@@ -1209,6 +1410,147 @@ vec3 apply_rgb_curves(vec3 color) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Traditional Denoise Algorithms ──────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+// 边界镜像扩展
+vec2 mirrorClampCoord(vec2 uv) {
+    vec2 result = uv;
+    if (result.x < 0.0) result.x = -result.x;
+    if (result.x > 1.0) result.x = 2.0 - result.x;
+    if (result.y < 0.0) result.y = -result.y;
+    if (result.y > 1.0) result.y = 2.0 - result.y;
+    return clamp(result, vec2(0.0), vec2(1.0));
+}
+
+// 均值滤波降噪
+vec3 apply_mean_filter(vec2 uv, int radius, float strength) {
+    vec2 texel = 1.0 / uResolution;
+    vec3 sum = vec3(0.0);
+    float count = 0.0;
+    
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            vec2 offset = vec2(float(dx), float(dy)) * texel;
+            vec2 sampleUv = mirrorClampCoord(uv + offset);
+            sum += texture(uTexture, sampleUv).rgb;
+            count += 1.0;
+        }
+    }
+    
+    vec3 mean = sum / count;
+    vec3 original = texture(uTexture, uv).rgb;
+    return mix(original, mean, strength);
+}
+
+// 快速中值查找（使用部分排序，仅对小数组有效）
+float findMedianFloat(float arr[25], int size) {
+    // 插入排序找中值
+    for (int i = 1; i < size; i++) {
+        float key = arr[i];
+        int j = i - 1;
+        while (j >= 0 && arr[j] > key) {
+            arr[j + 1] = arr[j];
+            j--;
+        }
+        arr[j + 1] = key;
+    }
+    
+    int half = size / 2;
+    if (size % 2 == 1) {
+        return arr[half];
+    } else {
+        return (arr[half - 1] + arr[half]) * 0.5;
+    }
+}
+
+// 中值滤波降噪（最大支持5x5窗口）
+vec3 apply_median_filter(vec2 uv, int radius, float strength) {
+    vec2 texel = 1.0 / uResolution;
+    int windowSize = radius * 2 + 1;
+    int windowArea = windowSize * windowSize;
+    
+    // 收集窗口内像素（最多25个）
+    float rWindow[25];
+    float gWindow[25];
+    float bWindow[25];
+    
+    int wi = 0;
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            vec2 offset = vec2(float(dx), float(dy)) * texel;
+            vec2 sampleUv = mirrorClampCoord(uv + offset);
+            vec3 sample = texture(uTexture, sampleUv).rgb;
+            rWindow[wi] = sample.r;
+            gWindow[wi] = sample.g;
+            bWindow[wi] = sample.b;
+            wi++;
+            if (wi >= 25) break; // 安全限制
+        }
+        if (wi >= 25) break;
+    }
+    
+    float medR = findMedianFloat(rWindow, windowArea);
+    float medG = findMedianFloat(gWindow, windowArea);
+    float medB = findMedianFloat(bWindow, windowArea);
+    
+    vec3 median = vec3(medR, medG, medB);
+    vec3 original = texture(uTexture, uv).rgb;
+    return mix(original, median, strength);
+}
+
+// 高斯滤波降噪
+vec3 apply_gaussian_filter(vec2 uv, int radius, float sigma, float strength) {
+    vec2 texel = 1.0 / uResolution;
+    vec3 sum = vec3(0.0);
+    float weightSum = 0.0;
+    
+    // 预计算高斯权重
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            float distSq = float(dx * dx + dy * dy);
+            float weight = exp(-distSq / (2.0 * sigma * sigma));
+            
+            vec2 offset = vec2(float(dx), float(dy)) * texel;
+            vec2 sampleUv = mirrorClampCoord(uv + offset);
+            vec3 sample = texture(uTexture, sampleUv).rgb;
+            
+            sum += sample * weight;
+            weightSum += weight;
+        }
+    }
+    
+    vec3 gaussian = sum / weightSum;
+    vec3 original = texture(uTexture, uv).rgb;
+    return mix(original, gaussian, strength);
+}
+
+// 统一降噪入口
+vec3 apply_traditional_denoise(vec3 color, vec2 uv) {
+    if (uDenoiseStrength < EPS) return color;
+    
+    int radius = uDenoiseWindowSize / 2;
+    float strength = uDenoiseStrength;
+    
+    vec3 denoised;
+    if (uDenoiseMode == 1) {
+        // MEAN
+        denoised = apply_mean_filter(uv, radius, strength);
+    } else if (uDenoiseMode == 2) {
+        // MEDIAN
+        denoised = apply_median_filter(uv, radius, strength);
+    } else if (uDenoiseMode == 3) {
+        // GAUSSIAN
+        denoised = apply_gaussian_filter(uv, radius, uGaussianSigma, strength);
+    } else {
+        // AI (mode 0) - 使用现有的 apply_noise_reduction
+        denoised = color;
+    }
+    
+    return denoised;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // ── NEW: Color Calibration Shadows Tint ───────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1250,6 +1592,466 @@ vec3 apply_cdl_grading(vec3 color) {
     float offsetB = (sm * uCdlShadowsB + mm * uCdlMidtonesB + hm * uCdlHighlightsB) * 0.15;
 
     return clamp(color + vec3(offsetR, offsetG, offsetB), 0.0, 1.0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Skin Whitening (面部美白 - GPU加速) ──────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+// RGB -> YCbCr 转换 (ITU-R BT.601)
+vec3 rgb_to_ycbcr(vec3 rgb) {
+    float y = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+    float cb = -0.169 * rgb.r - 0.331 * rgb.g + 0.500 * rgb.b + 0.5;
+    float cr = 0.500 * rgb.r - 0.419 * rgb.g - 0.081 * rgb.b + 0.5;
+    return vec3(y, cb, cr);
+}
+
+// 肤色检测函数 - 基于 YCbCr 颜色空间
+// 返回肤色概率 [0, 1]
+float detect_skin_probability(vec3 color) {
+    // 获取归一化的 RGB 值
+    vec3 rgb = clamp(color, 0.0, 1.0);
+    
+    // RGB 基本检查
+    // 肤色通常满足: R > G > B, R-G > 15, R-B > 15
+    if (rgb.r < 0.35 || rgb.g < 0.15 || rgb.b < 0.08) return 0.0;
+    if (rgb.r <= rgb.g || rgb.r <= rgb.b) return 0.0;
+    if (rgb.r - rgb.g < 0.06 || rgb.r - rgb.b < 0.06) return 0.0;
+    
+    // 动态范围检查
+    float maxVal = max(max(rgb.r, rgb.g), rgb.b);
+    float minVal = min(min(rgb.r, rgb.g), rgb.b);
+    if (maxVal - minVal < 0.06) return 0.0;
+    
+    // YCbCr 颜色空间检测 (主要方法)
+    vec3 ycbcr = rgb_to_ycbcr(rgb);
+    float cb = ycbcr.y;
+    float cr = ycbcr.z;
+    
+    // 肤色在 YCbCr 空间中的典型范围
+    // Cb: 0.30-0.50 (77-127 / 255)
+    // Cr: 0.52-0.68 (133-173 / 255)
+    if (cb < 0.30 || cb > 0.50 || cr < 0.52 || cr > 0.68) return 0.0;
+    
+    // 计算概率（基于与中心的距离）
+    float cbCenter = 0.40;  // (77 + 127) / 2 / 255
+    float crCenter = 0.60;  // (133 + 173) / 2 / 255
+    float cbRange = 0.10;
+    float crRange = 0.08;
+    
+    float cbDist = abs(cb - cbCenter) / cbRange;
+    float crDist = abs(cr - crCenter) / crRange;
+    
+    // 使用高斯衰减计算概率
+    float cbProb = exp(-cbDist * cbDist * 2.0);
+    float crProb = exp(-crDist * crDist * 2.0);
+    
+    // HSV 辅助验证
+    vec3 hsv = rgb_to_hsv(rgb);
+    float hue = hsv.x;
+    float sat = hsv.y;
+    float val = hsv.z;
+    
+    // 肤色色调范围: 0-50度 (红到橙到黄)
+    if (hue > 50.0) return 0.0;
+    
+    // 肤色饱和度适中: 0.1-0.7
+    if (sat < 0.08 || sat > 0.70) return 0.0;
+    
+    // 肤色亮度范围: 0.2-0.95
+    if (val < 0.2 || val > 0.95) return 0.0;
+    
+    // HSV 色调概率
+    float idealHue = 25.0;  // 理想肤色色调
+    float hueDist = abs(hue - idealHue) / 25.0;
+    float hueProb = exp(-hueDist * hueDist);
+    
+    // HSV 饱和度概率
+    float idealSat = 0.4;
+    float satDist = abs(sat - idealSat) / 0.3;
+    float satProb = exp(-satDist * satDist);
+    
+    // 综合概率: YCbCr权重最高
+    float probability = cbProb * 0.5 + crProb * 0.5;  // YCbCr: 50%
+    probability *= hueProb * 0.6 + satProb * 0.4;      // HSV 辅助
+    
+    return clamp(probability, 0.0, 1.0);
+}
+
+// RGB -> LAB 颜色空间转换 (简化近似)
+vec3 rgb_to_lab(vec3 rgb) {
+    // RGB -> XYZ (sRGB D65)
+    float x = rgb.r * 0.4124564 + rgb.g * 0.3575761 + rgb.b * 0.1804375;
+    float y = rgb.r * 0.2126729 + rgb.g * 0.7151522 + rgb.b * 0.0721750;
+    float z = rgb.r * 0.0193339 + rgb.g * 0.1191920 + rgb.b * 0.9503041;
+    
+    // 归一化到 D65 白点
+    float xNorm = x / 0.95047;
+    float yNorm = y / 1.0;
+    float zNorm = z / 1.08883;
+    
+    // f(t) 函数 - LAB 转换核心
+    float delta = 6.0 / 29.0;
+    float delta3 = delta * delta * delta;
+    
+    // f(t) = t^(1/3) if t > delta3, else t/(3*delta^2) + 4/29
+    float f_x = (xNorm > delta3) ? pow(xNorm, 1.0 / 3.0) : (xNorm / (3.0 * delta * delta) + 4.0 / 29.0);
+    float f_y = (yNorm > delta3) ? pow(yNorm, 1.0 / 3.0) : (yNorm / (3.0 * delta * delta) + 4.0 / 29.0);
+    float f_z = (zNorm > delta3) ? pow(zNorm, 1.0 / 3.0) : (zNorm / (3.0 * delta * delta) + 4.0 / 29.0);
+    
+    float l = 116.0 * f_y - 16.0;
+    float a = 500.0 * (f_x - f_y);
+    float b = 200.0 * (f_y - f_z);
+    
+    // 归一化 LAB 值到 0-1 范围
+    return vec3(l / 100.0, a / 256.0, b / 256.0);
+}
+
+// LAB -> RGB 颜色空间转换
+vec3 lab_to_rgb(vec3 lab) {
+    // 反归一化
+    float lOrig = lab.x * 100.0;
+    float aOrig = lab.y * 256.0;
+    float bOrig = lab.z * 256.0;
+    
+    // LAB -> XYZ
+    float delta = 6.0 / 29.0;
+    
+    // f_inv(t) = t^3 if t > delta, else 3*delta^2*(t - 4/29)
+    float f_y = (lOrig + 16.0) / 116.0;
+    float f_x = f_y + aOrig / 500.0;
+    float f_z = f_y - bOrig / 200.0;
+    
+    float yNorm = (f_y > delta) ? (f_y * f_y * f_y) : (3.0 * delta * delta * (f_y - 4.0 / 29.0));
+    float xNorm = (f_x > delta) ? (f_x * f_x * f_x) : (3.0 * delta * delta * (f_x - 4.0 / 29.0));
+    float zNorm = (f_z > delta) ? (f_z * f_z * f_z) : (3.0 * delta * delta * (f_z - 4.0 / 29.0));
+    
+    // 反归一化
+    float x = xNorm * 0.95047;
+    float y = yNorm * 1.0;
+    float z = zNorm * 1.08883;
+    
+    // XYZ -> RGB
+    float r = x * 3.2404542 - y * 1.5371385 - z * 0.4985314;
+    float g = -x * 0.9692660 + y * 1.8760108 + z * 0.0415560;
+    float b = x * 0.0556434 - y * 0.2040259 + z * 1.0572252;
+    
+    return clamp(vec3(r, g, b), 0.0, 1.0);
+}
+
+// 亮度提升曲线
+float apply_luminance_curve(float l, float boost) {
+    // S 曲线调整（避免过度曝光）
+    float liftedL = l + boost;
+    
+    // 在中间值附近提升更明显，两端平滑过渡
+    float midPoint = 0.5;
+    float sCurveFactor;
+    if (liftedL < midPoint) {
+        // 暗部：略微降低提升效果，保留暗部细节
+        sCurveFactor = 1.0 - (midPoint - liftedL) * 0.2;
+    } else {
+        // 亮部：显著降低提升效果，避免过曝
+        sCurveFactor = 1.0 - (liftedL - midPoint) * 0.5;
+    }
+    
+    float adjustedL = liftedL * clamp(sCurveFactor, 0.7, 1.0);
+    return clamp(adjustedL, 0.0, 1.0);
+}
+
+// 肤色美白处理
+vec3 apply_skin_whitening(vec3 color) {
+    if (uSkinWhiteningIntensity < EPS) return color;
+    
+    // 检测肤色概率
+    float skinProb = detect_skin_probability(color);
+    
+    if (skinProb < 0.1) return color;
+    
+    // 根据肤色概率和美白强度计算实际效果强度
+    float effectIntensity = skinProb * uSkinWhiteningIntensity;
+    
+    if (effectIntensity < 0.01) return color;
+    
+    // 转换到 LAB 颜色空间
+    vec3 lab = rgb_to_lab(color);
+    float l = lab.x;
+    float a = lab.y;
+    float b = lab.z;
+    
+    // Step 1: 亮度提升 (L 通道)
+    // 基础亮度提升量: 5%-25%
+    float baseBoost = 0.05 + 0.20 * effectIntensity;
+    
+    // 根据当前亮度调整提升量
+    // 暗部提升更多，亮部提升较少
+    float darknessFactor = 1.0 - l;
+    float adjustedBoost = baseBoost * (0.5 + darknessFactor * 0.5);
+    
+    float newL = apply_luminance_curve(l, adjustedBoost);
+    
+    // Step 2: 色调调整 (A/B 通道)
+    // A: 绿-红轴，B: 蓝-黄轴
+    // 正值（偏粉）：增加 a（偏红），减少 b（偏黄）
+    // 负值（偏黄）：减少 a，增加 b
+    float targetEffect = uSkinToneTarget * effectIntensity * 0.15;
+    float newA = a + targetEffect * 0.5;
+    float newB = b - targetEffect * 0.3;
+    
+    // 约束范围
+    newA = clamp(newA, -0.5, 0.5);
+    newB = clamp(newB, -0.5, 0.5);
+    
+    // Step 3: 饱和度微调
+    // 美白时略微降低饱和度可以更显白皙自然
+    float saturationReduction = 0.05 + 0.15 * effectIntensity;
+    float saturationFactor = 1.0 - saturationReduction * 0.5;
+    float adjustedA = newA * saturationFactor;
+    float adjustedB = newB * saturationFactor;
+    
+    // LAB -> RGB 转换
+    vec3 newColor = lab_to_rgb(vec3(newL, adjustedA, adjustedB));
+    
+    // 与原始颜色混合
+    float blendFactor = effectIntensity;
+    vec3 blendedColor = color + (newColor - color) * blendFactor;
+    
+    return clamp(blendedColor, 0.0, 1.0);
+}
+
+// 边缘保护平滑（简化双边滤波）
+vec3 apply_edge_preserving_smooth(vec2 uv, float smoothness) {
+    if (smoothness < EPS) return texture(uTexture, uv).rgb;
+    
+    vec3 centerColor = texture(uTexture, uv).rgb;
+    float centerLum = get_luma(centerColor);
+    
+    // 检测肤色概率
+    float skinProb = detect_skin_probability(centerColor);
+    if (skinProb < 0.3) return centerColor;
+    
+    // 简化的双边滤波
+    vec2 texel = 1.0 / uResolution;
+    float radius = 2.0 + smoothness * 3.0;
+    float spatialSigma = radius;
+    float colorSigma = 0.1 - smoothness * 0.05;
+    
+    vec3 sum = vec3(0.0);
+    float weightSum = 0.0;
+    
+    for (int dx = -3; dx <= 3; dx++) {
+        for (int dy = -3; dy <= 3; dy++) {
+            vec2 offset = vec2(float(dx), float(dy)) * texel;
+            vec2 sampleUv = mirrorClampCoord(uv + offset);
+            
+            vec3 neighborColor = texture(uTexture, sampleUv).rgb;
+            float neighborSkinProb = detect_skin_probability(neighborColor);
+            
+            // 只有肤色区域才参与平滑
+            if (neighborSkinProb < 0.2) continue;
+            
+            // 空间权重
+            float spatialDist = length(vec2(float(dx), float(dy)));
+            float spatialWeight = exp(-spatialDist * spatialDist / (2.0 * spatialSigma * spatialSigma));
+            
+            // 颜色权重（亮度差异）
+            float neighborLum = get_luma(neighborColor);
+            float colorDist = abs(neighborLum - centerLum);
+            float colorWeight = exp(-colorDist * colorDist / (2.0 * colorSigma * colorSigma));
+            
+            // 综合权重
+            float weight = spatialWeight * colorWeight * neighborSkinProb;
+            
+            sum += neighborColor * weight;
+            weightSum += weight;
+        }
+    }
+    
+    if (weightSum < 0.01) return centerColor;
+    
+    // 混合原始和平滑结果
+    vec3 smoothed = sum / weightSum;
+    float smoothFactor = skinProb * smoothness * 0.6;
+    vec3 result = centerColor + (smoothed - centerColor) * smoothFactor;
+    
+    return clamp(result, 0.0, 1.0);
+}
+
+// 综合美白处理（美白 + 平滑）
+vec3 apply_skin_whitening_full(vec3 color, vec2 uv) {
+    if (uSkinWhiteningIntensity < EPS) return color;
+    
+    // Step 1: 肤色美白
+    vec3 whitened = apply_skin_whitening(color);
+    
+    // Step 2: 边缘保护平滑（如果启用）
+    if (uSkinSmoothness > EPS) {
+        whitened = apply_edge_preserving_smooth(uv, uSkinSmoothness);
+    }
+    
+    return whitened;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── Advanced Lens Correction (Brown-Conrady Model) ────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Brown-Conrady 畸变模型
+ * 
+ * 完整公式:
+ * x_dist = x_undist(1 + k1*r^2 + k2*r^4 + k3*r^6) + 2*p1*x*y + p2*(r^2 + 2*x^2)
+ * y_dist = y_undist(1 + k1*r^2 + k2*r^4 + k3*r^6) + p1*(r^2 + 2*y^2) + 2*p2*x*y
+ * 
+ * 反向映射 (从输出坐标计算输入坐标):
+ * 需要求解非线性方程, 使用迭代近似
+ */
+
+// 检查是否有高级镜头校正参数
+bool has_advanced_lens_correction() {
+    return abs(uLensK1) > EPS || abs(uLensK2) > EPS || abs(uLensK3) > EPS ||
+           abs(uLensP1) > EPS || abs(uLensP2) > EPS ||
+           abs(uLensTcaRed) > EPS || abs(uLensTcaBlue) > EPS ||
+           abs(uLensVignetteCorrection) > EPS;
+}
+
+// Brown-Conrady 畸变校正 - 反向映射
+vec2 apply_brown_conrady_undistort(vec2 uv_dist) {
+    // 将uv_dist (输出坐标) 转换为归一化坐标
+    vec2 centered = uv_dist - 0.5;
+    
+    // 初始估计: 假设无畸变
+    vec2 xy_undist = centered;
+    
+    // Newton-Raphson迭代求解 (通常2-3次迭代足够)
+    // 简化版本: 使用固定迭代次数
+    for (int iter = 0; iter < 3; iter++) {
+        float x = xy_undist.x;
+        float y = xy_undist.y;
+        float r2 = x * x + y * y;
+        float r4 = r2 * r2;
+        float r6 = r4 * r2;
+        
+        // 畸变坐标计算 (正向)
+        float radial = 1.0 + uLensK1 * r2 + uLensK2 * r4 + uLensK3 * r6;
+        
+        // 切向畸变
+        float tangential_x = 2.0 * uLensP1 * x * y + uLensP2 * (r2 + 2.0 * x * x);
+        float tangential_y = uLensP1 * (r2 + 2.0 * y * y) + 2.0 * uLensP2 * x * y;
+        
+        // 畸变后的坐标
+        float x_dist = x * radial + tangential_x;
+        float y_dist = y * radial + tangential_y;
+        
+        // 计算误差并更新
+        float error_x = centered.x - x_dist;
+        float error_y = centered.y - y_dist;
+        
+        // 使用简单梯度下降更新
+        xy_undist.x += error_x * 0.5;
+        xy_undist.y += error_y * 0.5;
+    }
+    
+    // 应用缩放
+    xy_undist *= uLensScale;
+    
+    // 转换回uv坐标
+    return xy_undist + 0.5;
+}
+
+// 横向色差校正 (Lateral CA) - 分通道校正
+vec3 apply_lateral_ca_correction(vec2 uv, vec2 uv_undist) {
+    // 如果没有TCA校正参数, 直接采样
+    if (abs(uLensTcaRed) < EPS && abs(uLensTcaBlue) < EPS && abs(uLensLateralCA) < EPS) {
+        return texture(uTexture, uv_undist).rgb;
+    }
+    
+    vec2 centered = uv - 0.5;
+    float r2 = centered.x * centered.x + centered.y * centered.y;
+    
+    // 计算各通道的偏移
+    // TCA: 不同颜色的光线具有不同的焦距, 导致边缘处RGB分离
+    // 红光通常焦距更长 (红通道向外扩展)
+    // 蓝光通常焦距更短 (蓝通道向内压缩)
+    
+    // 综合TCA强度因子
+    float tcaIntensity = uLensLateralCA * 0.5 + 
+                         (abs(uLensTcaRed) + abs(uLensTcaBlue)) * 0.3;
+    
+    // 红通道采样位置 (向外偏移校正)
+    vec2 uv_red = uv_undist;
+    if (abs(uLensTcaRed) > EPS) {
+        vec2 red_offset = centered * uLensTcaRed * r2;
+        uv_red = uv_undist - red_offset; // 反向偏移进行校正
+    }
+    
+    // 蓝通道采样位置 (向内偏移校正)
+    vec2 uv_blue = uv_undist;
+    if (abs(uLensTcaBlue) > EPS) {
+        vec2 blue_offset = centered * uLensTcaBlue * r2;
+        uv_blue = uv_undist - blue_offset; // 反向偏移进行校正
+    }
+    
+    // 采样各通道
+    float r = texture(uTexture, mirrorClampCoord(uv_red)).r;
+    float g = texture(uTexture, uv_undist).g; // 绿通道作为基准
+    float b = texture(uTexture, mirrorClampCoord(uv_blue)).b;
+    
+    // 与原始采样混合 (基于TCA强度)
+    vec3 original = texture(uTexture, uv_undist).rgb;
+    float blend = tcaIntensity;
+    
+    return mix(original, vec3(r, g, b), blend);
+}
+
+// 暗角校正
+vec3 apply_lens_vignette_correction(vec3 color, vec2 uv) {
+    if (abs(uLensVignetteCorrection) < EPS && 
+        abs(uLensVignetteK1) < EPS && 
+        abs(uLensVignetteK2) < EPS) return color;
+    
+    vec2 centered = uv - 0.5;
+    float r2 = centered.x * centered.x + centered.y * centered.y;
+    
+    // 焦距因子: 短焦镜头暗角更明显
+    float focalFactor = 50.0 / max(uLensFocalLength, 1.0);
+    
+    // 暗角衰减模型 (多项式近似 cos^4 模型)
+    // V(r) = 1 + k1*r^2 + k2*r^4 + k3*r^6
+    float vignetteAmount = 1.0 + 
+                           uLensVignetteK1 * r2 * focalFactor + 
+                           uLensVignetteK2 * r2 * r2 * focalFactor + 
+                           uLensVignetteK3 * r2 * r2 * r2 * focalFactor;
+    
+    // 校正强度混合
+    float correction = vignetteAmount * uLensVignetteCorrection;
+    
+    // 限制增益范围 (避免过度放大噪声)
+    correction = clamp(correction, 1.0, 3.0);
+    
+    return color * correction;
+}
+
+// 完整的高级镜头校正
+vec3 apply_advanced_lens_correction(vec2 uv) {
+    if (!has_advanced_lens_correction()) {
+        return texture(uTexture, uv).rgb;
+    }
+    
+    // Step 1: 畸变校正 (Brown-Conrady)
+    vec2 uv_undist = uv;
+    if (abs(uLensK1) > EPS || abs(uLensK2) > EPS || abs(uLensK3) > EPS ||
+        abs(uLensP1) > EPS || abs(uLensP2) > EPS) {
+        uv_undist = apply_brown_conrady_undistort(uv);
+    }
+    
+    // Step 2: 横向色差校正
+    vec3 color = apply_lateral_ca_correction(uv, uv_undist);
+    
+    // Step 3: 暗角校正
+    color = apply_lens_vignette_correction(color, uv);
+    
+    return color;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1318,7 +2120,13 @@ void main() {
     vec3 originalLinear;
     {
         vec2 sampleUv = uv;
-        if (abs(uLensDistortion) > EPS || abs(uLensVignette) > EPS || abs(uLensTca) > EPS) {
+        
+        // 检查是否有高级镜头校正参数
+        if (has_advanced_lens_correction()) {
+            // 使用 Brown-Conrady 模型的高级校正
+            originalLinear = apply_advanced_lens_correction(sampleUv);
+        } else if (abs(uLensDistortion) > EPS || abs(uLensVignette) > EPS || abs(uLensTca) > EPS) {
+            // 使用简化的传统校正
             vec2 centered = sampleUv - 0.5;
             float dist = length(centered);
             float r2 = dist * dist;
@@ -1375,8 +2183,13 @@ void main() {
     // === Step 6: Green-Magenta tint ===
     color = apply_green_magenta(color);
 
-    // === Step 6b: Noise reduction ===
-    color = apply_noise_reduction(color);
+    // === Step 6b: Noise reduction (传统降噪算法) ===
+    // AI模式使用现有的apply_noise_reduction，其他模式使用传统算法
+    if (uDenoiseMode == 0) {
+        color = apply_noise_reduction(color);
+    } else {
+        color = apply_traditional_denoise(color, uv);
+    }
 
     // === Step 7: Highlights adjustment ===
     color = apply_highlights_adjustment(color, uHighlights);
@@ -1392,6 +2205,9 @@ void main() {
 
     // === Step 10: HSL 8-color panel ===
     color = apply_hsl_panel(color);
+
+    // === Step 10b: Color Replacements (PixelFruit style) ===
+    color = apply_color_replacements(color);
 
     // === Step 11: Color grading ===
     color = apply_color_grading(color);
@@ -1450,6 +2266,9 @@ void main() {
 
     // === Step 24: Dither ===
     color += (gradient_noise(uv.x, uv.y) - 0.5) / 255.0;
+
+    // === Step 24b: Skin Whitening (面部美白) ===
+    color = apply_skin_whitening_full(color, uv);
 
     // === Step 25: LUT color grading ===
     if (uLutIntensity > 0.001) {

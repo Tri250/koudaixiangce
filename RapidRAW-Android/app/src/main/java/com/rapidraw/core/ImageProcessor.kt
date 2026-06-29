@@ -232,8 +232,16 @@ class ImageProcessor {
         val lensTca: Float = 0f,
         val lensFocalLength: Float = 50f,
 
+        // Skin Whitening (面部美白)
+        val skinWhiteningIntensity: Float = 0f,      // 0..1
+        val skinToneTarget: Float = 0f,              // -1..1
+        val skinSmoothness: Float = 0f,              // 0..1
+
         // Debug
-        val clippingPreview: Boolean = false
+        val clippingPreview: Boolean = false,
+
+        // Color Replacements (PixelFruit style)
+        val colorReplacements: List<ColorReplacementData> = emptyList(),
     ) {
         companion object {
             /**
@@ -331,6 +339,10 @@ class ImageProcessor {
                 lensVignette = src.lensVignette / 100f,
                 lensTca = src.lensTca / 100f,
                 lensFocalLength = src.lensFocalLength,
+                // Skin Whitening
+                skinWhiteningIntensity = src.skinWhiteningIntensity / 100f,
+                skinToneTarget = src.skinToneTarget / 100f,
+                skinSmoothness = src.skinSmoothness / 100f,
                 // Vignette sub-parameters
                 vignetteMidpoint = src.vignetteMidpoint / 100f,
                 vignetteRoundness = src.vignetteRoundness / 100f,
@@ -385,6 +397,8 @@ class ImageProcessor {
                 // Masks
                 masks = src.masks,
                 clippingPreview = src.showClipping,
+                // Color Replacements
+                colorReplacements = src.colorReplacements,
             )
         }
     }
@@ -829,6 +843,12 @@ class ImageProcessor {
                 val hslResult = applyHslPanel(r, g, b, n)
                 r = hslResult[0]; g = hslResult[1]; b = hslResult[2]
 
+                // ── 8b. Color Replacements (PixelFruit style) ──
+                if (n.colorReplacements.isNotEmpty()) {
+                    val crResult = ColorReplacementProcessor.applyColorReplacements(r, g, b, n.colorReplacements)
+                    r = crResult[0]; g = crResult[1]; b = crResult[2]
+                }
+
                 // ── 9. Tone Curves ──
                 r = ColorMath.applyCurve(r, curvePoints)
                 g = ColorMath.applyCurve(g, curvePoints)
@@ -1065,9 +1085,24 @@ class ImageProcessor {
             outputBitmap.setPixels(effectPixels, 0, w, 0, 0, w, h)
         }
 
+        // Post-processing: Skin Whitening (面部美白)
+        var whiteningBitmap = outputBitmap
+        if (n.skinWhiteningIntensity > 1e-6f) {
+            val whiteningParams = SkinWhiteningProcessor.WhiteningParams(
+                intensity = n.skinWhiteningIntensity * 100f,
+                skinToneTarget = n.skinToneTarget * 100f,
+                skinSmoothness = n.skinSmoothness * 100f,
+                preserveTexture = true,
+                toneType = SkinToneDetector.SkinToneType.UNIVERSAL
+            )
+            val whiteningResult = SkinWhiteningProcessor.process(outputBitmap, whiteningParams)
+            whiteningBitmap = whiteningResult.bitmap
+        }
+
         // Post-processing: Sharpness & Clarity (spatial operations)
-        val finalBitmap = applySpatialOperations(outputBitmap, n)
-        if (finalBitmap != outputBitmap) outputBitmap.recycle()
+        val finalBitmap = applySpatialOperations(whiteningBitmap, n)
+        if (finalBitmap != whiteningBitmap) whiteningBitmap.recycle()
+        if (whiteningBitmap != outputBitmap && outputBitmap != finalBitmap) outputBitmap.recycle()
 
         // Recycle intermediate bitmaps if created
         if (workBitmap !== sourceBitmap) workBitmap.recycle()

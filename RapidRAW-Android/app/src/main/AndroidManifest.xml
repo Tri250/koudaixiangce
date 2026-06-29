@@ -24,16 +24,45 @@
     <!-- 触觉反馈 -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- 硬件能力声明 -->
+    <!-- ── 硬件能力声明（Android 16 优化）────────────────────────────── -->
+
+    <!-- 相机（可选，用于直接拍摄 RAW） -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
     <!-- OpenGL ES 3.0 为必须，低版本设备将在安装阶段过滤 -->
     <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+
+    <!-- OpenGL ES 3.2（可选，Android 16 新特性，几何着色器等） -->
+    <uses-feature android:glEsVersion="0x00030002" android:required="false" />
+
     <!-- Vulkan compute 用于 AI 加速（可选，ColorOS 16 设备有硬件加速） -->
     <uses-feature android:name="android.hardware.vulkan.compute" android:required="false" />
+
     <!-- Vulkan 1.3（Android 16 默认）支持 HDR 显示管线 -->
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401003" android:required="false" />
+
+    <!-- Vulkan 1.1 要求（用于 compute shader 最低支持） -->
+    <uses-feature android:name="android.hardware.vulkan.level" android:version="1" android:required="false" />
+
+    <!-- HDR 显示支持（Android 14+ Ultra HDR / Gain Map） -->
+    <!-- HDR10 -->
+    <uses-feature android:name="android.hardware.screen.hdr" android:required="false" />
+    <!-- HDR10+（动态 metadata） -->
+    <uses-feature android:name="android.hardware.screen.hdr_ten_bit_plus" android:required="false" />
+
+    <!-- 高刷新率显示（可选，OPPO Find X8 Pro 120Hz） -->
+    <uses-feature android:name="android.hardware.type.pc" android:required="false" />
+
     <!-- 触觉反馈硬件（可选，OPPO Find 等线性马达设备增强滑块交互） -->
     <uses-feature android:name="android.hardware.sensor.hifi_sensors" android:required="false" />
+
+    <!-- ── Android 15+ 16KB Page Size 兼容性标记 ────────────────────── -->
+    <!-- 从 Android 15 开始，某些设备使用 16KB page size（而非传统 4KB） -->
+    <!-- 应用必须声明兼容，否则在这些设备上无法安装 -->
+    <!-- https://developer.android.com/guide/practices/page-sizes -->
+    <property
+        android:name="android.app.property.16K_PAGE_SIZE_COMPATIBLE"
+        android:value="true" />
 
     <application
         android:name=".RapidRawApp"
