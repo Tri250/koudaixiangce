@@ -438,9 +438,10 @@ fun EditorScreen(
             contentAlignment = Alignment.Center,
         ) {
             // Edited image
-            if (previewBitmap != null && !previewBitmap!!.isRecycled) {
+            val currentPreview = previewBitmap
+            if (currentPreview != null && !currentPreview.isRecycled) {
                 Image(
-                    bitmap = previewBitmap!!.asImageBitmap(),
+                    bitmap = currentPreview.asImageBitmap(),
                     contentDescription = "预览",
                     modifier = Modifier
                         .fillMaxSize()
@@ -668,7 +669,8 @@ fun EditorScreen(
             }
 
             // Waveform overlay
-            if (showWaveform && previewBitmap != null && !previewBitmap!!.isRecycled) {
+            val waveformBitmap = previewBitmap
+            if (showWaveform && waveformBitmap != null && !waveformBitmap.isRecycled) {
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -677,7 +679,7 @@ fun EditorScreen(
                     shape = RoundedCornerShape(4.dp),
                 ) {
                     WaveformScope(
-                        bitmap = previewBitmap!!,
+                        bitmap = waveformBitmap,
                         modifier = Modifier.size(200.dp, 120.dp),
                     )
                 }
@@ -904,9 +906,10 @@ fun EditorScreen(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (previewBitmap != null && !previewBitmap!!.isRecycled) {
+                    val thumbnailBitmap = previewBitmap
+                    if (thumbnailBitmap != null && !thumbnailBitmap.isRecycled) {
                         Image(
-                            bitmap = previewBitmap!!.asImageBitmap(),
+                            bitmap = thumbnailBitmap.asImageBitmap(),
                             contentDescription = "当前",
                             modifier = Modifier
                                 .matchParentSize()

@@ -87,9 +87,10 @@ fun PresetsSheet(
         )
     }
 
-    if (showRenameDialog != null) {
+    val renamePreset = showRenameDialog
+    if (renamePreset != null) {
         RenamePresetDialog(
-            currentName = showRenameDialog!!.name,
+            currentName = renamePreset.name,
             onConfirm = { name ->
                 showRenameDialog = null
             },
@@ -252,7 +253,8 @@ fun PresetsSheet(
         }
 
         // Context menu
-        if (showContextMenu && contextMenuPreset != null) {
+        val menuPreset = contextMenuPreset
+        if (showContextMenu && menuPreset != null) {
             DropdownMenu(
                 expanded = showContextMenu,
                 onDismissRequest = { showContextMenu = false },
@@ -260,7 +262,7 @@ fun PresetsSheet(
                 DropdownMenuItem(
                     text = { Text("重命名", color = TextPrimary) },
                     onClick = {
-                        showRenameDialog = contextMenuPreset
+                        showRenameDialog = menuPreset
                         showContextMenu = false
                     },
                     leadingIcon = {
@@ -270,7 +272,7 @@ fun PresetsSheet(
                 DropdownMenuItem(
                     text = { Text("删除", color = TextPrimary) },
                     onClick = {
-                        onDeletePreset(contextMenuPreset!!.id)
+                        onDeletePreset(menuPreset.id)
                         showContextMenu = false
                     },
                     leadingIcon = {

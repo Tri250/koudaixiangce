@@ -2075,7 +2075,7 @@ class ImageProcessor {
         // HEIF export handled directly by HeifExporter (bypasses temp file flow)
         if (settings.format == ExportFormat.HEIF) {
             val heifConfig = HeifExporter.HeifConfig(
-                quality = settings.quality,
+                quality = settings.safeQuality,
                 bitDepth = if (settings.heifBitDepth == HeifBitDepth.DEPTH_10) {
                     HeifExporter.HeifBitDepth.DEPTH_10
                 } else {
@@ -2106,7 +2106,7 @@ class ImageProcessor {
                     }
                     ExrExporter.writeExr(exportBitmap, fos, pixelType)
                 } else {
-                    compressBitmap(exportBitmap, settings.format, settings.quality, fos)
+                    compressBitmap(exportBitmap, settings.format, settings.safeQuality, fos)
                 }
             }
 

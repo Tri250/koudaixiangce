@@ -71,10 +71,19 @@ class MainActivity : ComponentActivity() {
         applyPerAppLanguage()
 
         // Edge-to-Edge: 让系统栏透明并让内容绘制到系统栏后面
-        enableEdgeToEdge()
+        // 部分 OEM 皮肤对 edge-to-edge 支持不完整，做 try-catch 防止崩溃
+        try {
+            enableEdgeToEdge()
+        } catch (e: Exception) {
+            Log.w(TAG, "enableEdgeToEdge failed", e)
+        }
 
         // WindowCompat 设置：确保内容不会与系统栏重叠（由 Compose Insets 处理）
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        try {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+        } catch (e: Exception) {
+            Log.w(TAG, "setDecorFitsSystemWindows failed", e)
+        }
 
         applyImmersiveMode()
 

@@ -103,10 +103,11 @@ fun PresetImportScreen(
                 )
             }
 
-            if (selectedUri != null) {
+            val uri = selectedUri
+            if (uri != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = selectedUri!!.lastPathSegment ?: "未知文件",
+                    text = uri.lastPathSegment ?: "未知文件",
                     color = TextTertiary,
                     fontSize = 13.sp,
                 )

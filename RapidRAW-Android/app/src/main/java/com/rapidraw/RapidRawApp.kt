@@ -12,9 +12,9 @@ class RapidRawApp : Application() {
         private const val TAG = "RapidRawApp"
 
         @Volatile
-        private lateinit var instance: RapidRawApp
+        private var instance: RapidRawApp? = null
 
-        fun getInstance(): RapidRawApp = instance
+        fun getInstance(): RapidRawApp? = instance
     }
 
     val imageProcessor: ImageProcessor by lazy { ImageProcessor() }

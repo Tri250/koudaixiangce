@@ -1476,13 +1476,18 @@ class EditorViewModel(
     }
 
     private fun recycleBitmapsInternal() {
-        _previewBitmap.value?.let {
-            if (!it.isRecycled) it.recycle()
-        }
+        val previewValue = _previewBitmap.value
         _previewBitmap.value = null
-        previewBitmapCache?.recycle()
+        previewValue?.takeIf {
+            it !== previewBitmapCache && it !== originalBitmap && !it.isRecycled
+        }?.recycle()
+
+        previewBitmapCache?.takeIf {
+            it !== originalBitmap && !it.isRecycled
+        }?.recycle()
         previewBitmapCache = null
-        originalBitmap?.recycle()
+
+        originalBitmap?.takeIf { !it.isRecycled }?.recycle()
         originalBitmap = null
     }
     // endregion

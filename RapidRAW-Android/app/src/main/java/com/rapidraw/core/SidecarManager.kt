@@ -59,8 +59,10 @@ class SidecarManager(private val context: Context) {
             val uri = Uri.parse(imageUri)
             when (uri.scheme) {
                 "file" -> {
-                    val imageFile = File(uri.path!!)
-                    val sidecarFile = File(imageFile.parentFile, imageFile.nameWithoutExtension + ".rapidraw")
+                    val imagePath = uri.path ?: return false
+                    val imageFile = File(imagePath)
+                    val parentDir = imageFile.parentFile ?: return false
+                    val sidecarFile = File(parentDir, imageFile.nameWithoutExtension + ".rapidraw")
                     FileOutputStream(sidecarFile).use { it.write(jsonStr.toByteArray()) }
                     true
                 }
@@ -86,8 +88,10 @@ class SidecarManager(private val context: Context) {
             val uri = Uri.parse(imageUri)
             val sidecarFile = when (uri.scheme) {
                 "file" -> {
-                    val imageFile = File(uri.path!!)
-                    File(imageFile.parentFile, imageFile.nameWithoutExtension + ".rapidraw")
+                    val imagePath = uri.path ?: return null
+                    val imageFile = File(imagePath)
+                    val parentDir = imageFile.parentFile ?: return null
+                    File(parentDir, imageFile.nameWithoutExtension + ".rapidraw")
                 }
                 "content" -> {
                     val fileName = uri.lastPathSegment?.replace("/", "_") ?: "image"
@@ -111,15 +115,17 @@ class SidecarManager(private val context: Context) {
         val uri = Uri.parse(imageUri)
         val sidecarFile = when (uri.scheme) {
             "file" -> {
-                val imageFile = File(uri.path!!)
-                File(imageFile.parentFile, imageFile.nameWithoutExtension + ".rapidraw")
+                    val imagePath = uri.path ?: return false
+                    val imageFile = File(imagePath)
+                    val parentDir = imageFile.parentFile ?: return false
+                    File(parentDir, imageFile.nameWithoutExtension + ".rapidraw")
+                }
+                "content" -> {
+                    val fileName = uri.lastPathSegment?.replace("/", "_") ?: "image"
+                    File(context.filesDir, "$fileName.rapidraw")
+                }
+                else -> return false
             }
-            "content" -> {
-                val fileName = uri.lastPathSegment?.replace("/", "_") ?: "image"
-                File(context.filesDir, "$fileName.rapidraw")
-            }
-            else -> return false
-        }
         return sidecarFile.exists()
     }
     
@@ -130,15 +136,17 @@ class SidecarManager(private val context: Context) {
         val uri = Uri.parse(imageUri)
         val sidecarFile = when (uri.scheme) {
             "file" -> {
-                val imageFile = File(uri.path!!)
-                File(imageFile.parentFile, imageFile.nameWithoutExtension + ".rapidraw")
+                    val imagePath = uri.path ?: return false
+                    val imageFile = File(imagePath)
+                    val parentDir = imageFile.parentFile ?: return false
+                    File(parentDir, imageFile.nameWithoutExtension + ".rapidraw")
+                }
+                "content" -> {
+                    val fileName = uri.lastPathSegment?.replace("/", "_") ?: "image"
+                    File(context.filesDir, "$fileName.rapidraw")
+                }
+                else -> return false
             }
-            "content" -> {
-                val fileName = uri.lastPathSegment?.replace("/", "_") ?: "image"
-                File(context.filesDir, "$fileName.rapidraw")
-            }
-            else -> return false
-        }
         return sidecarFile.delete()
     }
 }

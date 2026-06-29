@@ -75,7 +75,9 @@ data class ExportSettings(
     val exrBitDepth: ExrBitDepth = ExrBitDepth.HALF,
     val heifBitDepth: HeifBitDepth = HeifBitDepth.DEPTH_10,
 ) {
-    init {
-        require(quality in 1..100) { "Quality must be between 1 and 100, was $quality" }
-    }
+    /**
+     * 导出时使用的安全 quality 值，避免反序列化或外部传入非法值导致崩溃。
+     */
+    val safeQuality: Int
+        get() = quality.coerceIn(1, 100)
 }

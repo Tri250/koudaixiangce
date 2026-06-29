@@ -167,14 +167,14 @@ enum class HasselbladMasterFilter(
     fun toAdjustments(): Adjustments = adjustments
 
     fun toFilmSimulation(): FilmSimulation = when (this) {
-        HEWA -> FilmSimulation.getById("hasselblad_hewa")!!
-        NONGYU -> FilmSimulation.getById("hasselblad_nongyu")!!
-        FUGU -> FilmSimulation.getById("hasselblad_fugu")!!
-        QINGXIN -> FilmSimulation.getById("hasselblad_qingxin")!!
-        TONGTOU -> FilmSimulation.getById("hasselblad_tongtou")!!
-        NIHONG -> FilmSimulation.getById("hasselblad_nihong")!!
-        LENGDIAO -> FilmSimulation.getById("hasselblad_lengdiao")!!
-        NUANDIAO -> FilmSimulation.getById("hasselblad_nuandiao")!!
-        HEIBAI -> FilmSimulation.getById("hasselblad_heibai")!!
-    }
+        HEWA -> FilmSimulation.getById("hasselblad_hewa")
+        NONGYU -> FilmSimulation.getById("hasselblad_nongyu")
+        FUGU -> FilmSimulation.getById("hasselblad_fugu")
+        QINGXIN -> FilmSimulation.getById("hasselblad_qingxin")
+        TONGTOU -> FilmSimulation.getById("hasselblad_tongtou")
+        NIHONG -> FilmSimulation.getById("hasselblad_nihong")
+        LENGDIAO -> FilmSimulation.getById("hasselblad_lengdiao")
+        NUANDIAO -> FilmSimulation.getById("hasselblad_nuandiao")
+        HEIBAI -> FilmSimulation.getById("hasselblad_heibai")
+    } ?: FilmSimulation.ALL.first()
 }

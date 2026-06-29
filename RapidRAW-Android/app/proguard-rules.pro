@@ -83,6 +83,10 @@
 
 # ViewModel
 -keep class * extends androidx.lifecycle.ViewModel { *; }
+-keep class * extends androidx.lifecycle.ViewModelProvider$Factory { *; }
+
+# Navigation routes / args classes
+-keep class com.rapidraw.ui.navigation.** { *; }
 
 # Keep all Composable functions
 -keepclassmembers class * {

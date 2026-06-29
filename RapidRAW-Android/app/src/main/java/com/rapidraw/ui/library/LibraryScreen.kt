@@ -431,7 +431,8 @@ fun LibraryScreen(
             }
 
             // ── Batch Progress Overlay ────────────────────────────────────
-            if (batchProgress != null) {
+            val progress = batchProgress
+            if (progress != null) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -454,13 +455,13 @@ fun LibraryScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "${batchProgress!!.current} / ${batchProgress!!.total}",
+                                text = "${progress.current} / ${progress.total}",
                                 color = TextSecondary,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = batchProgress!!.currentFileName,
+                                text = progress.currentFileName,
                                 color = TextTertiary,
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,

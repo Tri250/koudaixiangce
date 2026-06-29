@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.data.model.ColorLabel
@@ -118,84 +119,98 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         withContext(Dispatchers.IO) {
             val images = mutableListOf<ImageFile>()
 
-            val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-            } else {
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            }
-
-            val projection = arrayOf(
-                MediaStore.Images.Media._ID,
-                MediaStore.Images.Media.DATA,
-                MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.DATE_MODIFIED,
-                MediaStore.Images.Media.SIZE,
-                MediaStore.Images.Media.WIDTH,
-                MediaStore.Images.Media.HEIGHT,
-            )
-
-            val selectionBuilder = StringBuilder()
-            val selectionArgs = mutableListOf<String>()
-
-            val extensionConditions = SUPPORTED_EXTENSIONS.map { ext ->
-                "${MediaStore.Images.Media.DISPLAY_NAME} LIKE '%.$ext'"
-            } + SUPPORTED_EXTENSIONS.map { ext ->
-                "${MediaStore.Images.Media.DISPLAY_NAME} LIKE '%.${ext.uppercase()}'"
-            }
-            selectionBuilder.append("(${extensionConditions.joinToString(" OR ")})")
-
-            if (folder != null) {
-                selectionBuilder.append(" AND ${MediaStore.Images.Media.DATA} LIKE ?")
-                selectionArgs.add("$folder/%")
-            }
-
-            val sortOrderClause = when (_sortOrder.value) {
-                SortOrder.DATE -> "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
-                SortOrder.RATING -> "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
-                SortOrder.NAME -> "${MediaStore.Images.Media.DISPLAY_NAME} ASC"
-            }
-
-            val cursor: Cursor? = contentResolver.query(
-                collection,
-                projection,
-                selectionBuilder.toString(),
-                selectionArgs.toTypedArray(),
-                sortOrderClause,
-            )
-
-            cursor?.use {
-                val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-                val dataColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
-                val nameColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-                val dateColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
-                val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
-                val widthColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
-                val heightColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
-
-                while (it.moveToNext()) {
-                    val path = it.getString(dataColumn) ?: continue
-                    val fileName = it.getString(nameColumn) ?: continue
-                    val extension = fileName.substringAfterLast('.', "").lowercase()
-
-                    if (extension !in SUPPORTED_EXTENSIONS) continue
-
-                    val folderPath = path.substringBeforeLast('/', "")
-                    val isRaw = extension in ImageFile.RAW_EXTENSIONS
-
-                    images.add(
-                        ImageFile(
-                            path = path,
-                            fileName = fileName,
-                            folderPath = folderPath,
-                            isRaw = isRaw,
-                            width = if (widthColumn >= 0) it.getInt(widthColumn) else 0,
-                            height = if (heightColumn >= 0) it.getInt(heightColumn) else 0,
-                            fileSize = if (sizeColumn >= 0) it.getLong(sizeColumn) else 0L,
-                            dateModified = if (dateColumn >= 0) it.getLong(dateColumn) * 1000L else 0L,
-                            rating = 0,
-                        )
-                    )
+            try {
+                val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+                } else {
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI
                 }
+
+                val projection = arrayOf(
+                    MediaStore.Images.Media._ID,
+                    MediaStore.Images.Media.DATA,
+                    MediaStore.Images.Media.DISPLAY_NAME,
+                    MediaStore.Images.Media.DATE_MODIFIED,
+                    MediaStore.Images.Media.SIZE,
+                    MediaStore.Images.Media.WIDTH,
+                    MediaStore.Images.Media.HEIGHT,
+                )
+
+                val selectionBuilder = StringBuilder()
+                val selectionArgs = mutableListOf<String>()
+
+                val extensionConditions = SUPPORTED_EXTENSIONS.map { ext ->
+                    "${MediaStore.Images.Media.DISPLAY_NAME} LIKE '%.$ext'"
+                } + SUPPORTED_EXTENSIONS.map { ext ->
+                    "${MediaStore.Images.Media.DISPLAY_NAME} LIKE '%.${ext.uppercase()}'"
+                }
+                selectionBuilder.append("(${extensionConditions.joinToString(" OR ")})")
+
+                if (folder != null) {
+                    selectionBuilder.append(" AND ${MediaStore.Images.Media.DATA} LIKE ?")
+                    selectionArgs.add("$folder/%")
+                }
+
+                val sortOrderClause = when (_sortOrder.value) {
+                    SortOrder.DATE -> "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
+                    SortOrder.RATING -> "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
+                    SortOrder.NAME -> "${MediaStore.Images.Media.DISPLAY_NAME} ASC"
+                }
+
+                val cursor: Cursor? = contentResolver.query(
+                    collection,
+                    projection,
+                    selectionBuilder.toString(),
+                    selectionArgs.toTypedArray(),
+                    sortOrderClause,
+                )
+
+                cursor?.use {
+                    val idColumn = it.getColumnIndex(MediaStore.Images.Media._ID)
+                    val dataColumn = it.getColumnIndex(MediaStore.Images.Media.DATA)
+                    val nameColumn = it.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
+                    val dateColumn = it.getColumnIndex(MediaStore.Images.Media.DATE_MODIFIED)
+                    val sizeColumn = it.getColumnIndex(MediaStore.Images.Media.SIZE)
+                    val widthColumn = it.getColumnIndex(MediaStore.Images.Media.WIDTH)
+                    val heightColumn = it.getColumnIndex(MediaStore.Images.Media.HEIGHT)
+
+                    // 必要列缺失时直接跳过，避免 getColumnIndexOrThrow 崩溃
+                    if (idColumn < 0 || dataColumn < 0 || nameColumn < 0) {
+                        Log.w(TAG, "Required MediaStore columns missing")
+                        return@withContext images
+                    }
+
+                    while (it.moveToNext()) {
+                        val path = it.getString(dataColumn) ?: continue
+                        val fileName = it.getString(nameColumn) ?: continue
+                        val extension = fileName.substringAfterLast('.', "").lowercase()
+
+                        if (extension !in SUPPORTED_EXTENSIONS) continue
+
+                        val folderPath = path.substringBeforeLast('/', "")
+                        val isRaw = extension in ImageFile.RAW_EXTENSIONS
+
+                        images.add(
+                            ImageFile(
+                                path = path,
+                                fileName = fileName,
+                                folderPath = folderPath,
+                                isRaw = isRaw,
+                                width = if (widthColumn >= 0) it.getInt(widthColumn) else 0,
+                                height = if (heightColumn >= 0) it.getInt(heightColumn) else 0,
+                                fileSize = if (sizeColumn >= 0) it.getLong(sizeColumn) else 0L,
+                                dateModified = if (dateColumn >= 0) it.getLong(dateColumn) * 1000L else 0L,
+                                rating = 0,
+                            )
+                        )
+                    }
+                } ?: Log.w(TAG, "MediaStore cursor returned null")
+            } catch (e: SecurityException) {
+                Log.w(TAG, "MediaStore query SecurityException", e)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "MediaStore query IllegalArgumentException", e)
+            } catch (e: Exception) {
+                Log.w(TAG, "MediaStore query failed", e)
             }
 
             images
@@ -472,7 +487,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     val uri = android.net.Uri.parse(path)
                     when (uri.scheme) {
                         "file" -> {
-                            val file = java.io.File(uri.path!!)
+                            val filePath = uri.path ?: continue
+                            val file = java.io.File(filePath)
                             if (file.exists()) {
                                 // 清理 Sidecar
                                 sidecarManager.deleteSidecar(path)
@@ -506,5 +522,20 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 loadImages(_selectedFolder.value)
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        thumbnailJob?.cancel()
+        // 回收已加载的缩略图 Bitmap，避免 ViewModel 销毁后泄漏
+        val currentThumbnails = _thumbnails.value
+        _thumbnails.value = emptyMap()
+        currentThumbnails.values.forEach { bitmap ->
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+    }
+
+    companion object {
+        private const val TAG = "LibraryViewModel"
     }
 }
