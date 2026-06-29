@@ -359,7 +359,10 @@ class GpuPipeline(private val context: Context) {
             "uDehaze", "uVignette",
             "uGrain", "uGrainSize",
             "uChromaticAberrationRedCyan", "uChromaticAberrationBlueYellow",
+            "uColorScienceMode",
             "uAgXEnabled", "uAgXContrast", "uAgXPedestal",
+            "uAces2DisplayColorSpace", "uAces2Eotf", "uAces2PeakLuminance",
+            "uOpenDrtDisplayColorSpace", "uOpenDrtEotf", "uOpenDrtPeakLuminance",
             "uClippingPreview",
             // New uniforms for film simulation & advanced controls
             "uToneLevel", "uFilmIntensity", "uGreenMagenta", "uSoftGlow",
@@ -658,11 +661,19 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uChromaticAberrationRedCyan", caRedCyan)
         setUniform1f("uChromaticAberrationBlueYellow", caBlueYellow)
 
-        // ── Tone Mapping ──
-        val agxEnabled = adjustments.toneMapper == "agx"
+        // ── Tone Mapping / Color Science ──
+        val csMode = adjustments.colorScienceMode.coerceIn(0, 3)
+        setUniform1i("uColorScienceMode", csMode)
+        val agxEnabled = adjustments.toneMapper == "agx" || csMode == 1
         setUniform1f("uAgXEnabled", if (agxEnabled) 1f else 0f)
         setUniform1f("uAgXContrast", adjustments.agxContrast.coerceIn(0f, 1f))
         setUniform1f("uAgXPedestal", adjustments.agxPedestal.coerceIn(0f, 0.5f))
+        setUniform1i("uAces2DisplayColorSpace", 0)
+        setUniform1i("uAces2Eotf", 0)
+        setUniform1f("uAces2PeakLuminance", 100f)
+        setUniform1i("uOpenDrtDisplayColorSpace", 0)
+        setUniform1i("uOpenDrtEotf", 0)
+        setUniform1f("uOpenDrtPeakLuminance", 100f)
 
         // ── Missing fields fix ──
         setUniform1f("uLumaNoiseReduction", adjustments.lumaNoiseReduction / 100f)

@@ -84,10 +84,17 @@ uniform float uGrainSize;     // 0.5 .. 3.0
 uniform float uChromaticAberrationRedCyan;   // -1.0 .. 1.0
 uniform float uChromaticAberrationBlueYellow; // -1.0 .. 1.0
 
-// Tone Mapping
-uniform float uAgXEnabled;    // 0.0 or 1.0
-uniform float uAgXContrast;   // 0.0 .. 1.0
-uniform float uAgXPedestal;   // 0.0 .. 0.5
+// Tone Mapping / Color Science
+uniform int uColorScienceMode;        // 0=standard, 1=agx, 2=aces2, 3=opendrt
+uniform float uAgXEnabled;            // deprecated, use uColorScienceMode
+uniform float uAgXContrast;           // 0.0 .. 1.0
+uniform float uAgXPedestal;           // 0.0 .. 0.5
+uniform int uAces2DisplayColorSpace;  // 0=sRGB, 1=P3, 2=Rec2020
+uniform int uAces2Eotf;               // 0=sRGB, 1=PQ, 2=Gamma22
+uniform float uAces2PeakLuminance;    // 100.0 .. 10000.0
+uniform int uOpenDrtDisplayColorSpace;// 0=sRGB, 1=P3, 2=Rec2020
+uniform int uOpenDrtEotf;             // 0=sRGB, 1=PQ, 2=Gamma22
+uniform float uOpenDrtPeakLuminance;  // 100.0 .. 10000.0
 
 // Debug
 uniform float uClippingPreview; // 0.0 or 1.0
@@ -865,8 +872,6 @@ vec3 agx_default_contrast(float lo, float mid, float hi, float t) {
 }
 
 vec3 apply_agx_tonemap(vec3 color) {
-    if (uAgXEnabled < 0.5) return color;
-
     // AgX log encoding parameters
     float lo = -10.0;
     float hi = 13.0;
@@ -884,6 +889,128 @@ vec3 apply_agx_tonemap(vec3 color) {
     result = max(result - uAgXPedestal, vec3(0.0)) / (1.0 - uAgXPedestal);
 
     return result;
+}
+
+// ── ACES 2.0 Tone Mapping ─────────────────────────────────────────────
+
+vec3 aces_mat_xyz_to_ap0 = vec3(0.9525524, 0.0, 0.0000937);
+vec3 aces_mat_xyz_to_ap1 = vec3(1.0520915, 0.0, -0.0520915);
+
+vec3 srgb_to_ap0(vec3 c) {
+    // sRGB -> XYZ -> ACES AP0 (ACES2065-1)
+    // Simplified Bradford adaptation + matrix
+    mat3 srgb_to_xyz = mat3(
+        0.4124564, 0.3575761, 0.1804375,
+        0.2126729, 0.7151522, 0.0721750,
+        0.0193339, 0.1191920, 0.9503041
+    );
+    mat3 xyz_to_ap0 = mat3(
+        1.049811, 0.0, -0.0000975,
+        -0.495903, 1.373313, 0.098240,
+        0.0, 0.0, 0.991252
+    );
+    return xyz_to_ap0 * (srgb_to_xyz * c);
+}
+
+vec3 ap0_to_srgb(vec3 c) {
+    // ACES AP0 -> XYZ -> sRGB
+    mat3 ap0_to_xyz = mat3(
+        0.9525524, 0.0, 0.0000937,
+        0.3430834, 0.7282532, -0.0713366,
+        0.0, 0.0, 1.0087922
+    );
+    mat3 xyz_to_srgb = mat3(
+        3.2404542, -1.5371385, -0.4985314,
+        -0.9692660, 1.8760108, 0.0415560,
+        0.0556434, -0.2040259, 1.0572252
+    );
+    return xyz_to_srgb * (ap0_to_xyz * c);
+}
+
+float aces_rrt(float x) {
+    // Simplified ACES 2.0 RRT (Reference Rendering Transform)
+    // Segment-wise S-curve with film-like shoulder and toe
+    const float a = 0.0245786;
+    const float b = 0.0000907;
+    const float c = 0.983729;
+    const float d = 0.4329510;
+    const float e = 0.238081;
+    float y = (x * (a * x + b)) / (x * (c * x + d) + e);
+    return max(y, 0.0);
+}
+
+vec3 apply_aces2_tonemap(vec3 color) {
+    // Step 1: Convert to ACES AP0 working space
+    vec3 ap0 = srgb_to_ap0(color);
+
+    // Step 2: Apply RRT per-channel (simplified)
+    vec3 rrt;
+    rrt.r = aces_rrt(max(ap0.r, 0.0));
+    rrt.g = aces_rrt(max(ap0.g, 0.0));
+    rrt.b = aces_rrt(max(ap0.b, 0.0));
+
+    // Step 3: ODT (Output Device Transform) - simplified sRGB ODT
+    // Scale to target display peak luminance
+    float peakScale = 100.0 / max(uAces2PeakLuminance, 100.0);
+    vec3 scaled = rrt * peakScale;
+
+    // Step 4: Convert back to display space
+    vec3 result = ap0_to_srgb(scaled);
+
+    // Gamut compression: handle out-of-gamut colors
+    float maxVal = max(result.r, max(result.g, result.b));
+    if (maxVal > 1.0) {
+        float gamutComp = 1.0 + log(maxVal) * 0.2;
+        result = result / gamutComp;
+    }
+
+    return clamp(result, 0.0, 1.0);
+}
+
+// ── OpenDRT Tone Mapping ──────────────────────────────────────────────
+
+vec3 apply_opendrt_tonemap(vec3 color) {
+    // OpenDRT v1.0 - Jed Smith
+    // Perceptually uniform tone mapping with excellent shadow detail
+
+    // Step 1: Convert to AP1 (working space)
+    mat3 srgb_to_ap1 = mat3(
+        0.6130974, 0.3395231, 0.0473795,
+        0.0701937, 0.9163539, 0.0134524,
+        0.0206156, 0.1095698, 0.8698145
+    );
+    vec3 ap1 = srgb_to_ap1 * color;
+
+    // Step 2: Tonescale (perceptual luminance compression)
+    float Lw = max(uOpenDrtPeakLuminance / 100.0, 1.0); // scene white relative to 100 nit
+    float Lp = 1.0; // display peak (normalized)
+
+    // OpenDRT tonescale: smooth highlight compression
+    vec3 tonescaled;
+    for (int i = 0; i < 3; i++) {
+        float x = max(ap1[i], 0.0);
+        // Sigmoidal compression with film-like toe
+        float t = x / (x + Lw * 0.18); // normalized
+        float toe = pow(t, 1.0 / 2.4); // perceptual toe
+        float shoulder = 1.0 - pow(1.0 - t, 2.0); // highlight shoulder
+        float blend = smoothstep(0.0, 1.0, t);
+        tonescaled[i] = mix(toe, shoulder, blend) * Lp;
+    }
+
+    // Step 3: Convert back to sRGB
+    mat3 ap1_to_srgb = mat3(
+        1.7050505, -0.6217921, -0.0832584,
+        -0.1302564, 1.1408049, -0.0105485,
+        -0.0240033, -0.1289689, 1.1529723
+    );
+    vec3 result = ap1_to_srgb * tonescaled;
+
+    // Shadow rolloff (OpenDRT signature: lifted blacks)
+    result = max(result, 0.0);
+    float shadowLift = 0.003; // minimal black level
+    result = result + shadowLift * (1.0 - result);
+
+    return clamp(result, 0.0, 1.0);
 }
 
 // ── 18. Clipping Visualization ────────────────────────────────────────
@@ -1440,9 +1567,13 @@ void main() {
     // === Step 21b: RGB curves ===
     color = apply_rgb_curves(color);
 
-    // === Step 22: AgX tone mapping (if enabled) ===
-    if (uAgXEnabled > 0.5) {
+    // === Step 22: Color Science Tone Mapping ===
+    if (uColorScienceMode == 1 || uAgXEnabled > 0.5) {
         color = apply_agx_tonemap(color);
+    } else if (uColorScienceMode == 2) {
+        color = apply_aces2_tonemap(color);
+    } else if (uColorScienceMode == 3) {
+        color = apply_opendrt_tonemap(color);
     }
 
     // === Step 23: Linear to sRGB ===

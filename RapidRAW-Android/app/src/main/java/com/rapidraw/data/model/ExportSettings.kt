@@ -8,6 +8,13 @@ enum class ExportFormat {
     PNG,
     TIFF,
     EXR,
+    HEIF,
+}
+
+@Serializable
+enum class HeifBitDepth {
+    DEPTH_8,
+    DEPTH_10,
 }
 
 @Serializable
@@ -66,6 +73,7 @@ data class ExportSettings(
     val watermarkScale: Float = 0.15f,
     val watermarkOpacity: Float = 0.5f,
     val exrBitDepth: ExrBitDepth = ExrBitDepth.HALF,
+    val heifBitDepth: HeifBitDepth = HeifBitDepth.DEPTH_10,
 ) {
     init {
         require(quality in 1..100) { "Quality must be between 1 and 100, was $quality" }

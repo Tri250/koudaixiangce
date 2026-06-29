@@ -14,6 +14,7 @@ import com.rapidraw.data.model.ExrBitDepth
 import com.rapidraw.data.model.ExportFormat
 import com.rapidraw.data.model.ExportSettings
 import com.rapidraw.data.model.ExifData
+import com.rapidraw.data.model.HeifBitDepth
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.MaskContainer
 import com.rapidraw.data.model.ResizeMode
@@ -222,7 +223,8 @@ class ImageProcessor {
         // Masks
         val masks: List<MaskContainer> = emptyList(),
 
-        // Tone Mapping
+        // Tone Mapping / Color Science
+        val colorScienceMode: Int = 0, // 0=standard, 1=agx, 2=aces2, 3=opendrt
         val agxEnabled: Boolean = false,
         val agxContrast: Float = 0.0f,
         val agxPedestal: Float = 0.0f,
@@ -324,7 +326,8 @@ class ImageProcessor {
                 grainSize = src.grainSize / 100f * 3f,                             // 0..100 → 0..3
                 chromaticAberrationRedCyan = src.chromaticAberrationRedCyan / 100f,
                 chromaticAberrationBlueYellow = src.chromaticAberrationBlueYellow / 100f,
-                agxEnabled = src.toneMapper == "agx",
+                colorScienceMode = src.colorScienceMode.coerceIn(0, 3),
+                agxEnabled = src.toneMapper == "agx" || src.colorScienceMode == 1,
                 agxContrast = src.agxContrast,
                 agxPedestal = src.agxPedestal,
                 // Lens correction
@@ -898,10 +901,22 @@ class ImageProcessor {
                     b += tint
                 }
 
-                // ── 17. AgX Tone Mapping ──
-                if (n.agxEnabled) {
-                    val agxResult = applyAgxToneMap(r, g, b, n.agxContrast, n.agxPedestal)
-                    r = agxResult[0]; g = agxResult[1]; b = agxResult[2]
+                // ── 17. Color Science Tone Mapping ──
+                when (n.colorScienceMode) {
+                    1 -> { // AgX
+                        val agxResult = applyAgxToneMap(r, g, b, n.agxContrast, n.agxPedestal)
+                        r = agxResult[0]; g = agxResult[1]; b = agxResult[2]
+                    }
+                    2 -> { // ACES 2.0
+                        val acesResult = ColorScience.aces2ToneMap(r, g, b)
+                        r = acesResult[0]; g = acesResult[1]; b = acesResult[2]
+                    }
+                    3 -> { // OpenDRT
+                        val openDrtResult = ColorScience.openDrtToneMap(r, g, b)
+                        r = openDrtResult[0]; g = openDrtResult[1]; b = openDrtResult[2]
+                    }
+                    else -> { // Standard - no tone mapping, linear to sRGB handles it
+                    }
                 }
 
                 // ── 18. Film Simulation Processing ──
@@ -2072,12 +2087,34 @@ class ImageProcessor {
             ExportFormat.TIFF -> "image/tiff"
             ExportFormat.JPEG -> "image/jpeg"
             ExportFormat.EXR -> "image/x-exr"
+            ExportFormat.HEIF -> "image/heic"
         }
         val extension = when (settings.format) {
             ExportFormat.PNG -> ".png"
             ExportFormat.TIFF -> ".tiff"
             ExportFormat.JPEG -> ".jpg"
             ExportFormat.EXR -> ".exr"
+            ExportFormat.HEIF -> ".heic"
+        }
+
+        // HEIF export handled directly by HeifExporter (bypasses temp file flow)
+        if (settings.format == ExportFormat.HEIF) {
+            val heifConfig = HeifExporter.HeifConfig(
+                quality = settings.quality,
+                bitDepth = if (settings.heifBitDepth == HeifBitDepth.DEPTH_10) {
+                    HeifExporter.HeifBitDepth.DEPTH_10
+                } else {
+                    HeifExporter.HeifBitDepth.DEPTH_8
+                }
+            )
+            val heifUri = HeifExporter.exportHeif(
+                context = context,
+                bitmap = exportBitmap,
+                config = heifConfig,
+                displayName = "RapidRAW_${System.currentTimeMillis()}"
+            )
+            if (exportBitmap !== bitmap) exportBitmap.recycle()
+            return heifUri ?: throw RuntimeException("HEIF export failed")
         }
 
         // Write to temporary file first (required for EXIF writing)
