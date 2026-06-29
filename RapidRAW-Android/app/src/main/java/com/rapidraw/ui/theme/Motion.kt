@@ -3,21 +3,36 @@ package com.rapidraw.ui.theme
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 
 /**
- * ColorOS 16 弹性物理动画系统
+ * ColorOS 16 弹性物理动画系统 — OPPO Find X9 摄影编辑器
  *
  * OPPO 2026 设计语言核心：
  * - 基于物理弹簧的过渡（非线性 tween）
  * - 统一的缓动曲线（OPPO Custom Easing）
  * - 分层动画时长：快速反馈 / 标准过渡 / 强调展示
+ * - 页面转场、Tab 切换、面板展开、按压反馈全覆盖
  *
  * 所有动画必须通过此系统调用，确保全应用一致性。
+ * 严禁在组件内硬编码 tween/spring 参数。
  */
 object Motion {
 
@@ -38,6 +53,9 @@ object Motion {
     /** 标准缓动（旧版兼容） */
     val StandardEasing: Easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1.0f)
 
+    /** iOS 风格弹性缓动（用于浮层、弹窗） */
+    val IOSStyleEasing: Easing = CubicBezierEasing(0.32f, 0.72f, 0.0f, 1.0f)
+
     // ── 动画时长（ColorOS 16 时长阶梯）──────────────────────────────
 
     /** 快速反馈：点击波纹、图标状态切换 (150ms) */
@@ -51,6 +69,9 @@ object Motion {
 
     /** 呼吸效果：AI 处理脉冲、加载动画 (1000ms) */
     const val DurationBreath = 1000
+
+    /** 快速呼吸：轻微脉冲 (600ms) */
+    const val DurationPulseFast = 600
 
     // ── 弹簧配置（ColorOS 16 物理动画）──────────────────────────────
 
@@ -78,6 +99,12 @@ object Motion {
         stiffness = Spring.StiffnessMedium,
     )
 
+    /** 液态玻璃弹簧：浮层、玻璃卡片（柔和弹性） */
+    fun <T> glassSpring(): FiniteAnimationSpec<T> = spring(
+        dampingRatio = 0.5f,
+        stiffness = 300f,
+    )
+
     // ── tween 工厂（带 OPPO 缓动曲线）───────────────────────────────
 
     /** 快速 tween：点击反馈 */
@@ -96,6 +123,76 @@ object Motion {
     fun <T> slowTween(): FiniteAnimationSpec<T> = tween(
         durationMillis = DurationSlow,
         easing = EmphasizedDecelerate,
+    )
+
+    /** iOS 风格 tween：浮层、弹窗 */
+    fun <T> iosTween(): FiniteAnimationSpec<T> = tween(
+        durationMillis = DurationNormal,
+        easing = IOSStyleEasing,
+    )
+
+    // ── 页面转场动画（NavHost 用）────────────────────────────────────
+
+    /** 页面水平滑入（从右进入，用于前进导航） */
+    val enterSlideRight = slideInHorizontally(
+        initialOffsetX = { it },
+        animationSpec = slowTween(),
+    ) + fadeIn(animationSpec = tween(DurationNormal, easing = EmphasizedDecelerate))
+
+    /** 页面水平滑出（向左退出，用于前进导航） */
+    val exitSlideLeft = slideOutHorizontally(
+        targetOffsetX = { -it / 3 },
+        animationSpec = slowTween(),
+    ) + fadeOut(animationSpec = tween(DurationFast, easing = EmphasizedAccelerate))
+
+    /** 页面水平滑入（从左进入，用于返回导航） */
+    val enterSlideLeft = slideInHorizontally(
+        initialOffsetX = { -it / 3 },
+        animationSpec = slowTween(),
+    ) + fadeIn(animationSpec = tween(DurationNormal, easing = EmphasizedDecelerate))
+
+    /** 页面水平滑出（向右退出，用于返回导航） */
+    val exitSlideRight = slideOutHorizontally(
+        targetOffsetX = { it },
+        animationSpec = slowTween(),
+    ) + fadeOut(animationSpec = tween(DurationFast, easing = EmphasizedAccelerate))
+
+    /** 页面垂直滑入（从下进入，用于底部弹窗/面板） */
+    val enterSlideUp = slideInVertically(
+        initialOffsetY = { it },
+        animationSpec = iosTween(),
+    ) + fadeIn(animationSpec = tween(DurationNormal, easing = EmphasizedDecelerate))
+
+    /** 页面垂直滑出（向下退出，用于底部弹窗/面板） */
+    val exitSlideDown = slideOutVertically(
+        targetOffsetY = { it },
+        animationSpec = iosTween(),
+    ) + fadeOut(animationSpec = tween(DurationFast, easing = EmphasizedAccelerate))
+
+    /** 淡入（用于模态背景、Toast） */
+    val enterFade = fadeIn(animationSpec = normalTween())
+
+    /** 淡出（用于模态背景、Toast） */
+    val exitFade = fadeOut(animationSpec = fastTween())
+
+    // ── Tab 切换动画 ───────────────────────────────────────────────
+
+    /** Tab 内容淡入淡出（快速，避免拖泥带水） */
+    val tabEnter = fadeIn(animationSpec = tween(DurationFast, easing = EmphasizedDecelerate))
+    val tabExit = fadeOut(animationSpec = tween(DurationFast, easing = EmphasizedAccelerate))
+
+    // ── 底部面板动画 ───────────────────────────────────────────────
+
+    /** 底部面板展开（iOS 风格弹性） */
+    val bottomSheetEnter = slideInVertically(
+        initialOffsetY = { it },
+        animationSpec = iosTween(),
+    )
+
+    /** 底部面板收起 */
+    val bottomSheetExit = slideOutVertically(
+        targetOffsetY = { it },
+        animationSpec = normalTween(),
     )
 
     // ── IntOffset 弹簧（用于页面滑动、面板偏移）─────────────────────
@@ -125,4 +222,80 @@ object Motion {
         dampingRatio = Spring.DampingRatioMediumBouncy,
         stiffness = Spring.StiffnessMediumLow,
     )
+
+    /** 按压缩放弹簧（按钮按下时的轻微缩小） */
+    fun pressScaleSpring(): FiniteAnimationSpec<Float> = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessHigh,
+    )
+
+    // ── 呼吸/脉冲动画（Composable 用）──────────────────────────────
+
+    /**
+     * 哈苏橙呼吸动画（AI 处理、智能优化等待态）
+     *
+     * @param duration 单次呼吸时长，默认 1000ms
+     */
+    @Composable
+    fun hasselbladBreathAnimation(duration: Int = DurationBreath): State<Float> {
+        val infiniteTransition = rememberInfiniteTransition(label = "hasselblad_breath")
+        return infiniteTransition.animateFloat(
+            initialValue = 0.4f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(duration, easing = EmphasizedEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "breath",
+        )
+    }
+
+    /**
+     * 脉冲缩放动画（导出成功、操作完成反馈）
+     *
+     * @param duration 单次脉冲时长，默认 600ms
+     */
+    @Composable
+    fun pulseScaleAnimation(duration: Int = DurationPulseFast): State<Float> {
+        val infiniteTransition = rememberInfiniteTransition(label = "pulse_scale")
+        return infiniteTransition.animateFloat(
+            initialValue = 1.0f,
+            targetValue = 1.08f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(duration, easing = EmphasizedEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pulse",
+        )
+    }
+
+    /**
+     * 玻璃折射偏移动画（液态玻璃微妙动态效果）
+     */
+    @Composable
+    fun glassShimmerAnimation(): State<Float> {
+        val infiniteTransition = rememberInfiniteTransition(label = "glass_shimmer")
+        return infiniteTransition.animateFloat(
+            initialValue = -0.5f,
+            targetValue = 1.5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "shimmer",
+        )
+    }
+}
+
+/**
+ * 按压反馈动画规格（用于按钮、卡片、IconButton）
+ *
+ * ColorOS 16 触控规范：
+ * - 按下：scale 0.96 + alpha 0.9（150ms 快速反馈）
+ * - 释放：scale 1.0 + alpha 1.0（弹簧回弹）
+ */
+object PressFeedback {
+    const val PRESSED_SCALE = 0.96f
+    const val PRESSED_ALPHA = 0.9f
+    const val HOVER_SCALE = 1.02f
 }

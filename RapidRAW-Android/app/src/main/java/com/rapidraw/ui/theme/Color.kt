@@ -4,14 +4,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 
 /**
- * ColorOS 16 色彩系统 — OPPO Find X9 摄影编辑器
+ * ColorOS 16 色彩系统 — OPPO Find X9 摄影编辑器（资深产品经理级优化）
  *
  * 设计原则：
  * 1. AMOLED 深黑基底（#060606）：Find X9 AMOLED 屏省电 + 摄影编辑纯净背景
- * 2. 分层表面系统（Surface 1/2/3）：通过白 alpha 叠加模拟物理层级，而非灰阶
+ * 2. 分层表面系统（Surface 1/2/3/4）：通过白 alpha 叠加模拟物理层级，而非灰阶
  * 3. 哈苏橙克制使用：仅品牌时刻（导出/取景/胶片选中），交互元素用白色系
  * 4. 文字三级对比：Primary 95% / Secondary 70% / Tertiary 45%（WCAG AA+）
  * 5. 功能色高饱和：示波器/溢出警告需在深黑背景上高对比可见
+ * 6. 新增：品牌动效色彩（脉冲、呼吸、辉光渐变）用于 AI 处理/导出反馈
  *
  * 兼容性：保留所有旧 token 名（EditorBackground / TextPrimary 等），
  * 内部值升级到 ColorOS 16 规范。
@@ -55,19 +56,36 @@ object ColorOS16Colors {
     /** 禁用文字（30% 白） */
     val TextDisabled: Color = Color(0x4DFFFFFF)
 
-    // ── 哈苏橙品牌色系（克制使用）──────────────────────────────────
+    // ── 哈苏橙品牌色系（克制使用，精准调色）──────────────────────────
 
-    /** 哈苏橙核心色（仅品牌时刻） */
+    /** 哈苏橙核心色（仅品牌时刻：导出按钮、取景器四角、胶片选中） */
     val HasselbladOrangeCore: Color = Color(0xFFE8600C)
 
-    /** 哈苏橙亮色变体 */
+    /** 哈苏橙亮色变体（Hover/高亮态） */
     val HasselbladOrangeBright: Color = Color(0xFFF2803F)
 
     /** 哈苏橙深色变体（按压态） */
     val HasselbladOrangeDeep: Color = Color(0xFFB84D0A)
 
-    /** 哈苏橙柔光（背景叠加） */
+    /** 哈苏橙柔光（背景叠加、徽章） */
     val HasselbladOrangeGlow: Color = Color(0x80E8600C)
+
+    /** 哈苏橙极淡（背景 tint，12% 透明度） */
+    val HasselbladOrangeTint: Color = Color(0x1FE8600C)
+
+    // ── 品牌动效色彩（AI 处理/导出反馈）──────────────────────────────
+
+    /** 哈苏橙脉冲（呼吸动画起始色） */
+    val HasselbladPulseStart: Color = Color(0xFFFFA060)
+
+    /** 哈苏橙脉冲（呼吸动画结束色） */
+    val HasselbladPulseEnd: Color = Color(0xFFE8600C)
+
+    /** AI 处理辉光（智能优化时的环境光晕） */
+    val AiGlowAmbient: Color = Color(0x40E8600C)
+
+    /** 导出成功绿（与哈苏橙形成品牌互补） */
+    val ExportSuccess: Color = Color(0xFF30D158)
 
     // ── 功能色（高饱和，深黑背景可见）──────────────────────────────
 
@@ -124,6 +142,15 @@ object ColorOS16Colors {
 
     /** Tab 未选中文字（60% 白） */
     val TabTextInactiveWhite: Color = Color(0x99FFFFFF)
+
+    /** 液态玻璃基础白（12% 透明度，通用玻璃底色） */
+    val LiquidGlassBase: Color = Color(0x1FFFFFFF)
+
+    /** 液态玻璃高光白（32% 透明度，顶部折射） */
+    val LiquidGlassHighlightWhite: Color = Color(0x52FFFFFF)
+
+    /** 液态玻璃边缘白（18% 透明度，侧边光晕） */
+    val LiquidGlassEdgeWhite: Color = Color(0x2EFFFFFF)
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -154,7 +181,7 @@ val ClippingBlue = ColorOS16Colors.ClippingBlueVivid
 val SuccessGreen = ColorOS16Colors.SuccessGreenVivid
 val WarningYellow = ColorOS16Colors.WarningYellowVivid
 
-// ── 渐变（AMOLED 深度渐变）──────────────────────────────────────
+// ── 渐变（AMOLED 深度渐变 + 品牌动效）────────────────────────────
 
 /** 哈苏橙水平渐变（导出按钮、品牌条） */
 val HasselbladGradient = Brush.horizontalGradient(
@@ -162,6 +189,15 @@ val HasselbladGradient = Brush.horizontalGradient(
         ColorOS16Colors.HasselbladOrangeDeep,
         ColorOS16Colors.HasselbladOrangeCore,
         ColorOS16Colors.HasselbladOrangeBright,
+    ),
+)
+
+/** 哈苏橙脉冲渐变（AI 处理呼吸动画） */
+val HasselbladPulseGradient = Brush.radialGradient(
+    colors = listOf(
+        ColorOS16Colors.HasselbladPulseStart.copy(alpha = 0.6f),
+        ColorOS16Colors.HasselbladPulseEnd.copy(alpha = 0.2f),
+        Color.Transparent,
     ),
 )
 
@@ -199,7 +235,7 @@ val HasselbladRadialGlow = Brush.radialGradient(
 /** 液态玻璃高光渐变（顶部折射） */
 val LiquidGlassHighlight = Brush.verticalGradient(
     colors = listOf(
-        Color.White.copy(alpha = 0.32f),
+        ColorOS16Colors.LiquidGlassHighlightWhite,
         Color.White.copy(alpha = 0.08f),
         Color.Transparent,
     ),
@@ -210,15 +246,33 @@ val LiquidGlassHighlight = Brush.verticalGradient(
 /** 液态玻璃边缘渐变（侧边光晕） */
 val LiquidGlassEdgeGlow = Brush.horizontalGradient(
     colors = listOf(
-        Color.White.copy(alpha = 0.18f),
+        ColorOS16Colors.LiquidGlassEdgeWhite,
         Color.Transparent,
         Color.White.copy(alpha = 0.12f),
+    ),
+)
+
+/** AI 处理环境辉光（大面积柔和光晕） */
+val AiAmbientGlow = Brush.radialGradient(
+    colors = listOf(
+        ColorOS16Colors.AiGlowAmbient,
+        ColorOS16Colors.HasselbladOrangeCore.copy(alpha = 0.05f),
+        Color.Transparent,
+    ),
+)
+
+/** 导出成功渐变（品牌互补色） */
+val ExportSuccessGradient = Brush.horizontalGradient(
+    colors = listOf(
+        ColorOS16Colors.HasselbladOrangeDeep,
+        ColorOS16Colors.ExportSuccess,
     ),
 )
 
 // ── 透明度变体（供 Theme ColorScheme 使用）──────────────────────
 val HasselbladOrange20Percent = HasselbladOrange.copy(alpha = 0.20f)
 val HasselbladOrange10Percent = HasselbladOrange.copy(alpha = 0.10f)
+val HasselbladOrangeTint = ColorOS16Colors.HasselbladOrangeTint
 
 // ── UI 交互色（白色系，替代橙色用于交互元素）──────────────────────
 val SliderTrackFill = ColorOS16Colors.SliderFillWhite

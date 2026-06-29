@@ -543,8 +543,7 @@ fun EditorScreen(
                     Text(
                         text = "原图",
                         color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     )
                 }
@@ -560,7 +559,7 @@ fun EditorScreen(
                     Text(
                         text = "智能优化中...",
                         color = Color.White,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                 }
@@ -576,7 +575,7 @@ fun EditorScreen(
                     Text(
                         text = "处理中...",
                         color = Color.White,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                 }
@@ -594,8 +593,7 @@ fun EditorScreen(
                     Text(
                         text = "已优化",
                         color = HasselbladOrange,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     )
                 }
@@ -629,8 +627,7 @@ fun EditorScreen(
                         Text(
                             text = "$sceneLabel ${(sceneConfidence * 100).toInt()}%",
                             color = HasselbladOrange,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
+                            style = com.rapidraw.ui.theme.EditorTypography.badge,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         )
                     }
@@ -720,8 +717,7 @@ fun EditorScreen(
                         Text(
                             text = if (flowMaskIsErasing) "擦除" else "绘制",
                             color = HasselbladOrange,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
+                            style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                         )
                         Box(
                             modifier = Modifier
@@ -730,7 +726,7 @@ fun EditorScreen(
                                 .clickable { flowMaskIsErasing = false }
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                         ) {
-                            Text("绘制", color = if (flowMaskIsErasing) TextSecondary else EditorBackground, fontSize = 12.sp)
+                            Text("绘制", color = if (flowMaskIsErasing) TextSecondary else EditorBackground, style = com.rapidraw.ui.theme.EditorTypography.badge)
                         }
                         Box(
                             modifier = Modifier
@@ -739,12 +735,12 @@ fun EditorScreen(
                                 .clickable { flowMaskIsErasing = true }
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                         ) {
-                            Text("擦除", color = if (flowMaskIsErasing) EditorBackground else TextSecondary, fontSize = 12.sp)
+                            Text("擦除", color = if (flowMaskIsErasing) EditorBackground else TextSecondary, style = com.rapidraw.ui.theme.EditorTypography.badge)
                         }
                         Text(
                             text = "笔刷",
                             color = TextPrimary,
-                            fontSize = 13.sp,
+                            style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                         )
                         androidx.compose.material3.Slider(
                             value = flowMaskBrushSize,
@@ -755,7 +751,7 @@ fun EditorScreen(
                         Text(
                             text = "${flowMaskBrushSize.toInt()}px",
                             color = TextSecondary,
-                            fontSize = 12.sp,
+                            style = com.rapidraw.ui.theme.EditorTypography.sliderValue,
                             modifier = Modifier.width(40.dp),
                         )
                         Box(
@@ -768,7 +764,7 @@ fun EditorScreen(
                                 }
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                         ) {
-                            Text("完成", color = TextPrimary, fontSize = 12.sp)
+                            Text("完成", color = TextPrimary, style = com.rapidraw.ui.theme.EditorTypography.buttonPrimary)
                         }
                     }
                 }
@@ -934,6 +930,11 @@ fun EditorScreen(
             ) {
                 BOTTOM_TABS.forEachIndexed { index, label ->
                     val isSelected = index == selectedTabIndex
+                    val animatedScale by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (isSelected) 1.08f else 1.0f,
+                        animationSpec = Motion.snappySpring(),
+                        label = "tab_scale",
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -955,7 +956,13 @@ fun EditorScreen(
                             .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = animatedScale
+                                scaleY = animatedScale
+                            },
+                        ) {
                             Icon(
                                 imageVector = tabIcons[index],
                                 contentDescription = label,
@@ -966,9 +973,8 @@ fun EditorScreen(
                             Text(
                                 text = label,
                                 color = if (isSelected) HasselbladOrangeLight else TextSecondary,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                letterSpacing = 0.5.sp,
+                                style = if (isSelected) com.rapidraw.ui.theme.EditorTypography.tabBarLabelActive
+                                    else com.rapidraw.ui.theme.EditorTypography.tabBarLabel,
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             // 哈苏橙下划线（选中态）
@@ -1000,110 +1006,118 @@ fun EditorScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
             ) {
-                if (isMaskMode) {
-                    MaskToolPanel(
-                        selectedMaskType = maskType,
-                        onSelectMaskType = { maskType = it },
-                        brushSize = maskBrushSize,
-                        onBrushSizeChange = { maskBrushSize = it },
-                        brushOpacity = maskBrushOpacity,
-                        onBrushOpacityChange = { maskBrushOpacity = it },
-                        brushHardness = maskBrushHardness,
-                        onBrushHardnessChange = { maskBrushHardness = it },
-                        isErasing = maskIsErasing,
-                        onErasingChange = { maskIsErasing = it },
-                        gradientOpacity = maskGradientOpacity,
-                        onGradientOpacityChange = { maskGradientOpacity = it },
-                        gradientFeather = maskGradientFeather,
-                        onGradientFeatherChange = { maskGradientFeather = it },
-                        maskVisible = maskVisible,
-                        onMaskVisibleChange = { maskVisible = it },
-                        maskInverted = maskInverted,
-                        onMaskInvertedChange = { maskInverted = it },
-                        flowMaskIntensity = maskIntensity,
-                        onFlowMaskIntensityChange = { maskIntensity = it },
-                        isAiProcessing = isAiProcessing,
-                        onGenerateAiMask = {
-                            val aiType = when (maskType) {
-                                MaskType.AI_SUBJECT -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
-                                MaskType.AI_SKY -> com.rapidraw.core.AiMaskGenerator.MaskType.SKY
-                                else -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
-                            }
-                            viewModel.generateAiMask(aiType) { _ ->
-                                hasAiMaskResult = true
-                            }
-                        },
-                        hasAiMaskResult = hasAiMaskResult,
-                        onDeleteMask = {
-                            viewModel.clearFlowMask()
-                            hasAiMaskResult = false
-                        },
-                    )
-                } else {
-                    when (activeTab) {
-                        EditorTab.AI -> AiPanel(
-                            isSmartOptimizing = isSmartOptimizing,
-                            isSmartOptimized = isSmartOptimized,
+                androidx.compose.animation.AnimatedContent(
+                    targetState = isMaskMode to activeTab,
+                    transitionSpec = {
+                        Motion.tabEnter togetherWith Motion.tabExit
+                    },
+                    label = "panel_content",
+                ) { (maskMode, tab) ->
+                    if (maskMode) {
+                        MaskToolPanel(
+                            selectedMaskType = maskType,
+                            onSelectMaskType = { maskType = it },
+                            brushSize = maskBrushSize,
+                            onBrushSizeChange = { maskBrushSize = it },
+                            brushOpacity = maskBrushOpacity,
+                            onBrushOpacityChange = { maskBrushOpacity = it },
+                            brushHardness = maskBrushHardness,
+                            onBrushHardnessChange = { maskBrushHardness = it },
+                            isErasing = maskIsErasing,
+                            onErasingChange = { maskIsErasing = it },
+                            gradientOpacity = maskGradientOpacity,
+                            onGradientOpacityChange = { maskGradientOpacity = it },
+                            gradientFeather = maskGradientFeather,
+                            onGradientFeatherChange = { maskGradientFeather = it },
+                            maskVisible = maskVisible,
+                            onMaskVisibleChange = { maskVisible = it },
+                            maskInverted = maskInverted,
+                            onMaskInvertedChange = { maskInverted = it },
+                            flowMaskIntensity = maskIntensity,
+                            onFlowMaskIntensityChange = { maskIntensity = it },
                             isAiProcessing = isAiProcessing,
-                            detectedScene = detectedScene,
-                            sceneConfidence = sceneConfidence,
-                            onSmartOptimize = { viewModel.smartOptimize() },
-                            onAiInpaint = {
-                                val img = currentImage
-                                if (img != null) {
-                                    navController.navigate(com.rapidraw.ui.navigation.Routes.aiInpaintPath(img.path))
+                            onGenerateAiMask = {
+                                val aiType = when (maskType) {
+                                    MaskType.AI_SUBJECT -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
+                                    MaskType.AI_SKY -> com.rapidraw.core.AiMaskGenerator.MaskType.SKY
+                                    else -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
+                                }
+                                viewModel.generateAiMask(aiType) { _ ->
+                                    hasAiMaskResult = true
                                 }
                             },
-                            onAiDenoise = { viewModel.applyAiDenoise() },
-                            onAiMask = { showAiMaskSheet = true },
-                            onHighlightReconstruct = { viewModel.applyHighlightReconstruction() },
-                            onFlowMask = {
-                                viewModel.initFlowMask()
-                                showFlowMaskPanel = true
+                            hasAiMaskResult = hasAiMaskResult,
+                            onDeleteMask = {
+                                viewModel.clearFlowMask()
+                                hasAiMaskResult = false
                             },
                         )
-                        EditorTab.FILTER -> FilterPanel(
-                            selectedFilmId = selectedFilmId,
-                            onSelectFilm = { viewModel.selectFilm(it) },
-                            onClearFilm = { viewModel.clearFilm() },
-                            activeLutId = adjustments.activeLutId,
-                            colorScienceMode = adjustments.colorScienceMode,
-                            onOpenLutLibrary = { viewModel.showLutLibrary() },
-                            onOpenColorScience = { viewModel.showColorScience() },
-                            onClearLut = { viewModel.clearLut() },
-                        )
-                        EditorTab.ADJUST -> {
-                            if (showAdvanced) {
-                                AdvancedPanel(
-                                    adjustments = adjustments,
-                                    onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
-                                    onCurveUpdate = { key, value -> viewModel.updateCurve(key, value as List<com.rapidraw.data.model.Coord>) },
-                                    onBack = { viewModel.toggleAdvanced() },
-                                )
-                            } else {
-                                QuickAdjustPanel(
-                                    adjustments = adjustments,
-                                    onUpdate = { key, value -> viewModel.updateQuickAdjust(key, value) },
-                                    onAdvancedClick = { viewModel.toggleAdvanced() },
-                                )
+                    } else {
+                        when (tab) {
+                            EditorTab.AI -> AiPanel(
+                                isSmartOptimizing = isSmartOptimizing,
+                                isSmartOptimized = isSmartOptimized,
+                                isAiProcessing = isAiProcessing,
+                                detectedScene = detectedScene,
+                                sceneConfidence = sceneConfidence,
+                                onSmartOptimize = { viewModel.smartOptimize() },
+                                onAiInpaint = {
+                                    val img = currentImage
+                                    if (img != null) {
+                                        navController.navigate(com.rapidraw.ui.navigation.Routes.aiInpaintPath(img.path))
+                                    }
+                                },
+                                onAiDenoise = { viewModel.applyAiDenoise() },
+                                onAiMask = { showAiMaskSheet = true },
+                                onHighlightReconstruct = { viewModel.applyHighlightReconstruction() },
+                                onFlowMask = {
+                                    viewModel.initFlowMask()
+                                    showFlowMaskPanel = true
+                                },
+                            )
+                            EditorTab.FILTER -> FilterPanel(
+                                selectedFilmId = selectedFilmId,
+                                onSelectFilm = { viewModel.selectFilm(it) },
+                                onClearFilm = { viewModel.clearFilm() },
+                                activeLutId = adjustments.activeLutId,
+                                colorScienceMode = adjustments.colorScienceMode,
+                                onOpenLutLibrary = { viewModel.showLutLibrary() },
+                                onOpenColorScience = { viewModel.showColorScience() },
+                                onClearLut = { viewModel.clearLut() },
+                            )
+                            EditorTab.ADJUST -> {
+                                if (showAdvanced) {
+                                    AdvancedPanel(
+                                        adjustments = adjustments,
+                                        onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
+                                        onCurveUpdate = { key, value -> viewModel.updateCurve(key, value as List<com.rapidraw.data.model.Coord>) },
+                                        onBack = { viewModel.toggleAdvanced() },
+                                    )
+                                } else {
+                                    QuickAdjustPanel(
+                                        adjustments = adjustments,
+                                        onUpdate = { key, value -> viewModel.updateQuickAdjust(key, value) },
+                                        onAdvancedClick = { viewModel.toggleAdvanced() },
+                                    )
+                                }
                             }
+                            EditorTab.COMPOSE -> CropPanel(
+                                adjustments = adjustments,
+                                onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
+                                onInteractiveCrop = { showInteractiveCrop = true },
+                                onAutoStraighten = { viewModel.autoStraighten() },
+                                onConvertNegative = { viewModel.convertNegative() },
+                            )
+                            EditorTab.EXPORT -> ExportPanel(
+                                onExport = { settings -> viewModel.exportImage(settings) },
+                                onHdrExport = { viewModel.showHdrExport() },
+                                onRecipeShare = { showRecipeSheet = true },
+                                onEditHistory = { viewModel.showEditHistory() },
+                                onShare = { settings -> viewModel.shareImage(settings) },
+                                hdrExportFormat = adjustments.hdrExportFormat,
+                                colorScienceMode = adjustments.colorScienceMode,
+                            )
                         }
-                        EditorTab.COMPOSE -> CropPanel(
-                            adjustments = adjustments,
-                            onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
-                            onInteractiveCrop = { showInteractiveCrop = true },
-                            onAutoStraighten = { viewModel.autoStraighten() },
-                            onConvertNegative = { viewModel.convertNegative() },
-                        )
-                        EditorTab.EXPORT -> ExportPanel(
-                            onExport = { settings -> viewModel.exportImage(settings) },
-                            onHdrExport = { viewModel.showHdrExport() },
-                            onRecipeShare = { showRecipeSheet = true },
-                            onEditHistory = { viewModel.showEditHistory() },
-                            onShare = { settings -> viewModel.shareImage(settings) },
-                            hdrExportFormat = adjustments.hdrExportFormat,
-                            colorScienceMode = adjustments.colorScienceMode,
-                        )
                     }
                 }
             }
@@ -1132,8 +1146,7 @@ fun EditorScreen(
                 Text(
                     text = "EXIF 信息",
                     color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 currentImage?.let { img ->
@@ -1160,8 +1173,7 @@ fun EditorScreen(
                 Text(
                     text = "选择遮罩类型",
                     color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 val maskTypes = listOf(
@@ -1187,7 +1199,7 @@ fun EditorScreen(
                         Text(
                             text = label,
                             color = TextPrimary,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1311,8 +1323,7 @@ private fun FilmPanel(
             Text(
                 text = categoryLabels[category] ?: category.name,
                 color = TextTertiary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
+                style = com.rapidraw.ui.theme.EditorTypography.panelTitle,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
             )
             films.chunked(2).forEach { rowFilms ->
@@ -1384,14 +1395,13 @@ private fun FilmCard(
                 Text(
                     text = name,
                     color = if (isSelected) HasselbladOrangeLight else TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    style = com.rapidraw.ui.theme.EditorTypography.cardTitle,
                 )
                 if (category.isNotEmpty()) {
                     Text(
                         text = category,
                         color = TextTertiary,
-                        fontSize = 10.sp,
+                        style = com.rapidraw.ui.theme.EditorTypography.cardSubtitle,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
@@ -1419,7 +1429,7 @@ private fun CropPanel(
         Text(
             text = "裁剪比例",
             color = TextSecondary,
-            fontSize = 13.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.panelTitle,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1513,8 +1523,7 @@ private fun CropPanel(
                 Text(
                     text = "交互裁剪",
                     color = TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
@@ -1524,7 +1533,7 @@ private fun CropPanel(
         Text(
             text = "旋转与翻转",
             color = TextSecondary,
-            fontSize = 13.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.panelTitle,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1595,8 +1604,7 @@ private fun CropPanel(
                 Text(
                     text = "自动拉直",
                     color = TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                 )
             }
             Box(
@@ -1618,8 +1626,7 @@ private fun CropPanel(
                 Text(
                     text = "负片转换",
                     color = TextSecondary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                 )
             }
         }
@@ -1646,7 +1653,7 @@ private fun AspectRatioButton(
         Text(
             text = label,
             color = if (isSelected) EditorBackground else TextSecondary,
-            fontSize = 12.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.badge,
         )
     }
 }
@@ -1682,13 +1689,12 @@ private fun ExportPanel(
         Text(
             text = "导出设置",
             color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge,
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Text(text = "格式", color = TextSecondary, fontSize = 13.sp)
+        Text(text = "格式", color = TextSecondary, style = com.rapidraw.ui.theme.EditorTypography.panelTitle)
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(vertical = 4.dp),
@@ -1703,7 +1709,7 @@ private fun ExportPanel(
                     Text(
                         text = format.name,
                         color = if (isSelected) EditorBackground else TextSecondary,
-                        fontSize = 12.sp,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
@@ -1722,7 +1728,7 @@ private fun ExportPanel(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Text(text = "缩放", color = TextSecondary, fontSize = 13.sp)
+        Text(text = "缩放", color = TextSecondary, style = com.rapidraw.ui.theme.EditorTypography.panelTitle)
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(vertical = 4.dp),
@@ -1737,7 +1743,7 @@ private fun ExportPanel(
                     Text(
                         text = mode.name,
                         color = if (isSelected) EditorBackground else TextSecondary,
-                        fontSize = 11.sp,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }
@@ -1762,7 +1768,7 @@ private fun ExportPanel(
         Spacer(modifier = Modifier.height(12.dp))
 
         // Social Platform
-        Text(text = "分享平台", color = TextSecondary, fontSize = 13.sp)
+        Text(text = "分享平台", color = TextSecondary, style = com.rapidraw.ui.theme.EditorTypography.panelTitle)
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier
@@ -1780,7 +1786,7 @@ private fun ExportPanel(
                     Text(
                         text = platform.displayName,
                         color = if (isSelected) EditorBackground else TextSecondary,
-                        fontSize = 11.sp,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                     )
                 }
@@ -1800,7 +1806,7 @@ private fun ExportPanel(
             Text(
                 text = "保留元数据",
                 color = TextPrimary,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
             Surface(
@@ -1831,7 +1837,7 @@ private fun ExportPanel(
                 Text(
                     text = "移除 GPS",
                     color = TextPrimary,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
                 Surface(
@@ -1864,7 +1870,7 @@ private fun ExportPanel(
             Text(
                 text = "添加水印",
                 color = TextPrimary,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
             Surface(
@@ -1898,7 +1904,7 @@ private fun ExportPanel(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "位置", color = TextSecondary, fontSize = 13.sp)
+            Text(text = "位置", color = TextSecondary, style = com.rapidraw.ui.theme.EditorTypography.panelTitle)
             Column(
                 modifier = Modifier.padding(vertical = 4.dp),
             ) {
@@ -2035,8 +2041,7 @@ private fun ExportPanel(
                 Text(
                     text = "导出",
                     color = EditorBackground,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = com.rapidraw.ui.theme.EditorTypography.buttonPrimary,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 12.dp),
@@ -2072,8 +2077,7 @@ private fun ExportPanel(
                     Text(
                         text = "分享",
                         color = HasselbladOrange,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 12.dp),
@@ -2111,13 +2115,12 @@ private fun ExportShortcutButton(
         Text(
             text = label,
             color = TextPrimary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            style = com.rapidraw.ui.theme.EditorTypography.toolbarLabel,
         )
         Text(
             text = sublabel,
             color = TextTertiary,
-            fontSize = 9.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.cardSubtitle,
         )
     }
 }
@@ -2163,13 +2166,13 @@ private fun ExifRow(label: String, value: String) {
         Text(
             text = label,
             color = TextTertiary,
-            fontSize = 13.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
             modifier = Modifier.width(80.dp),
         )
         Text(
             text = value,
             color = TextPrimary,
-            fontSize = 13.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.sliderValue,
         )
     }
 }
@@ -2228,8 +2231,7 @@ private fun EditorStatusBar(
         Text(
             text = "$csLabel$hdrLabel$aiLabel",
             color = TextSecondary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            style = com.rapidraw.ui.theme.EditorTypography.badge,
         )
     }
 }
@@ -2277,20 +2279,19 @@ private fun AiPanel(
                 Text(
                     text = "检测场景",
                     color = TextTertiary,
-                    fontSize = 11.sp,
+                    style = com.rapidraw.ui.theme.EditorTypography.badge,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = detectedScene.displayName,
                     color = HasselbladOrange,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = "${(sceneConfidence * 100).toInt()}%",
                     color = TextTertiary,
-                    fontSize = 11.sp,
+                    style = com.rapidraw.ui.theme.EditorTypography.badge,
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -2417,8 +2418,7 @@ private fun AiFeatureCard(
                 Text(
                     text = title,
                     color = if (isPrimary) Color.White else TextPrimary,
-                    fontSize = if (isPrimary) 15.sp else 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = if (isPrimary) com.rapidraw.ui.theme.EditorTypography.cardTitle else com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                 )
                 if (isDone) {
                     Spacer(modifier = Modifier.width(6.dp))
@@ -2433,7 +2433,7 @@ private fun AiFeatureCard(
             Text(
                 text = subtitle,
                 color = TextTertiary,
-                fontSize = 11.sp,
+                style = com.rapidraw.ui.theme.EditorTypography.badge,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
@@ -2497,13 +2497,12 @@ private fun FilterPanel(
                     Text(
                         text = "LUT 库",
                         color = if (activeLutId.isNotEmpty()) HasselbladOrange else TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                     )
                     Text(
                         text = if (activeLutId.isNotEmpty()) "已应用" else "胶片 LUT / .cube",
                         color = TextTertiary,
-                        fontSize = 10.sp,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                     )
                 }
                 if (activeLutId.isNotEmpty()) {
@@ -2546,13 +2545,12 @@ private fun FilterPanel(
                     Text(
                         text = "色彩科学",
                         color = TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                     )
                     Text(
                         text = csName,
                         color = HasselbladOrange,
-                        fontSize = 10.sp,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                     )
                 }
             }
@@ -2674,7 +2672,7 @@ private fun FloatingToolButton(
         Text(
             text = label,
             color = if (isActive) HasselbladOrange else TextSecondary,
-            fontSize = 11.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.badge,
         )
     }
 }
