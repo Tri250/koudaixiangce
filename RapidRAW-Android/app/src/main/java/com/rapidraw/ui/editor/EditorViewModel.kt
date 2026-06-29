@@ -27,7 +27,9 @@ import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.LutLibraryManager
 import com.rapidraw.core.LutManager
 import com.rapidraw.core.NegativeConverter
+import com.rapidraw.core.PortraitRetoucher
 import com.rapidraw.core.PresetManager
+import com.rapidraw.ai.FaceDetector
 import com.rapidraw.core.SceneClassifier
 import com.rapidraw.core.SceneType
 import com.rapidraw.core.SidecarManager
@@ -191,6 +193,12 @@ class EditorViewModel(
     private val _faceWhiteningParams = MutableStateFlow(com.rapidraw.core.FaceWhiteningProcessor.Params())
     val faceWhiteningParams: StateFlow<com.rapidraw.core.FaceWhiteningProcessor.Params> = _faceWhiteningParams.asStateFlow()
 
+    private val _portraitParams = MutableStateFlow(PortraitRetoucher.RetouchParams())
+    val portraitParams: StateFlow<PortraitRetoucher.RetouchParams> = _portraitParams.asStateFlow()
+
+    private val _showPortraitPanel = MutableStateFlow(false)
+    val showPortraitPanel: StateFlow<Boolean> = _showPortraitPanel.asStateFlow()
+
     private val _colorReplacementSourceHue = MutableStateFlow(0f)
     val colorReplacementSourceHue: StateFlow<Float> = _colorReplacementSourceHue.asStateFlow()
 
@@ -247,6 +255,9 @@ class EditorViewModel(
     private val undoStack = ArrayDeque<Adjustments>(50)
     private val redoStack = ArrayDeque<Adjustments>(50)
     private var branchableHistory: BranchableHistory? = null
+
+    private val portraitRetoucher = PortraitRetoucher()
+    private val faceDetector = FaceDetector(appContext)
 
     // 所有 Bitmap 状态通过 bitmapMutex 保护，避免并发访问/回收导致崩溃
     private val bitmapMutex = Mutex()
@@ -1330,6 +1341,45 @@ class EditorViewModel(
                 if (throwable is CancellationException) throw throwable
                 Log.w(TAG, "Beauty effects failed", throwable)
                 _event.value = EditorEvent.Error("美颜效果应用失败: ${throwable.localizedMessage}")
+            }
+            _isAiProcessing.value = false
+        }
+    }
+
+    // ── Portrait Retouch (人像精修) ────────────────────────────────
+
+    fun showPortraitPanel() {
+        _showPortraitPanel.value = true
+    }
+
+    fun hidePortraitPanel() {
+        _showPortraitPanel.value = false
+    }
+
+    fun updatePortraitParams(params: PortraitRetoucher.RetouchParams) {
+        _portraitParams.value = params
+    }
+
+    fun applyPortraitRetouch() {
+        pushUndo("人像精修")
+        launchAiJob {
+            val source = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launchAiJob
+            _isAiProcessing.value = true
+            runCatching {
+                val faceResult = faceDetector.detect(source)
+                val result = portraitRetoucher.retouch(source, faceResult, _portraitParams.value)
+                bitmapMutex.withLock {
+                    previewBitmapCache?.recycle()
+                    previewBitmapCache = result
+                }
+                _previewBitmap.value = result
+                updateHistogramAsync(result)
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "Portrait retouch failed", throwable)
+                _event.value = EditorEvent.Error("人像精修失败: ${throwable.localizedMessage}")
             }
             _isAiProcessing.value = false
         }

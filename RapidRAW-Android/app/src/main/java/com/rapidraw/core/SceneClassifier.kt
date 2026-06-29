@@ -16,7 +16,11 @@ enum class SceneType(val displayName: String) {
     BEACH("海滩"),
     SNOW("雪景"),
     INDOOR("室内"),
+    MACRO("微距"),
+    STREET("街拍"),
+    UNDERWATER("水下"),
     GENERAL("通用"),
+    UNKNOWN("未知"),
 }
 
 class SceneClassifier {

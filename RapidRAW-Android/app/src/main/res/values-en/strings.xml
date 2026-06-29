@@ -1,6 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">RapidRAW</string>
+    <string name="app_label">RapidRAW Editor</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_export">Export</string>
+    <string name="action_share">Share</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_redo">Redo</string>
+    <string name="tab_adjust">Adjust</string>
+    <string name="tab_crop">Crop</string>
+    <string name="tab_film">Film</string>
+    <string name="tab_mask">Mask</string>
+    <string name="tab_export">Export</string>
+    <string name="ai_denoise">AI Denoise</string>
+    <string name="ai_inpaint">AI Remove</string>
+    <string name="ai_mask">AI Mask</string>
+    <string name="smart_optimize">Smart Optimize</string>
+    <string name="master_presets">Master Presets</string>
+    <string name="waveform_scope">Waveform Monitor</string>
+    <string name="before_after">Before/After</string>
+    <string name="histogram">Histogram</string>
+    <string name="export_processing">Exporting…</string>
+    <string name="export_success">Export Successful</string>
+    <string name="export_failed">Export Failed</string>
+    <string name="sidecar_saved">Edits Saved</string>
+    <string name="recipe_shared">Recipe Shared</string>
+    <string name="recipe_imported">Recipe Imported</string>
+    <string name="permission_required">Storage permission is required to access photos</string>
+    <string name="grant_permission">Grant Permission</string>
+
+    <!-- Library -->
     <string name="library_title">Library</string>
     <string name="library_all">All</string>
     <string name="library_dcim">Camera</string>
@@ -10,6 +44,8 @@
     <string name="library_starred">Starred</string>
     <string name="library_search">Search photos</string>
     <string name="library_sort">Sort</string>
+
+    <!-- Editor -->
     <string name="editor_title">Editor</string>
     <string name="editor_film">Film</string>
     <string name="editor_adjust">Adjust</string>
@@ -20,10 +56,14 @@
     <string name="editor_exif">EXIF Info</string>
     <string name="editor_original">Original</string>
     <string name="editor_optimized">Optimized</string>
+
+    <!-- Film -->
     <string name="film_classic">Classic</string>
     <string name="film_emotional">Emotional</string>
     <string name="film_structural">Structural</string>
     <string name="film_no_filter">No Filter</string>
+
+    <!-- Adjust -->
     <string name="adjust_basic">Basic</string>
     <string name="adjust_color">Color</string>
     <string name="adjust_curves">Curves</string>
@@ -31,8 +71,12 @@
     <string name="adjust_effects">Effects</string>
     <string name="adjust_advanced">Advanced</string>
     <string name="adjust_transform">Transform</string>
+
+    <!-- Crop -->
     <string name="crop_free">Free</string>
     <string name="crop_original">Original</string>
+
+    <!-- Export -->
     <string name="export_format">Format</string>
     <string name="export_quality">Quality</string>
     <string name="export_resize">Resize</string>
@@ -41,17 +85,23 @@
     <string name="export_social">Social Platform</string>
     <string name="export_watermark">Watermark</string>
     <string name="export_button">Export</string>
+
+    <!-- Menu -->
     <string name="menu_reset">Reset All</string>
     <string name="menu_smart_optimize">Smart Optimize</string>
     <string name="menu_copy_params">Copy Edit Parameters</string>
     <string name="menu_recipe_share">Recipe Share</string>
     <string name="menu_ai_inpaint">AI Remove</string>
     <string name="menu_presets">Master Presets</string>
+
+    <!-- AI Inpaint -->
     <string name="ai_inpaint_title">AI Remove</string>
     <string name="ai_inpaint_brush">Brush</string>
     <string name="ai_inpaint_erase">Erase</string>
     <string name="ai_inpaint_start">Start Repair</string>
     <string name="ai_inpaint_repairing">Repairing…</string>
+
+    <!-- Presets -->
     <string name="presets_title">Master Presets</string>
     <string name="presets_all">All</string>
     <string name="presets_portrait">Portrait</string>
@@ -59,10 +109,29 @@
     <string name="presets_night">Night</string>
     <string name="presets_street">Street</string>
     <string name="presets_food">Food</string>
+
+    <!-- Permission -->
     <string name="permission_storage">Storage permission is required to access photos</string>
+
+    <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_dark">Dark</string>
     <string name="settings_light">Light</string>
     <string name="settings_about">About</string>
+
+    <!-- Tutorial / Onboarding -->
+    <string name="tutorial_next">Next</string>
+    <string name="tutorial_start">Get Started</string>
+    <string name="tutorial_skip">Skip</string>
+    <string name="tutorial_page1_title">Professional RAW Processing</string>
+    <string name="tutorial_page1_desc">Support for 650+ RAW formats with AgX/ACES color science for cinema-grade tonal rendering.</string>
+    <string name="tutorial_page2_title">AI Smart Editing</string>
+    <string name="tutorial_page2_desc">AI-powered denoising, smart optimization, and semantic segmentation for intelligent photo enhancement.</string>
+    <string name="tutorial_page3_title">Professional Scopes</string>
+    <string name="tutorial_page3_desc">Waveform monitor, RGB Parade, and Vectorscope for precise exposure and color analysis.</string>
+    <string name="tutorial_page4_title">HDR Export</string>
+    <string name="tutorial_page4_desc">Ultra HDR JPEG, EXR, and 10-bit HEIF export for stunning high dynamic range output.</string>
+    <string name="tutorial_page5_title">Portrait Retouching</string>
+    <string name="tutorial_page5_desc">Face detection, slimming, and leg lengthening for professional portrait refinement.</string>
 </resources>

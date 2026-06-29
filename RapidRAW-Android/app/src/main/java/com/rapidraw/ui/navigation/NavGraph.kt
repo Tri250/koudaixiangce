@@ -26,6 +26,11 @@ import com.rapidraw.ui.settings.SettingsScreen
 import com.rapidraw.data.model.ImageFile
 import com.rapidraw.data.model.Preset
 import com.rapidraw.ui.theme.Motion
+import com.rapidraw.ui.settings.PrivacyPolicyScreen
+import com.rapidraw.ui.settings.UserAgreementScreen
+import com.rapidraw.ui.settings.FeedbackScreen
+import com.rapidraw.ui.community.LutMarketScreen
+import com.rapidraw.ui.community.RecipeShareScreen
 
 /**
  * ColorOS 16 路由配置 — OPPO Find X9 摄影编辑器
@@ -46,6 +51,11 @@ object Routes {
     const val SETTINGS = "settings"
     const val PRESET_IMPORT = "preset_import"
     const val EXPORT_QUEUE = "export_queue"
+    const val PRIVACY_POLICY = "privacy_policy"
+    const val USER_AGREEMENT = "user_agreement"
+    const val FEEDBACK = "feedback"
+    const val LUT_MARKET = "lut_market"
+    const val RECIPE_SHARE = "recipe_share"
 
     /** 深层链接 URI 前缀 */
     const val DEEP_LINK_PREFIX = "rapidraw://"
@@ -319,6 +329,7 @@ fun RapidNavHost(
             popExitTransition = { Motion.exitSlideRight },
         ) {
             SettingsScreen(
+                navController = navController,
                 onBack = { navController.popBackStack() },
             )
         }
@@ -351,6 +362,46 @@ fun RapidNavHost(
             ExportQueueScreen(
                 onBack = { navController.popBackStack() },
             )
+        }
+
+        composable(
+            route = Routes.PRIVACY_POLICY,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+        ) {
+            PrivacyPolicyScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Routes.USER_AGREEMENT,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+        ) {
+            UserAgreementScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Routes.FEEDBACK,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+        ) {
+            FeedbackScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Routes.LUT_MARKET,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+        ) {
+            LutMarketScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Routes.RECIPE_SHARE,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+        ) {
+            RecipeShareScreen(onBack = { navController.popBackStack() })
         }
     }
 }

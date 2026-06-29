@@ -136,6 +136,8 @@ import com.rapidraw.ui.components.MaskType
 import com.rapidraw.ui.components.RecipeShareSheet
 import com.rapidraw.ui.components.SmartOptimizeConfirm
 import com.rapidraw.core.FaceWhiteningProcessor
+import com.rapidraw.core.PortraitRetoucher
+import com.rapidraw.ui.editor.PortraitPanel
 import com.rapidraw.ui.navigation.Routes
 import com.rapidraw.ui.presets.PresetsSheet
 import com.rapidraw.ui.theme.EditorBackground
@@ -192,6 +194,9 @@ fun EditorScreen(
     val colorReplacementTargetHue by viewModel.colorReplacementTargetHue.collectAsState()
     val colorReplacementRange by viewModel.colorReplacementRange.collectAsState()
     val colorReplacementIntensity by viewModel.colorReplacementIntensity.collectAsState()
+
+    val portraitParams by viewModel.portraitParams.collectAsState()
+    val showPortraitPanel by viewModel.showPortraitPanel.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -1135,6 +1140,7 @@ fun EditorScreen(
                                     showFlowMaskPanel = true
                                 },
                                 onBeautyPanel = { viewModel.showBeautyPanel() },
+                                onPortraitRetouch = { viewModel.showPortraitPanel() },
                             )
                             EditorTab.FILTER -> FilterPanel(
                                 selectedFilmId = selectedFilmId,
@@ -1383,6 +1389,25 @@ fun EditorScreen(
                     viewModel.applyBeautyEffects()
                     viewModel.hideBeautyPanel()
                 },
+            )
+        }
+    }
+
+    // ── Portrait Panel Sheet (人像精修) ──────────────────────────────
+    if (showPortraitPanel) {
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.hidePortraitPanel() },
+            containerColor = EditorSurface,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            PortraitPanel(
+                params = portraitParams,
+                onParamsChange = { viewModel.updatePortraitParams(it) },
+                onApply = {
+                    viewModel.applyPortraitRetouch()
+                    viewModel.hidePortraitPanel()
+                },
+                onReset = { viewModel.updatePortraitParams(PortraitRetoucher.RetouchParams()) },
             )
         }
     }
@@ -2390,6 +2415,7 @@ private fun AiPanel(
     onHighlightReconstruct: () -> Unit,
     onFlowMask: () -> Unit,
     onBeautyPanel: () -> Unit = {},
+    onPortraitRetouch: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -2499,6 +2525,15 @@ private fun AiPanel(
             subtitle = "面部美白 + 颜色替换 (PixelFruit)",
             icon = Icons.Default.Face,
             onClick = onBeautyPanel,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        AiFeatureCard(
+            title = "人像精修",
+            subtitle = "瘦脸/大眼/瘦身/拉腿",
+            icon = Icons.Default.Face,
+            onClick = onPortraitRetouch,
         )
     }
 }

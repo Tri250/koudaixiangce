@@ -776,10 +776,35 @@ object HdrExporter {
             return exportSdrJpeg(context, bitmap, displayName)
         }
 
+        // Android 10+ 有 HEIF 编码器时使用 HEIF，否则降级为 WEBP（不是 JPEG）
+        val hasHeifEncoder = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.ImageDecoder.isHeifSupported(context)
+            } else true
+        }.getOrDefault(false)
+
         val tempHeif = File(context.cacheDir, "hdr_heif_${System.currentTimeMillis()}.heif")
         FileOutputStream(tempHeif).use { fos ->
-            @Suppress("DEPRECATION")
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
+            if (hasHeifEncoder) {
+                bitmap.compress(Bitmap.CompressFormat.HEIF, 95, fos)
+            } else {
+                // 无 HEIF 编码器时降级为 WEBP（10-bit 兼容性更好），文件扩展名也改为 .webp
+                Log.w(TAG, "No HEIF encoder available; falling back to WEBP 10-bit")
+                val tempWebp = File(context.cacheDir, "hdr_webp_${System.currentTimeMillis()}.webp")
+                tempHeif.delete()
+                FileOutputStream(tempWebp).use { wos ->
+                    bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 95, wos)
+                }
+                val bytes = tempWebp.readBytes()
+                tempWebp.delete()
+                return writeToMediaStore(
+                    context = context,
+                    data = bytes,
+                    displayName = "${displayName}_10bit",
+                    mimeType = "image/webp",
+                    subFolder = "HDR",
+                )
+            }
         }
 
         // 尝试写入 HDR Exif 元数据（Content Light Level、Mastering Display）
