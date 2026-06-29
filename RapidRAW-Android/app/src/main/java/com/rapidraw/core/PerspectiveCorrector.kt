@@ -66,7 +66,7 @@ class PerspectiveCorrector {
             destQuad.bottomRight.second - destQuad.topRight.second,
         ).toInt().coerceAtLeast(1)
         
-        return Bitmap.createBitmap(source, 0, 0, outWidth, outHeight, matrix, true)
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
     }
     
     /**

@@ -1,14 +1,11 @@
 package com.rapidraw.ui.editor
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.Modifier
 
 /**
  * 编辑器键盘快捷键系统 — 对标 CyberTimon/RapidRAW 的快捷键体验。
@@ -24,7 +21,6 @@ object EditorShortcuts {
         val description: String,
     )
 
-    // 所有可用的快捷键
     val ALL_SHORTCUTS = listOf(
         ShortcutAction(Key.D, description = "打开调节面板"),
         ShortcutAction(Key.R, description = "打开裁剪/旋转"),
@@ -54,7 +50,7 @@ object EditorShortcuts {
     )
 
     /**
-     * 解析按键事件，返回对应的动作名称
+     * 解析按键事件，返回对应的动作描述
      */
     fun resolveAction(event: KeyEvent): String? {
         val key = event.key
@@ -90,5 +86,36 @@ object EditorShortcuts {
         fun onNextPhoto() {}
         fun onSetRating(stars: Int) {}
         fun onNavigateBack() {}
+    }
+
+    /**
+     * 根据动作描述执行对应的快捷键回调
+     */
+    fun executeAction(action: String, handler: ShortcutHandler) {
+        when (action) {
+            "打开调节面板" -> handler.onSwitchTab(EditorTab.ADJUST)
+            "打开裁剪/旋转" -> handler.onSwitchTab(EditorTab.COMPOSE)
+            "打开遮罩面板" -> handler.onSwitchTab(EditorTab.ADJUST)
+            "前后对比切换" -> handler.onBeforeAfter()
+            "全屏模式" -> handler.onFullscreen()
+            "缩放循环 (适配→2x→100%)" -> handler.onZoomCycle()
+            "撤销" -> handler.onUndo()
+            "重做" -> handler.onRedo()
+            "导出" -> handler.onExport()
+            "复制调整参数" -> handler.onCopyAdjustments()
+            "粘贴调整参数" -> handler.onPasteAdjustments()
+            "显示/隐藏网格" -> handler.onToggleGrid()
+            "显示/隐藏波形示波器" -> handler.onToggleWaveform()
+            "重置当前调整" -> handler.onResetCurrentAdjustment()
+            "上一张照片" -> handler.onPreviousPhoto()
+            "下一张照片" -> handler.onNextPhoto()
+            "返回图库" -> handler.onNavigateBack()
+            "1星评级" -> handler.onSetRating(1)
+            "2星评级" -> handler.onSetRating(2)
+            "3星评级" -> handler.onSetRating(3)
+            "4星评级" -> handler.onSetRating(4)
+            "5星评级" -> handler.onSetRating(5)
+            "取消评级" -> handler.onSetRating(0)
+        }
     }
 }

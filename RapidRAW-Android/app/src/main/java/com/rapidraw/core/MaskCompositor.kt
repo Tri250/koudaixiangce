@@ -13,16 +13,16 @@ import android.graphics.PorterDuffXfermode
 class MaskCompositor {
 
     enum class CombineMode {
-        ADD,        // 并集 — A ∪ B
-        SUBTRACT,   // 差集 — A - B
-        INTERSECT,  // 交集 — A ∩ B
-        DIFFERENCE, // 对称差 — A △ B
+        ADD,
+        SUBTRACT,
+        INTERSECT,
+        DIFFERENCE,
     }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     /**
-     * 合成两个遮罩位图
+     * 合成两个遮罩位图（CPU 逐像素路径）
      * @param maskA 第一个遮罩（白色=选中区域）
      * @param maskB 第二个遮罩
      * @param mode 合成模式
@@ -32,7 +32,6 @@ class MaskCompositor {
         val w = maskA.width
         val h = maskA.height
 
-        // 确保 maskB 尺寸匹配
         val resizedB = if (maskB.width != w || maskB.height != h) {
             Bitmap.createScaledBitmap(maskB, w, h, true)
         } else {
@@ -47,7 +46,7 @@ class MaskCompositor {
         val result = IntArray(w * h)
 
         for (i in pixelsA.indices) {
-            val a = (pixelsA[i] ushr 24) and 0xFF  // Alpha 通道作为遮罩值
+            val a = (pixelsA[i] ushr 24) and 0xFF
             val b = (pixelsB[i] ushr 24) and 0xFF
 
             val resultAlpha = when (mode) {
@@ -57,7 +56,7 @@ class MaskCompositor {
                 CombineMode.DIFFERENCE -> kotlin.math.abs(a - b)
             }
 
-            result[i] = (resultAlpha shl 24) or 0x00FFFFFF.toInt()
+            result[i] = (resultAlpha shl 24) or 0x00FFFFFF
         }
 
         val output = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -66,7 +65,7 @@ class MaskCompositor {
     }
 
     /**
-     * 使用 Canvas 合成（GPU加速路径）
+     * 使用 Canvas 合成（GPU 加速路径）
      */
     fun combineCanvas(maskA: Bitmap, maskB: Bitmap, mode: CombineMode): Bitmap {
         val w = maskA.width
@@ -74,10 +73,8 @@ class MaskCompositor {
         val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
 
-        // 先绘制 maskA
         canvas.drawBitmap(maskA, 0f, 0f, paint)
 
-        // 使用 Xfermode 合成 maskB
         val xfermode = when (mode) {
             CombineMode.ADD -> PorterDuffXfermode(PorterDuff.Mode.SRC_OVER)
             CombineMode.SUBTRACT -> PorterDuffXfermode(PorterDuff.Mode.SRC_OUT)

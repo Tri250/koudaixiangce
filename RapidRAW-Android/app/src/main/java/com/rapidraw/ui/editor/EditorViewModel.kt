@@ -27,9 +27,7 @@ import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.LutLibraryManager
 import com.rapidraw.core.LutManager
 import com.rapidraw.core.NegativeConverter
-import com.rapidraw.core.PortraitRetoucher
 import com.rapidraw.core.PresetManager
-import com.rapidraw.ai.FaceDetector
 import com.rapidraw.core.SceneClassifier
 import com.rapidraw.core.SceneType
 import com.rapidraw.core.SidecarManager
@@ -98,6 +96,12 @@ class EditorViewModel(
 
     private val appContext = context.applicationContext
     private val imageProcessor = ImageProcessor()
+
+    // v1.5.3 稳定性加固：统一的协程异常处理器，防止 OOM/异常导致闪退
+    private val coroutineExceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
+        Log.e("EditorViewModel", "Uncaught coroutine exception", throwable)
+        com.rapidraw.core.CrashHandler.coroutineExceptionHandler(appContext)
+    }
 
     // region UI State Flows
     private val _currentImage = MutableStateFlow<ImageFile?>(imageFile)
@@ -193,12 +197,6 @@ class EditorViewModel(
     private val _faceWhiteningParams = MutableStateFlow(com.rapidraw.core.FaceWhiteningProcessor.Params())
     val faceWhiteningParams: StateFlow<com.rapidraw.core.FaceWhiteningProcessor.Params> = _faceWhiteningParams.asStateFlow()
 
-    private val _portraitParams = MutableStateFlow(PortraitRetoucher.RetouchParams())
-    val portraitParams: StateFlow<PortraitRetoucher.RetouchParams> = _portraitParams.asStateFlow()
-
-    private val _showPortraitPanel = MutableStateFlow(false)
-    val showPortraitPanel: StateFlow<Boolean> = _showPortraitPanel.asStateFlow()
-
     private val _colorReplacementSourceHue = MutableStateFlow(0f)
     val colorReplacementSourceHue: StateFlow<Float> = _colorReplacementSourceHue.asStateFlow()
 
@@ -237,7 +235,7 @@ class EditorViewModel(
 
     init {
         // 异步初始化 LUT 库（防崩溃：asset 加载失败不阻塞启动）
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             try {
                 lutLibrary.initialize()
             } catch (e: Exception) {
@@ -245,7 +243,7 @@ class EditorViewModel(
             }
         }
         // 异步加载用户预设
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             _userPresets.value = presetManager.getAll()
         }
     }
@@ -255,9 +253,6 @@ class EditorViewModel(
     private val undoStack = ArrayDeque<Adjustments>(50)
     private val redoStack = ArrayDeque<Adjustments>(50)
     private var branchableHistory: BranchableHistory? = null
-
-    private val portraitRetoucher = PortraitRetoucher()
-    private val faceDetector = FaceDetector(appContext)
 
     // 所有 Bitmap 状态通过 bitmapMutex 保护，避免并发访问/回收导致崩溃
     private val bitmapMutex = Mutex()
@@ -301,7 +296,7 @@ class EditorViewModel(
     fun setGpuPipeline(pipeline: GpuPipeline?) {
         // GPU pipeline 仅在 EditorScreen 初始化时从主线程设置一次，
         // 使用 viewModelScope 确保后续释放逻辑串行化。
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             gpuMutex.withLock {
                 gpuPipeline = pipeline
                 // Upload any already-loaded LUT so the preview reflects current adjustments.
@@ -312,7 +307,7 @@ class EditorViewModel(
 
     fun loadImage(imageFile: ImageFile) {
         loadJob?.cancel()
-        loadJob = viewModelScope.launch {
+        loadJob = viewModelScope.launch(coroutineExceptionHandler) {
             resetEditorState()
             _currentImage.value = imageFile
             _isLoading.value = true
@@ -459,7 +454,7 @@ class EditorViewModel(
     }
 
     fun saveCurrentAsPreset(name: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val filmId = _selectedFilmId.value
             val current = _adjustments.value
             presetManager.saveFromAdjustments(name, current, filmId)
@@ -472,14 +467,14 @@ class EditorViewModel(
     }
 
     fun deleteUserPreset(id: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             presetManager.delete(id)
             _userPresets.value = presetManager.getAll()
         }
     }
 
     fun renameUserPreset(id: String, name: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             presetManager.rename(id, name)
             _userPresets.value = presetManager.getAll()
         }
@@ -566,7 +561,7 @@ class EditorViewModel(
     // region Smart Optimize
     fun smartOptimize() {
         smartOptimizeJob?.cancel()
-        smartOptimizeJob = viewModelScope.launch(Dispatchers.Default) {
+        smartOptimizeJob = viewModelScope.launch(Dispatchers.Default + coroutineExceptionHandler) {
             if (isCleared.get()) return@launch
 
             val bitmap = bitmapMutex.withLock {
@@ -744,7 +739,7 @@ class EditorViewModel(
     }
 
     fun applyAiInpaintResult(bitmap: Bitmap) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             val previewCopy = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
             bitmapMutex.withLock {
                 // 安全回收：避免释放即将重新赋值的同一对象
@@ -761,7 +756,7 @@ class EditorViewModel(
     }
 
     fun importLut(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             runCatching {
                 appContext.contentResolver.openInputStream(uri)?.use { stream ->
                     val lut = CubeLutParser().parse(stream)
@@ -872,7 +867,7 @@ class EditorViewModel(
 
     private fun launchAiJob(block: suspend () -> Unit) {
         aiJob?.cancel()
-        aiJob = viewModelScope.launch(Dispatchers.Default) {
+        aiJob = viewModelScope.launch(Dispatchers.Default + coroutineExceptionHandler) {
             if (isCleared.get()) return@launch
             runCatching { block() }.onFailure { throwable ->
                 if (throwable is CancellationException) throw throwable
@@ -884,7 +879,7 @@ class EditorViewModel(
 
     // region Flow Mask
     fun initFlowMask() {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             val source = bitmapMutex.withLock { previewBitmapCache?.takeIf { !it.isRecycled } }
             source?.let { flowMaskManager = FlowMaskManager(it.width, it.height) }
         }
@@ -907,7 +902,7 @@ class EditorViewModel(
 
     // region Scene Detection
     private fun detectSceneAsync(bitmap: Bitmap) {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.Default + coroutineExceptionHandler) {
             if (isCleared.get()) return@launch
             runCatching {
                 val classifier = SceneClassifier()
@@ -1145,7 +1140,7 @@ class EditorViewModel(
      */
     fun exportHdrImage(config: HdrExporter.HdrConfig) {
         exportJob?.cancel()
-        exportJob = viewModelScope.launch(Dispatchers.IO) {
+        exportJob = viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val source = bitmapMutex.withLock { originalBitmap }
             if (source == null || source.isRecycled) {
                 _event.value = EditorEvent.Error("无可用图像，请先打开图片")
@@ -1177,7 +1172,7 @@ class EditorViewModel(
      * 应用选中的 LUT（异步加载并应用）
      */
     fun applyLut(lutEntry: LutLibraryManager.LutEntry, intensity: Float) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val lut = lutLibrary.loadLut(lutEntry) ?: return@launch
             loadedLut = lut
             imageProcessor.currentLut = lut
@@ -1206,7 +1201,7 @@ class EditorViewModel(
             activeLutBlend = 0f,
             lutIntensity = 0f,
         )
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             gpuMutex.withLock {
                 gpuPipeline?.updateLutTexture(null, 0f)
             }
@@ -1215,7 +1210,7 @@ class EditorViewModel(
     }
 
     fun importLutFromUri(uri: android.net.Uri, displayName: String? = null) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             lutLibrary.importLut(uri, displayName)
         }
     }
@@ -1346,45 +1341,6 @@ class EditorViewModel(
         }
     }
 
-    // ── Portrait Retouch (人像精修) ────────────────────────────────
-
-    fun showPortraitPanel() {
-        _showPortraitPanel.value = true
-    }
-
-    fun hidePortraitPanel() {
-        _showPortraitPanel.value = false
-    }
-
-    fun updatePortraitParams(params: PortraitRetoucher.RetouchParams) {
-        _portraitParams.value = params
-    }
-
-    fun applyPortraitRetouch() {
-        pushUndo("人像精修")
-        launchAiJob {
-            val source = bitmapMutex.withLock {
-                previewBitmapCache?.takeIf { !it.isRecycled }
-            } ?: return@launchAiJob
-            _isAiProcessing.value = true
-            runCatching {
-                val faceResult = faceDetector.detect(source)
-                val result = portraitRetoucher.retouch(source, faceResult, _portraitParams.value)
-                bitmapMutex.withLock {
-                    previewBitmapCache?.recycle()
-                    previewBitmapCache = result
-                }
-                _previewBitmap.value = result
-                updateHistogramAsync(result)
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "Portrait retouch failed", throwable)
-                _event.value = EditorEvent.Error("人像精修失败: ${throwable.localizedMessage}")
-            }
-            _isAiProcessing.value = false
-        }
-    }
-
     // endregion
 
     // region Curve Update
@@ -1433,7 +1389,7 @@ class EditorViewModel(
         val settings = pendingSettings ?: ExportSettings()
 
         exportJob?.cancel()
-        exportJob = viewModelScope.launch(Dispatchers.IO) {
+        exportJob = viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val source = bitmapMutex.withLock {
                 originalBitmap?.takeIf { !it.isRecycled }
             } ?: run {
@@ -1485,7 +1441,7 @@ class EditorViewModel(
      * 导出并分享图像。先导出为临时文件，然后通过 Android Intent 分享。
      */
     fun shareImage(settings: ExportSettings) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val source = bitmapMutex.withLock {
                 originalBitmap?.takeIf { !it.isRecycled }
             } ?: return@launch
@@ -1561,7 +1517,7 @@ class EditorViewModel(
         if (_isShowingOriginal.value) return
 
         previewJob?.cancel()
-        previewJob = viewModelScope.launch(Dispatchers.Default) {
+        previewJob = viewModelScope.launch(Dispatchers.Default + coroutineExceptionHandler) {
             if (isCleared.get()) return@launch
             delay(50)
 
@@ -1633,7 +1589,7 @@ class EditorViewModel(
     // region Histogram
     private fun updateHistogramAsync(bitmap: Bitmap) {
         histogramJob?.cancel()
-        histogramJob = viewModelScope.launch(Dispatchers.Default) {
+        histogramJob = viewModelScope.launch(Dispatchers.Default + coroutineExceptionHandler) {
             if (isCleared.get()) return@launch
             if (bitmap.isRecycled) return@launch
 

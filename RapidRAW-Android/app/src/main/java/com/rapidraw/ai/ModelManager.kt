@@ -15,8 +15,12 @@ import java.security.MessageDigest
 
 /**
  * AI 模型管理器 — 下载、校验、管理 TFLite 模型文件。
+ *
  * 模型首次使用时从远程仓库下载，后续使用缓存。
- * 支持增量更新和磁盘空间管理。
+ * 支持 SHA256 完整性校验和版本化管理。
+ *
+ * 注意：当前项目 AI 模块（AiDenoiser/AiMaskGenerator 等）使用纯 Kotlin 启发式算法，
+ * 不依赖 TFLite 模型。本管理器为未来集成真 ML 模型预留基础设施。
  */
 class ModelManager(private val context: Context) {
 
@@ -25,7 +29,7 @@ class ModelManager(private val context: Context) {
         private const val PREFS_NAME = "ai_models"
         private const val KEY_MODELS_VERSION = "models_version_"
 
-        // 开源模型仓库 — 替换为实际 CDN 地址
+        // 模型仓库 CDN — 需替换为实际可用的下载地址
         private const val MODEL_BASE_URL = "https://github.com/CyberTimon/RapidRAW/releases/download/models"
 
         val AVAILABLE_MODELS = listOf(
@@ -34,7 +38,7 @@ class ModelManager(private val context: Context) {
                 fileName = "selfie_segmentation.tflite",
                 url = "$MODEL_BASE_URL/selfie_segmentation.tflite",
                 sizeBytes = 198_000L,
-                sha256 = "placeholder_selfie_seg_hash",
+                sha256 = "",
                 description = "AI 人像分割（主体/背景）",
                 version = 1,
             ),
@@ -43,7 +47,7 @@ class ModelManager(private val context: Context) {
                 fileName = "depth_estimation.tflite",
                 url = "$MODEL_BASE_URL/depth_estimation.tflite",
                 sizeBytes = 25_000_000L,
-                sha256 = "placeholder_depth_hash",
+                sha256 = "",
                 description = "AI 深度估计（前景/背景）",
                 version = 1,
             ),
@@ -52,7 +56,7 @@ class ModelManager(private val context: Context) {
                 fileName = "sky_segmentation.tflite",
                 url = "$MODEL_BASE_URL/sky_segmentation.tflite",
                 sizeBytes = 5_000_000L,
-                sha256 = "placeholder_sky_hash",
+                sha256 = "",
                 description = "AI 天空分割",
                 version = 1,
             ),
@@ -61,7 +65,7 @@ class ModelManager(private val context: Context) {
                 fileName = "scene_classifier.tflite",
                 url = "$MODEL_BASE_URL/scene_classifier.tflite",
                 sizeBytes = 4_000_000L,
-                sha256 = "placeholder_scene_hash",
+                sha256 = "",
                 description = "AI 场景识别",
                 version = 1,
             ),
@@ -70,7 +74,7 @@ class ModelManager(private val context: Context) {
                 fileName = "denoise.tflite",
                 url = "$MODEL_BASE_URL/denoise.tflite",
                 sizeBytes = 15_000_000L,
-                sha256 = "placeholder_denoise_hash",
+                sha256 = "",
                 description = "AI 去噪",
                 version = 1,
             ),
@@ -79,7 +83,7 @@ class ModelManager(private val context: Context) {
                 fileName = "esrgan_lite.tflite",
                 url = "$MODEL_BASE_URL/esrgan_lite.tflite",
                 sizeBytes = 4_700_000L,
-                sha256 = "placeholder_esrgan_hash",
+                sha256 = "",
                 description = "AI 超分辨率 2x/4x",
                 version = 1,
             ),
@@ -135,7 +139,7 @@ class ModelManager(private val context: Context) {
     }
 
     /**
-     * 下载模型
+     * 下载模型（含 SHA256 校验）
      */
     suspend fun downloadModel(modelId: String): Result<File> = withContext(Dispatchers.IO) {
         val info = AVAILABLE_MODELS.find { it.id == modelId }
@@ -143,7 +147,6 @@ class ModelManager(private val context: Context) {
 
         val targetFile = File(modelsDir, info.fileName)
 
-        // 如果已存在且版本匹配，直接返回
         if (targetFile.exists() && prefs.getInt(KEY_MODELS_VERSION + modelId, 0) >= info.version) {
             return@withContext Result.success(targetFile)
         }
@@ -153,10 +156,12 @@ class ModelManager(private val context: Context) {
                 modelId to DownloadProgress(modelId, 0, info.sizeBytes, false)
             )
 
-            val connection = URL(info.url).openConnection() as HttpURLConnection
-            connection.connectTimeout = 30000
-            connection.readTimeout = 60000
-            connection.setRequestProperty("Accept", "application/octet-stream")
+            val connection = (URL(info.url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 30000
+                readTimeout = 60000
+                setRequestProperty("Accept", "application/octet-stream")
+                instanceFollowRedirects = true
+            }
 
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 throw Exception("HTTP ${connection.responseCode}: ${connection.responseMessage}")
@@ -183,11 +188,19 @@ class ModelManager(private val context: Context) {
 
             connection.disconnect()
 
-            // 重命名临时文件
+            // SHA256 校验（如果模型定义了哈希值）
+            if (info.sha256.isNotBlank()) {
+                val actualHash = calculateSha256(tempFile)
+                if (!actualHash.equals(info.sha256, ignoreCase = true)) {
+                    tempFile.delete()
+                    throw SecurityException("SHA256 mismatch for model $modelId: expected=${info.sha256}, actual=$actualHash")
+                }
+                Log.i(TAG, "SHA256 verified for model $modelId")
+            }
+
             if (targetFile.exists()) targetFile.delete()
             tempFile.renameTo(targetFile)
 
-            // 更新版本记录
             prefs.edit().putInt(KEY_MODELS_VERSION + modelId, info.version).apply()
 
             _downloadProgress.value = _downloadProgress.value + (
@@ -196,15 +209,11 @@ class ModelManager(private val context: Context) {
 
             Log.i(TAG, "Model $modelId downloaded successfully (${targetFile.length()} bytes)")
             Result.success(targetFile)
-
         } catch (e: Exception) {
-            // 清理失败的临时文件
             File(modelsDir, "${info.fileName}.tmp").delete()
-
             _downloadProgress.value = _downloadProgress.value + (
                 modelId to DownloadProgress(modelId, 0, info.sizeBytes, false, e.message)
             )
-
             Log.e(TAG, "Failed to download model $modelId: ${e.message}")
             Result.failure(e)
         }
@@ -223,9 +232,6 @@ class ModelManager(private val context: Context) {
         return results
     }
 
-    /**
-     * 删除模型释放磁盘空间
-     */
     fun deleteModel(modelId: String): Boolean {
         val info = AVAILABLE_MODELS.find { it.id == modelId } ?: return false
         val file = File(modelsDir, info.fileName)
@@ -236,10 +242,19 @@ class ModelManager(private val context: Context) {
         return deleted
     }
 
-    /**
-     * 获取所有模型的磁盘使用量
-     */
     fun getTotalDiskUsage(): Long {
         return modelsDir.listFiles()?.sumOf { it.length() } ?: 0L
+    }
+
+    private fun calculateSha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { fis ->
+            val buffer = ByteArray(8192)
+            var bytesRead: Int
+            while (fis.read(buffer).also { bytesRead = it } != -1) {
+                digest.update(buffer, 0, bytesRead)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 }

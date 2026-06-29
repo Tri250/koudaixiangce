@@ -72,6 +72,12 @@ object RawDecoder {
         } catch (e: Exception) {
             Log.e(TAG, "decodeRaw failed for $path", e)
             null
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM decoding RAW for $path (size=${widthArray[0]}x${heightArray[0]})", e)
+            null
+        } catch (e: Throwable) {
+            Log.e(TAG, "Unexpected error decoding RAW for $path", e)
+            null
         }
     }
 
@@ -83,6 +89,12 @@ object RawDecoder {
         try {
             canDecodeRaw(tempFile.absolutePath)
         } catch (e: Exception) {
+            false
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM checking RAW decodability", e)
+            false
+        } catch (e: Throwable) {
+            Log.e(TAG, "Unexpected error checking RAW", e)
             false
         } finally {
             try { tempFile.delete() } catch (_: Exception) { }
@@ -101,6 +113,9 @@ object RawDecoder {
             tempFile
         } catch (e: Exception) {
             Log.e(TAG, "Failed to copy URI to temp file: $uri", e)
+            null
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM copying URI to temp file: $uri", e)
             null
         }
     }

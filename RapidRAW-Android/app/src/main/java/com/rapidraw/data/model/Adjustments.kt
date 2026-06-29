@@ -232,10 +232,6 @@ data class Adjustments(
 
     // ── AI Patches ────────────────────────────────────────────
     val aiPatches: List<AiPatch> = emptyList(),
-
-    // ── Rating & Color Label ──────────────────────────────────────
-    val rating: Int = 0,           // 0-5 星评级
-    val colorLabel: Int = 0,       // 0=无, 1=红, 2=黄, 3=绿, 4=蓝, 5=紫, 6=橙
 ) {
     fun copyByField(key: String, value: Float): Adjustments = when (key) {
         // Basic

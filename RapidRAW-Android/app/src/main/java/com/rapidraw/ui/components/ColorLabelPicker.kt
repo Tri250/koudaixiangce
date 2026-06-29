@@ -11,8 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.rapidraw.ui.theme.ColorOS16Colors
 import com.rapidraw.ui.theme.HasselbladOrange
+import com.rapidraw.ui.theme.TextTertiary
 
 /**
  * 颜色标签选择器 — 支持 6 种颜色标签（红/黄/绿/蓝/紫/橙）
@@ -24,13 +24,13 @@ fun ColorLabelPicker(
     modifier: Modifier = Modifier,
 ) {
     val colors = listOf(
-        0 to ColorOS16Colors.TextLow,   // 无
-        1 to Color(0xFFFF3B30),         // 红
-        2 to Color(0xFFFFCC00),         // 黄
-        3 to Color(0xFF34C759),         // 绿
-        4 to Color(0xFF007AFF),         // 蓝
-        5 to Color(0xFFAF52DE),         // 紫
-        6 to HasselbladOrange,          // 橙
+        0 to TextTertiary,
+        1 to Color(0xFFFF3B30),
+        2 to Color(0xFFFFCC00),
+        3 to Color(0xFF34C759),
+        4 to Color(0xFF007AFF),
+        5 to Color(0xFFAF52DE),
+        6 to HasselbladOrange,
     )
 
     Row(modifier = modifier) {

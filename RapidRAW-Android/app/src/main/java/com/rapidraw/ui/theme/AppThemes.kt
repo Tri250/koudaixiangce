@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 /**
  * 多主题系统 — 支持多种主题配色方案。
  * 对标 CyberTimon/RapidRAW 的多主题切换功能。
- * 每个主题定义品牌主色、表面色、文字色等完整色彩映射。
+ * 每个主题定义品牌主色、表面色、渐变色等完整色彩映射。
  */
 object AppThemes {
 
@@ -21,7 +21,7 @@ object AppThemes {
         val type: ThemeType,
         val brand: Color,
         val brandBright: Color,
-        val brandDim: Color,
+        val brandDark: Color,
         val accent: Color,
         val accentBright: Color,
         val surfaceBrand: Color,
@@ -34,7 +34,7 @@ object AppThemes {
             type = ThemeType.HASSELBLAD_ORANGE,
             brand = HasselbladOrange,
             brandBright = HasselbladOrangeBright,
-            brandDim = HasselbladOrangeDark,
+            brandDark = HasselbladOrangeDark,
             accent = HasselbladOrange,
             accentBright = HasselbladOrangeBright,
             surfaceBrand = Color(0x1AE8740C),
@@ -45,7 +45,7 @@ object AppThemes {
             type = ThemeType.CYBER_TEAL,
             brand = Color(0xFF00BFA5),
             brandBright = Color(0xFF64FFDA),
-            brandDim = Color(0xFF00897B),
+            brandDark = Color(0xFF00897B),
             accent = Color(0xFF00BFA5),
             accentBright = Color(0xFF64FFDA),
             surfaceBrand = Color(0x1A00BFA5),
@@ -56,7 +56,7 @@ object AppThemes {
             type = ThemeType.MORANDI_GREEN,
             brand = Color(0xFF8D9E88),
             brandBright = Color(0xFFB5C4B0),
-            brandDim = Color(0xFF6E8569),
+            brandDark = Color(0xFF6E8569),
             accent = Color(0xFF8D9E88),
             accentBright = Color(0xFFB5C4B0),
             surfaceBrand = Color(0x1A8D9E88),
@@ -67,7 +67,7 @@ object AppThemes {
             type = ThemeType.CINEMA_RED,
             brand = Color(0xFFE53935),
             brandBright = Color(0xFFFF6F61),
-            brandDim = Color(0xFFB71C1C),
+            brandDark = Color(0xFFB71C1C),
             accent = Color(0xFFE53935),
             accentBright = Color(0xFFFF6F61),
             surfaceBrand = Color(0x1AE53935),
@@ -78,7 +78,7 @@ object AppThemes {
             type = ThemeType.MONOCHROME,
             brand = Color(0xFF9E9E9E),
             brandBright = Color(0xFFE0E0E0),
-            brandDim = Color(0xFF616161),
+            brandDark = Color(0xFF616161),
             accent = Color(0xFF9E9E9E),
             accentBright = Color(0xFFE0E0E0),
             surfaceBrand = Color(0x1A9E9E9E),
@@ -87,11 +87,10 @@ object AppThemes {
         ),
     )
 
-    fun getTheme(type: ThemeType): ThemeColors = themes[type] ?: themes[ThemeType.HASSELBLAD_ORANGE]!!
+    fun getTheme(type: ThemeType): ThemeColors =
+        themes[type] ?: themes[ThemeType.HASSELBLAD_ORANGE]!!
 
-    /**
-     * 获取当前品牌色（由 SettingsScreen 切换时更新）
-     */
+    @Volatile
     var currentThemeType: ThemeType = ThemeType.HASSELBLAD_ORANGE
         private set
 

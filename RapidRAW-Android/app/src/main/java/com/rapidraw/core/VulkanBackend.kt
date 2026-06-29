@@ -4,29 +4,31 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
 import android.util.Log
+import com.rapidraw.data.model.Adjustments
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Vulkan Compute 后端 — 使用 Vulkan Compute Shader 进行图像处理。
- * 相比 OpenGL ES 3.0，Vulkan 提供更低开销、更高效的多线程命令提交。
- * Android 7.0+ (API 24+) 设备可用，不支持时回退到 GpuPipeline。
+ * Vulkan Compute 后端探索性框架。
+ *
+ * 当前 Android 端没有稳定的纯 Kotlin Vulkan Compute 绑定（需要 NDK + libvulkan）。
+ * 本类提供三级后端自动检测：Vulkan Compute → OpenGL ES → CPU 回退。
+ * Vulkan 路径当前返回 null（probeVulkanDevice），自动回退到 GpuPipeline。
+ *
+ * 当未来集成 Vulkan NDK 库后，probeVulkanDevice() 返回非 null 即可启用。
  */
 class VulkanBackend(private val context: Context) {
 
     companion object {
         private const val TAG = "VulkanBackend"
 
+        /**
+         * 检查设备是否支持 Vulkan（Android 7.0+ 理论支持）
+         */
         fun isSupported(): Boolean {
-            // Android 7.0+ 理论支持 Vulkan
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
-            // 检查设备是否实际支持 Vulkan 1.0+
-            return try {
-                val instance = android.os.ParcelFileDescriptor.adoptFd(0)
-                true // 简化检测，实际应通过 VkInstance 创建检测
-            } catch (_: Exception) {
-                false
-            }
+            // 实际 Vulkan 可用性需通过 vkCreateInstance 检测（需要 NDK）
+            // 当前保守返回 false，自动回退到 OpenGL ES
+            return false
         }
     }
 
@@ -40,13 +42,12 @@ class VulkanBackend(private val context: Context) {
         val type: BackendType,
         val deviceName: String,
         val apiVersion: String,
-        val maxComputeWorkGroupSize: IntArray,
         val maxImageDimension: Int,
     )
 
     private var isInitialized = false
     private var backendInfo: BackendInfo? = null
-    private val gpuPipeline = GpuPipeline(context)
+    private var gpuPipeline: GpuPipeline? = null
 
     /**
      * 初始化后端 — 自动检测最优可用后端
@@ -54,8 +55,8 @@ class VulkanBackend(private val context: Context) {
     suspend fun initialize(): BackendInfo = withContext(Dispatchers.IO) {
         if (isInitialized) return@withContext backendInfo!!
 
-        // 1. 尝试 Vulkan
-        if (isSupported() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        // 1. 尝试 Vulkan（当前不支持，自动跳过）
+        if (isSupported()) {
             try {
                 val info = probeVulkanDevice()
                 if (info != null) {
@@ -71,44 +72,38 @@ class VulkanBackend(private val context: Context) {
 
         // 2. 回退到 OpenGL ES
         try {
-            // 使用 1x1 offscreen 初始化探测 OpenGL ES 可用性
-            gpuPipeline.initializeOffscreen(1, 1)
-            val renderer = try {
-                val glRenderer = android.opengl.GLES30.glGetString(android.opengl.GLES30.GL_RENDERER) ?: "Unknown"
-                val glVersion = android.opengl.GLES30.glGetString(android.opengl.GLES30.GL_VERSION) ?: "OpenGL ES 3.0"
-                "$glRenderer ($glVersion)"
-            } catch (_: Exception) {
-                "Unknown OpenGL ES"
-            }
+            val gpu = GpuPipeline()
+            gpu.initializeOffscreen(1920, 1080)
+            gpuPipeline = gpu
             backendInfo = BackendInfo(
                 type = BackendType.OPENGL_ES,
-                deviceName = renderer,
-                apiVersion = "OpenGL ES 3.0",
-                maxComputeWorkGroupSize = intArrayOf(256, 256, 64),
+                deviceName = "OpenGL ES 3.0",
+                apiVersion = "GLES 3.0",
                 maxImageDimension = 8192,
             )
             isInitialized = true
-            Log.i(TAG, "Using OpenGL ES fallback: ${backendInfo?.deviceName}")
+            Log.i(TAG, "Using OpenGL ES backend")
         } catch (e: Exception) {
             // 3. 最终 CPU 回退
             backendInfo = BackendInfo(
                 type = BackendType.CPU_FALLBACK,
                 deviceName = "CPU",
                 apiVersion = "N/A",
-                maxComputeWorkGroupSize = intArrayOf(1, 1, 1),
                 maxImageDimension = 16384,
             )
             isInitialized = true
-            Log.w(TAG, "All GPU backends failed, using CPU fallback")
+            Log.w(TAG, "GPU init failed, using CPU fallback: ${e.message}")
         }
 
         backendInfo!!
     }
 
+    /**
+     * 探测 Vulkan 设备 — 需 NDK 实现，当前返回 null
+     */
     private fun probeVulkanDevice(): BackendInfo? {
-        // 通过 android.graphics.Bitmap 或 JNI 检测 Vulkan
-        // 实际实现需要 native 代码（libvulkan.so）
-        // 当前返回 null 表示 Vulkan 尚未完全启用
+        // TODO: 集成 Vulkan NDK 库后实现
+        // 通过 vkEnumeratePhysicalDevices 获取设备信息
         return null
     }
 
@@ -123,16 +118,13 @@ class VulkanBackend(private val context: Context) {
 
         when (backendInfo?.type) {
             BackendType.VULKAN_COMPUTE -> {
-                // Vulkan Compute 处理路径
-                // TODO: 实现 Vulkan compute shader 分发
-                // 当前回退到 OpenGL ES
+                // Vulkan Compute 路径（未实现，回退到 OpenGL ES）
                 processWithGpuPipeline(bitmap, adjustments)
             }
             BackendType.OPENGL_ES -> {
                 processWithGpuPipeline(bitmap, adjustments)
             }
             BackendType.CPU_FALLBACK -> {
-                // CPU 回退使用 ImageProcessor
                 ImageProcessor().processFullResolution(adjustments, bitmap)
             }
             else -> {
@@ -142,31 +134,22 @@ class VulkanBackend(private val context: Context) {
     }
 
     private fun processWithGpuPipeline(bitmap: Bitmap, adjustments: Adjustments): Bitmap {
-        // 如果当前 GpuPipeline 尺寸不匹配，重新初始化
-        val w = bitmap.width
-        val h = bitmap.height
-        if (!gpuPipeline.isInitialized()) {
-            gpuPipeline.initializeOffscreen(w, h)
+        val gpu = gpuPipeline ?: return bitmap
+        return try {
+            gpu.updateAdjustments(adjustments)
+            gpu.renderFrame(bitmap)
+            gpu.getProcessedBitmap()
+        } catch (e: Exception) {
+            Log.e(TAG, "GPU processing failed, returning original", e)
+            bitmap
         }
-        gpuPipeline.updateAdjustments(adjustments)
-        gpuPipeline.renderFrame(bitmap)
-        return gpuPipeline.getProcessedBitmap()
-    }
-
-    /**
-     * 处理图像片段 — 用于分块处理大图
-     */
-    suspend fun processTile(
-        tile: Bitmap,
-        adjustments: Adjustments,
-    ): Bitmap {
-        return processImage(tile, adjustments)
     }
 
     fun getBackendInfo(): BackendInfo? = backendInfo
 
     fun release() {
-        gpuPipeline.release()
+        gpuPipeline?.release()
+        gpuPipeline = null
         isInitialized = false
         backendInfo = null
     }

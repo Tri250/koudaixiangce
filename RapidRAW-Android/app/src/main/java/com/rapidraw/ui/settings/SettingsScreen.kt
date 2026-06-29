@@ -38,8 +38,6 @@ import android.opengl.EGLExt
 import com.rapidraw.core.HdrDisplayManager
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.ui.components.HasselSlider
-import androidx.navigation.NavController
-import com.rapidraw.ui.navigation.Routes
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.EditorBorder
@@ -50,7 +48,6 @@ import com.rapidraw.ui.theme.TextTertiary
 
 @Composable
 fun SettingsScreen(
-    navController: NavController,
     onBack: () -> Unit,
     viewModel: SettingsViewModel = viewModel(),
 ) {
@@ -282,31 +279,6 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // ═══════════════════════════════════════════════════════════
-            // 通用
-            // ═══════════════════════════════════════════════════════════
-            SettingsCategoryHeader(title = "通用")
-
-            SettingsCard {
-                // LUT 市场
-                ClickableRow(
-                    title = "LUT 市场",
-                    onClick = { navController.navigate(Routes.LUT_MARKET) },
-                )
-
-                HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
-
-                // 配方社区
-                ClickableRow(
-                    title = "配方社区",
-                    onClick = { navController.navigate(Routes.RECIPE_SHARE) },
-                )
-
-                HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // ═══════════════════════════════════════════════════════════
             // 关于
             // ═══════════════════════════════════════════════════════════
             SettingsCategoryHeader(title = "关于")
@@ -325,7 +297,7 @@ fun SettingsScreen(
                         fontSize = 14.sp,
                     )
                     Text(
-                        text = "1.5.3",
+                        text = "1.4.12",
                         color = TextTertiary,
                         fontSize = 14.sp,
                     )
@@ -336,30 +308,6 @@ fun SettingsScreen(
                 ClickableRow(
                     title = "开源许可",
                     onClick = { /* TODO: Navigate to OSS licenses */ },
-                )
-
-                HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
-
-                // 隐私政策
-                ClickableRow(
-                    title = "隐私政策",
-                    onClick = { navController.navigate(Routes.PRIVACY_POLICY) },
-                )
-
-                HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
-
-                // 用户协议
-                ClickableRow(
-                    title = "用户协议",
-                    onClick = { navController.navigate(Routes.USER_AGREEMENT) },
-                )
-
-                HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
-
-                // 意见反馈
-                ClickableRow(
-                    title = "意见反馈",
-                    onClick = { navController.navigate(Routes.FEEDBACK) },
                 )
 
                 HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)

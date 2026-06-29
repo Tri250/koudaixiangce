@@ -693,12 +693,15 @@ class ImageProcessor {
             originalBitmap
         }
 
-        var w = sourceBitmap.width
-        var h = sourceBitmap.height
+        val w = sourceBitmap.width
+        val h = sourceBitmap.height
         val pixelCount = w.toLong() * h.toLong()
 
-        // Get pixels as int array (var 以便几何变换后可重新赋值)
-        var pixels = IntArray(w * h)
+        // Create output bitmap
+        val outputBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+
+        // Get pixels as int array
+        val pixels = IntArray(w * h)
         sourceBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         // Pre-compute white balance multipliers
@@ -735,16 +738,9 @@ class ImageProcessor {
             workBitmap = applyGeometricTransform(workBitmap, n)
         }
 
-        // Re-read pixels after geometric transform — 必须用变换后的实际尺寸
+        // Re-read pixels after geometric transform
         if (workBitmap !== sourceBitmap) {
-            val nw = workBitmap.width
-            val nh = workBitmap.height
-            val newPixels = IntArray(nw * nh)
-            workBitmap.getPixels(newPixels, 0, nw, 0, 0, nw, nh)
-            // 替换为新的像素缓冲区和尺寸
-            pixels = newPixels
-            w = nw
-            h = nh
+            workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
         }
 
         // Apply lens correction if enabled
@@ -1071,9 +1067,9 @@ class ImageProcessor {
             }
         }
 
-        // 几何变换后需用新尺寸创建 outputBitmap
-        val outputBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         outputBitmap.setPixels(pixels, 0, w, 0, 0, w, h)
+
+        // Post-processing: Blur-based creative effects (Glow, Halation, CDL)
         var effectPixels = pixels
         if (n.blurGlow > 1e-6f) {
             effectPixels = applyGlow(effectPixels, w, h, n.blurGlow)

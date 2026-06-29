@@ -1,19 +1,21 @@
 package com.rapidraw.core
 
 import android.util.Log
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.rapidraw.data.model.Adjustments
 
 /**
  * 编辑器剪贴板 — 支持跨图像复制粘贴调整参数、遮罩和裁剪。
  * 对标 CyberTimon/RapidRAW v1.5.4 的复制粘贴增强功能。
+ *
+ * 注意：当前项目已有 AdjustmentClipboard（仅复制调整参数），
+ * 本类扩展支持遮罩和裁剪数据的跨图复制。
  */
 object EditorClipboard {
 
     private const val TAG = "EditorClipboard"
 
-    @Serializable
     data class ClipboardContent(
         val adjustmentsJson: String? = null,
         val masksJson: String? = null,
@@ -64,7 +66,12 @@ object EditorClipboard {
     /**
      * 复制全部（调整+遮罩+裁剪）
      */
-    fun copyAll(adjustments: Adjustments, masksData: String?, cropData: String?, sourceFileName: String? = null) {
+    fun copyAll(
+        adjustments: Adjustments,
+        masksData: String?,
+        cropData: String?,
+        sourceFileName: String? = null,
+    ) {
         clipboard = ClipboardContent(
             adjustmentsJson = json.encodeToString(adjustments),
             masksJson = masksData,
@@ -88,40 +95,16 @@ object EditorClipboard {
         }
     }
 
-    /**
-     * 粘贴遮罩数据
-     */
     fun pasteMasks(): String? = clipboard.masksJson
-
-    /**
-     * 粘贴裁剪数据
-     */
     fun pasteCrop(): String? = clipboard.cropJson
 
-    /**
-     * 剪贴板是否有内容
-     */
     fun hasContent(): Boolean = clipboard.adjustmentsJson != null ||
         clipboard.masksJson != null || clipboard.cropJson != null
 
-    /**
-     * 剪贴板是否有调整参数
-     */
     fun hasAdjustments(): Boolean = clipboard.adjustmentsJson != null
-
-    /**
-     * 剪贴板是否有遮罩
-     */
     fun hasMasks(): Boolean = clipboard.masksJson != null
-
-    /**
-     * 剪贴板是否有裁剪
-     */
     fun hasCrop(): Boolean = clipboard.cropJson != null
 
-    /**
-     * 获取剪贴板信息描述
-     */
     fun getClipboardDescription(): String {
         val parts = mutableListOf<String>()
         if (hasAdjustments()) parts.add("调整参数")
@@ -130,9 +113,6 @@ object EditorClipboard {
         return if (parts.isEmpty()) "空" else parts.joinToString(" + ")
     }
 
-    /**
-     * 清空剪贴板
-     */
     fun clear() {
         clipboard = ClipboardContent()
     }

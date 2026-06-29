@@ -32,27 +32,15 @@ class RapidRawApp : Application() {
 
         try {
             // v1.5.3: 全局崩溃捕获 + 本地持久化，必须早于其他业务初始化
+            // CrashHandler.install 已包含完整链路（日志写入 + 委托默认 handler），
+            // 不再额外包装 setupUncaughtExceptionHandler（避免双层 handler 冗余）。
             CrashHandler.install(this)
-            setupUncaughtExceptionHandler()
             enableStrictModeInDebug()
             registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
             // v1.5.3: 主动检查关键设备能力，记录到日志便于后续诊断
             logDeviceCapabilities()
         } catch (e: Exception) {
             Log.e(TAG, "Error in Application.onCreate", e)
-        }
-    }
-
-    /**
-     * 兼容旧逻辑：保留一份最简的额外兜底（CrashHandler 已做主捕获）。
-     * 这里仅记录堆栈长度 + 设备信息，确保日志格式与原 v1.5.2 兼容。
-     */
-    private fun setupUncaughtExceptionHandler() {
-        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e(TAG, "Uncaught exception on thread '${thread.name}', " +
-                "type=${throwable.javaClass.name}, message=${throwable.message}")
-            defaultHandler?.uncaughtException(thread, throwable)
         }
     }
 

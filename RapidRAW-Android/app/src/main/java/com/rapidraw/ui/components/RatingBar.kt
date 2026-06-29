@@ -10,8 +10,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.rapidraw.ui.theme.ColorOS16Colors
 import com.rapidraw.ui.theme.HasselbladOrange
+import com.rapidraw.ui.theme.TextTertiary
 
 /**
  * 星级评级组件 — 支持 0-5 星评级
@@ -29,7 +29,7 @@ fun RatingBar(
             Icon(
                 imageVector = if (isSelected) Icons.Filled.Star else Icons.Outlined.StarOutline,
                 contentDescription = "$i 星",
-                tint = if (isSelected) HasselbladOrange else ColorOS16Colors.TextLow,
+                tint = if (isSelected) HasselbladOrange else TextTertiary,
                 modifier = Modifier
                     .size(starSize.dp)
                     .clickable { onRatingChange(if (rating == i) 0 else i) },
