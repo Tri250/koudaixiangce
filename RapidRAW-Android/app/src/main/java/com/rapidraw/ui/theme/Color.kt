@@ -56,6 +56,9 @@ object ColorOS16Colors {
     /** 禁用文字（30% 白） */
     val TextDisabled: Color = Color(0x4DFFFFFF)
 
+    /** 辅助文字别名（兼容旧代码引用 ColorOS16Colors.TextTertiary） */
+    val TextTertiary: Color = TextLow
+
     // ── 哈苏橙品牌色系（克制使用，精准调色）──────────────────────────
 
     /** 哈苏橙核心色（仅品牌时刻：导出按钮、取景器四角、胶片选中） */

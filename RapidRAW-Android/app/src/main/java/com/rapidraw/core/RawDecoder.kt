@@ -49,7 +49,7 @@ object RawDecoder {
         try {
             decodeRawFile(tempFile.absolutePath)
         } finally {
-            try { tempFile.delete() } catch (_: Exception) { }
+            try { tempFile.delete() } catch (_: Exception) { Log.w(TAG, "Failed to delete temp file: $tempFile") }
         }
     }
 
@@ -85,7 +85,7 @@ object RawDecoder {
         } catch (e: Exception) {
             false
         } finally {
-            try { tempFile.delete() } catch (_: Exception) { }
+            try { tempFile.delete() } catch (_: Exception) { Log.w(TAG, "Failed to delete temp file: $tempFile") }
         }
     }
 

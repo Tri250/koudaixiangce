@@ -107,6 +107,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -150,6 +151,7 @@ import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
 import com.rapidraw.core.toColorScienceConfig
 import com.rapidraw.core.toHdrConfig
+import com.rapidraw.ui.editor.EditorShortcuts
 import kotlinx.coroutines.launch
 
 // 2026 OPPO Find X9 布局：底部 5 Tab（拇指友好，高频功能直达）
@@ -327,7 +329,10 @@ fun EditorScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(EditorBackground),
+            .background(EditorBackground)
+            .onKeyEvent { keyEvent ->
+                EditorShortcuts.handleKeyEvent(keyEvent, viewModel)
+            },
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),

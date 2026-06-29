@@ -107,20 +107,11 @@ class HdrDisplayManager(private val context: Context) {
         if (!isHdrSupported()) return
 
         try {
-            if (enabled) {
-                // Android 8+: 设置 HDR color mode
-                window.setColorMode(
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                        ActivityInfo_COLOR_MODE_HDR
-                    else 0
-                )
-            } else {
-                window.setColorMode(
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                        ActivityInfo_COLOR_MODE_DEFAULT
-                    else 0
-                )
-            }
+            // Android 8+ API（已在 L105 提前 return，此处恒为 true）
+            window.setColorMode(
+                if (enabled) ActivityInfo.COLOR_MODE_HDR
+                else ActivityInfo.COLOR_MODE_DEFAULT
+            )
             hdrModeEnabled = enabled
         } catch (_: Exception) {
             // 某些设备可能不支持 setColorMode，安全降级

@@ -58,7 +58,7 @@ class UserPreferenceLearning(context: Context) {
                     if (adj.filmId.isNotEmpty()) {
                         filmCounts[adj.filmId] = (filmCounts[adj.filmId] ?: 0) + 1
                     }
-                } catch (_: Exception) {}
+                } catch (_: Exception) { Log.w(TAG, "Failed to read user preferences") }
             }
         }
         val favoriteFilm = filmCounts.maxByOrNull { it.value }?.key
@@ -148,7 +148,7 @@ class UserPreferenceLearning(context: Context) {
                 values.getOrPut("shadows") { mutableListOf() }.add(adj.shadows)
                 values.getOrPut("dehaze") { mutableListOf() }.add(adj.dehaze)
                 values.getOrPut("sharpness") { mutableListOf() }.add(adj.sharpness)
-            } catch (_: Exception) {}
+            } catch (_: Exception) { Log.w(TAG, "Failed to read user preferences") }
         }
 
         return values.mapValues { it.value.average().toFloat() }

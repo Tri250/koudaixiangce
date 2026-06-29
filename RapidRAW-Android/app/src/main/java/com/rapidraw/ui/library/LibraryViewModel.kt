@@ -512,7 +512,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                                                 android.net.Uri.fromFile(file)
                                             )
                                         )
-                                    } catch (_: Exception) { }
+                                    } catch (_: Exception) { Log.w(TAG, "Failed to delete temp file") }
                                 }
                             }
                         }

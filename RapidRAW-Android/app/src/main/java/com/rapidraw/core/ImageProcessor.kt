@@ -478,33 +478,31 @@ class ImageProcessor {
         try {
             val inputStream = context.contentResolver.openInputStream(uri) ?: return ExifData() to 0
             inputStream.use { stream ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    val exifInterface = androidx.exifinterface.media.ExifInterface(stream)
-                    orientation = when (exifInterface.getAttributeInt(
-                        androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
-                        androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
-                    )) {
-                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90
-                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180
-                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270
-                        else -> 0
-                    }
-
-                    val exifData = ExifData(
-                        make = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE),
-                        model = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL),
-                        dateTime = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME),
-                        iso = exifInterface.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0)
-                            .takeIf { it > 0 }?.toString(),
-                        shutterSpeed = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, 0.0)
-                            .takeIf { it > 0.0 }?.toString(),
-                        focalLength = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, 0.0)
-                            .takeIf { it > 0.0 }?.toString(),
-                        aperture = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, 0.0)
-                            .takeIf { it > 0.0 }?.toString(),
-                    )
-                    return exifData to orientation
+                val exifInterface = androidx.exifinterface.media.ExifInterface(stream)
+                orientation = when (exifInterface.getAttributeInt(
+                    androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                )) {
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                    else -> 0
                 }
+
+                val exifData = ExifData(
+                    make = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE),
+                    model = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL),
+                    dateTime = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME),
+                    iso = exifInterface.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0)
+                        .takeIf { it > 0 }?.toString(),
+                    shutterSpeed = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, 0.0)
+                        .takeIf { it > 0.0 }?.toString(),
+                    focalLength = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, 0.0)
+                        .takeIf { it > 0.0 }?.toString(),
+                    aperture = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, 0.0)
+                        .takeIf { it > 0.0 }?.toString(),
+                )
+                return exifData to orientation
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not read EXIF: ${e.message}")
@@ -566,14 +564,8 @@ class ImageProcessor {
             val inputStream = context.contentResolver.openInputStream(uri)
                 ?: throw IllegalArgumentException("Cannot open URI for thumbnail")
             inputStream.use { stream ->
-                val exifInterface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    androidx.exifinterface.media.ExifInterface(stream)
-                } else {
-                    throw IllegalArgumentException("Cannot extract thumbnail on API < 24")
-                }
-                val thumbnail = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    exifInterface.thumbnailBitmap
-                } else null
+                val exifInterface = androidx.exifinterface.media.ExifInterface(stream)
+                val thumbnail = exifInterface.thumbnailBitmap
                 thumbnail?.copy(Bitmap.Config.ARGB_8888, true)
                     ?: throw IllegalArgumentException("No thumbnail available for RAW image")
             }

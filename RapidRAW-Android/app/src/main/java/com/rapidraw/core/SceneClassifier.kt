@@ -1,213 +1,249 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
-import android.graphics.Color
-import kotlin.math.abs
 
-enum class SceneType(val displayName: String) {
-    PORTRAIT("人像"),
-    LANDSCAPE("风景"),
-    NIGHT("夜景"),
-    FOOD("美食"),
-    ARCHITECTURE("建筑"),
-    PET("宠物"),
-    DOCUMENT("文档"),
-    SKY("天空"),
-    BEACH("海滩"),
-    SNOW("雪景"),
-    INDOOR("室内"),
-    GENERAL("通用"),
-}
+data class SceneClassifyResult(
+    val category: String,
+    val confidence: Float
+)
 
 class SceneClassifier {
 
-    data class SceneAnalysis(
-        val sceneType: SceneType,
-        val confidence: Float,  // 0-1
-        val suggestedFilmId: String?,  // suggested Hasselblad film
-        val suggestedAdjustments: Map<String, Float>,
-    )
-
-    fun classify(bitmap: Bitmap): SceneAnalysis {
+    /**
+     * Classifies the scene type of a bitmap using heuristic image analysis.
+     * Analyzes color distribution, brightness, edge density, and composition.
+     *
+     * @param bitmap Source bitmap to classify
+     * @return SceneClassifyResult with category string and confidence
+     */
+    fun classify(bitmap: Bitmap): SceneClassifyResult {
         val width = bitmap.width
         val height = bitmap.height
-        val totalPixels = width * height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
-        var skinTonePixels = 0
-        var greenPixels = 0
-        var bluePixels = 0
-        var brightPixels = 0
-        var darkPixels = 0
-        var redPixels = 0
-        var yellowPixels = 0
-        var whitePixels = 0
-        var avgBrightness = 0f
+        val stats = computeImageStats(pixels, width, height)
 
-        val sampleStep = maxOf(1, (totalPixels / 10000).coerceAtLeast(1))
+        // Calculate scores for each scene type
+        val scores = mutableMapOf<String, Float>()
 
-        for (y in 0 until height step sampleStep) {
-            for (x in 0 until width step sampleStep) {
-                val pixel = bitmap.getPixel(x, y)
-                val r = Color.red(pixel)
-                val g = Color.green(pixel)
-                val b = Color.blue(pixel)
+        scores["landscape"] = computeLandscapeScore(stats, width, height)
+        scores["portrait"] = computePortraitScore(stats, width, height)
+        scores["night"] = computeNightScore(stats)
+        scores["food"] = computeFoodScore(stats, width, height)
+        scores["macro"] = computeMacroScore(stats, width, height)
+        scores["architecture"] = computeArchitectureScore(stats, width, height)
+        scores["lowlight"] = computeLowlightScore(stats)
+        scores["backlit"] = computeBacklitScore(stats, width, height)
 
-                val brightness = (r * 0.299f + g * 0.587f + b * 0.114f) / 255f
-                avgBrightness += brightness
+        val bestCategory = scores.maxByOrNull { it.value }?.key ?: "unknown"
+        val bestConfidence = scores[bestCategory] ?: 0f
 
-                // Skin tone detection
-                if (r > 90 && g > 60 && b > 40 && r > g && g > b && (r - g) > 10 && (g - b) > 5) {
-                    skinTonePixels++
-                }
-
-                // Green detection (foliage)
-                if (g > r + 20 && g > b + 20 && g > 80) greenPixels++
-
-                // Blue detection (sky/water)
-                if (b > r + 20 && b > g + 10 && b > 80) bluePixels++
-
-                // Bright/dark
-                if (brightness > 0.7) brightPixels++
-                if (brightness < 0.2) darkPixels++
-
-                // Red/orange detection (sunset/food)
-                if (r > g + 30 && r > b + 20 && r > 100) redPixels++
-
-                // Yellow detection
-                if (r > 150 && g > 120 && b < 80 && r > b + 50) yellowPixels++
-
-                // White detection (document/snow)
-                if (r > 200 && g > 200 && b > 200 && abs(r - g) < 20 && abs(g - b) < 20) whitePixels++
-            }
-        }
-
-        val sampledPixels = ((width / sampleStep) * (height / sampleStep)).coerceAtLeast(1)
-        avgBrightness /= sampledPixels
-
-        val skinRatio = skinTonePixels.toFloat() / sampledPixels
-        val greenRatio = greenPixels.toFloat() / sampledPixels
-        val blueRatio = bluePixels.toFloat() / sampledPixels
-        val brightRatio = brightPixels.toFloat() / sampledPixels
-        val darkRatio = darkPixels.toFloat() / sampledPixels
-        val redRatio = redPixels.toFloat() / sampledPixels
-        val yellowRatio = yellowPixels.toFloat() / sampledPixels
-        val whiteRatio = whitePixels.toFloat() / sampledPixels
-
-        return determineScene(
-            skinRatio, greenRatio, blueRatio, brightRatio,
-            darkRatio, redRatio, yellowRatio, whiteRatio, avgBrightness
+        return SceneClassifyResult(
+            category = if (bestConfidence >= 0.25f) bestCategory else "unknown",
+            confidence = bestConfidence.coerceIn(0f, 1f)
         )
     }
 
-    private fun determineScene(
-        skin: Float, green: Float, blue: Float, bright: Float,
-        dark: Float, red: Float, yellow: Float, white: Float, avgBrightness: Float
-    ): SceneAnalysis {
-        // Decision tree with confidence scores
-        var bestScene = SceneType.GENERAL
-        var bestConfidence = 0.5f
-        var suggestedFilm: String? = null
-        val suggestedAdjustments = mutableMapOf<String, Float>()
+    private data class ImageStats(
+        val avgBrightness: Float,
+        val avgSaturation: Float,
+        val colorTemp: Float,
+        val edgeDensity: Float,
+        val topThirdBrightness: Float,
+        val bottomThirdBrightness: Float,
+        val centerBrightness: Float,
+        val dynamicRange: Float,
+        val warmColorRatio: Float,
+        val coolColorRatio: Float
+    )
 
-        when {
-            // Portrait: significant skin tone
-            skin > 0.08f -> {
-                bestScene = SceneType.PORTRAIT
-                bestConfidence = (0.6f + skin * 2f).coerceAtMost(0.95f)
-                suggestedFilm = "hasselblad_hewa"
-                suggestedAdjustments["temperature"] = 5f
-                suggestedAdjustments["clarity"] = -5f
-                suggestedAdjustments["softGlow"] = 0.15f
-            }
-            // Night: mostly dark
-            dark > 0.5f && avgBrightness < 0.25f -> {
-                bestScene = SceneType.NIGHT
-                bestConfidence = (0.6f + dark * 0.5f).coerceAtMost(0.95f)
-                suggestedFilm = "hasselblad_nihong"
-                suggestedAdjustments["shadows"] = 20f
-                suggestedAdjustments["highlights"] = -10f
-                suggestedAdjustments["dehaze"] = 8f
-            }
-            // Food: warm colors + bright
-            red > 0.1f && yellow > 0.08f && avgBrightness > 0.4f -> {
-                bestScene = SceneType.FOOD
-                bestConfidence = 0.8f
-                suggestedFilm = "hasselblad_nongyu"
-                suggestedAdjustments["saturation"] = 15f
-                suggestedAdjustments["vibrance"] = 10f
-                suggestedAdjustments["clarity"] = 10f
-            }
-            // Sky: dominant blue + bright
-            blue > 0.25f && bright > 0.4f -> {
-                bestScene = SceneType.SKY
-                bestConfidence = (0.7f + blue * 0.5f).coerceAtMost(0.95f)
-                suggestedFilm = "hasselblad_tongtou"
-                suggestedAdjustments["dehaze"] = 10f
-                suggestedAdjustments["clarity"] = 15f
-            }
-            // Beach: blue + yellow( sand)
-            blue > 0.15f && yellow > 0.1f -> {
-                bestScene = SceneType.BEACH
-                bestConfidence = 0.75f
-                suggestedFilm = "hasselblad_qingxin"
-                suggestedAdjustments["temperature"] = 5f
-                suggestedAdjustments["saturation"] = 10f
-            }
-            // Snow: mostly white + bright
-            white > 0.3f && avgBrightness > 0.6f -> {
-                bestScene = SceneType.SNOW
-                bestConfidence = 0.8f
-                suggestedFilm = "hasselblad_qingxin"
-                suggestedAdjustments["temperature"] = -5f
-                suggestedAdjustments["exposure"] = -0.3f
-            }
-            // Landscape: lots of green + blue
-            green > 0.15f && (blue > 0.1f || green > 0.25f) -> {
-                bestScene = SceneType.LANDSCAPE
-                bestConfidence = (0.6f + green * 0.8f).coerceAtMost(0.95f)
-                suggestedFilm = "hasselblad_nongyu"
-                suggestedAdjustments["clarity"] = 20f
-                suggestedAdjustments["vibrance"] = 15f
-                suggestedAdjustments["dehaze"] = 5f
-            }
-            // Architecture: lines + neutral colors
-            green < 0.1f && blue < 0.15f && white > 0.1f -> {
-                bestScene = SceneType.ARCHITECTURE
-                bestConfidence = 0.65f
-                suggestedFilm = "hasselblad_tongtou"
-                suggestedAdjustments["clarity"] = 10f
-                suggestedAdjustments["contrast"] = 10f
-            }
-            // Document: mostly white + edges
-            white > 0.4f -> {
-                bestScene = SceneType.DOCUMENT
-                bestConfidence = 0.75f
-                suggestedAdjustments["contrast"] = 15f
-                suggestedAdjustments["saturation"] = -50f
-            }
-            // Pet: warm tones + fur texture (approximate with skin-like detection)
-            skin > 0.03f && yellow > 0.05f -> {
-                bestScene = SceneType.PET
-                bestConfidence = 0.7f
-                suggestedFilm = "hasselblad_hewa"
-                suggestedAdjustments["sharpness"] = 15f
-                suggestedAdjustments["clarity"] = 10f
-            }
-            // Indoor: low brightness + warm
-            avgBrightness < 0.4f && yellow > 0.05f -> {
-                bestScene = SceneType.INDOOR
-                bestConfidence = 0.65f
-                suggestedFilm = "hasselblad_fugu"
-                suggestedAdjustments["temperature"] = 8f
-                suggestedAdjustments["shadows"] = 15f
+    private fun computeImageStats(pixels: IntArray, width: Int, height: Int): ImageStats {
+        var totalBrightness = 0f
+        var totalSaturation = 0f
+        var totalColorTemp = 0f
+        var totalEdge = 0f
+        var topBrightness = 0f
+        var bottomBrightness = 0f
+        var centerBrightness = 0f
+        var minBrightness = Float.MAX_VALUE
+        var maxBrightness = Float.MIN_VALUE
+        var warmCount = 0
+        var coolCount = 0
+        var totalPixels = 0
+
+        val topThird = height / 3
+        val bottomThird = height * 2 / 3
+        val cx = width / 2
+        val cy = height / 2
+        val centerRadius = minOf(width, height) / 4
+
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val pixel = pixels[y * width + x]
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+
+                val brightness = (0.299f * r + 0.587f * g + 0.114f * b) / 255f
+                val maxC = maxOf(r, g, b)
+                val minC = minOf(r, g, b)
+                val saturation = if (maxC == 0) 0f else (maxC - minC).toFloat() / maxC
+                val colorTemp = if (g > 0 && b > 0) (r.toFloat() / (g + b)) else 0f
+
+                totalBrightness += brightness
+                totalSaturation += saturation
+                totalColorTemp += colorTemp
+
+                if (brightness < minBrightness) minBrightness = brightness
+                if (brightness > maxBrightness) maxBrightness = brightness
+
+                if (y < topThird) topBrightness += brightness
+                if (y >= bottomThird) bottomBrightness += brightness
+
+                val dx = x - cx
+                val dy = y - cy
+                if (dx * dx + dy * dy <= centerRadius * centerRadius) {
+                    centerBrightness += brightness
+                }
+
+                if (r > b + 40 && r > g + 20) warmCount++
+                if (b > r + 40 && b > g + 20) coolCount++
+
+                // Edge detection
+                if (x > 0 && y > 0) {
+                    val prev = pixels[y * width + x - 1]
+                    val prevLum = (0.299f * ((prev shr 16) and 0xFF) + 0.587f * ((prev shr 8) and 0xFF) + 0.114f * (prev and 0xFF)) / 255f
+                    totalEdge += kotlin.math.abs(brightness - prevLum)
+                }
+
+                totalPixels++
             }
         }
 
-        return SceneAnalysis(
-            sceneType = bestScene,
-            confidence = bestConfidence,
-            suggestedFilmId = suggestedFilm,
-            suggestedAdjustments = suggestedAdjustments,
+        val dynamicRange = maxBrightness - minBrightness
+
+        return ImageStats(
+            avgBrightness = totalBrightness / totalPixels,
+            avgSaturation = totalSaturation / totalPixels,
+            colorTemp = totalColorTemp / totalPixels,
+            edgeDensity = totalEdge / totalPixels,
+            topThirdBrightness = topBrightness / (topThird * width),
+            bottomThirdBrightness = bottomBrightness / ((height - bottomThird) * width),
+            centerBrightness = centerBrightness / totalPixels,
+            dynamicRange = dynamicRange,
+            warmColorRatio = warmCount.toFloat() / totalPixels,
+            coolColorRatio = coolCount.toFloat() / totalPixels
         )
+    }
+
+    private fun computeLandscapeScore(stats: ImageStats, width: Int, height: Int): Float {
+        var score = 0f
+        // High edge density in upper portion (mountains, trees)
+        score += stats.edgeDensity * 0.25f
+        // Cooler color temperature (blue sky, green foliage)
+        if (stats.colorTemp < 0.8f) score += 0.2f
+        // Bright top third (sky)
+        if (stats.topThirdBrightness > 0.5f) score += 0.2f
+        // Wide aspect ratio
+        if (width.toFloat() / height > 1.2f) score += 0.15f
+        // Moderate saturation
+        if (stats.avgSaturation in 0.2f..0.6f) score += 0.2f
+        return score.coerceIn(0f, 1f)
+    }
+
+    private fun computePortraitScore(stats: ImageStats, width: Int, height: Int): Float {
+        var score = 0f
+        // Center brightness higher than edges (face lit)
+        if (stats.centerBrightness > stats.avgBrightness * 1.1f) score += 0.3f
+        // Warm color tones (skin)
+        if (stats.warmColorRatio > 0.3f) score += 0.25f
+        // Tall aspect ratio
+        if (height.toFloat() / width > 1.3f) score += 0.2f
+        // Lower edge density (smooth bokeh background)
+        if (stats.edgeDensity < 0.15f) score += 0.15f
+        // Moderate brightness
+        if (stats.avgBrightness in 0.3f..0.7f) score += 0.1f
+        return score.coerceIn(0f, 1f)
+    }
+
+    private fun computeNightScore(stats: ImageStats): Float {
+        var score = 0f
+        // Very low overall brightness
+        if (stats.avgBrightness < 0.25f) score += 0.4f
+        // High contrast / dynamic range (bright lights in dark)
+        if (stats.dynamicRange > 0.7f) score += 0.3f
+        // Low saturation
+        if (stats.avgSaturation < 0.3f) score += 0.15f
+        // Cool color temperature
+        if (stats.colorTemp < 0.7f) score += 0.15f
+        return score.coerceIn(0f, 1f)
+    }
+
+    private fun computeFoodScore(stats: ImageStats, width: Int, height: Int): Float {
+        var score = 0f
+        // Warm colors dominate
+        if (stats.warmColorRatio > 0.4f) score += 0.35f
+        // High saturation
+        if (stats.avgSaturation > 0.4f) score += 0.25f
+        // Center-weighted (food centered)
+        if (stats.centerBrightness > stats.avgBrightness * 1.05f) score += 0.2f
+        // Moderate brightness
+        if (stats.avgBrightness in 0.35f..0.7f) score += 0.2f
+        return score.coerceIn(0f, 1f)
+    }
+
+    private fun computeMacroScore(stats: ImageStats, width: Int, height: Int): Float {
+        var score = 0f
+        // Very high edge density in center (sharp subject)
+        if (stats.edgeDensity > 0.2f) score += 0.3f
+        // High center brightness vs edges (shallow DoF)
+        if (stats.centerBrightness > stats.avgBrightness * 1.15f) score += 0.3f
+        // High saturation
+        if (stats.avgSaturation > 0.35f) score += 0.2f
+        // Warm tones (flowers, insects)
+        if (stats.warmColorRatio > 0.3f) score += 0.2f
+        return score.coerceIn(0f, 1f)
+    }
+
+    private fun computeArchitectureScore(stats: ImageStats, width: Int, height: Int): Float {
+        var score = 0f
+        // Very high edge density (straight lines)
+        if (stats.edgeDensity > 0.25f) score += 0.35f
+        // Low saturation
+        if (stats.avgSaturation < 0.35f) score += 0.2f
+        // Neutral color temperature
+        if (stats.colorTemp in 0.7f..1.3f) score += 0.2f
+        // High dynamic range
+        if (stats.dynamicRange > 0.5f) score += 0.15f
+        // Cool color ratio (glass, steel, concrete)
+        if (stats.coolColorRatio > 0.2f) score += 0.1f
+        return score.coerceIn(0f, 1f)
+    }
+
+    private fun computeLowlightScore(stats: ImageStats): Float {
+        var score = 0f
+        // Low brightness
+        if (stats.avgBrightness < 0.3f) score += 0.4f
+        // Low dynamic range (no bright lights, unlike night)
+        if (stats.dynamicRange < 0.4f) score += 0.3f
+        // Low saturation
+        if (stats.avgSaturation < 0.25f) score += 0.2f
+        // Low edge density (noise blurs edges)
+        if (stats.edgeDensity < 0.1f) score += 0.1f
+        return score.coerceIn(0f, 1f)
+    }
+
+    private fun computeBacklitScore(stats: ImageStats, width: Int, height: Int): Float {
+        var score = 0f
+        // Top third much brighter than bottom (backlight from above/behind)
+        if (stats.topThirdBrightness > stats.bottomThirdBrightness * 1.5f) score += 0.4f
+        // Bottom third dark (subject silhouette or dark)
+        if (stats.bottomThirdBrightness < 0.35f) score += 0.3f
+        // High dynamic range
+        if (stats.dynamicRange > 0.6f) score += 0.2f
+        // Warm color temperature (sunset backlight)
+        if (stats.colorTemp > 1.2f) score += 0.1f
+        return score.coerceIn(0f, 1f)
     }
 }

@@ -232,6 +232,25 @@ data class Adjustments(
 
     // ── AI Patches ────────────────────────────────────────────
     val aiPatches: List<AiPatch> = emptyList(),
+
+    // ── Rating & Color Label ──────────────────────────────────
+    val rating: Int = 0,                        // 0-5 stars, 0 = unrated
+    val colorLabel: String = "",                // "" | "red" | "orange" | "yellow" | "green" | "blue" | "purple"
+
+    // ── Portrait Retouching ───────────────────────────────────
+    val portraitSkinSmoothing: Float = 0f,      // 0..100
+    val portraitEyeBrighten: Float = 0f,        // 0..100
+    val portraitTeethWhiten: Float = 0f,        // 0..100
+    val portraitFaceSlim: Float = 0f,           // 0..100
+    val portraitJawContour: Float = 0f,         // -100..100
+    val portraitEyeEnlarge: Float = 0f,         // 0..100
+    val portraitNoseReshape: Float = 0f,        // -100..100
+    val portraitLipColor: Float = 0f,           // 0..100
+    val portraitCheekBlush: Float = 0f,         // 0..100
+
+    // ── Mesh Warp ─────────────────────────────────────────────
+    val meshWarpPoints: List<Coord> = emptyList(),
+    val meshWarpIntensity: Float = 0f,          // 0..100
 ) {
     fun copyByField(key: String, value: Float): Adjustments = when (key) {
         // Basic

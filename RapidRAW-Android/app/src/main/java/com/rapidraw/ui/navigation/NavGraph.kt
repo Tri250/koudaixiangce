@@ -23,6 +23,12 @@ import com.rapidraw.ui.export.ExportQueueScreen
 import com.rapidraw.ui.presets.PresetImportScreen
 import com.rapidraw.ui.presets.PresetsDiscoveryScreen
 import com.rapidraw.ui.settings.SettingsScreen
+import com.rapidraw.ui.settings.PrivacyPolicyScreen
+import com.rapidraw.ui.settings.UserAgreementScreen
+import com.rapidraw.ui.settings.FeedbackScreen
+import com.rapidraw.ui.community.LutMarketScreen
+import com.rapidraw.ui.community.RecipeShareScreen
+import com.rapidraw.ui.onboarding.TutorialScreen
 import com.rapidraw.data.model.ImageFile
 import com.rapidraw.data.model.Preset
 import com.rapidraw.ui.theme.Motion
@@ -46,6 +52,12 @@ object Routes {
     const val SETTINGS = "settings"
     const val PRESET_IMPORT = "preset_import"
     const val EXPORT_QUEUE = "export_queue"
+    const val LUT_MARKET = "lut_market"
+    const val RECIPE_SHARE = "recipe_share"
+    const val PRIVACY_POLICY = "privacy_policy"
+    const val USER_AGREEMENT = "user_agreement"
+    const val FEEDBACK = "feedback"
+    const val TUTORIAL = "tutorial"
 
     /** 深层链接 URI 前缀 */
     const val DEEP_LINK_PREFIX = "rapidraw://"
@@ -91,6 +103,17 @@ fun RapidNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+
+    // 首次启动显示引导教程
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("rapidraw_tutorial", android.content.Context.MODE_PRIVATE)
+        val tutorialCompleted = prefs.getBoolean("tutorial_completed", false)
+        if (!tutorialCompleted) {
+            navController.navigate(Routes.TUTORIAL)
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Routes.LIBRARY,
@@ -320,6 +343,9 @@ fun RapidNavHost(
         ) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
+                onNavigatePrivacy = { navController.navigate(Routes.PRIVACY_POLICY) },
+                onNavigateAgreement = { navController.navigate(Routes.USER_AGREEMENT) },
+                onNavigateFeedback = { navController.navigate(Routes.FEEDBACK) },
             )
         }
 
@@ -350,6 +376,78 @@ fun RapidNavHost(
         ) {
             ExportQueueScreen(
                 onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Routes.LUT_MARKET,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+            popEnterTransition = { Motion.enterSlideUp },
+            popExitTransition = { Motion.exitSlideDown },
+        ) {
+            LutMarketScreen(
+                onBack = { navController.popBackStack() },
+                onApplyLut = { /* Navigate back or apply */ },
+            )
+        }
+
+        composable(
+            route = Routes.RECIPE_SHARE,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+            popEnterTransition = { Motion.enterSlideUp },
+            popExitTransition = { Motion.exitSlideDown },
+        ) {
+            RecipeShareScreen(
+                onBack = { navController.popBackStack() },
+                onApplyRecipe = { /* Navigate back or apply */ },
+            )
+        }
+
+        composable(
+            route = Routes.PRIVACY_POLICY,
+            enterTransition = { Motion.enterSlideRight },
+            exitTransition = { Motion.exitSlideLeft },
+            popEnterTransition = { Motion.enterSlideLeft },
+            popExitTransition = { Motion.exitSlideRight },
+        ) {
+            PrivacyPolicyScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Routes.USER_AGREEMENT,
+            enterTransition = { Motion.enterSlideRight },
+            exitTransition = { Motion.exitSlideLeft },
+            popEnterTransition = { Motion.enterSlideLeft },
+            popExitTransition = { Motion.exitSlideRight },
+        ) {
+            UserAgreementScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Routes.FEEDBACK,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+            popEnterTransition = { Motion.enterSlideUp },
+            popExitTransition = { Motion.exitSlideDown },
+        ) {
+            FeedbackScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Routes.TUTORIAL,
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+        ) {
+            TutorialScreen(
+                onComplete = { navController.popBackStack() },
             )
         }
     }

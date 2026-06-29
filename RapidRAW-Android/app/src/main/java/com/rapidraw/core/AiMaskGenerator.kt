@@ -17,7 +17,7 @@ import kotlin.math.sqrt
  * 注：前身为 AiMaskGenerator，因不使用 AI/ML 模型而重命名以避免误导。
  * 保留 AiMaskGenerator 类型别名以兼容现有引用。
  */
-class AiMaskGenerator {
+class HeuristicMaskGenerator {
 
     enum class MaskType { SKY, SUBJECT, FOREGROUND, DEPTH }
 
@@ -276,5 +276,8 @@ class AiMaskGenerator {
     
     private fun Float.pow(n: Float): Float = Math.pow(this.toDouble(), n.toDouble()).toFloat()
 }
+
+/** 向后兼容别名 */
+typealias AiMaskGenerator = HeuristicMaskGenerator
 
 

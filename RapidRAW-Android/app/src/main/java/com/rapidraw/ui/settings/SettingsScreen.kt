@@ -24,6 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,11 +36,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.content.Context
+import android.content.SharedPreferences
 import android.opengl.EGL14
 import android.opengl.EGLExt
 import com.rapidraw.core.HdrDisplayManager
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.ui.components.HasselSlider
+import com.rapidraw.ui.theme.AppThemes
+import com.rapidraw.ui.theme.ThemePreviewCard
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.EditorBorder
@@ -49,6 +55,9 @@ import com.rapidraw.ui.theme.TextTertiary
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigatePrivacy: () -> Unit = {},
+    onNavigateAgreement: () -> Unit = {},
+    onNavigateFeedback: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -279,6 +288,34 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // ═══════════════════════════════════════════════════════════
+            // 主题
+            // ═══════════════════════════════════════════════════════════
+            SettingsCategoryHeader(title = "主题")
+
+            SettingsCard {
+                var selectedThemeId by remember {
+                    val prefs = context.getSharedPreferences("rapidraw_settings", Context.MODE_PRIVATE)
+                    mutableStateOf(prefs.getString("app_theme", "dark_orange") ?: "dark_orange")
+                }
+                AppThemes.themes.forEach { theme ->
+                    ThemePreviewCard(
+                        theme = theme,
+                        isSelected = theme.id == selectedThemeId,
+                        onClick = {
+                            selectedThemeId = theme.id
+                            AppThemes.selectTheme(context, theme.id)
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                    if (theme != AppThemes.themes.last()) {
+                        HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ═══════════════════════════════════════════════════════════
             // 关于
             // ═══════════════════════════════════════════════════════════
             SettingsCategoryHeader(title = "关于")
@@ -297,7 +334,7 @@ fun SettingsScreen(
                         fontSize = 14.sp,
                     )
                     Text(
-                        text = "1.4.12",
+                        text = "1.5.3",
                         color = TextTertiary,
                         fontSize = 14.sp,
                     )
@@ -306,15 +343,29 @@ fun SettingsScreen(
                 HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
 
                 ClickableRow(
+                    title = "用户协议",
+                    onClick = onNavigateAgreement,
+                )
+
+                HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
+
+                ClickableRow(
+                    title = "隐私政策",
+                    onClick = onNavigatePrivacy,
+                )
+
+                HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
+
+                ClickableRow(
                     title = "开源许可",
-                    onClick = { /* TODO: Navigate to OSS licenses */ },
+                    onClick = { /* OSS licenses: use Google Play Services or custom page */ },
                 )
 
                 HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
 
                 ClickableRow(
                     title = "反馈与建议",
-                    onClick = { /* TODO: Navigate to feedback */ },
+                    onClick = onNavigateFeedback,
                 )
             }
 
