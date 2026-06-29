@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -21,8 +22,10 @@ import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Rotate90DegreesCcw
 import androidx.compose.material.icons.filled.Rotate90DegreesCw
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,6 +51,7 @@ fun TransformPanel(
     adjustments: Adjustments,
     onUpdate: (String, Any) -> Unit,
     onInteractiveCrop: () -> Unit = {},
+    onAutoStraighten: () -> Unit = {},
 ) {
     var cropExpanded by remember { mutableStateOf(true) }
     var rotationExpanded by remember { mutableStateOf(true) }
@@ -231,6 +235,59 @@ fun TransformPanel(
                 stepSize = 0.1f,
                 format = { v -> String.format("%.1f°", v) },
             )
+
+            // Auto Straighten button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .background(
+                        color = HasselbladOrange,
+                        shape = RoundedCornerShape(8.dp),
+                    )
+                    .clickable { onAutoStraighten() }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Rotate90DegreesCcw,
+                        contentDescription = "自动拉直",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "自动拉直",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+
+            // Reset Rotation button
+            OutlinedButton(
+                onClick = { onUpdate("rotation", 0f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, EditorSurfaceVariant),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = EditorSurfaceVariant,
+                    contentColor = TextSecondary,
+                ),
+            ) {
+                Text(
+                    text = "重置旋转",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
         }
 
         // ── 透视 ──────────────────────────────────────────

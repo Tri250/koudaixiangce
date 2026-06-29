@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.rapidraw.data.model.ColorLabel
 import com.rapidraw.data.model.ImageFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -403,6 +404,32 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
         }
+    }
+
+    fun updateRating(path: String, rating: Int) {
+        _images.update { list ->
+            list.map { image ->
+                if (image.path == path) image.copy(rating = rating.coerceIn(0, 5)) else image
+            }
+        }
+    }
+
+    fun updateColorLabel(path: String, label: ColorLabel) {
+        _images.update { list ->
+            list.map { image ->
+                if (image.path == path) image.copy(colorLabel = label) else image
+            }
+        }
+    }
+
+    fun createVirtualCopy(image: ImageFile) {
+        val virtualCopy = image.copy(
+            virtualCopyOf = image.path,
+            rating = 0,
+            colorLabel = ColorLabel.NONE,
+            adjustments = null,
+        )
+        _images.update { list -> list + virtualCopy }
     }
 
     private fun applyFilters(allImages: List<ImageFile>) {

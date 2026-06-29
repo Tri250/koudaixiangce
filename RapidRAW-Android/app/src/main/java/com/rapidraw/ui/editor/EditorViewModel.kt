@@ -11,6 +11,7 @@ import com.rapidraw.core.AdjustmentClipboard
 import com.rapidraw.core.AiDenoiser
 import com.rapidraw.core.AiInpainter
 import com.rapidraw.core.AiMaskGenerator
+import com.rapidraw.core.AutoStraightener
 import com.rapidraw.core.CubeLutParser
 import com.rapidraw.core.EditHistorySnapshot
 import com.rapidraw.core.FlowMaskManager
@@ -18,6 +19,7 @@ import com.rapidraw.core.GpuPipeline
 import com.rapidraw.core.HighlightReconstructor
 import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.LutManager
+import com.rapidraw.core.NegativeConverter
 import com.rapidraw.core.SceneClassifier
 import com.rapidraw.core.SceneType
 import com.rapidraw.core.SidecarManager
@@ -59,6 +61,7 @@ enum class EditorTab {
 sealed class EditorEvent {
     data class Error(val message: String) : EditorEvent()
     data class ExportComplete(val uri: Uri) : EditorEvent()
+    data class ShareImage(val uri: Uri) : EditorEvent()
     data object Idle : EditorEvent()
 }
 
@@ -710,6 +713,58 @@ class EditorViewModel(
         }
     }
 
+    fun autoStraighten() {
+        launchAiJob {
+            val source = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launchAiJob
+
+            _isAiProcessing.value = true
+            runCatching {
+                val angle = AutoStraightener().detectStraightenAngle(source)
+                withContext(Dispatchers.Main) {
+                    if (isCleared.get()) return@withContext
+                    pushUndo("自动拉直: ${String.format("%.1f", angle)}°")
+                    _adjustments.value = _adjustments.value.copy(rotation = angle)
+                    schedulePreviewUpdate()
+                }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "Auto straighten failed", throwable)
+                _event.value = EditorEvent.Error("自动拉直失败: ${throwable.localizedMessage}")
+            }
+            _isAiProcessing.value = false
+        }
+    }
+
+    fun convertNegative() {
+        launchAiJob {
+            val source = bitmapMutex.withLock {
+                previewBitmapCache?.takeIf { !it.isRecycled }
+            } ?: return@launchAiJob
+
+            _isAiProcessing.value = true
+            runCatching {
+                val converted = NegativeConverter.convertNegative(source)
+                bitmapMutex.withLock {
+                    previewBitmapCache?.recycle()
+                    previewBitmapCache = converted
+                }
+                _previewBitmap.value = converted
+                updateHistogramAsync(converted)
+                withContext(Dispatchers.Main) {
+                    if (isCleared.get()) return@withContext
+                    pushUndo("负片转换")
+                }
+            }.onFailure { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "Negative conversion failed", throwable)
+                _event.value = EditorEvent.Error("负片转换失败: ${throwable.localizedMessage}")
+            }
+            _isAiProcessing.value = false
+        }
+    }
+
     private fun launchAiJob(block: suspend () -> Unit) {
         aiJob?.cancel()
         aiJob = viewModelScope.launch(Dispatchers.Default) {
@@ -1159,6 +1214,31 @@ class EditorViewModel(
 
             // 处理队列中的下一个任务
             processExportQueue()
+        }
+    }
+
+    /**
+     * 导出并分享图像。先导出为临时文件，然后通过 Android Intent 分享。
+     */
+    fun shareImage(settings: ExportSettings) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val source = bitmapMutex.withLock {
+                originalBitmap?.takeIf { !it.isRecycled }
+            } ?: return@launch
+
+            runCatching {
+                val processed = imageProcessor.processFullResolution(
+                    _adjustments.value, source, allowDownsample = false
+                )
+                val uri = imageProcessor.exportImage(
+                    processed, settings, appContext, originalExifData, originalOrientation,
+                )
+                withContext(Dispatchers.Main) {
+                    _event.value = EditorEvent.ShareImage(uri)
+                }
+            }.onFailure {
+                Log.e(TAG, "Share failed", it)
+            }
         }
     }
 

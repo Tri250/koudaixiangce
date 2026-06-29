@@ -68,6 +68,7 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.DropdownMenu
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.rapidraw.ui.components.ClippingOverlay
 import com.rapidraw.ui.components.InteractiveCropOverlay
 import com.rapidraw.ui.components.WaveformScope
 import androidx.compose.material3.DropdownMenuItem
@@ -179,6 +180,15 @@ fun EditorScreen(
             }
             is EditorEvent.ExportComplete -> {
                 snackbarHostState.showSnackbar("导出成功: ${e.uri}")
+                viewModel.consumeEvent()
+            }
+            is EditorEvent.ShareImage -> {
+                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "image/jpeg"
+                    putExtra(android.content.Intent.EXTRA_STREAM, e.uri)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(android.content.Intent.createChooser(shareIntent, "分享图片"))
                 viewModel.consumeEvent()
             }
             EditorEvent.Idle -> { /* no-op */ }
@@ -662,6 +672,12 @@ fun EditorScreen(
                 }
             }
 
+            // Clipping overlay
+            ClippingOverlay(
+                bitmap = previewBitmap,
+                showClipping = showClipping,
+            )
+
             // 2026 浮层专业工具条（示波器/裁切/遮罩，按需展开）
             Box(
                 modifier = Modifier
@@ -1076,12 +1092,15 @@ fun EditorScreen(
                             adjustments = adjustments,
                             onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
                             onInteractiveCrop = { showInteractiveCrop = true },
+                            onAutoStraighten = { viewModel.autoStraighten() },
+                            onConvertNegative = { viewModel.convertNegative() },
                         )
                         EditorTab.EXPORT -> ExportPanel(
                             onExport = { settings -> viewModel.exportImage(settings) },
                             onHdrExport = { viewModel.showHdrExport() },
                             onRecipeShare = { showRecipeSheet = true },
                             onEditHistory = { viewModel.showEditHistory() },
+                            onShare = { settings -> viewModel.shareImage(settings) },
                             hdrExportFormat = adjustments.hdrExportFormat,
                             colorScienceMode = adjustments.colorScienceMode,
                         )
@@ -1384,6 +1403,8 @@ private fun CropPanel(
     adjustments: com.rapidraw.data.model.Adjustments,
     onUpdate: (String, Float) -> Unit,
     onInteractiveCrop: () -> Unit = {},
+    onAutoStraighten: () -> Unit = {},
+    onConvertNegative: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -1547,6 +1568,56 @@ private fun CropPanel(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Auto straighten & negative conversion buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        color = HasselbladOrange,
+                        shape = RoundedCornerShape(8.dp),
+                    )
+                    .clickable { onAutoStraighten() }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "自动拉直",
+                    color = TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        color = EditorSurfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = EditorBorder,
+                        shape = RoundedCornerShape(8.dp),
+                    )
+                    .clickable { onConvertNegative() }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "负片转换",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
     }
 }
 
@@ -1583,6 +1654,7 @@ private fun ExportPanel(
     onHdrExport: () -> Unit = {},
     onRecipeShare: () -> Unit = {},
     onEditHistory: () -> Unit = {},
+    onShare: ((ExportSettings) -> Unit)? = null,
     hdrExportFormat: Int = 0,
     colorScienceMode: Int = 0,
 ) {
@@ -1927,40 +1999,83 @@ private fun ExportPanel(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    onExport(
-                        ExportSettings(
-                            format = selectedFormat,
-                            quality = quality.toInt(),
-                            resizeMode = resizeMode,
-                            resizeValue = resizeValue.toIntOrNull() ?: 0,
-                            keepMetadata = keepMetadata,
-                            stripGps = stripGps,
-                            socialPlatform = socialPlatform,
-                            addWatermark = addWatermark,
-                            watermarkText = watermarkText,
-                            watermarkAnchor = watermarkAnchor,
-                            watermarkScale = watermarkScale,
-                            watermarkOpacity = watermarkOpacity,
-                        )
-                    )
-                },
-            color = HasselbladOrange,
-            shape = RoundedCornerShape(8.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = "导出",
-                color = EditorBackground,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
+            Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                textAlign = TextAlign.Center,
-            )
+                    .weight(1f)
+                    .clickable {
+                        onExport(
+                            ExportSettings(
+                                format = selectedFormat,
+                                quality = quality.toInt(),
+                                resizeMode = resizeMode,
+                                resizeValue = resizeValue.toIntOrNull() ?: 0,
+                                keepMetadata = keepMetadata,
+                                stripGps = stripGps,
+                                socialPlatform = socialPlatform,
+                                addWatermark = addWatermark,
+                                watermarkText = watermarkText,
+                                watermarkAnchor = watermarkAnchor,
+                                watermarkScale = watermarkScale,
+                                watermarkOpacity = watermarkOpacity,
+                            )
+                        )
+                    },
+                color = HasselbladOrange,
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Text(
+                    text = "导出",
+                    color = EditorBackground,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
+            if (onShare != null) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable {
+                            onShare(
+                                ExportSettings(
+                                    format = selectedFormat,
+                                    quality = quality.toInt(),
+                                    resizeMode = resizeMode,
+                                    resizeValue = resizeValue.toIntOrNull() ?: 0,
+                                    keepMetadata = keepMetadata,
+                                    stripGps = stripGps,
+                                    socialPlatform = socialPlatform,
+                                    addWatermark = addWatermark,
+                                    watermarkText = watermarkText,
+                                    watermarkAnchor = watermarkAnchor,
+                                    watermarkScale = watermarkScale,
+                                    watermarkOpacity = watermarkOpacity,
+                                )
+                            )
+                        },
+                    color = Color.Transparent,
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, HasselbladOrange),
+                ) {
+                    Text(
+                        text = "分享",
+                        color = HasselbladOrange,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
     }
 }
@@ -2493,7 +2608,7 @@ fun PreviewFloatingToolbar(
             Spacer(modifier = Modifier.height(4.dp))
             FloatingToolButton(
                 icon = Icons.Default.Visibility,
-                label = "裁切",
+                label = "裁剪警告",
                 isActive = showClipping,
                 onClick = onClippingToggle,
             )

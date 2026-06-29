@@ -15,7 +15,9 @@ import androidx.compose.ui.platform.LocalContext
 import com.rapidraw.ui.ai.AiInpaintScreen
 import com.rapidraw.ui.editor.EditorScreen
 import com.rapidraw.ui.library.LibraryScreen
+import com.rapidraw.ui.presets.PresetImportScreen
 import com.rapidraw.ui.presets.PresetsDiscoveryScreen
+import com.rapidraw.ui.settings.SettingsScreen
 import com.rapidraw.data.model.ImageFile
 
 object Routes {
@@ -24,6 +26,8 @@ object Routes {
     const val EDITOR_URI = "editor_uri/{uri}"
     const val AI_INPAINT = "ai_inpaint/{imagePath}"
     const val PRESETS_DISCOVERY = "presets_discovery"
+    const val SETTINGS = "settings"
+    const val PRESET_IMPORT = "preset_import"
 
     fun editorPath(imagePath: String): String {
         return "editor/${Uri.encode(imagePath)}"
@@ -179,6 +183,18 @@ fun RapidNavHost(
                     Routes.SelectedPresetHolder.pendingPreset = preset
                     navController.popBackStack()
                 },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(route = Routes.SETTINGS) {
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(route = Routes.PRESET_IMPORT) {
+            PresetImportScreen(
                 onBack = { navController.popBackStack() },
             )
         }

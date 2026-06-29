@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -75,6 +76,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.rapidraw.data.model.ColorLabel
 import com.rapidraw.data.model.ImageFile
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorBorder
@@ -142,6 +144,9 @@ fun LibraryScreen(
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isSortDropdownExpanded by remember { mutableStateOf(false) }
     var showFilmPicker by remember { mutableStateOf(false) }
+    var contextMenuImage by remember { mutableStateOf<ImageFile?>(null) }
+    var showContextMenu by remember { mutableStateOf(false) }
+    var ratingDialogImage by remember { mutableStateOf<ImageFile?>(null) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -257,6 +262,17 @@ fun LibraryScreen(
                                     )
                                 }
                             }
+                        }
+
+                        // Settings button
+                        IconButton(onClick = {
+                            navController.navigate(com.rapidraw.ui.navigation.Routes.SETTINGS)
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "设置",
+                                tint = TextSecondary,
+                            )
                         }
 
                         // Import button (Android 16 Photo Picker)
@@ -402,8 +418,11 @@ fun LibraryScreen(
                                 }
                             },
                             onLongClick = {
-                                if (!isBatchMode) viewModel.enterBatchMode()
-                                viewModel.toggleImageSelection(image.path)
+                                contextMenuImage = image
+                                showContextMenu = true
+                            },
+                            onRatingClick = {
+                                ratingDialogImage = image
                             },
                         )
                     }
@@ -648,6 +667,199 @@ fun LibraryScreen(
                 }
             }
         }
+
+        // ── Context Menu ────────────────────────────────────────────
+        val ctxImage = contextMenuImage
+        if (showContextMenu && ctxImage != null) {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = {
+                    showContextMenu = false
+                    contextMenuImage = null
+                },
+                containerColor = EditorSurface,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = ctxImage.fileName,
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                    // 评分
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showContextMenu = false
+                                ratingDialogImage = ctxImage
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "评分和标签",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Row {
+                            repeat(5) { i ->
+                                Text(
+                                    text = "★",
+                                    color = if (i < ctxImage.rating) HasselbladOrange else TextTertiary,
+                                    fontSize = 14.sp,
+                                )
+                            }
+                        }
+                    }
+                    // 创建虚拟副本
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.createVirtualCopy(ctxImage)
+                                showContextMenu = false
+                                contextMenuImage = null
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "创建虚拟副本",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                        )
+                    }
+                    // 批量选择
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (!isBatchMode) viewModel.enterBatchMode()
+                                viewModel.toggleImageSelection(ctxImage.path)
+                                showContextMenu = false
+                                contextMenuImage = null
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "批量选择",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Rating Dialog ────────────────────────────────────────────
+        val ratingImage = ratingDialogImage
+        if (ratingImage != null) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { ratingDialogImage = null },
+                containerColor = EditorSurface,
+                title = {
+                    Text(
+                        text = ratingImage.fileName,
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                text = {
+                    Column {
+                        // Rating stars
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            repeat(5) { i ->
+                                Text(
+                                    text = "★",
+                                    color = if (i < ratingImage.rating) HasselbladOrange else TextTertiary,
+                                    fontSize = 28.sp,
+                                    modifier = Modifier
+                                        .clickable {
+                                            viewModel.updateRating(ratingImage.path, i + 1)
+                                        }
+                                        .padding(2.dp),
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "清除",
+                                color = TextSecondary,
+                                fontSize = 13.sp,
+                                modifier = Modifier
+                                    .clickable {
+                                        viewModel.updateRating(ratingImage.path, 0)
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        // Color labels
+                        Text(
+                            text = "颜色标签",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            val labelColors = listOf(
+                                ColorLabel.NONE to Color(0xFF888888),
+                                ColorLabel.RED to Color(0xFFFF4444),
+                                ColorLabel.YELLOW to Color(0xFFFFCC00),
+                                ColorLabel.GREEN to Color(0xFF44CC44),
+                                ColorLabel.BLUE to Color(0xFF4488FF),
+                                ColorLabel.PURPLE to Color(0xFFAA44FF),
+                            )
+                            labelColors.forEach { (label, color) ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .then(
+                                            if (ratingImage.colorLabel == label) {
+                                                Modifier.border(2.dp, TextPrimary, CircleShape)
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
+                                        .clickable {
+                                            viewModel.updateColorLabel(ratingImage.path, label)
+                                        },
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Text(
+                        text = "完成",
+                        color = HasselbladOrange,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .clickable { ratingDialogImage = null }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                },
+            )
+        }
     }
 }
 
@@ -658,6 +870,7 @@ private fun ImageGridCell(
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onRatingClick: () -> Unit = {},
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -726,12 +939,33 @@ private fun ImageGridCell(
             }
         }
 
+        // Color label indicator
+        if (image.colorLabel != ColorLabel.NONE) {
+            val labelColor = when (image.colorLabel) {
+                ColorLabel.RED -> Color(0xFFFF4444)
+                ColorLabel.YELLOW -> Color(0xFFFFCC00)
+                ColorLabel.GREEN -> Color(0xFF44CC44)
+                ColorLabel.BLUE -> Color(0xFF4488FF)
+                ColorLabel.PURPLE -> Color(0xFFAA44FF)
+                ColorLabel.NONE -> Color.Transparent
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(labelColor),
+            )
+        }
+
         // Rating stars overlay
         if (image.rating > 0) {
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(4.dp),
+                    .padding(4.dp)
+                    .clickable(onClick = onRatingClick),
             ) {
                 repeat(image.rating.coerceAtMost(5)) {
                     Text(
