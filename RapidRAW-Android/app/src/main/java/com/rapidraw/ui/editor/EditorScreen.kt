@@ -1278,6 +1278,11 @@ private fun FilmPanel(
         FilmCategory.CLASSIC to "原生经典",
         FilmCategory.EMOTIONAL to "情绪表达",
         FilmCategory.STRUCTURAL to "结构时间",
+        FilmCategory.KODAK to "柯达",
+        FilmCategory.FUJIFILM to "富士",
+        FilmCategory.AGFA to "爱克发",
+        FilmCategory.CINESTILL to "电影卷",
+        FilmCategory.BLACK_WHITE to "黑白",
     )
 
     Column(

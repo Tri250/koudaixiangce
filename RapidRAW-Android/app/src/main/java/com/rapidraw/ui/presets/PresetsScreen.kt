@@ -5,6 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -124,30 +126,31 @@ fun PresetsSheet(
         }
 
         // ── 分类标签 ──────────────────────────────────────
+        val categoryLabelMap = mapOf(
+            FilmCategory.CLASSIC to "原生经典",
+            FilmCategory.EMOTIONAL to "情绪表达",
+            FilmCategory.STRUCTURAL to "结构时间",
+            FilmCategory.KODAK to "柯达",
+            FilmCategory.FUJIFILM to "富士",
+            FilmCategory.AGFA to "爱克发",
+            FilmCategory.CINESTILL to "电影卷",
+            FilmCategory.BLACK_WHITE to "黑白",
+        )
+        val scrollState = rememberScrollState()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(0.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            CategoryTab(
-                label = "原生经典",
-                isActive = activeCategory == FilmCategory.CLASSIC,
-                onClick = { activeCategory = FilmCategory.CLASSIC },
-                modifier = Modifier.weight(1f),
-            )
-            CategoryTab(
-                label = "情绪表达",
-                isActive = activeCategory == FilmCategory.EMOTIONAL,
-                onClick = { activeCategory = FilmCategory.EMOTIONAL },
-                modifier = Modifier.weight(1f),
-            )
-            CategoryTab(
-                label = "结构时间",
-                isActive = activeCategory == FilmCategory.STRUCTURAL,
-                onClick = { activeCategory = FilmCategory.STRUCTURAL },
-                modifier = Modifier.weight(1f),
-            )
+            FilmCategory.entries.forEach { category ->
+                CategoryTab(
+                    label = categoryLabelMap[category] ?: category.name,
+                    isActive = activeCategory == category,
+                    onClick = { activeCategory = category },
+                )
+            }
         }
 
         // ── 胶片卡片网格 ──────────────────────────────────

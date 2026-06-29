@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import com.rapidraw.data.model.ExrBitDepth
 import com.rapidraw.data.model.ExportFormat
 import com.rapidraw.data.model.ExportSettings
 import com.rapidraw.data.model.ExifData
@@ -2070,11 +2071,13 @@ class ImageProcessor {
             ExportFormat.PNG -> "image/png"
             ExportFormat.TIFF -> "image/tiff"
             ExportFormat.JPEG -> "image/jpeg"
+            ExportFormat.EXR -> "image/x-exr"
         }
         val extension = when (settings.format) {
             ExportFormat.PNG -> ".png"
             ExportFormat.TIFF -> ".tiff"
             ExportFormat.JPEG -> ".jpg"
+            ExportFormat.EXR -> ".exr"
         }
 
         // Write to temporary file first (required for EXIF writing)
@@ -2083,7 +2086,16 @@ class ImageProcessor {
 
         try {
             tempFile.outputStream().use { fos ->
-                compressBitmap(exportBitmap, settings.format, settings.quality, fos)
+                if (settings.format == ExportFormat.EXR) {
+                    val pixelType = if (settings.exrBitDepth == ExrBitDepth.HALF) {
+                        ExrExporter.PixelType.HALF
+                    } else {
+                        ExrExporter.PixelType.FLOAT
+                    }
+                    ExrExporter.writeExr(exportBitmap, fos, pixelType)
+                } else {
+                    compressBitmap(exportBitmap, settings.format, settings.quality, fos)
+                }
             }
 
             // Apply EXIF metadata for JPEG

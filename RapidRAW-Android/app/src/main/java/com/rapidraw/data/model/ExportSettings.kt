@@ -7,6 +7,13 @@ enum class ExportFormat {
     JPEG,
     PNG,
     TIFF,
+    EXR,
+}
+
+@Serializable
+enum class ExrBitDepth {
+    HALF,
+    FLOAT,
 }
 
 @Serializable
@@ -58,6 +65,7 @@ data class ExportSettings(
     val watermarkAnchor: WatermarkAnchor = WatermarkAnchor.BOTTOM_RIGHT,
     val watermarkScale: Float = 0.15f,
     val watermarkOpacity: Float = 0.5f,
+    val exrBitDepth: ExrBitDepth = ExrBitDepth.HALF,
 ) {
     init {
         require(quality in 1..100) { "Quality must be between 1 and 100, was $quality" }
