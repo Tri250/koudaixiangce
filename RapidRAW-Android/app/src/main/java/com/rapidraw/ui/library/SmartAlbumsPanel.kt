@@ -42,6 +42,7 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 /**
  * 智能相册面板（Compose UI）
@@ -137,8 +138,7 @@ private fun SmartAlbumCard(
             Text(
                 text = album.title,
                 color = if (isSelected) HasselbladOrange else TextPrimary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
+                style = EditorTypography.sliderLabel,
                 maxLines = 1,
             )
 
@@ -147,7 +147,7 @@ private fun SmartAlbumCard(
             Text(
                 text = "${count} 张",
                 color = TextTertiary,
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
             )
         }
@@ -224,15 +224,14 @@ fun SmartAlbumsList(
                 Text(
                     text = album.title,
                     color = if (isSelected) HasselbladOrange else TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                    style = if (isSelected) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
 
                 Text(
                     text = count.toString(),
                     color = TextTertiary,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
 

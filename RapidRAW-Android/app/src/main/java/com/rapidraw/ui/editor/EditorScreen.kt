@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.calculateCentroidSize
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -75,6 +76,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -130,6 +132,8 @@ import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.EditorSurfaceVariant
 import com.rapidraw.ui.theme.HasselbladOrange
+import com.rapidraw.ui.theme.HasselbladOrangeLight
+import com.rapidraw.ui.theme.TabSelectedBg
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
@@ -543,8 +547,7 @@ fun EditorScreen(
                     Text(
                         text = "原图",
                         color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     )
                 }
@@ -560,7 +563,7 @@ fun EditorScreen(
                     Text(
                         text = "智能优化中...",
                         color = Color.White,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                 }
@@ -576,7 +579,7 @@ fun EditorScreen(
                     Text(
                         text = "处理中...",
                         color = Color.White,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )
                 }
@@ -594,8 +597,7 @@ fun EditorScreen(
                     Text(
                         text = "已优化",
                         color = HasselbladOrange,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     )
                 }
@@ -629,8 +631,7 @@ fun EditorScreen(
                         Text(
                             text = "$sceneLabel ${(sceneConfidence * 100).toInt()}%",
                             color = HasselbladOrange,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
+                            style = com.rapidraw.ui.theme.EditorTypography.badge,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         )
                     }
@@ -720,8 +721,7 @@ fun EditorScreen(
                         Text(
                             text = if (flowMaskIsErasing) "擦除" else "绘制",
                             color = HasselbladOrange,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
+                            style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                         )
                         Box(
                             modifier = Modifier
@@ -730,7 +730,7 @@ fun EditorScreen(
                                 .clickable { flowMaskIsErasing = false }
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                         ) {
-                            Text("绘制", color = if (flowMaskIsErasing) TextSecondary else EditorBackground, fontSize = 12.sp)
+                            Text("绘制", color = if (flowMaskIsErasing) TextSecondary else EditorBackground, style = MaterialTheme.typography.bodySmall)
                         }
                         Box(
                             modifier = Modifier
@@ -739,12 +739,12 @@ fun EditorScreen(
                                 .clickable { flowMaskIsErasing = true }
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                         ) {
-                            Text("擦除", color = if (flowMaskIsErasing) EditorBackground else TextSecondary, fontSize = 12.sp)
+                            Text("擦除", color = if (flowMaskIsErasing) EditorBackground else TextSecondary, style = MaterialTheme.typography.bodySmall)
                         }
                         Text(
                             text = "笔刷",
                             color = TextPrimary,
-                            fontSize = 13.sp,
+                            style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
                         )
                         androidx.compose.material3.Slider(
                             value = flowMaskBrushSize,
@@ -755,7 +755,7 @@ fun EditorScreen(
                         Text(
                             text = "${flowMaskBrushSize.toInt()}px",
                             color = TextSecondary,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.width(40.dp),
                         )
                         Box(
@@ -768,7 +768,7 @@ fun EditorScreen(
                                 }
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                         ) {
-                            Text("完成", color = TextPrimary, fontSize = 12.sp)
+                            Text("完成", color = TextPrimary, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -909,11 +909,11 @@ fun EditorScreen(
         }
 
         // ── Bottom Tab Row ─────────────────────────────────────────────
-        // ColorOS 16 资深设计师规范：
+        // ColorOS 16 / iOS 级设计规范：
         // - 独立深色背景层（与面板内容区分，一眼可识别）
         // - 选中态：哈苏橙背景 tint + 图标辉光 + 加粗文字 + 哈苏橙下划线
-        // - 图标 + 文字双行布局，24dp 图标（ColorOS 16 触控规范）
-        // - 弹性缩放动画（选中图标 1.1x + 弹簧回弹）
+        // - 图标 + 文字双行布局，22dp 图标（ColorOS 16 触控规范）
+        // - 弹性缩放动画（选中图标 1.15x + 弹簧回弹），配合 Motion.tabScaleSpring
         val tabIcons = listOf(
             Icons.Default.AutoAwesome,   // AI
             Icons.Default.Palette,       // 滤镜
@@ -928,21 +928,36 @@ fun EditorScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .height(64.dp)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
                     .background(EditorBackground.copy(alpha = 0.25f)),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 BOTTOM_TABS.forEachIndexed { index, label ->
                     val isSelected = index == selectedTabIndex
+                    val animatedScale by animateFloatAsState(
+                        targetValue = if (isSelected) 1.15f else 1.0f,
+                        animationSpec = com.rapidraw.ui.theme.Motion.tabScaleSpring(),
+                        label = "tabScale_$index",
+                    )
+                    val animatedBgAlpha by animateFloatAsState(
+                        targetValue = if (isSelected) 1f else 0f,
+                        animationSpec = com.rapidraw.ui.theme.Motion.colorTween(),
+                        label = "tabBg_$index",
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(16.dp))
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(18.dp))
                             .background(
-                                if (isSelected) HasselbladOrange.copy(alpha = 0.12f)
-                                else Color.Transparent,
+                                TabSelectedBg.copy(alpha = if (isSelected) animatedBgAlpha else 0f),
                             )
-                            .clickable {
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null,
+                            ) {
                                 val tab = when (index) {
                                     0 -> EditorTab.AI
                                     1 -> EditorTab.FILTER
@@ -952,30 +967,38 @@ fun EditorScreen(
                                 }
                                 viewModel.setTab(tab)
                             }
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 6.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                        ) {
                             Icon(
                                 imageVector = tabIcons[index],
                                 contentDescription = label,
                                 tint = if (isSelected) HasselbladOrangeLight else TextSecondary,
-                                modifier = Modifier.size(22.dp),
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .graphicsLayer {
+                                        scaleX = animatedScale
+                                        scaleY = animatedScale
+                                        alpha = if (isSelected) 1f else 0.7f
+                                    },
                             )
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = label,
                                 color = if (isSelected) HasselbladOrangeLight else TextSecondary,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                letterSpacing = 0.5.sp,
+                                style = if (isSelected) com.rapidraw.ui.theme.EditorTypography.tabBarLabelActive
+                                    else com.rapidraw.ui.theme.EditorTypography.tabBarLabel,
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             // 哈苏橙下划线（选中态）
                             Box(
                                 modifier = Modifier
-                                    .width(28.dp)
-                                    .height(3.dp)
+                                    .width(20.dp)
+                                    .height(2.5.dp)
                                     .clip(CircleShape)
                                     .background(
                                         if (isSelected) HasselbladOrange else Color.Transparent,
@@ -1132,8 +1155,7 @@ fun EditorScreen(
                 Text(
                     text = "EXIF 信息",
                     color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 currentImage?.let { img ->
@@ -1160,8 +1182,7 @@ fun EditorScreen(
                 Text(
                     text = "选择遮罩类型",
                     color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 val maskTypes = listOf(
@@ -1187,7 +1208,7 @@ fun EditorScreen(
                         Text(
                             text = label,
                             color = TextPrimary,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1311,8 +1332,7 @@ private fun FilmPanel(
             Text(
                 text = categoryLabels[category] ?: category.name,
                 color = TextTertiary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
+                style = com.rapidraw.ui.theme.EditorTypography.toolbarLabel,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
             )
             films.chunked(2).forEach { rowFilms ->
@@ -1384,14 +1404,13 @@ private fun FilmCard(
                 Text(
                     text = name,
                     color = if (isSelected) HasselbladOrangeLight else TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleMedium,
                 )
                 if (category.isNotEmpty()) {
                     Text(
                         text = category,
                         color = TextTertiary,
-                        fontSize = 10.sp,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
@@ -1419,7 +1438,7 @@ private fun CropPanel(
         Text(
             text = "裁剪比例",
             color = TextSecondary,
-            fontSize = 13.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1513,8 +1532,7 @@ private fun CropPanel(
                 Text(
                     text = "交互裁剪",
                     color = TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
@@ -1524,7 +1542,7 @@ private fun CropPanel(
         Text(
             text = "旋转与翻转",
             color = TextSecondary,
-            fontSize = 13.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1595,8 +1613,7 @@ private fun CropPanel(
                 Text(
                     text = "自动拉直",
                     color = TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
             Box(
@@ -1618,8 +1635,7 @@ private fun CropPanel(
                 Text(
                     text = "负片转换",
                     color = TextSecondary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
@@ -1646,7 +1662,7 @@ private fun AspectRatioButton(
         Text(
             text = label,
             color = if (isSelected) EditorBackground else TextSecondary,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }
@@ -1682,13 +1698,12 @@ private fun ExportPanel(
         Text(
             text = "导出设置",
             color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineSmall,
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Text(text = "格式", color = TextSecondary, fontSize = 13.sp)
+        Text(text = "格式", color = TextSecondary, style = com.rapidraw.ui.theme.EditorTypography.sliderLabel)
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(vertical = 4.dp),
@@ -1703,7 +1718,7 @@ private fun ExportPanel(
                     Text(
                         text = format.name,
                         color = if (isSelected) EditorBackground else TextSecondary,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
@@ -1722,7 +1737,7 @@ private fun ExportPanel(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Text(text = "缩放", color = TextSecondary, fontSize = 13.sp)
+        Text(text = "缩放", color = TextSecondary, style = com.rapidraw.ui.theme.EditorTypography.sliderLabel)
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(vertical = 4.dp),
@@ -1737,7 +1752,7 @@ private fun ExportPanel(
                     Text(
                         text = mode.name,
                         color = if (isSelected) EditorBackground else TextSecondary,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }
@@ -1762,7 +1777,7 @@ private fun ExportPanel(
         Spacer(modifier = Modifier.height(12.dp))
 
         // Social Platform
-        Text(text = "分享平台", color = TextSecondary, fontSize = 13.sp)
+        Text(text = "分享平台", color = TextSecondary, style = com.rapidraw.ui.theme.EditorTypography.sliderLabel)
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier
@@ -1780,7 +1795,7 @@ private fun ExportPanel(
                     Text(
                         text = platform.displayName,
                         color = if (isSelected) EditorBackground else TextSecondary,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                     )
                 }
@@ -1800,7 +1815,7 @@ private fun ExportPanel(
             Text(
                 text = "保留元数据",
                 color = TextPrimary,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
             Surface(
@@ -1831,7 +1846,7 @@ private fun ExportPanel(
                 Text(
                     text = "移除 GPS",
                     color = TextPrimary,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
                 Surface(
@@ -1864,7 +1879,7 @@ private fun ExportPanel(
             Text(
                 text = "添加水印",
                 color = TextPrimary,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
             Surface(
@@ -1898,7 +1913,7 @@ private fun ExportPanel(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "位置", color = TextSecondary, fontSize = 13.sp)
+            Text(text = "位置", color = TextSecondary, style = com.rapidraw.ui.theme.EditorTypography.sliderLabel)
             Column(
                 modifier = Modifier.padding(vertical = 4.dp),
             ) {
@@ -2035,8 +2050,7 @@ private fun ExportPanel(
                 Text(
                     text = "导出",
                     color = EditorBackground,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 12.dp),
@@ -2072,8 +2086,7 @@ private fun ExportPanel(
                     Text(
                         text = "分享",
                         color = HasselbladOrange,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 12.dp),
@@ -2111,13 +2124,12 @@ private fun ExportShortcutButton(
         Text(
             text = label,
             color = TextPrimary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            style = com.rapidraw.ui.theme.EditorTypography.toolbarLabel,
         )
         Text(
             text = sublabel,
             color = TextTertiary,
-            fontSize = 9.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.badge,
         )
     }
 }
@@ -2163,13 +2175,13 @@ private fun ExifRow(label: String, value: String) {
         Text(
             text = label,
             color = TextTertiary,
-            fontSize = 13.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.sliderLabel,
             modifier = Modifier.width(80.dp),
         )
         Text(
             text = value,
             color = TextPrimary,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }
@@ -2228,8 +2240,7 @@ private fun EditorStatusBar(
         Text(
             text = "$csLabel$hdrLabel$aiLabel",
             color = TextSecondary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.labelSmall,
         )
     }
 }
@@ -2277,20 +2288,19 @@ private fun AiPanel(
                 Text(
                     text = "检测场景",
                     color = TextTertiary,
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = detectedScene.displayName,
                     color = HasselbladOrange,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = "${(sceneConfidence * 100).toInt()}%",
                     color = TextTertiary,
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -2417,8 +2427,7 @@ private fun AiFeatureCard(
                 Text(
                     text = title,
                     color = if (isPrimary) Color.White else TextPrimary,
-                    fontSize = if (isPrimary) 15.sp else 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = if (isPrimary) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
                 )
                 if (isDone) {
                     Spacer(modifier = Modifier.width(6.dp))
@@ -2433,7 +2442,7 @@ private fun AiFeatureCard(
             Text(
                 text = subtitle,
                 color = TextTertiary,
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
@@ -2497,13 +2506,12 @@ private fun FilterPanel(
                     Text(
                         text = "LUT 库",
                         color = if (activeLutId.isNotEmpty()) HasselbladOrange else TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
                         text = if (activeLutId.isNotEmpty()) "已应用" else "胶片 LUT / .cube",
                         color = TextTertiary,
-                        fontSize = 10.sp,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                     )
                 }
                 if (activeLutId.isNotEmpty()) {
@@ -2546,13 +2554,12 @@ private fun FilterPanel(
                     Text(
                         text = "色彩科学",
                         color = TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
                         text = csName,
                         color = HasselbladOrange,
-                        fontSize = 10.sp,
+                        style = com.rapidraw.ui.theme.EditorTypography.badge,
                     )
                 }
             }
@@ -2674,7 +2681,7 @@ private fun FloatingToolButton(
         Text(
             text = label,
             color = if (isActive) HasselbladOrange else TextSecondary,
-            fontSize = 11.sp,
+            style = com.rapidraw.ui.theme.EditorTypography.toolbarLabel,
         )
     }
 }

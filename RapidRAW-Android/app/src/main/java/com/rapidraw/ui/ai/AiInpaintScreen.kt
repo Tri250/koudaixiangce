@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.rapidraw.core.AiInpainter
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.EditorBackground
+import com.rapidraw.ui.theme.EditorTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -105,12 +106,12 @@ fun AiInpaintScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "AI 消除",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    text = "AI 消除",
+                    color = Color.White,
+                    style = MaterialTheme.typography.headlineSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
@@ -245,7 +246,7 @@ fun AiInpaintScreen(
                 Text(
                     text = "画笔大小: ${brushSize.toInt()}px",
                     color = Color.White,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
                 Slider(
                     value = brushSize,
@@ -331,7 +332,7 @@ fun AiInpaintScreen(
                             disabledContainerColor = Color(0x33FFFFFF),
                         ),
                     ) {
-                        Text("开始修复", color = Color.White, fontSize = 16.sp)
+                        Text("开始修复", color = Color.White, style = EditorTypography.button)
                     }
                 }
             }

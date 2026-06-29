@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -45,6 +46,7 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 @Composable
 fun SettingsScreen(
@@ -98,8 +100,7 @@ fun SettingsScreen(
             Text(
                 text = "设置",
                 color = TextPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
@@ -243,7 +244,7 @@ fun SettingsScreen(
                     Text(
                         text = "默认JPEG质量",
                         color = TextPrimary,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                     HasselSlider(
@@ -294,12 +295,12 @@ fun SettingsScreen(
                     Text(
                         text = "版本号",
                         color = TextPrimary,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
                         text = "1.4.12",
                         color = TextTertiary,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
 
@@ -330,8 +331,7 @@ private fun SettingsCategoryHeader(title: String) {
     Text(
         text = title,
         color = HasselbladOrange,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Medium,
+        style = MaterialTheme.typography.labelMedium,
         modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
     )
 }
@@ -369,13 +369,13 @@ private fun SwitchRow(
             Text(
                 text = title,
                 color = if (enabled) TextPrimary else TextTertiary,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyMedium,
             )
             if (subtitle != null) {
                 Text(
                     text = subtitle,
                     color = TextTertiary,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
@@ -408,12 +408,12 @@ private fun ChoiceRow(
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Text(
-            text = title,
-            color = TextPrimary,
-            fontSize = 14.sp,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
+                text = title,
+                color = TextPrimary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             options.forEach { option ->
@@ -430,8 +430,7 @@ private fun ChoiceRow(
                     Text(
                         text = option,
                         color = if (isSelected) HasselbladOrange else TextSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                        style = if (isSelected) EditorTypography.sliderLabelActive else EditorTypography.sliderLabel,
                     )
                 }
             }
@@ -455,7 +454,7 @@ private fun ClickableRow(
         Text(
             text = title,
             color = TextPrimary,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
         )
         Icon(
             painter = painterResource(android.R.drawable.ic_media_play),

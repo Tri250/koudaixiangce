@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,7 +45,7 @@ fun MetadataSheet(exif: ExifData?) {
             Text(
                 text = "无EXIF数据",
                 color = TextTertiary,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(24.dp),
             )
             return
@@ -121,13 +122,13 @@ private fun MetadataRow(label: String, value: String?) {
             Text(
                 text = label,
                 color = TextSecondary,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = value ?: "—",
                 color = TextPrimary,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(2f),
             )
         }

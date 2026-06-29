@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextSecondary
+import com.rapidraw.ui.theme.EditorTypography
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.max
@@ -313,8 +315,7 @@ fun InteractiveCropOverlay(
                             Text(
                                 text = preset.label,
                                 color = if (isSelected) HasselbladOrange else TextSecondary,
-                                fontSize = 9.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                style = EditorTypography.badge,
                             )
                         }
                     }
@@ -354,7 +355,7 @@ fun InteractiveCropOverlay(
                     Text(
                         text = if (gridVisible) "网格 ✓" else "网格",
                         color = if (gridVisible) HasselbladOrange else TextSecondary,
-                        fontSize = 13.sp,
+                        style = EditorTypography.sliderLabel,
                         modifier = Modifier
                             .clickable { gridVisible = !gridVisible },
                     )
@@ -369,8 +370,7 @@ fun InteractiveCropOverlay(
                     Text(
                         text = "完成",
                         color = HasselbladOrange,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier
                             .clickable { onDismiss() },
                     )
@@ -385,7 +385,7 @@ fun InteractiveCropOverlay(
                     Text(
                         text = "重置",
                         color = TextSecondary,
-                        fontSize = 13.sp,
+                        style = EditorTypography.sliderLabel,
                         modifier = Modifier
                             .clickable {
                                 cropRect = Rect(0.05f, 0.05f, 0.95f, 0.95f)
@@ -478,7 +478,7 @@ private fun RotationDial(
         Text(
             text = String.format("%.1f°", rotation),
             color = if (rotation != 0f) HasselbladOrange else TextSecondary,
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.align(Alignment.TopEnd),
         )
     }

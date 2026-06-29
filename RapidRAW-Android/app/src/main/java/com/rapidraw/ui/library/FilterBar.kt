@@ -203,10 +203,10 @@ fun FilterBar(
                     contentPadding = PaddingValues(horizontal = 4.dp),
                 ) {
                     Text(
-                        text = "清除",
-                        color = HasselbladOrange,
-                        fontSize = 12.sp,
-                    )
+                    text = "清除",
+                    color = HasselbladOrange,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 }
             }
         }
@@ -301,8 +301,7 @@ private fun FilterChip(
             Text(
                 text = label,
                 color = if (isActive) HasselbladOrange else TextPrimary,
-                fontSize = 12.sp,
-                fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
+                style = if (isActive) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
                 maxLines = 1,
             )
         }
@@ -323,8 +322,7 @@ private fun FileTypeChip(
         Text(
             text = label,
             color = if (isActive) EditorBackground else TextSecondary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         )
     }
@@ -356,8 +354,7 @@ private fun RatingChip(
             Text(
                 text = rating.toString(),
                 color = if (isActive) HasselbladOrange else TextPrimary,
-                fontSize = 12.sp,
-                fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
+                style = if (isActive) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
             )
         }
     }
@@ -380,8 +377,7 @@ private fun FilterDetailPanel(
         Text(
             text = "日期范围",
             color = TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.labelMedium,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Row(
@@ -409,7 +405,7 @@ private fun FilterDetailPanel(
                     Text(
                         text = activeFilters.dateRange?.startText ?: "开始日期",
                         color = if (activeFilters.dateRange != null) TextPrimary else TextTertiary,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
@@ -434,7 +430,7 @@ private fun FilterDetailPanel(
                     Text(
                         text = activeFilters.dateRange?.endText ?: "结束日期",
                         color = if (activeFilters.dateRange != null) TextPrimary else TextTertiary,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
@@ -447,8 +443,7 @@ private fun FilterDetailPanel(
             Text(
                 text = "相机型号",
                 color = TextSecondary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.labelMedium,
             )
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow(
@@ -482,7 +477,7 @@ private fun FilterDetailPanel(
                             Text(
                                 text = model,
                                 color = if (isSelected) HasselbladOrange else TextPrimary,
-                                fontSize = 13.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                     }
@@ -495,8 +490,7 @@ private fun FilterDetailPanel(
         Text(
             text = "文件类型",
             color = TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.labelMedium,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -517,7 +511,7 @@ private fun FilterDetailPanel(
                     Text(
                         text = type.name,
                         color = if (isSelected) HasselbladOrange else TextPrimary,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
@@ -530,8 +524,7 @@ private fun FilterDetailPanel(
         Text(
             text = "最低评分",
             color = TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.labelMedium,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -599,12 +592,11 @@ private fun DateRangeFilterDialog(
                 Text(
                     text = "选择日期范围",
                     color = TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = onDismiss) {
-                    Text("取消", color = TextSecondary, fontSize = 14.sp)
+                    Text("取消", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
                 }
                 TextButton(
                     onClick = {
@@ -616,7 +608,7 @@ private fun DateRangeFilterDialog(
                     },
                     enabled = state.selectedStartDateMillis != null && state.selectedEndDateMillis != null,
                 ) {
-                    Text("确定", color = HasselbladOrange, fontSize = 14.sp)
+                    Text("确定", color = HasselbladOrange, style = MaterialTheme.typography.bodyMedium)
                 }
             }
 

@@ -34,6 +34,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -60,6 +61,7 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 @Composable
 fun PresetsSheet(
@@ -113,8 +115,7 @@ fun PresetsSheet(
             Text(
                 text = "哈苏大师胶片",
                 color = TextPrimary,
-                fontSize = 16.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                style = MaterialTheme.typography.headlineSmall,
             )
             Spacer(modifier = Modifier.width(8.dp))
             Box(
@@ -202,8 +203,7 @@ fun PresetsSheet(
             Text(
                 text = "我的预设",
                 color = TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                style = MaterialTheme.typography.titleSmall,
             )
             IconButton(
                 onClick = { showSaveDialog = true },
@@ -227,7 +227,7 @@ fun PresetsSheet(
                 Text(
                     text = "暂无预设，点击 + 保存当前调整为预设",
                     color = TextTertiary,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         } else {
@@ -298,9 +298,7 @@ private fun CategoryTab(
         Text(
             text = label,
             color = if (isActive) TextPrimary else TextTertiary,
-            fontSize = 13.sp,
-            fontWeight = if (isActive) androidx.compose.ui.text.font.FontWeight.SemiBold
-                else androidx.compose.ui.text.font.FontWeight.Normal,
+            style = if (isActive) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
         )
         Spacer(modifier = Modifier.height(4.dp))
         Box(
@@ -360,13 +358,13 @@ private fun FilmCard(
                 Text(
                     text = "无",
                     color = if (isSelected) HasselbladOrange else TextTertiary,
-                    fontSize = 20.sp,
+                    style = MaterialTheme.typography.headlineMedium,
                 )
             } else {
                 Text(
                     text = film.displayName.first().toString(),
                     color = if (isSelected) HasselbladOrange else TextTertiary,
-                    fontSize = 24.sp,
+                    style = MaterialTheme.typography.displaySmall,
                 )
             }
             // Selected orange glow
@@ -386,9 +384,7 @@ private fun FilmCard(
         Text(
             text = film?.displayName ?: "无滤镜",
             color = if (isSelected) TextPrimary else TextSecondary,
-            fontSize = 11.sp,
-            fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Medium
-                else androidx.compose.ui.text.font.FontWeight.Normal,
+            style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(top = 4.dp),
         )
 
@@ -397,7 +393,7 @@ private fun FilmCard(
             Text(
                 text = film.displayNameEn,
                 color = TextSecondary,
-                fontSize = 9.sp,
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(top = 1.dp),
             )
 
@@ -405,7 +401,7 @@ private fun FilmCard(
             Text(
                 text = film.referenceFilm,
                 color = TextTertiary,
-                fontSize = 8.sp,
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(top = 1.dp),
             )
         }
@@ -435,13 +431,13 @@ private fun PresetCard(
             Text(
                 text = preset.name.first().toString(),
                 color = TextTertiary,
-                fontSize = 20.sp,
+                style = MaterialTheme.typography.headlineMedium,
             )
         }
         Text(
             text = preset.name,
             color = TextSecondary,
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             modifier = Modifier.padding(top = 4.dp),
         )

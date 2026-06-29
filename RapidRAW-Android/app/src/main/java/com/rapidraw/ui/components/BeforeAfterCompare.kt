@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -133,8 +134,7 @@ private fun LongPressCompare(
             Text(
                 text = "原图",
                 color = Color.White.copy(alpha = crossfadeAlpha.value * 0.8f),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset(x = 16.dp, y = 8.dp),
@@ -268,8 +268,7 @@ private fun SplitHorizontalCompare(
             Text(
                 text = "原图",
                 color = Color.White.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset(x = 16.dp, y = 8.dp),
@@ -279,8 +278,7 @@ private fun SplitHorizontalCompare(
             Text(
                 text = "效果",
                 color = Color.White.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = (-16).dp, y = 8.dp),
@@ -334,8 +332,7 @@ private fun ToggleCompare(
         Text(
             text = if (isShowingOriginal) "原图" else "效果",
             color = Color.White.copy(alpha = 0.7f),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodySmall,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .offset(x = 16.dp, y = 8.dp),

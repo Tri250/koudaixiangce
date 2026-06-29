@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -200,7 +201,7 @@ fun EffectsPanel(
                 Text(
                     text = "选择LUT",
                     color = HasselbladOrange,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
@@ -228,7 +229,7 @@ private fun ToneMapperTab(
         Text(
             text = label,
             color = if (isActive) TextPrimary else TextSecondary,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -89,13 +90,12 @@ private fun ColorScienceContent(
         Text(
             text = "色彩科学",
             color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineSmall,
         )
         Text(
             text = "选择色彩管线，决定图像的色调映射与色域",
             color = TextSecondary,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 4.dp),
         )
 
@@ -105,8 +105,7 @@ private fun ColorScienceContent(
         Text(
             text = "渲染管线",
             color = TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodySmall,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -128,8 +127,7 @@ private fun ColorScienceContent(
         Text(
             text = "微调",
             color = TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodySmall,
         )
         Spacer(modifier = Modifier.height(4.dp))
 
@@ -163,8 +161,7 @@ private fun ColorScienceContent(
         Text(
             text = "显示色域",
             color = TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodySmall,
         )
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -183,8 +180,7 @@ private fun ColorScienceContent(
         Text(
             text = "EOTF (显示器传递函数)",
             color = TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodySmall,
         )
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -245,13 +241,12 @@ private fun ColorScienceRow(
             Text(
                 text = label,
                 color = if (isSelected) HasselbladOrange else TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodyMedium,
             )
             Text(
                 text = description,
                 color = TextTertiary,
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
@@ -268,8 +263,8 @@ private fun ColorSlider(
 ) {
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
-            Text(label, color = TextSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Text(format(value), color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(label, color = TextSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Text(format(value), color = TextPrimary, style = MaterialTheme.typography.bodySmall)
         }
         Slider(
             value = value,
@@ -295,8 +290,7 @@ private fun Chip(
         Text(
             text = text,
             color = if (isSelected) Color.Black else TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }

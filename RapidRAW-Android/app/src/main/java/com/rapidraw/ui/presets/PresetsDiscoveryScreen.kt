@@ -89,8 +89,7 @@ fun PresetsDiscoveryScreen(
                     Text(
                         text = "大师配方",
                         color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.headlineSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -140,8 +139,7 @@ fun PresetsDiscoveryScreen(
                         Text(
                             text = category,
                             color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
@@ -205,8 +203,7 @@ private fun PresetCard(
         Text(
             text = preset.name,
             color = Color.White,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.titleMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -214,7 +211,7 @@ private fun PresetCard(
         Text(
             text = preset.description,
             color = TextTertiary,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -224,7 +221,7 @@ private fun PresetCard(
         Text(
             text = preset.category,
             color = HasselbladOrange,
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelSmall,
         )
     }
 }

@@ -188,8 +188,7 @@ fun ProjectManagerScreen(
                     Text(
                         text = "项目管理",
                         color = TextPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.padding(start = 8.dp),
                     )
 
@@ -198,7 +197,7 @@ fun ProjectManagerScreen(
                     Text(
                         text = "${projects.size} 个项目",
                         color = TextTertiary,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(end = 12.dp),
                     )
                 }
@@ -215,7 +214,7 @@ fun ProjectManagerScreen(
                     Text(
                         text = "加载中...",
                         color = TextTertiary,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             } else if (projects.isEmpty()) {
@@ -236,14 +235,13 @@ fun ProjectManagerScreen(
                         Text(
                             text = "暂无项目",
                             color = TextSecondary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
+                            style = MaterialTheme.typography.headlineSmall,
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "点击右下角按钮创建新项目",
                             color = TextTertiary,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
@@ -298,15 +296,14 @@ fun ProjectManagerScreen(
                 Text(
                     text = "删除项目",
                     color = TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
                 )
             },
             text = {
                 Text(
                     text = "确定要删除项目 "${deleteProject.name}" 吗？此操作不可撤销。",
                     color = TextSecondary,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             },
             confirmButton = {
@@ -316,12 +313,12 @@ fun ProjectManagerScreen(
                         projectToDelete = null
                     },
                 ) {
-                    Text("删除", color = androidx.compose.ui.graphics.Color(0xFFFF4444), fontSize = 14.sp)
+                    Text("删除", color = androidx.compose.ui.graphics.Color(0xFFFF4444), style = MaterialTheme.typography.bodyMedium)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { projectToDelete = null }) {
-                    Text("取消", color = TextSecondary, fontSize = 14.sp)
+                    Text("取消", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
                 }
             },
         )
@@ -373,8 +370,7 @@ private fun ProjectCard(
                 Text(
                     text = project.name,
                     color = TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -383,7 +379,7 @@ private fun ProjectCard(
                     Text(
                         text = "${project.imagePaths.size} 张图片",
                         color = TextTertiary,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Box(
@@ -396,7 +392,7 @@ private fun ProjectCard(
                     Text(
                         text = "更新于 ${dateFormat.format(Date(project.modifiedAt))}",
                         color = TextTertiary,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }
@@ -429,7 +425,7 @@ private fun ProjectCard(
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("打开项目", color = TextPrimary, fontSize = 14.sp)
+                                Text("打开项目", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
                             }
                         },
                         onClick = {
@@ -447,7 +443,7 @@ private fun ProjectCard(
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("删除项目", color = androidx.compose.ui.graphics.Color(0xFFFF4444), fontSize = 14.sp)
+                                Text("删除项目", color = androidx.compose.ui.graphics.Color(0xFFFF4444), style = MaterialTheme.typography.bodyMedium)
                             }
                         },
                         onClick = {
@@ -475,15 +471,14 @@ private fun CreateProjectDialog(
             Text(
                 text = "创建新项目",
                 color = TextPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineSmall,
             )
         },
         text = {
             OutlinedTextField(
                 value = projectName,
                 onValueChange = { projectName = it },
-                label = { Text("项目名称", color = TextTertiary, fontSize = 13.sp) },
+                label = { Text("项目名称", color = TextTertiary, style = MaterialTheme.typography.bodyMedium) },
                 singleLine = true,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = EditorBackground,
@@ -502,12 +497,12 @@ private fun CreateProjectDialog(
                 onClick = { onConfirm(projectName) },
                 enabled = projectName.isNotBlank(),
             ) {
-                Text("创建", color = HasselbladOrange, fontSize = 14.sp)
+                Text("创建", color = HasselbladOrange, style = MaterialTheme.typography.bodyMedium)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消", color = TextSecondary, fontSize = 14.sp)
+                Text("取消", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
             }
         },
     )

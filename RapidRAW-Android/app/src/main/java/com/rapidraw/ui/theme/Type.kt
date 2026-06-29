@@ -2,6 +2,7 @@ package com.rapidraw.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -11,22 +12,41 @@ import androidx.compose.ui.unit.sp
  *
  * OPPO Find X9 / ColorOS 16 设计规范：
  * - 优先使用 OPPO Sans（ColorOS 系统字体，OPPO 设备自带）
- * - 回退到 SansSerif（非 OPPO 设备上的 Roboto / 系统默认）
- * - 中文阅读优化：行高 1.5x，字间距收紧
- * - 正文最小 14sp（无障碍友好，Find X9 大屏阅读舒适度）
- *
- * 字体加载策略：
- * 1. OPPO 设备：FontFamily.SansSerif 自动解析为 OPPO Sans
- * 2. 非 OPPO 设备：回退到系统 SansSerif（Roboto / Droid Sans / 苹方 等）
- * 3. 可选：将真实 OPPOSans.ttf 放入 res/font/ 后通过 Font(R.font.opposans_*) 加载
+ * - 回退链：OPPO Sans → PingFang SC / Noto Sans CJK → Roboto → system sans
+ * - 中文阅读优化：行高 1.5x-1.55x，字间距收紧，正文最小 14sp
+ * - 摄影编辑工具类文字：使用 13sp + 等宽数字，保证数值不跳动
  */
-internal val OPPOSansFamily: FontFamily = FontFamily.SansSerif
+internal val OPPOSansFamily: FontFamily = FontFamily(
+    // ColorOS 16 首选系统字体（OPPO Sans / OPPO Sans 2.0）
+    Font("OPPO Sans", FontWeight.Normal),
+    Font("OPPO Sans", FontWeight.Bold),
+    Font("OPPO Sans 2.0", FontWeight.Normal),
+    Font("OPPO Sans 2.0", FontWeight.Bold),
+    Font("OPPOSans", FontWeight.Normal),
+    Font("OPPOSans", FontWeight.Bold),
+    // 中文回退
+    Font("PingFang SC", FontWeight.Normal),
+    Font("PingFang SC", FontWeight.Bold),
+    Font("Noto Sans CJK SC", FontWeight.Normal),
+    Font("Noto Sans CJK SC", FontWeight.Bold),
+    // 英文/数字回退
+    Font("Roboto", FontWeight.Normal),
+    Font("Roboto", FontWeight.Bold),
+    Font("sans-serif", FontWeight.Normal),
+    Font("sans-serif", FontWeight.Bold),
+)
 
-/** 应用主字体栈（OPPO Sans 优先 + SansSerif 回退） */
+/** 应用主字体栈（OPPO Sans 优先 + 中文/英文系统字体回退） */
 internal val AppFontFamily: FontFamily = OPPOSansFamily
 
-/** 等宽字体栈（用于数值显示：滑块值、坐标、EXIF 等） */
-internal val MonoFontFamily: FontFamily = FontFamily.Monospace
+/** 等宽字体栈（用于数值显示：滑块值、坐标、EXIF 等，避免宽度跳动） */
+internal val MonoFontFamily: FontFamily = FontFamily(
+    Font("Roboto Mono", FontWeight.Normal),
+    Font("Roboto Mono", FontWeight.Bold),
+    Font("SF Mono", FontWeight.Normal),
+    Font("Droid Sans Mono", FontWeight.Normal),
+    Font("monospace", FontWeight.Normal),
+)
 
 /**
  * ColorOS 16 字号阶梯
@@ -106,16 +126,16 @@ val RapidRawTypography = Typography(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.W500,
         fontSize = 14.sp,
-        lineHeight = 20.sp,
+        lineHeight = 22.sp,
         letterSpacing = 0.1.sp,
     ),
 
-    // ── Body：正文（最小 14sp，无障碍友好）────────────────────────
+    // ── Body：正文（最小 14sp，无障碍友好，中文 1.55x 行高）──────
     bodyLarge = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.W400,
         fontSize = 16.sp,
-        lineHeight = 24.sp,
+        lineHeight = 25.sp,
         letterSpacing = 0.5.sp,
     ),
     bodyMedium = TextStyle(
@@ -126,7 +146,7 @@ val RapidRawTypography = Typography(
         letterSpacing = 0.25.sp,
     ),
     bodySmall = TextStyle(
-        // 仅用于辅助说明，不用于正文
+        // 仅用于辅助说明、时间戳、元数据，不用于正文
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.W400,
         fontSize = 12.sp,
@@ -190,7 +210,7 @@ object EditorTypography {
         letterSpacing = 0.5.sp,
     )
 
-    /** 滑块数值显示（等宽，避免数值跳动） */
+    /** 滑块数值显示（等宽 Tabular，避免数值跳动） */
     val sliderValue = TextStyle(
         fontFamily = MonoFontFamily,
         fontWeight = FontWeight.W500,
@@ -203,6 +223,15 @@ object EditorTypography {
     val sliderLabel = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.W500,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.15.sp,
+    )
+
+    /** 滑块标签（激活态：已调整/拖拽） */
+    val sliderLabelActive = TextStyle(
+        fontFamily = AppFontFamily,
+        fontWeight = FontWeight.W700,
         fontSize = 13.sp,
         lineHeight = 18.sp,
         letterSpacing = 0.15.sp,
@@ -223,7 +252,16 @@ object EditorTypography {
         fontWeight = FontWeight.W600,
         fontSize = 10.sp,
         lineHeight = 14.sp,
-        letterSpacing = 0.5.sp,
+        letterSpacing = 0.25.sp,
+    )
+
+    /** 按钮文字（大按钮、导出/确认） */
+    val button = TextStyle(
+        fontFamily = AppFontFamily,
+        fontWeight = FontWeight.W600,
+        fontSize = 15.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.25.sp,
     )
 
     /** EXIF 信息（等宽对齐） */

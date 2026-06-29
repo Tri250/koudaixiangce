@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -240,8 +241,7 @@ fun ColorPanel(
             Text(
                 text = "红",
                 color = HasselbladOrange,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
             HasselSlider(
@@ -263,8 +263,7 @@ fun ColorPanel(
             Text(
                 text = "绿",
                 color = HasselbladOrange,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
             HasselSlider(
@@ -286,8 +285,7 @@ fun ColorPanel(
             Text(
                 text = "蓝",
                 color = HasselbladOrange,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
             HasselSlider(
@@ -327,7 +325,7 @@ private fun HslColorRow(
         Text(
             text = colorName,
             color = TextSecondary,
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
         )
         Row(

@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +51,7 @@ import com.rapidraw.ui.theme.HasselbladOrangeLight
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 import kotlinx.coroutines.launch
 
 /**
@@ -171,7 +173,7 @@ fun OnboardingScreen(
                         Text(
                             text = "跳过",
                             color = TextTertiary,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier
                                 .clickable {
                                     viewModel.completeOnboarding()
@@ -199,7 +201,7 @@ fun OnboardingScreen(
                             Text(
                                 text = "下一步",
                                 color = TextPrimary,
-                                fontWeight = FontWeight.Medium,
+                                style = EditorTypography.button,
                             )
                         }
                     }
@@ -233,8 +235,7 @@ private fun WelcomePage(onGetStarted: () -> Unit) {
             Text(
                 text = "R",
                 color = TextPrimary,
-                fontSize = 48.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.displayLarge,
             )
         }
 
@@ -243,8 +244,7 @@ private fun WelcomePage(onGetStarted: () -> Unit) {
         Text(
             text = "RapidRAW",
             color = TextPrimary,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.displayMedium,
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -252,7 +252,7 @@ private fun WelcomePage(onGetStarted: () -> Unit) {
         Text(
             text = "专业级 RAW 照片编辑器",
             color = TextSecondary,
-            fontSize = 16.sp,
+            style = MaterialTheme.typography.bodyLarge,
         )
 
         Spacer(modifier = Modifier.height(48.dp))
@@ -270,8 +270,7 @@ private fun WelcomePage(onGetStarted: () -> Unit) {
             Text(
                 text = "开始使用",
                 color = TextPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodyLarge,
             )
         }
     }
@@ -308,7 +307,7 @@ private fun PermissionPage(
         ) {
             Text(
                 text = "\uD83D\uDCC1", // 📁
-                fontSize = 36.sp,
+                style = MaterialTheme.typography.displayLarge,
             )
         }
 
@@ -317,8 +316,7 @@ private fun PermissionPage(
         Text(
             text = "访问你的照片",
             color = TextPrimary,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineLarge,
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -329,7 +327,7 @@ private fun PermissionPage(
                 "\u2022 保存编辑后的图片到相册\n" +
                 "\u2022 读取 EXIF 元数据信息",
             color = TextSecondary,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
             lineHeight = 22.sp,
             textAlign = TextAlign.Center,
         )
@@ -371,7 +369,7 @@ private fun PermissionPage(
             Text(
                 text = "授权访问",
                 color = TextPrimary,
-                fontWeight = FontWeight.Medium,
+                style = EditorTypography.button,
             )
         }
 
@@ -380,7 +378,7 @@ private fun PermissionPage(
         Text(
             text = "稍后授权",
             color = TextTertiary,
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier
                 .clickable(onClick = onSkip)
                 .padding(8.dp),
@@ -413,7 +411,7 @@ private fun FeaturePage(
         ) {
             Text(
                 text = icon,
-                fontSize = 44.sp,
+                style = MaterialTheme.typography.displayLarge,
             )
         }
 
@@ -422,8 +420,7 @@ private fun FeaturePage(
         Text(
             text = title,
             color = TextPrimary,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.displaySmall,
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -431,7 +428,7 @@ private fun FeaturePage(
         Text(
             text = description,
             color = TextSecondary,
-            fontSize = 15.sp,
+            style = MaterialTheme.typography.bodyLarge,
             lineHeight = 24.sp,
             textAlign = TextAlign.Center,
         )
@@ -452,8 +449,7 @@ private fun FeaturePage(
                 Text(
                     text = "开始编辑",
                     color = TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyLarge,
                 )
             }
         }

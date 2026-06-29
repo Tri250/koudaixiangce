@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +38,7 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 @Composable
 fun PresetImportScreen(
@@ -73,8 +75,7 @@ fun PresetImportScreen(
             Text(
                 text = "导入预设",
                 color = TextPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
@@ -108,7 +109,7 @@ fun PresetImportScreen(
                 Text(
                     text = selectedUri!!.lastPathSegment ?: "未知文件",
                     color = TextTertiary,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
 
@@ -128,7 +129,7 @@ fun PresetImportScreen(
                 Text(
                     text = "导入",
                     color = TextPrimary,
-                    fontWeight = FontWeight.Medium,
+                    style = EditorTypography.button,
                 )
             }
         }

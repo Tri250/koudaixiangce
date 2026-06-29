@@ -69,6 +69,12 @@ object ColorOS16Colors {
     /** 哈苏橙柔光（背景叠加） */
     val HasselbladOrangeGlow: Color = Color(0x80E8600C)
 
+    /** 哈苏橙微光（极淡，用于选中背景 tint） */
+    val HasselbladOrangeMist: Color = Color(0x1AE8600C)
+
+    /** 哈苏橙极淡辉光（按压态背景） */
+    val HasselbladOrangePressed: Color = Color(0x33E8600C)
+
     // ── 功能色（高饱和，深黑背景可见）──────────────────────────────
 
     /** 溢出警告红（高光溢出） */
@@ -231,3 +237,5 @@ val FilmCardBorder = HasselbladOrange           // 仅胶片卡片选中
 val ExportButtonBg = HasselbladOrange           // 仅导出/品牌按钮
 val ViewfinderCorner = HasselbladOrange         // 仅取景器四角
 val BadgeBg = ColorOS16Colors.HasselbladOrangeGlow  // "已优化" 徽章
+val TabSelectedBg = ColorOS16Colors.HasselbladOrangeMist  // 底部 Tab 选中背景
+val TabPressedBg = ColorOS16Colors.HasselbladOrangePressed  // 底部 Tab 按压背景

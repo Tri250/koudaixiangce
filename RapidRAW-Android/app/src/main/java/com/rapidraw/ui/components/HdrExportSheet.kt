@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.HdrPlus
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -45,6 +46,7 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 /**
  * HDR 导出选项
@@ -104,8 +106,7 @@ private fun HdrExportContent(
             Text(
                 "HDR 导出",
                 color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineSmall,
             )
         }
 
@@ -121,7 +122,7 @@ private fun HdrExportContent(
                 Text(
                     "当前设备需要 Android 14+ 才能使用 Ultra HDR；将自动降级为 HEIF 10-bit。",
                     color = TextSecondary,
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
         }
@@ -132,8 +133,7 @@ private fun HdrExportContent(
         Text(
             "格式",
             color = TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodySmall,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Column {
@@ -188,11 +188,11 @@ private fun HdrExportContent(
                 .padding(top = 8.dp),
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("保留 SDR 兼容", color = TextPrimary, fontSize = 13.sp)
+                Text("保留 SDR 兼容", color = TextPrimary, style = EditorTypography.sliderLabel)
                 Text(
                     "嵌入 SDR 降级图像，确保所有设备都能查看",
                     color = TextTertiary,
-                    fontSize = 10.sp,
+                    style = EditorTypography.badge,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -221,7 +221,7 @@ private fun HdrExportContent(
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("导出 HDR 图像", color = Color.Black, fontWeight = FontWeight.Bold)
+            Text("导出 HDR 图像", color = Color.Black, style = EditorTypography.button)
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -253,8 +253,7 @@ private fun FormatRow(
         Text(
             text = format.displayName,
             color = if (isSelected) HasselbladOrange else TextPrimary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }
@@ -269,8 +268,8 @@ private fun SliderRow(
 ) {
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
-            Text(label, color = TextSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Text(format(value), color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(label, color = TextSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Text(format(value), color = TextPrimary, style = MaterialTheme.typography.bodySmall)
         }
         Slider(value = value, onValueChange = onValueChange, valueRange = range)
     }

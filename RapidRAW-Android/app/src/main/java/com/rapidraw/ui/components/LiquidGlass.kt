@@ -21,6 +21,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.random.Random
@@ -29,16 +30,21 @@ import kotlin.random.Random
  * ColorOS 16 液态玻璃（Liquid Glass）效果组件
  *
  * OPPO 2026 核心设计语言升级版，相比初版增加：
- * 1. 真实背景模糊（RenderEffect，Android 12+ / API 31+）
+ * 1. 硬件加速高斯模糊（RenderEffect / Modifier.blur，Android 12+ / API 31+）
  * 2. 多层折射：顶部高光 + 中段色散 + 底部反射（3 层渐变叠加）
  * 3. 边缘光晕：内描边 + 外镜面反射（模拟玻璃边缘全反射）
  * 4. 噪声纹理：细微颗粒感（避免塑料质感，增加真实玻璃质感）
  * 5. 内容自适应着色：白 alpha 叠加，深浅背景通用
  *
  * 性能策略：
- * - API 31+ 使用硬件加速 RenderEffect（GPU 合成，0 性能损失）
- * - API < 31 回退到渐变模拟（保持视觉一致性，无模糊）
- * - 噪声纹理使用预生成位图缓存，避免每帧重绘
+ * - API 31+ 使用硬件加速 RenderEffect（GPU 合成，极低性能开销）
+ * - API < 31 回退到渐变模拟（保持视觉一致性，无硬件模糊）
+ * - 噪声纹理使用确定性伪随机，避免每帧重绘
+ *
+ * 实现说明：
+ * 在 Jetpack Compose 中，真正的"看穿背景"模糊需要父布局将背景捕获为 graphics layer。
+ * 本组件通过 `Modifier.graphicsLayer { renderEffect = ... }` 对容器自身应用高斯模糊，
+ * 叠加半透明背景与多层高光/折射，在绝大多数场景下已能呈现 ColorOS 16 / iOS 级液体玻璃质感。
  */
 @Composable
 fun LiquidGlassSurface(
@@ -50,6 +56,8 @@ fun LiquidGlassSurface(
 ) {
     val shape = RoundedCornerShape(cornerRadius)
     val blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val density = LocalDensity.current
+    val blurRadiusPx = with(density) { blurRadius.toPx() }
 
     Box(
         modifier = modifier
@@ -57,16 +65,14 @@ fun LiquidGlassSurface(
             .then(
                 if (blurSupported) {
                     Modifier.graphicsLayer {
-                        // 硬件加速背景模糊（Android 12+ RenderEffect）
-                        val effect = RenderEffect.createBlurEffect(
-                            blurRadius.toPx(),
-                            blurRadius.toPx(),
-                            Shader.TileMode.DECAL,
+                        renderEffect = RenderEffect.createBlurEffect(
+                            blurRadiusPx,
+                            blurRadiusPx,
+                            Shader.TileMode.CLAMP,
                         )
-                        renderEffect = effect
                     }
                 } else {
-                    // 回退：无模糊，仅渐变模拟
+                    // 回退：无硬件模糊，仅渐变模拟
                     Modifier
                 }
             )
@@ -85,21 +91,28 @@ fun LiquidGlassSurface(
 /**
  * 液态玻璃背景模糊层（用于底部面板/弹窗背景遮罩）
  *
- * 全屏背景模糊 + 暗化遮罩，使前景内容聚焦。
+ * 全屏暗化遮罩 + 背景模糊，使前景内容聚焦。
  */
 @Composable
 fun LiquidGlassBackdrop(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    val blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.45f))
-            .blur(
-                radiusX = 32.dp,
-                radiusY = 32.dp,
-                edgeTreatment = BlurredEdgeTreatment.Unbounded,
+            .then(
+                if (blurSupported) {
+                    Modifier.blur(
+                        radiusX = 32.dp,
+                        radiusY = 32.dp,
+                        edgeTreatment = BlurredEdgeTreatment.Unbounded,
+                    )
+                } else {
+                    Modifier
+                }
             ),
     ) {
         content()
@@ -143,6 +156,7 @@ fun LiquidGlassFloating(
 ) {
     val shape = RoundedCornerShape(cornerRadius)
     val blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val density = LocalDensity.current
 
     Box(
         modifier = modifier
@@ -150,12 +164,11 @@ fun LiquidGlassFloating(
             .then(
                 if (blurSupported) {
                     Modifier.graphicsLayer {
-                        val effect = RenderEffect.createBlurEffect(
-                            32f,
-                            32f,
-                            Shader.TileMode.DECAL,
+                        renderEffect = RenderEffect.createBlurEffect(
+                            with(density) { 32.dp.toPx() },
+                            with(density) { 32.dp.toPx() },
+                            Shader.TileMode.CLAMP,
                         )
-                        renderEffect = effect
                     }
                 } else {
                     Modifier
@@ -191,6 +204,7 @@ fun LiquidGlassBottomPanel(
         bottomStart = 0.dp,
     )
     val blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val density = LocalDensity.current
 
     Box(
         modifier = modifier
@@ -198,12 +212,11 @@ fun LiquidGlassBottomPanel(
             .then(
                 if (blurSupported) {
                     Modifier.graphicsLayer {
-                        val effect = RenderEffect.createBlurEffect(
-                            28f,
-                            28f,
-                            Shader.TileMode.DECAL,
+                        renderEffect = RenderEffect.createBlurEffect(
+                            with(density) { 28.dp.toPx() },
+                            with(density) { 28.dp.toPx() },
+                            Shader.TileMode.CLAMP,
                         )
-                        renderEffect = effect
                     }
                 } else {
                     Modifier

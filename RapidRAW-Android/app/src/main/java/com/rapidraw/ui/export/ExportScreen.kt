@@ -28,6 +28,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -117,7 +118,7 @@ fun ExportSheet(
                         Text(
                             text = f.name,
                             color = if (format == f) TextPrimary else TextSecondary,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
@@ -226,7 +227,7 @@ fun ExportSheet(
                             uncheckedColor = TextTertiary,
                         ),
                     )
-                    Text(text = "不放大（仅缩小）", color = TextPrimary, fontSize = 13.sp)
+                    Text(text = "不放大（仅缩小）", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -256,7 +257,7 @@ fun ExportSheet(
                     Text(
                         text = platform.displayName,
                         color = if (socialPlatform == platform) TextPrimary else TextSecondary,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     platform.aspectRatio?.let { ratio ->
                         Spacer(modifier = Modifier.width(6.dp))
@@ -267,7 +268,7 @@ fun ExportSheet(
                                 "$w:$h"
                             },
                             color = TextTertiary,
-                            fontSize = 11.sp,
+                            style = MaterialTheme.typography.labelSmall,
                         )
                     }
                 }
@@ -307,7 +308,7 @@ fun ExportSheet(
                 Text(
                     text = "橙色区域为裁切范围",
                     color = TextTertiary,
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
@@ -335,7 +336,7 @@ fun ExportSheet(
                         uncheckedColor = TextTertiary,
                     ),
                 )
-                Text(text = "保留元数据", color = TextPrimary, fontSize = 13.sp)
+                Text(text = "保留元数据", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
             }
 
             Row(
@@ -353,7 +354,7 @@ fun ExportSheet(
                         uncheckedColor = TextTertiary,
                     ),
                 )
-                Text(text = "移除GPS信息", color = TextPrimary, fontSize = 13.sp)
+                Text(text = "移除GPS信息", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
             }
         }
 
@@ -378,7 +379,7 @@ fun ExportSheet(
                         uncheckedColor = TextTertiary,
                     ),
                 )
-                Text(text = "启用水印", color = TextPrimary, fontSize = 13.sp)
+                Text(text = "启用水印", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
             }
 
             if (addWatermark) {
@@ -404,7 +405,7 @@ fun ExportSheet(
                 Text(
                     text = "锚点位置",
                     color = TextSecondary,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
                 Column(
@@ -453,7 +454,7 @@ fun ExportSheet(
                                     Text(
                                         text = anchorLabels[anchor] ?: "",
                                         color = if (selected) HasselbladOrange else TextTertiary,
-                                        fontSize = 14.sp,
+                                        style = MaterialTheme.typography.bodyMedium,
                                     )
                                 }
                             }
@@ -511,7 +512,7 @@ fun ExportSheet(
             Text(
                 text = "可用变量：{filename} 原文件名  {date} 日期  {sequence} 序号",
                 color = TextTertiary,
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
             )
         }
 
@@ -542,7 +543,7 @@ fun ExportSheet(
         Text(
             text = "预估文件大小: $sizeText",
             color = TextTertiary,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 12.dp, bottom = 12.dp),
         )
 
@@ -593,10 +594,10 @@ fun ExportSheet(
                             strokeWidth = 2.dp,
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "导出中...", color = TextPrimary, fontSize = 15.sp)
+                        Text(text = "导出中...", color = TextPrimary, style = MaterialTheme.typography.titleMedium)
                     }
                 } else {
-                    Text(text = "导出", color = TextPrimary, fontSize = 15.sp)
+                    Text(text = "导出", color = TextPrimary, style = MaterialTheme.typography.titleMedium)
                 }
             }
 
@@ -637,7 +638,7 @@ fun ExportSheet(
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = "分享", color = HasselbladOrange, fontSize = 15.sp)
+                    Text(text = "分享", color = HasselbladOrange, style = MaterialTheme.typography.titleMedium)
                 }
             }
         }

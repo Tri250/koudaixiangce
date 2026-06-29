@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -50,6 +51,7 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 /**
  * 可分支编辑历史面板
@@ -107,8 +109,7 @@ fun EditHistoryPanel(
                 Text(
                     "从该节点创建分支",
                     color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
@@ -178,8 +179,7 @@ private fun EditHistoryContent(
             Text(
                 "编辑历史",
                 color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onUndo) {
@@ -204,20 +204,19 @@ private fun EditHistoryContent(
             Text(
                 text = "当前分支",
                 color = TextTertiary,
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "main / ${branchPath.size} 节点",
                 color = TextPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = "总分支: ${history.getAllLeaves().size}",
                 color = TextTertiary,
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
             )
         }
 
@@ -227,8 +226,7 @@ private fun EditHistoryContent(
         Text(
             text = "当前分支路径",
             color = TextSecondary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
@@ -256,7 +254,7 @@ private fun EditHistoryContent(
             Text(
                 "点击节点可跳转到该历史版本",
                 color = TextTertiary,
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.weight(1f),
             )
             androidx.compose.material3.TextButton(onClick = { onCreateBranch(history.current) }) {
@@ -267,7 +265,7 @@ private fun EditHistoryContent(
                     modifier = Modifier.size(16.dp),
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("新建分支", color = HasselbladOrange, fontSize = 12.sp)
+                Text("新建分支", color = HasselbladOrange, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -301,13 +299,12 @@ private fun HistoryNodeRow(
             Text(
                 text = entry.description,
                 color = if (isHead) HasselbladOrange else TextPrimary,
-                fontSize = 13.sp,
-                fontWeight = if (isHead) FontWeight.Bold else FontWeight.Normal,
+                style = if (isHead) EditorTypography.sliderLabelActive else EditorTypography.sliderLabel,
             )
             Text(
                 text = entry.id.take(8) + "  ·  " + formatTime(entry.timestamp),
                 color = TextTertiary,
-                fontSize = 10.sp,
+                style = EditorTypography.badge,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
@@ -315,7 +312,7 @@ private fun HistoryNodeRow(
             onClick = onBranchClick,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp),
         ) {
-            Text("分支", color = TextTertiary, fontSize = 10.sp)
+            Text("分支", color = TextTertiary, style = EditorTypography.badge)
         }
     }
 }

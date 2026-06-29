@@ -32,6 +32,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,6 +63,7 @@ import com.rapidraw.ui.theme.SuccessGreen
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 /**
  * 导出队列浮动指示器：导出进行中时显示在编辑器右下角的小圆点，
@@ -113,8 +115,7 @@ fun ExportQueueFloatingIndicator(
                 Text(
                     text = "$activeJobs",
                     color = TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
                 Icon(
@@ -126,8 +127,7 @@ fun ExportQueueFloatingIndicator(
                 Text(
                     text = "完成",
                     color = SuccessGreen,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
@@ -195,15 +195,14 @@ fun ExportQueuePanel(
             Text(
                 text = "导出队列",
                 color = TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium,
             )
             Spacer(modifier = Modifier.weight(1f))
             if (activeCount > 0) {
                 Text(
                     text = "$activeCount 进行中",
                     color = HasselbladOrange,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
@@ -369,8 +368,7 @@ private fun ExportQueueItem(
                 Text(
                     text = job.imagePath.substringAfterLast("/"),
                     color = TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -388,7 +386,7 @@ private fun ExportQueueItem(
                     Text(
                         text = statusText,
                         color = statusColor,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                     )
 
                     // 文件大小（仅完成时显示）
@@ -396,7 +394,7 @@ private fun ExportQueueItem(
                         Text(
                             text = formatFileSize(job.fileSize),
                             color = TextTertiary,
-                            fontSize = 11.sp,
+                            style = MaterialTheme.typography.labelSmall,
                         )
                     }
 
@@ -405,7 +403,7 @@ private fun ExportQueueItem(
                         Text(
                             text = job.error,
                             color = Color.Red.copy(alpha = 0.8f),
-                            fontSize = 11.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
@@ -428,7 +426,7 @@ private fun ExportQueueItem(
                     Text(
                         text = "${(job.progress * 100).toInt()}%",
                         color = TextTertiary,
-                        fontSize = 10.sp,
+                        style = EditorTypography.badge,
                     )
                 }
             }

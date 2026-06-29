@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextSecondary
+import com.rapidraw.ui.theme.EditorTypography
 
 @Composable
 fun BeforeAfterToggle(
@@ -120,7 +122,7 @@ fun BeforeAfterToggle(
         Text(
             text = if (showingOriginal) "原图" else "效果",
             color = TextSecondary,
-            fontSize = 10.sp,
+            style = EditorTypography.badge,
             modifier = Modifier.padding(top = 2.dp),
         )
     }

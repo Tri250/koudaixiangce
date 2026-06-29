@@ -38,6 +38,18 @@ object Motion {
     /** 标准缓动（旧版兼容） */
     val StandardEasing: Easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1.0f)
 
+    /** iOS 风格标准缓动（自然、流畅） */
+    val iOSStandardEasing: Easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1.0f)
+
+    /** iOS 风格入场缓动（从快到慢） */
+    val iOSEaseOut: Easing = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)
+
+    /** iOS 风格出场缓动（从慢到快） */
+    val iOSEaseIn: Easing = CubicBezierEasing(0.4f, 0.0f, 1.0f, 1.0f)
+
+    /** 弹性按压缓动（按钮按压回弹） */
+    val PressEasing: Easing = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1.0f)
+
     // ── 动画时长（ColorOS 16 时长阶梯）──────────────────────────────
 
     /** 快速反馈：点击波纹、图标状态切换 (150ms) */
@@ -120,9 +132,27 @@ object Motion {
         stiffness = Spring.StiffnessMedium,
     )
 
-    /** 缩放弹簧 */
+    /** 缩放弹簧（iOS 风格图标弹跳） */
     fun scaleSpring(): FiniteAnimationSpec<Float> = spring(
         dampingRatio = Spring.DampingRatioMediumBouncy,
         stiffness = Spring.StiffnessMediumLow,
+    )
+
+    /** Tab 选中图标弹跳（轻微 overshoot，ColorOS 16 反馈） */
+    fun tabScaleSpring(): FiniteAnimationSpec<Float> = spring(
+        dampingRatio = 0.6f,
+        stiffness = 450f,
+    )
+
+    /** 底部面板升起弹簧（iOS sheet 弹性） */
+    fun <T> bottomSheetSpring(): FiniteAnimationSpec<T> = spring(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = 300f,
+    )
+
+    /** 颜色渐变动画规范 */
+    fun <T> colorTween(): FiniteAnimationSpec<T> = tween(
+        durationMillis = DurationFast,
+        easing = iOSStandardEasing,
     )
 }

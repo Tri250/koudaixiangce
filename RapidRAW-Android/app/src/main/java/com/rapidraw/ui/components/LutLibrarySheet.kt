@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -48,6 +49,7 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 /**
  * LUT 库浏览器
@@ -95,12 +97,11 @@ fun LutLibrarySheet(
                     Text(
                         "LUT 库",
                         color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.weight(1f),
                     )
                     androidx.compose.material3.TextButton(onClick = onImportRequest) {
-                        Text("导入 .cube", color = HasselbladOrange, fontSize = 13.sp)
+                        Text("导入 .cube", color = HasselbladOrange, style = EditorTypography.sliderLabel)
                     }
                 }
 
@@ -124,7 +125,7 @@ fun LutLibrarySheet(
 
                 // 强度滑块
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("强度", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.width(40.dp))
+                    Text("强度", color = TextSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(40.dp))
                     Slider(
                         value = intensity,
                         onValueChange = { intensity = it },
@@ -134,8 +135,7 @@ fun LutLibrarySheet(
                     Text(
                         "${(intensity * 100).toInt()}%",
                         color = TextPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.width(40.dp),
                     )
                 }
@@ -182,20 +182,19 @@ private fun LutRow(
             Text(
                 lut.name,
                 color = if (isSelected) HasselbladOrange else Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodyMedium,
             )
             Row(modifier = Modifier.padding(top = 2.dp)) {
                 Text(
                     text = lut.category,
                     color = TextSecondary,
-                    fontSize = 10.sp,
+                    style = EditorTypography.badge,
                 )
                 if (lut.tags.isNotEmpty()) {
                     Text(
                         text = "  ·  " + lut.tags.joinToString(" · "),
                         color = TextTertiary,
-                        fontSize = 10.sp,
+                        style = EditorTypography.badge,
                     )
                 }
                 if (lut.isBuiltIn) {
@@ -203,8 +202,7 @@ private fun LutRow(
                     Text(
                         text = "内置",
                         color = HasselbladOrange,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = EditorTypography.badge,
                     )
                 }
             }

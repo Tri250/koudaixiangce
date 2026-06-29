@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -28,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -38,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.rapidraw.ui.theme.EditorBorder
+import com.rapidraw.ui.theme.EditorTypography
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.HasselbladOrangeBright
 import com.rapidraw.ui.theme.HasselbladOrangeDeep
@@ -84,9 +87,15 @@ fun HasselSlider(
     )
 
     val thumbSize by animateDpAsState(
-        targetValue = if (isDragging) 18.dp else 14.dp,
+        targetValue = if (isDragging) 22.dp else 16.dp,
         animationSpec = SpringSpec(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
         label = "thumbSize"
+    )
+
+    val thumbElevation by animateFloatAsState(
+        targetValue = if (isDragging) 8f else 2f,
+        animationSpec = SpringSpec(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium),
+        label = "thumbElevation"
     )
 
     // 滑块填充色：已调整 → 哈苏橙渐变；未调整 → 白色
@@ -118,15 +127,15 @@ fun HasselSlider(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Label（已调整/拖拽态使用哈苏橙高亮）
+        // Label（已调整/拖拽态使用哈苏橙高亮 + 加粗）
         Text(
             text = label,
             color = labelColor,
-            fontSize = with(density) { 12.dp.toSp() },
-            modifier = Modifier.width(48.dp),
+            style = if (isDragging || isAdjusted) EditorTypography.sliderLabelActive else EditorTypography.sliderLabel,
+            modifier = Modifier.width(56.dp),
         )
 
         // Slider track + thumb
@@ -137,11 +146,11 @@ fun HasselSlider(
                 .padding(vertical = 12.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
-            // Gray background track
+            // Track background (slightly taller for better touch target)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .size(height = 2.dp, width = 1.dp)
+                    .size(height = 3.dp, width = 1.dp)
                     .clip(CircleShape)
                     .background(SliderTrackEmpty)
             )
@@ -153,18 +162,24 @@ fun HasselSlider(
 
             Box(
                 modifier = Modifier
-                    .size(height = 2.dp, width = 1.dp)
+                    .size(height = 3.dp, width = 1.dp)
                     .fillMaxWidth(fraction)
                     .clip(CircleShape)
                     .background(fillColor)
             )
 
-            // Thumb
+            // Thumb with shadow & scale feedback
             val thumbOffsetPx = with(density) { (fraction * trackWidth - thumbSize.toPx() / 2).roundToInt() }
             Box(
                 modifier = Modifier
                     .offset { IntOffset(thumbOffsetPx, 0) }
                     .size(thumbSize)
+                    .shadow(
+                        elevation = thumbElevation.dp,
+                        shape = CircleShape,
+                        ambientColor = thumbColor.copy(alpha = 0.35f),
+                        spotColor = thumbColor.copy(alpha = 0.5f),
+                    )
                     .clip(CircleShape)
                     .background(thumbColor)
                     .pointerInput(range, stepSize, defaultValue) {
@@ -197,15 +212,39 @@ fun HasselSlider(
                         )
                     }
             )
+
+            // Snap tick marks (subtle, ColorOS 16 style)
+            if (stepSize > 0f) {
+                val stepCount = ((range.endInclusive - range.start) / stepSize).toInt()
+                if (stepCount in 2..24) {
+                    repeat(stepCount + 1) { i ->
+                        val tickFraction = i / stepCount.toFloat()
+                        Box(
+                            modifier = Modifier
+                                .offset {
+                                    IntOffset(
+                                        (tickFraction * trackWidth - 1.dp.toPx() / 2).roundToInt(),
+                                        0
+                                    )
+                                }
+                                .size(width = 1.dp, height = 4.dp)
+                                .background(
+                                    if (tickFraction <= fraction) thumbColor.copy(alpha = 0.6f)
+                                    else SliderTrackEmpty.copy(alpha = 0.5f)
+                                )
+                        )
+                    }
+                }
+            }
         }
 
-        // Value display
+        // Value display（等宽数字，避免滑动时抖动）
         Text(
             text = format(value),
             color = valueColor,
-            fontSize = with(density) { 12.dp.toSp() },
+            style = EditorTypography.sliderValue,
             modifier = Modifier
-                .width(40.dp)
+                .width(44.dp)
                 .pointerInput(Unit) {
                     detectTapGestures { showInputDialog = true }
                 },

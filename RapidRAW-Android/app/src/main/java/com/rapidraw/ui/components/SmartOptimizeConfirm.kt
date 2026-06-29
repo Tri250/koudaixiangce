@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -59,13 +60,13 @@ fun SmartOptimizeConfirm(
                 Text(
                     text = "智能优化完成",
                     color = TextPrimary,
-                    fontSize = 16.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "已优化",
                     color = HasselbladOrange,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier
                         .background(BadgeBg, RoundedCornerShape(4.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
@@ -91,8 +92,7 @@ fun SmartOptimizeConfirm(
                 Text(
                     text = changes.joinToString("  ·  "),
                     color = TextSecondary,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }

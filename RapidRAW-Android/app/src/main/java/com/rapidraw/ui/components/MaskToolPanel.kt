@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +40,7 @@ import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 enum class MaskType(
     val label: String,
@@ -117,8 +119,7 @@ fun MaskToolPanel(
                             Text(
                                 text = type.label,
                                 color = if (isSelected) EditorBackground else TextSecondary,
-                                fontSize = 10.sp,
-                                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                                style = EditorTypography.badge,
                             )
                         }
                     }
@@ -192,8 +193,8 @@ fun MaskToolPanel(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "反转",
-                            color = if (maskInverted) EditorBackground else TextSecondary,
-                            fontSize = 12.sp,
+                            color = if (isSelected) EditorBackground else TextSecondary,
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
@@ -277,8 +278,7 @@ private fun BrushSettings(
                 Text(
                     text = "绘制",
                     color = if (!isErasing) EditorBackground else TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
             Box(
@@ -291,8 +291,7 @@ private fun BrushSettings(
                 Text(
                     text = "擦除",
                     color = if (isErasing) EditorBackground else TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
@@ -357,8 +356,7 @@ private fun AiMaskSettings(
                     Text(
                         text = "生成中...",
                         color = EditorBackground,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
                     Icon(
@@ -371,8 +369,7 @@ private fun AiMaskSettings(
                     Text(
                         text = if (hasResult) "重新生成遮罩" else "生成遮罩",
                         color = EditorBackground,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
@@ -383,7 +380,7 @@ private fun AiMaskSettings(
             Text(
                 text = "遮罩已生成，可在预览中查看",
                 color = TextTertiary,
-                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelSmall,
             )
         }
     }

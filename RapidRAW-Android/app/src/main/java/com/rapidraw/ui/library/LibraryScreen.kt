@@ -188,8 +188,7 @@ fun LibraryScreen(
                         Text(
                             text = "RapidRAW",
                             color = HasselbladOrange,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.padding(start = 12.dp),
                         )
 
@@ -201,9 +200,9 @@ fun LibraryScreen(
                                 onValueChange = { viewModel.searchImages(it) },
                                 placeholder = {
                                     Text(
-                                        text = "Search files...",
+                                        text = "搜索文件...",
                                         color = TextTertiary,
-                                        fontSize = 14.sp,
+                                        style = MaterialTheme.typography.bodyMedium,
                                     )
                                 },
                                 singleLine = true,
@@ -295,10 +294,9 @@ fun LibraryScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Import",
+                                    text = "导入",
                                     color = EditorBackground,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelSmall,
                                 )
                             }
                         }
@@ -320,8 +318,7 @@ fun LibraryScreen(
                             Text(
                                 text = "RAW",
                                 color = if (filterRaw) EditorBackground else TextSecondary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             )
                         }
@@ -358,7 +355,7 @@ fun LibraryScreen(
                                 Text(
                                     text = folderName,
                                     color = if (isSelected) EditorBackground else TextSecondary,
-                                    fontSize = 13.sp,
+                                    style = MaterialTheme.typography.labelMedium,
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                                 )
                             }
@@ -376,9 +373,9 @@ fun LibraryScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "Loading...",
+                        text = "加载中...",
                         color = TextTertiary,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             } else if (images.isEmpty()) {
@@ -389,9 +386,9 @@ fun LibraryScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "No images found",
+                        text = "未找到图片",
                         color = TextTertiary,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             } else {
@@ -449,20 +446,19 @@ fun LibraryScreen(
                             Text(
                                 text = "批量处理中...",
                                 color = TextPrimary,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium,
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "${batchProgress!!.current} / ${batchProgress!!.total}",
                                 color = TextSecondary,
-                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = batchProgress!!.currentFileName,
                                 color = TextTertiary,
-                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -505,8 +501,7 @@ fun LibraryScreen(
                             Text(
                                 text = "${selectedImages.size} 张已选",
                                 color = TextPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
+                                style = MaterialTheme.typography.titleSmall,
                                 modifier = Modifier.padding(start = 4.dp),
                             )
 
@@ -626,8 +621,7 @@ fun LibraryScreen(
                     Text(
                         text = "选择胶片",
                         color = TextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -654,13 +648,13 @@ fun LibraryScreen(
                             Text(
                                 text = film.displayName,
                                 color = TextPrimary,
-                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
                                 text = film.displayNameEn,
                                 color = TextTertiary,
-                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
                     }
@@ -686,8 +680,7 @@ fun LibraryScreen(
                     Text(
                         text = ctxImage.fileName,
                         color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(bottom = 12.dp),
@@ -706,7 +699,7 @@ fun LibraryScreen(
                         Text(
                             text = "评分和标签",
                             color = TextPrimary,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f),
                         )
                         Row {
@@ -714,7 +707,7 @@ fun LibraryScreen(
                                 Text(
                                     text = "★",
                                     color = if (i < ctxImage.rating) HasselbladOrange else TextTertiary,
-                                    fontSize = 14.sp,
+                                    style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
                         }
@@ -734,7 +727,7 @@ fun LibraryScreen(
                         Text(
                             text = "创建虚拟副本",
                             color = TextPrimary,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                     // 批量选择
@@ -753,7 +746,7 @@ fun LibraryScreen(
                         Text(
                             text = "批量选择",
                             color = TextPrimary,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
@@ -770,7 +763,7 @@ fun LibraryScreen(
                     Text(
                         text = ratingImage.fileName,
                         color = TextPrimary,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -784,21 +777,21 @@ fun LibraryScreen(
                         ) {
                             repeat(5) { i ->
                                 Text(
-                                    text = "★",
-                                    color = if (i < ratingImage.rating) HasselbladOrange else TextTertiary,
-                                    fontSize = 28.sp,
-                                    modifier = Modifier
-                                        .clickable {
-                                            viewModel.updateRating(ratingImage.path, i + 1)
-                                        }
-                                        .padding(2.dp),
-                                )
+                                text = "★",
+                                color = if (i < ratingImage.rating) HasselbladOrange else TextTertiary,
+                                style = MaterialTheme.typography.displayLarge,
+                                modifier = Modifier
+                                    .clickable {
+                                        viewModel.updateRating(ratingImage.path, i + 1)
+                                    }
+                                    .padding(2.dp),
+                            )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "清除",
                                 color = TextSecondary,
-                                fontSize = 13.sp,
+                                style = MaterialTheme.typography.labelMedium,
                                 modifier = Modifier
                                     .clickable {
                                         viewModel.updateRating(ratingImage.path, 0)
@@ -811,7 +804,7 @@ fun LibraryScreen(
                         Text(
                             text = "颜色标签",
                             color = TextSecondary,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelMedium,
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
@@ -851,8 +844,7 @@ fun LibraryScreen(
                     Text(
                         text = "完成",
                         color = HasselbladOrange,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier
                             .clickable { ratingDialogImage = null }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -915,7 +907,7 @@ private fun ImageGridCell(
                 Text(
                     text = image.fileName.take(3).uppercase(),
                     color = TextTertiary,
-                    fontSize = 16.sp,
+                    style = MaterialTheme.typography.titleMedium,
                 )
             }
         }
@@ -932,8 +924,7 @@ private fun ImageGridCell(
                 Text(
                     text = "RAW",
                     color = EditorBackground,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                 )
             }
@@ -971,7 +962,7 @@ private fun ImageGridCell(
                     Text(
                         text = "★",
                         color = HasselbladOrange,
-                        fontSize = 10.sp,
+                        style = MaterialTheme.typography.labelSmall,
                     )
                 }
             }
@@ -981,7 +972,7 @@ private fun ImageGridCell(
         Text(
             text = image.fileName,
             color = TextPrimary,
-            fontSize = 9.sp,
+            style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
@@ -1018,7 +1009,7 @@ private fun BatchActionButton(
         Text(
             text = label,
             color = if (enabled) TextPrimary else TextTertiary,
-            fontSize = 10.sp,
+            style = MaterialTheme.typography.labelSmall,
         )
     }
 }

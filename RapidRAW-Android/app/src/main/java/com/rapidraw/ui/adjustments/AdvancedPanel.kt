@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -67,7 +68,7 @@ fun AdvancedPanel(
             Text(
                 text = "基础调整",
                 color = TextPrimary,
-                fontSize = 16.sp,
+                style = MaterialTheme.typography.headlineSmall,
             )
         }
 
@@ -187,7 +188,7 @@ fun AdvancedPanel(
             Text(
                 text = "HSL",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
 
@@ -207,7 +208,7 @@ fun AdvancedPanel(
                 Text(
                     text = name,
                     color = TextSecondary,
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
                 )
                 HasselSlider(
@@ -241,7 +242,7 @@ fun AdvancedPanel(
             Text(
                 text = "色彩分级",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
 
@@ -305,7 +306,7 @@ fun AdvancedPanel(
             Text(
                 text = "色彩校准",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
 
@@ -321,7 +322,7 @@ fun AdvancedPanel(
             Text(
                 text = "红",
                 color = HasselbladOrange,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
             HasselSlider(
@@ -344,7 +345,7 @@ fun AdvancedPanel(
             Text(
                 text = "绿",
                 color = HasselbladOrange,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
             HasselSlider(
@@ -367,7 +368,7 @@ fun AdvancedPanel(
             Text(
                 text = "蓝",
                 color = HasselbladOrange,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
             HasselSlider(
@@ -467,7 +468,7 @@ fun AdvancedPanel(
             Text(
                 text = "降噪",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
             HasselSlider(
@@ -491,7 +492,7 @@ fun AdvancedPanel(
             Text(
                 text = "色差",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
             HasselSlider(
@@ -523,7 +524,7 @@ fun AdvancedPanel(
             Text(
                 text = "暗角",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
             HasselSlider(
@@ -563,7 +564,7 @@ fun AdvancedPanel(
             Text(
                 text = "颗粒",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
             HasselSlider(
@@ -595,7 +596,7 @@ fun AdvancedPanel(
             Text(
                 text = "光效",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
             HasselSlider(
@@ -635,7 +636,7 @@ fun AdvancedPanel(
             Text(
                 text = "旋转",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
             HasselSlider(
@@ -652,7 +653,7 @@ fun AdvancedPanel(
             Text(
                 text = "透视",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
             HasselSlider(
@@ -750,7 +751,7 @@ fun CollapsibleSection(
             Text(
                 text = title,
                 color = HasselbladOrange,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyMedium,
             )
         }
         AnimatedVisibility(visible = expanded) {

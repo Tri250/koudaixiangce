@@ -36,6 +36,7 @@ import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.theme.EditorTypography
 
 enum class CurveChannel(val label: String) {
     LUMA("Luma"),
@@ -84,8 +85,7 @@ fun CurveEditor(
                     Text(
                         text = channel.label,
                         color = if (isActive) HasselbladOrange else TextTertiary,
-                        fontSize = 13.sp,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                        style = if (isActive) EditorTypography.sliderLabelActive else EditorTypography.sliderLabel,
                     )
                 }
             }
@@ -272,7 +272,7 @@ fun CurveEditor(
         Text(
             text = "Tap to add · Drag to move · Long-press to delete",
             color = TextTertiary,
-            fontSize = 10.sp,
+            style = EditorTypography.badge,
             modifier = Modifier.padding(top = 4.dp)
         )
     }

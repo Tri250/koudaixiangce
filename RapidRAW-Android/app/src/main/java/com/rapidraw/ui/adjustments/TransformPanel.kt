@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Rotate90DegreesCw
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -181,8 +182,7 @@ fun TransformPanel(
                     Text(
                         text = "交互裁剪",
                         color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.titleSmall,
                     )
                 }
             }
@@ -263,8 +263,7 @@ fun TransformPanel(
                     Text(
                         text = "自动拉直",
                         color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.titleSmall,
                     )
                 }
             }
@@ -284,8 +283,7 @@ fun TransformPanel(
             ) {
                 Text(
                     text = "重置旋转",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleSmall,
                 )
             }
         }
@@ -371,11 +369,11 @@ fun TransformPanel(
             onToggle = { lensExpanded = !lensExpanded },
         ) {
             Text(
-                text = "镜头: 未知",
-                color = TextTertiary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
+            text = "镜头: 未知",
+            color = TextTertiary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
             HasselSlider(
                 label = "畸变",
                 value = adjustments.lensDistortion,
@@ -435,13 +433,13 @@ private fun AspectRatioButton(
             Text(
                 text = label,
                 color = if (isSelected) TextPrimary else TextSecondary,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.bodySmall,
             )
             if (subLabel != null) {
                 Text(
                     text = subLabel,
                     color = if (isSelected) TextPrimary else TextTertiary,
-                    fontSize = 8.sp,
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
             if (showIndicator) {
@@ -475,7 +473,7 @@ private fun LensToggleChip(
         Text(
             text = label,
             color = if (isEnabled) TextPrimary else TextSecondary,
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelSmall,
         )
     }
 }
