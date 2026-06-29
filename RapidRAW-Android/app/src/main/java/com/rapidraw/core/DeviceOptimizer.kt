@@ -23,19 +23,34 @@ object DeviceOptimizer {
         "cph2591",   // Find X8 Ultra
         "phz110",    // Find X8 Pro (China)
         "pkc110",    // Find X8 (China)
-        // Find X9 系列（预估型号）
+        // Find X9 系列
         "cph2713",   // Find X9 Pro
-        "cph2701",   // Find X9",
+        "cph2701",   // Find X9
+        "cph2725",   // Find X9 Ultra
+        "phz120",    // Find X9 Pro (China)
+        "pkc120",    // Find X9 (China)
+        // Find X10 系列（未来兼容）
+        "cph2801",   // Find X10
+        "cph2813",   // Find X10 Pro
     )
 
     private val OPPO_FIND_MODELS_PREFIX = listOf(
-        "find x8", "find x9", "findx8", "findx9",
+        "find x8", "find x9", "find x10", "findx8", "findx9", "findx10",
     )
 
     // 默认预览分辨率
     private const val DEFAULT_PREVIEW_RESOLUTION = 1536
     // OPPO Find 高端设备预览分辨率
     private const val OPPO_HIGH_END_PREVIEW_RESOLUTION = 2048
+    // OPPO Find Ultra 设备预览分辨率
+    private const val OPPO_ULTRA_PREVIEW_RESOLUTION = 2560
+
+    // 默认导出线程数
+    private const val DEFAULT_EXPORT_THREADS = 2
+    // OPPO Find 高端设备导出线程数
+    private const val OPPO_HIGH_END_EXPORT_THREADS = 4
+    // OPPO Find Ultra 设备导出线程数
+    private const val OPPO_ULTRA_EXPORT_THREADS = 6
 
     // 缓存检测结果，避免重复字符串操作
     private val manufacturerLower: String by lazy {
@@ -72,11 +87,108 @@ object DeviceOptimizer {
     /**
      * 获取推荐的预览分辨率。
      *
-     * OPPO Find 高端设备使用 2048，其他设备使用 1536。
+     * OPPO Find 高端设备使用 2048，Ultra 设备使用 2560，其他设备使用 1536。
      */
     fun getRecommendedPreviewResolution(): Int {
-        return if (isOppoHighEnd()) OPPO_HIGH_END_PREVIEW_RESOLUTION
-        else DEFAULT_PREVIEW_RESOLUTION
+        return when {
+            isOppoUltra() -> OPPO_ULTRA_PREVIEW_RESOLUTION
+            isOppoHighEnd() -> OPPO_HIGH_END_PREVIEW_RESOLUTION
+            else -> DEFAULT_PREVIEW_RESOLUTION
+        }
+    }
+
+    /**
+     * 判断当前设备是否为 OPPO Find Ultra 旗舰。
+     */
+    fun isOppoUltra(): Boolean {
+        if (!isOppoDevice()) return false
+        return modelLower.contains("ultra") || deviceLower.contains("ultra")
+    }
+
+    /**
+     * 获取最优导出线程数。
+     */
+    fun getOptimalExportThreadCount(): Int {
+        return when {
+            isOppoUltra() -> OPPO_ULTRA_EXPORT_THREADS
+            isOppoHighEnd() -> OPPO_HIGH_END_EXPORT_THREADS
+            else -> DEFAULT_EXPORT_THREADS
+        }
+    }
+
+    /**
+     * 判断设备是否支持 HDR10+ 显示。
+     *
+     * OPPO Find X8/X9 系列支持 HDR10+ 显示输出。
+     */
+    fun supportsHdrDisplay(): Boolean {
+        return isOppoFindDevice() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+    }
+
+    /**
+     * 判断是否支持 Android 16 新特性。
+     */
+    fun supportsAndroid16(): Boolean {
+        return Build.VERSION.SDK_INT >= 36
+    }
+
+    /**
+     * 获取最佳动画时长倍率。
+     *
+     * OPPO Find 系列高性能设备可使用更流畅的动画。
+     */
+    fun getAnimationScale(): Float {
+        return when {
+            isOppoUltra() -> 1.0f
+            isOppoHighEnd() -> 1.0f
+            else -> 1.2f
+        }
+    }
+
+    /**
+     * 是否启用 GPU 加速预览。
+     *
+     * OPPO Find 系列 GPU 性能强劲，可启用 GPU 加速预览。
+     */
+    fun shouldEnableGpuPreview(): Boolean {
+        return isOppoFindDevice() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    }
+
+    /**
+     * 是否启用 10-bit 色深处理。
+     *
+     * OPPO Find 高端设备支持 10-bit 显示和处理。
+     */
+    fun supports10BitProcessing(): Boolean {
+        return isOppoHighEnd() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+    }
+
+    /**
+     * 判断设备是否支持边录边拍等高级相机功能。
+     * 仅用于判断是否显示相关功能入口。
+     */
+    fun supportsAdvancedCameraFeatures(): Boolean {
+        return isOppoFindDevice()
+    }
+
+    /**
+     * 获取推荐的缩略图缓存大小（MB）。
+     */
+    fun getRecommendedThumbnailCacheMb(): Int {
+        return when {
+            isOppoUltra() -> 512
+            isOppoHighEnd() -> 256
+            else -> 128
+        }
+    }
+
+    /**
+     * 是否启用触觉反馈增强。
+     *
+     * OPPO Find 系列配备线性马达，提供更精细的触觉反馈。
+     */
+    fun supportsEnhancedHaptics(): Boolean {
+        return isOppoFindDevice() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     }
 
     /**

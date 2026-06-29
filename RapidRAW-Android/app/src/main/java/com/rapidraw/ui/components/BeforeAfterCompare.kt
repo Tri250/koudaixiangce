@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.TextPrimary
 
-enum class CompareMode { LONG_PRESS, SPLIT_HORIZONTAL, TOGGLE }
+enum class CompareMode { LONG_PRESS, SPLIT_HORIZONTAL, SPLIT_VERTICAL, CIRCLE, TOGGLE }
 
 @Composable
 fun BeforeAfterCompare(
@@ -60,6 +60,16 @@ fun BeforeAfterCompare(
             modifier = modifier,
         )
         CompareMode.SPLIT_HORIZONTAL -> SplitHorizontalCompare(
+            originalBitmap = originalBitmap,
+            editedBitmap = editedBitmap,
+            modifier = modifier,
+        )
+        CompareMode.SPLIT_VERTICAL -> SplitVerticalCompare(
+            originalBitmap = originalBitmap,
+            editedBitmap = editedBitmap,
+            modifier = modifier,
+        )
+        CompareMode.CIRCLE -> CircleCompare(
             originalBitmap = originalBitmap,
             editedBitmap = editedBitmap,
             modifier = modifier,
@@ -286,6 +296,239 @@ private fun SplitHorizontalCompare(
                     .offset(x = (-16).dp, y = 8.dp),
             )
         }
+    }
+}
+
+// ── SPLIT_VERTICAL: Horizontal split line, drag up/down ─────────────
+
+@Composable
+private fun SplitVerticalCompare(
+    originalBitmap: Bitmap?,
+    editedBitmap: Bitmap?,
+    modifier: Modifier = Modifier,
+) {
+    var splitPosition by remember { mutableFloatStateOf(0.5f) }
+    val density = LocalDensity.current
+    val handleWidthPx = with(density) { 2.dp.toPx() }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        if (editedBitmap != null && !editedBitmap.isRecycled) {
+            Image(
+                bitmap = editedBitmap.asImageBitmap(),
+                contentDescription = "Edited",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+            )
+        }
+
+        if (originalBitmap != null && !originalBitmap.isRecycled) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, _ ->
+                            change.consume()
+                            val newSplit = (change.position.y / size.height).coerceIn(0f, 1f)
+                            splitPosition = newSplit
+                        }
+                    },
+            ) {
+                val clipHeight = size.height * splitPosition
+                val clipRect = Rect(
+                    left = 0f,
+                    top = 0f,
+                    right = size.width,
+                    bottom = clipHeight,
+                )
+
+                clipPath(
+                    path = Path().apply { addRect(clipRect) },
+                ) {
+                    val imageBitmap = originalBitmap.asImageBitmap()
+                    val imageSize = imageBitmap.size
+                    if (imageSize.width > 0 && imageSize.height > 0) {
+                        val scale = minOf(
+                            size.width / imageSize.width,
+                            size.height / imageSize.height,
+                        )
+                        val drawWidth = imageSize.width * scale
+                        val drawHeight = imageSize.height * scale
+                        val offsetX = (size.width - drawWidth) / 2f
+                        val offsetY = (size.height - drawHeight) / 2f
+
+                        drawImage(
+                            image = imageBitmap,
+                            dstOffset = IntOffset(offsetX.toInt(), offsetY.toInt()),
+                            dstSize = IntSize(drawWidth.toInt(), drawHeight.toInt()),
+                        )
+                    }
+                }
+            }
+        }
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectDragGestures { change, _ ->
+                        change.consume()
+                        val newSplit = (change.position.y / size.height).coerceIn(0f, 1f)
+                        splitPosition = newSplit
+                    }
+                },
+        ) {
+            val y = size.height * splitPosition
+            drawLine(
+                color = Color.White,
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = handleWidthPx,
+            )
+            drawCircle(
+                color = Color.White,
+                radius = 12.dp.toPx(),
+                center = Offset(size.width / 2f, y),
+            )
+            drawCircle(
+                color = EditorBackground,
+                radius = 10.dp.toPx(),
+                center = Offset(size.width / 2f, y),
+            )
+        }
+
+        if (splitPosition > 0.15f) {
+            Text(
+                text = "原图",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 16.dp, y = 8.dp),
+            )
+        }
+        if (splitPosition < 0.85f) {
+            Text(
+                text = "效果",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = (-16).dp, y = (-8).dp),
+            )
+        }
+    }
+}
+
+// ── CIRCLE: Magnifying glass style, circle shows original/edited ────
+
+@Composable
+private fun CircleCompare(
+    originalBitmap: Bitmap?,
+    editedBitmap: Bitmap?,
+    modifier: Modifier = Modifier,
+) {
+    var center by remember { mutableStateOf(Offset.Zero) }
+    var isInitialized by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val circleRadius = with(density) { 120.dp.toPx() }
+    val haptic = LocalHapticFeedback.current
+
+    Box(modifier = modifier.fillMaxSize()) {
+        if (editedBitmap != null && !editedBitmap.isRecycled) {
+            Image(
+                bitmap = editedBitmap.asImageBitmap(),
+                contentDescription = "Edited",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+            )
+        }
+
+        if (originalBitmap != null && !originalBitmap.isRecycled) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, _ ->
+                            change.consume()
+                            center = change.position
+                            if (!isInitialized) {
+                                isInitialized = true
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures {
+                            center = it
+                            if (!isInitialized) {
+                                isInitialized = true
+                            }
+                        }
+                    },
+            ) {
+                if (!isInitialized) {
+                    center = Offset(size.width / 2f, size.height / 2f)
+                    isInitialized = true
+                }
+
+                val circlePath = Path().apply {
+                    addOval(
+                        Rect(
+                            left = center.x - circleRadius,
+                            top = center.y - circleRadius,
+                            right = center.x + circleRadius,
+                            bottom = center.y + circleRadius,
+                        )
+                    )
+                }
+
+                clipPath(path = circlePath) {
+                    val imageBitmap = originalBitmap.asImageBitmap()
+                    val imageSize = imageBitmap.size
+                    if (imageSize.width > 0 && imageSize.height > 0) {
+                        val scale = minOf(
+                            size.width / imageSize.width,
+                            size.height / imageSize.height,
+                        )
+                        val drawWidth = imageSize.width * scale
+                        val drawHeight = imageSize.height * scale
+                        val offsetX = (size.width - drawWidth) / 2f
+                        val offsetY = (size.height - drawHeight) / 2f
+
+                        drawImage(
+                            image = imageBitmap,
+                            dstOffset = IntOffset(offsetX.toInt(), offsetY.toInt()),
+                            dstSize = IntSize(drawWidth.toInt(), drawHeight.toInt()),
+                        )
+                    }
+                }
+
+                drawCircle(
+                    color = Color.White,
+                    radius = circleRadius,
+                    center = center,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()),
+                )
+
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.3f),
+                    radius = 6.dp.toPx(),
+                    center = center,
+                )
+            }
+        }
+
+        Text(
+            text = "圆形对比",
+            color = Color.White.copy(alpha = 0.7f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = 16.dp, y = 8.dp),
+        )
     }
 }
 
