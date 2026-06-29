@@ -99,8 +99,26 @@ object CrashHandler {
             pw.println()
             throwable.printStackTrace(pw)
         }
-        file.writeText(sw.toString())
+        // v1.5.3 安全加固：对日志做 PII 脱敏，防止用户分享日志时泄露路径/账户名
+        val sanitized = sanitizePii(sw.toString())
+        file.writeText(sanitized)
         Log.e(TAG, "Crash written to ${file.absolutePath}")
+    }
+
+    /**
+     * 脱敏处理：移除/替换日志中的用户路径、账户名、长 URI 等可识别信息。
+     */
+    private fun sanitizePii(text: String): String {
+        return text
+            // 用户主目录路径 → <user_path>
+            .replace(Regex("/storage/emulated/\\d+/[^/\n]+"), "<user_path>")
+            .replace(Regex("/data/data/[^/\n]+"), "<app_data>")
+            // 用户名片段 (如 /Users/john/) → <username>
+            .replace(Regex("/Users/[^/\n]+/"), "/Users/<username>/")
+            // 长十六进制 content URI 标识符 → <id>
+            .replace(Regex("\\b[0-9a-fA-F]{32,}\\b"), "<id>")
+            // email 地址 → <email>
+            .replace(Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"), "<email>")
     }
 
     private fun appVersionName(context: Context): String = runCatching {
