@@ -2,12 +2,10 @@ package com.rapidraw.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.rapidraw.R
 
 /**
  * ColorOS 16 字体系统 — OPPO Find X9 摄影编辑器
@@ -24,13 +22,33 @@ import com.rapidraw.R
  * 1. 若 res/font/ 存在 OPPO Sans 子集，通过 Font(R.font.*) 显式加载
  * 2. 若字体文件缺失或加载失败，自动降级到系统 SansSerif
  * 3. 通过 FontFamily 权重映射，确保 TextStyle fontWeight 生效
+ *
+ * v1.5.3 修复：删除 res/font 中空的 opposans_*.xml（空 font-family 会让
+ * FontFamily 不含任何可用 glyph，导致界面文字渲染异常）。如需启用 OPPO Sans，
+ * 将 OPPO Sans TTF/OTF 放到 res/font/ 后取消下面 loadOPPOSansFamily() 的注释。
  */
 private fun loadOPPOSansFamily(): FontFamily? = try {
-    FontFamily(
-        Font(R.font.opposans_regular, FontWeight.W400, FontStyle.Normal),
-        Font(R.font.opposans_medium, FontWeight.W500, FontStyle.Normal),
-        Font(R.font.opposans_bold, FontWeight.W700, FontStyle.Normal),
-    )
+    val regularId = runCatching {
+        val resId = com.rapidraw.R.font::class.java.getField("opposans_regular").getInt(null)
+        if (resId != 0) resId else null
+    }.getOrNull()
+    val mediumId = runCatching {
+        val resId = com.rapidraw.R.font::class.java.getField("opposans_medium").getInt(null)
+        if (resId != 0) resId else null
+    }.getOrNull()
+    val boldId = runCatching {
+        val resId = com.rapidraw.R.font::class.java.getField("opposans_bold").getInt(null)
+        if (resId != 0) resId else null
+    }.getOrNull()
+    if (regularId == null || mediumId == null || boldId == null) {
+        null
+    } else {
+        FontFamily(
+            androidx.compose.ui.text.font.Font(regularId, FontWeight.W400, FontStyle.Normal),
+            androidx.compose.ui.text.font.Font(mediumId, FontWeight.W500, FontStyle.Normal),
+            androidx.compose.ui.text.font.Font(boldId, FontWeight.W700, FontStyle.Normal),
+        )
+    }
 } catch (_: Exception) {
     null
 }

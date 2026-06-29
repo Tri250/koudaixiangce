@@ -11,8 +11,8 @@ import android.os.LocaleList
 import android.util.Log
 import android.view.View
 import android.view.WindowInsetsController
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -37,7 +37,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Suppress("SpellCheckingInspection")
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
@@ -237,13 +237,21 @@ class MainActivity : ComponentActivity() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val localeManager = getSystemService(LocaleManager::class.java)
-                localeManager?.applicationLocales = LocaleList.forLanguageTags(tag)
+                // 设置空 LocaleList 不会清除；只有 applicationLocales 为 null 才会清空。
+                // 这里总是显式赋一个目标 locale，避免空 LocaleList 在部分 ROM 上崩溃。
+                val list = LocaleList.forLanguageTags(tag)
+                if (!list.isEmpty) {
+                    localeManager?.applicationLocales = list
+                }
             } else {
+                // AppCompat 1.6+ 支持 per-app language，需要 Activity 继承 AppCompatActivity。
                 AppCompatDelegate.setApplicationLocales(
                     androidx.core.os.LocaleListCompat.forLanguageTags(tag)
                 )
             }
         } catch (e: Exception) {
+            // 任何 OEM ROM（特别是 ColorOS/MIUI/HyperOS）对 per-app language 的实现差异较大，
+            // 这里吞掉异常，避免阻塞首屏渲染。
             Log.w(TAG, "Failed to apply per-app language: ${e.message}")
         }
     }

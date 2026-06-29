@@ -10,8 +10,10 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.rapidraw.core.CrashHandler
 import com.rapidraw.data.model.ColorLabel
 import com.rapidraw.data.model.ImageFile
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -85,11 +87,19 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         "dng", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2", "pef", "srw",
     )
 
+    /**
+     * v1.5.3: 全局协程异常 handler，避免 viewModelScope.launch 抛出未捕获异常时直接闪退。
+     * 与主线程 UncaughtExceptionHandler 互不冲突。
+     */
+    private val coroutineExceptionHandler: CoroutineExceptionHandler =
+        CrashHandler.coroutineExceptionHandler(getApplication())
+
     init {
         try {
             loadImages(null)
         } catch (e: Exception) {
             // 防止 MediaStore 查询异常导致崩溃
+            Log.w(TAG, "init loadImages failed", e)
         }
     }
 
@@ -98,7 +108,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         _isLoading.value = true
         _selectedImagePaths.value = emptySet()
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val imageList = queryImages(folder)
             val folderSet = mutableSetOf<String>()
 
@@ -295,7 +305,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      * 获取持久化读取权限并刷新图库（MediaStore 会扫描到新图片）。
      */
     fun importImages(uris: List<Uri>) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             uris.forEach { uri ->
                 try {
                     contentResolver.takePersistableUriPermission(
@@ -313,7 +323,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun searchImages(query: String) {
         _searchQuery.value = query
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val allImages = queryImages(_selectedFolder.value)
             applyFilters(allImages)
         }
@@ -325,7 +335,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             SortOrder.RATING -> SortOrder.NAME
             SortOrder.NAME -> SortOrder.DATE
         }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val allImages = queryImages(_selectedFolder.value)
             applyFilters(allImages)
         }
@@ -333,7 +343,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun toggleFilterRaw() {
         _filterRaw.value = !_filterRaw.value
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val allImages = queryImages(_selectedFolder.value)
             applyFilters(allImages)
         }
@@ -480,7 +490,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         val selected = _selectedImagePaths.value.toList()
         if (selected.isEmpty()) return
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val sidecarManager = com.rapidraw.core.SidecarManager(getApplication())
             for (path in selected) {
                 try {
