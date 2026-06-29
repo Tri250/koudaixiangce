@@ -123,7 +123,7 @@ android {
     lint {
         disable += listOf("MissingTranslation", "UnusedResources")
         abortOnError = false
-        checkReleaseBuilds = false
+        checkReleaseBuilds = true
         checkAllWarnings = true
         warningsAsErrors = false
         xmlReport = true

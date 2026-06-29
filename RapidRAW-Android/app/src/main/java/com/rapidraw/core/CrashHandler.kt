@@ -126,7 +126,12 @@ object CrashHandler {
     }.getOrDefault("?")
 
     private fun appVersionCode(context: Context): Long = runCatching {
+    val pi = context.packageManager.getPackageInfo(context.packageName, 0)
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        pi.longVersionCode
+    } else {
         @Suppress("DEPRECATION")
-        context.packageManager.getPackageInfo(context.packageName, 0).versionCode.toLong()
-    }.getOrDefault(0L)
+        pi.versionCode.toLong()
+    }
+}.getOrDefault(0L)
 }

@@ -72,7 +72,7 @@ class VulkanBackend(private val context: Context) {
 
         // 2. 回退到 OpenGL ES
         try {
-            val gpu = GpuPipeline()
+            val gpu = GpuPipeline(context)
             gpu.initializeOffscreen(1920, 1080)
             gpuPipeline = gpu
             backendInfo = BackendInfo(

@@ -52,8 +52,9 @@ jobs:
           mkdir -p app
           echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
       - name: Build Release APK (with R8)
-        # 在 CI 上保留 disableR8=true 兜底：R8 在容器内存紧张时可能 OOM。
-        run: ./gradlew assembleRelease -PdisableR8=true
+        # R8 开启全量混淆+资源收缩，确保发布包体积最小化。
+        # 若 CI 容器内存不足导致 R8 OOM，可在 gradle.properties 中调大 org.gradle.jvmargs=-Xmx。
+        run: ./gradlew assembleRelease
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:

@@ -33,8 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.content.Context
+import android.content.Intent
 import android.opengl.EGL14
 import android.opengl.EGLExt
+import android.widget.Toast
 import com.rapidraw.core.HdrDisplayManager
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.ui.components.HasselSlider
@@ -307,14 +309,35 @@ fun SettingsScreen(
 
                 ClickableRow(
                     title = "开源许可",
-                    onClick = { /* TODO: Navigate to OSS licenses */ },
+                    onClick = {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://rapidraw.app/oss-licenses"))
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "无法打开浏览器", Toast.LENGTH_SHORT).show()
+                        }
+                    },
                 )
 
                 HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
 
                 ClickableRow(
                     title = "反馈与建议",
-                    onClick = { /* TODO: Navigate to feedback */ },
+                    onClick = {
+                        try {
+                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = android.net.Uri.parse("mailto:feedback@rapidraw.app")
+                                putExtra(Intent.EXTRA_SUBJECT, "RapidRAW 反馈 - v${getAppVersion(context)}")
+                            }
+                            if (intent.resolveActivity(context.packageManager) != null) {
+                                context.startActivity(intent)
+                            } else {
+                                Toast.makeText(context, "未找到邮件应用", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "无法打开邮件", Toast.LENGTH_SHORT).show()
+                        }
+                    },
                 )
             }
 
@@ -489,4 +512,11 @@ private fun isGles3Available(context: Context): Boolean {
     } catch (_: Exception) {
         false
     }
+}
+
+private fun getAppVersion(context: Context): String {
+    return runCatching {
+        val pi = context.packageManager.getPackageInfo(context.packageName, 0)
+        pi.versionName ?: "?"
+    }.getOrDefault("?")
 }

@@ -2,6 +2,8 @@
 <resources>
     <string name="app_name">RapidRAW</string>
     <string name="app_label">RapidRAW Editor</string>
+
+    <!-- 通用操作 -->
     <string name="action_confirm">确认</string>
     <string name="action_cancel">取消</string>
     <string name="action_save">保存</string>
@@ -12,25 +14,123 @@
     <string name="action_apply">应用</string>
     <string name="action_undo">撤销</string>
     <string name="action_redo">重做</string>
+
+    <!-- 底部导航 -->
     <string name="tab_adjust">调整</string>
     <string name="tab_crop">裁剪</string>
     <string name="tab_film">胶片</string>
     <string name="tab_mask">遮罩</string>
     <string name="tab_export">导出</string>
+
+    <!-- AI 功能 -->
     <string name="ai_denoise">AI 去噪</string>
     <string name="ai_inpaint">AI 消除</string>
     <string name="ai_mask">AI 遮罩</string>
     <string name="smart_optimize">智能优化</string>
     <string name="master_presets">大师配方</string>
+
+    <!-- 分析工具 -->
     <string name="waveform_scope">波形监视器</string>
     <string name="before_after">对比</string>
     <string name="histogram">直方图</string>
+
+    <!-- 导出 -->
     <string name="export_processing">正在导出…</string>
     <string name="export_success">导出成功</string>
     <string name="export_failed">导出失败</string>
+
+    <!-- 编辑/侧车 -->
     <string name="sidecar_saved">编辑已保存</string>
     <string name="recipe_shared">配方已分享</string>
     <string name="recipe_imported">配方已导入</string>
+
+    <!-- 权限 -->
     <string name="permission_required">需要存储权限以访问照片</string>
     <string name="grant_permission">授予权限</string>
+
+    <!-- 图库 -->
+    <string name="library_title">图库</string>
+    <string name="library_all">全部</string>
+    <string name="library_dcim">相机</string>
+    <string name="library_downloads">下载</string>
+    <string name="library_screenshots">截图</string>
+    <string name="library_raw_only">仅 RAW</string>
+    <string name="library_starred">收藏</string>
+    <string name="library_search">搜索照片</string>
+    <string name="library_sort">排序</string>
+
+    <!-- 编辑器 -->
+    <string name="editor_title">编辑器</string>
+    <string name="editor_film">胶片</string>
+    <string name="editor_adjust">调整</string>
+    <string name="editor_crop">裁剪</string>
+    <string name="editor_export">导出</string>
+    <string name="editor_undo">撤销</string>
+    <string name="editor_redo">重做</string>
+    <string name="editor_exif">EXIF 信息</string>
+    <string name="editor_original">原图</string>
+    <string name="editor_optimized">优化后</string>
+
+    <!-- 胶片模拟 -->
+    <string name="film_classic">经典</string>
+    <string name="film_emotional">情绪</string>
+    <string name="film_structural">结构</string>
+    <string name="film_no_filter">无滤镜</string>
+
+    <!-- 调整面板 -->
+    <string name="adjust_basic">基础</string>
+    <string name="adjust_color">颜色</string>
+    <string name="adjust_curves">曲线</string>
+    <string name="adjust_details">细节</string>
+    <string name="adjust_effects">效果</string>
+    <string name="adjust_advanced">高级</string>
+    <string name="adjust_transform">变换</string>
+
+    <!-- 裁剪 -->
+    <string name="crop_free">自由</string>
+    <string name="crop_original">原始</string>
+
+    <!-- 导出设置 -->
+    <string name="export_format">格式</string>
+    <string name="export_quality">质量</string>
+    <string name="export_resize">缩放</string>
+    <string name="export_metadata">保留元数据</string>
+    <string name="export_strip_gps">移除 GPS</string>
+    <string name="export_social">社交平台</string>
+    <string name="export_watermark">水印</string>
+    <string name="export_button">导出</string>
+
+    <!-- 菜单 -->
+    <string name="menu_reset">全部重置</string>
+    <string name="menu_smart_optimize">智能优化</string>
+    <string name="menu_copy_params">复制编辑参数</string>
+    <string name="menu_recipe_share">分享配方</string>
+    <string name="menu_ai_inpaint">AI 消除</string>
+    <string name="menu_presets">大师配方</string>
+
+    <!-- AI 消除 -->
+    <string name="ai_inpaint_title">AI 消除</string>
+    <string name="ai_inpaint_brush">画笔</string>
+    <string name="ai_inpaint_erase">橡皮</string>
+    <string name="ai_inpaint_start">开始修复</string>
+    <string name="ai_inpaint_repairing">修复中…</string>
+
+    <!-- 预设 -->
+    <string name="presets_title">大师配方</string>
+    <string name="presets_all">全部</string>
+    <string name="presets_portrait">人像</string>
+    <string name="presets_landscape">风光</string>
+    <string name="presets_night">夜景</string>
+    <string name="presets_street">街拍</string>
+    <string name="presets_food">美食</string>
+
+    <!-- 权限 -->
+    <string name="permission_storage">需要存储权限以访问照片</string>
+
+    <!-- 设置 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_theme">主题</string>
+    <string name="settings_dark">深色</string>
+    <string name="settings_light">浅色</string>
+    <string name="settings_about">关于</string>
 </resources>
