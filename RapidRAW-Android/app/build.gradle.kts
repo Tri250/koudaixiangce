@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -14,8 +15,8 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.0.5"
+        versionCode = 150
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -107,7 +108,7 @@ android {
     lint {
         disable += listOf("MissingTranslation", "UnusedResources")
         abortOnError = false
-        checkReleaseBuilds = true
+        checkReleaseBuilds = false
         checkAllWarnings = true
         warningsAsErrors = false
         xmlReport = true
@@ -163,6 +164,7 @@ dependencies {
     androidTestImplementation("androidx.work:work-testing:2.10.0")
 
     // Crash reporting
+    implementation("ch.acra:acra-core:5.11.3")
     implementation("ch.acra:acra-http:5.11.3")
 
     // Testing

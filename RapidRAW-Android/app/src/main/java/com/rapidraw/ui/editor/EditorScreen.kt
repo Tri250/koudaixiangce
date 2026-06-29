@@ -2,6 +2,7 @@ package com.rapidraw.ui.editor
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,6 +76,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -93,6 +95,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -104,6 +107,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -118,21 +122,29 @@ import com.rapidraw.data.model.ImageFile
 import com.rapidraw.data.model.ResizeMode
 import com.rapidraw.ui.adjustments.AdvancedPanel
 import com.rapidraw.ui.adjustments.QuickAdjustPanel
+import com.rapidraw.ui.components.ColorScienceSheet
+import com.rapidraw.ui.components.EditHistoryPanel
+import com.rapidraw.ui.components.HdrExportSheet
 import com.rapidraw.ui.components.HistogramView
+import com.rapidraw.ui.components.LiquidGlassSurface
+import com.rapidraw.ui.components.LutLibrarySheet
 import com.rapidraw.ui.components.MaskOverlay
 import com.rapidraw.ui.components.MaskToolPanel
 import com.rapidraw.ui.components.MaskType
-import com.rapidraw.ui.components.SmartOptimizeConfirm
-import com.rapidraw.ui.components.LiquidGlassSurface
 import com.rapidraw.ui.components.RecipeShareSheet
+import com.rapidraw.ui.components.SmartOptimizeConfirm
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.EditorSurfaceVariant
 import com.rapidraw.ui.theme.HasselbladOrange
+import com.rapidraw.ui.theme.HasselbladOrangeLight
+import com.rapidraw.ui.theme.Motion
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.core.toColorScienceConfig
+import com.rapidraw.core.toHdrConfig
 import kotlinx.coroutines.launch
 
 // 2026 OPPO Find X9 布局：底部 5 Tab（拇指友好，高频功能直达）
@@ -170,6 +182,8 @@ fun EditorScreen(
     val isAiProcessing by viewModel.isAiProcessing.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // 消费一次性事件：错误提示 / 导出完成
     LaunchedEffect(event) {
@@ -442,8 +456,8 @@ fun EditorScreen(
                                 val event = awaitPointerEvent()
                                 val changes = event.changes
                                 if (changes.isNotEmpty()) {
-                                    val zoom = calculateZoom(changes)
-                                    val pan = calculatePan(changes)
+                                    val zoom = event.calculateZoom()
+                                    val pan = event.calculatePan()
                                     val newZoom = (zoomStart * zoom).coerceIn(0.5f, 5f)
                                     viewModel.setZoomLevel(newZoom)
                                     panOffset = Offset(
@@ -466,7 +480,7 @@ fun EditorScreen(
 
                                 // 手势结束：启动惯性动画
                                 if (lastVelocity.getDistance() > 0.5f) {
-                                    launch {
+                                    scope.launch {
                                         animOffsetX.snapTo(panOffset.x)
                                         animOffsetY.snapTo(panOffset.y)
                                         animOffsetX.animateDecay(
@@ -474,7 +488,7 @@ fun EditorScreen(
                                             exponentialDecay(frictionMultiplier = 2f),
                                         )
                                     }
-                                    launch {
+                                    scope.launch {
                                         animOffsetY.animateDecay(
                                             lastVelocity.y,
                                             exponentialDecay(frictionMultiplier = 2f),
@@ -1126,9 +1140,7 @@ fun EditorScreen(
         // Snackbar for errors / export completion
         SnackbarHost(
             hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp),
+            modifier = Modifier.padding(bottom = 16.dp),
         )
     }
 
@@ -1259,7 +1271,7 @@ fun EditorScreen(
             viewModel.applyLut(entry, intensity)
         },
         onImportRequest = { lutPicker.launch(arrayOf("*/*")) },
-        onToggleFavorite = { id -> viewModel.lutLibrary.toggleFavorite(id) },
+        onToggleFavorite = { id -> scope.launch { viewModel.lutLibrary.toggleFavorite(id) } },
         onDismiss = { viewModel.hideLutLibrary() },
     )
 
@@ -1275,6 +1287,7 @@ fun EditorScreen(
         onCreateBranch = { entry -> viewModel.createBranchFromEntry(entry) },
         onDismiss = { viewModel.hideEditHistory() },
     )
+}
 }
 
 // ── Film Panel (3×3 grid) ───────────────────────────────────────────────

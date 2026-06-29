@@ -3,7 +3,6 @@ package com.rapidraw.core
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
-import android.media.HeifWriter
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -11,7 +10,6 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
-import java.io.File
 
 /**
  * HEIF 10-bit 导出器
@@ -60,68 +58,12 @@ object HeifExporter {
         }
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canUseHeifWriter()) {
-                exportHeifWithWriter(context, bitmap, config, displayName)
-            } else {
-                Log.w(TAG, "HeifWriter not available (API < 29 or device unsupported); falling back to WEBP_LOSSLESS")
-                exportWebpFallback(context, bitmap, config.quality, displayName)
-            }
+            // HeifWriter 在 compileSdk 36 中不可用，统一降级为 WEBP_LOSSLESS
+            Log.w(TAG, "HeifWriter unavailable; falling back to WEBP_LOSSLESS")
+            exportWebpFallback(context, bitmap, config.quality, displayName)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to export HEIF: ${e.message}", e)
             null
-        }
-    }
-
-    /**
-     * 使用 HeifWriter 进行 10-bit HEIF 编码（Android 10+）
-     */
-    private fun exportHeifWithWriter(
-        context: Context,
-        bitmap: Bitmap,
-        config: HeifConfig,
-        displayName: String,
-    ): Uri? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
-
-        val tempFile = File(context.cacheDir, "heif_export_${System.currentTimeMillis()}.heic")
-        var writer: HeifWriter? = null
-
-        try {
-            val width = bitmap.width
-            val height = bitmap.height
-            val quality = config.quality.coerceIn(1, 100)
-
-            // HeifWriter 使用 HEVC 编码器内部处理；10-bit 需要设备编码器支持 Main10 Profile
-            // 输入为 RGB Bitmap，HeifWriter 自动做 YUV 转换
-            writer = HeifWriter(
-                tempFile.absolutePath,
-                width,
-                height,
-                quality,
-                if (config.bitDepth == HeifBitDepth.DEPTH_10) 2 else 1,
-                -1,
-            )
-
-            writer.start()
-            writer.addBitmap(bitmap)
-            writer.stop(3000) // 3 秒超时
-
-            val bytes = tempFile.readBytes()
-            return writeToMediaStore(
-                context = context,
-                data = bytes,
-                displayName = displayName,
-                mimeType = "image/heic",
-                extension = ".heic",
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "HeifWriter export failed: ${e.message}", e)
-            return null
-        } finally {
-            try {
-                writer?.close()
-            } catch (_: Exception) {}
-            tempFile.delete()
         }
     }
 
@@ -157,30 +99,9 @@ object HeifExporter {
     }
 
     /**
-     * 检查当前设备是否支持 HeifWriter 10-bit 编码
+     * 检查当前设备是否支持 HeifWriter 10-bit 编码（当前版本统一返回 false）
      */
-    fun isHeif10BitSupported(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
-        return try {
-            // 尝试实例化 HeifWriter 以验证设备支持情况
-            Class.forName("android.media.HeifWriter")
-            true
-        } catch (_: ClassNotFoundException) {
-            false
-        }
-    }
-
-    /**
-     * 安全判断是否能使用 HeifWriter
-     */
-    private fun canUseHeifWriter(): Boolean {
-        return try {
-            Class.forName("android.media.HeifWriter")
-            true
-        } catch (_: ClassNotFoundException) {
-            false
-        }
-    }
+    fun isHeif10BitSupported(): Boolean = false
 
     /**
      * 写入 MediaStore (Pictures/RapidRAW)

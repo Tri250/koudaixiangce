@@ -13,9 +13,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import com.rapidraw.ui.theme.HasselbladOrange
 
 private const val MASK_OVERLAY_ALPHA = 0.5f
@@ -146,12 +146,11 @@ private fun LinearGradientOverlay(
 
         drawRect(
             brush = Brush.horizontalGradient(
-                colors = colors,
-                stops = stops,
+                colorStops = colors.zip(stops) { color, stop -> stop to color }.toTypedArray(),
             ),
         )
 
-        val lineStrokeWidth = with(LocalDensity.current) { 1.dp.toPx() }
+        val lineStrokeWidth = 1.dp.toPx()
 
         drawLine(
             color = Color.White.copy(alpha = 0.4f),
@@ -207,15 +206,14 @@ private fun RadialGradientOverlay(
 
         drawRect(
             brush = Brush.radialGradient(
-                colors = colors,
+                colorStops = colors.zip(stops) { color, stop -> stop to color }.toTypedArray(),
                 center = center,
                 radius = radius,
-                stops = stops,
             ),
         )
 
-        val crossSize = with(LocalDensity.current) { 8.dp.toPx() }
-        val lineStrokeWidth = with(LocalDensity.current) { 1.dp.toPx() }
+        val crossSize = 8.dp.toPx()
+        val lineStrokeWidth = 1.dp.toPx()
         drawLine(
             color = Color.White.copy(alpha = 0.5f),
             start = Offset(center.x - crossSize, center.y),

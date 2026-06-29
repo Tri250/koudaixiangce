@@ -235,7 +235,7 @@ fun CurveEditor(
             }
 
             // Drag overlay layer (transparent, handles drag gestures)
-            Canvas(
+            Box(
                 modifier = Modifier
                     .matchParentSize()
                     .pointerInput(activeChannel, internalPoints) {

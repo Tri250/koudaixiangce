@@ -228,7 +228,7 @@ class LutManager(private val context: Context) {
      * 导入 .cube 文件
      */
     fun importLut(file: File): Boolean {
-        val lut = parser.parse(file) ?: return false
+        val lut = parser.parseFile(file) ?: return false
         return importLut(lut, file.nameWithoutExtension)
     }
 
@@ -283,6 +283,6 @@ class LutManager(private val context: Context) {
      */
     fun loadLut(id: String): CubeLutParser.Lut3D? {
         val entry = _luts.value.find { it.id == id } ?: return null
-        return parser.parse(File(entry.filePath))
+        return parser.parseFile(File(entry.filePath))
     }
 }

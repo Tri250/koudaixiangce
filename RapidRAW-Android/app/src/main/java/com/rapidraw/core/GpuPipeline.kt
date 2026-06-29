@@ -8,6 +8,7 @@ import android.opengl.GLES30
 import android.opengl.GLUtils
 import android.opengl.Matrix
 import android.util.Log
+import com.rapidraw.R
 import com.rapidraw.data.model.Adjustments
 import java.nio.ByteBuffer
 import java.nio.ByteOrder

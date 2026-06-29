@@ -37,7 +37,7 @@ object ColorMath {
         val min = minOf(r, g, b)
         val delta = max - min
 
-        val h: Float
+        var h: Float
         val s: Float
         val v = max
 

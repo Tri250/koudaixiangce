@@ -209,15 +209,16 @@ private fun SplitHorizontalCompare(
                     path = Path().apply { addRect(clipRect) },
                 ) {
                     val imageBitmap = originalBitmap.asImageBitmap()
-                    val imageSize = imageBitmap.size
-                    if (imageSize.width > 0 && imageSize.height > 0) {
+                    val imageWidth = imageBitmap.width
+                    val imageHeight = imageBitmap.height
+                    if (imageWidth > 0 && imageHeight > 0) {
                         // Calculate Fit content scale
                         val scale = minOf(
-                            size.width / imageSize.width,
-                            size.height / imageSize.height,
+                            size.width / imageWidth,
+                            size.height / imageHeight,
                         )
-                        val drawWidth = imageSize.width * scale
-                        val drawHeight = imageSize.height * scale
+                        val drawWidth = imageWidth * scale
+                        val drawHeight = imageHeight * scale
                         val offsetX = (size.width - drawWidth) / 2f
                         val offsetY = (size.height - drawHeight) / 2f
 

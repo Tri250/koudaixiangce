@@ -35,6 +35,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextSecondary
 import kotlin.math.abs
@@ -104,7 +105,7 @@ fun InteractiveCropOverlay(
                 .pointerInput(activeHandle, selectedAspect) {
                     detectDragGestures(
                         onDragStart = { offset ->
-                            val normalized = offset.toNormalized(size)
+                            val normalized = offset.toNormalized(size.toSize())
                             activeHandle = hitTest(normalized, cropRect)
                         },
                         onDrag = { change, dragAmount ->

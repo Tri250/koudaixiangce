@@ -22,6 +22,7 @@ import com.rapidraw.data.model.WatermarkAnchor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import java.io.OutputStream
@@ -466,28 +467,28 @@ class ImageProcessor {
             val inputStream = context.contentResolver.openInputStream(uri) ?: return ExifData() to 0
             inputStream.use { stream ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    val exifInterface = android.media.ExifInterface(stream)
+                    val exifInterface = androidx.exifinterface.media.ExifInterface(stream)
                     orientation = when (exifInterface.getAttributeInt(
-                        android.media.ExifInterface.TAG_ORIENTATION,
-                        android.media.ExifInterface.ORIENTATION_NORMAL
+                        androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
+                        androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
                     )) {
-                        android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90
-                        android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180
-                        android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270
                         else -> 0
                     }
 
                     val exifData = ExifData(
-                        make = exifInterface.getAttribute(android.media.ExifInterface.TAG_MAKE),
-                        model = exifInterface.getAttribute(android.media.ExifInterface.TAG_MODEL),
-                        dateTime = exifInterface.getAttribute(android.media.ExifInterface.TAG_DATETIME),
-                        iso = exifInterface.getAttributeInt(android.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0)
+                        make = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE),
+                        model = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL),
+                        dateTime = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME),
+                        iso = exifInterface.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0)
                             .takeIf { it > 0 }?.toString(),
-                        shutterSpeed = exifInterface.getAttributeDouble(android.media.ExifInterface.TAG_EXPOSURE_TIME, 0.0)
+                        shutterSpeed = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, 0.0)
                             .takeIf { it > 0.0 }?.toString(),
-                        focalLength = exifInterface.getAttributeDouble(android.media.ExifInterface.TAG_FOCAL_LENGTH, 0.0)
+                        focalLength = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, 0.0)
                             .takeIf { it > 0.0 }?.toString(),
-                        aperture = exifInterface.getAttributeDouble(android.media.ExifInterface.TAG_F_NUMBER, 0.0)
+                        aperture = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, 0.0)
                             .takeIf { it > 0.0 }?.toString(),
                     )
                     return exifData to orientation
@@ -554,7 +555,7 @@ class ImageProcessor {
                 ?: throw IllegalArgumentException("Cannot open URI for thumbnail")
             inputStream.use { stream ->
                 val exifInterface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    android.media.ExifInterface(stream)
+                    androidx.exifinterface.media.ExifInterface(stream)
                 } else {
                     throw IllegalArgumentException("Cannot extract thumbnail on API < 24")
                 }
@@ -909,11 +910,11 @@ class ImageProcessor {
                     }
                     2 -> { // ACES 2.0
                         val acesResult = ColorScience.aces2ToneMap(r, g, b)
-                        r = acesResult[0]; g = acesResult[1]; b = acesResult[2]
+                        r = acesResult.first; g = acesResult.second; b = acesResult.third
                     }
                     3 -> { // OpenDRT
                         val openDrtResult = ColorScience.openDrtToneMap(r, g, b)
-                        r = openDrtResult[0]; g = openDrtResult[1]; b = openDrtResult[2]
+                        r = openDrtResult.first; g = openDrtResult.second; b = openDrtResult.third
                     }
                     else -> { // Standard - no tone mapping, linear to sRGB handles it
                     }
@@ -1982,7 +1983,7 @@ class ImageProcessor {
      * @param adj Normalized adjustments containing CDL parameters
      * @return New pixel array with CDL grading applied
      */
-    fun applyCdlGrading(pixels: IntArray, w: Int, h: Int, adj: NormAdj): IntArray {
+    private fun applyCdlGrading(pixels: IntArray, w: Int, h: Int, adj: NormAdj): IntArray {
         // Check if any CDL adjustment is non-zero
         val hasCdl = abs(adj.cdlShadowsR) > 1e-6f || abs(adj.cdlShadowsG) > 1e-6f ||
             abs(adj.cdlShadowsB) > 1e-6f || abs(adj.cdlMidtonesR) > 1e-6f ||
@@ -2114,7 +2115,7 @@ class ImageProcessor {
                 displayName = "RapidRAW_${System.currentTimeMillis()}"
             )
             if (exportBitmap !== bitmap) exportBitmap.recycle()
-            return heifUri ?: throw RuntimeException("HEIF export failed")
+            return@withContext heifUri ?: throw RuntimeException("HEIF export failed")
         }
 
         // Write to temporary file first (required for EXIF writing)
@@ -2284,6 +2285,7 @@ class ImageProcessor {
                 writeUncompressedTiff(bitmap, outputStream)
             }
             ExportFormat.JPEG -> bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+            else -> Unit
         }
         outputStream.flush()
     }

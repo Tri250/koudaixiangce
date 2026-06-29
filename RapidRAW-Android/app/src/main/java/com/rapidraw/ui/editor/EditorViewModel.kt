@@ -14,10 +14,13 @@ import com.rapidraw.core.AiMaskGenerator
 import com.rapidraw.core.AutoStraightener
 import com.rapidraw.core.CubeLutParser
 import com.rapidraw.core.EditHistorySnapshot
+import com.rapidraw.core.ColorScience
 import com.rapidraw.core.FlowMaskManager
 import com.rapidraw.core.GpuPipeline
+import com.rapidraw.core.HdrExporter
 import com.rapidraw.core.HighlightReconstructor
 import com.rapidraw.core.ImageProcessor
+import com.rapidraw.core.LutLibraryManager
 import com.rapidraw.core.LutManager
 import com.rapidraw.core.NegativeConverter
 import com.rapidraw.core.SceneClassifier
@@ -25,6 +28,10 @@ import com.rapidraw.core.SceneType
 import com.rapidraw.core.SidecarManager
 import com.rapidraw.core.SmartOptimizer
 import com.rapidraw.core.UserPreferenceLearning
+import com.rapidraw.core.copyWithColorScience
+import com.rapidraw.core.copyWithHdrConfig
+import com.rapidraw.core.toColorScienceConfig
+import com.rapidraw.core.toHdrConfig
 import com.rapidraw.data.model.Adjustments
 import com.rapidraw.data.model.EditHistoryEntry
 import com.rapidraw.data.model.EditHistoryTree
@@ -192,8 +199,8 @@ class EditorViewModel(
     // endregion
 
     // region Internal State
-    private val undoStack = ArrayDeque<Adjustments>(maxSize = 50)
-    private val redoStack = ArrayDeque<Adjustments>(maxSize = 50)
+    private val undoStack = ArrayDeque<Adjustments>(50)
+    private val redoStack = ArrayDeque<Adjustments>(50)
 
     // 所有 Bitmap 状态通过 bitmapMutex 保护，避免并发访问/回收导致崩溃
     private val bitmapMutex = Mutex()
@@ -779,8 +786,10 @@ class EditorViewModel(
 
     // region Flow Mask
     fun initFlowMask() {
-        val source = bitmapMutex.withLock { previewBitmapCache?.takeIf { !it.isRecycled } }
-        source?.let { flowMaskManager = FlowMaskManager(it.width, it.height) }
+        viewModelScope.launch {
+            val source = bitmapMutex.withLock { previewBitmapCache?.takeIf { !it.isRecycled } }
+            source?.let { flowMaskManager = FlowMaskManager(it.width, it.height) }
+        }
     }
 
     fun paintFlowMask(x: Float, y: Float, brushSize: Float, opacity: Float, hardness: Float) {

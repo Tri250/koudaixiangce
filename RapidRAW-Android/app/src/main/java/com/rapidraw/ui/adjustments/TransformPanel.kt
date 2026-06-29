@@ -78,7 +78,7 @@ fun TransformPanel(
                 AspectRatioButton(
                     label = "自由",
                     isSelected = adjustments.crop?.aspectRatio == null,
-                    onClick = { onUpdate("cropAspectRatio", null) },
+                    onClick = { onUpdate("cropAspectRatio", 0f) },
                     modifier = Modifier.weight(1f),
                 )
                 AspectRatioButton(

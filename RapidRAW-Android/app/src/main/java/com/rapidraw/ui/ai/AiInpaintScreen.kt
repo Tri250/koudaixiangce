@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.rapidraw.ui.ai
 
 import android.graphics.Bitmap

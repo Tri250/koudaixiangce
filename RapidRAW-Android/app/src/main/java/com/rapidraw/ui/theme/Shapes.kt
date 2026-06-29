@@ -1,8 +1,8 @@
 package com.rapidraw.ui.theme
 
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 /**
@@ -24,22 +24,22 @@ import androidx.compose.ui.unit.dp
 object AppShapes {
 
     /** 小圆角 8dp：Badge、Chip、小按钮、标签 */
-    val Small: Shape = RoundedCornerShape(8.dp)
+    val Small: CornerBasedShape = RoundedCornerShape(8.dp)
 
     /** 中圆角 16dp：卡片、输入框、滑块容器（默认） */
-    val Medium: Shape = RoundedCornerShape(16.dp)
+    val Medium: CornerBasedShape = RoundedCornerShape(16.dp)
 
     /** 大圆角 24dp：底部面板、弹窗、抽屉 */
-    val Large: Shape = RoundedCornerShape(24.dp)
+    val Large: CornerBasedShape = RoundedCornerShape(24.dp)
 
     /** 超大圆角 28dp：全屏模态、Hero 卡片、液态玻璃浮层 */
-    val XLarge: Shape = RoundedCornerShape(28.dp)
+    val XLarge: CornerBasedShape = RoundedCornerShape(28.dp)
 
     /** 胶囊形：Tab 指示器、开关、浮动按钮 */
-    val Pill: Shape = RoundedCornerShape(50)
+    val Pill: CornerBasedShape = RoundedCornerShape(50)
 
     /** 顶部圆角 24dp（底部面板顶部圆角，底部直角） */
-    val TopLarge: Shape = RoundedCornerShape(
+    val TopLarge: CornerBasedShape = RoundedCornerShape(
         topStart = 24.dp,
         topEnd = 24.dp,
         bottomEnd = 0.dp,
@@ -47,7 +47,7 @@ object AppShapes {
     )
 
     /** 顶部圆角 28dp（全屏底部抽屉） */
-    val TopXLarge: Shape = RoundedCornerShape(
+    val TopXLarge: CornerBasedShape = RoundedCornerShape(
         topStart = 28.dp,
         topEnd = 28.dp,
         bottomEnd = 0.dp,
@@ -55,13 +55,13 @@ object AppShapes {
     )
 
     /** 底部面板顶部圆角 + 顶部把手区域（仅顶角 24dp） */
-    val BottomSheet: Shape = TopLarge
+    val BottomSheet: CornerBasedShape = TopLarge
 
     /** 液态玻璃浮层圆角（28dp，柔和玻璃边缘） */
-    val LiquidGlass: Shape = XLarge
+    val LiquidGlass: CornerBasedShape = XLarge
 
     /** 取景器四角直角（摄影取景框，无圆角） */
-    val Viewfinder: Shape = RoundedCornerShape(0.dp)
+    val Viewfinder: CornerBasedShape = RoundedCornerShape(0.dp)
 }
 
 /**

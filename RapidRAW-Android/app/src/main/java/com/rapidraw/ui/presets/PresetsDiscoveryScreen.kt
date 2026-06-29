@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.rapidraw.ui.presets
 
 import androidx.compose.foundation.background
@@ -212,7 +214,7 @@ private fun PresetCard(
         )
 
         Text(
-            text = preset.description,
+            text = preset.description ?: "",
             color = TextTertiary,
             fontSize = 12.sp,
             maxLines = 1,
@@ -222,7 +224,7 @@ private fun PresetCard(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = preset.category,
+            text = preset.category ?: "",
             color = HasselbladOrange,
             fontSize = 11.sp,
         )

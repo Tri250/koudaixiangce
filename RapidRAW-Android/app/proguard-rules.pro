@@ -70,3 +70,7 @@
 # OkHttp / ACRA HTTP sender
 -dontwarn okhttp3.**
 -dontwarn retrofit2.**
+
+# AutoService annotation processor references (not used at runtime)
+-dontwarn javax.annotation.processing.AbstractProcessor
+-dontwarn javax.annotation.processing.SupportedOptions

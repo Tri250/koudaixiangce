@@ -108,7 +108,6 @@ class HapticSliderState(
     private val snapThreshold: Float = 2f,
 ) {
     var lastValue by mutableFloatStateOf(defaultValue)
-        private set
 
     private var hasSnappedToZero by mutableStateOf(false)
 

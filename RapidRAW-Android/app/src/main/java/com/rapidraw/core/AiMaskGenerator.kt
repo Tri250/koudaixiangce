@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 /**
@@ -16,7 +17,7 @@ import kotlin.math.sqrt
  * 注：前身为 AiMaskGenerator，因不使用 AI/ML 模型而重命名以避免误导。
  * 保留 AiMaskGenerator 类型别名以兼容现有引用。
  */
-class HeuristicMaskGenerator {
+class AiMaskGenerator {
 
     enum class MaskType { SKY, SUBJECT, FOREGROUND, DEPTH }
 
@@ -87,10 +88,10 @@ class HeuristicMaskGenerator {
                         val b = (pixels[idx] and 0xFF)
                         
                         val colorDist = sqrt(
-                            (r - avgR).pow(2) + (g - avgG).pow(2) + (b - avgB).pow(2)
+                            (r - avgR).toFloat().pow(2f) + (g - avgG).toFloat().pow(2f) + (b - avgB).toFloat().pow(2f)
                         ) / 441f // 归一化到 [0,1]
-                        
-                        val centerDist = sqrt((x - cx).pow(2) + (y - cy).pow(2)) / maxDist
+
+                        val centerDist = sqrt((x - cx).pow(2f) + (y - cy).pow(2f)) / maxDist
                         val centerBias = 1f - centerDist * 0.5f
                         
                         val subjectScore = (colorDist * 0.7f + centerBias * 0.3f).coerceIn(0f, 1f)
@@ -276,5 +277,4 @@ class HeuristicMaskGenerator {
     private fun Float.pow(n: Float): Float = Math.pow(this.toDouble(), n.toDouble()).toFloat()
 }
 
-/** 向后兼容别名 */
-typealias AiMaskGenerator = HeuristicMaskGenerator
+

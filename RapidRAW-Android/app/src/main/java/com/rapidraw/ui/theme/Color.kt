@@ -161,7 +161,9 @@ object ColorOS16Colors {
 // ── 哈苏橙主色系（保持名称兼容）──────────────────────────────────
 val HasselbladOrange = ColorOS16Colors.HasselbladOrangeCore
 val HasselbladOrangeLight = ColorOS16Colors.HasselbladOrangeBright
+val HasselbladOrangeBright = ColorOS16Colors.HasselbladOrangeBright
 val HasselbladOrangeDark = ColorOS16Colors.HasselbladOrangeDeep
+val HasselbladOrangeDeep = ColorOS16Colors.HasselbladOrangeDeep
 val HasselbladOrangeMuted = ColorOS16Colors.HasselbladOrangeGlow
 
 // ── 暗色系（升级到 AMOLED 深黑 + 分层表面）──────────────────────

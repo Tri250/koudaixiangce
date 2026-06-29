@@ -533,6 +533,7 @@ fun ExportSheet(
             }
             ExportFormat.PNG -> (20f * resizeMultiplier).coerceIn(1f, 50f)
             ExportFormat.TIFF -> (40f * resizeMultiplier).coerceIn(2f, 80f)
+            else -> 0f
         }
         val sizeText = if (estimatedSize >= 1f) {
             "${estimatedSize.roundToInt()} MB (预估)"

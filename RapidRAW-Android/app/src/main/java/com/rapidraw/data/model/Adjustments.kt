@@ -228,6 +228,7 @@ data class Adjustments(
 
     // ── Masks ─────────────────────────────────────────────────
     val masks: List<MaskContainer> = emptyList(),
+    val flowMaskIntensity: Float = 100f,
 
     // ── AI Patches ────────────────────────────────────────────
     val aiPatches: List<AiPatch> = emptyList(),

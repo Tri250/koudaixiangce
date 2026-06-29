@@ -3,6 +3,7 @@ package com.rapidraw.core
 import android.content.Context
 import android.content.SharedPreferences
 import com.rapidraw.data.model.Adjustments
+import com.rapidraw.data.model.FilmSimulation
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 

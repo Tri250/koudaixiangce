@@ -16,6 +16,7 @@ import java.io.FileOutputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.log2
 import kotlin.math.max
@@ -778,7 +779,7 @@ object HdrExporter {
         val tempHeif = File(context.cacheDir, "hdr_heif_${System.currentTimeMillis()}.heif")
         FileOutputStream(tempHeif).use { fos ->
             @Suppress("DEPRECATION")
-            bitmap.compress(Bitmap.CompressFormat.HEIF, 95, fos)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
         }
 
         // 尝试写入 HDR Exif 元数据（Content Light Level、Mastering Display）

@@ -80,7 +80,7 @@ import java.util.Locale
  *
  * 管理项目列表、创建、删除与打开操作。
  */
-internal class ProjectManagerViewModel(application: Application) : AndroidViewModel(application) {
+class ProjectManagerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ProjectRepository(application)
 
@@ -304,7 +304,7 @@ fun ProjectManagerScreen(
             },
             text = {
                 Text(
-                    text = "确定要删除项目 "${deleteProject.name}" 吗？此操作不可撤销。",
+                    text = "确定要删除项目 \"${deleteProject.name}\" 吗？此操作不可撤销。",
                     color = TextSecondary,
                     fontSize = 14.sp,
                 )

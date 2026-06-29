@@ -46,7 +46,7 @@ class FilmGrainRenderer {
 
         // Phase 1: 泊松盘采样生成颗粒中心
         val centers = poissonDiskSampling(width, height, grainSize * 2f)
-        val random = Random(System.currentTimeMillis())
+        val random = java.util.Random(System.currentTimeMillis())
 
         // Phase 2: 每个颗粒使用对数正态分布生成大小和透明度
         for (center in centers) {
