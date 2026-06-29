@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- ═══════════════════════════════════════════════════════════════
+         App
+         ═══════════════════════════════════════════════════════════════ -->
     <string name="app_name">RapidRAW</string>
     <string name="app_label">RapidRAW Editor</string>
-    <string name="action_confirm">确认</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Common Actions
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="action_confirm">确定</string>
     <string name="action_cancel">取消</string>
     <string name="action_save">保存</string>
     <string name="action_export">导出</string>
@@ -12,25 +19,652 @@
     <string name="action_apply">应用</string>
     <string name="action_undo">撤销</string>
     <string name="action_redo">重做</string>
-    <string name="tab_adjust">调整</string>
-    <string name="tab_crop">裁剪</string>
-    <string name="tab_film">胶片</string>
-    <string name="tab_mask">遮罩</string>
-    <string name="tab_export">导出</string>
+    <string name="action_done">完成</string>
+    <string name="action_accept">接受</string>
+    <string name="action_create">创建</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_import">导入</string>
+    <string name="action_back">返回</string>
+    <string name="action_next">下一步</string>
+    <string name="action_skip">跳过</string>
+    <string name="action_copy">复制</string>
+    <string name="action_paste">粘贴</string>
+    <string name="action_grant_permission">授予权限</string>
+    <string name="action_later">稍后授权</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Library Screen
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="library_title">图库</string>
+    <string name="library_all">全部</string>
+    <string name="library_dcim">相机</string>
+    <string name="library_downloads">下载</string>
+    <string name="library_screenshots">截图</string>
+    <string name="library_raw_only">仅 RAW</string>
+    <string name="library_starred">已收藏</string>
+    <string name="library_search">搜索</string>
+    <string name="library_sort">排序</string>
+    <string name="library_import">导入</string>
+    <string name="library_batch_processing">批量处理中...</string>
+    <string name="library_selected_count">%1$d 张已选</string>
+    <string name="library_select_all">全选</string>
+    <string name="library_apply_film">应用胶片</string>
+    <string name="library_paste_adjustments">粘贴调节</string>
+    <string name="library_select_film">选择胶片</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Editor Screen
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="editor_title">编辑器</string>
+    <string name="editor_tab_ai">AI</string>
+    <string name="editor_tab_filter">滤镜</string>
+    <string name="editor_tab_adjust">调节</string>
+    <string name="editor_tab_compose">构图</string>
+    <string name="editor_tab_export">导出</string>
+    <string name="editor_film">胶片</string>
+    <string name="editor_adjust">调整</string>
+    <string name="editor_crop">裁剪</string>
+    <string name="editor_export">导出</string>
+    <string name="editor_undo">撤销</string>
+    <string name="editor_redo">重做</string>
+    <string name="editor_exif">EXIF 信息</string>
+    <string name="editor_original">原图</string>
+    <string name="editor_effect">效果</string>
+    <string name="editor_optimized">已优化</string>
+    <string name="editor_preview">预览</string>
+    <string name="editor_more">更多</string>
+    <string name="editor_current">当前</string>
+    <string name="editor_reset_all">全部重置</string>
+    <string name="editor_copy_params">复制编辑参数</string>
+    <string name="editor_smart_optimizing">智能优化中...</string>
+    <string name="editor_processing">处理中...</string>
+    <string name="editor_before_after">对比</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Editor - EXIF
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="exif_camera">相机</string>
+    <string name="exif_make">制造商</string>
+    <string name="exif_model">型号</string>
+    <string name="exif_lens">镜头</string>
+    <string name="exif_lens_make">镜头制造</string>
+    <string name="exif_lens_model">镜头型号</string>
+    <string name="exif_focal_length">焦距</string>
+    <string name="exif_exposure">曝光</string>
+    <string name="exif_shutter_speed">快门速度</string>
+    <string name="exif_aperture">光圈</string>
+    <string name="exif_compensation">曝光补偿</string>
+    <string name="exif_metering">测光模式</string>
+    <string name="exif_image">图像</string>
+    <string name="exif_size">尺寸</string>
+    <string name="exif_date">日期</string>
+    <string name="exif_white_balance">白平衡</string>
+    <string name="exif_latitude">纬度</string>
+    <string name="exif_longitude">经度</string>
+    <string name="exif_file">文件</string>
+    <string name="exif_file_size">大小</string>
+    <string name="exif_type">类型</string>
+    <string name="exif_no_data">无EXIF数据</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Scene Classification
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="scene_portrait">人像</string>
+    <string name="scene_landscape">风景</string>
+    <string name="scene_night">夜景</string>
+    <string name="scene_food">美食</string>
+    <string name="scene_architecture">建筑</string>
+    <string name="scene_pet">宠物</string>
+    <string name="scene_document">文档</string>
+    <string name="scene_sky">天空</string>
+    <string name="scene_beach">海滩</string>
+    <string name="scene_snow">雪景</string>
+    <string name="scene_indoor">室内</string>
+    <string name="scene_general">通用</string>
+    <string name="scene_detect">检测场景</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         AI Features
+         ═══════════════════════════════════════════════════════════════ -->
     <string name="ai_denoise">AI 去噪</string>
     <string name="ai_inpaint">AI 消除</string>
     <string name="ai_mask">AI 遮罩</string>
+    <string name="ai_inpaint_title">AI 消除</string>
+    <string name="ai_inpaint_brush">画笔</string>
+    <string name="ai_inpaint_erase">擦除</string>
+    <string name="ai_inpaint_start">开始修复</string>
+    <string name="ai_inpaint_repairing">修复中...</string>
+    <string name="ai_inpaint_brush_size">画笔大小: %1$dpx</string>
+    <string name="ai_inpaint_mark">标记消除</string>
+    <string name="ai_inpaint_erase_mark">擦除标记</string>
+    <string name="ai_inpaint_preview">预览图</string>
+    <string name="ai_subject">AI 主体</string>
+    <string name="ai_sky">AI 天空</string>
     <string name="smart_optimize">智能优化</string>
+    <string name="smart_optimize_done">智能优化完成</string>
+    <string name="smart_optimize_subtitle">AI 场景识别 + 自动调色，一键出片</string>
+    <string name="ai_inpaint_subtitle">移除路人杂物</string>
+    <string name="ai_denoise_subtitle">低光降噪</string>
+    <string name="ai_mask_subtitle">主体/天空分离</string>
+    <string name="highlight_reconstruct">高光重建</string>
+    <string name="highlight_reconstruct_subtitle">RAW 过曝恢复</string>
+    <string name="local_adjust">局部调整</string>
+    <string name="local_adjust_subtitle">笔刷蒙版 + 流量控制，精细局部编辑</string>
+    <string name="mask_brush">画笔</string>
+    <string name="mask_linear_gradient">线性渐变</string>
+    <string name="mask_radial_gradient">径向渐变</string>
+    <string name="mask_invert">反转</string>
+    <string name="mask_invert_desc">反转遮罩</string>
+    <string name="mask_delete_desc">删除遮罩</string>
+    <string name="mask_show">显示遮罩</string>
+    <string name="mask_hide">隐藏遮罩</string>
+    <string name="mask_draw">绘制</string>
+    <string name="mask_erase">擦除</string>
+    <string name="mask_generating">生成中...</string>
+    <string name="mask_generate">生成遮罩</string>
+    <string name="mask_regenerate">重新生成遮罩</string>
+    <string name="mask_generated">遮罩已生成，可在预览中查看</string>
+    <string name="mask_select_type">选择遮罩类型</string>
+    <string name="mask_sky_label">天空</string>
+    <string name="mask_subject_label">主体</string>
+    <string name="mask_foreground_label">前景</string>
+    <string name="mask_depth_label">深度</string>
+    <string name="flow_brush">笔刷</string>
+    <string name="brush_tool">笔刷</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Film Simulation
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="film_classic">原生经典</string>
+    <string name="film_emotional">情绪表达</string>
+    <string name="film_structural">结构时间</string>
+    <string name="film_no_filter">无滤镜</string>
+    <string name="film_none">无</string>
+    <string name="film_master_title">哈苏大师胶片</string>
+    <string name="film_applied">已应用</string>
+    <string name="film_clear_sim">清除胶片模拟</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Presets
+         ═══════════════════════════════════════════════════════════════ -->
     <string name="master_presets">大师配方</string>
-    <string name="waveform_scope">波形监视器</string>
-    <string name="before_after">对比</string>
-    <string name="histogram">直方图</string>
+    <string name="master_presets_community">大师配方社区</string>
+    <string name="presets_title">大师配方</string>
+    <string name="presets_all">全部</string>
+    <string name="presets_portrait">人像</string>
+    <string name="presets_landscape">风景</string>
+    <string name="presets_night">夜景</string>
+    <string name="presets_street">街拍</string>
+    <string name="presets_food">美食</string>
+    <string name="presets_my">我的预设</string>
+    <string name="presets_empty">暂无预设，点击 + 保存当前调整为预设</string>
+    <string name="presets_save">保存预设</string>
+    <string name="presets_rename">重命名预设</string>
+    <string name="presets_name_hint">输入预设名称</string>
+    <string name="presets_save_desc">保存预设</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Preset Names & Descriptions (can stay as creative names)
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="preset_harmony">和光</string>
+    <string name="preset_harmony_desc">柔和自然，适合人像摄影</string>
+    <string name="preset_rich">浓郁</string>
+    <string name="preset_rich_desc">高饱和色彩，街头故事感</string>
+    <string name="preset_vintage">复古</string>
+    <string name="preset_vintage_desc">怀旧复古色调</string>
+    <string name="preset_fresh">清新</string>
+    <string name="preset_fresh_desc">通透蓝天绿色</string>
+    <string name="preset_clear">通透</string>
+    <string name="preset_clear_desc">清晰锐利的建筑质感</string>
+    <string name="preset_neon">霓虹</string>
+    <string name="preset_neon_desc">赛博朋克城市夜景</string>
+    <string name="preset_cold_flash">冷调闪光</string>
+    <string name="preset_cold_flash_desc">冷色温闪光灯效果</string>
+    <string name="preset_warm_flash">暖调闪光</string>
+    <string name="preset_warm_flash_desc">暖色温闪光灯效果</string>
+    <string name="preset_bw_contrast">反差黑白</string>
+    <string name="preset_bw_contrast_desc">高反差黑白胶片</string>
+
+    <!-- Film Simulation Descriptions -->
+    <string name="film_harmony_desc">逆光人像，肤色通透，柔和影调过渡</string>
+    <string name="film_rich_desc">港风沉稳，蓝绿突出，色彩饱满不俗</string>
+    <string name="film_vintage_desc">暖调褪色，颗粒质感，怀旧氛围</string>
+    <string name="film_fresh_desc">日系低饱和，空气感，通透轻盈</string>
+    <string name="film_clear_desc">色彩真实自然，不过度修饰，忠实还原</string>
+    <string name="film_neon_desc">高反差霓虹灯光，暖光氛围强，暗部干净</string>
+    <string name="film_cold_flash_desc">千禧年CCD冷色调，数码怀旧质感</string>
+    <string name="film_warm_flash_desc">千禧年CCD暖色调，怀旧温暖质感</string>
+    <string name="film_bw_contrast_desc">明暗对比强烈，轻微颗粒感，经典黑白影调</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Adjustment Panel Labels
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="adjust_basic">基础</string>
+    <string name="adjust_basic_title">基础调整</string>
+    <string name="adjust_color">颜色</string>
+    <string name="adjust_curves">曲线</string>
+    <string name="adjust_details">细节</string>
+    <string name="adjust_effects">效果</string>
+    <string name="adjust_advanced">高级调整</string>
+    <string name="adjust_advanced_arrow">高级调整 →</string>
+    <string name="adjust_transform">几何</string>
+    <string name="adjust_color_grading">色彩分级</string>
+    <string name="adjust_color_calibration">色彩校准</string>
+    <string name="adjust_tone_mapping">色调映射</string>
+    <string name="adjust_creative_effects">创意效果</string>
+
+    <!-- Basic adjustment labels -->
+    <string name="adjust_exposure">曝光</string>
+    <string name="adjust_brightness">亮度</string>
+    <string name="adjust_contrast">对比</string>
+    <string name="adjust_contrast_full">对比度</string>
+    <string name="adjust_highlights">高光</string>
+    <string name="adjust_shadows">阴影</string>
+    <string name="adjust_whites">白色</string>
+    <string name="adjust_blacks">黑色</string>
+
+    <!-- Color adjustment labels -->
+    <string name="adjust_temperature">色温</string>
+    <string name="adjust_tint">色调</string>
+    <string name="adjust_saturation">饱和度</string>
+    <string name="adjust_vibrance">自然饱和度</string>
+    <string name="adjust_hue">色相</string>
+    <string name="adjust_sat">饱和</string>
+    <string name="adjust_luminance">明度</string>
+    <string name="adjust_warm_cool">冷暖</string>
+    <string name="adjust_cyan_magenta">青品</string>
+
+    <!-- HSL color names -->
+    <string name="color_red">红</string>
+    <string name="color_orange">橙</string>
+    <string name="color_yellow">黄</string>
+    <string name="color_green">绿</string>
+    <string name="color_aqua">青</string>
+    <string name="color_blue">蓝</string>
+    <string name="color_purple">紫</string>
+    <string name="color_magenta">品</string>
+
+    <!-- Color grading labels -->
+    <string name="adjust_midtones">中间调</string>
+    <string name="adjust_blend">混合</string>
+    <string name="adjust_balance">平衡</string>
+    <string name="adjust_shadow_tint">阴影色调</string>
+
+    <!-- Detail labels -->
+    <string name="adjust_sharpness">锐化</string>
+    <string name="adjust_clarity">清晰度</string>
+    <string name="adjust_structure">结构</string>
+    <string name="adjust_dehaze">去雾</string>
+    <string name="adjust_local_contrast">局部对比</string>
+    <string name="adjust_center">中心</string>
+    <string name="adjust_luminance_denoise">亮度降噪</string>
+    <string name="adjust_color_denoise">色彩降噪</string>
+    <string name="adjust_denoise">降噪</string>
+    <string name="adjust_chromatic_aberration">色差</string>
+    <string name="adjust_red_cyan">红/青</string>
+    <string name="adjust_blue_yellow">蓝/黄</string>
+
+    <!-- Effect labels -->
+    <string name="adjust_vignette">暗角</string>
+    <string name="adjust_amount">数量</string>
+    <string name="adjust_midpoint">中点</string>
+    <string name="adjust_roundness">圆度</string>
+    <string name="adjust_feather">羽化</string>
+    <string name="adjust_grain">颗粒</string>
+    <string name="adjust_roughness">粗糙度</string>
+    <string name="adjust_glow_effect">发光</string>
+    <string name="adjust_glow">辉光</string>
+    <string name="adjust_bloom">光晕</string>
+    <string name="adjust_flare">耀斑</string>
+    <string name="adjust_lens_flare">镜头光斑</string>
+    <string name="adjust_light_effects">光效</string>
+    <string name="adjust_base">基础</string>
+    <string name="adjust_intensity">强度</string>
+    <string name="adjust_soft_glow">柔光</string>
+    <string name="adjust_tone">影调</string>
+    <string name="adjust_sharpness_label">锐度</string>
+    <string name="adjust_select_lut">选择LUT</string>
+
+    <!-- Transform labels -->
+    <string name="adjust_angle">角度</string>
+    <string name="adjust_distortion">扭曲</string>
+    <string name="adjust_vertical">垂直</string>
+    <string name="adjust_horizontal">水平</string>
+    <string name="adjust_rotation">旋转</string>
+    <string name="adjust_aspect">宽高</string>
+    <string name="adjust_aspect_long">长宽</string>
+    <string name="adjust_scale">缩放</string>
+    <string name="adjust_x_offset">X偏移</string>
+    <string name="adjust_y_offset">Y偏移</string>
+    <string name="adjust_lens_correction">镜头校正</string>
+    <string name="adjust_lens_unknown">镜头: 未知</string>
+    <string name="adjust_focal_length_mm">焦距 (mm)</string>
+
+    <!-- Mask tool labels -->
+    <string name="mask_opacity">不透明</string>
+    <string name="mask_opacity_full">不透明度</string>
+    <string name="mask_hardness">硬度</string>
+    <string name="mask_size">大小</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Crop & Transform
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="crop_free">自由</string>
+    <string name="crop_original">原始</string>
+    <string name="crop_ratio">裁剪比例</string>
+    <string name="crop_interactive">交互裁剪</string>
+    <string name="crop_perspective">透视</string>
+    <string name="crop_distortion_label">畸变</string>
+    <string name="transform_rotation">旋转与翻转</string>
+    <string name="transform_flip_horizontal">水平翻转</string>
+    <string name="transform_flip_vertical">垂直翻转</string>
+    <string name="transform_rotate_ccw">逆时针旋转90°</string>
+    <string name="transform_rotate_cw">顺时针旋转90°</string>
+    <string name="crop_grid">网格</string>
+    <string name="crop_grid_check">网格 ✓</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Export
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="export_format">格式</string>
+    <string name="export_quality">质量</string>
+    <string name="export_resize">调整尺寸</string>
+    <string name="export_resize_long_edge">长边</string>
+    <string name="export_resize_short_edge">短边</string>
+    <string name="export_resize_width">宽度</string>
+    <string name="export_resize_height">高度</string>
+    <string name="export_resize_original">原始尺寸</string>
+    <string name="export_pixel_value">像素值</string>
+    <string name="export_pixel_edge">边长像素</string>
+    <string name="export_metadata">元数据</string>
+    <string name="export_preserve_metadata">保留元数据</string>
+    <string name="export_strip_gps">移除GPS信息</string>
+    <string name="export_strip_gps_short">移除 GPS</string>
+    <string name="export_watermark">水印</string>
+    <string name="export_watermark_enable">启用水印</string>
+    <string name="export_watermark_add">添加水印</string>
+    <string name="export_watermark_text">水印文字</string>
+    <string name="export_watermark_opacity">透明度</string>
+    <string name="export_watermark_position">位置</string>
+    <string name="export_social">分享平台</string>
+    <string name="export_button">导出</string>
     <string name="export_processing">正在导出…</string>
+    <string name="export_exporting">导出中...</string>
     <string name="export_success">导出成功</string>
     <string name="export_failed">导出失败</string>
-    <string name="sidecar_saved">编辑已保存</string>
+    <string name="export_settings">导出设置</string>
+    <string name="export_scale">缩放</string>
+    <string name="export_estimated_size">预估文件大小: %1$s</string>
+    <string name="export_estimated_mb">%1$d MB (预估)</string>
+    <string name="export_estimated_range_mb">%1$d-%2$d MB (预估)</string>
+    <string name="export_no_source">没有可导出的原图</string>
+    <string name="export_cancelled">已取消</string>
+
+    <!-- Social platform names -->
+    <string name="social_original">原图</string>
+    <string name="social_xiaohongshu">小红书 3:4</string>
+    <string name="social_instagram_story">Ins 故事 9:16</string>
+    <string name="social_douyin">抖音 9:16</string>
+    <string name="social_wechat_moments">朋友圈 3:4</string>
+    <string name="social_wechat_avatar">微信头像 1:1</string>
+
+    <!-- Export Queue -->
+    <string name="export_queue_title">导出队列</string>
+    <string name="export_queue_active">%1$d 进行中</string>
+    <string name="export_queue_queued">排队中</string>
+    <string name="export_queue_exporting">导出中</string>
+    <string name="export_queue_completed">已完成</string>
+    <string name="export_queue_failed">失败</string>
+    <string name="export_queue_done_desc">导出完成</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         HDR
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="hdr_export">HDR 导出</string>
+    <string name="hdr_export_button">导出 HDR 图像</string>
+    <string name="hdr_export_set">已设置</string>
+    <string name="hdr_export_ultra">Ultra HDR</string>
+    <string name="hdr_export_dowgrade_notice">当前设备需要 Android 14+ 才能使用 Ultra HDR；将自动降级为 HEIF 10-bit。</string>
+    <string name="hdr_peak_brightness">峰值亮度</string>
+    <string name="hdr_dynamic_range">动态范围（曝光档位）</string>
+    <string name="hdr_sdr_compatible">保留 SDR 兼容</string>
+    <string name="hdr_sdr_compatible_desc">嵌入 SDR 降级图像，确保所有设备都能查看</string>
+    <string name="hdr_not_supported">设备不支持 HDR 显示</string>
+    <string name="hdr_unable_capability">无法获取 HDR 能力</string>
+    <string name="hdr_oppo_recommend">OPPO Find 高亮度 HDR 屏幕，强烈推荐开启 HDR 预览</string>
+    <string name="hdr_high_brightness_recommend">高亮度 HDR 屏幕，推荐开启 HDR 预览</string>
+    <string name="hdr_limited_brightness">HDR 支持但亮度有限，可根据需要开启</string>
+    <string name="hdr_export_failed">HDR 导出失败</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Color Science
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="color_science">色彩科学</string>
+    <string name="color_science_desc">选择色彩管线，决定图像的色调映射与色域</string>
+    <string name="color_science_pipeline">渲染管线</string>
+    <string name="color_science_fine_tune">微调</string>
+    <string name="color_science_contrast">对比度</string>
+    <string name="color_science_black_pedestal">黑位抬升</string>
+    <string name="color_science_gamut">显示色域</string>
+    <string name="color_science_eotf">EOTF (显示器传递函数)</string>
+    <string name="color_science_agx_desc">胶片质感、低饱和度和谐，适合人文扫街</string>
+    <string name="color_science_aces_desc">学院色彩编码，HDR 与电影标准，色域最广</string>
+    <string name="color_science_opendrt_desc">专业监看渲染，卓越黑位与肤色还原</string>
+    <string name="color_science_standard_desc">基础 sRGB 曲线，最快速度、最低功耗</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Curves
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="curves_preset">预设曲线</string>
+    <string name="curves_linear">线性</string>
+    <string name="curves_high_contrast">高对比</string>
+    <string name="curves_medium_contrast">中对比</string>
+    <string name="curves_invert">反相</string>
+    <string name="curves_luma">亮度曲线</string>
+    <string name="curves_red">红色曲线</string>
+    <string name="curves_green">绿色曲线</string>
+    <string name="curves_blue">蓝色曲线</string>
+    <string name="curves_generic">曲线</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Scopes
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="histogram">直方图</string>
+    <string name="waveform_scope">波形监视器</string>
+    <string name="waveform">波形</string>
+    <string name="vectorscope">矢量图</string>
+    <string name="scope_cut">裁切</string>
+    <string name="scope_mask">遮罩</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         LUT Library
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="lut_library">LUT 库</string>
+    <string name="lut_import_cube">导入 .cube</string>
+    <string name="lut_search">搜索 LUT（名称、标签、分类）</string>
+    <string name="lut_intensity">强度</string>
+    <string name="lut_builtin">内置</string>
+    <string name="lut_user_import">用户导入</string>
+    <string name="lut_favorite">收藏</string>
+    <string name="lut_clear">清除 LUT</string>
+    <string name="lut_film_cube">胶片 LUT / .cube</string>
+    <string name="lut_applied">已应用</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Recipe Share
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="recipe_share">配方分享</string>
+    <string name="recipe_share_title">分享配方</string>
+    <string name="recipe_import_title">导入配方</string>
+    <string name="recipe_name">配方名称</string>
+    <string name="recipe_my_name">我的配方</string>
+    <string name="recipe_share_code">分享码</string>
+    <string name="recipe_json">配方JSON（长按复制）</string>
+    <string name="recipe_copy_clipboard">复制配方到剪贴板</string>
+    <string name="recipe_paste_json">粘贴配方JSON</string>
+    <string name="recipe_import_apply">导入并应用</string>
+    <string name="recipe_back_share">返回分享</string>
+    <string name="recipe_export_params">导出调色参数</string>
     <string name="recipe_shared">配方已分享</string>
     <string name="recipe_imported">配方已导入</string>
+    <string name="recipe_author_me">我</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Edit History
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="edit_history">编辑历史</string>
+    <string name="edit_history_branch">版本分支</string>
+    <string name="edit_history_new_branch">新建分支</string>
+    <string name="edit_history_branch_name">新分支名称</string>
+    <string name="edit_history_branch_name_hint">e.g. 黑白实验</string>
+    <string name="edit_history_create_branch">从该节点创建分支</string>
+    <string name="edit_history_current_branch">当前分支</string>
+    <string name="edit_history_branch_path">当前分支路径</string>
+    <string name="edit_history_total_branches">总分支: %1$d</string>
+    <string name="edit_history_jump_hint">点击节点可跳转到该历史版本</string>
+    <string name="edit_history_branch_label">分支</string>
+    <string name="edit_history_initial">初始状态</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Onboarding
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="onboarding_tagline">专业级 RAW 照片编辑器</string>
+    <string name="onboarding_get_started">开始使用</string>
+    <string name="onboarding_smart_optimize">智能优化</string>
+    <string name="onboarding_smart_optimize_desc">AI 驱动的智能场景识别与自动优化，一键提升照片质感。自动分析曝光、白平衡、色彩，为你推荐最佳调整方案。</string>
+    <string name="onboarding_color_grading">专业调色</string>
+    <string name="onboarding_color_grading_desc">CDL 色彩分级、曲线调整、8 色 HSL 面板。专业级色彩控制工具，轻松实现电影级调色效果。</string>
+    <string name="onboarding_film_sim">胶片模拟</string>
+    <string name="onboarding_film_sim_desc">20+ 经典胶片模拟预设，从哈苏到柯达，从富士到伊尔福。真实还原胶片色彩与颗粒感。</string>
+    <string name="onboarding_access_photos">访问你的照片</string>
+    <string name="onboarding_permission_desc">RapidRAW 需要访问照片权限来：\n\u2022 浏览和导入你的 RAW 与 JPG 照片\n\u2022 保存编辑后的图片到相册\n\u2022 读取 EXIF 元数据信息</string>
+    <string name="onboarding_grant_access">授权访问</string>
+    <string name="onboarding_start_editing">开始编辑</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Settings
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="settings_title">设置</string>
+    <string name="settings_theme">主题</string>
+    <string name="settings_dark">暗色</string>
+    <string name="settings_light">亮色</string>
+    <string name="settings_about">关于</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Permissions
+         ═══════════════════════════════════════════════════════════════ -->
     <string name="permission_required">需要存储权限以访问照片</string>
-    <string name="grant_permission">授予权限</string>
+    <string name="permission_storage">需要存储权限以访问照片</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Error Messages
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="error_load_image">无法加载图片: %1$s</string>
+    <string name="error_load_ai_source">无法加载 AI 消除源图</string>
+    <string name="error_ai_denoise">AI 去噪失败: %1$s</string>
+    <string name="error_ai_mask_generate">AI 遮罩生成失败: %1$s</string>
+    <string name="error_ai_mask_apply">AI 遮罩应用失败: %1$s</string>
+    <string name="error_ai_inpaint">AI 消除失败: %1$s</string>
+    <string name="error_import_lut">导入 LUT 失败: %1$s</string>
+    <string name="error_highlight_reconstruct">高光重建失败: %1$s</string>
+    <string name="error_no_image">无可用图像，请先打开图片</string>
+    <string name="error_export_failed">导出失败</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Undo History Descriptions
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="undo_crop_adjust">裁剪调整</string>
+    <string name="undo_apply_preset">应用预设: %1$s</string>
+    <string name="undo_apply_film">应用胶片: %1$s</string>
+    <string name="undo_clear_film">清除胶片模拟</string>
+    <string name="undo_reset_all">重置所有调整</string>
+    <string name="undo_smart_optimize">智能优化</string>
+    <string name="undo_import_lut">导入 LUT</string>
+    <string name="undo_clear_lut">清除 LUT</string>
+    <string name="undo_color_science">色彩科学: %1$s</string>
+    <string name="undo_adjust_param">调整参数</string>
+    <string name="undo_branch">分支: %1$s</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Smart Optimize Confirm
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="smart_optimize_accept">接受</string>
+    <string name="smart_optimize_undo">撤销</string>
+    <string name="smart_optimize_compare">查看对比</string>
+    <string name="smart_optimize_exposure_label">曝光</string>
+    <string name="smart_optimize_contrast_label">对比</string>
+    <string name="smart_optimize_highlights_label">高光</string>
+    <string name="smart_optimize_shadows_label">阴影</string>
+    <string name="smart_optimize_temperature_label">冷暖</string>
+    <string name="smart_optimize_saturation_label">饱和</string>
+    <string name="smart_optimize_clarity_label">清晰度</string>
+    <string name="smart_optimize_vibrance_label">自然饱和</string>
+    <string name="smart_optimize_dehaze_label">去雾</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Photo Picker
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="photo_picker_import">导入照片</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Content Descriptions (Accessibility)
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="cd_search">搜索</string>
+    <string name="cd_sort">排序</string>
+    <string name="cd_import">导入</string>
+    <string name="cd_cancel">取消</string>
+    <string name="cd_select_all">全选</string>
+    <string name="cd_back">返回</string>
+    <string name="cd_preview">预览</string>
+    <string name="cd_original">原图</string>
+    <string name="cd_current">当前</string>
+    <string name="cd_interactive_crop">交互裁剪</string>
+    <string name="cd_rotate_ccw">逆时针旋转90°</string>
+    <string name="cd_rotate_cw">顺时针旋转90°</string>
+    <string name="cd_flip_horizontal">水平翻转</string>
+    <string name="cd_flip_vertical">垂直翻转</string>
+    <string name="cd_clear_lut">清除 LUT</string>
+    <string name="cd_favorite">收藏</string>
+    <string name="cd_export_done">导出完成</string>
+    <string name="cd_share">分享</string>
+    <string name="cd_pro_tools">专业工具</string>
+    <string name="cd_collapse_tools">收起工具</string>
+    <string name="cd_expand">展开</string>
+    <string name="cd_collapse">收起</string>
+    <string name="cd_reset">重置</string>
+    <string name="cd_done">完成</string>
+    <string name="cd_save_preset">保存预设</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Sidecar & Misc
+         ═══════════════════════════════════════════════════════════════ -->
+    <string name="sidecar_saved">编辑已保存</string>
+
+    <!-- Edit history parameter descriptions -->
+    <string name="history_exposure">曝光</string>
+    <string name="history_brightness">亮度</string>
+    <string name="history_contrast">对比度</string>
+    <string name="history_highlights">高光</string>
+    <string name="history_shadows">阴影</string>
+    <string name="history_whites">白色</string>
+    <string name="history_blacks">黑色</string>
+    <string name="history_temperature">色温</string>
+    <string name="history_tint">色调</string>
+    <string name="history_saturation">饱和度</string>
+    <string name="history_vibrance">自然饱和度</string>
+    <string name="history_sharpness">锐化</string>
+    <string name="history_clarity">清晰度</string>
+    <string name="history_dehaze">去雾</string>
+    <string name="history_vignette">暗角</string>
+    <string name="history_grain">颗粒</string>
+    <string name="history_tone_level">影调</string>
+    <string name="history_film_intensity">滤镜强度</string>
+    <string name="history_soft_glow">柔光</string>
+    <string name="history_green_magenta">青品</string>
+    <string name="history_rotation">旋转</string>
+    <string name="history_flip_h">水平翻转</string>
+    <string name="history_flip_v">垂直翻转</string>
+    <string name="history_crop">裁剪</string>
+    <string name="history_lut_intensity">LUT 强度</string>
+    <string name="history_free">自由</string>
 </resources>

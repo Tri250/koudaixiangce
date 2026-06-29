@@ -18,6 +18,10 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.filled.Gradient
+import androidx.compose.material.icons.filled.Lens
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,8 +51,10 @@ enum class MaskType(
     AI_SUBJECT("AI 主体", Icons.Default.AutoFixHigh),
     AI_SKY("AI 天空", Icons.Default.AutoFixHigh),
     BRUSH("画笔", Icons.Default.Brush),
-    LINEAR_GRADIENT("线性渐变", Icons.Default.Flip),
-    RADIAL_GRADIENT("径向渐变", Icons.Default.Flip),
+    LINEAR_GRADIENT("线性渐变", Icons.Default.Gradient),
+    RADIAL_GRADIENT("径向渐变", Icons.Default.Lens),
+    COLOR_RANGE("色彩范围", Icons.Default.Palette),
+    LUMINANCE_RANGE("亮度范围", Icons.Default.Tune),
 }
 
 @Composable
@@ -77,6 +83,48 @@ fun MaskToolPanel(
     onGenerateAiMask: () -> Unit,
     hasAiMaskResult: Boolean,
     onDeleteMask: () -> Unit,
+    // ── 线性渐变参数 ──────────────────────────────────────────────
+    gradientStartX: Float = 0f,
+    onGradientStartXChange: (Float) -> Unit = {},
+    gradientStartY: Float = 0f,
+    onGradientStartYChange: (Float) -> Unit = {},
+    gradientEndX: Float = 100f,
+    onGradientEndXChange: (Float) -> Unit = {},
+    gradientEndY: Float = 100f,
+    onGradientEndYChange: (Float) -> Unit = {},
+    // ── 径向渐变参数 ──────────────────────────────────────────────
+    radialCenterX: Float = 50f,
+    onRadialCenterXChange: (Float) -> Unit = {},
+    radialCenterY: Float = 50f,
+    onRadialCenterYChange: (Float) -> Unit = {},
+    radialRadius: Float = 50f,
+    onRadialRadiusChange: (Float) -> Unit = {},
+    radialAspectRatio: Float = 100f,
+    onRadialAspectRatioChange: (Float) -> Unit = {},
+    radialRotation: Float = 0f,
+    onRadialRotationChange: (Float) -> Unit = {},
+    // ── 色彩范围参数 ──────────────────────────────────────────────
+    colorRangeHue: Float = 0f,
+    onColorRangeHueChange: (Float) -> Unit = {},
+    colorRangeHueTolerance: Float = 30f,
+    onColorRangeHueToleranceChange: (Float) -> Unit = {},
+    colorRangeSatMin: Float = 10f,
+    onColorRangeSatMinChange: (Float) -> Unit = {},
+    colorRangeSatMax: Float = 100f,
+    onColorRangeSatMaxChange: (Float) -> Unit = {},
+    colorRangeLumMin: Float = 0f,
+    onColorRangeLumMinChange: (Float) -> Unit = {},
+    colorRangeLumMax: Float = 100f,
+    onColorRangeLumMaxChange: (Float) -> Unit = {},
+    colorRangeFeather: Float = 10f,
+    onColorRangeFeatherChange: (Float) -> Unit = {},
+    // ── 亮度范围参数 ──────────────────────────────────────────────
+    luminanceRangeMin: Float = 0f,
+    onLuminanceRangeMinChange: (Float) -> Unit = {},
+    luminanceRangeMax: Float = 100f,
+    onLuminanceRangeMaxChange: (Float) -> Unit = {},
+    luminanceRangeFeather: Float = 5f,
+    onLuminanceRangeFeatherChange: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -93,7 +141,7 @@ fun MaskToolPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 MaskType.entries.forEach { type ->
                     val isSelected = type == selectedMaskType
@@ -106,18 +154,18 @@ fun MaskToolPanel(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(vertical = 6.dp),
+                            modifier = Modifier.padding(vertical = 4.dp),
                         ) {
                             Icon(
                                 imageVector = type.icon,
                                 contentDescription = type.label,
                                 tint = if (isSelected) EditorBackground else TextSecondary,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(16.dp),
                             )
                             Text(
                                 text = type.label,
                                 color = if (isSelected) EditorBackground else TextSecondary,
-                                fontSize = 10.sp,
+                                fontSize = 8.sp,
                                 fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
                             )
                         }
@@ -139,11 +187,59 @@ fun MaskToolPanel(
                     isErasing = isErasing,
                     onErasingChange = onErasingChange,
                 )
-                MaskType.LINEAR_GRADIENT, MaskType.RADIAL_GRADIENT -> GradientSettings(
-                    gradientOpacity = gradientOpacity,
-                    onGradientOpacityChange = onGradientOpacityChange,
-                    gradientFeather = gradientFeather,
-                    onGradientFeatherChange = onGradientFeatherChange,
+                MaskType.LINEAR_GRADIENT -> LinearGradientSettings(
+                    opacity = gradientOpacity,
+                    onOpacityChange = onGradientOpacityChange,
+                    feather = gradientFeather,
+                    onFeatherChange = onGradientFeatherChange,
+                    startX = gradientStartX,
+                    onStartXChange = onGradientStartXChange,
+                    startY = gradientStartY,
+                    onStartYChange = onGradientStartYChange,
+                    endX = gradientEndX,
+                    onEndXChange = onGradientEndXChange,
+                    endY = gradientEndY,
+                    onEndYChange = onGradientEndYChange,
+                )
+                MaskType.RADIAL_GRADIENT -> RadialGradientSettings(
+                    opacity = gradientOpacity,
+                    onOpacityChange = onGradientOpacityChange,
+                    feather = gradientFeather,
+                    onFeatherChange = onGradientFeatherChange,
+                    centerX = radialCenterX,
+                    onCenterXChange = onRadialCenterXChange,
+                    centerY = radialCenterY,
+                    onCenterYChange = onRadialCenterYChange,
+                    radius = radialRadius,
+                    onRadiusChange = onRadialRadiusChange,
+                    aspectRatio = radialAspectRatio,
+                    onAspectRatioChange = onRadialAspectRatioChange,
+                    rotation = radialRotation,
+                    onRotationChange = onRadialRotationChange,
+                )
+                MaskType.COLOR_RANGE -> ColorRangeSettings(
+                    hue = colorRangeHue,
+                    onHueChange = onColorRangeHueChange,
+                    hueTolerance = colorRangeHueTolerance,
+                    onHueToleranceChange = onColorRangeHueToleranceChange,
+                    satMin = colorRangeSatMin,
+                    onSatMinChange = onColorRangeSatMinChange,
+                    satMax = colorRangeSatMax,
+                    onSatMaxChange = onColorRangeSatMaxChange,
+                    lumMin = colorRangeLumMin,
+                    onLumMinChange = onColorRangeLumMinChange,
+                    lumMax = colorRangeLumMax,
+                    onLumMaxChange = onColorRangeLumMaxChange,
+                    feather = colorRangeFeather,
+                    onFeatherChange = onColorRangeFeatherChange,
+                )
+                MaskType.LUMINANCE_RANGE -> LuminanceRangeSettings(
+                    lumMin = luminanceRangeMin,
+                    onLumMinChange = onLuminanceRangeMinChange,
+                    lumMax = luminanceRangeMax,
+                    onLumMaxChange = onLuminanceRangeMaxChange,
+                    feather = luminanceRangeFeather,
+                    onFeatherChange = onLuminanceRangeFeatherChange,
                 )
                 MaskType.AI_SUBJECT, MaskType.AI_SKY -> AiMaskSettings(
                     isProcessing = isAiProcessing,
@@ -226,6 +322,10 @@ fun MaskToolPanel(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Brush Settings
+// ═══════════════════════════════════════════════════════════════════
+
 @Composable
 private fun BrushSettings(
     brushSize: Float,
@@ -299,6 +399,287 @@ private fun BrushSettings(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Linear Gradient Settings
+// ═══════════════════════════════════════════════════════════════════
+
+@Composable
+private fun LinearGradientSettings(
+    opacity: Float,
+    onOpacityChange: (Float) -> Unit,
+    feather: Float,
+    onFeatherChange: (Float) -> Unit,
+    startX: Float,
+    onStartXChange: (Float) -> Unit,
+    startY: Float,
+    onStartYChange: (Float) -> Unit,
+    endX: Float,
+    onEndXChange: (Float) -> Unit,
+    endY: Float,
+    onEndYChange: (Float) -> Unit,
+) {
+    Column {
+        // 渐变方向控制：起点/终点坐标（百分比 0-100）
+        Text(
+            text = "渐变方向",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, top = 4.dp, bottom = 2.dp),
+        )
+        HasselSlider(
+            label = "起点X",
+            value = startX,
+            range = 0f..100f,
+            onValueChange = onStartXChange,
+            defaultValue = 0f,
+        )
+        HasselSlider(
+            label = "起点Y",
+            value = startY,
+            range = 0f..100f,
+            onValueChange = onStartYChange,
+            defaultValue = 0f,
+        )
+        HasselSlider(
+            label = "终点X",
+            value = endX,
+            range = 0f..100f,
+            onValueChange = onEndXChange,
+            defaultValue = 100f,
+        )
+        HasselSlider(
+            label = "终点Y",
+            value = endY,
+            range = 0f..100f,
+            onValueChange = onEndYChange,
+            defaultValue = 100f,
+        )
+        HasselSlider(
+            label = "不透明",
+            value = opacity,
+            range = 0f..100f,
+            onValueChange = onOpacityChange,
+            defaultValue = 100f,
+        )
+        HasselSlider(
+            label = "羽化",
+            value = feather,
+            range = 0f..100f,
+            onValueChange = onFeatherChange,
+            defaultValue = 50f,
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Radial Gradient Settings
+// ═══════════════════════════════════════════════════════════════════
+
+@Composable
+private fun RadialGradientSettings(
+    opacity: Float,
+    onOpacityChange: (Float) -> Unit,
+    feather: Float,
+    onFeatherChange: (Float) -> Unit,
+    centerX: Float,
+    onCenterXChange: (Float) -> Unit,
+    centerY: Float,
+    onCenterYChange: (Float) -> Unit,
+    radius: Float,
+    onRadiusChange: (Float) -> Unit,
+    aspectRatio: Float,
+    onAspectRatioChange: (Float) -> Unit,
+    rotation: Float,
+    onRotationChange: (Float) -> Unit,
+) {
+    Column {
+        Text(
+            text = "径向参数",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, top = 4.dp, bottom = 2.dp),
+        )
+        HasselSlider(
+            label = "中心X",
+            value = centerX,
+            range = 0f..100f,
+            onValueChange = onCenterXChange,
+            defaultValue = 50f,
+        )
+        HasselSlider(
+            label = "中心Y",
+            value = centerY,
+            range = 0f..100f,
+            onValueChange = onCenterYChange,
+            defaultValue = 50f,
+        )
+        HasselSlider(
+            label = "半径",
+            value = radius,
+            range = 1f..100f,
+            onValueChange = onRadiusChange,
+            defaultValue = 50f,
+        )
+        HasselSlider(
+            label = "宽高比",
+            value = aspectRatio,
+            range = 10f..300f,
+            onValueChange = onAspectRatioChange,
+            defaultValue = 100f,
+        )
+        HasselSlider(
+            label = "旋转",
+            value = rotation,
+            range = 0f..360f,
+            onValueChange = onRotationChange,
+            defaultValue = 0f,
+        )
+        HasselSlider(
+            label = "不透明",
+            value = opacity,
+            range = 0f..100f,
+            onValueChange = onOpacityChange,
+            defaultValue = 100f,
+        )
+        HasselSlider(
+            label = "羽化",
+            value = feather,
+            range = 0f..100f,
+            onValueChange = onFeatherChange,
+            defaultValue = 50f,
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Color Range Settings
+// ═══════════════════════════════════════════════════════════════════
+
+@Composable
+private fun ColorRangeSettings(
+    hue: Float,
+    onHueChange: (Float) -> Unit,
+    hueTolerance: Float,
+    onHueToleranceChange: (Float) -> Unit,
+    satMin: Float,
+    onSatMinChange: (Float) -> Unit,
+    satMax: Float,
+    onSatMaxChange: (Float) -> Unit,
+    lumMin: Float,
+    onLumMinChange: (Float) -> Unit,
+    lumMax: Float,
+    onLumMaxChange: (Float) -> Unit,
+    feather: Float,
+    onFeatherChange: (Float) -> Unit,
+) {
+    Column {
+        Text(
+            text = "色彩范围",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, top = 4.dp, bottom = 2.dp),
+        )
+        // 色相环选择器
+        HasselSlider(
+            label = "色相",
+            value = hue,
+            range = 0f..360f,
+            onValueChange = onHueChange,
+            defaultValue = 0f,
+        )
+        HasselSlider(
+            label = "容差",
+            value = hueTolerance,
+            range = 1f..180f,
+            onValueChange = onHueToleranceChange,
+            defaultValue = 30f,
+        )
+        HasselSlider(
+            label = "饱和↓",
+            value = satMin,
+            range = 0f..100f,
+            onValueChange = onSatMinChange,
+            defaultValue = 10f,
+        )
+        HasselSlider(
+            label = "饱和↑",
+            value = satMax,
+            range = 0f..100f,
+            onValueChange = onSatMaxChange,
+            defaultValue = 100f,
+        )
+        HasselSlider(
+            label = "亮度↓",
+            value = lumMin,
+            range = 0f..100f,
+            onValueChange = onLumMinChange,
+            defaultValue = 0f,
+        )
+        HasselSlider(
+            label = "亮度↑",
+            value = lumMax,
+            range = 0f..100f,
+            onValueChange = onLumMaxChange,
+            defaultValue = 100f,
+        )
+        HasselSlider(
+            label = "羽化",
+            value = feather,
+            range = 0f..100f,
+            onValueChange = onFeatherChange,
+            defaultValue = 10f,
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Luminance Range Settings
+// ═══════════════════════════════════════════════════════════════════
+
+@Composable
+private fun LuminanceRangeSettings(
+    lumMin: Float,
+    onLumMinChange: (Float) -> Unit,
+    lumMax: Float,
+    onLumMaxChange: (Float) -> Unit,
+    feather: Float,
+    onFeatherChange: (Float) -> Unit,
+) {
+    Column {
+        Text(
+            text = "亮度范围",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, top = 4.dp, bottom = 2.dp),
+        )
+        HasselSlider(
+            label = "亮度↓",
+            value = lumMin,
+            range = 0f..100f,
+            onValueChange = onLumMinChange,
+            defaultValue = 0f,
+        )
+        HasselSlider(
+            label = "亮度↑",
+            value = lumMax,
+            range = 0f..100f,
+            onValueChange = onLumMaxChange,
+            defaultValue = 100f,
+        )
+        HasselSlider(
+            label = "羽化",
+            value = feather,
+            range = 0f..50f,
+            onValueChange = onFeatherChange,
+            defaultValue = 5f,
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Gradient Settings (shared for LINEAR/RADIAL - legacy compatibility)
+// ═══════════════════════════════════════════════════════════════════
+
 @Composable
 private fun GradientSettings(
     gradientOpacity: Float,
@@ -323,6 +704,10 @@ private fun GradientSettings(
         )
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// AI Mask Settings
+// ═══════════════════════════════════════════════════════════════════
 
 @Composable
 private fun AiMaskSettings(

@@ -18,18 +18,27 @@ object DeviceOptimizer {
     private const val BBK_MANUFACTURER_LOWER = "bbk"
 
     private val OPPO_FIND_HIGH_END_MODELS = setOf(
+        // Find X7 系列
+        "cph2581",   // Find X7 Ultra
+        // Find X8 系列
         "cph2653",   // Find X8 Pro
         "cph2583",   // Find X8
         "cph2591",   // Find X8 Ultra
         "phz110",    // Find X8 Pro (China)
         "pkc110",    // Find X8 (China)
-        // Find X9 系列（预估型号）
+        // Find N5 (foldable)
+        "cph2633",   // Find N5
+        // Find X9 系列（2026 预估型号）
         "cph2713",   // Find X9 Pro
-        "cph2701",   // Find X9",
+        "cph2701",   // Find X9
+        "cph2725",   // Find X9 Ultra
+        // Find N6 (foldable, 2026 预估)
+        "cph2741",   // Find N6
     )
 
     private val OPPO_FIND_MODELS_PREFIX = listOf(
-        "find x8", "find x9", "findx8", "findx9",
+        "find x7", "find x8", "find x9", "findx7", "findx8", "findx9",
+        "find n5", "find n6", "findn5", "findn6",
     )
 
     // 默认预览分辨率
@@ -72,11 +81,14 @@ object DeviceOptimizer {
     /**
      * 获取推荐的预览分辨率。
      *
-     * OPPO Find 高端设备使用 2048，其他设备使用 1536。
+     * OPPO Find 高端设备优先使用 OppoEnhancer 的像素级匹配分辨率，
+     * 回退到固定的高端/默认分辨率。
      */
     fun getRecommendedPreviewResolution(): Int {
-        return if (isOppoHighEnd()) OPPO_HIGH_END_PREVIEW_RESOLUTION
-        else DEFAULT_PREVIEW_RESOLUTION
+        return if (isOppoHighEnd()) {
+            // 尝试使用 OppoEnhancer 的像素级预览分辨率
+            OppoEnhancer.getPixelPerfectPreviewResolution()
+        } else DEFAULT_PREVIEW_RESOLUTION
     }
 
     /**

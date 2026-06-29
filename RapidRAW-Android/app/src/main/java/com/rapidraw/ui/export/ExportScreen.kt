@@ -39,8 +39,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.ExportFormat
 import com.rapidraw.data.model.ExportSettings
+import com.rapidraw.data.model.JxlSettings
 import com.rapidraw.data.model.ResizeMode
 import com.rapidraw.data.model.WatermarkAnchor
+import com.rapidraw.data.model.WebpSettings
 import com.rapidraw.ui.components.HasselSlider
 import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.HasselbladOrange
@@ -63,6 +65,15 @@ fun ExportSheet(
     var watermarkEnabled by remember { mutableStateOf(false) }
     var watermarkOpacity by remember { mutableStateOf(50f) }
     var resizeModeExpanded by remember { mutableStateOf(false) }
+
+    // WebP 设置
+    var webpLossless by remember { mutableStateOf(false) }
+    var webpQuality by remember { mutableStateOf(90f) }
+
+    // JXL 设置
+    var jxlLossless by remember { mutableStateOf(false) }
+    var jxlDistance by remember { mutableStateOf(1.0f) }
+    var jxlEffort by remember { mutableStateOf(7f) }
 
     Column(
         modifier = Modifier
@@ -97,7 +108,13 @@ fun ExportSheet(
                         ),
                     )
                     Text(
-                        text = f.name,
+                        text = when (f) {
+                            ExportFormat.JPEG -> "JPEG"
+                            ExportFormat.PNG -> "PNG"
+                            ExportFormat.TIFF -> "TIFF"
+                            ExportFormat.WEBP -> "WebP"
+                            ExportFormat.JXL -> "JXL"
+                        },
                         color = if (format == f) TextPrimary else TextSecondary,
                         fontSize = 13.sp,
                     )
@@ -114,6 +131,89 @@ fun ExportSheet(
                 range = 1f..100f,
                 onValueChange = { quality = it.toInt() },
                 defaultValue = 95f,
+                stepSize = 1f,
+            )
+        }
+
+        // WebP 设置
+        if (format == ExportFormat.WEBP) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { webpLossless = !webpLossless }
+                    .padding(vertical = 4.dp),
+            ) {
+                Checkbox(
+                    checked = webpLossless,
+                    onCheckedChange = { webpLossless = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = HasselbladOrange,
+                        uncheckedColor = TextTertiary,
+                    ),
+                )
+                Text(text = "无损压缩", color = TextPrimary, fontSize = 13.sp)
+            }
+            if (!webpLossless) {
+                HasselSlider(
+                    label = "质量",
+                    value = webpQuality,
+                    range = 1f..100f,
+                    onValueChange = { webpQuality = it },
+                    defaultValue = 90f,
+                    stepSize = 1f,
+                )
+            }
+        }
+
+        // JXL 设置
+        if (format == ExportFormat.JXL) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { jxlLossless = !jxlLossless }
+                    .padding(vertical = 4.dp),
+            ) {
+                Checkbox(
+                    checked = jxlLossless,
+                    onCheckedChange = { jxlLossless = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = HasselbladOrange,
+                        uncheckedColor = TextTertiary,
+                    ),
+                )
+                Text(text = "无损压缩", color = TextPrimary, fontSize = 13.sp)
+            }
+            if (!jxlLossless) {
+                HasselSlider(
+                    label = "视觉距离",
+                    value = jxlDistance,
+                    range = 0f..15f,
+                    onValueChange = { jxlDistance = it },
+                    defaultValue = 1f,
+                    stepSize = 0.1f,
+                )
+                Text(
+                    text = when {
+                        jxlDistance < 0.5f -> "接近无损"
+                        jxlDistance < 2f -> "高质量"
+                        jxlDistance < 5f -> "中等质量"
+                        else -> "低质量"
+                    },
+                    color = TextTertiary,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                )
+            }
+            HasselSlider(
+                label = "编码努力",
+                value = jxlEffort,
+                range = 1f..9f,
+                onValueChange = { jxlEffort = it },
+                defaultValue = 7f,
                 stepSize = 1f,
             )
         }
@@ -289,6 +389,8 @@ fun ExportSheet(
             ExportFormat.JPEG -> "${quality.coerceIn(50, 100) / 10} MB (预估)"
             ExportFormat.PNG -> "15-25 MB (预估)"
             ExportFormat.TIFF -> "30-50 MB (预估)"
+            ExportFormat.WEBP -> if (webpLossless) "10-20 MB (预估)" else "${(webpQuality.coerceIn(50f, 100f) / 12).toInt()} MB (预估)"
+            ExportFormat.JXL -> if (jxlLossless) "8-18 MB (预估)" else "${(jxlDistance * 2 + 2).toInt()} MB (预估)"
         }
         Text(
             text = "预估文件大小: $estimatedSize",
@@ -315,7 +417,15 @@ fun ExportSheet(
                             keepMetadata = keepMetadata,
                             stripGps = stripGps,
                             watermarkOpacity = if (watermarkEnabled) watermarkOpacity / 100f else 0.5f,
-                            watermarkPath = if (watermarkEnabled) "" else null,
+                            webpSettings = WebpSettings(
+                                lossless = webpLossless,
+                                quality = webpQuality.toInt(),
+                            ),
+                            jxlSettings = JxlSettings(
+                                distance = jxlDistance,
+                                effort = jxlEffort.toInt(),
+                                lossless = jxlLossless,
+                            ),
                         )
                     )
                 }

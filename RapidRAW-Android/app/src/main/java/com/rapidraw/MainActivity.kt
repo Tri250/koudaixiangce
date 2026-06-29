@@ -13,9 +13,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.compose.runtime.DisposableEffect
@@ -50,6 +52,54 @@ class MainActivity : ComponentActivity() {
             // 但图库功能会受限。这里仅记录，不在启动时阻塞。
         } else {
             Log.d(TAG, "All requested permissions granted")
+        }
+    }
+
+    // Android 13+ Photo Picker: 单张选择
+    private val photoPickerSingle = registerForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let {
+            val controller = findNavController()
+            if (controller != null) {
+                navigateToEditor(controller, it)
+            } else {
+                pendingImageUri = it
+            }
+        }
+    }
+
+    // Android 13+ Photo Picker: 多张选择
+    private val photoPickerMultiple = registerForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val first = uris.first()
+            val controller = findNavController()
+            if (controller != null) {
+                navigateToEditor(controller, first)
+            } else {
+                pendingImageUri = first
+            }
+            // TODO: 后续多张导入支持 — 将 uris 加入导入队列
+            if (uris.size > 1) {
+                Log.d(TAG, "Multi-select: ${uris.size} images, navigating to first")
+            }
+        }
+    }
+
+    // SAF fallback (Android 12 及以下)
+    private val safPicker = registerForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val first = uris.first()
+            val controller = findNavController()
+            if (controller != null) {
+                navigateToEditor(controller, first)
+            } else {
+                pendingImageUri = first
+            }
         }
     }
 
@@ -108,6 +158,7 @@ class MainActivity : ComponentActivity() {
                     navController = navController,
                     modifier = Modifier
                         .fillMaxSize()
+                        .navigationBarsPadding()  // Android 15+ edge-to-edge: 正确处理导航栏 inset
                         .imePadding(),  // 正确处理键盘弹出时的布局
                 )
 
@@ -245,5 +296,31 @@ class MainActivity : ComponentActivity() {
         return manufacturer.contains("oppo") || brand.contains("oppo") ||
             manufacturer.contains("realme") || brand.contains("realme") ||
             manufacturer.contains("oneplus") || brand.contains("oneplus")
+    }
+
+    // ── Photo Picker 公开 API ──────────────────────────────────────
+
+    /**
+     * 使用系统 Photo Picker 选择单张图片。
+     * Android 13+ 使用 PickVisualMedia，旧版本回退到 SAF。
+     */
+    fun pickImage() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            photoPickerSingle.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } else {
+            safPicker.launch(arrayOf("image/*"))
+        }
+    }
+
+    /**
+     * 使用系统 Photo Picker 选择多张图片。
+     * Android 13+ 使用 PickMultipleVisualMedia，旧版本回退到 SAF。
+     */
+    fun pickImages() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            photoPickerMultiple.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } else {
+            safPicker.launch(arrayOf("image/*"))
+        }
     }
 }

@@ -1,0 +1,612 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">RapidRAW</string>
+    <string name="app_label">RapidRAW エディター</string>
+
+    <!-- Common Actions -->
+    <string name="action_confirm">OK</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="action_save">保存</string>
+    <string name="action_export">書き出し</string>
+    <string name="action_share">共有</string>
+    <string name="action_delete">削除</string>
+    <string name="action_reset">リセット</string>
+    <string name="action_apply">適用</string>
+    <string name="action_undo">元に戻す</string>
+    <string name="action_redo">やり直す</string>
+    <string name="action_done">完了</string>
+    <string name="action_accept">承認</string>
+    <string name="action_create">作成</string>
+    <string name="action_rename">名前を変更</string>
+    <string name="action_import">インポート</string>
+    <string name="action_back">戻る</string>
+    <string name="action_next">次へ</string>
+    <string name="action_skip">スキップ</string>
+    <string name="action_copy">コピー</string>
+    <string name="action_paste">貼り付け</string>
+    <string name="action_grant_permission">権限を付与</string>
+    <string name="action_later">後で</string>
+
+    <!-- Library Screen -->
+    <string name="library_title">ライブラリ</string>
+    <string name="library_all">すべて</string>
+    <string name="library_dcim">カメラ</string>
+    <string name="library_downloads">ダウンロード</string>
+    <string name="library_screenshots">スクリーンショット</string>
+    <string name="library_raw_only">RAWのみ</string>
+    <string name="library_starred">お気に入り</string>
+    <string name="library_search">検索</string>
+    <string name="library_sort">並び替え</string>
+    <string name="library_import">インポート</string>
+    <string name="library_batch_processing">一括処理中...</string>
+    <string name="library_selected_count">%1$d枚選択</string>
+    <string name="library_select_all">すべて選択</string>
+    <string name="library_apply_film">フィルム適用</string>
+    <string name="library_paste_adjustments">補正を貼り付け</string>
+    <string name="library_select_film">フィルム選択</string>
+
+    <!-- Editor Screen -->
+    <string name="editor_title">エディター</string>
+    <string name="editor_tab_ai">AI</string>
+    <string name="editor_tab_filter">フィルター</string>
+    <string name="editor_tab_adjust">調整</string>
+    <string name="editor_tab_compose">構図</string>
+    <string name="editor_tab_export">書き出し</string>
+    <string name="editor_film">フィルム</string>
+    <string name="editor_adjust">調整</string>
+    <string name="editor_crop">トリミング</string>
+    <string name="editor_export">書き出し</string>
+    <string name="editor_undo">元に戻す</string>
+    <string name="editor_redo">やり直す</string>
+    <string name="editor_exif">EXIF情報</string>
+    <string name="editor_original">オリジナル</string>
+    <string name="editor_effect">エフェクト</string>
+    <string name="editor_optimized">最適化済み</string>
+    <string name="editor_preview">プレビュー</string>
+    <string name="editor_more">その他</string>
+    <string name="editor_current">現在</string>
+    <string name="editor_reset_all">すべてリセット</string>
+    <string name="editor_copy_params">編集パラメータをコピー</string>
+    <string name="editor_smart_optimizing">スマート最適化中...</string>
+    <string name="editor_processing">処理中...</string>
+    <string name="editor_before_after">比較</string>
+
+    <!-- Editor - EXIF -->
+    <string name="exif_camera">カメラ</string>
+    <string name="exif_make">メーカー</string>
+    <string name="exif_model">モデル</string>
+    <string name="exif_lens">レンズ</string>
+    <string name="exif_lens_make">レンズメーカー</string>
+    <string name="exif_lens_model">レンズモデル</string>
+    <string name="exif_focal_length">焦点距離</string>
+    <string name="exif_exposure">露出</string>
+    <string name="exif_shutter_speed">シャッタースピード</string>
+    <string name="exif_aperture">絞り</string>
+    <string name="exif_compensation">露出補正</string>
+    <string name="exif_metering">測光モード</string>
+    <string name="exif_image">画像</string>
+    <string name="exif_size">サイズ</string>
+    <string name="exif_date">日付</string>
+    <string name="exif_white_balance">ホワイトバランス</string>
+    <string name="exif_latitude">緯度</string>
+    <string name="exif_longitude">経度</string>
+    <string name="exif_file">ファイル</string>
+    <string name="exif_file_size">サイズ</string>
+    <string name="exif_type">種類</string>
+    <string name="exif_no_data">EXIFデータなし</string>
+
+    <!-- Scene Classification -->
+    <string name="scene_portrait">人物</string>
+    <string name="scene_landscape">風景</string>
+    <string name="scene_night">夜景</string>
+    <string name="scene_food">料理</string>
+    <string name="scene_architecture">建築</string>
+    <string name="scene_pet">ペット</string>
+    <string name="scene_document">書類</string>
+    <string name="scene_sky">空</string>
+    <string name="scene_beach">ビーチ</string>
+    <string name="scene_snow">雪景</string>
+    <string name="scene_indoor">屋内</string>
+    <string name="scene_general">一般</string>
+    <string name="scene_detect">シーン検出</string>
+
+    <!-- AI Features -->
+    <string name="ai_denoise">AIノイズ除去</string>
+    <string name="ai_inpaint">AI除去</string>
+    <string name="ai_mask">AIマスク</string>
+    <string name="ai_inpaint_title">AI除去</string>
+    <string name="ai_inpaint_brush">ブラシ</string>
+    <string name="ai_inpaint_erase">消しゴム</string>
+    <string name="ai_inpaint_start">修復開始</string>
+    <string name="ai_inpaint_repairing">修復中...</string>
+    <string name="ai_inpaint_brush_size">ブラシサイズ: %1$dpx</string>
+    <string name="ai_inpaint_mark">除去マーク</string>
+    <string name="ai_inpaint_erase_mark">マーク消去</string>
+    <string name="ai_inpaint_preview">プレビュー</string>
+    <string name="ai_subject">AI主体</string>
+    <string name="ai_sky">AI空</string>
+    <string name="smart_optimize">スマート最適化</string>
+    <string name="smart_optimize_done">スマート最適化完了</string>
+    <string name="smart_optimize_subtitle">AIシーン認識＋自動調色、ワンタップ仕上がり</string>
+    <string name="ai_inpaint_subtitle">人物や不要物を除去</string>
+    <string name="ai_denoise_subtitle">低照度ノイズ除去</string>
+    <string name="ai_mask_subtitle">主体/空の分離</string>
+    <string name="highlight_reconstruct">ハイライト復元</string>
+    <string name="highlight_reconstruct_subtitle">RAW過露出復元</string>
+    <string name="local_adjust">部分補正</string>
+    <string name="local_adjust_subtitle">ブラシマスク＋フロー制御、精密な部分編集</string>
+    <string name="mask_brush">ブラシ</string>
+    <string name="mask_linear_gradient">線形グラデーション</string>
+    <string name="mask_radial_gradient">円形グラデーション</string>
+    <string name="mask_invert">反転</string>
+    <string name="mask_invert_desc">マスクを反転</string>
+    <string name="mask_delete_desc">マスクを削除</string>
+    <string name="mask_show">マスク表示</string>
+    <string name="mask_hide">マスク非表示</string>
+    <string name="mask_draw">描画</string>
+    <string name="mask_erase">消去</string>
+    <string name="mask_generating">生成中...</string>
+    <string name="mask_generate">マスク生成</string>
+    <string name="mask_regenerate">マスク再生成</string>
+    <string name="mask_generated">マスク生成完了、プレビューで確認</string>
+    <string name="mask_select_type">マスク種別選択</string>
+    <string name="mask_sky_label">空</string>
+    <string name="mask_subject_label">主体</string>
+    <string name="mask_foreground_label">前景</string>
+    <string name="mask_depth_label">深度</string>
+    <string name="flow_brush">ブラシ</string>
+    <string name="brush_tool">ブラシ</string>
+
+    <!-- Film Simulation -->
+    <string name="film_classic">クラシック</string>
+    <string name="film_emotional">エモーショナル</string>
+    <string name="film_structural">ストラクチャル</string>
+    <string name="film_no_filter">フィルターなし</string>
+    <string name="film_none">なし</string>
+    <string name="film_master_title">ハッセルブラッドマスターフィルム</string>
+    <string name="film_applied">適用済み</string>
+    <string name="film_clear_sim">フィルムシミュレーションをクリア</string>
+
+    <!-- Presets -->
+    <string name="master_presets">マスタープリセット</string>
+    <string name="master_presets_community">マスタープリセットコミュニティ</string>
+    <string name="presets_title">マスタープリセット</string>
+    <string name="presets_all">すべて</string>
+    <string name="presets_portrait">人物</string>
+    <string name="presets_landscape">風景</string>
+    <string name="presets_night">夜景</string>
+    <string name="presets_street">ストリート</string>
+    <string name="presets_food">料理</string>
+    <string name="presets_my">マイプリセット</string>
+    <string name="presets_empty">プリセットがありません。+ をタップして現在の調整を保存</string>
+    <string name="presets_save">プリセット保存</string>
+    <string name="presets_rename">プリセット名前変更</string>
+    <string name="presets_name_hint">プリセット名を入力</string>
+    <string name="presets_save_desc">プリセット保存</string>
+
+    <!-- Preset Names & Descriptions -->
+    <string name="preset_harmony">和光</string>
+    <string name="preset_harmony_desc">柔らかく自然、ポートレートに最適</string>
+    <string name="preset_rich">濃郁</string>
+    <string name="preset_rich_desc">高彩度カラー、ストリートストーリー</string>
+    <string name="preset_vintage">ヴィンテージ</string>
+    <string name="preset_vintage_desc">ノスタルジックレトロトーン</string>
+    <string name="preset_fresh">清新</string>
+    <string name="preset_fresh_desc">澄んだ青空と緑</string>
+    <string name="preset_clear">通澈</string>
+    <string name="preset_clear_desc">シャープな建築テクスチャ</string>
+    <string name="preset_neon">ネオン</string>
+    <string name="preset_neon_desc">サイバーパンク都市夜景</string>
+    <string name="preset_cold_flash">コールドフラッシュ</string>
+    <string name="preset_cold_flash_desc">寒色温フラッシュ効果</string>
+    <string name="preset_warm_flash">ウォームフラッシュ</string>
+    <string name="preset_warm_flash_desc">暖色温フラッシュ効果</string>
+    <string name="preset_bw_contrast">コントラスト白黒</string>
+    <string name="preset_bw_contrast_desc">高コントラスト白黒フィルム</string>
+
+    <!-- Film Simulation Descriptions -->
+    <string name="film_harmony_desc">逆光ポートレート、透き通る肌、ソフトな階調遷移</string>
+    <string name="film_rich_desc">香港スタイル、青緑強調、濃やかで上品</string>
+    <string name="film_vintage_desc">暖色褪せトーン、粒子テクスチャ、ノスタルジー</string>
+    <string name="film_fresh_desc">日系低彩度、空気感、軽やかで透明</string>
+    <string name="film_clear_desc">自然な色、忠実な再現</string>
+    <string name="film_neon_desc">高コントラストネオン、暖かい雰囲気、クリーンな暗部</string>
+    <string name="film_cold_flash_desc">ミレニアムCCD寒色、デジタルノスタルジー</string>
+    <string name="film_warm_flash_desc">ミレニアムCCD暖色、ノスタルジックな温かさ</string>
+    <string name="film_bw_contrast_desc">強いコントラスト、微粒子、クラシック白黒</string>
+
+    <!-- Adjustment Panel Labels -->
+    <string name="adjust_basic">基本</string>
+    <string name="adjust_basic_title">基本調整</string>
+    <string name="adjust_color">カラー</string>
+    <string name="adjust_curves">トーンカーブ</string>
+    <string name="adjust_details">詳細</string>
+    <string name="adjust_effects">エフェクト</string>
+    <string name="adjust_advanced">高度な調整</string>
+    <string name="adjust_advanced_arrow">高度な調整 →</string>
+    <string name="adjust_transform">ジオメトリ</string>
+    <string name="adjust_color_grading">カラーグレーディング</string>
+    <string name="adjust_color_calibration">カラーキャリブレーション</string>
+    <string name="adjust_tone_mapping">トーンマッピング</string>
+    <string name="adjust_creative_effects">クリエイティブエフェクト</string>
+
+    <!-- Basic adjustment labels -->
+    <string name="adjust_exposure">露出</string>
+    <string name="adjust_brightness">明るさ</string>
+    <string name="adjust_contrast">コントラスト</string>
+    <string name="adjust_contrast_full">コントラスト</string>
+    <string name="adjust_highlights">ハイライト</string>
+    <string name="adjust_shadows">シャドウ</string>
+    <string name="adjust_whites">白レベル</string>
+    <string name="adjust_blacks">黒レベル</string>
+
+    <!-- Color adjustment labels -->
+    <string name="adjust_temperature">色温度</string>
+    <string name="adjust_tint">色かぶり</string>
+    <string name="adjust_saturation">彩度</string>
+    <string name="adjust_vibrance">自然な彩度</string>
+    <string name="adjust_hue">色相</string>
+    <string name="adjust_sat">彩度</string>
+    <string name="adjust_luminance">輝度</string>
+    <string name="adjust_warm_cool">暖色/寒色</string>
+    <string name="adjust_cyan_magenta">シアン/マゼンタ</string>
+
+    <!-- HSL color names -->
+    <string name="color_red">赤</string>
+    <string name="color_orange">オレンジ</string>
+    <string name="color_yellow">黄</string>
+    <string name="color_green">緑</string>
+    <string name="color_aqua">シアン</string>
+    <string name="color_blue">青</string>
+    <string name="color_purple">紫</string>
+    <string name="color_magenta">マゼンタ</string>
+
+    <!-- Color grading labels -->
+    <string name="adjust_midtones">中間調</string>
+    <string name="adjust_blend">ブレンド</string>
+    <string name="adjust_balance">バランス</string>
+    <string name="adjust_shadow_tint">シャドウ色かぶり</string>
+
+    <!-- Detail labels -->
+    <string name="adjust_sharpness">シャープネス</string>
+    <string name="adjust_clarity">クラリティ</string>
+    <string name="adjust_structure">テクスチャ</string>
+    <string name="adjust_dehaze">除霧</string>
+    <string name="adjust_local_contrast">ローカルコントラスト</string>
+    <string name="adjust_center">センター</string>
+    <string name="adjust_luminance_denoise">輝度ノイズ除去</string>
+    <string name="adjust_color_denoise">カラーノイズ除去</string>
+    <string name="adjust_denoise">ノイズ除去</string>
+    <string name="adjust_chromatic_aberration">色収差</string>
+    <string name="adjust_red_cyan">赤/シアン</string>
+    <string name="adjust_blue_yellow">青/黄</string>
+
+    <!-- Effect labels -->
+    <string name="adjust_vignette">ビネット</string>
+    <string name="adjust_amount">量</string>
+    <string name="adjust_midpoint">中点</string>
+    <string name="adjust_roundness">丸み</string>
+    <string name="adjust_feather">フェザー</string>
+    <string name="adjust_grain">粒子</string>
+    <string name="adjust_roughness">粗さ</string>
+    <string name="adjust_glow_effect">グロー</string>
+    <string name="adjust_glow">グロー</string>
+    <string name="adjust_bloom">ブルーム</string>
+    <string name="adjust_flare">フレア</string>
+    <string name="adjust_lens_flare">レンズフレア</string>
+    <string name="adjust_light_effects">光エフェクト</string>
+    <string name="adjust_base">ベース</string>
+    <string name="adjust_intensity">強度</string>
+    <string name="adjust_soft_glow">ソフトグロー</string>
+    <string name="adjust_tone">トーン</string>
+    <string name="adjust_sharpness_label">シャープネス</string>
+    <string name="adjust_select_lut">LUT選択</string>
+
+    <!-- Transform labels -->
+    <string name="adjust_angle">角度</string>
+    <string name="adjust_distortion">歪み</string>
+    <string name="adjust_vertical">垂直</string>
+    <string name="adjust_horizontal">水平</string>
+    <string name="adjust_rotation">回転</string>
+    <string name="adjust_aspect">アスペクト</string>
+    <string name="adjust_aspect_long">アスペクト</string>
+    <string name="adjust_scale">スケール</string>
+    <string name="adjust_x_offset">Xオフセット</string>
+    <string name="adjust_y_offset">Yオフセット</string>
+    <string name="adjust_lens_correction">レンズ補正</string>
+    <string name="adjust_lens_unknown">レンズ: 不明</string>
+    <string name="adjust_focal_length_mm">焦点距離 (mm)</string>
+
+    <!-- Mask tool labels -->
+    <string name="mask_opacity">不透明度</string>
+    <string name="mask_opacity_full">不透明度</string>
+    <string name="mask_hardness">硬さ</string>
+    <string name="mask_size">サイズ</string>
+
+    <!-- Crop & Transform -->
+    <string name="crop_free">自由</string>
+    <string name="crop_original">オリジナル</string>
+    <string name="crop_ratio">トリミング比率</string>
+    <string name="crop_interactive">インタラクティブトリミング</string>
+    <string name="crop_perspective">遠近感</string>
+    <string name="crop_distortion_label">歪み</string>
+    <string name="transform_rotation">回転と反転</string>
+    <string name="transform_flip_horizontal">左右反転</string>
+    <string name="transform_flip_vertical">上下反転</string>
+    <string name="transform_rotate_ccw">反時計回りに90°回転</string>
+    <string name="transform_rotate_cw">時計回りに90°回転</string>
+    <string name="crop_grid">グリッド</string>
+    <string name="crop_grid_check">グリッド ✓</string>
+
+    <!-- Export -->
+    <string name="export_format">形式</string>
+    <string name="export_quality">品質</string>
+    <string name="export_resize">リサイズ</string>
+    <string name="export_resize_long_edge">長辺</string>
+    <string name="export_resize_short_edge">短辺</string>
+    <string name="export_resize_width">幅</string>
+    <string name="export_resize_height">高さ</string>
+    <string name="export_resize_original">オリジナルサイズ</string>
+    <string name="export_pixel_value">ピクセル</string>
+    <string name="export_pixel_edge">辺ピクセル</string>
+    <string name="export_metadata">メタデータ</string>
+    <string name="export_preserve_metadata">メタデータを保持</string>
+    <string name="export_strip_gps">GPS情報を削除</string>
+    <string name="export_strip_gps_short">GPS削除</string>
+    <string name="export_watermark">透かし</string>
+    <string name="export_watermark_enable">透かしを有効化</string>
+    <string name="export_watermark_add">透かしを追加</string>
+    <string name="export_watermark_text">透かしテキスト</string>
+    <string name="export_watermark_opacity">不透明度</string>
+    <string name="export_watermark_position">位置</string>
+    <string name="export_social">SNSプラットフォーム</string>
+    <string name="export_button">書き出し</string>
+    <string name="export_processing">書き出し中…</string>
+    <string name="export_exporting">書き出し中...</string>
+    <string name="export_success">書き出し成功</string>
+    <string name="export_failed">書き出し失敗</string>
+    <string name="export_settings">書き出し設定</string>
+    <string name="export_scale">スケール</string>
+    <string name="export_estimated_size">推定ファイルサイズ: %1$s</string>
+    <string name="export_estimated_mb">%1$d MB (推定)</string>
+    <string name="export_estimated_range_mb">%1$d-%2$d MB (推定)</string>
+    <string name="export_no_source">書き出し元画像がありません</string>
+    <string name="export_cancelled">キャンセル済み</string>
+
+    <!-- Social platform names -->
+    <string name="social_original">オリジナル</string>
+    <string name="social_xiaohongshu">小紅書 3:4</string>
+    <string name="social_instagram_story">IGストーリー 9:16</string>
+    <string name="social_douyin">TikTok 9:16</string>
+    <string name="social_wechat_moments">WeChatモーメンツ 3:4</string>
+    <string name="social_wechat_avatar">WeChatアイコン 1:1</string>
+
+    <!-- Export Queue -->
+    <string name="export_queue_title">書き出しキュー</string>
+    <string name="export_queue_active">%1$d 処理中</string>
+    <string name="export_queue_queued">待機中</string>
+    <string name="export_queue_exporting">書き出し中</string>
+    <string name="export_queue_completed">完了</string>
+    <string name="export_queue_failed">失敗</string>
+    <string name="export_queue_done_desc">書き出し完了</string>
+
+    <!-- HDR -->
+    <string name="hdr_export">HDR書き出し</string>
+    <string name="hdr_export_button">HDR画像を書き出し</string>
+    <string name="hdr_export_set">設定済み</string>
+    <string name="hdr_export_ultra">Ultra HDR</string>
+    <string name="hdr_export_dowgrade_notice">このデバイスはUltra HDRにAndroid 14+が必要です。HEIF 10-bitに自動ダウングレードされます。</string>
+    <string name="hdr_peak_brightness">ピーク輝度</string>
+    <string name="hdr_dynamic_range">ダイナミックレンジ（EV段）</string>
+    <string name="hdr_sdr_compatible">SDR互換</string>
+    <string name="hdr_sdr_compatible_desc">SDRフォールバック画像を埋め込み、全デバイスで表示可能に</string>
+    <string name="hdr_not_supported">デバイスはHDR表示非対応</string>
+    <string name="hdr_unable_capability">HDR能力を取得できません</string>
+    <string name="hdr_oppo_recommend">OPPO Find 高輝度HDR画面、HDRプレビュー有効化を強く推奨</string>
+    <string name="hdr_high_brightness_recommend">高輝度HDR画面、HDRプレビュー推奨</string>
+    <string name="hdr_limited_brightness">HDR対応但し輝度制限あり、必要に応じて有効化</string>
+    <string name="hdr_export_failed">HDR書き出し失敗</string>
+
+    <!-- Color Science -->
+    <string name="color_science">カラーサイエンス</string>
+    <string name="color_science_desc">カラーパイプラインを選択、トーンマッピングと色域を決定</string>
+    <string name="color_science_pipeline">レンダリングパイプライン</string>
+    <string name="color_science_fine_tune">微調整</string>
+    <string name="color_science_contrast">コントラスト</string>
+    <string name="color_science_black_pedestal">ブラックペデスタル</string>
+    <string name="color_science_gamut">表示色域</string>
+    <string name="color_science_eotf">EOTF（ディスプレイ伝達関数）</string>
+    <string name="color_science_agx_desc">フィルム質感、低彩度調和、ストリート写真に</string>
+    <string name="color_science_aces_desc">アカデミーカラーエンコーディング、HDR・シネマ標準</string>
+    <string name="color_science_opendrt_desc">プロ監視用レンダリング、卓越した黒レベルと肌色</string>
+    <string name="color_science_standard_desc">基本sRGBカーブ、最速・低消費電力</string>
+
+    <!-- Curves -->
+    <string name="curves_preset">プリセットカーブ</string>
+    <string name="curves_linear">リニア</string>
+    <string name="curves_high_contrast">ハイコントラスト</string>
+    <string name="curves_medium_contrast">ミドルコントラスト</string>
+    <string name="curves_invert">反転</string>
+    <string name="curves_luma">輝度カーブ</string>
+    <string name="curves_red">赤カーブ</string>
+    <string name="curves_green">緑カーブ</string>
+    <string name="curves_blue">青カーブ</string>
+    <string name="curves_generic">カーブ</string>
+
+    <!-- Scopes -->
+    <string name="histogram">ヒストグラム</string>
+    <string name="waveform_scope">ウェーブフォームモニター</string>
+    <string name="waveform">ウェーブフォーム</string>
+    <string name="vectorscope">ベクトルスコープ</string>
+    <string name="scope_cut">クリッピング</string>
+    <string name="scope_mask">マスク</string>
+
+    <!-- LUT Library -->
+    <string name="lut_library">LUTライブラリ</string>
+    <string name="lut_import_cube">.cubeをインポート</string>
+    <string name="lut_search">LUT検索（名前、タグ、カテゴリ）</string>
+    <string name="lut_intensity">強度</string>
+    <string name="lut_builtin">内蔵</string>
+    <string name="lut_user_import">ユーザーインポート</string>
+    <string name="lut_favorite">お気に入り</string>
+    <string name="lut_clear">LUTをクリア</string>
+    <string name="lut_film_cube">フィルムLUT / .cube</string>
+    <string name="lut_applied">適用済み</string>
+
+    <!-- Recipe Share -->
+    <string name="recipe_share">レシピ共有</string>
+    <string name="recipe_share_title">レシピを共有</string>
+    <string name="recipe_import_title">レシピをインポート</string>
+    <string name="recipe_name">レシピ名</string>
+    <string name="recipe_my_name">マイレシピ</string>
+    <string name="recipe_share_code">共有コード</string>
+    <string name="recipe_json">レシピJSON（長押しでコピー）</string>
+    <string name="recipe_copy_clipboard">レシピをクリップボードにコピー</string>
+    <string name="recipe_paste_json">レシピJSONを貼り付け</string>
+    <string name="recipe_import_apply">インポートして適用</string>
+    <string name="recipe_back_share">共有に戻る</string>
+    <string name="recipe_export_params">調色パラメータを書き出し</string>
+    <string name="recipe_shared">レシピを共有しました</string>
+    <string name="recipe_imported">レシピをインポートしました</string>
+    <string name="recipe_author_me">自分</string>
+
+    <!-- Edit History -->
+    <string name="edit_history">編集履歴</string>
+    <string name="edit_history_branch">バージョンブランチ</string>
+    <string name="edit_history_new_branch">新規ブランチ</string>
+    <string name="edit_history_branch_name">新規ブランチ名</string>
+    <string name="edit_history_branch_name_hint">例：モノクロ実験</string>
+    <string name="edit_history_create_branch">このノードからブランチを作成</string>
+    <string name="edit_history_current_branch">現在のブランチ</string>
+    <string name="edit_history_branch_path">現在のブランチパス</string>
+    <string name="edit_history_total_branches">合計ブランチ: %1$d</string>
+    <string name="edit_history_jump_hint">ノードをタップしてその履歴に移動</string>
+    <string name="edit_history_branch_label">ブランチ</string>
+    <string name="edit_history_initial">初期状態</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_tagline">プロ仕様RAW写真エディター</string>
+    <string name="onboarding_get_started">始める</string>
+    <string name="onboarding_smart_optimize">スマート最適化</string>
+    <string name="onboarding_smart_optimize_desc">AI駆動のシーン認識と自動最適化。ワンタップで写真を向上。露出・ホワイトバランス・色彩を自動分析し最適調整を提案。</string>
+    <string name="onboarding_color_grading">プロ調色</string>
+    <string name="onboarding_color_grading_desc">CDLカラーグレーディング、カーブ調整、8色HSLパネル。プロ級カラーコントロールでシネマティックな調色を実現。</string>
+    <string name="onboarding_film_sim">フィルムシミュレーション</string>
+    <string name="onboarding_film_sim_desc">20種以上のクラシックフィルムシミュレーション。ハッセルブラッド、コダック、フジ、イルフォードまで。本物のフィルム色と粒子感を再現。</string>
+    <string name="onboarding_access_photos">写真にアクセス</string>
+    <string name="onboarding_permission_desc">RapidRAWは写真アクセス権限が必要です：\n\u2022 RAW・JPG写真の閲覧とインポート\n\u2022 編集画像のギャラリー保存\n\u2022 EXIFメタデータの読み取り</string>
+    <string name="onboarding_grant_access">アクセスを許可</string>
+    <string name="onboarding_start_editing">編集を開始</string>
+
+    <!-- Settings -->
+    <string name="settings_title">設定</string>
+    <string name="settings_theme">テーマ</string>
+    <string name="settings_dark">ダーク</string>
+    <string name="settings_light">ライト</string>
+    <string name="settings_about">アプリ情報</string>
+
+    <!-- Permissions -->
+    <string name="permission_required">写真にアクセスするにはストレージ権限が必要です</string>
+    <string name="permission_storage">写真にアクセスするにはストレージ権限が必要です</string>
+
+    <!-- Error Messages -->
+    <string name="error_load_image">画像を読み込めません: %1$s</string>
+    <string name="error_load_ai_source">AI除去の元画像を読み込めません</string>
+    <string name="error_ai_denoise">AIノイズ除去失敗: %1$s</string>
+    <string name="error_ai_mask_generate">AIマスク生成失敗: %1$s</string>
+    <string name="error_ai_mask_apply">AIマスク適用失敗: %1$s</string>
+    <string name="error_ai_inpaint">AI除去失敗: %1$s</string>
+    <string name="error_import_lut">LUTインポート失敗: %1$s</string>
+    <string name="error_highlight_reconstruct">ハイライト復元失敗: %1$s</string>
+    <string name="error_no_image">画像がありません、先に画像を開いてください</string>
+    <string name="error_export_failed">書き出し失敗</string>
+
+    <!-- Undo History Descriptions -->
+    <string name="undo_crop_adjust">トリミング調整</string>
+    <string name="undo_apply_preset">プリセット適用: %1$s</string>
+    <string name="undo_apply_film">フィルム適用: %1$s</string>
+    <string name="undo_clear_film">フィルムシミュレーションをクリア</string>
+    <string name="undo_reset_all">すべての調整をリセット</string>
+    <string name="undo_smart_optimize">スマート最適化</string>
+    <string name="undo_import_lut">LUTインポート</string>
+    <string name="undo_clear_lut">LUTをクリア</string>
+    <string name="undo_color_science">カラーサイエンス: %1$s</string>
+    <string name="undo_adjust_param">パラメータ調整</string>
+    <string name="undo_branch">ブランチ: %1$s</string>
+
+    <!-- Smart Optimize Confirm -->
+    <string name="smart_optimize_accept">承認</string>
+    <string name="smart_optimize_undo">元に戻す</string>
+    <string name="smart_optimize_compare">比較</string>
+    <string name="smart_optimize_exposure_label">露出</string>
+    <string name="smart_optimize_contrast_label">コントラスト</string>
+    <string name="smart_optimize_highlights_label">ハイライト</string>
+    <string name="smart_optimize_shadows_label">シャドウ</string>
+    <string name="smart_optimize_temperature_label">暖色/寒色</string>
+    <string name="smart_optimize_saturation_label">彩度</string>
+    <string name="smart_optimize_clarity_label">クラリティ</string>
+    <string name="smart_optimize_vibrance_label">自然な彩度</string>
+    <string name="smart_optimize_dehaze_label">除霧</string>
+
+    <!-- Photo Picker -->
+    <string name="photo_picker_import">写真をインポート</string>
+
+    <!-- Content Descriptions -->
+    <string name="cd_search">検索</string>
+    <string name="cd_sort">並び替え</string>
+    <string name="cd_import">インポート</string>
+    <string name="cd_cancel">キャンセル</string>
+    <string name="cd_select_all">すべて選択</string>
+    <string name="cd_back">戻る</string>
+    <string name="cd_preview">プレビュー</string>
+    <string name="cd_original">オリジナル</string>
+    <string name="cd_current">現在</string>
+    <string name="cd_interactive_crop">インタラクティブトリミング</string>
+    <string name="cd_rotate_ccw">反時計回りに90°回転</string>
+    <string name="cd_rotate_cw">時計回りに90°回転</string>
+    <string name="cd_flip_horizontal">左右反転</string>
+    <string name="cd_flip_vertical">上下反転</string>
+    <string name="cd_clear_lut">LUTをクリア</string>
+    <string name="cd_favorite">お気に入り</string>
+    <string name="cd_export_done">書き出し完了</string>
+    <string name="cd_share">共有</string>
+    <string name="cd_pro_tools">プロツール</string>
+    <string name="cd_collapse_tools">ツールを折りたたむ</string>
+    <string name="cd_expand">展開</string>
+    <string name="cd_collapse">折りたたむ</string>
+    <string name="cd_reset">リセット</string>
+    <string name="cd_done">完了</string>
+    <string name="cd_save_preset">プリセット保存</string>
+
+    <!-- Sidecar & Misc -->
+    <string name="sidecar_saved">編集を保存しました</string>
+
+    <!-- Edit history parameter descriptions -->
+    <string name="history_exposure">露出</string>
+    <string name="history_brightness">明るさ</string>
+    <string name="history_contrast">コントラスト</string>
+    <string name="history_highlights">ハイライト</string>
+    <string name="history_shadows">シャドウ</string>
+    <string name="history_whites">白レベル</string>
+    <string name="history_blacks">黒レベル</string>
+    <string name="history_temperature">色温度</string>
+    <string name="history_tint">色かぶり</string>
+    <string name="history_saturation">彩度</string>
+    <string name="history_vibrance">自然な彩度</string>
+    <string name="history_sharpness">シャープネス</string>
+    <string name="history_clarity">クラリティ</string>
+    <string name="history_dehaze">除霧</string>
+    <string name="history_vignette">ビネット</string>
+    <string name="history_grain">粒子</string>
+    <string name="history_tone_level">トーン</string>
+    <string name="history_film_intensity">フィルター強度</string>
+    <string name="history_soft_glow">ソフトグロー</string>
+    <string name="history_green_magenta">シアン/マゼンタ</string>
+    <string name="history_rotation">回転</string>
+    <string name="history_flip_h">左右反転</string>
+    <string name="history_flip_v">上下反転</string>
+    <string name="history_crop">トリミング</string>
+    <string name="history_lut_intensity">LUT強度</string>
+    <string name="history_free">自由</string>
+</resources>

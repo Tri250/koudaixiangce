@@ -146,6 +146,11 @@ uniform float uCdlHighlightsB;
 // Blur-based creative effects
 uniform float uBlurGlow;         // 0.0 - 1.0
 uniform float uBlurHalation;     // 0.0 - 1.0
+
+// Halation (advanced film effect)
+uniform float u_halation_intensity;   // 0.0 - 1.0, halation strength
+uniform float u_halation_threshold;   // 0.0 - 1.0, luminance threshold for selecting highlights
+uniform float u_halation_spread;      // 0.0 - 1.0, blur radius control
 uniform float uRotation;            // -180 - 180
 uniform int uOrientationSteps;      // 0 - 3
 uniform float uFlipHorizontal;      // 0.0 or 1.0
@@ -1147,6 +1152,77 @@ vec3 apply_halation(vec3 color) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Advanced Halation (in-shader blur + screen blend) ────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_advanced_halation(vec3 color, vec2 uv) {
+    if (u_halation_intensity < 0.001) return color;
+
+    float threshold = u_halation_threshold;
+    float spread = u_halation_spread;
+
+    // Step 1: Extract red channel from bright areas (luminance > threshold)
+    float lum = get_luma(color);
+    float highlightMask = smoothstep_custom(threshold, 1.0, lum);
+    float redHighlight = color.r * highlightMask;
+
+    // Step 2: Apply box blur to the red highlight (using existing box blur pattern)
+    // Blur radius controlled by spread: radius = 1 + spread * 8
+    float blurRadius = 1.0 + spread * 8.0;
+    vec2 texel = 1.0 / uResolution;
+
+    // Two-pass separable box blur approximation
+    // Horizontal pass
+    float hSum = 0.0;
+    float hWeight = 0.0;
+    int hSamples = int(blurRadius) + 1;
+    for (int dx = -hSamples; dx <= hSamples; dx++) {
+        vec2 offsetUv = uv + vec2(float(dx) * texel.x * blurRadius / float(hSamples + 1), 0.0);
+        vec3 sampleColor = texture(uTexture, offsetUv).rgb;
+        float sampleLum = get_luma(sampleColor);
+        float sampleMask = smoothstep_custom(threshold, 1.0, sampleLum);
+        float sampleRedHL = sampleColor.r * sampleMask;
+        float w = 1.0 - abs(float(dx)) / float(hSamples + 1); // triangular weights
+        hSum += sampleRedHL * w;
+        hWeight += w;
+    }
+    float hBlurred = (hWeight > EPS) ? hSum / hWeight : 0.0;
+
+    // Vertical pass (apply to horizontal result by sampling vertical neighbors)
+    float vSum = 0.0;
+    float vWeight = 0.0;
+    int vSamples = int(blurRadius) + 1;
+    for (int dy = -vSamples; dy <= vSamples; dy++) {
+        vec2 offsetUv = uv + vec2(0.0, float(dy) * texel.y * blurRadius / float(vSamples + 1));
+        vec3 sampleColor = texture(uTexture, offsetUv).rgb;
+        float sampleLum = get_luma(sampleColor);
+        float sampleMask = smoothstep_custom(threshold, 1.0, sampleLum);
+        float sampleRedHL = sampleColor.r * sampleMask;
+        float w = 1.0 - abs(float(dy)) / float(vSamples + 1);
+        vSum += sampleRedHL * w;
+        vWeight += w;
+    }
+    float vBlurred = (vWeight > EPS) ? vSum / vWeight : 0.0;
+
+    // Combine horizontal and vertical passes
+    float blurredHalation = (hBlurred + vBlurred) * 0.5;
+
+    // Step 3: Screen blend mode: Screen(a, b) = a + b - a * b
+    // Halation primarily affects red channel, with slight green/blue bleed
+    float screenR = color.r + blurredHalation - color.r * blurredHalation;
+    float screenG = color.g + blurredHalation * 0.3 - color.g * blurredHalation * 0.3;
+    float screenB = color.b + blurredHalation * 0.1 - color.b * blurredHalation * 0.1;
+
+    // Blend by intensity
+    vec3 result;
+    result.r = mix(color.r, screenR, u_halation_intensity);
+    result.g = mix(color.g, screenG, u_halation_intensity);
+    result.b = mix(color.b, screenB, u_halation_intensity);
+
+    return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // ── NEW: Flare ────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1426,6 +1502,7 @@ void main() {
     // === Step 19: Creative light effects ===
     color = apply_glow(color);
     color = apply_halation(color);
+    color = apply_advanced_halation(color, uv);
     color = apply_flare(color);
 
     // === Step 20: Film simulation (complete: curve + grain + color + DR) ===

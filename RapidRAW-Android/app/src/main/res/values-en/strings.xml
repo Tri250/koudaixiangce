@@ -1,6 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App -->
     <string name="app_name">RapidRAW</string>
+    <string name="app_label">RapidRAW Editor</string>
+
+    <!-- Common Actions -->
+    <string name="action_confirm">OK</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_export">Export</string>
+    <string name="action_share">Share</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_redo">Redo</string>
+    <string name="action_done">Done</string>
+    <string name="action_accept">Accept</string>
+    <string name="action_create">Create</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_import">Import</string>
+    <string name="action_back">Back</string>
+    <string name="action_next">Next</string>
+    <string name="action_skip">Skip</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_paste">Paste</string>
+    <string name="action_grant_permission">Grant Permission</string>
+    <string name="action_later">Later</string>
+
+    <!-- Library Screen -->
     <string name="library_title">Library</string>
     <string name="library_all">All</string>
     <string name="library_dcim">Camera</string>
@@ -8,9 +36,23 @@
     <string name="library_screenshots">Screenshots</string>
     <string name="library_raw_only">RAW Only</string>
     <string name="library_starred">Starred</string>
-    <string name="library_search">Search photos</string>
+    <string name="library_search">Search</string>
     <string name="library_sort">Sort</string>
+    <string name="library_import">Import</string>
+    <string name="library_batch_processing">Batch processing…</string>
+    <string name="library_selected_count">%1$d selected</string>
+    <string name="library_select_all">Select All</string>
+    <string name="library_apply_film">Apply Film</string>
+    <string name="library_paste_adjustments">Paste Adjustments</string>
+    <string name="library_select_film">Select Film</string>
+
+    <!-- Editor Screen -->
     <string name="editor_title">Editor</string>
+    <string name="editor_tab_ai">AI</string>
+    <string name="editor_tab_filter">Filter</string>
+    <string name="editor_tab_adjust">Adjust</string>
+    <string name="editor_tab_compose">Compose</string>
+    <string name="editor_tab_export">Export</string>
     <string name="editor_film">Film</string>
     <string name="editor_adjust">Adjust</string>
     <string name="editor_crop">Crop</string>
@@ -19,39 +61,116 @@
     <string name="editor_redo">Redo</string>
     <string name="editor_exif">EXIF Info</string>
     <string name="editor_original">Original</string>
+    <string name="editor_effect">Effect</string>
     <string name="editor_optimized">Optimized</string>
-    <string name="film_classic">Classic</string>
-    <string name="film_emotional">Emotional</string>
-    <string name="film_structural">Structural</string>
-    <string name="film_no_filter">No Filter</string>
-    <string name="adjust_basic">Basic</string>
-    <string name="adjust_color">Color</string>
-    <string name="adjust_curves">Curves</string>
-    <string name="adjust_details">Details</string>
-    <string name="adjust_effects">Effects</string>
-    <string name="adjust_advanced">Advanced</string>
-    <string name="adjust_transform">Transform</string>
-    <string name="crop_free">Free</string>
-    <string name="crop_original">Original</string>
-    <string name="export_format">Format</string>
-    <string name="export_quality">Quality</string>
-    <string name="export_resize">Resize</string>
-    <string name="export_metadata">Preserve Metadata</string>
-    <string name="export_strip_gps">Strip GPS</string>
-    <string name="export_social">Social Platform</string>
-    <string name="export_watermark">Watermark</string>
-    <string name="export_button">Export</string>
-    <string name="menu_reset">Reset All</string>
-    <string name="menu_smart_optimize">Smart Optimize</string>
-    <string name="menu_copy_params">Copy Edit Parameters</string>
-    <string name="menu_recipe_share">Recipe Share</string>
-    <string name="menu_ai_inpaint">AI Remove</string>
-    <string name="menu_presets">Master Presets</string>
+    <string name="editor_preview">Preview</string>
+    <string name="editor_more">More</string>
+    <string name="editor_current">Current</string>
+    <string name="editor_reset_all">Reset All</string>
+    <string name="editor_copy_params">Copy Edit Parameters</string>
+    <string name="editor_smart_optimizing">Smart optimizing…</string>
+    <string name="editor_processing">Processing…</string>
+    <string name="editor_before_after">Compare</string>
+
+    <!-- Editor - EXIF -->
+    <string name="exif_camera">Camera</string>
+    <string name="exif_make">Make</string>
+    <string name="exif_model">Model</string>
+    <string name="exif_lens">Lens</string>
+    <string name="exif_lens_make">Lens Make</string>
+    <string name="exif_lens_model">Lens Model</string>
+    <string name="exif_focal_length">Focal Length</string>
+    <string name="exif_exposure">Exposure</string>
+    <string name="exif_shutter_speed">Shutter Speed</string>
+    <string name="exif_aperture">Aperture</string>
+    <string name="exif_compensation">Exposure Comp.</string>
+    <string name="exif_metering">Metering Mode</string>
+    <string name="exif_image">Image</string>
+    <string name="exif_size">Size</string>
+    <string name="exif_date">Date</string>
+    <string name="exif_white_balance">White Balance</string>
+    <string name="exif_latitude">Latitude</string>
+    <string name="exif_longitude">Longitude</string>
+    <string name="exif_file">File</string>
+    <string name="exif_file_size">Size</string>
+    <string name="exif_type">Type</string>
+    <string name="exif_no_data">No EXIF data</string>
+
+    <!-- Scene Classification -->
+    <string name="scene_portrait">Portrait</string>
+    <string name="scene_landscape">Landscape</string>
+    <string name="scene_night">Night</string>
+    <string name="scene_food">Food</string>
+    <string name="scene_architecture">Architecture</string>
+    <string name="scene_pet">Pet</string>
+    <string name="scene_document">Document</string>
+    <string name="scene_sky">Sky</string>
+    <string name="scene_beach">Beach</string>
+    <string name="scene_snow">Snow</string>
+    <string name="scene_indoor">Indoor</string>
+    <string name="scene_general">General</string>
+    <string name="scene_detect">Detect Scene</string>
+
+    <!-- AI Features -->
+    <string name="ai_denoise">AI Denoise</string>
+    <string name="ai_inpaint">AI Remove</string>
+    <string name="ai_mask">AI Mask</string>
     <string name="ai_inpaint_title">AI Remove</string>
     <string name="ai_inpaint_brush">Brush</string>
     <string name="ai_inpaint_erase">Erase</string>
     <string name="ai_inpaint_start">Start Repair</string>
     <string name="ai_inpaint_repairing">Repairing…</string>
+    <string name="ai_inpaint_brush_size">Brush size: %1$dpx</string>
+    <string name="ai_inpaint_mark">Mark for removal</string>
+    <string name="ai_inpaint_erase_mark">Erase mark</string>
+    <string name="ai_inpaint_preview">Preview</string>
+    <string name="ai_subject">AI Subject</string>
+    <string name="ai_sky">AI Sky</string>
+    <string name="smart_optimize">Smart Optimize</string>
+    <string name="smart_optimize_done">Smart optimize complete</string>
+    <string name="smart_optimize_subtitle">AI scene detection + auto grading, one-tap results</string>
+    <string name="ai_inpaint_subtitle">Remove people &amp; objects</string>
+    <string name="ai_denoise_subtitle">Low-light noise reduction</string>
+    <string name="ai_mask_subtitle">Subject/sky separation</string>
+    <string name="highlight_reconstruct">Highlight Reconstruct</string>
+    <string name="highlight_reconstruct_subtitle">RAW overexposure recovery</string>
+    <string name="local_adjust">Local Adjustments</string>
+    <string name="local_adjust_subtitle">Brush mask + flow control, precise local editing</string>
+    <string name="mask_brush">Brush</string>
+    <string name="mask_linear_gradient">Linear Gradient</string>
+    <string name="mask_radial_gradient">Radial Gradient</string>
+    <string name="mask_invert">Invert</string>
+    <string name="mask_invert_desc">Invert mask</string>
+    <string name="mask_delete_desc">Delete mask</string>
+    <string name="mask_show">Show mask</string>
+    <string name="mask_hide">Hide mask</string>
+    <string name="mask_draw">Draw</string>
+    <string name="mask_erase">Erase</string>
+    <string name="mask_generating">Generating…</string>
+    <string name="mask_generate">Generate Mask</string>
+    <string name="mask_regenerate">Regenerate Mask</string>
+    <string name="mask_generated">Mask generated, view in preview</string>
+    <string name="mask_select_type">Select mask type</string>
+    <string name="mask_sky_label">Sky</string>
+    <string name="mask_subject_label">Subject</string>
+    <string name="mask_foreground_label">Foreground</string>
+    <string name="mask_depth_label">Depth</string>
+    <string name="flow_brush">Brush</string>
+    <string name="brush_tool">Brush</string>
+
+    <!-- Film Simulation -->
+    <string name="film_classic">Classic</string>
+    <string name="film_emotional">Emotional</string>
+    <string name="film_structural">Structural</string>
+    <string name="film_no_filter">No Filter</string>
+    <string name="film_none">None</string>
+    <string name="film_master_title">Hasselblad Master Films</string>
+    <string name="film_applied">Applied</string>
+    <string name="film_clear_sim">Clear Film Simulation</string>
+
+    <!-- Presets -->
+    <string name="master_presets">Master Presets</string>
+    <string name="master_presets_community">Master Presets Community</string>
     <string name="presets_title">Master Presets</string>
     <string name="presets_all">All</string>
     <string name="presets_portrait">Portrait</string>
@@ -59,10 +178,435 @@
     <string name="presets_night">Night</string>
     <string name="presets_street">Street</string>
     <string name="presets_food">Food</string>
-    <string name="permission_storage">Storage permission is required to access photos</string>
+    <string name="presets_my">My Presets</string>
+    <string name="presets_empty">No presets yet. Tap + to save current adjustments as a preset</string>
+    <string name="presets_save">Save Preset</string>
+    <string name="presets_rename">Rename Preset</string>
+    <string name="presets_name_hint">Enter preset name</string>
+    <string name="presets_save_desc">Save preset</string>
+
+    <!-- Preset Names & Descriptions -->
+    <string name="preset_harmony">Harmony</string>
+    <string name="preset_harmony_desc">Soft and natural, ideal for portraits</string>
+    <string name="preset_rich">Rich</string>
+    <string name="preset_rich_desc">High saturation colors, street storytelling</string>
+    <string name="preset_vintage">Vintage</string>
+    <string name="preset_vintage_desc">Nostalgic retro tones</string>
+    <string name="preset_fresh">Fresh</string>
+    <string name="preset_fresh_desc">Clear blue sky and greens</string>
+    <string name="preset_clear">Clear</string>
+    <string name="preset_clear_desc">Sharp architectural texture</string>
+    <string name="preset_neon">Neon</string>
+    <string name="preset_neon_desc">Cyberpunk city nightscape</string>
+    <string name="preset_cold_flash">Cold Flash</string>
+    <string name="preset_cold_flash_desc">Cool temperature flash effect</string>
+    <string name="preset_warm_flash">Warm Flash</string>
+    <string name="preset_warm_flash_desc">Warm temperature flash effect</string>
+    <string name="preset_bw_contrast">Contrast B&amp;W</string>
+    <string name="preset_bw_contrast_desc">High contrast black &amp; white film</string>
+
+    <!-- Film Simulation Descriptions -->
+    <string name="film_harmony_desc">Backlit portraits, luminous skin, soft tonal transitions</string>
+    <string name="film_rich_desc">Hong Kong style, blue-green emphasis, rich yet refined</string>
+    <string name="film_vintage_desc">Warm faded tones, grain texture, nostalgic atmosphere</string>
+    <string name="film_fresh_desc">Japanese low saturation, airy, light and transparent</string>
+    <string name="film_clear_desc">True natural colors, faithful rendering without over-processing</string>
+    <string name="film_neon_desc">High contrast neon glow, warm ambiance, clean shadows</string>
+    <string name="film_cold_flash_desc">Millennial CCD cold tones, digital nostalgia</string>
+    <string name="film_warm_flash_desc">Millennial CCD warm tones, warm nostalgia</string>
+    <string name="film_bw_contrast_desc">Strong contrast, subtle grain, classic B&amp;W tonality</string>
+
+    <!-- Adjustment Panel Labels -->
+    <string name="adjust_basic">Basic</string>
+    <string name="adjust_basic_title">Basic Adjustments</string>
+    <string name="adjust_color">Color</string>
+    <string name="adjust_curves">Curves</string>
+    <string name="adjust_details">Details</string>
+    <string name="adjust_effects">Effects</string>
+    <string name="adjust_advanced">Advanced</string>
+    <string name="adjust_advanced_arrow">Advanced →</string>
+    <string name="adjust_transform">Geometry</string>
+    <string name="adjust_color_grading">Color Grading</string>
+    <string name="adjust_color_calibration">Color Calibration</string>
+    <string name="adjust_tone_mapping">Tone Mapping</string>
+    <string name="adjust_creative_effects">Creative Effects</string>
+
+    <!-- Basic adjustment labels -->
+    <string name="adjust_exposure">Exposure</string>
+    <string name="adjust_brightness">Brightness</string>
+    <string name="adjust_contrast">Contrast</string>
+    <string name="adjust_contrast_full">Contrast</string>
+    <string name="adjust_highlights">Highlights</string>
+    <string name="adjust_shadows">Shadows</string>
+    <string name="adjust_whites">Whites</string>
+    <string name="adjust_blacks">Blacks</string>
+
+    <!-- Color adjustment labels -->
+    <string name="adjust_temperature">Temperature</string>
+    <string name="adjust_tint">Tint</string>
+    <string name="adjust_saturation">Saturation</string>
+    <string name="adjust_vibrance">Vibrance</string>
+    <string name="adjust_hue">Hue</string>
+    <string name="adjust_sat">Saturation</string>
+    <string name="adjust_luminance">Luminance</string>
+    <string name="adjust_warm_cool">Warm/Cool</string>
+    <string name="adjust_cyan_magenta">Cyan/Magenta</string>
+
+    <!-- HSL color names -->
+    <string name="color_red">Red</string>
+    <string name="color_orange">Orange</string>
+    <string name="color_yellow">Yellow</string>
+    <string name="color_green">Green</string>
+    <string name="color_aqua">Aqua</string>
+    <string name="color_blue">Blue</string>
+    <string name="color_purple">Purple</string>
+    <string name="color_magenta">Magenta</string>
+
+    <!-- Color grading labels -->
+    <string name="adjust_midtones">Midtones</string>
+    <string name="adjust_blend">Blend</string>
+    <string name="adjust_balance">Balance</string>
+    <string name="adjust_shadow_tint">Shadow Tint</string>
+
+    <!-- Detail labels -->
+    <string name="adjust_sharpness">Sharpness</string>
+    <string name="adjust_clarity">Clarity</string>
+    <string name="adjust_structure">Texture</string>
+    <string name="adjust_dehaze">Dehaze</string>
+    <string name="adjust_local_contrast">Local Contrast</string>
+    <string name="adjust_center">Center</string>
+    <string name="adjust_luminance_denoise">Luminance Denoise</string>
+    <string name="adjust_color_denoise">Color Denoise</string>
+    <string name="adjust_denoise">Denoise</string>
+    <string name="adjust_chromatic_aberration">Chromatic Aberration</string>
+    <string name="adjust_red_cyan">Red/Cyan</string>
+    <string name="adjust_blue_yellow">Blue/Yellow</string>
+
+    <!-- Effect labels -->
+    <string name="adjust_vignette">Vignette</string>
+    <string name="adjust_amount">Amount</string>
+    <string name="adjust_midpoint">Midpoint</string>
+    <string name="adjust_roundness">Roundness</string>
+    <string name="adjust_feather">Feather</string>
+    <string name="adjust_grain">Grain</string>
+    <string name="adjust_roughness">Roughness</string>
+    <string name="adjust_glow_effect">Glow</string>
+    <string name="adjust_glow">Glow</string>
+    <string name="adjust_bloom">Bloom</string>
+    <string name="adjust_flare">Flare</string>
+    <string name="adjust_lens_flare">Lens Flare</string>
+    <string name="adjust_light_effects">Light Effects</string>
+    <string name="adjust_base">Base</string>
+    <string name="adjust_intensity">Intensity</string>
+    <string name="adjust_soft_glow">Soft Glow</string>
+    <string name="adjust_tone">Tone</string>
+    <string name="adjust_sharpness_label">Sharpness</string>
+    <string name="adjust_select_lut">Select LUT</string>
+
+    <!-- Transform labels -->
+    <string name="adjust_angle">Angle</string>
+    <string name="adjust_distortion">Distortion</string>
+    <string name="adjust_vertical">Vertical</string>
+    <string name="adjust_horizontal">Horizontal</string>
+    <string name="adjust_rotation">Rotation</string>
+    <string name="adjust_aspect">Aspect</string>
+    <string name="adjust_aspect_long">Aspect</string>
+    <string name="adjust_scale">Scale</string>
+    <string name="adjust_x_offset">X Offset</string>
+    <string name="adjust_y_offset">Y Offset</string>
+    <string name="adjust_lens_correction">Lens Correction</string>
+    <string name="adjust_lens_unknown">Lens: Unknown</string>
+    <string name="adjust_focal_length_mm">Focal Length (mm)</string>
+
+    <!-- Mask tool labels -->
+    <string name="mask_opacity">Opacity</string>
+    <string name="mask_opacity_full">Opacity</string>
+    <string name="mask_hardness">Hardness</string>
+    <string name="mask_size">Size</string>
+
+    <!-- Crop & Transform -->
+    <string name="crop_free">Free</string>
+    <string name="crop_original">Original</string>
+    <string name="crop_ratio">Crop Ratio</string>
+    <string name="crop_interactive">Interactive Crop</string>
+    <string name="crop_perspective">Perspective</string>
+    <string name="crop_distortion_label">Distortion</string>
+    <string name="transform_rotation">Rotation &amp; Flip</string>
+    <string name="transform_flip_horizontal">Flip Horizontal</string>
+    <string name="transform_flip_vertical">Flip Vertical</string>
+    <string name="transform_rotate_ccw">Rotate 90° CCW</string>
+    <string name="transform_rotate_cw">Rotate 90° CW</string>
+    <string name="crop_grid">Grid</string>
+    <string name="crop_grid_check">Grid ✓</string>
+
+    <!-- Export -->
+    <string name="export_format">Format</string>
+    <string name="export_quality">Quality</string>
+    <string name="export_resize">Resize</string>
+    <string name="export_resize_long_edge">Long Edge</string>
+    <string name="export_resize_short_edge">Short Edge</string>
+    <string name="export_resize_width">Width</string>
+    <string name="export_resize_height">Height</string>
+    <string name="export_resize_original">Original Size</string>
+    <string name="export_pixel_value">Pixels</string>
+    <string name="export_pixel_edge">Edge Pixels</string>
+    <string name="export_metadata">Metadata</string>
+    <string name="export_preserve_metadata">Preserve Metadata</string>
+    <string name="export_strip_gps">Strip GPS</string>
+    <string name="export_strip_gps_short">Strip GPS</string>
+    <string name="export_watermark">Watermark</string>
+    <string name="export_watermark_enable">Enable Watermark</string>
+    <string name="export_watermark_add">Add Watermark</string>
+    <string name="export_watermark_text">Watermark Text</string>
+    <string name="export_watermark_opacity">Opacity</string>
+    <string name="export_watermark_position">Position</string>
+    <string name="export_social">Social Platform</string>
+    <string name="export_button">Export</string>
+    <string name="export_processing">Exporting…</string>
+    <string name="export_exporting">Exporting…</string>
+    <string name="export_success">Export successful</string>
+    <string name="export_failed">Export failed</string>
+    <string name="export_settings">Export Settings</string>
+    <string name="export_scale">Scale</string>
+    <string name="export_estimated_size">Estimated file size: %1$s</string>
+    <string name="export_estimated_mb">%1$d MB (est.)</string>
+    <string name="export_estimated_range_mb">%1$d-%2$d MB (est.)</string>
+    <string name="export_no_source">No source image to export</string>
+    <string name="export_cancelled">Cancelled</string>
+
+    <!-- Social platform names -->
+    <string name="social_original">Original</string>
+    <string name="social_xiaohongshu">Xiaohongshu 3:4</string>
+    <string name="social_instagram_story">IG Story 9:16</string>
+    <string name="social_douyin">Douyin 9:16</string>
+    <string name="social_wechat_moments">WeChat Moments 3:4</string>
+    <string name="social_wechat_avatar">WeChat Avatar 1:1</string>
+
+    <!-- Export Queue -->
+    <string name="export_queue_title">Export Queue</string>
+    <string name="export_queue_active">%1$d active</string>
+    <string name="export_queue_queued">Queued</string>
+    <string name="export_queue_exporting">Exporting</string>
+    <string name="export_queue_completed">Completed</string>
+    <string name="export_queue_failed">Failed</string>
+    <string name="export_queue_done_desc">Export complete</string>
+
+    <!-- HDR -->
+    <string name="hdr_export">HDR Export</string>
+    <string name="hdr_export_button">Export HDR Image</string>
+    <string name="hdr_export_set">Configured</string>
+    <string name="hdr_export_ultra">Ultra HDR</string>
+    <string name="hdr_export_dowgrade_notice">This device requires Android 14+ for Ultra HDR; will auto-downgrade to HEIF 10-bit.</string>
+    <string name="hdr_peak_brightness">Peak Brightness</string>
+    <string name="hdr_dynamic_range">Dynamic Range (stops)</string>
+    <string name="hdr_sdr_compatible">SDR Compatible</string>
+    <string name="hdr_sdr_compatible_desc">Embed SDR fallback image for universal viewing</string>
+    <string name="hdr_not_supported">Device does not support HDR display</string>
+    <string name="hdr_unable_capability">Unable to get HDR capability</string>
+    <string name="hdr_oppo_recommend">OPPO Find high-brightness HDR screen, strongly recommended to enable HDR preview</string>
+    <string name="hdr_high_brightness_recommend">High-brightness HDR screen, recommended to enable HDR preview</string>
+    <string name="hdr_limited_brightness">HDR supported but limited brightness, enable as needed</string>
+    <string name="hdr_export_failed">HDR export failed</string>
+
+    <!-- Color Science -->
+    <string name="color_science">Color Science</string>
+    <string name="color_science_desc">Select color pipeline to determine tonal mapping &amp; gamut</string>
+    <string name="color_science_pipeline">Render Pipeline</string>
+    <string name="color_science_fine_tune">Fine Tune</string>
+    <string name="color_science_contrast">Contrast</string>
+    <string name="color_science_black_pedestal">Black Pedestal</string>
+    <string name="color_science_gamut">Display Gamut</string>
+    <string name="color_science_eotf">EOTF (Display Transfer Function)</string>
+    <string name="color_science_agx_desc">Film-like, low saturation harmony, great for street photography</string>
+    <string name="color_science_aces_desc">Academy color encoding, HDR &amp; cinema standard, widest gamut</string>
+    <string name="color_science_opendrt_desc">Professional monitoring render, superior black level &amp; skin tone</string>
+    <string name="color_science_standard_desc">Basic sRGB curve, fastest speed, lowest power</string>
+
+    <!-- Curves -->
+    <string name="curves_preset">Preset Curves</string>
+    <string name="curves_linear">Linear</string>
+    <string name="curves_high_contrast">High Contrast</string>
+    <string name="curves_medium_contrast">Medium Contrast</string>
+    <string name="curves_invert">Invert</string>
+    <string name="curves_luma">Luma Curve</string>
+    <string name="curves_red">Red Curve</string>
+    <string name="curves_green">Green Curve</string>
+    <string name="curves_blue">Blue Curve</string>
+    <string name="curves_generic">Curves</string>
+
+    <!-- Scopes -->
+    <string name="histogram">Histogram</string>
+    <string name="waveform_scope">Waveform Monitor</string>
+    <string name="waveform">Waveform</string>
+    <string name="vectorscope">Vectorscope</string>
+    <string name="scope_cut">Clipping</string>
+    <string name="scope_mask">Mask</string>
+
+    <!-- LUT Library -->
+    <string name="lut_library">LUT Library</string>
+    <string name="lut_import_cube">Import .cube</string>
+    <string name="lut_search">Search LUT (name, tags, category)</string>
+    <string name="lut_intensity">Intensity</string>
+    <string name="lut_builtin">Built-in</string>
+    <string name="lut_user_import">User Import</string>
+    <string name="lut_favorite">Favorite</string>
+    <string name="lut_clear">Clear LUT</string>
+    <string name="lut_film_cube">Film LUT / .cube</string>
+    <string name="lut_applied">Applied</string>
+
+    <!-- Recipe Share -->
+    <string name="recipe_share">Recipe Share</string>
+    <string name="recipe_share_title">Share Recipe</string>
+    <string name="recipe_import_title">Import Recipe</string>
+    <string name="recipe_name">Recipe Name</string>
+    <string name="recipe_my_name">My Recipe</string>
+    <string name="recipe_share_code">Share Code</string>
+    <string name="recipe_json">Recipe JSON (long-press to copy)</string>
+    <string name="recipe_copy_clipboard">Copy recipe to clipboard</string>
+    <string name="recipe_paste_json">Paste recipe JSON</string>
+    <string name="recipe_import_apply">Import &amp; Apply</string>
+    <string name="recipe_back_share">Back to Share</string>
+    <string name="recipe_export_params">Export edit parameters</string>
+    <string name="recipe_shared">Recipe shared</string>
+    <string name="recipe_imported">Recipe imported</string>
+    <string name="recipe_author_me">Me</string>
+
+    <!-- Edit History -->
+    <string name="edit_history">Edit History</string>
+    <string name="edit_history_branch">Version Branches</string>
+    <string name="edit_history_new_branch">New Branch</string>
+    <string name="edit_history_branch_name">New branch name</string>
+    <string name="edit_history_branch_name_hint">e.g. B&amp;W experiment</string>
+    <string name="edit_history_create_branch">Create branch from this node</string>
+    <string name="edit_history_current_branch">Current Branch</string>
+    <string name="edit_history_branch_path">Current Branch Path</string>
+    <string name="edit_history_total_branches">Total branches: %1$d</string>
+    <string name="edit_history_jump_hint">Tap a node to jump to that history version</string>
+    <string name="edit_history_branch_label">Branch</string>
+    <string name="edit_history_initial">Initial state</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_tagline">Professional RAW Photo Editor</string>
+    <string name="onboarding_get_started">Get Started</string>
+    <string name="onboarding_smart_optimize">Smart Optimize</string>
+    <string name="onboarding_smart_optimize_desc">AI-driven scene recognition &amp; auto optimization. One tap to enhance photo quality. Auto-analyzes exposure, white balance, and color for the best adjustments.</string>
+    <string name="onboarding_color_grading">Pro Color Grading</string>
+    <string name="onboarding_color_grading_desc">CDL color grading, curve adjustments, 8-color HSL panel. Professional color control for cinematic grading effects.</string>
+    <string name="onboarding_film_sim">Film Simulation</string>
+    <string name="onboarding_film_sim_desc">20+ classic film simulation presets, from Hasselblad to Kodak, Fujifilm to Ilford. Authentic film color &amp; grain rendering.</string>
+    <string name="onboarding_access_photos">Access Your Photos</string>
+    <string name="onboarding_permission_desc">RapidRAW needs photo access to:\n\u2022 Browse and import your RAW &amp; JPG photos\n\u2022 Save edited images to your gallery\n\u2022 Read EXIF metadata</string>
+    <string name="onboarding_grant_access">Grant Access</string>
+    <string name="onboarding_start_editing">Start Editing</string>
+
+    <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_dark">Dark</string>
     <string name="settings_light">Light</string>
     <string name="settings_about">About</string>
+
+    <!-- Permissions -->
+    <string name="permission_required">Storage permission required to access photos</string>
+    <string name="permission_storage">Storage permission is required to access photos</string>
+
+    <!-- Error Messages -->
+    <string name="error_load_image">Cannot load image: %1$s</string>
+    <string name="error_load_ai_source">Cannot load AI removal source image</string>
+    <string name="error_ai_denoise">AI denoise failed: %1$s</string>
+    <string name="error_ai_mask_generate">AI mask generation failed: %1$s</string>
+    <string name="error_ai_mask_apply">AI mask application failed: %1$s</string>
+    <string name="error_ai_inpaint">AI removal failed: %1$s</string>
+    <string name="error_import_lut">LUT import failed: %1$s</string>
+    <string name="error_highlight_reconstruct">Highlight reconstruction failed: %1$s</string>
+    <string name="error_no_image">No image available, please open an image first</string>
+    <string name="error_export_failed">Export failed</string>
+
+    <!-- Undo History Descriptions -->
+    <string name="undo_crop_adjust">Crop adjustment</string>
+    <string name="undo_apply_preset">Apply preset: %1$s</string>
+    <string name="undo_apply_film">Apply film: %1$s</string>
+    <string name="undo_clear_film">Clear film simulation</string>
+    <string name="undo_reset_all">Reset all adjustments</string>
+    <string name="undo_smart_optimize">Smart optimize</string>
+    <string name="undo_import_lut">Import LUT</string>
+    <string name="undo_clear_lut">Clear LUT</string>
+    <string name="undo_color_science">Color science: %1$s</string>
+    <string name="undo_adjust_param">Adjust parameter</string>
+    <string name="undo_branch">Branch: %1$s</string>
+
+    <!-- Smart Optimize Confirm -->
+    <string name="smart_optimize_accept">Accept</string>
+    <string name="smart_optimize_undo">Undo</string>
+    <string name="smart_optimize_compare">Compare</string>
+    <string name="smart_optimize_exposure_label">Exposure</string>
+    <string name="smart_optimize_contrast_label">Contrast</string>
+    <string name="smart_optimize_highlights_label">Highlights</string>
+    <string name="smart_optimize_shadows_label">Shadows</string>
+    <string name="smart_optimize_temperature_label">Warm/Cool</string>
+    <string name="smart_optimize_saturation_label">Saturation</string>
+    <string name="smart_optimize_clarity_label">Clarity</string>
+    <string name="smart_optimize_vibrance_label">Vibrance</string>
+    <string name="smart_optimize_dehaze_label">Dehaze</string>
+
+    <!-- Photo Picker -->
+    <string name="photo_picker_import">Import Photo</string>
+
+    <!-- Content Descriptions -->
+    <string name="cd_search">Search</string>
+    <string name="cd_sort">Sort</string>
+    <string name="cd_import">Import</string>
+    <string name="cd_cancel">Cancel</string>
+    <string name="cd_select_all">Select all</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_preview">Preview</string>
+    <string name="cd_original">Original</string>
+    <string name="cd_current">Current</string>
+    <string name="cd_interactive_crop">Interactive crop</string>
+    <string name="cd_rotate_ccw">Rotate 90° counter-clockwise</string>
+    <string name="cd_rotate_cw">Rotate 90° clockwise</string>
+    <string name="cd_flip_horizontal">Flip horizontal</string>
+    <string name="cd_flip_vertical">Flip vertical</string>
+    <string name="cd_clear_lut">Clear LUT</string>
+    <string name="cd_favorite">Favorite</string>
+    <string name="cd_export_done">Export complete</string>
+    <string name="cd_share">Share</string>
+    <string name="cd_pro_tools">Pro tools</string>
+    <string name="cd_collapse_tools">Collapse tools</string>
+    <string name="cd_expand">Expand</string>
+    <string name="cd_collapse">Collapse</string>
+    <string name="cd_reset">Reset</string>
+    <string name="cd_done">Done</string>
+    <string name="cd_save_preset">Save preset</string>
+
+    <!-- Sidecar & Misc -->
+    <string name="sidecar_saved">Edits saved</string>
+
+    <!-- Edit history parameter descriptions -->
+    <string name="history_exposure">Exposure</string>
+    <string name="history_brightness">Brightness</string>
+    <string name="history_contrast">Contrast</string>
+    <string name="history_highlights">Highlights</string>
+    <string name="history_shadows">Shadows</string>
+    <string name="history_whites">Whites</string>
+    <string name="history_blacks">Blacks</string>
+    <string name="history_temperature">Temperature</string>
+    <string name="history_tint">Tint</string>
+    <string name="history_saturation">Saturation</string>
+    <string name="history_vibrance">Vibrance</string>
+    <string name="history_sharpness">Sharpness</string>
+    <string name="history_clarity">Clarity</string>
+    <string name="history_dehaze">Dehaze</string>
+    <string name="history_vignette">Vignette</string>
+    <string name="history_grain">Grain</string>
+    <string name="history_tone_level">Tone</string>
+    <string name="history_film_intensity">Filter Intensity</string>
+    <string name="history_soft_glow">Soft Glow</string>
+    <string name="history_green_magenta">Cyan/Magenta</string>
+    <string name="history_rotation">Rotation</string>
+    <string name="history_flip_h">Flip Horizontal</string>
+    <string name="history_flip_v">Flip Vertical</string>
+    <string name="history_crop">Crop</string>
+    <string name="history_lut_intensity">LUT Intensity</string>
+    <string name="history_free">Free</string>
 </resources>

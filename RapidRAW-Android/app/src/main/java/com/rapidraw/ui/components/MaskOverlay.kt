@@ -56,7 +56,8 @@ fun MaskOverlay(
                 modifier = modifier,
             )
         }
-        MaskType.AI_SUBJECT, MaskType.AI_SKY -> {
+        MaskType.AI_SUBJECT, MaskType.AI_SKY,
+        MaskType.COLOR_RANGE, MaskType.LUMINANCE_RANGE -> {
             BrushMaskOverlay(
                 maskBitmap = maskBitmap,
                 maskInverted = maskInverted,

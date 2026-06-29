@@ -24,6 +24,10 @@
     <!-- 触觉反馈 -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- 前台服务：导出/批量处理（Android 14+ 需声明类型对应权限） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <!-- 硬件能力声明 -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <!-- OpenGL ES 3.0 为必须，低版本设备将在安装阶段过滤 -->
@@ -46,6 +50,7 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true"
+        android:localeConfig="@xml/locales_config"
         android:largeHeap="true"
         tools:targetApi="36">
 
@@ -90,5 +95,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- 导出/批量处理前台服务（Android 14+ 必须声明类型） -->
+        <service
+            android:name=".core.ExportService"
+            android:foregroundServiceType="dataSync|specialUse"
+            android:exported="false"
+            tools:ignore="ForegroundServiceType" />
     </application>
 </manifest>

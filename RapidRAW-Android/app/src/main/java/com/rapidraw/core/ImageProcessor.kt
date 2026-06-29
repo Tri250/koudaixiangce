@@ -2070,11 +2070,15 @@ class ImageProcessor {
             ExportFormat.PNG -> "image/png"
             ExportFormat.TIFF -> "image/tiff"
             ExportFormat.JPEG -> "image/jpeg"
+            ExportFormat.WEBP -> "image/webp"
+            ExportFormat.JXL -> "image/jxl"
         }
         val extension = when (settings.format) {
             ExportFormat.PNG -> ".png"
             ExportFormat.TIFF -> ".tiff"
             ExportFormat.JPEG -> ".jpg"
+            ExportFormat.WEBP -> ".webp"
+            ExportFormat.JXL -> ".jxl"
         }
 
         // Write to temporary file first (required for EXIF writing)
@@ -2083,7 +2087,7 @@ class ImageProcessor {
 
         try {
             tempFile.outputStream().use { fos ->
-                compressBitmap(exportBitmap, settings.format, settings.quality, fos)
+                compressBitmap(exportBitmap, settings.format, settings.quality, fos, settings)
             }
 
             // Apply EXIF metadata for JPEG
@@ -2223,18 +2227,28 @@ class ImageProcessor {
         return result
     }
 
-    private fun compressBitmap(bitmap: Bitmap, format: ExportFormat, quality: Int, outputStream: OutputStream) {
+    private fun compressBitmap(bitmap: Bitmap, format: ExportFormat, quality: Int, outputStream: OutputStream, settings: ExportSettings = ExportSettings()) {
         when (format) {
             ExportFormat.PNG -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
             ExportFormat.TIFF -> {
-                // Android doesn't natively support TIFF compression via Bitmap.
-                // Write as highest-quality JPEG as fallback (true TIFF encoding
-                // would require a third-party library like Apache Commons Imaging).
-                // For on-device pure implementation, we output JPEG inside a TIFF-like
-                // container: write raw pixel data as uncompressed TIFF.
                 writeUncompressedTiff(bitmap, outputStream)
             }
             ExportFormat.JPEG -> bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+            ExportFormat.WEBP -> {
+                val params = WebpExporter.WebpExportParams(
+                    quality = settings.webpSettings.quality,
+                    lossless = settings.webpSettings.lossless,
+                )
+                WebpExporter.export(bitmap, params, outputStream)
+            }
+            ExportFormat.JXL -> {
+                val params = JxlExporter.JxlExportParams(
+                    distance = settings.jxlSettings.distance,
+                    effort = settings.jxlSettings.effort,
+                    lossless = settings.jxlSettings.lossless,
+                )
+                JxlExporter.export(bitmap, params, outputStream)
+            }
         }
         outputStream.flush()
     }

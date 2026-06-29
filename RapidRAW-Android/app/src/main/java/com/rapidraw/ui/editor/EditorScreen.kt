@@ -1599,6 +1599,15 @@ private fun ExportPanel(
     var watermarkScale by remember { mutableFloatStateOf(0.15f) }
     var watermarkOpacity by remember { mutableFloatStateOf(0.5f) }
 
+    // WebP 设置
+    var webpLossless by remember { mutableStateOf(false) }
+    var webpQuality by remember { mutableFloatStateOf(90f) }
+
+    // JXL 设置
+    var jxlLossless by remember { mutableStateOf(false) }
+    var jxlDistance by remember { mutableFloatStateOf(1.0f) }
+    var jxlEffort by remember { mutableFloatStateOf(7f) }
+
     Column(
         modifier = Modifier.padding(16.dp),
     ) {
@@ -1624,7 +1633,13 @@ private fun ExportPanel(
                     shape = RoundedCornerShape(4.dp),
                 ) {
                     Text(
-                        text = format.name,
+                        text = when (format) {
+                            ExportFormat.JPEG -> "JPEG"
+                            ExportFormat.PNG -> "PNG"
+                            ExportFormat.TIFF -> "TIFF"
+                            ExportFormat.WEBP -> "WebP"
+                            ExportFormat.JXL -> "JXL"
+                        },
                         color = if (isSelected) EditorBackground else TextSecondary,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -1640,6 +1655,93 @@ private fun ExportPanel(
                 range = 1f..100f,
                 onValueChange = { quality = it },
                 defaultValue = 95f,
+            )
+        }
+
+        if (selectedFormat == ExportFormat.WEBP) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { webpLossless = !webpLossless }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "无损压缩",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Surface(
+                    color = if (webpLossless) HasselbladOrange else EditorBorder,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(44.dp, 24.dp),
+                ) {
+                    Box(contentAlignment = if (webpLossless) Alignment.CenterEnd else Alignment.CenterStart) {
+                        Box(
+                            modifier = Modifier
+                                .padding(2.dp)
+                                .size(20.dp)
+                                .background(Color.White, CircleShape),
+                        )
+                    }
+                }
+            }
+            if (!webpLossless) {
+                com.rapidraw.ui.components.HasselSlider(
+                    label = "质量",
+                    value = webpQuality,
+                    range = 1f..100f,
+                    onValueChange = { webpQuality = it },
+                    defaultValue = 90f,
+                )
+            }
+        }
+
+        if (selectedFormat == ExportFormat.JXL) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { jxlLossless = !jxlLossless }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "无损压缩",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Surface(
+                    color = if (jxlLossless) HasselbladOrange else EditorBorder,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(44.dp, 24.dp),
+                ) {
+                    Box(contentAlignment = if (jxlLossless) Alignment.CenterEnd else Alignment.CenterStart) {
+                        Box(
+                            modifier = Modifier
+                                .padding(2.dp)
+                                .size(20.dp)
+                                .background(Color.White, CircleShape),
+                        )
+                    }
+                }
+            }
+            if (!jxlLossless) {
+                com.rapidraw.ui.components.HasselSlider(
+                    label = "视觉距离",
+                    value = jxlDistance,
+                    range = 0f..15f,
+                    onValueChange = { jxlDistance = it },
+                    defaultValue = 1f,
+                )
+            }
+            com.rapidraw.ui.components.HasselSlider(
+                label = "编码努力",
+                value = jxlEffort,
+                range = 1f..9f,
+                onValueChange = { jxlEffort = it },
+                defaultValue = 7f,
             )
         }
 
@@ -1945,6 +2047,15 @@ private fun ExportPanel(
                             watermarkAnchor = watermarkAnchor,
                             watermarkScale = watermarkScale,
                             watermarkOpacity = watermarkOpacity,
+                            webpSettings = com.rapidraw.data.model.WebpSettings(
+                                lossless = webpLossless,
+                                quality = webpQuality.toInt(),
+                            ),
+                            jxlSettings = com.rapidraw.data.model.JxlSettings(
+                                distance = jxlDistance,
+                                effort = jxlEffort.toInt(),
+                                lossless = jxlLossless,
+                            ),
                         )
                     )
                 },

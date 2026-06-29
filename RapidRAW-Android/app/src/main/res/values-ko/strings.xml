@@ -1,0 +1,612 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">RapidRAW</string>
+    <string name="app_label">RapidRAW 에디터</string>
+
+    <!-- Common Actions -->
+    <string name="action_confirm">확인</string>
+    <string name="action_cancel">취소</string>
+    <string name="action_save">저장</string>
+    <string name="action_export">내보내기</string>
+    <string name="action_share">공유</string>
+    <string name="action_delete">삭제</string>
+    <string name="action_reset">재설정</string>
+    <string name="action_apply">적용</string>
+    <string name="action_undo">실행 취소</string>
+    <string name="action_redo">다시 실행</string>
+    <string name="action_done">완료</string>
+    <string name="action_accept">수락</string>
+    <string name="action_create">만들기</string>
+    <string name="action_rename">이름 변경</string>
+    <string name="action_import">가져오기</string>
+    <string name="action_back">뒤로</string>
+    <string name="action_next">다음</string>
+    <string name="action_skip">건너뛰기</string>
+    <string name="action_copy">복사</string>
+    <string name="action_paste">붙여넣기</string>
+    <string name="action_grant_permission">권한 부여</string>
+    <string name="action_later">나중에</string>
+
+    <!-- Library Screen -->
+    <string name="library_title">라이브러리</string>
+    <string name="library_all">전체</string>
+    <string name="library_dcim">카메라</string>
+    <string name="library_downloads">다운로드</string>
+    <string name="library_screenshots">스크린샷</string>
+    <string name="library_raw_only">RAW만</string>
+    <string name="library_starred">즐겨찾기</string>
+    <string name="library_search">검색</string>
+    <string name="library_sort">정렬</string>
+    <string name="library_import">가져오기</string>
+    <string name="library_batch_processing">일괄 처리 중...</string>
+    <string name="library_selected_count">%1$d장 선택됨</string>
+    <string name="library_select_all">전체 선택</string>
+    <string name="library_apply_film">필름 적용</string>
+    <string name="library_paste_adjustments">보정 붙여넣기</string>
+    <string name="library_select_film">필름 선택</string>
+
+    <!-- Editor Screen -->
+    <string name="editor_title">에디터</string>
+    <string name="editor_tab_ai">AI</string>
+    <string name="editor_tab_filter">필터</string>
+    <string name="editor_tab_adjust">조정</string>
+    <string name="editor_tab_compose">구도</string>
+    <string name="editor_tab_export">내보내기</string>
+    <string name="editor_film">필름</string>
+    <string name="editor_adjust">조정</string>
+    <string name="editor_crop">자르기</string>
+    <string name="editor_export">내보내기</string>
+    <string name="editor_undo">실행 취소</string>
+    <string name="editor_redo">다시 실행</string>
+    <string name="editor_exif">EXIF 정보</string>
+    <string name="editor_original">원본</string>
+    <string name="editor_effect">효과</string>
+    <string name="editor_optimized">최적화됨</string>
+    <string name="editor_preview">미리보기</string>
+    <string name="editor_more">더보기</string>
+    <string name="editor_current">현재</string>
+    <string name="editor_reset_all">전체 재설정</string>
+    <string name="editor_copy_params">편집 매개변수 복사</string>
+    <string name="editor_smart_optimizing">스마트 최적화 중...</string>
+    <string name="editor_processing">처리 중...</string>
+    <string name="editor_before_after">비교</string>
+
+    <!-- Editor - EXIF -->
+    <string name="exif_camera">카메라</string>
+    <string name="exif_make">제조사</string>
+    <string name="exif_model">모델</string>
+    <string name="exif_lens">렌즈</string>
+    <string name="exif_lens_make">렌즈 제조사</string>
+    <string name="exif_lens_model">렌즈 모델</string>
+    <string name="exif_focal_length">초점 거리</string>
+    <string name="exif_exposure">노출</string>
+    <string name="exif_shutter_speed">셔터 속도</string>
+    <string name="exif_aperture">조리개</string>
+    <string name="exif_compensation">노출 보정</string>
+    <string name="exif_metering">측광 모드</string>
+    <string name="exif_image">이미지</string>
+    <string name="exif_size">크기</string>
+    <string name="exif_date">날짜</string>
+    <string name="exif_white_balance">화이트 밸런스</string>
+    <string name="exif_latitude">위도</string>
+    <string name="exif_longitude">경도</string>
+    <string name="exif_file">파일</string>
+    <string name="exif_file_size">크기</string>
+    <string name="exif_type">유형</string>
+    <string name="exif_no_data">EXIF 데이터 없음</string>
+
+    <!-- Scene Classification -->
+    <string name="scene_portrait">인물</string>
+    <string name="scene_landscape">풍경</string>
+    <string name="scene_night">야경</string>
+    <string name="scene_food">음식</string>
+    <string name="scene_architecture">건축</string>
+    <string name="scene_pet">반려동물</string>
+    <string name="scene_document">문서</string>
+    <string name="scene_sky">하늘</string>
+    <string name="scene_beach">해변</string>
+    <string name="scene_snow">눈</string>
+    <string name="scene_indoor">실내</string>
+    <string name="scene_general">일반</string>
+    <string name="scene_detect">장면 감지</string>
+
+    <!-- AI Features -->
+    <string name="ai_denoise">AI 노이즈 제거</string>
+    <string name="ai_inpaint">AI 제거</string>
+    <string name="ai_mask">AI 마스크</string>
+    <string name="ai_inpaint_title">AI 제거</string>
+    <string name="ai_inpaint_brush">브러시</string>
+    <string name="ai_inpaint_erase">지우개</string>
+    <string name="ai_inpaint_start">복구 시작</string>
+    <string name="ai_inpaint_repairing">복구 중...</string>
+    <string name="ai_inpaint_brush_size">브러시 크기: %1$dpx</string>
+    <string name="ai_inpaint_mark">제거 표시</string>
+    <string name="ai_inpaint_erase_mark">표시 지우기</string>
+    <string name="ai_inpaint_preview">미리보기</string>
+    <string name="ai_subject">AI 피사체</string>
+    <string name="ai_sky">AI 하늘</string>
+    <string name="smart_optimize">스마트 최적화</string>
+    <string name="smart_optimize_done">스마트 최적화 완료</string>
+    <string name="smart_optimize_subtitle">AI 장면 인식 + 자동 보정, 원터치 결과</string>
+    <string name="ai_inpaint_subtitle">사람 및 사물 제거</string>
+    <string name="ai_denoise_subtitle">저조도 노이즈 제거</string>
+    <string name="ai_mask_subtitle">피사체/하늘 분리</string>
+    <string name="highlight_reconstruct">하이라이트 복원</string>
+    <string name="highlight_reconstruct_subtitle">RAW 과노출 복원</string>
+    <string name="local_adjust">부분 보정</string>
+    <string name="local_adjust_subtitle">브러시 마스크 + 플로우 제어, 정밀 부분 편집</string>
+    <string name="mask_brush">브러시</string>
+    <string name="mask_linear_gradient">선형 그라데이션</string>
+    <string name="mask_radial_gradient">방사형 그라데이션</string>
+    <string name="mask_invert">반전</string>
+    <string name="mask_invert_desc">마스크 반전</string>
+    <string name="mask_delete_desc">마스크 삭제</string>
+    <string name="mask_show">마스크 표시</string>
+    <string name="mask_hide">마스크 숨기기</string>
+    <string name="mask_draw">그리기</string>
+    <string name="mask_erase">지우기</string>
+    <string name="mask_generating">생성 중...</string>
+    <string name="mask_generate">마스크 생성</string>
+    <string name="mask_regenerate">마스크 재생성</string>
+    <string name="mask_generated">마스크 생성 완료, 미리보기에서 확인</string>
+    <string name="mask_select_type">마스크 유형 선택</string>
+    <string name="mask_sky_label">하늘</string>
+    <string name="mask_subject_label">피사체</string>
+    <string name="mask_foreground_label">전경</string>
+    <string name="mask_depth_label">깊이</string>
+    <string name="flow_brush">브러시</string>
+    <string name="brush_tool">브러시</string>
+
+    <!-- Film Simulation -->
+    <string name="film_classic">클래식</string>
+    <string name="film_emotional">감성</string>
+    <string name="film_structural">구조적</string>
+    <string name="film_no_filter">필터 없음</string>
+    <string name="film_none">없음</string>
+    <string name="film_master_title">합스블라드 마스터 필름</string>
+    <string name="film_applied">적용됨</string>
+    <string name="film_clear_sim">필름 시뮬레이션 지우기</string>
+
+    <!-- Presets -->
+    <string name="master_presets">마스터 프리셋</string>
+    <string name="master_presets_community">마스터 프리셋 커뮤니티</string>
+    <string name="presets_title">마스터 프리셋</string>
+    <string name="presets_all">전체</string>
+    <string name="presets_portrait">인물</string>
+    <string name="presets_landscape">풍경</string>
+    <string name="presets_night">야경</string>
+    <string name="presets_street">스트리트</string>
+    <string name="presets_food">음식</string>
+    <string name="presets_my">내 프리셋</string>
+    <string name="presets_empty">프리셋이 없습니다. + 를 눌러 현재 조정을 저장</string>
+    <string name="presets_save">프리셋 저장</string>
+    <string name="presets_rename">프리셋 이름 변경</string>
+    <string name="presets_name_hint">프리셋 이름 입력</string>
+    <string name="presets_save_desc">프리셋 저장</string>
+
+    <!-- Preset Names & Descriptions -->
+    <string name="preset_harmony">화광</string>
+    <string name="preset_harmony_desc">부드럽고 자연스러운, 인물에 적합</string>
+    <string name="preset_rich">농울</string>
+    <string name="preset_rich_desc">고채도 컬러, 거리 스토리</string>
+    <string name="preset_vintage">빈티지</string>
+    <string name="preset_vintage_desc">향수 어린 레트로 톤</string>
+    <string name="preset_fresh">청신</string>
+    <string name="preset_fresh_desc">맑은 하늘과 녹음</string>
+    <string name="preset_clear">통체</string>
+    <string name="preset_clear_desc">선명한 건축 텍스처</string>
+    <string name="preset_neon">네온</string>
+    <string name="preset_neon_desc">사이버펑크 도시 야경</string>
+    <string name="preset_cold_flash">콜드 플래시</string>
+    <string name="preset_cold_flash_desc">차가운 색온도 플래시 효과</string>
+    <string name="preset_warm_flash">웜 플래시</string>
+    <string name="preset_warm_flash_desc">따뜻한 색온도 플래시 효과</string>
+    <string name="preset_bw_contrast">고대비 흑백</string>
+    <string name="preset_bw_contrast_desc">고대비 흑백 필름</string>
+
+    <!-- Film Simulation Descriptions -->
+    <string name="film_harmony_desc">역광 인물, 투명한 피부, 부드러운 계조</string>
+    <string name="film_rich_desc">홍콩 스타일, 청록 강조, 풍부하고 세련된</string>
+    <string name="film_vintage_desc">따뜻한 바랜 톤, 입자 텍스처, 향수</string>
+    <string name="film_fresh_desc">일본계 저채도, 공기감, 가볍고 투명</string>
+    <string name="film_clear_desc">자연스러운 색, 충실한 재현</string>
+    <string name="film_neon_desc">고대비 네온, 따뜻한 분위기, 깔끔한 암부</string>
+    <string name="film_cold_flash_desc">밀레니엄 CCD 차가운 톤, 디지털 향수</string>
+    <string name="film_warm_flash_desc">밀레니엄 CCD 따뜻한 톤, 따뜻한 향수</string>
+    <string name="film_bw_contrast_desc">강한 대비, 미세 입자, 클래식 흑백</string>
+
+    <!-- Adjustment Panel Labels -->
+    <string name="adjust_basic">기본</string>
+    <string name="adjust_basic_title">기본 조정</string>
+    <string name="adjust_color">색상</string>
+    <string name="adjust_curves">커브</string>
+    <string name="adjust_details">디테일</string>
+    <string name="adjust_effects">효과</string>
+    <string name="adjust_advanced">고급 조정</string>
+    <string name="adjust_advanced_arrow">고급 조정 →</string>
+    <string name="adjust_transform">지오메트리</string>
+    <string name="adjust_color_grading">컬러 그레이딩</string>
+    <string name="adjust_color_calibration">컬러 캘리브레이션</string>
+    <string name="adjust_tone_mapping">톤 매핑</string>
+    <string name="adjust_creative_effects">크리에이티브 효과</string>
+
+    <!-- Basic adjustment labels -->
+    <string name="adjust_exposure">노출</string>
+    <string name="adjust_brightness">밝기</string>
+    <string name="adjust_contrast">대비</string>
+    <string name="adjust_contrast_full">대비</string>
+    <string name="adjust_highlights">하이라이트</string>
+    <string name="adjust_shadows">그림자</string>
+    <string name="adjust_whites">화이트</string>
+    <string name="adjust_blacks">블랙</string>
+
+    <!-- Color adjustment labels -->
+    <string name="adjust_temperature">색온도</string>
+    <string name="adjust_tint">틴트</string>
+    <string name="adjust_saturation">채도</string>
+    <string name="adjust_vibrance">비브런스</string>
+    <string name="adjust_hue">색상</string>
+    <string name="adjust_sat">채도</string>
+    <string name="adjust_luminance">명도</string>
+    <string name="adjust_warm_cool">난/냉</string>
+    <string name="adjust_cyan_magenta">시안/마젠타</string>
+
+    <!-- HSL color names -->
+    <string name="color_red">빨강</string>
+    <string name="color_orange">주황</string>
+    <string name="color_yellow">노랑</string>
+    <string name="color_green">초록</string>
+    <string name="color_aqua">시안</string>
+    <string name="color_blue">파랑</string>
+    <string name="color_purple">보라</string>
+    <string name="color_magenta">마젠타</string>
+
+    <!-- Color grading labels -->
+    <string name="adjust_midtones">중간조</string>
+    <string name="adjust_blend">블렌드</string>
+    <string name="adjust_balance">밸런스</string>
+    <string name="adjust_shadow_tint">그림자 틴트</string>
+
+    <!-- Detail labels -->
+    <string name="adjust_sharpness">선명도</string>
+    <string name="adjust_clarity">클래리티</string>
+    <string name="adjust_structure">텍스처</string>
+    <string name="adjust_dehaze">헤이즈 제거</string>
+    <string name="adjust_local_contrast">국소 대비</string>
+    <string name="adjust_center">중심</string>
+    <string name="adjust_luminance_denoise">휘도 노이즈 제거</string>
+    <string name="adjust_color_denoise">컬러 노이즈 제거</string>
+    <string name="adjust_denoise">노이즈 제거</string>
+    <string name="adjust_chromatic_aberration">색수차</string>
+    <string name="adjust_red_cyan">적/시안</string>
+    <string name="adjust_blue_yellow">청/황</string>
+
+    <!-- Effect labels -->
+    <string name="adjust_vignette">비그네트</string>
+    <string name="adjust_amount">수량</string>
+    <string name="adjust_midpoint">중간점</string>
+    <string name="adjust_roundness">둥글기</string>
+    <string name="adjust_feather">페더</string>
+    <string name="adjust_grain">입자</string>
+    <string name="adjust_roughness">거칠기</string>
+    <string name="adjust_glow_effect">글로우</string>
+    <string name="adjust_glow">글로우</string>
+    <string name="adjust_bloom">블룸</string>
+    <string name="adjust_flare">플레어</string>
+    <string name="adjust_lens_flare">렌즈 플레어</string>
+    <string name="adjust_light_effects">광 효과</string>
+    <string name="adjust_base">베이스</string>
+    <string name="adjust_intensity">강도</string>
+    <string name="adjust_soft_glow">소프트 글로우</string>
+    <string name="adjust_tone">톤</string>
+    <string name="adjust_sharpness_label">선명도</string>
+    <string name="adjust_select_lut">LUT 선택</string>
+
+    <!-- Transform labels -->
+    <string name="adjust_angle">각도</string>
+    <string name="adjust_distortion">왜곡</string>
+    <string name="adjust_vertical">수직</string>
+    <string name="adjust_horizontal">수평</string>
+    <string name="adjust_rotation">회전</string>
+    <string name="adjust_aspect">비율</string>
+    <string name="adjust_aspect_long">비율</string>
+    <string name="adjust_scale">스케일</string>
+    <string name="adjust_x_offset">X 오프셋</string>
+    <string name="adjust_y_offset">Y 오프셋</string>
+    <string name="adjust_lens_correction">렌즈 보정</string>
+    <string name="adjust_lens_unknown">렌즈: 알 수 없음</string>
+    <string name="adjust_focal_length_mm">초점 거리 (mm)</string>
+
+    <!-- Mask tool labels -->
+    <string name="mask_opacity">불투명도</string>
+    <string name="mask_opacity_full">불투명도</string>
+    <string name="mask_hardness">경도</string>
+    <string name="mask_size">크기</string>
+
+    <!-- Crop & Transform -->
+    <string name="crop_free">자유</string>
+    <string name="crop_original">원본</string>
+    <string name="crop_ratio">자르기 비율</string>
+    <string name="crop_interactive">대화형 자르기</string>
+    <string name="crop_perspective">원근</string>
+    <string name="crop_distortion_label">왜곡</string>
+    <string name="transform_rotation">회전 및 뒤집기</string>
+    <string name="transform_flip_horizontal">좌우 뒤집기</string>
+    <string name="transform_flip_vertical">상하 뒤집기</string>
+    <string name="transform_rotate_ccw">반시계 방향 90° 회전</string>
+    <string name="transform_rotate_cw">시계 방향 90° 회전</string>
+    <string name="crop_grid">그리드</string>
+    <string name="crop_grid_check">그리드 ✓</string>
+
+    <!-- Export -->
+    <string name="export_format">형식</string>
+    <string name="export_quality">품질</string>
+    <string name="export_resize">크기 조정</string>
+    <string name="export_resize_long_edge">긴 변</string>
+    <string name="export_resize_short_edge">짧은 변</string>
+    <string name="export_resize_width">너비</string>
+    <string name="export_resize_height">높이</string>
+    <string name="export_resize_original">원본 크기</string>
+    <string name="export_pixel_value">픽셀</string>
+    <string name="export_pixel_edge">변 픽셀</string>
+    <string name="export_metadata">메타데이터</string>
+    <string name="export_preserve_metadata">메타데이터 보존</string>
+    <string name="export_strip_gps">GPS 제거</string>
+    <string name="export_strip_gps_short">GPS 제거</string>
+    <string name="export_watermark">워터마크</string>
+    <string name="export_watermark_enable">워터마크 활성화</string>
+    <string name="export_watermark_add">워터마크 추가</string>
+    <string name="export_watermark_text">워터마크 텍스트</string>
+    <string name="export_watermark_opacity">불투명도</string>
+    <string name="export_watermark_position">위치</string>
+    <string name="export_social">소셜 플랫폼</string>
+    <string name="export_button">내보내기</string>
+    <string name="export_processing">내보내는 중…</string>
+    <string name="export_exporting">내보내는 중...</string>
+    <string name="export_success">내보내기 성공</string>
+    <string name="export_failed">내보내기 실패</string>
+    <string name="export_settings">내보내기 설정</string>
+    <string name="export_scale">스케일</string>
+    <string name="export_estimated_size">예상 파일 크기: %1$s</string>
+    <string name="export_estimated_mb">%1$d MB (예상)</string>
+    <string name="export_estimated_range_mb">%1$d-%2$d MB (예상)</string>
+    <string name="export_no_source">내보낼 원본 이미지 없음</string>
+    <string name="export_cancelled">취소됨</string>
+
+    <!-- Social platform names -->
+    <string name="social_original">원본</string>
+    <string name="social_xiaohongshu">샤오홍슈 3:4</string>
+    <string name="social_instagram_story">IG 스토리 9:16</string>
+    <string name="social_douyin">틱톡 9:16</string>
+    <string name="social_wechat_moments">위챗 모멘트 3:4</string>
+    <string name="social_wechat_avatar">위챗 프로필 1:1</string>
+
+    <!-- Export Queue -->
+    <string name="export_queue_title">내보내기 대기열</string>
+    <string name="export_queue_active">%1$d 진행 중</string>
+    <string name="export_queue_queued">대기 중</string>
+    <string name="export_queue_exporting">내보내는 중</string>
+    <string name="export_queue_completed">완료</string>
+    <string name="export_queue_failed">실패</string>
+    <string name="export_queue_done_desc">내보내기 완료</string>
+
+    <!-- HDR -->
+    <string name="hdr_export">HDR 내보내기</string>
+    <string name="hdr_export_button">HDR 이미지 내보내기</string>
+    <string name="hdr_export_set">설정됨</string>
+    <string name="hdr_export_ultra">Ultra HDR</string>
+    <string name="hdr_export_dowgrade_notice">이 기기는 Ultra HDR에 Android 14+가 필요합니다. HEIF 10-bit로 자동 다운그레이드됩니다.</string>
+    <string name="hdr_peak_brightness">피크 휘도</string>
+    <string name="hdr_dynamic_range">다이내믹 레인지 (스탑)</string>
+    <string name="hdr_sdr_compatible">SDR 호환</string>
+    <string name="hdr_sdr_compatible_desc">SDR 대체 이미지를 포함하여 모든 기기에서 표시</string>
+    <string name="hdr_not_supported">기기가 HDR 디스플레이를 지원하지 않음</string>
+    <string name="hdr_unable_capability">HDR 기능을 가져올 수 없음</string>
+    <string name="hdr_oppo_recommend">OPPO Find 고휘도 HDR 화면, HDR 미리보기 활성화 강력 권장</string>
+    <string name="hdr_high_brightness_recommend">고휘도 HDR 화면, HDR 미리보기 권장</string>
+    <string name="hdr_limited_brightness">HDR 지원되나 휘도 제한, 필요시 활성화</string>
+    <string name="hdr_export_failed">HDR 내보내기 실패</string>
+
+    <!-- Color Science -->
+    <string name="color_science">컬러 사이언스</string>
+    <string name="color_science_desc">컬러 파이프라인 선택, 톤 매핑과 색역 결정</string>
+    <string name="color_science_pipeline">렌더 파이프라인</string>
+    <string name="color_science_fine_tune">미세 조정</string>
+    <string name="color_science_contrast">대비</string>
+    <string name="color_science_black_pedestal">블랙 페데스탈</string>
+    <string name="color_science_gamut">디스플레이 색역</string>
+    <string name="color_science_eotf">EOTF (디스플레이 전달 함수)</string>
+    <string name="color_science_agx_desc">필름 질감, 저채도 조화, 스트리트 촬영에</string>
+    <string name="color_science_aces_desc">아카데미 컬러 인코딩, HDR 및 시네마 표준</string>
+    <string name="color_science_opendrt_desc">전문 모니터링 렌더, 우수한 블랙 레벨과 피부톤</string>
+    <string name="color_science_standard_desc">기본 sRGB 커브, 최고 속도, 최저 전력</string>
+
+    <!-- Curves -->
+    <string name="curves_preset">프리셋 커브</string>
+    <string name="curves_linear">선형</string>
+    <string name="curves_high_contrast">고대비</string>
+    <string name="curves_medium_contrast">중대비</string>
+    <string name="curves_invert">반전</string>
+    <string name="curves_luma">휘도 커브</string>
+    <string name="curves_red">적색 커브</string>
+    <string name="curves_green">녹색 커브</string>
+    <string name="curves_blue">청색 커브</string>
+    <string name="curves_generic">커브</string>
+
+    <!-- Scopes -->
+    <string name="histogram">히스토그램</string>
+    <string name="waveform_scope">웨이브폼 모니터</string>
+    <string name="waveform">웨이브폼</string>
+    <string name="vectorscope">벡터스코프</string>
+    <string name="scope_cut">클리핑</string>
+    <string name="scope_mask">마스크</string>
+
+    <!-- LUT Library -->
+    <string name="lut_library">LUT 라이브러리</string>
+    <string name="lut_import_cube">.cube 가져오기</string>
+    <string name="lut_search">LUT 검색 (이름, 태그, 카테고리)</string>
+    <string name="lut_intensity">강도</string>
+    <string name="lut_builtin">내장</string>
+    <string name="lut_user_import">사용자 가져오기</string>
+    <string name="lut_favorite">즐겨찾기</string>
+    <string name="lut_clear">LUT 지우기</string>
+    <string name="lut_film_cube">필름 LUT / .cube</string>
+    <string name="lut_applied">적용됨</string>
+
+    <!-- Recipe Share -->
+    <string name="recipe_share">레시피 공유</string>
+    <string name="recipe_share_title">레시피 공유</string>
+    <string name="recipe_import_title">레시피 가져오기</string>
+    <string name="recipe_name">레시피 이름</string>
+    <string name="recipe_my_name">내 레시피</string>
+    <string name="recipe_share_code">공유 코드</string>
+    <string name="recipe_json">레시피 JSON (길게 눌러 복사)</string>
+    <string name="recipe_copy_clipboard">레시피를 클립보드에 복사</string>
+    <string name="recipe_paste_json">레시피 JSON 붙여넣기</string>
+    <string name="recipe_import_apply">가져와서 적용</string>
+    <string name="recipe_back_share">공유로 돌아가기</string>
+    <string name="recipe_export_params">보정 매개변수 내보내기</string>
+    <string name="recipe_shared">레시피 공유됨</string>
+    <string name="recipe_imported">레시피 가져옴</string>
+    <string name="recipe_author_me">나</string>
+
+    <!-- Edit History -->
+    <string name="edit_history">편집 기록</string>
+    <string name="edit_history_branch">버전 브랜치</string>
+    <string name="edit_history_new_branch">새 브랜치</string>
+    <string name="edit_history_branch_name">새 브랜치 이름</string>
+    <string name="edit_history_branch_name_hint">예: 흑백 실험</string>
+    <string name="edit_history_create_branch">이 노드에서 브랜치 생성</string>
+    <string name="edit_history_current_branch">현재 브랜치</string>
+    <string name="edit_history_branch_path">현재 브랜치 경로</string>
+    <string name="edit_history_total_branches">총 브랜치: %1$d</string>
+    <string name="edit_history_jump_hint">노드를 눌러 해당 기록으로 이동</string>
+    <string name="edit_history_branch_label">브랜치</string>
+    <string name="edit_history_initial">초기 상태</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_tagline">전문가급 RAW 사진 에디터</string>
+    <string name="onboarding_get_started">시작하기</string>
+    <string name="onboarding_smart_optimize">스마트 최적화</string>
+    <string name="onboarding_smart_optimize_desc">AI 기반 장면 인식 및 자동 최적화. 원터치로 사진 품질 향상. 노출, 화이트 밸런스, 컬러를 자동 분석하여 최적 조정 제안.</string>
+    <string name="onboarding_color_grading">프로 컬러 그레이딩</string>
+    <string name="onboarding_color_grading_desc">CDL 컬러 그레이딩, 커브 조정, 8색 HSL 패널. 전문가급 컬러 제어로 시네마틱 그레이딩.</string>
+    <string name="onboarding_film_sim">필름 시뮬레이션</string>
+    <string name="onboarding_film_sim_desc">20개 이상의 클래식 필름 시뮬레이션 프리셋. 합스블라드, 코닥, 후지, 일포드까지. 진짜 필름 색과 입자감 재현.</string>
+    <string name="onboarding_access_photos">사진 접근</string>
+    <string name="onboarding_permission_desc">RapidRAW은 사진 접근 권한이 필요합니다:\n\u2022 RAW 및 JPG 사진 찾아보기 및 가져오기\n\u2022 편집한 이미지를 갤러리에 저장\n\u2022 EXIF 메타데이터 읽기</string>
+    <string name="onboarding_grant_access">접근 허용</string>
+    <string name="onboarding_start_editing">편집 시작</string>
+
+    <!-- Settings -->
+    <string name="settings_title">설정</string>
+    <string name="settings_theme">테마</string>
+    <string name="settings_dark">다크</string>
+    <string name="settings_light">라이트</string>
+    <string name="settings_about">정보</string>
+
+    <!-- Permissions -->
+    <string name="permission_required">사진 접근을 위해 저장소 권한이 필요합니다</string>
+    <string name="permission_storage">사진 접근을 위해 저장소 권한이 필요합니다</string>
+
+    <!-- Error Messages -->
+    <string name="error_load_image">이미지를 불러올 수 없음: %1$s</string>
+    <string name="error_load_ai_source">AI 제거 원본 이미지를 불러올 수 없음</string>
+    <string name="error_ai_denoise">AI 노이즈 제거 실패: %1$s</string>
+    <string name="error_ai_mask_generate">AI 마스크 생성 실패: %1$s</string>
+    <string name="error_ai_mask_apply">AI 마스크 적용 실패: %1$s</string>
+    <string name="error_ai_inpaint">AI 제거 실패: %1$s</string>
+    <string name="error_import_lut">LUT 가져오기 실패: %1$s</string>
+    <string name="error_highlight_reconstruct">하이라이트 복원 실패: %1$s</string>
+    <string name="error_no_image">사용 가능한 이미지 없음, 먼저 이미지를 여세요</string>
+    <string name="error_export_failed">내보내기 실패</string>
+
+    <!-- Undo History Descriptions -->
+    <string name="undo_crop_adjust">자르기 조정</string>
+    <string name="undo_apply_preset">프리셋 적용: %1$s</string>
+    <string name="undo_apply_film">필름 적용: %1$s</string>
+    <string name="undo_clear_film">필름 시뮬레이션 지우기</string>
+    <string name="undo_reset_all">전체 조정 재설정</string>
+    <string name="undo_smart_optimize">스마트 최적화</string>
+    <string name="undo_import_lut">LUT 가져오기</string>
+    <string name="undo_clear_lut">LUT 지우기</string>
+    <string name="undo_color_science">컬러 사이언스: %1$s</string>
+    <string name="undo_adjust_param">매개변수 조정</string>
+    <string name="undo_branch">브랜치: %1$s</string>
+
+    <!-- Smart Optimize Confirm -->
+    <string name="smart_optimize_accept">수락</string>
+    <string name="smart_optimize_undo">실행 취소</string>
+    <string name="smart_optimize_compare">비교</string>
+    <string name="smart_optimize_exposure_label">노출</string>
+    <string name="smart_optimize_contrast_label">대비</string>
+    <string name="smart_optimize_highlights_label">하이라이트</string>
+    <string name="smart_optimize_shadows_label">그림자</string>
+    <string name="smart_optimize_temperature_label">난/냉</string>
+    <string name="smart_optimize_saturation_label">채도</string>
+    <string name="smart_optimize_clarity_label">클래리티</string>
+    <string name="smart_optimize_vibrance_label">비브런스</string>
+    <string name="smart_optimize_dehaze_label">헤이즈 제거</string>
+
+    <!-- Photo Picker -->
+    <string name="photo_picker_import">사진 가져오기</string>
+
+    <!-- Content Descriptions -->
+    <string name="cd_search">검색</string>
+    <string name="cd_sort">정렬</string>
+    <string name="cd_import">가져오기</string>
+    <string name="cd_cancel">취소</string>
+    <string name="cd_select_all">전체 선택</string>
+    <string name="cd_back">뒤로</string>
+    <string name="cd_preview">미리보기</string>
+    <string name="cd_original">원본</string>
+    <string name="cd_current">현재</string>
+    <string name="cd_interactive_crop">대화형 자르기</string>
+    <string name="cd_rotate_ccw">반시계 방향 90° 회전</string>
+    <string name="cd_rotate_cw">시계 방향 90° 회전</string>
+    <string name="cd_flip_horizontal">좌우 뒤집기</string>
+    <string name="cd_flip_vertical">상하 뒤집기</string>
+    <string name="cd_clear_lut">LUT 지우기</string>
+    <string name="cd_favorite">즐겨찾기</string>
+    <string name="cd_export_done">내보내기 완료</string>
+    <string name="cd_share">공유</string>
+    <string name="cd_pro_tools">프로 도구</string>
+    <string name="cd_collapse_tools">도구 접기</string>
+    <string name="cd_expand">펼치기</string>
+    <string name="cd_collapse">접기</string>
+    <string name="cd_reset">재설정</string>
+    <string name="cd_done">완료</string>
+    <string name="cd_save_preset">프리셋 저장</string>
+
+    <!-- Sidecar & Misc -->
+    <string name="sidecar_saved">편집 저장됨</string>
+
+    <!-- Edit history parameter descriptions -->
+    <string name="history_exposure">노출</string>
+    <string name="history_brightness">밝기</string>
+    <string name="history_contrast">대비</string>
+    <string name="history_highlights">하이라이트</string>
+    <string name="history_shadows">그림자</string>
+    <string name="history_whites">화이트</string>
+    <string name="history_blacks">블랙</string>
+    <string name="history_temperature">색온도</string>
+    <string name="history_tint">틴트</string>
+    <string name="history_saturation">채도</string>
+    <string name="history_vibrance">비브런스</string>
+    <string name="history_sharpness">선명도</string>
+    <string name="history_clarity">클래리티</string>
+    <string name="history_dehaze">헤이즈 제거</string>
+    <string name="history_vignette">비그네트</string>
+    <string name="history_grain">입자</string>
+    <string name="history_tone_level">톤</string>
+    <string name="history_film_intensity">필터 강도</string>
+    <string name="history_soft_glow">소프트 글로우</string>
+    <string name="history_green_magenta">시안/마젠타</string>
+    <string name="history_rotation">회전</string>
+    <string name="history_flip_h">좌우 뒤집기</string>
+    <string name="history_flip_v">상하 뒤집기</string>
+    <string name="history_crop">자르기</string>
+    <string name="history_lut_intensity">LUT 강도</string>
+    <string name="history_free">자유</string>
+</resources>

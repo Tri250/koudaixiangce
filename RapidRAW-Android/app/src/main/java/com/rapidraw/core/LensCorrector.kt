@@ -2,6 +2,7 @@ package com.rapidraw.core
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import com.rapidraw.data.model.ExifData
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
@@ -96,7 +97,7 @@ class LensCorrector(
     
     companion object {
         /**
-         * 根据焦距自动估算畸变参数
+         * 根据焦距自动估算畸变参数（手动/估算回退）
          */
         fun autoEstimateParams(focalLength: Float): LensParams {
             return when {
@@ -104,6 +105,50 @@ class LensCorrector(
                 focalLength > 50f -> LensParams(k1 = -0.018f, k2 = 0.002f, p1 = -0.0003f, p2 = 0.0002f, scale = 0.98f)
                 else -> LensParams(k1 = 0.01f, k2 = 0f, p1 = 0f, p2 = 0f, scale = 1.02f)
             }
+        }
+
+        /**
+         * 使用镜头数据库进行校正。
+         *
+         * 优先从 LensDatabase 查找匹配的镜头配置并应用 ptlens + 渐晕 + TCA 校正；
+         * 若数据库中未找到匹配，则回退到 Brown-Conrady 手动估算模式。
+         *
+         * @param image 输入 Bitmap
+         * @param exif EXIF 数据（包含镜头 make/model/focalLength）
+         * @return 校正后的 Bitmap
+         */
+        fun applyDatabaseCorrection(image: Bitmap, exif: ExifData): Bitmap {
+            val make = exif.lensMake ?: exif.make
+            val model = exif.lensModel
+            val focalLength = exif.focalLength?.toFloatOrNull()
+
+            // 尝试从数据库查找
+            if (make != null && model != null) {
+                val profile = if (focalLength != null && focalLength > 0f) {
+                    LensDatabase.findProfileByFocalLength(make, model, focalLength)
+                } else {
+                    LensDatabase.findProfile(make, model)
+                }
+
+                if (profile != null) {
+                    return LensCorrectionKernel.applyLensCorrection(
+                        image, profile, focalLength ?: profile.focalMin
+                    )
+                }
+            }
+
+            // 回退：使用手动估算的 Brown-Conrady 参数
+            if (focalLength != null && focalLength > 0f) {
+                val params = autoEstimateParams(focalLength)
+                return LensCorrector(
+                    k1 = params.k1, k2 = params.k2,
+                    p1 = params.p1, p2 = params.p2,
+                    scale = params.scale
+                ).correct(image)
+            }
+
+            // 无任何可用信息，返回原图
+            return image
         }
     }
 }
