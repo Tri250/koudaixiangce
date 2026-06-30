@@ -12,7 +12,7 @@ sealed class SmartAlbum(
     data class ByDate(val dateLabel: String) : SmartAlbum(dateLabel, FilterType.BY_DATE)
 
     // ── AI 语义过滤智能相册（AlcedoStudio 对标功能）────────────────
-    data class AiSemantic(val semanticTag: String, overrideTitle: String) : SmartAlbum(overrideTitle, FilterType.AI_SEMANTIC)
+    data class AiSemantic(val semanticTag: String, val overrideTitle: String) : SmartAlbum(overrideTitle, FilterType.AI_SEMANTIC)
 
     object AiPortraits : SmartAlbum("AI 人像", FilterType.AI_SEMANTIC)
     object AiLandscapes : SmartAlbum("AI 风景", FilterType.AI_SEMANTIC)

@@ -63,17 +63,14 @@ fun LiquidGlassSurface(
     }
     val supportsBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
+    val indication = if (enableTouchFeedback) {
+        androidx.compose.foundation.LocalIndication.current
+    } else null
     val clickableModifier = if (onClick != null) {
         Modifier.clickable(
             onClick = onClick,
-            indication = if (enableTouchFeedback) {
-                androidx.compose.material.ripple.rememberRipple(
-                    bounded = true,
-                    radius = cornerRadius,
-                    color = Color.White.copy(alpha = 0.12f),
-                )
-            } else null,
             interactionSource = null,
+            indication = indication,
         )
     } else {
         Modifier

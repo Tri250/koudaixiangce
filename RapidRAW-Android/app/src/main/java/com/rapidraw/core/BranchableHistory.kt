@@ -156,15 +156,6 @@ data class BranchableHistory(
     }
 
     /**
-     * 获取当前节点。
-     */
-    fun getCurrentNode(): HistoryNode {
-        synchronized(lock) {
-            return nodeMap[currentNodeId]!!
-        }
-    }
-
-    /**
      * 获取当前分支从分支根到 tip 的所有节点列表。
      */
     fun getCurrentBranch(): List<HistoryNode> {

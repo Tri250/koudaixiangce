@@ -90,7 +90,7 @@ fun UserAgreementScreen(
             // 引言
             AgreementSectionTitle("引言")
             AgreementParagraph(
-                "欢迎您使用 RapidRAW！本用户协议（以下简称"本协议"）是您与 RapidRAW（以下简称"我们"）之间" +
+                "欢迎您使用 RapidRAW！本用户协议（以下简称\"本协议\"）是您与 RapidRAW（以下简称\"我们\"）之间" +
                     "关于使用 RapidRAW 移动应用程序及相关服务所订立的协议。请您在使用我们的服务前，" +
                     "仔细阅读并充分理解本协议各条款。一旦您开始使用我们的服务，即视为您已阅读并同意本协议的约束。",
             )
@@ -166,7 +166,7 @@ fun UserAgreementScreen(
             // 四、免责声明
             AgreementSectionTitle("四、免责声明")
             AgreementParagraph(
-                "4.1 本应用按"现状"和"可获得性"基础提供服务，我们不对服务的及时性、安全性、准确性做任何明示或暗示的保证。",
+                "4.1 本应用按\"现状\"和\"可获得性\"基础提供服务，我们不对服务的及时性、安全性、准确性做任何明示或暗示的保证。",
             )
             AgreementParagraph(
                 "4.2 因不可抗力（包括但不限于自然灾害、政府行为、网络攻击等）导致服务中断或数据丢失，我们不承担责任。",
@@ -225,7 +225,7 @@ fun UserAgreementScreen(
                 "7.2 本协议的标题仅为方便阅读，不影响协议条款的含义和解释。",
             )
             AgreementParagraph(
-                "7.3 如您对本协议有任何疑问，请通过应用内"设置 → 反馈与建议"或发送邮件至 legal@rapidraw.app 与我们联系。",
+                "7.3 如您对本协议有任何疑问，请通过应用内\"设置 → 反馈与建议\"或发送邮件至 legal@rapidraw.app 与我们联系。",
             )
 
             Spacer(modifier = Modifier.height(48.dp))

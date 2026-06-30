@@ -36,7 +36,7 @@ object AiObjectRemover {
         
         // Step 1: 生成人像语义蒙版
         val maskGenerator = AiMaskGenerator()
-        val personMask = maskGenerator.generateMask(source, AiMaskGenerator.MaskType.PERSON)
+        val personMask = maskGenerator.generateMask(source, AiMaskGenerator.MaskType.SUBJECT)
         progressCallback?.invoke(0.4f)
         
         // Step 2: 如果启用中心保护，清除中心区域

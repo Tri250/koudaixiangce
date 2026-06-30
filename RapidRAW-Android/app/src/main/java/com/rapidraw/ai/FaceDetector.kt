@@ -3,9 +3,16 @@ package com.rapidraw.ai
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.RectF
+import com.google.mlkit.vision.face.Face
+import com.google.mlkit.vision.face.FaceContour
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * 五官检测 — 基于 ML Kit Face Detection。
@@ -41,14 +48,14 @@ class FaceDetector(context: Context) {
 
     init {
         runCatching {
-            val options = com.google.mlkit.vision.face.FaceDetectorOptions.Builder()
-                .setPerformanceMode(com.google.mlkit.vision.face.FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
-                .setLandmarkMode(com.google.mlkit.vision.face.FaceDetectorOptions.LANDMARK_MODE_ALL)
-                .setContourMode(com.google.mlkit.vision.face.FaceDetectorOptions.CONTOUR_MODE_ALL)
-                .setClassificationMode(com.google.mlkit.vision.face.FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+            val options = FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+                .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
                 .setMinFaceSize(0.1f)
                 .build()
-            mlKitDetector = com.google.mlkit.vision.face.FaceDetection.getClient(options)
+            mlKitDetector = FaceDetection.getClient(options)
             isMlKitAvailable = true
         }.onFailure {
             isMlKitAvailable = false
@@ -61,31 +68,31 @@ class FaceDetector(context: Context) {
         }
 
         runCatching {
-            val inputImage = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-            val faces = mlKitDetector!!.process(inputImage).await()
+            val inputImage = InputImage.fromBitmap(bitmap, 0)
+            val faces: List<Face> = suspendCancellableCoroutine { continuation ->
+                mlKitDetector!!.process(inputImage)
+                    .addOnSuccessListener { continuation.resume(it) }
+                    .addOnFailureListener { continuation.resumeWithException(it) }
+            }
 
             val faceInfos = faces.map { face ->
                 FaceInfo(
-                    bounds = face.boundingBox.toRectF(),
-                    landmarks = buildList {
-                        for (lm in face.landmarks) {
-                            add(FaceLandmark(lm.landmarkType, lm.position.x, lm.position.y))
-                        }
+                    bounds = RectF(face.boundingBox),
+                    landmarks = face.allLandmarks.map { lm ->
+                        FaceLandmark(lm.landmarkType, lm.position.x, lm.position.y)
                     },
-                    contourPoints = buildMap {
-                        for (contour in face.contours) {
-                            val key = when (contour.faceContourType) {
-                                com.google.mlkit.vision.face.FaceContour.FACE -> "face"
-                                com.google.mlkit.vision.face.FaceContour.LEFT_EYE -> "leftEye"
-                                com.google.mlkit.vision.face.FaceContour.RIGHT_EYE -> "rightEye"
-                                com.google.mlkit.vision.face.FaceContour.NOSE_BRIDGE -> "noseBridge"
-                                com.google.mlkit.vision.face.FaceContour.NOSE_BOTTOM -> "noseBottom"
-                                com.google.mlkit.vision.face.FaceContour.UPPER_LIP_TOP -> "upperLipTop"
-                                com.google.mlkit.vision.face.FaceContour.LOWER_LIP_BOTTOM -> "lowerLipBottom"
-                                else -> "contour_${contour.faceContourType}"
-                            }
-                            put(key, contour.points.map { it.x to it.y })
+                    contourPoints = face.allContours.associate { contour ->
+                        val key = when (contour.faceContourType) {
+                            FaceContour.FACE -> "face"
+                            FaceContour.LEFT_EYE -> "leftEye"
+                            FaceContour.RIGHT_EYE -> "rightEye"
+                            FaceContour.NOSE_BRIDGE -> "noseBridge"
+                            FaceContour.NOSE_BOTTOM -> "noseBottom"
+                            FaceContour.UPPER_LIP_TOP -> "upperLipTop"
+                            FaceContour.LOWER_LIP_BOTTOM -> "lowerLipBottom"
+                            else -> "contour_${contour.faceContourType}"
                         }
+                        key to contour.points.map { point -> point.x to point.y }
                     },
                     yawAngle = face.headEulerAngleY,
                     rollAngle = face.headEulerAngleZ,

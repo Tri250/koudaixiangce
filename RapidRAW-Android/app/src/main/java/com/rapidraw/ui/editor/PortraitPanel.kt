@@ -18,6 +18,9 @@ import com.rapidraw.core.PortraitRetoucher
 import com.rapidraw.ui.theme.ColorOS16Colors
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.HasselbladOrangeBright
+import com.rapidraw.ui.theme.TextPrimary
+import com.rapidraw.ui.theme.TextSecondary
+import com.rapidraw.ui.theme.TextTertiary
 
 /**
  * 人像精修面板 — 瘦脸/大眼/瘦鼻/瘦身/拉腿
@@ -41,7 +44,7 @@ fun PortraitPanel(
         // ── 标题 ──
         Text(
             text = "人像精修",
-            color = ColorOS16Colors.TextPrimary,
+            color = TextPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -103,7 +106,7 @@ fun PortraitPanel(
                 onClick = onReset,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ColorOS16Colors.TextTertiary),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextTertiary),
             ) {
                 Text("重置")
             }
@@ -113,7 +116,7 @@ fun PortraitPanel(
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = HasselbladOrange),
             ) {
-                Text("应用", color = ColorOS16Colors.AMOLEDBlack)
+                Text("应用", color = ColorOS16Colors.AmoledBlack)
             }
         }
     }
@@ -142,10 +145,10 @@ private fun PortraitSlider(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(label, color = ColorOS16Colors.TextSecondary, fontSize = 13.sp)
+            Text(label, color = TextSecondary, fontSize = 13.sp)
             Text(
                 String.format("%.0f", value * 100),
-                color = if (value != 0f) HasselbladOrangeBright else ColorOS16Colors.TextTertiary,
+                color = if (value != 0f) HasselbladOrangeBright else TextTertiary,
                 fontSize = 13.sp,
                 fontWeight = if (value != 0f) FontWeight.Medium else FontWeight.Normal,
             )

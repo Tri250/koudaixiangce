@@ -775,6 +775,8 @@ class ImageProcessor {
         }
 
         // 2026 hotfix: 整个处理流程使用 try 包裹，确保 OOM/取消时能正确清理所有中间位图
+        // workBitmap 必须在 try 之前声明，否则 catch 块访问不到
+        var workBitmap = sourceBitmap
         try {
 
         // Pre-compute white balance multipliers
@@ -800,7 +802,6 @@ class ImageProcessor {
         val blueCurve = n.blueCurvePoints.sortedBy { it.first }
 
         // Apply geometric transform before pixel processing
-        var workBitmap = sourceBitmap
         val hasTransform = n.rotation != 0f || n.orientationSteps != 0 ||
             n.flipHorizontal || n.flipVertical || n.cropAspectRatio != null ||
             abs(n.transformDistortion) > 1e-6f || abs(n.transformVertical) > 1e-6f ||

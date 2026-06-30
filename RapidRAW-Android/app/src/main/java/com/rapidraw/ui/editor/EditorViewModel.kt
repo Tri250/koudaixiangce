@@ -1362,7 +1362,7 @@ class EditorViewModel(
 
     fun createBranch(branchName: String) {
         val bh = branchableHistory ?: return
-        val node = bh.getCurrentNode()
+        val node = bh.currentNode
         bh.branchFrom(node.id, branchName)
         _currentBranchName.value = bh.currentBranch
         _branchList.value = bh.branchNames
@@ -1420,7 +1420,7 @@ class EditorViewModel(
             } ?: return@launchAiJob
             _isAiProcessing.value = true
             runCatching {
-                val whitened = com.rapidraw.core.FaceWhiteningProcessor.process(source, _faceWhiteningParams.value)
+                val whitened = com.rapidraw.core.FaceWhiteningProcessor().process(source, _faceWhiteningParams.value)
                 // 将 BeautyPanel 的色相参数转换为 ColorReplacementProcessor.Params
                 val srcColor = android.graphics.Color.HSVToColor(floatArrayOf(_colorReplacementSourceHue.value, 1f, 1f))
                 val tgtColor = android.graphics.Color.HSVToColor(floatArrayOf(_colorReplacementTargetHue.value, 1f, 1f))
@@ -1430,7 +1430,7 @@ class EditorViewModel(
                     hueTolerance = _colorReplacementRange.value,
                     intensity = _colorReplacementIntensity.value,
                 )
-                val result = com.rapidraw.core.ColorReplacementProcessor.process(whitened, crParams)
+                val result = com.rapidraw.core.ColorReplacementProcessor().process(whitened, crParams)
                 bitmapMutex.withLock {
                     previewBitmapCache?.recycle()
                     previewBitmapCache = result

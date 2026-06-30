@@ -42,7 +42,7 @@ class AiSemanticTagger(context: Context) {
         modelFileName = "semantic_tags.tflite",
         inputWidth = 224,
         inputHeight = 224,
-        preferredBackend = InferenceEngine.Backend.NNAPI,
+        preferredBackend = InferenceEngine.Backend.GPU_DELEGATE,
     )
 
     /** 标签名 → (TagCategory, 中文名) 映射，与模型输出对齐 */

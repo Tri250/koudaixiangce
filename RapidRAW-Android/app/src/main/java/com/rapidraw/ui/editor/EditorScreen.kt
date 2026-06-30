@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Rotate90DegreesCcw
 import androidx.compose.material.icons.filled.Rotate90DegreesCw
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Tune

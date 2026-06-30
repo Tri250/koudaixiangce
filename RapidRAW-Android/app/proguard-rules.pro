@@ -122,3 +122,9 @@
 # v1.5.3 新增：Material 3 与 Material Icons Extended（部分图标在 R8 后会被错误剥离）
 -keep class androidx.compose.material3.** { *; }
 -keep class androidx.compose.material.icons.** { *; }
+
+# TensorFlow Lite
+-keep class org.tensorflow.lite.** { *; }
+-keepclassmembers class org.tensorflow.lite.** { *; }
+-dontwarn org.tensorflow.lite.gpu.GpuDelegateFactory$Options
+-dontwarn org.tensorflow.lite.gpu.GpuDelegateFactory$Options$GpuBackend

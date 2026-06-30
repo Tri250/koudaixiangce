@@ -27,7 +27,7 @@ object EditorShortcuts {
         ShortcutAction(Key.M, description = "打开遮罩面板"),
         ShortcutAction(Key.B, description = "前后对比切换"),
         ShortcutAction(Key.F, description = "全屏模式"),
-        ShortcutAction(Key.Space, description = "缩放循环 (适配→2x→100%)"),
+        ShortcutAction(Key.Spacebar, description = "缩放循环 (适配→2x→100%)"),
         ShortcutAction(Key.Z, ctrl = true, description = "撤销"),
         ShortcutAction(Key.Z, ctrl = true, shift = true, description = "重做"),
         ShortcutAction(Key.Y, ctrl = true, description = "重做"),
@@ -41,12 +41,12 @@ object EditorShortcuts {
         ShortcutAction(Key.Delete, description = "重置当前调整"),
         ShortcutAction(Key.DirectionLeft, description = "上一张照片"),
         ShortcutAction(Key.DirectionRight, description = "下一张照片"),
-        ShortcutAction(Key.Number1, description = "1星评级"),
-        ShortcutAction(Key.Number2, description = "2星评级"),
-        ShortcutAction(Key.Number3, description = "3星评级"),
-        ShortcutAction(Key.Number4, description = "4星评级"),
-        ShortcutAction(Key.Number5, description = "5星评级"),
-        ShortcutAction(Key.Number0, description = "取消评级"),
+        ShortcutAction(Key.One, description = "1星评级"),
+        ShortcutAction(Key.Two, description = "2星评级"),
+        ShortcutAction(Key.Three, description = "3星评级"),
+        ShortcutAction(Key.Four, description = "4星评级"),
+        ShortcutAction(Key.Five, description = "5星评级"),
+        ShortcutAction(Key.Zero, description = "取消评级"),
     )
 
     /**

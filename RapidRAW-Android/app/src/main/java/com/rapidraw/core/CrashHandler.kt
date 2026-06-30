@@ -78,7 +78,7 @@ object CrashHandler {
         val dir = crashLogDir(context)
         // 清理过期日志
         runCatching {
-            val files = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyArray()
+            val files = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
             if (files.size > MAX_LOG_FILES) {
                 files.drop(MAX_LOG_FILES).forEach { runCatching { it.delete() } }
             }

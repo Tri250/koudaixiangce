@@ -112,7 +112,7 @@ class AiSemanticSegmenter(context: Context) {
                 val g = (px shr 8 and 0xFF) / 255f
                 val b = (px and 0xFF) / 255f
                 val luma = 0.299f * r + 0.587f * g + 0.114f * b
-                val sat = kotlin.math.max(r, g, b) - kotlin.math.min(r, g, b)
+                val sat = maxOf(r, g, b) - minOf(r, g, b)
                 val isUpper = y < h * 0.45f
 
                 // Sky: high brightness, low saturation, upper portion
@@ -146,7 +146,7 @@ class AiSemanticSegmenter(context: Context) {
         val personBm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { it.setPixels(personMask, 0, w, 0, 0, w, h) }
         val vegBm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { it.setPixels(vegMask, 0, w, 0, 0, w, h) }
 
-        SegmentationResult(
+        return SegmentationResult(
             mask = mask,
             classMasks = mapOf(
                 SegmentClass.SKY to skyBm,
