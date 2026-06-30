@@ -21,6 +21,9 @@ class FavoriteRepository(private val favoriteDao: FavoriteDao) {
 
     fun search(query: String): Flow<List<FavoriteEntity>> = favoriteDao.search(query)
 
+    /** AI 语义标签搜索（AlcedoStudio 对标） */
+    fun searchBySemanticTag(tag: String): Flow<List<FavoriteEntity>> = favoriteDao.searchBySemanticTag(tag)
+
     suspend fun insert(favorite: FavoriteEntity): Long = favoriteDao.insert(favorite)
 
     suspend fun update(favorite: FavoriteEntity) = favoriteDao.update(favorite)

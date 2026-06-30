@@ -74,6 +74,9 @@ data class ExportSettings(
     val watermarkOpacity: Float = 0.5f,
     val exrBitDepth: ExrBitDepth = ExrBitDepth.HALF,
     val heifBitDepth: HeifBitDepth = HeifBitDepth.DEPTH_10,
+    // ICC 色彩配置文件嵌入（AlcedoStudio 对标：专业导出 ICC 嵌入）
+    val embedIccProfile: Boolean = false,
+    val iccProfileName: String = "sRGB",  // sRGB, Display P3, Adobe RGB, Rec.2020, ProPhoto RGB
 ) {
     /**
      * 导出时使用的安全 quality 值，避免反序列化或外部传入非法值导致崩溃。

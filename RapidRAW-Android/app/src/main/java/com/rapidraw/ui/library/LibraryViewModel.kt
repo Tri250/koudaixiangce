@@ -11,6 +11,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.CrashHandler
+import com.rapidraw.ai.NaturalLanguageSearcher
+import com.rapidraw.ai.SemanticTag
 import com.rapidraw.data.model.ColorLabel
 import com.rapidraw.data.model.ImageFile
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -461,6 +463,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         _images.update { list -> list + virtualCopy }
     }
 
+    private val nlSearcher = NaturalLanguageSearcher()
+
+    /** 图片路径 → AI 语义标签缓存 */
+    private val semanticTagCache = mutableMapOf<String, List<SemanticTag>>()
+
     private fun applyFilters(allImages: List<ImageFile>) {
         var filtered = allImages
 
@@ -470,8 +477,29 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
         val query = _searchQuery.value.trim()
         if (query.isNotEmpty()) {
-            val lowerQuery = query.lowercase()
-            filtered = filtered.filter { it.fileName.lowercase().contains(lowerQuery) }
+            // 使用自然语言搜索（AlcedoStudio 对标）
+            val searchQuery = nlSearcher.parseQuery(query)
+            if (searchQuery.sceneTags.isNotEmpty() || searchQuery.subjectTags.isNotEmpty() ||
+                searchQuery.moodTags.isNotEmpty() || searchQuery.styleTags.isNotEmpty() ||
+                searchQuery.colorToneTags.isNotEmpty() || searchQuery.timeOfDayTags.isNotEmpty()
+            ) {
+                // 语义搜索：匹配文件名或已有语义标签
+                val lowerQuery = query.lowercase()
+                filtered = filtered.filter { image ->
+                    // 文件名匹配
+                    image.fileName.lowercase().contains(lowerQuery) ||
+                    // 标签匹配
+                    image.tags.any { tag -> searchQuery.sceneTags.contains(tag) || searchQuery.subjectTags.contains(tag) } ||
+                    // 语义标签缓存匹配
+                    semanticTagCache[image.path]?.let { tags ->
+                        nlSearcher.match(searchQuery, tags) > 0.2f
+                    } ?: false
+                }
+            } else {
+                // 普通文本搜索
+                val lowerQuery = query.lowercase()
+                filtered = filtered.filter { it.fileName.lowercase().contains(lowerQuery) }
+            }
         }
 
         filtered = when (_sortOrder.value) {

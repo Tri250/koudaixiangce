@@ -18,9 +18,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AcUnit
+import androidx.compose.material.icons.filled.Apartment
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Landscape
+import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
@@ -93,6 +102,28 @@ fun SmartAlbumsPanel(
                     onClick = { onAlbumClick(album) },
                 )
             }
+            // AI 语义智能相册（AlcedoStudio 对标）
+            if (SmartAlbum.aiSemanticAlbums.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "AI",
+                        color = HasselbladOrange,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
+                    )
+                }
+                items(SmartAlbum.aiSemanticAlbums, key = { it.title }) { album ->
+                    val isSelected = selectedAlbum == album
+                    val count = counts[album] ?: 0
+                    SmartAlbumCard(
+                        album = album,
+                        count = count,
+                        isSelected = isSelected,
+                        onClick = { onAlbumClick(album) },
+                    )
+                }
+            }
         }
     }
 }
@@ -163,6 +194,16 @@ private fun albumIconAndColor(album: SmartAlbum): Pair<ImageVector, androidx.com
         SmartAlbum.RecentlyEdited -> Icons.Default.AccessTime to androidx.compose.ui.graphics.Color(0xFF64D2FF)
         SmartAlbum.RawFiles -> Icons.Default.PhotoCamera to androidx.compose.ui.graphics.Color(0xFF30D158)
         is SmartAlbum.ByDate -> Icons.Default.AccessTime to TextSecondary
+        is SmartAlbum.AiSemantic -> Icons.Default.AutoAwesome to HasselbladOrange
+        SmartAlbum.AiPortraits -> Icons.Default.Face to Color(0xFFFF6B9D)
+        SmartAlbum.AiLandscapes -> Icons.Default.Landscape to Color(0xFF4CAF50)
+        SmartAlbum.AiNight -> Icons.Default.NightsStay to Color(0xFF7C4DFF)
+        SmartAlbum.AiFood -> Icons.Default.Restaurant to Color(0xFFFF9800)
+        SmartAlbum.AiArchitecture -> Icons.Default.Apartment to Color(0xFF78909C)
+        SmartAlbum.AiWarmTone -> Icons.Default.WbSunny to Color(0xFFFFAB40)
+        SmartAlbum.AiCoolTone -> Icons.Default.AcUnit to Color(0xFF40C4FF)
+        SmartAlbum.AiRomantic -> Icons.Default.Favorite to Color(0xFFE91E63)
+        SmartAlbum.AiDramatic -> Icons.Default.FlashOn to Color(0xFFFF6E40)
     }
 }
 

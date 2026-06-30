@@ -38,6 +38,10 @@ interface FavoriteDao {
     @Query("SELECT * FROM favorites WHERE note LIKE '%' || :query || '%' OR imagePath LIKE '%' || :query || '%' ORDER BY updatedAt DESC")
     fun search(query: String): Flow<List<FavoriteEntity>>
 
+    /** AI 语义标签搜索（AlcedoStudio 对标：按语义标签筛选照片） */
+    @Query("SELECT * FROM favorites WHERE semanticTags LIKE '%' || :tag || '%' ORDER BY updatedAt DESC")
+    fun searchBySemanticTag(tag: String): Flow<List<FavoriteEntity>>
+
     @Query("DELETE FROM favorites WHERE id = :id")
     suspend fun deleteById(id: Long)
 }

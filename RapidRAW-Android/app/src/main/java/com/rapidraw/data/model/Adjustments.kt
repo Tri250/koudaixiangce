@@ -150,6 +150,25 @@ data class Adjustments(
     // ── Color Calibration ──────────────────────────────────────
     val colorCalibration: ColorCalibration = ColorCalibration(),
 
+    // ── Channel Mixer ──────────────────────────────────────────
+    val channelMixerRedOutRed: Float = 100f,
+    val channelMixerRedOutGreen: Float = 0f,
+    val channelMixerRedOutBlue: Float = 0f,
+    val channelMixerGreenOutRed: Float = 0f,
+    val channelMixerGreenOutGreen: Float = 100f,
+    val channelMixerGreenOutBlue: Float = 0f,
+    val channelMixerBlueOutRed: Float = 0f,
+    val channelMixerBlueOutGreen: Float = 0f,
+    val channelMixerBlueOutBlue: Float = 100f,
+    val channelMixerMonochrome: Boolean = false,
+
+    // ── Split Toning ───────────────────────────────────────────
+    val splitToningHighlightHue: Float = 0f,     // 0..360
+    val splitToningHighlightSaturation: Float = 0f, // 0..100
+    val splitToningShadowHue: Float = 0f,         // 0..360
+    val splitToningShadowSaturation: Float = 0f,   // 0..100
+    val splitToningBalance: Float = 0f,            // -100..100
+
     // ── Details ───────────────────────────────────────────────
     val sharpness: Float = 0f,
     val lumaNoiseReduction: Float = 0f,
@@ -380,6 +399,23 @@ data class Adjustments(
         "hdrExportFormat" -> copy(hdrExportFormat = value.toInt().coerceIn(0, 2))
         "hdrPeakLuminance" -> copy(hdrPeakLuminance = value.coerceIn(100f, 10000f))
         "hdrMaxBoostStop" -> copy(hdrMaxBoostStop = value.coerceIn(1f, 8f))
+        // Channel Mixer
+        "channelMixerRedOutRed" -> copy(channelMixerRedOutRed = value.coerceIn(-200f, 200f))
+        "channelMixerRedOutGreen" -> copy(channelMixerRedOutGreen = value.coerceIn(-200f, 200f))
+        "channelMixerRedOutBlue" -> copy(channelMixerRedOutBlue = value.coerceIn(-200f, 200f))
+        "channelMixerGreenOutRed" -> copy(channelMixerGreenOutRed = value.coerceIn(-200f, 200f))
+        "channelMixerGreenOutGreen" -> copy(channelMixerGreenOutGreen = value.coerceIn(-200f, 200f))
+        "channelMixerGreenOutBlue" -> copy(channelMixerGreenOutBlue = value.coerceIn(-200f, 200f))
+        "channelMixerBlueOutRed" -> copy(channelMixerBlueOutRed = value.coerceIn(-200f, 200f))
+        "channelMixerBlueOutGreen" -> copy(channelMixerBlueOutGreen = value.coerceIn(-200f, 200f))
+        "channelMixerBlueOutBlue" -> copy(channelMixerBlueOutBlue = value.coerceIn(-200f, 200f))
+        "channelMixerMonochrome" -> copy(channelMixerMonochrome = value != 0f)
+        // Split Toning
+        "splitToningHighlightHue" -> copy(splitToningHighlightHue = value.coerceIn(0f, 360f))
+        "splitToningHighlightSaturation" -> copy(splitToningHighlightSaturation = value.coerceIn(0f, 100f))
+        "splitToningShadowHue" -> copy(splitToningShadowHue = value.coerceIn(0f, 360f))
+        "splitToningShadowSaturation" -> copy(splitToningShadowSaturation = value.coerceIn(0f, 100f))
+        "splitToningBalance" -> copy(splitToningBalance = value.coerceIn(-100f, 100f))
         else -> this
     }
 

@@ -204,7 +204,7 @@ fun LibraryScreen(
                                 onValueChange = { viewModel.searchImages(it) },
                                 placeholder = {
                                     Text(
-                                        text = "Search files...",
+                                        text = "搜索，如「海边日落」...",
                                         color = TextTertiary,
                                         style = MaterialTheme.typography.bodyMedium,
                                     )

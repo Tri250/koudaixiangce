@@ -16,4 +16,6 @@ data class FavoriteEntity(
     val note: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    // AI 语义标签（AlcedoStudio 对标功能）
+    val semanticTags: List<String> = emptyList(),
 )
