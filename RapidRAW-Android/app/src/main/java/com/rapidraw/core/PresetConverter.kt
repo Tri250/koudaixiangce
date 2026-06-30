@@ -3,6 +3,8 @@ package com.rapidraw.core
 import android.content.ContentResolver
 import android.net.Uri
 import com.rapidraw.data.model.Adjustments
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.w3c.dom.Document
 import javax.xml.parsers.DocumentBuilderFactory
 
@@ -26,6 +28,13 @@ object PresetConverter {
         return try {
             val builder = DocumentBuilderFactory.newInstance().apply {
                 isNamespaceAware = true
+                // v1.5.5 hotfix: 禁用 DTD 解析和外部实体，防止恶意 XMP 文件触发 XXE 攻击。
+                setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+                setFeature("http://xml.org/sax/features/external-general-entities", false)
+                setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+                setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+                isXIncludeAware = false
+                isExpandEntityReferences = false
             }.newDocumentBuilder()
             val doc = builder.parse(content.byteInputStream())
             val name = extractXmpName(doc)
@@ -53,20 +62,24 @@ object PresetConverter {
     /**
      * Import a preset file by URI.
      * Determines the file type from the extension and delegates to the appropriate parser.
+     * v1.5.5 hotfix: 改为 suspend 函数，强制在 IO 调度器上执行，
+     * 避免在主线程上解析大型 XMP 文件导致 ANR。
      */
-    fun importFile(uri: Uri, contentResolver: ContentResolver): ImportResult? {
-        return try {
-            val content = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: return null
-            val fileName = uri.lastPathSegment ?: uri.toString()
-            when {
-                fileName.endsWith(".xmp", ignoreCase = true) -> importXmp(content)
-                fileName.endsWith(".lrtemplate", ignoreCase = true) -> importLrtemplate(content)
-                else -> null
+    suspend fun importFile(uri: Uri, contentResolver: ContentResolver): ImportResult? =
+        withContext(Dispatchers.IO) {
+            try {
+                val content = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: return@withContext null
+                val fileName = uri.lastPathSegment ?: uri.toString()
+                when {
+                    fileName.endsWith(".xmp", ignoreCase = true) -> importXmp(content)
+                    fileName.endsWith(".lrtemplate", ignoreCase = true) -> importLrtemplate(content)
+                    else -> null
+                }
+            } catch (_: Exception) {
+                null
             }
-        } catch (_: Exception) {
-            null
         }
-    }
 
     // ── XMP Parsing ─────────────────────────────────────────────
 

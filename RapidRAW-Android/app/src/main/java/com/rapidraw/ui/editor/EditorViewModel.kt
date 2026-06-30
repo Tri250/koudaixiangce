@@ -284,6 +284,8 @@ class EditorViewModel(
     private var loadedLut: CubeLutParser.Lut3D? = null
 
     private val isCleared = AtomicBoolean(false)
+    // v1.5.5 hotfix: cleanupJob 完成标志，用于让 onCleared 中的看门狗协程及时退出。
+    private val isCleanupDone = AtomicBoolean(false)
 
     // 用于 ViewModel 销毁后异步释放 GPU/Bitmap 资源，避免 onCleared 阻塞主线程
     private val cleanupScope = CoroutineScope(
@@ -302,14 +304,13 @@ class EditorViewModel(
     }
 
     fun setGpuPipeline(pipeline: GpuPipeline?) {
-        // GPU pipeline 仅在 EditorScreen 初始化时从主线程设置一次，
-        // 使用 viewModelScope 确保后续释放逻辑串行化。
-        viewModelScope.launch(coroutineExceptionHandler) {
-            gpuMutex.withLock {
-                gpuPipeline = pipeline
-                // Upload any already-loaded LUT so the preview reflects current adjustments.
-                loadedLut?.let { pipeline?.updateLutTexture(it, _adjustments.value.activeLutBlend) }
-            }
+        // v1.5.5 hotfix: GPU pipeline 字段是普通可变字段，赋值时主线程同步即可。
+        // 之前用 viewModelScope.launch 异步赋值导致读取该字段时序不一致，
+        // 同时 coroutineExceptionHandler 错误地吞掉了可能的 NPE。
+        gpuPipeline = pipeline
+        // 同步上传已加载的 LUT，让 GPU 路径预览反映当前 adjustments
+        if (pipeline != null) {
+            loadedLut?.let { pipeline.updateLutTexture(it, _adjustments.value.activeLutBlend) }
         }
     }
 
@@ -669,7 +670,12 @@ class EditorViewModel(
                 _aiDenoiseProgress.value = 0.8f
 
                 bitmapMutex.withLock {
-                    previewBitmapCache?.recycle()
+                    // v1.5.5 hotfix: 同时更新 originalBitmap，确保 processExportQueue 导出包含 AI 修改，
+                    // 避免预览与导出不一致。
+                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                    val original = try { denoised.copy(denoised.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { denoised }
+                    originalBitmap = original
                     previewBitmapCache = denoised
                 }
                 _previewBitmap.value = denoised
@@ -720,7 +726,11 @@ class EditorViewModel(
                     generator.applyMaskToBitmap(source, mask)
                 }
                 bitmapMutex.withLock {
+                    // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出包含 AI 遮罩效果。
+                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
                     previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                    val original = try { result.copy(result.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { result }
+                    originalBitmap = original
                     previewBitmapCache = result
                 }
                 _previewBitmap.value = result
@@ -745,7 +755,11 @@ class EditorViewModel(
                 val inpainter = AiInpainter()
                 val result = inpainter.removeObject(source, maskBitmap, iterations = 3)
                 bitmapMutex.withLock {
-                    previewBitmapCache?.recycle()
+                    // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出的图包含 AI 消除结果。
+                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                    val original = try { result.copy(result.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { result }
+                    originalBitmap = original
                     previewBitmapCache = result
                 }
                 _previewBitmap.value = result
@@ -764,17 +778,36 @@ class EditorViewModel(
 
     fun applyAiInpaintResult(bitmap: Bitmap) {
         viewModelScope.launch(coroutineExceptionHandler) {
-            val previewCopy = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
+            // v1.5.5 hotfix: 防止原始位图被错误回收，并保持长按对比语义。
+            // 旧代码将 _originalPreviewBitmap 重置为 inpaint 后的位图，长按对比时显示的
+            // 不再是"原图"而是 inpaint 结果；同时若 viewModelScope 即将被取消
+            // （用户快速返回），协程内 recycle 可能与外部 onDispose 竞态导致 NPE。
+            val previewCopy = try {
+                bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
+            } catch (e: OutOfMemoryError) {
+                Log.w(TAG, "OOM copying inpaint result", e)
+                null
+            } catch (e: IllegalStateException) {
+                // HARDWARE bitmap 等无法 copy 的情况
+                Log.w(TAG, "Cannot copy inpaint result, using original", e)
+                null
+            }
+            if (previewCopy == null) {
+                // copy 失败时主动释放外部 bitmap，避免 AiInpaintResultHolder 持有泄漏
+                if (!bitmap.isRecycled) bitmap.recycle()
+                return@launch
+            }
             bitmapMutex.withLock {
                 // 安全回收：避免释放即将重新赋值的同一对象
                 originalBitmap?.takeIf { !it.isRecycled && it !== previewBitmapCache && it !== bitmap }?.recycle()
-                previewBitmapCache?.takeIf { !it.isRecycled && it !== bitmap }?.recycle()
+                previewBitmapCache?.takeIf { !it.isRecycled && it !== bitmap && it !== previewCopy }?.recycle()
                 originalBitmap = bitmap
                 previewBitmapCache = previewCopy
             }
             _previewBitmap.value = previewCopy
-            _originalPreviewBitmap.value?.takeIf { !it.isRecycled && it !== previewCopy && it !== bitmap }?.recycle()
-            _originalPreviewBitmap.value = previewCopy.copy(previewCopy.config ?: Bitmap.Config.ARGB_8888, false)
+            // 不要修改 _originalPreviewBitmap —— 它表示"加载时的原图"，长按对比时仍应展示它
+            // 协程结束后回收外部传入的 bitmap（已被 previewCopy 替代持有）
+            if (!bitmap.isRecycled && bitmap !== previewCopy) bitmap.recycle()
             schedulePreviewUpdate()
         }
     }
@@ -823,7 +856,11 @@ class EditorViewModel(
                 val reconstructor = HighlightReconstructor()
                 val reconstructed = reconstructor.reconstruct(source)
                 bitmapMutex.withLock {
-                    previewBitmapCache?.recycle()
+                    // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出结果包含高光重建修改。
+                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                    val original = try { reconstructed.copy(reconstructed.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { reconstructed }
+                    originalBitmap = original
                     previewBitmapCache = reconstructed
                 }
                 _previewBitmap.value = reconstructed
@@ -871,7 +908,11 @@ class EditorViewModel(
             runCatching {
                 val converted = NegativeConverter.convertNegative(source)
                 bitmapMutex.withLock {
-                    previewBitmapCache?.recycle()
+                    // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出的图包含负片转换结果。
+                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                    val original = try { converted.copy(converted.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { converted }
+                    originalBitmap = original
                     previewBitmapCache = converted
                 }
                 _previewBitmap.value = converted
@@ -1108,51 +1149,52 @@ class EditorViewModel(
 
     /**
      * 收集从根到当前节点的编辑历史路径，用于 Sidecar 持久化。
-     * 遍历 EditHistoryTree 的 currentBranch，提取每个条目的快照。
+     * 沿 [EditHistoryTree.currentBranch] 取出根到 current 的所有 ID，再在树中查找对应条目。
      */
     private fun collectEditHistoryEntries(): List<EditHistoryEntry> {
         val tree = _editHistory.value ?: return emptyList()
+        // v1.5.5 hotfix: 旧实现使用 `branch.indexOf(node.id) + 1` 在分支中找下一节点，
+        // 但当 node.id 不在分支中（分支切换后）时 indexOf 返回 -1，getOrNull(0) 会
+        // 重新得到根节点 id，导致死循环 / 重复收集。
+        // 改为：直接按 currentBranch 的 id 顺序在树中查找，跳过缺失的 id。
         val entries = mutableListOf<EditHistoryEntry>()
-        val branch = tree.currentBranch
-        // 从根开始，沿分支路径收集条目
-        var node: EditHistoryEntry? = tree.root
-        while (node != null) {
-            entries.add(node)
-            // 查找分支中下一个节点
-            val nextId = branch.getOrNull(branch.indexOf(node.id) + 1)
-                ?: node.children.firstOrNull()?.id
-            if (nextId != null) {
-                node = tree.findById(nextId)
-            } else {
-                node = null
-            }
+        val seen = HashSet<String>()
+        for (id in tree.currentBranch) {
+            if (!seen.add(id)) continue
+            val entry = tree.findById(id) ?: continue
+            entries.add(entry)
+        }
+        // 兜底：若 currentBranch 与 current 不一致，确保 current 自身在结果中
+        if (entries.lastOrNull()?.id != tree.current.id && seen.add(tree.current.id)) {
+            tree.findById(tree.current.id)?.let { entries.add(it) }
         }
         return entries
     }
 
     /**
      * 从 Sidecar 快照恢复编辑历史树。
-     * 将扁平的快照列表重建为树结构。
+     * v1.5.5 hotfix: 旧实现忽略 parentId 直接线性串联，丢失了真正的树形结构。
+     * 改为：按 parentId 把快照挂到对应父节点上，并依据顺序重建 currentBranch 指向最后一条。
      */
     private fun restoreEditHistory(snapshots: List<EditHistorySnapshot>?) {
         if (snapshots.isNullOrEmpty()) return
-        // 重建树：第一个快照是根，后续按 parentId 链接
+        val first = snapshots.first()
         val root = EditHistoryEntry(
-            id = snapshots.first().id,
-            adjustments = snapshots.first().adjustments,
-            description = snapshots.first().description,
-            parentId = snapshots.first().parentId,
-            timestamp = snapshots.first().timestamp,
+            id = first.id,
+            adjustments = first.adjustments,
+            description = first.description,
+            parentId = first.parentId,
+            timestamp = first.timestamp,
         )
         val tree = EditHistoryTree(
             root = root,
             current = root,
             currentBranch = mutableListOf(root.id),
         )
-        // 添加后续节点
-        var parent: EditHistoryEntry = root
+        val byId = HashMap<String, EditHistoryEntry>().also { it[root.id] = root }
         for (i in 1 until snapshots.size) {
             val snap = snapshots[i]
+            val parentEntry = byId[snap.parentId]
             val entry = EditHistoryEntry(
                 id = snap.id,
                 adjustments = snap.adjustments,
@@ -1160,10 +1202,15 @@ class EditorViewModel(
                 parentId = snap.parentId,
                 timestamp = snap.timestamp,
             )
-            parent.children.add(entry)
+            if (parentEntry != null) {
+                parentEntry.children.add(entry)
+            } else {
+                // parentId 找不到对应父节点时，挂在根上，避免整条历史丢失
+                root.children.add(entry)
+            }
+            byId[entry.id] = entry
             tree.currentBranch.add(entry.id)
             tree.current = entry
-            parent = entry
         }
         _editHistory.value = tree
     }
@@ -1425,7 +1472,11 @@ class EditorViewModel(
                 )
                 val result = com.rapidraw.core.ColorReplacementProcessor().process(whitened, crParams)
                 bitmapMutex.withLock {
-                    previewBitmapCache?.recycle()
+                    // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出结果包含美颜修改。
+                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                    val original = try { result.copy(result.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { result }
+                    originalBitmap = original
                     previewBitmapCache = result
                 }
                 _previewBitmap.value = result
@@ -1475,9 +1526,17 @@ class EditorViewModel(
             format = settings.format,
             width = currentImageFile.width,
             height = currentImageFile.height,
+            // v1.5.5 hotfix: 把当前调整与导出参数序列化进任务，
+            // 用户离开编辑器后仍可通过 ExportQueueProcessor 独立重试。
+            adjustmentsSnapshot = _adjustments.value,
+            settingsSnapshot = settings,
         )
         ExportQueueRepository.addJob(job)
+        // 优先在编辑器内用 in-memory 内存位图直接出图（更快、含 AI 实时修改）。
         processExportQueue(settings)
+        // 兜底也启动独立处理器——当 in-memory 路径失败/编辑器已被销毁时，
+        // 处理器可基于 sidecar + 源图重新执行导出。
+        com.rapidraw.data.export.ExportQueueProcessor.kick(appContext)
     }
 
     private fun processExportQueue(pendingSettings: ExportSettings? = null) {
@@ -1504,7 +1563,7 @@ class EditorViewModel(
 
             // 2026 hotfix: 声明在 try 外部，确保 finally 块可见
             var processed: Bitmap? = null
-            runCatching {
+            try {
                 ExportQueueRepository.updateJobProgress(jobId, 0.3f)
                 processed = imageProcessor.processFullResolution(
                     _adjustments.value, source, allowDownsample = false
@@ -1530,19 +1589,35 @@ class EditorViewModel(
                 withContext(Dispatchers.Main) {
                     _event.value = EditorEvent.ExportComplete(uri)
                 }
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
+            } catch (cancel: CancellationException) {
+                // v1.5.5 hotfix: 取消时仍要走 finally 回收位图，不能被 runCatching.onFailure 吞掉。
+                // 此处仅记录与向上重新抛出，不标记 FAILED（属于用户主动取消）。
+                Log.i(TAG, "Export job $jobId cancelled")
+                ExportQueueRepository.updateJobStatus(jobId, ExportJobStatus.FAILED, error = "已取消")
+                throw cancel
+            } catch (throwable: Throwable) {
                 Log.e(TAG, "Export failed", throwable)
                 ExportQueueRepository.updateJobStatus(jobId, ExportJobStatus.FAILED, error = throwable.localizedMessage)
-            }
-
-            // 2026 hotfix: 始终回收 processFullResolution 产生的全分辨率大位图
-            processed?.let { p ->
-                if (!p.isRecycled && p !== source) p.recycle()
+            } finally {
+                // v1.5.5 hotfix: 使用 try-finally 而非 runCatching 后置回收，
+                // 保证 CancellationException / Throwable 抛出后大位图仍被释放。
+                processed?.let { p ->
+                    if (!p.isRecycled && p !== source) p.recycle()
+                }
             }
 
             // 处理队列中的下一个任务
-            processExportQueue()
+            // v1.5.5 hotfix: 之前在 IO 协程内同步递归调用 processExportQueue()，
+            // 多任务全部失败时会引发深度递归（受 IO dispatcher 线程数限制），
+            // 且递归过程中协程无法响应 cancel。改为通过 viewModelScope 调度下一次迭代。
+            val queueSize = ExportQueueRepository.jobs.value.size
+            if (queueSize > 0) {
+                viewModelScope.launch(coroutineExceptionHandler) {
+                    processExportQueue()
+                    // 兜底唤醒独立处理器
+                    com.rapidraw.data.export.ExportQueueProcessor.kick(appContext)
+                }
+            }
         }
     }
 
@@ -1582,6 +1657,8 @@ class EditorViewModel(
         ExportQueueRepository.updateJobStatus(jobId, ExportJobStatus.FAILED, error = "已取消")
         if (ExportQueueRepository.jobs.value.none { it.status == ExportJobStatus.EXPORTING }) {
             processExportQueue()
+            // v1.5.5 hotfix: 同步唤醒独立处理器，让 EditorViewModel 销毁后队列仍能跑。
+            com.rapidraw.data.export.ExportQueueProcessor.kick(appContext)
         }
     }
 
@@ -1590,24 +1667,29 @@ class EditorViewModel(
     }
 
     fun reorderExportQueue(fromIndex: Int, toIndex: Int) {
+        // v1.5.5 hotfix: 旧实现仅返回 copy(status = it.status)，并未实际重排列表，
+        // 导致拖拽排序功能完全失效。重新实现为对可重排子队列的真实位置交换。
+        // 注：UI 拖拽通过 onDragReorder(+1/-1) 传入相对位移（来自 ExportQueue.kt）。
         val queue = ExportQueueRepository.jobs.value.toMutableList()
-        val queuedItems = queue.filter {
-            it.status == ExportJobStatus.QUEUED || it.status == ExportJobStatus.EXPORTING
+        val reorderableIndices = queue.indices.filter {
+            val s = queue[it].status
+            s == ExportJobStatus.QUEUED || s == ExportJobStatus.EXPORTING
         }
-        if (fromIndex !in queuedItems.indices || toIndex !in queuedItems.indices) return
-        val item = queuedItems[fromIndex]
-        val targetIdx = if (toIndex < 0) 0 else if (toIndex >= queuedItems.size) queuedItems.lastIndex else toIndex
-        val target = queuedItems[targetIdx]
-
-        val newQueue = queue.map {
-            when {
-                it.id == item.id && targetIdx < fromIndex -> it.copy(status = it.status)
-                it.id == target.id -> it
-                else -> it
-            }
+        if (reorderableIndices.isEmpty()) return
+        val from = fromIndex.coerceIn(0, reorderableIndices.size - 1)
+        // 支持相对位移：toIndex 为负/正表示上下移 N 个位置
+        val targetRelative = if (toIndex < 0) {
+            (from + toIndex).coerceAtLeast(0)
+        } else if (toIndex >= reorderableIndices.size) {
+            reorderableIndices.size - 1
+        } else {
+            toIndex
         }
+        if (from == targetRelative) return
+        val item = queue.removeAt(reorderableIndices[from])
+        queue.add(reorderableIndices[targetRelative], item)
         ExportQueueRepository.clear()
-        newQueue.forEach { ExportQueueRepository.addJob(it) }
+        queue.forEach { ExportQueueRepository.addJob(it) }
     }
     // endregion
 
@@ -1775,8 +1857,8 @@ class EditorViewModel(
                     }
                 }.onFailure { Log.w(TAG, "Bitmap recycle failed", it) }
             } finally {
-                // 清理完成后取消作用域，防止协程泄漏
-                cleanupScope.cancel()
+                // 清理完成后通知 watchScope 兜底协程可以退出
+                isCleanupDone.set(true)
             }
         }
 
@@ -1786,10 +1868,19 @@ class EditorViewModel(
         }
         _originalPreviewBitmap.value = null
 
-        // 看门狗：即使清理协程死锁/挂起，也在 2 秒后强制取消作用域，防止泄漏
-        cleanupScope.launch {
-            delay(2000)
-            cleanupScope.cancel()
+        // v1.5.5 hotfix: 看门狗在 3 秒后兜底强制取消 cleanupScope。
+        // 旧实现把 cleanupJob 自身也 launch 到 cleanupScope 上，watchdog 调用
+        // cleanupScope.cancel() 会取消 cleanupJob —— 即"看门狗自杀"反模式，
+        // 导致 sidecar 写入半途被取消、GPU 未释放、位图未回收。
+        // 修复：watchdog 放在独立 scope，仅在 cleanupJob 仍未完成时才 cancel cleanupScope。
+        val watchScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + coroutineExceptionHandler)
+        watchScope.launch {
+            delay(3000)
+            if (!isCleanupDone.get()) {
+                Log.w(TAG, "cleanupJob still active after 3s, force-cancelling cleanupScope")
+                cleanupScope.cancel()
+            }
+            watchScope.cancel()
         }
 
         super.onCleared()

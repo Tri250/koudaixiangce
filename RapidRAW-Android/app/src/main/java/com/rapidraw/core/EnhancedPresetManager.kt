@@ -61,6 +61,10 @@ class EnhancedPresetManager(context: Context) {
     private val presetsDir = File(context.filesDir, PRESETS_DIR).also { it.mkdirs() }
     private val presetCache = mutableListOf<EnhancedPreset>()
 
+    // v1.5.5 hotfix: 使用 synchronized 保护 presetCache 列表与 _presets 写入，
+    // 避免 savePreset/deletePreset/loadAllPresets 并发时出现"读-改-写"丢失更新。
+    private val cacheLock = Any()
+
     private val _presets = MutableStateFlow<List<EnhancedPreset>>(emptyList())
     val presets: StateFlow<List<EnhancedPreset>> = _presets
 
@@ -75,16 +79,26 @@ class EnhancedPresetManager(context: Context) {
         withContext(Dispatchers.IO) {
             runCatching {
                 val file = File(presetsDir, "${preset.id}.json")
-                file.writeText(json.encodeToString(preset))
-
-                val idx = presetCache.indexOfFirst { it.id == preset.id }
-                if (idx >= 0) {
-                    presetCache[idx] = preset
-                } else {
-                    presetCache.add(preset)
+                // v1.5.5 hotfix: 原子写入（先写 .tmp 再 rename），防止进程在写入中途崩溃导致 JSON 半文件。
+                val tmpFile = File(presetsDir, "${preset.id}.json.tmp")
+                tmpFile.writeText(json.encodeToString(preset))
+                if (file.exists() && !file.delete()) {
+                    tmpFile.delete()
+                    return@runCatching error("Failed to delete existing preset: ${file.name}")
                 }
-                _presets.value = presetCache.toList()
-
+                if (!tmpFile.renameTo(file)) {
+                    tmpFile.delete()
+                    return@runCatching error("Failed to rename tmp to preset: ${file.name}")
+                }
+                synchronized(cacheLock) {
+                    val idx = presetCache.indexOfFirst { it.id == preset.id }
+                    if (idx >= 0) {
+                        presetCache[idx] = preset
+                    } else {
+                        presetCache.add(preset)
+                    }
+                    _presets.value = presetCache.toList()
+                }
                 Log.d(TAG, "Preset saved: ${preset.name} (${preset.type})")
                 preset
             }
@@ -94,23 +108,26 @@ class EnhancedPresetManager(context: Context) {
      * 应用预设到调整参数
      * @param currentAdjustments 当前编辑参数
      * @param preset 要应用的预设
-     * @return 应用后的调整参数
+     * @return Result<Adjustments> 成功返回应用后的参数，失败携带异常信息
      */
     fun applyPreset(
         currentAdjustments: Adjustments,
         preset: EnhancedPreset,
-    ): Adjustments {
+    ): Result<Adjustments> {
         val presetAdj = try {
             json.decodeFromString<Adjustments>(preset.adjustmentsJson)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to decode preset adjustments", e)
-            return currentAdjustments
+            // v1.5.5 hotfix: 静默吞掉 JSON 解析失败会让用户以为预设没反应。
+            // 改为 Result 失败，调用方应发 EditorEvent.Error 通知用户。
+            Log.e(TAG, "Failed to decode preset adjustments: ${preset.name}", e)
+            return Result.failure(e)
         }
-
-        return when (preset.type) {
-            PresetType.STYLE -> presetAdj
-            PresetType.TOOL -> mergeAdjustments(currentAdjustments, presetAdj)
-        }
+        return Result.success(
+            when (preset.type) {
+                PresetType.STYLE -> presetAdj
+                PresetType.TOOL -> mergeAdjustments(currentAdjustments, presetAdj)
+            }
+        )
     }
 
     /**
@@ -138,8 +155,12 @@ class EnhancedPresetManager(context: Context) {
         val file = File(presetsDir, "$presetId.json")
         val deleted = file.delete()
         if (deleted) {
-            presetCache.removeAll { it.id == presetId }
-            _presets.value = presetCache.toList()
+            // v1.5.5 hotfix: 同步块内修改 presetCache 与 _presets，
+            // 避免与 savePreset/loadAllPresets 并发时出现脏读。
+            synchronized(cacheLock) {
+                presetCache.removeAll { it.id == presetId }
+                _presets.value = presetCache.toList()
+            }
         }
         return deleted
     }
@@ -161,15 +182,17 @@ class EnhancedPresetManager(context: Context) {
         }
 
     private fun loadAllPresets() {
-        presetCache.clear()
-        presetsDir.listFiles()?.filter { it.extension == "json" }?.forEach { file ->
-            try {
-                val preset = json.decodeFromString<EnhancedPreset>(file.readText())
-                presetCache.add(preset)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to load preset ${file.name}: ${e.message}")
+        synchronized(cacheLock) {
+            presetCache.clear()
+            presetsDir.listFiles()?.filter { it.extension == "json" && !it.name.endsWith(".tmp") }?.forEach { file ->
+                try {
+                    val preset = json.decodeFromString<EnhancedPreset>(file.readText())
+                    presetCache.add(preset)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to load preset ${file.name}: ${e.message}")
+                }
             }
+            _presets.value = presetCache.toList()
         }
-        _presets.value = presetCache.toList()
     }
 }

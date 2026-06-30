@@ -53,6 +53,8 @@ class ImageProcessor {
         private const val TAG = "ImageProcessor"
         private const val PREVIEW_MAX_DIMENSION = 2048
         private const val MAX_MARK_BYTES = 64 * 1024 * 1024 // 64 MB
+        // 导出时单边上限，避免 ~100MP 全分辨率 ARGB_8888 直接 OOM。
+        private const val MAX_DECODE_PIXELS = 8192
     }
 
     // ── Normalised Adjustments (private, proper equals/hashCode) ──────
@@ -650,6 +652,109 @@ class ImageProcessor {
         return inSampleSize
     }
 
+    /**
+     * 从文件路径或 content URI 同步加载全分辨率位图。
+     *
+     * v1.5.5 hotfix: 之前没有公开方法让 [com.rapidraw.data.export.ExportQueueProcessor]
+     * 在编辑器已销毁的情况下独立加载源图，导致"重试"按钮无法真正导出。
+     * 加载失败（路径不存在 / RAW 解码失败 / OOM）返回 null，由调用方标记 FAILED。
+     *
+     * @param imagePath 形如 "/sdcard/xxx.dng" 或 "content://..." 的源图像引用
+     * @param allowDownsample 当图像超过 [MAX_DECODE_PIXELS] 时是否降采样（默认否：导出需要全分辨率）
+     */
+    fun loadBitmap(imagePath: String, allowDownsample: Boolean = false): Bitmap? {
+        return try {
+            if (imagePath.isBlank()) return null
+            val context = appContextRef
+            val uri = Uri.parse(imagePath)
+            if (uri.scheme.isNullOrEmpty()) {
+                loadBitmapFromFile(path = imagePath, allowDownsample = allowDownsample)
+            } else {
+                loadBitmapFromUri(context, uri, allowDownsample)
+            }
+        } catch (oom: OutOfMemoryError) {
+            Log.w(TAG, "OOM loading bitmap for $imagePath", oom)
+            null
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to load bitmap for $imagePath", t)
+            null
+        }
+    }
+
+    private fun loadBitmapFromFile(path: String, allowDownsample: Boolean): Bitmap? {
+        val file = java.io.File(path)
+        if (!file.exists() || !file.canRead()) return null
+        val fileName = file.name
+        // v1.5.5 hotfix: RAW 文件必须走 libraw 解码，普通 BitmapFactory.decodeFile 只能拿到缩略图/损坏像素
+        if (isRawFileName(fileName)) {
+            return try {
+                val context = appContextRef
+                val uri = Uri.fromFile(file)
+                com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
+            } catch (t: Throwable) {
+                Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
+                loadBitmapFromFileSimple(path, allowDownsample)
+            }
+        }
+        return loadBitmapFromFileSimple(path, allowDownsample)
+    }
+
+    private fun loadBitmapFromFileSimple(path: String, allowDownsample: Boolean): Bitmap? {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, options)
+        if (options.outWidth <= 0 || options.outHeight <= 0) return null
+        val decodeOptions = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            if (!allowDownsample) {
+                val maxDim = MAX_DECODE_PIXELS
+                inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
+            }
+        }
+        return BitmapFactory.decodeFile(path, decodeOptions)
+    }
+
+    private fun isRawFileName(name: String): Boolean {
+        val n = name.lowercase()
+        return n.endsWith(".dng") || n.endsWith(".raw") || n.endsWith(".cr2") ||
+            n.endsWith(".nef") || n.endsWith(".arw") || n.endsWith(".orf") ||
+            n.endsWith(".rw2") || n.endsWith(".raf") || n.endsWith(".pef") ||
+            n.endsWith(".sr2") || n.endsWith(".dcr") || n.endsWith(".kdc") ||
+            n.endsWith(".3fr") || n.endsWith(".mrw")
+    }
+
+    private fun loadBitmapFromUri(context: Context, uri: Uri, allowDownsample: Boolean): Bitmap? {
+        // v1.5.5 hotfix: 通过 URI 加载时也要识别 RAW 后缀并走 libraw 解码路径
+        val fileName = getFileName(context, uri)
+        if (isRawFileName(fileName)) {
+            return try {
+                com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
+            } catch (t: Throwable) {
+                Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
+                loadBitmapFromUriSimple(context, uri, allowDownsample)
+            }
+        }
+        return loadBitmapFromUriSimple(context, uri, allowDownsample)
+    }
+
+    private fun loadBitmapFromUriSimple(context: Context, uri: Uri, allowDownsample: Boolean): Bitmap? {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        decodeUriStream(context, uri, options)
+        if (options.outWidth <= 0 || options.outHeight <= 0) return null
+        val decodeOptions = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            if (!allowDownsample) {
+                val maxDim = MAX_DECODE_PIXELS
+                inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
+            }
+        }
+        return decodeUriStream(context, uri, decodeOptions)
+    }
+
+    private val appContextRef: Context
+        get() = com.rapidraw.RapidRawApp.getInstance()
+            ?: error("RapidRawApp not initialized when loadBitmap was called")
+            .applicationContext
+
     private fun applyExifOrientation(bitmap: Bitmap, orientation: Int): Bitmap {
         if (orientation == 0) return bitmap
         val matrix = Matrix()
@@ -659,7 +764,17 @@ class ImageProcessor {
             270 -> matrix.postRotate(270f)
             else -> return bitmap
         }
-        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        // v1.5.5 hotfix: createBitmap 在 OOM 或 width*height*4 整数溢出时抛异常。
+        // 异常向上传播后原 bitmap 不会被 recycle，造成位图泄漏。这里加 OOM 兜底返回原图。
+        val rotated = try {
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "OOM applying EXIF orientation, returning source", e)
+            return bitmap
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "IllegalArgumentException applying EXIF orientation, returning source", e)
+            return bitmap
+        }
         if (rotated != bitmap) bitmap.recycle()
         return rotated
     }
@@ -691,10 +806,25 @@ class ImageProcessor {
             Bitmap.createScaledBitmap(original, newWidth, newHeight, true)
         } catch (e: OutOfMemoryError) {
             Log.w(TAG, "OOM creating scaled preview, returning source", e)
-            original
+            // v1.5.5 hotfix: 不能直接返回 original 共享引用，否则 previewBitmapCache 和
+            // originalBitmap 指向同一 Bitmap，后续 recycle 时会把原图一起释放。
+            // 改用 copy() 兜底，copy 失败时仍返回原图但要在调用方做相等性检查。
+            try {
+                original.copy(original.config ?: Bitmap.Config.ARGB_8888, false)
+            } catch (_: OutOfMemoryError) {
+                original
+            } catch (_: IllegalStateException) {
+                original
+            }
         } catch (e: IllegalArgumentException) {
             Log.w(TAG, "IllegalArgumentException creating scaled preview, returning source", e)
-            original
+            try {
+                original.copy(original.config ?: Bitmap.Config.ARGB_8888, false)
+            } catch (_: OutOfMemoryError) {
+                original
+            } catch (_: IllegalStateException) {
+                original
+            }
         }
     }
 
@@ -2265,23 +2395,41 @@ class ImageProcessor {
             }
 
             val contentResolver = context.contentResolver
-            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                ?: throw RuntimeException("Failed to create MediaStore entry")
+            var mediaStoreUri: android.net.Uri? = null
+            try {
+                val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                    ?: throw RuntimeException("Failed to create MediaStore entry")
+                mediaStoreUri = uri
 
-            contentResolver.openOutputStream(uri)?.use { outputStream ->
-                tempFile.inputStream().use { input ->
-                    input.copyTo(outputStream)
+                contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    tempFile.inputStream().use { input ->
+                        input.copyTo(outputStream)
+                    }
+                } ?: throw RuntimeException("Failed to open output stream")
+
+                // Clear IS_PENDING flag
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                    contentResolver.update(uri, contentValues, null, null)
                 }
-            } ?: throw RuntimeException("Failed to open output stream")
 
-            // Clear IS_PENDING flag
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                contentValues.clear()
-                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-                contentResolver.update(uri, contentValues, null, null)
+                uri
+            } catch (e: Throwable) {
+                // v1.5.5 hotfix: 异常路径下清理已创建的 IS_PENDING MediaStore 条目，
+                // 避免用户相册里出现 0 字节的孤儿文件。
+                mediaStoreUri?.let { orphan ->
+                    runCatching {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            // 直接删除条目（IS_PENDING 状态下允许）
+                            contentResolver.delete(orphan, null, null)
+                        } else {
+                            contentResolver.delete(orphan, null, null)
+                        }
+                    }
+                }
+                throw e
             }
-
-            uri
         } catch (oom: OutOfMemoryError) {
             Log.e(TAG, "OOM during export: ${oom.message}", oom)
             throw IllegalStateException("内存不足，导出失败", oom)

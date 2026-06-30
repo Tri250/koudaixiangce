@@ -286,7 +286,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             }.awaitAll().filterNotNull()
 
             ensureActive()
-            _thumbnails.update { results.toMap() }
+            // v1.5.5 hotfix: 替换缩略图 Map 前主动回收被丢弃的位图，
+            // 否则新图加载时旧图仍驻留内存，最终触发 OOM。
+            val previous = _thumbnails.value
+            _thumbnails.value = results.toMap()
+            val keptKeys = _thumbnails.value.keys
+            for ((oldKey, oldBmp) in previous) {
+                if (oldKey !in keptKeys && !oldBmp.isRecycled) {
+                    runCatching { oldBmp.recycle() }.onFailure { Log.w(TAG, "recycle failed", it) }
+                }
+            }
         }
     }
 

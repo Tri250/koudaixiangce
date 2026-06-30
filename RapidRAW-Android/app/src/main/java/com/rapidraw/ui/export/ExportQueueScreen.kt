@@ -135,10 +135,13 @@ class ExportQueueViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun retryTask(id: String) {
-        // 将失败/取消任务重新置为排队状态；当前 EditorViewModel 存活时会继续处理队列。
+        // v1.5.5 hotfix: 旧实现仅重置状态，没有协程在跑。EditorViewModel 离开页面后已
+        // 被销毁，exportJob 不会重新拉起队列。重置后显式调用 ExportQueueProcessor.kick
+        // 触发独立协程处理，这样即使编辑器已 onCleared 也能真正"重试"。
         val job = ExportQueueRepository.jobs.value.firstOrNull { it.id == id } ?: return
         if (job.status == com.rapidraw.data.model.ExportJobStatus.FAILED || job.status == com.rapidraw.data.model.ExportJobStatus.COMPLETED) {
             ExportQueueRepository.updateJobStatus(id, com.rapidraw.data.model.ExportJobStatus.QUEUED, progress = 0f, error = null)
+            com.rapidraw.data.export.ExportQueueProcessor.kick(getApplication())
         }
     }
 

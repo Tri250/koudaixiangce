@@ -61,8 +61,11 @@ class SidecarManager(private val context: Context) {
                 },
             )
             val jsonStr = json.encodeToString(sidecarData)
-            if (jsonStr.length > MAX_SIDECAR_BYTES) {
-                Log.w(TAG, "Sidecar JSON too large (${jsonStr.length} bytes), skipping save")
+            // v1.5.5 hotfix: 之前用 String.length (UTF-16 code unit) 而非字节数比较。
+            // 中文字符长度膨胀 2-3 倍，emoji 路径 4 倍，导致实际能写入的 JSON 数据远小于 2MB。
+            val byteCount = jsonStr.toByteArray(Charsets.UTF_8).size
+            if (byteCount > MAX_SIDECAR_BYTES) {
+                Log.w(TAG, "Sidecar JSON too large ($byteCount bytes), skipping save")
                 return false
             }
             val sidecarFile = resolveSidecarFile(imageUri) ?: return false
@@ -99,7 +102,14 @@ class SidecarManager(private val context: Context) {
                 return null
             }
             val jsonStr = sidecarFile.readText(Charsets.UTF_8)
-            json.decodeFromString<SidecarData>(jsonStr)
+            val data = json.decodeFromString<SidecarData>(jsonStr)
+            // v1.5.5 hotfix: 版本兼容性检查。sidecar 写时硬编码 version=2，
+            // 未来升级到 v3 时旧文件可能无法被新逻辑正确解析。
+            if (data.version > 2) {
+                Log.w(TAG, "Sidecar version ${data.version} is newer than supported, skipping")
+                return null
+            }
+            data
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load sidecar for $imageUri", e)
             null

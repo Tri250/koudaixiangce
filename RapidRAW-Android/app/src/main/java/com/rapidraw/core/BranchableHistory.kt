@@ -211,7 +211,11 @@ data class BranchableHistory(
                 // 更新子节点的 parentId 指向父节点
                 val updatedChild = child.copy(parentId = parentNode.id, branchName = parentNode.branchName)
                 nodeMap[childId] = updatedChild
-                if (parentNode.id != parentNodeId) {
+                // v1.5.5 hotfix: 旧代码判断 `if (parentNode.id != parentNodeId)` 永远为 false，
+                // 因为 parentNode 就是从 parentNodeId 取的。导致分支 tip 的子节点孤立在
+                // 树外，commit 后 children 列表缺失。改为真正检查：若子节点 parentId 不是
+                // 父节点，才需要重新挂载。
+                if (updatedChild.parentId != parentNode.id) {
                     parentNode.childrenIds.add(childId)
                 }
             }

@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -161,11 +162,15 @@ fun ExportQueuePanel(
     completedIds.removeAll { it !in currentIds }
 
     // 5秒后自动移除已完成项
+    // v1.5.5 hotfix: 之前在 forEach 内启动 LaunchedEffect，每次重组都会新建协程，
+    // N 个完成项会创建 N 个并行 delay(5000) 协程。改为 key-based，只为每个 jobId 启动一个。
     completedIds.forEach { jobId ->
-        LaunchedEffect(jobId) {
-            kotlinx.coroutines.delay(5000)
-            onDismissCompleted(jobId)
-            completedIds.remove(jobId)
+        key(jobId) {
+            LaunchedEffect(jobId) {
+                kotlinx.coroutines.delay(5000)
+                onDismissCompleted(jobId)
+                completedIds.remove(jobId)
+            }
         }
     }
 
