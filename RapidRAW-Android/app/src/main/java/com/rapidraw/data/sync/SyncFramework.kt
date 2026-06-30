@@ -67,7 +67,10 @@ interface SyncProvider {
 /**
  * 本地同步状态管理器 - 管理同步状态和队列
  */
-class SyncManager(private val provider: SyncProvider? = null) {
+class SyncManager(
+    private val provider: SyncProvider? = null,
+    private val sidecarBasePath: String = "",
+) {
 
     private val _syncProjects = MutableStateFlow<List<SyncProject>>(emptyList())
     val syncProjects: StateFlow<List<SyncProject>> = _syncProjects.asStateFlow()
@@ -77,7 +80,7 @@ class SyncManager(private val provider: SyncProvider? = null) {
 
     /**
      * 同步所有本地项目
-     * 1. 扫描本地所有 Sidecar 文件
+     * 1. 扫描本地 Sidecar 文件
      * 2. 与远程对比，决定上传/下载/跳过
      * 3. 处理冲突
      */
@@ -87,15 +90,110 @@ class SyncManager(private val provider: SyncProvider? = null) {
 
         try {
             // 获取远程项目列表
-            val remoteProjects = provider.listRemoteProjects().getOrDefault(emptyList())
+            val remoteResult = provider.listRemoteProjects()
+            if (remoteResult.isFailure) {
+                _syncProjects.value = emptyList()
+                return
+            }
+            val remoteProjects = remoteResult.getOrDefault(emptyList())
+            val remoteById = remoteProjects.associateBy { it.id }
 
-            // TODO: 扫描本地 Sidecar 目录，构建 SyncProject 列表
-            // TODO: 对比本地和远程，执行上传/下载
-            // TODO: 处理冲突
+            // 扫描本地 Sidecar 目录，构建 SyncProject 列表
+            val sidecarDir = File(sidecarBasePath)
+            val localProjects = scanLocalSidecars(sidecarDir)
+            val localById = localProjects.associateBy { it.id }
 
+            // 合并本地和远程项目索引
+            val allIds = localById.keys + remoteById.keys
+            val syncResults = mutableListOf<SyncProject>()
+
+            for (id in allIds) {
+                val local = localById[id]
+                val remote = remoteById[id]
+
+                val result = when {
+                    // 仅本地存在：上传
+                    local != null && remote == null -> {
+                        val uploadResult = provider.uploadProject(local)
+                        uploadResult.getOrDefault(local.copy(syncState = SyncState.SYNCED))
+                    }
+                    // 仅远程存在：下载
+                    local == null && remote != null -> {
+                        val downloadResult = provider.downloadProject(remote.id)
+                        downloadResult.getOrDefault(remote.copy(syncState = SyncState.SYNCED))
+                    }
+                    // 两端都存在：对比校验和决定操作
+                    local != null && remote != null -> {
+                        resolveAndSync(local, remote)
+                    }
+                    else -> null
+                }
+                result?.let { syncResults.add(it) }
+            }
+
+            _syncProjects.value = syncResults
         } finally {
             _isSyncing.value = false
         }
+    }
+
+    /**
+     * 对比本地和远程项目，根据校验和决定同步策略
+     */
+    private suspend fun resolveAndSync(local: SyncProject, remote: SyncProject): SyncProject {
+        // 校验和相同：已同步，跳过
+        if (local.checksumLocal == remote.checksumRemote) {
+            return local.copy(syncState = SyncState.SYNCED, lastModifiedRemote = remote.lastModifiedRemote)
+        }
+
+        // 本地更新时间更晚：上传覆盖远程
+        if (local.lastModifiedLocal > (remote.lastModifiedRemote ?: 0L)) {
+            val result = provider.uploadProject(local)
+            return result.getOrDefault(local.copy(syncState = SyncState.SYNCED))
+        }
+
+        // 远程更新时间更晚：下载覆盖本地
+        if ((remote.lastModifiedRemote ?: 0L) > local.lastModifiedLocal) {
+            val result = provider.downloadProject(remote.id)
+            return result.getOrDefault(remote.copy(syncState = SyncState.SYNCED))
+        }
+
+        // 时间戳冲突：调用冲突解决策略
+        val resolved = provider.resolveConflict(local, remote)
+        val uploadResult = provider.uploadProject(resolved)
+        return uploadResult.getOrDefault(resolved.copy(syncState = SyncState.SYNCED))
+    }
+
+    /**
+     * 扫描本地 Sidecar 目录，构建 SyncProject 列表
+     */
+    private fun scanLocalSidecar(sidecarDir: File): List<SyncProject> {
+        if (!sidecarDir.exists() || !sidecarDir.isDirectory) return emptyList()
+
+        return sidecarDir.listFiles()
+            ?.filter { it.isFile && it.name.endsWith(".json") }
+            ?.mapNotNull { file ->
+                val id = file.nameWithoutExtension
+                val imagePath = file.readLines()
+                    .firstOrNull { it.contains("\"imagePath\"") }
+                    ?.substringAfter("\"imagePath\"")
+                    ?.substringAfter(":")
+                    ?.substringAfter("\"")
+                    ?.substringBefore("\"")
+                    ?: return@mapNotNull null
+
+                SyncProject(
+                    id = id,
+                    imagePath = imagePath,
+                    sidecarPath = file.absolutePath,
+                    lastModifiedLocal = file.lastModified(),
+                    lastModifiedRemote = null,
+                    syncState = SyncState.IDLE,
+                    checksumLocal = file.readBytes().contentHashCode().toString(16),
+                    checksumRemote = null,
+                )
+            }
+            ?: emptyList()
     }
 
     /**
