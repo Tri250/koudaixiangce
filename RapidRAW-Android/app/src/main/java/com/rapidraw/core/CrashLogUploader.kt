@@ -126,7 +126,8 @@ class CrashLogUploader(private val context: Context) {
     private fun getAppVersion(): String {
         return runCatching {
             val pi = context.packageManager.getPackageInfo(context.packageName, 0)
-            "${pi.versionName}(${pi.longVersionCode})"
+            val versionCode = androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(pi)
+            "${pi.versionName}($versionCode)"
         }.getOrDefault("unknown")
     }
 

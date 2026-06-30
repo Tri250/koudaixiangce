@@ -798,7 +798,7 @@ class EditorViewModel(
                 null
             }
             if (previewCopy == null) {
-                // copy 失败时主动释放外部 bitmap，避免 AiInpaintResultHolder 持有泄漏
+                // copy 失败时主动释放外部 bitmap，避免调用方持有泄漏
                 if (!bitmap.isRecycled) bitmap.recycle()
                 return@launch
             }

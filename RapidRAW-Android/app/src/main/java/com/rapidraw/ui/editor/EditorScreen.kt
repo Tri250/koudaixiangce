@@ -311,31 +311,8 @@ fun EditorScreen(
         }
     }
 
-    // Apply pending preset from PresetsDiscoveryScreen
-    LaunchedEffect(Unit) {
-        com.rapidraw.ui.navigation.Routes.SelectedPresetHolder.pendingPreset?.let { preset ->
-            viewModel.applyPreset(preset)
-            com.rapidraw.ui.navigation.Routes.SelectedPresetHolder.pendingPreset = null
-        }
-    }
-    DisposableEffect(Unit) {
-        onDispose {
-            com.rapidraw.ui.navigation.Routes.SelectedPresetHolder.pendingPreset = null
-        }
-    }
-
-    // Apply pending AI inpaint result from AiInpaintScreen
-    LaunchedEffect(Unit) {
-        com.rapidraw.ui.navigation.Routes.AiInpaintResultHolder.pendingResult?.let { bitmap ->
-            viewModel.applyAiInpaintResult(bitmap)
-            // v1.5.5 hotfix: 不能立即 recycle 也不能立即清空 holder。
-            // viewModel.applyAiInpaintResult 在 viewModelScope 中异步执行，
-            // 可能通过 bitmap.copy() 持有同一个 Bitmap 引用。若在协程完成前 recycle，
-            // 会让 ViewModel 持有的 originalBitmap 进入 recycled 状态，后续 export
-            // 路径会 NPE。改为在协程完成后由 ViewModel 内部 recycle。
-            com.rapidraw.ui.navigation.Routes.AiInpaintResultHolder.pendingResult = null
-        }
-    }
+    // 结果回传已由 NavGraph.kt 中 SavedStateHandle + getStateFlow 机制处理
+    // SelectedPresetHolder / AiInpaintResultHolder 已移除
 
     val displayOriginal = isShowingOriginal || isLongPressing
 
