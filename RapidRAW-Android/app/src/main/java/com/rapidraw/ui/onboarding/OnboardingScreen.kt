@@ -29,7 +29,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,9 +71,21 @@ fun OnboardingScreen(
 ) {
     val isCompleted by viewModel.isCompleted.collectAsState()
 
+    // v1.5.5 hotfix: 防止 onComplete 被多次调用导致 Navigation Compose 二次导航崩溃。
+    // 旧代码在 click handler 中直接调用 onComplete()，同时 LaunchedEffect(isCompleted)
+    // 也会在 isCompleted 变为 true 时再次调用 onComplete()，导致双重导航。
+    var hasNavigated by remember { mutableStateOf(false) }
+
+    val navigateOnce: () -> Unit = {
+        if (!hasNavigated) {
+            hasNavigated = true
+            onComplete()
+        }
+    }
+
     // If onboarding already completed, skip immediately
     LaunchedEffect(isCompleted) {
-        if (isCompleted) onComplete()
+        if (isCompleted) navigateOnce()
     }
 
     if (isCompleted) return
@@ -138,7 +153,7 @@ fun OnboardingScreen(
                         isLast = true,
                         onGetStarted = {
                             viewModel.completeOnboarding()
-                            onComplete()
+                            navigateOnce()
                         },
                     )
                 }
@@ -175,7 +190,7 @@ fun OnboardingScreen(
                             modifier = Modifier
                                 .clickable {
                                     viewModel.completeOnboarding()
-                                    onComplete()
+                                    navigateOnce()
                                 }
                                 .padding(8.dp),
                         )

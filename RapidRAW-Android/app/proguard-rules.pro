@@ -129,13 +129,14 @@
 -dontwarn org.tensorflow.lite.gpu.GpuDelegateFactory$Options
 -dontwarn org.tensorflow.lite.gpu.GpuDelegateFactory$Options$GpuBackend
 
-# v1.5.5 安全加固：release 构建下移除 Android Util Log 调用，减少 logcat 信息泄露
+# v1.5.5 安全加固：release 构建下移除低优先级 Log 调用，减少 logcat 信息泄露。
+# v1.5.5 hotfix: 保留 Log.w 和 Log.e，它们用于错误/异常路径的诊断；
+# 移除后会导致 catch 块变成空操作，R8 可能优化掉整个 catch 块，
+# 使原本被吞掉的异常变成未捕获异常导致闪退。
 -assumenosideeffects class android.util.Log {
     public static int v(...);
     public static int d(...);
     public static int i(...);
-    public static int w(...);
-    public static int e(...);
 }
 
 # 隐藏原始源文件名称

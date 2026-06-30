@@ -37,10 +37,20 @@ object CrashHandler {
             try {
                 writeCrashToFile(appContext, thread, throwable)
             } catch (e: Throwable) {
+                // v1.5.5 hotfix: 写入崩溃日志失败不应阻止委托给默认 handler
                 if (com.rapidraw.BuildConfig.DEBUG) Log.e(TAG, "Failed to persist crash", e)
             }
             // 委托给系统默认 handler，保留 Android 原生崩溃行为。
-            previous?.uncaughtException(thread, throwable)
+            // v1.5.5 hotfix: 委托前检查 previous 是否为空，避免 NPE。
+            try {
+                previous?.uncaughtException(thread, throwable)
+            } catch (e: Throwable) {
+                // 某些 OEM ROM 的默认 handler 自身可能崩溃，此处兜底
+                if (com.rapidraw.BuildConfig.DEBUG) Log.e(TAG, "Default handler also crashed", e)
+                // 最后手段：退出进程，避免卡死
+                android.os.Process.killProcess(android.os.Process.myPid())
+                System.exit(10)
+            }
         }
     }
 
@@ -52,10 +62,13 @@ object CrashHandler {
         val appContext = context.applicationContext
         return CoroutineExceptionHandler { _, throwable ->
             try {
-                if (com.rapidraw.BuildConfig.DEBUG) Log.e(TAG, "Coroutine uncaught exception", throwable)
+                // v1.5.5 hotfix: release 构建也写入崩溃日志（不依赖 Log），
+                // 确保协程异常能被离线诊断。
+                Log.e(TAG, "Coroutine uncaught exception", throwable)
                 writeCrashToFile(appContext, Thread.currentThread(), throwable, tag = "coroutine")
             } catch (e: Throwable) {
-                if (com.rapidraw.BuildConfig.DEBUG) Log.e(TAG, "Failed to persist coroutine crash", e)
+                // 写入失败不应导致二次崩溃
+                Log.e(TAG, "Failed to persist coroutine crash", e)
             }
         }
     }

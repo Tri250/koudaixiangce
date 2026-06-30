@@ -14,6 +14,10 @@
     <!-- Android 6~12 (API 23~32) 传统读取权限 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- v1.5.5 hotfix: 代码中请求了 POST_NOTIFICATIONS 但 Manifest 未声明，
+         导致 Android 13+ 上通知权限永远无法授予，WorkManager 前台任务可能因
+         缺少通知而抛 RemoteServiceException 闪退。 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 硬件能力声明 -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <!-- OpenGL ES 3.0（可选：无 GLES 3.0 时回退 CPU 管线） -->

@@ -1,6 +1,7 @@
 package com.rapidraw.ui.theme
 
 import android.app.Activity
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -117,7 +118,11 @@ fun RapidRawTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
+            // v1.5.5 hotfix: view.context 可能被 ContextWrapper 包装（某些 OEM 定制 ROM），
+            // 直接强转 as Activity 会抛 ClassCastException 导致闪退。
+            // 逐层解包 ContextWrapper 查找 Activity，找不到时安全跳过。
+            val activity = unwrapActivity(view.context) ?: return@SideEffect
+            val window = activity.window
             // AMOLED 模式：状态栏/导航栏透明，沉浸式取景
             window.statusBarColor = Color.Transparent.toArgb()
             window.navigationBarColor = Color.Transparent.toArgb()
@@ -145,4 +150,18 @@ fun RapidRawTheme(
         shapes = RapidRawShapes,
         content = content,
     )
+}
+
+/**
+ * v1.5.5 hotfix: 逐层解包 ContextWrapper 查找 Activity。
+ * 部分 OEM ROM（ColorOS / MIUI / OneUI）会将 view.context 包装在多层 ContextWrapper 中，
+ * 直接 as Activity 会抛 ClassCastException。
+ */
+private fun unwrapActivity(context: android.content.Context): Activity? {
+    var ctx = context
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return ctx as? Activity
 }

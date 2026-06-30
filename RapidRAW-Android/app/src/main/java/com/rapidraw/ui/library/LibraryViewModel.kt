@@ -48,7 +48,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val contentResolver = application.contentResolver
 
-    private val thumbnailCache = ThumbnailDiskCache(application.cacheDir)
+    // v1.5.5 hotfix: 使用 lazy 初始化，避免构造器中磁盘操作失败（如 cacheDir 不可写）
+    // 导致 ViewModel 创建失败从而整个页面闪退。
+    private val thumbnailCache by lazy { ThumbnailDiskCache(application.cacheDir) }
 
     private val _images = MutableStateFlow<List<ImageFile>>(emptyList())
     val images: StateFlow<List<ImageFile>> = _images.asStateFlow()
@@ -126,11 +128,15 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         CrashHandler.coroutineExceptionHandler(getApplication())
 
     init {
+        // v1.5.5 hotfix: init 块中的 try-catch 只能捕获协程启动异常，
+        // 无法捕获协程体内部的异常。协程体已由 coroutineExceptionHandler 保护。
+        // 此处额外保护 loadImages 调用本身可能抛出的同步异常。
         try {
             loadImages(null)
         } catch (e: Exception) {
-            // 防止 MediaStore 查询异常导致崩溃
+            // 防止 MediaStore 查询异常导致 ViewModel 构造失败 → 页面闪退
             Log.w(TAG, "init loadImages failed", e)
+            _isLoading.value = false
         }
     }
 
@@ -287,7 +293,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private fun loadThumbnailForImage(image: ImageFile): Bitmap? {
         // 先检查磁盘/内存二级缓存，避免重复解码
         val lastModified = image.dateModified.coerceAtLeast(0L)
-        thumbnailCache.get(image.path, lastModified)?.let { return it }
+        // v1.5.5 hotfix: thumbnailCache 是 lazy 初始化，首次访问可能因磁盘不可写抛异常
+        val cached = try {
+            thumbnailCache.get(image.path, lastModified)
+        } catch (_: Exception) {
+            null
+        }
+        cached?.let { return it }
 
         val bitmap = when {
             image.path.startsWith("content://") -> {
@@ -349,7 +361,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
 
         if (bitmap != null) {
-            thumbnailCache.put(image.path, lastModified, bitmap)
+            try {
+                thumbnailCache.put(image.path, lastModified, bitmap)
+            } catch (_: Exception) {
+                // 磁盘缓存写入失败不影响内存中的缩略图使用
+            }
         }
         return bitmap
     }
@@ -533,7 +549,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         _images.update { list -> list + virtualCopy }
     }
 
-    private val nlSearcher = NaturalLanguageSearcher()
+    private val nlSearcher by lazy { NaturalLanguageSearcher() }
 
     /** 图片路径 → AI 语义标签缓存 */
     private val semanticTagCache = mutableMapOf<String, List<SemanticTag>>()

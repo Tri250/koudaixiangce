@@ -30,7 +30,13 @@ abstract class RecipeDatabase : RoomDatabase() {
                     context.applicationContext,
                     RecipeDatabase::class.java,
                     "rapidraw_recipes"
-                ).addMigrations(MIGRATION_3_4).build()
+                )
+                    .addMigrations(MIGRATION_3_4)
+                    // v1.5.5 hotfix: 作为安全降级策略，当缺少迁移路径时
+                    // 重建数据库而非抛 IllegalStateException 闪退。
+                    // 仅影响本地缓存数据（配方/收藏），图片文件不受影响。
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

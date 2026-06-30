@@ -92,11 +92,11 @@ class EditorViewModel(
     private val appContext = context.applicationContext
     private val imageProcessor = ImageProcessor()
 
-    // v1.5.3 稳定性加固：统一的协程异常处理器，防止 OOM/异常导致闪退
-    private val coroutineExceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
-        Log.e("EditorViewModel", "Uncaught coroutine exception", throwable)
+    // v1.5.5 hotfix: 直接使用 CrashHandler 提供的协程异常处理器。
+    // 旧代码在 CoroutineExceptionHandler 内调用 CrashHandler.coroutineExceptionHandler()
+    // 只是返回一个新实例但从未使用，异常被完全吞掉。
+    private val coroutineExceptionHandler =
         com.rapidraw.core.CrashHandler.coroutineExceptionHandler(appContext)
-    }
 
     // region UI State Flows
     private val _currentImage = MutableStateFlow<ImageFile?>(imageFile)

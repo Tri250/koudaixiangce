@@ -248,9 +248,13 @@ fun LibraryScreen(
 
                             IconButton(
                                 onClick = {
+                                    // v1.5.5 hotfix: 复用 Application 级 ImageProcessor 单例，
+                                    // 避免每次点击都创建新实例导致内存压力和潜在的 OOM。
+                                    val app = context.applicationContext as? com.rapidraw.RapidRawApp
+                                    val processor = app?.imageProcessor ?: com.rapidraw.core.ImageProcessor()
                                     val batchProcessor = com.rapidraw.core.BatchProcessor(
                                         context = context,
-                                        imageProcessor = com.rapidraw.core.ImageProcessor(),
+                                        imageProcessor = processor,
                                     )
                                     viewModel.batchExport(
                                         batchProcessor,
@@ -748,7 +752,7 @@ fun LibraryScreen(
                                     onClick = {
                                         val batchProcessor = com.rapidraw.core.BatchProcessor(
                                             context = context,
-                                            imageProcessor = com.rapidraw.core.ImageProcessor(),
+                                            imageProcessor = (context.applicationContext as? com.rapidraw.RapidRawApp)?.imageProcessor ?: com.rapidraw.core.ImageProcessor(),
                                         )
                                         viewModel.pasteAdjustmentsToSelected(
                                             batchProcessor,
@@ -766,7 +770,7 @@ fun LibraryScreen(
                                 onClick = {
                                     val batchProcessor = com.rapidraw.core.BatchProcessor(
                                         context = context,
-                                        imageProcessor = com.rapidraw.core.ImageProcessor(),
+                                        imageProcessor = (context.applicationContext as? com.rapidraw.RapidRawApp)?.imageProcessor ?: com.rapidraw.core.ImageProcessor(),
                                     )
                                     viewModel.batchExport(
                                         batchProcessor,
@@ -835,7 +839,7 @@ fun LibraryScreen(
                                 .clickable {
                                     val batchProcessor = com.rapidraw.core.BatchProcessor(
                                         context = context,
-                                        imageProcessor = com.rapidraw.core.ImageProcessor(),
+                                        imageProcessor = (context.applicationContext as? com.rapidraw.RapidRawApp)?.imageProcessor ?: com.rapidraw.core.ImageProcessor(),
                                     )
                                     viewModel.batchApplyFilm(
                                         batchProcessor,

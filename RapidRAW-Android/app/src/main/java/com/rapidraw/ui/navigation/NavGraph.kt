@@ -35,6 +35,20 @@ import com.rapidraw.data.model.Preset
 import com.rapidraw.ui.theme.Motion
 
 /**
+ * v1.5.5 hotfix: 根据引导完成状态决定初始路由，避免每次启动都闪现引导页。
+ * 旧版 startDestination 硬编码为 ONBOARDING，导致已完成引导的用户每次冷启动
+ * 都会先看到引导页再自动跳转，不仅 UX 差，还可能在低端设备上因快速导航引发异常。
+ */
+@Composable
+fun rememberStartDestination(): String {
+    val context = LocalContext.current
+    return remember {
+        val prefs = context.getSharedPreferences("rapidraw_onboarding", android.content.Context.MODE_PRIVATE)
+        if (prefs.getBoolean("onboarding_completed", false)) Routes.LIBRARY else Routes.ONBOARDING
+    }
+}
+
+/**
  * ColorOS 16 路由配置 — OPPO Find X9 摄影编辑器
  *
  * 资深产品经理级优化：
@@ -104,9 +118,12 @@ fun RapidNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
+    // v1.5.5 hotfix: 动态决定起始路由，避免已完成引导的用户每次冷启动闪现引导页
+    val startDestination = rememberStartDestination()
+
     NavHost(
         navController = navController,
-        startDestination = Routes.ONBOARDING,
+        startDestination = startDestination,
         modifier = modifier,
         enterTransition = { Motion.enterSlideRight },
         exitTransition = { Motion.exitSlideLeft },
