@@ -30,7 +30,7 @@ jobs:
           name: debug-apk
           path: app/build/outputs/apk/debug/*.apk
 
-  # v1.5.3 新增：Release 构建（依赖环境变量注入 keystore / 密码）
+  # v1.5.5 更新：Release 构建增加 AAB、单元测试和 Lint 验证
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
@@ -38,6 +38,8 @@ jobs:
     env:
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      # 支持 KEYSTORE_BASE64 环境变量直接注入（build.gradle.kts 优先使用）
+      KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 17
@@ -51,12 +53,24 @@ jobs:
         run: |
           mkdir -p app
           echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+      - name: Run Release Unit Tests
+        run: ./gradlew testReleaseUnitTest
+      - name: Lint Check (Release)
+        run: ./gradlew lintRelease
       - name: Build Release APK (with R8)
         # R8 开启全量混淆+资源收缩，确保发布包体积最小化。
         # 若 CI 容器内存不足导致 R8 OOM，可在 gradle.properties 中调大 org.gradle.jvmargs=-Xmx。
         run: ./gradlew assembleRelease
+      - name: Build Release AAB (App Bundle)
+        # Google Play 上架需要 AAB 格式，包含按 DPI/ABI 分割的优化包
+        run: ./gradlew bundleRelease
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: app/build/outputs/apk/release/*.apk
+      - name: Upload Release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: app/build/outputs/bundle/release/*.aab

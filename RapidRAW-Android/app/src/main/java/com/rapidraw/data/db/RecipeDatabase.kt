@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [RecipeEntity::class, ProjectEntity::class, FavoriteEntity::class], version = 4, exportSchema = false)
+@Database(entities = [RecipeEntity::class, ProjectEntity::class, FavoriteEntity::class], version = 4, exportSchema = true)
 abstract class RecipeDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
     abstract fun projectDao(): ProjectDao

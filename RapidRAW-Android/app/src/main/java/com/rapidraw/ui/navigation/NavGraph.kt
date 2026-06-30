@@ -100,17 +100,6 @@ object Routes {
         const val AI_INPAINT_RESULT = "ai_inpaint_result"
         const val IMPORTED_PRESET_URI = "imported_preset_uri"
     }
-
-    // 兼容层：保留旧版 Holder（逐步迁移到 ResultKeys）
-    @Deprecated("Use ResultKeys with SavedStateHandle instead")
-    object SelectedPresetHolder {
-        var pendingPreset: com.rapidraw.data.model.Preset? = null
-    }
-
-    @Deprecated("Use ResultKeys with SavedStateHandle instead")
-    object AiInpaintResultHolder {
-        var pendingResult: android.graphics.Bitmap? = null
-    }
 }
 
 @Composable
@@ -222,32 +211,6 @@ fun RapidNavHost(
                 importedPresetState.value?.let { preset ->
                     vm.applyPreset(preset)
                     backStackEntry.savedStateHandle[Routes.ResultKeys.IMPORTED_PRESET_URI] = null
-                }
-            }
-
-            // 兼容层：处理旧版全局 Holder
-            LaunchedEffect(Unit) {
-                Routes.SelectedPresetHolder.pendingPreset?.let { preset ->
-                    vm.applyPreset(preset)
-                    Routes.SelectedPresetHolder.pendingPreset = null
-                }
-            }
-            androidx.compose.runtime.DisposableEffect(Unit) {
-                onDispose {
-                    Routes.SelectedPresetHolder.pendingPreset = null
-                }
-            }
-
-            LaunchedEffect(Unit) {
-                Routes.AiInpaintResultHolder.pendingResult?.let { bitmap ->
-                    vm.applyAiInpaintResult(bitmap)
-                    Routes.AiInpaintResultHolder.pendingResult = null
-                }
-            }
-            androidx.compose.runtime.DisposableEffect(Unit) {
-                onDispose {
-                    Routes.AiInpaintResultHolder.pendingResult?.recycle()
-                    Routes.AiInpaintResultHolder.pendingResult = null
                 }
             }
 
@@ -387,8 +350,6 @@ fun RapidNavHost(
                         navController.previousBackStackEntry
                             ?.savedStateHandle
                             ?.set(Routes.ResultKeys.AI_INPAINT_RESULT, resultBitmap)
-                        // 兼容层
-                        Routes.AiInpaintResultHolder.pendingResult = resultBitmap
                         navController.popBackStack()
                     },
                     onCancel = { navController.popBackStack() },
@@ -420,8 +381,6 @@ fun RapidNavHost(
                     navController.previousBackStackEntry
                         ?.savedStateHandle
                         ?.set(Routes.ResultKeys.SELECTED_PRESET, preset)
-                    // 兼容层
-                    Routes.SelectedPresetHolder.pendingPreset = preset
                     navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() },

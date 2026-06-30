@@ -98,7 +98,10 @@ class ModelManager(private val context: Context) {
         val sha256: String,
         val description: String,
         val version: Int,
-    )
+    ) {
+        /** 模型是否已配置 SHA256 完整性哈希，可用于安全下载 */
+        val isIntegrityVerified: Boolean get() = sha256.isNotBlank()
+    }
 
     data class DownloadProgress(
         val modelId: String,
@@ -139,15 +142,28 @@ class ModelManager(private val context: Context) {
     }
 
     /**
+     * 检查模型是否可下载（已配置完整性哈希）
+     */
+    fun isModelDownloadable(modelId: String): Boolean {
+        val info = AVAILABLE_MODELS.find { it.id == modelId } ?: return false
+        return info.isIntegrityVerified
+    }
+
+    /**
      * 下载模型（含 SHA256 校验）
+     * 未配置 SHA256 的模型无法下载，需先在 AVAILABLE_MODELS 中配置完整性哈希。
      */
     suspend fun downloadModel(modelId: String): Result<File> = withContext(Dispatchers.IO) {
         val info = AVAILABLE_MODELS.find { it.id == modelId }
             ?: return@withContext Result.failure(IllegalArgumentException("Unknown model: $modelId"))
 
         // 安全：未配置 SHA256 完整性哈希的模型禁止下载，防止恶意/被篡改模型注入
-        if (info.sha256.isBlank()) {
-            return@withContext Result.failure(SecurityException("Model $modelId integrity hash not configured"))
+        if (!info.isIntegrityVerified) {
+            Log.w(TAG, "Model $modelId has no SHA256 configured — download blocked for security. " +
+                "Configure the hash in AVAILABLE_MODELS before enabling download.")
+            return@withContext Result.failure(
+                SecurityException("Model $modelId integrity hash not configured — download disabled until SHA256 is set")
+            )
         }
 
         val targetFile = File(modelsDir, info.fileName)
@@ -193,15 +209,13 @@ class ModelManager(private val context: Context) {
 
             connection.disconnect()
 
-            // SHA256 校验（如果模型定义了哈希值）
-            if (info.sha256.isNotBlank()) {
-                val actualHash = calculateSha256(tempFile)
-                if (!actualHash.equals(info.sha256, ignoreCase = true)) {
-                    tempFile.delete()
-                    throw SecurityException("SHA256 mismatch for model $modelId: expected=${info.sha256}, actual=$actualHash")
-                }
-                Log.i(TAG, "SHA256 verified for model $modelId")
+            // SHA256 校验
+            val actualHash = calculateSha256(tempFile)
+            if (!actualHash.equals(info.sha256, ignoreCase = true)) {
+                tempFile.delete()
+                throw SecurityException("SHA256 mismatch for model $modelId: expected=${info.sha256}, actual=$actualHash")
             }
+            Log.i(TAG, "SHA256 verified for model $modelId")
 
             if (targetFile.exists()) targetFile.delete()
             tempFile.renameTo(targetFile)

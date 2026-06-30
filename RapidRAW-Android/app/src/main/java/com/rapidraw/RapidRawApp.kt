@@ -92,22 +92,31 @@ class RapidRawApp : Application() {
     /**
      * Android 13+ (API 33+) per-app language。
      * 在 Application 阶段通过后台线程应用，避免阻塞首 Activity 的 onCreate / setContent。
-     * 默认语言：中文（简体）。
+     *
+     * 语言策略：
+     * - 如果用户未手动设置过 per-app language，则跟随系统语言（默认行为）
+     * - 支持中文（zh）和英文（en），由 resourceConfigurations 过滤
+     * - 不再硬编码为中文，尊重用户系统语言偏好
      */
     private fun applyPerAppLanguageAsync() {
-        val tag = "zh-CN"
         Thread {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val localeManager = getSystemService(LocaleManager::class.java)
-                    val list = LocaleList.forLanguageTags(tag)
-                    if (!list.isEmpty) {
-                        localeManager?.applicationLocales = list
+                    // 仅在用户从未设置过 per-app language 时才应用默认策略
+                    // applicationLocales 为空列表表示跟随系统
+                    val currentLocales = localeManager?.applicationLocales
+                    if (currentLocales != null && currentLocales.isEmpty) {
+                        // 不设置任何语言，让系统根据用户系统语言自动匹配
+                        // resourceConfigurations += listOf("zh", "en") 确保只加载中英文资源
+                        Log.i(TAG, "No per-app language set, following system locale")
                     }
                 } else {
-                    AppCompatDelegate.setApplicationLocales(
-                        LocaleListCompat.forLanguageTags(tag)
-                    )
+                    val currentLocales = AppCompatDelegate.getApplicationLocales()
+                    if (currentLocales.isEmpty) {
+                        // 跟随系统语言，不做额外设置
+                        Log.i(TAG, "No per-app language set, following system locale")
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to apply per-app language: ${e.message}")

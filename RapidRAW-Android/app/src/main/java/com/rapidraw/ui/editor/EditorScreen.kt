@@ -499,18 +499,18 @@ fun EditorScreen(
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("LUT 市场", color = TextPrimary) },
+                            text = { Text("LUT 市场（即将推出）", color = TextTertiary) },
                             onClick = {
-                                navController.navigate(com.rapidraw.ui.navigation.Routes.LUT_MARKET)
                                 showMoreMenu = false
                             },
+                            enabled = false,
                         )
                         DropdownMenuItem(
-                            text = { Text("配方社区", color = TextPrimary) },
+                            text = { Text("配方社区（即将推出）", color = TextTertiary) },
                             onClick = {
-                                navController.navigate(com.rapidraw.ui.navigation.Routes.RECIPE_SHARE)
                                 showMoreMenu = false
                             },
+                            enabled = false,
                         )
                     }
                 }

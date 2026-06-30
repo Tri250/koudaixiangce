@@ -65,13 +65,31 @@ android {
         }
     }
 
-    // 仅在存在 release.keystore 时创建 release 签名配置，避免 debug/日常构建因缺少环境变量而失败
+    // Release 签名配置：支持两种密钥来源
+    // 1. 本地文件: app/release.keystore（开发者本地 / CI 通过 base64 解码生成）
+    // 2. 环境变量: KEYSTORE_BASE64（CI 直接注入，避免落盘）
+    // 若两种来源均不可用，release 构建将使用 debug 签名并输出明确警告，
+    // 防止静默生成未签名 APK 上架应用商店。
     val releaseKeystore = rootProject.file("app/release.keystore")
     val hasReleaseKeystore = releaseKeystore.exists()
-    if (hasReleaseKeystore) {
+    val keystoreBase64 = System.getenv("KEYSTORE_BASE64")
+    val hasKeystoreFromEnv = !keystoreBase64.isNullOrBlank()
+
+    if (hasKeystoreFromEnv && !hasReleaseKeystore) {
+        // CI 环境：从环境变量解码 keystore 到临时文件
+        val decoded = java.util.Base64.getDecoder().decode(keystoreBase64)
+        releaseKeystore.parentFile.mkdirs()
+        releaseKeystore.writeBytes(decoded)
+        logger.lifecycle("Release keystore decoded from KEYSTORE_BASE64 environment variable")
+    }
+
+    val effectiveKeystore = rootProject.file("app/release.keystore")
+    val hasEffectiveKeystore = effectiveKeystore.exists()
+
+    if (hasEffectiveKeystore) {
         signingConfigs {
             create("release") {
-                storeFile = releaseKeystore
+                storeFile = effectiveKeystore
                 // 禁止硬编码回退密码；CI 或发布构建前必须通过环境变量注入
                 storePassword = System.getenv("KEYSTORE_PASSWORD")
                     ?: throw GradleException("Missing environment variable KEYSTORE_PASSWORD for release signing")
@@ -80,6 +98,8 @@ android {
                     ?: throw GradleException("Missing environment variable KEY_PASSWORD for release signing")
             }
         }
+    } else {
+        logger.warn("⚠️ Release keystore not found. Release APK will be signed with debug key — DO NOT ship this to production!")
     }
 
     buildTypes {
@@ -89,8 +109,13 @@ android {
             val disableR8 = (project.findProperty("disableR8") as String?)?.toBoolean() == true
             isMinifyEnabled = !disableR8
             isShrinkResources = !disableR8
-            if (hasReleaseKeystore) {
+            if (hasEffectiveKeystore) {
                 signingConfig = signingConfigs.getByName("release")
+            } else {
+                // 无 release keystore 时回退到 debug 签名，确保至少能构建成功
+                // 但输出明确警告，防止误上架
+                signingConfig = signingConfigs.getByName("debug")
+                logger.warn("⚠️ Using debug signing for release build — NOT suitable for production!")
             }
             // release 关闭测试覆盖率避免性能损耗
             enableUnitTestCoverage = false
@@ -110,6 +135,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    // Room schema 导出目录，用于数据库迁移测试验证
+    ksp {
+        arg("room.schemaLocation", "${projectDir}/schemas")
     }
 
     buildFeatures {

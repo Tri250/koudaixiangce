@@ -24,6 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +40,7 @@ import android.content.Intent
 import android.opengl.EGL14
 import android.opengl.EGLExt
 import android.widget.Toast
+import com.rapidraw.core.CrashLogUploader
 import com.rapidraw.core.HdrDisplayManager
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.ui.components.HasselSlider
@@ -278,6 +282,29 @@ fun SettingsScreen(
                     subtitle = "导出时移除GPS定位信息",
                     checked = stripGps,
                     onCheckedChange = viewModel::setStripGps,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ═══════════════════════════════════════════════════════════
+            // 隐私与诊断
+            // ═══════════════════════════════════════════════════════════
+            SettingsCategoryHeader(title = "隐私与诊断")
+
+            SettingsCard {
+                val crashUploader = remember { CrashLogUploader(context) }
+                var crashReportConsent by remember {
+                    mutableStateOf(crashUploader.isCrashReportConsentGiven())
+                }
+                SwitchRow(
+                    title = "崩溃日志上报",
+                    subtitle = "仅上传崩溃堆栈和设备信息，不上传照片或位置",
+                    checked = crashReportConsent,
+                    onCheckedChange = { consent ->
+                        crashUploader.setCrashReportConsent(consent)
+                        crashReportConsent = consent
+                    },
                 )
             }
 
