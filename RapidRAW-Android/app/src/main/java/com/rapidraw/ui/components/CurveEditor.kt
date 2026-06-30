@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -37,13 +38,93 @@ import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextTertiary
 
-enum class CurveChannel(val label: String) {
-    LUMA("Luma"),
-    RED("R"),
-    GREEN("G"),
-    BLUE("B")
+enum class CurveChannel(val label: String, val color: Color) {
+    LUMA("Luma", Color.White),
+    RED("R", Color(0xFFFF453A)),
+    GREEN("G", Color(0xFF30D158)),
+    BLUE("B", Color(0xFF0A84FF))
 }
 
+/**
+ * 使用 Catmull-Rom 样条插值计算曲线值
+ *
+ * @param t 插值参数 [0..1]，对应 x 轴上当前位置
+ * @param p0 前一个控制点（或与 p1 相同）
+ * @param p1 起始控制点
+ * @param p2 结束控制点
+ * @param p3 后一个控制点（或与 p2 相同）
+ * @return 插值后的 y 值
+ */
+private fun catmullRomInterpolate(
+    t: Float,
+    p0: Float,
+    p1: Float,
+    p2: Float,
+    p3: Float,
+): Float {
+    val t2 = t * t
+    val t3 = t2 * t
+    return 0.5f * (
+            (2f * p1) +
+            (-p0 + p2) * t +
+            (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2 +
+            (-p0 + 3f * p1 - 3f * p2 + p3) * t3
+            )
+}
+
+/**
+ * 从控制点生成 256 级查找表（LUT）
+ *
+ * 使用 Catmull-Rom 样条在控制点之间插值，输出 [0..255] 范围的映射表。
+ * 此 LUT 可直接用于像素级曲线调整。
+ */
+fun generateCurveLut(points: List<Pair<Float, Float>>): IntArray {
+    if (points.size < 2) return IntArray(256) { it }
+
+    val sorted = points.sortedBy { it.first }
+    val lut = IntArray(256)
+
+    // 在每对控制点之间用 Catmull-Rom 插值
+    for (i in 0 until sorted.size - 1) {
+        val p0 = sorted.getOrElse(i - 1) { sorted[i] }
+        val p1 = sorted[i]
+        val p2 = sorted[i + 1]
+        val p3 = sorted.getOrElse(i + 2) { sorted[i + 1] }
+
+        val xStart = p1.first.toInt().coerceIn(0, 255)
+        val xEnd = p2.first.toInt().coerceIn(0, 255)
+
+        if (xStart >= xEnd && i > 0) continue
+
+        for (x in xStart..xEnd) {
+            val t = if (p2.first == p1.first) 0f
+            else (x - p1.first) / (p2.first - p1.first)
+            val tClamped = t.coerceIn(0f, 1f)
+
+            val y = catmullRomInterpolate(
+                tClamped,
+                p0.second, p1.second, p2.second, p3.second
+            )
+            lut[x] = y.roundToInt().coerceIn(0, 255)
+        }
+    }
+
+    return lut
+}
+
+private fun Float.roundToInt(): Int = kotlin.math.round(this).toInt()
+
+/**
+ * 交互式曲线编辑器
+ *
+ * 支持：
+ * - Luma / R / G / B 四通道曲线
+ * - Catmull-Rom 样条插值（专业调色软件标准算法）
+ * - 触控添加/拖动/长按删除控制点
+ * - 实时曲线预览
+ * - 256 级查找表生成（供图像处理管线使用）
+ * - 网格参考线 + 对角参考线
+ */
 @Composable
 fun CurveEditor(
     points: List<Pair<Float, Float>>,
@@ -58,14 +139,14 @@ fun CurveEditor(
         )
     }
     var dragIndex by remember { mutableIntStateOf(-1) }
-    val controlPointRadius = 5.dp
+    val controlPointRadius = 6.dp
     val haptic = LocalHapticFeedback.current
 
-    // Threshold in normalized units for detecting if a tap hits a control point
-    val hitThreshold = 15f // in 0-255 space
+    // 控制点命中检测阈值（归一化 0-255 空间）
+    val hitThreshold = 20f
 
     Column(modifier = modifier) {
-        // Channel selector row
+        // 通道选择行
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -83,7 +164,7 @@ fun CurveEditor(
                 ) {
                     Text(
                         text = channel.label,
-                        color = if (isActive) HasselbladOrange else TextTertiary,
+                        color = if (isActive) channel.color else TextTertiary,
                         fontSize = 13.sp,
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                     )
@@ -91,13 +172,13 @@ fun CurveEditor(
             }
         }
 
-        // Curve canvas with combined gesture handling
+        // 曲线画布（组合手势处理）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
         ) {
-            // Tap + long-press layer
+            // 触控层（添加/删除控制点）
             Canvas(
                 modifier = Modifier
                     .matchParentSize()
@@ -106,9 +187,9 @@ fun CurveEditor(
                         detectTapGestures(
                             onLongPress = { offset ->
                                 val canvasSize = this.size
-                                val x = ((offset.x / canvasSize.width) * 255f)
-                                val y = ((1f - offset.y / canvasSize.height) * 255f)
-                                // Find nearest control point
+                                val x = (offset.x / canvasSize.width) * 255f
+                                val y = (1f - offset.y / canvasSize.height) * 255f
+                                // 查找最近控制点
                                 val nearestIndex = internalPoints.indices.minByOrNull { i ->
                                     val dx = internalPoints[i].first - x
                                     val dy = internalPoints[i].second - y
@@ -118,7 +199,7 @@ fun CurveEditor(
                                     val dx = internalPoints[nearestIndex].first - x
                                     val dy = internalPoints[nearestIndex].second - y
                                     if (sqrt(dx * dx + dy * dy) < hitThreshold) {
-                                        // Don't delete the first or last point
+                                        // 不允许删除首尾端点
                                         if (internalPoints.size > 2 && nearestIndex > 0 && nearestIndex < internalPoints.size - 1) {
                                             val newPoints = internalPoints.toMutableList()
                                             newPoints.removeAt(nearestIndex)
@@ -133,7 +214,7 @@ fun CurveEditor(
                                 val canvasSize = this.size
                                 val x = ((offset.x / canvasSize.width) * 255f).coerceIn(0f, 255f)
                                 val y = ((1f - offset.y / canvasSize.height) * 255f).coerceIn(0f, 255f)
-                                // Insert point in sorted order
+                                // 按序插入新控制点
                                 val newPoints = internalPoints.toMutableList()
                                 val insertIndex = newPoints.indexOfFirst { it.first > x }.let {
                                     if (it < 0) newPoints.size else it
@@ -149,7 +230,7 @@ fun CurveEditor(
                 val canvasWidth = size.width
                 val canvasHeight = size.height
 
-                // Draw 25% interval grid lines
+                // 绘制 25% 间隔网格线
                 for (i in 1..3) {
                     val fraction = i / 4f
                     drawLine(
@@ -166,7 +247,7 @@ fun CurveEditor(
                     )
                 }
 
-                // Draw diagonal reference line
+                // 绘制对角参考线（线性映射）
                 drawLine(
                     color = EditorBorder.copy(alpha = 0.6f),
                     start = Offset(0f, canvasHeight),
@@ -174,67 +255,88 @@ fun CurveEditor(
                     strokeWidth = 1f,
                 )
 
-                // Draw curve using cubic Hermite interpolation
+                // 使用 Catmull-Rom 样条绘制曲线
                 if (internalPoints.size >= 2) {
                     val sorted = internalPoints.sortedBy { it.first }
-                    val path = Path()
+                    val curvePath = Path()
                     val firstPx = (sorted[0].first / 255f) * canvasWidth
                     val firstPy = (1f - sorted[0].second / 255f) * canvasHeight
-                    path.moveTo(firstPx, firstPy)
+                    curvePath.moveTo(firstPx, firstPy)
 
-                    for (i in 1 until sorted.size) {
-                        val p0 = sorted.getOrElse(i - 2) { sorted[i - 1] }
-                        val p1 = sorted[i - 1]
-                        val p2 = sorted[i]
-                        val p3 = sorted.getOrElse(i + 1) { sorted[i] }
-
-                        val tension = 0.5f
-
-                        val x1 = (p1.first / 255f) * canvasWidth
-                        val y1 = (1f - p1.second / 255f) * canvasHeight
-                        val x2 = (p2.first / 255f) * canvasWidth
-                        val y2 = (1f - p2.second / 255f) * canvasHeight
-
-                        val cp1x = x1 + tension * (((p2.first - p1.first) / 255f) * canvasWidth / 3f + ((p1.first - p0.first) / 255f) * canvasWidth / 3f)
-                        val cp1y = y1 + tension * (((p2.second - p1.second) / 255f) * -canvasHeight / 3f + ((p1.second - p0.second) / 255f) * -canvasHeight / 3f)
-                        val cp2x = x2 - tension * (((p3.first - p2.first) / 255f) * canvasWidth / 3f + ((p2.first - p1.first) / 255f) * canvasWidth / 3f)
-                        val cp2y = y2 - tension * (((p3.second - p2.second) / 255f) * -canvasHeight / 3f + ((p2.second - p1.second) / 255f) * -canvasHeight / 3f)
-
-                        path.cubicTo(cp1x, cp1y, cp2x, cp2y, x2, y2)
+                    // 生成密集采样点用于绘制平滑曲线
+                    val steps = 256
+                    val xRange = sorted.last().first - sorted.first().first
+                    if (xRange > 0f) {
+                        for (step in 1..steps) {
+                            val xVal = sorted.first().first + (step.toFloat() / steps) * xRange
+                            val yVal = evaluateCatmullRom(sorted, xVal)
+                            val px = (xVal / 255f) * canvasWidth
+                            val py = (1f - yVal / 255f) * canvasHeight
+                            curvePath.lineTo(px, py)
+                        }
+                    } else {
+                        // 所有控制点在同一 x 位置（退化情况）
+                        for (pt in sorted.drop(1)) {
+                            val px = (pt.first / 255f) * canvasWidth
+                            val py = (1f - pt.second / 255f) * canvasHeight
+                            curvePath.lineTo(px, py)
+                        }
                     }
 
-                    val curveColor = when (activeChannel) {
-                        CurveChannel.LUMA -> Color.White
-                        CurveChannel.RED -> Color.Red
-                        CurveChannel.GREEN -> Color.Green
-                        CurveChannel.BLUE -> Color.Blue
+                    // 绘制曲线描边
+                    drawPath(
+                        path = curvePath,
+                        color = activeChannel.color,
+                        style = Stroke(width = 2.5f),
+                    )
+
+                    // 在曲线下方填充半透明区域（增强视觉反馈）
+                    val fillPath = Path().apply {
+                        addPath(curvePath)
+                        lineTo((sorted.last().first / 255f) * canvasWidth, canvasHeight)
+                        lineTo((sorted.first().first / 255f) * canvasWidth, canvasHeight)
+                        close()
                     }
                     drawPath(
-                        path = path,
-                        color = curveColor,
-                        style = Stroke(width = 2.5f),
+                        path = fillPath,
+                        color = activeChannel.color.copy(alpha = 0.08f),
+                        style = Fill,
                     )
                 }
 
-                // Draw control points
+                // 绘制控制点
                 internalPoints.forEachIndexed { index, point ->
                     val cx = (point.first / 255f) * canvasWidth
                     val cy = (1f - point.second / 255f) * canvasHeight
                     val radiusPx = controlPointRadius.toPx()
+
+                    // 外圈
                     drawCircle(
-                        color = if (index == dragIndex) HasselbladOrange else HasselbladOrange.copy(alpha = 0.85f),
+                        color = if (index == dragIndex) HasselbladOrange
+                        else activeChannel.color.copy(alpha = 0.9f),
                         radius = radiusPx,
                         center = Offset(cx, cy),
                     )
+                    // 内圈
                     drawCircle(
                         color = EditorSurface,
                         radius = radiusPx * 0.5f,
                         center = Offset(cx, cy),
                     )
+
+                    // 端点标记（首尾点不可删除，加特殊标识）
+                    if (index == 0 || index == internalPoints.size - 1) {
+                        drawCircle(
+                            color = activeChannel.color.copy(alpha = 0.3f),
+                            radius = radiusPx + 2.dp.toPx(),
+                            center = Offset(cx, cy),
+                            style = Stroke(width = 1f),
+                        )
+                    }
                 }
             }
 
-            // Drag overlay layer (transparent, handles drag gestures)
+            // 拖拽层（处理控制点拖动）
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -259,8 +361,17 @@ fun CurveEditor(
                                 val x = ((change.position.x / canvasSize.width) * 255f).coerceIn(0f, 255f)
                                 val y = ((1f - change.position.y / canvasSize.height) * 255f).coerceIn(0f, 255f)
                                 val newPoints = internalPoints.toMutableList()
-                                newPoints[dragIndex] = x to y
-                                newPoints.sortBy { it.first }
+
+                                // 端点仅允许纵向移动（固定 x=0 和 x=255）
+                                if (dragIndex == 0) {
+                                    newPoints[dragIndex] = 0f to y
+                                } else if (dragIndex == internalPoints.size - 1) {
+                                    newPoints[dragIndex] = 255f to y
+                                } else {
+                                    newPoints[dragIndex] = x to y
+                                    newPoints.sortBy { it.first }
+                                }
+
                                 internalPoints = newPoints
                                 onPointsChanged(newPoints)
                             }
@@ -269,13 +380,52 @@ fun CurveEditor(
             )
         }
 
-        Text(
-            text = "Tap to add · Drag to move · Long-press to delete",
-            color = TextTertiary,
-            fontSize = 10.sp,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        // 操作提示 + 当前 LUT 输出值示例
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "点击添加 · 拖动移动 · 长按删除",
+                color = TextTertiary,
+                fontSize = 10.sp,
+            )
+            // 显示 LUT 关键采样值
+            val lut = remember(internalPoints) { generateCurveLut(internalPoints) }
+            Text(
+                text = "In:64→${lut[64]}  128→${lut[128]}  192→${lut[192]}",
+                color = TextTertiary.copy(alpha = 0.6f),
+                fontSize = 9.sp,
+            )
+        }
     }
+}
+
+/**
+ * 在已排序的控制点列表上，用 Catmull-Rom 样条求值
+ *
+ * @param sortedPoints 按 x 升序排列的控制点列表
+ * @param x 要查询的 x 值 [0..255]
+ * @return 插值后的 y 值 [0..255]
+ */
+private fun evaluateCatmullRom(sortedPoints: List<Pair<Float, Float>>, x: Float): Float {
+    if (sortedPoints.isEmpty()) return x
+    if (sortedPoints.size == 1) return sortedPoints[0].second
+
+    // 查找 x 所在的段
+    val segIndex = sortedPoints.indexOfLast { it.first <= x }.coerceIn(0, sortedPoints.size - 2)
+    val p1 = sortedPoints[segIndex]
+    val p2 = sortedPoints[segIndex + 1]
+
+    val p0 = sortedPoints.getOrElse(segIndex - 1) { p1 }
+    val p3 = sortedPoints.getOrElse(segIndex + 2) { p2 }
+
+    val segmentLength = p2.first - p1.first
+    val t = if (segmentLength > 0f) ((x - p1.first) / segmentLength).coerceIn(0f, 1f) else 0f
+
+    return catmullRomInterpolate(t, p0.second, p1.second, p2.second, p3.second)
 }
 
 private fun sqrt(x: Float): Float = kotlin.math.sqrt(x)

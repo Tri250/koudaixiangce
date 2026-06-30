@@ -344,7 +344,15 @@ private fun FeaturedLutPackCard(pack: FeaturedLutPack) {
             .width(220.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(ColorOS16Colors.Surface2)
-            .clickable { /* TODO: 打开 LUT 包详情 */ }
+            .clickable {
+                // 打开 LUT 包详情页：将包名和 LUT 列表传递给导航
+                // 在实际应用中，这里会导航到 LUT 包详情 Composable
+                val intent = android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("rapidraw://lut-pack/${pack.id}")
+                )
+                context.startActivity(intent)
+            }
             .padding(12.dp),
     ) {
         // 预览渐变

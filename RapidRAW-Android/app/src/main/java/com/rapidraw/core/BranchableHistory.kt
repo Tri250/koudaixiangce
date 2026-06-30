@@ -1,6 +1,7 @@
 package com.rapidraw.core
 
 import com.rapidraw.data.model.Adjustments
+import java.security.MessageDigest
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -9,6 +10,9 @@ import kotlinx.serialization.Transient
  * 历史树中的单个节点，代表一次编辑状态快照。
  * 每个节点存储 Adjustments 快照、描述、时间戳和稳定 UUID，
  * 通过 parentId / childrenIds 构成树形结构。
+ *
+ * Merkle-tree 风格验证：每个节点包含 contentHash，由其 Adjustments 数据
+ * 和所有子节点 contentHash 联合计算得出，确保历史完整性。
  */
 @Serializable
 data class HistoryNode(
@@ -19,7 +23,69 @@ data class HistoryNode(
     val label: String = "",
     val timestamp: Long = System.currentTimeMillis(),
     val branchName: String = "main",
-)
+    val contentHash: String = "",
+) {
+    /**
+     * 计算节点的 Merkle 哈希值。
+     * 由 Adjustments 的序列化数据 + 子节点哈希联合计算。
+     * 若任一子节点被篡改，父节点哈希将不匹配。
+     */
+    fun computeHash(childHashes: List<String> = emptyList()): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        // 将 Adjustments 关键字段参与哈希
+        val data = buildString {
+            append(id)
+            append(parentId ?: "")
+            append(label)
+            append(timestamp)
+            append(branchName)
+            // 序列化 Adjustments 的核心字段
+            append(adjustments.exposure)
+            append(adjustments.toneLevel)
+            append(adjustments.filmIntensity)
+            append(adjustments.contrast)
+            append(adjustments.highlights)
+            append(adjustments.shadows)
+            append(adjustments.whites)
+            append(adjustments.blacks)
+            append(adjustments.vibrance)
+            append(adjustments.saturation)
+            append(adjustments.temperature)
+            append(adjustments.tint)
+            append(adjustments.sharpness)
+            append(adjustments.hslReds.hue)
+            append(adjustments.hslReds.saturation)
+            append(adjustments.hslReds.luminance)
+            append(adjustments.hslOranges.hue)
+            append(adjustments.hslOranges.saturation)
+            append(adjustments.hslOranges.luminance)
+            append(adjustments.hslYellows.hue)
+            append(adjustments.hslYellows.saturation)
+            append(adjustments.hslYellows.luminance)
+            append(adjustments.hslGreens.hue)
+            append(adjustments.hslGreens.saturation)
+            append(adjustments.hslGreens.luminance)
+            append(adjustments.hslAquas.hue)
+            append(adjustments.hslAquas.saturation)
+            append(adjustments.hslAquas.luminance)
+            append(adjustments.hslBlues.hue)
+            append(adjustments.hslBlues.saturation)
+            append(adjustments.hslBlues.luminance)
+            append(adjustments.hslPurples.hue)
+            append(adjustments.hslPurples.saturation)
+            append(adjustments.hslPurples.luminance)
+            append(adjustments.hslMagentas.hue)
+            append(adjustments.hslMagentas.saturation)
+            append(adjustments.hslMagentas.luminance)
+            // 子节点哈希（Merkle-tree）
+            for (childHash in childHashes.sorted()) {
+                append(childHash)
+            }
+        }
+        val digest = md.digest(data.toByteArray())
+        return digest.fold("") { str, byte -> str + "%02x".format(byte) }
+    }
+}
 
 /**
  * Git 风格的可分支编辑历史系统。
@@ -27,6 +93,10 @@ data class HistoryNode(
  * 线程安全（所有公开方法通过 synchronized 保护）。
  * 通过 kotlinx.serialization 支持序列化/持久化。
  * 仅存储 Adjustments 快照（差异），不存储位图，保证高效。
+ *
+ * Merkle-tree 验证：
+ * 每个节点包含 contentHash，由 Adjustments 数据 + 子节点哈希联合计算。
+ * 可通过 validateIntegrity() 方法检查整棵树的完整性。
  */
 @Serializable
 data class BranchableHistory(
@@ -51,8 +121,6 @@ data class BranchableHistory(
 
     /**
      * 用于锁的对象。标记 @Transient 以避免序列化。
-     * 由于 Kotlin data class 的 init 块会在反序列化时重新执行，
-     * 我们在锁字段上使用懒初始化以确保安全。
      */
     @Transient
     @Volatile
@@ -79,11 +147,17 @@ data class BranchableHistory(
                 label = label,
                 branchName = currentBranchName,
             )
-            parent.childrenIds.add(node.id)
-            nodeMap[node.id] = node
-            currentNodeId = node.id
-            branchTips[currentBranchName] = node.id
-            return node
+            // 计算 contentHash（新节点无子节点，仅基于自身数据）
+            val nodeWithHash = node.copy(contentHash = node.computeHash())
+            parent.childrenIds.add(nodeWithHash.id)
+            nodeMap[nodeWithHash.id] = nodeWithHash
+            currentNodeId = nodeWithHash.id
+            branchTips[currentBranchName] = nodeWithHash.id
+
+            // 更新父节点的 Merkle 哈希（沿路径向上传播）
+            rehashPathToRoot(parent.id)
+
+            return nodeWithHash
         }
     }
 
@@ -94,10 +168,8 @@ data class BranchableHistory(
     fun undo(): HistoryNode? {
         synchronized(lock) {
             val current = nodeMap[currentNodeId] ?: return null
-            // 在当前分支上找父节点
             val parentId = current.parentId ?: return null
             val parent = nodeMap[parentId] ?: return null
-            // 确保父节点属于同一分支（或回溯到分支根）
             currentNodeId = parent.id
             return parent
         }
@@ -146,13 +218,18 @@ data class BranchableHistory(
                 label = "分支: $branchName",
                 branchName = branchName,
             )
-            sourceNode.childrenIds.add(branchRoot.id)
-            nodeMap[branchRoot.id] = branchRoot
-            branchTips[branchName] = branchRoot.id
-            branchRoots[branchName] = branchRoot.id
-            currentNodeId = branchRoot.id
+            val branchRootWithHash = branchRoot.copy(contentHash = branchRoot.computeHash())
+            sourceNode.childrenIds.add(branchRootWithHash.id)
+            nodeMap[branchRootWithHash.id] = branchRootWithHash
+            branchTips[branchName] = branchRootWithHash.id
+            branchRoots[branchName] = branchRootWithHash.id
+            currentNodeId = branchRootWithHash.id
             currentBranchName = branchName
-            return branchRoot
+
+            // 更新 Merkle 哈希
+            rehashPathToRoot(sourceNode.id)
+
+            return branchRootWithHash
         }
     }
 
@@ -190,60 +267,72 @@ data class BranchableHistory(
 
     /**
      * 折叠/合并指定分支到其父分支。
-     * 将目标分支的所有节点合并到父分支，并删除目标分支。
+     * 将目标分支 tip 的 Adjustments 作为新节点追加到父分支的分支根父节点上，
+     * 然后删除分支结构。
+     *
      * @param branchName 要折叠的分支名称
-     * @return 是否成功折叠
+     * @return 合并后创建的新节点；若失败返回 null
      */
-    fun collapseBranch(branchName: String): Boolean {
+    fun collapseBranch(branchName: String): HistoryNode? {
         synchronized(lock) {
-            if (branchName == "main") return false // 不允许折叠主分支
-            val branchRootId = branchRoots[branchName] ?: return false
-            val branchRoot = nodeMap[branchRootId] ?: return false
-            val branchTipId = branchTips[branchName] ?: return false
-            val branchTip = nodeMap[branchTipId] ?: return false
+            if (branchName == "main") return null // 不允许折叠主分支
+            val branchRootId = branchRoots[branchName] ?: return null
+            val branchRoot = nodeMap[branchRootId] ?: return null
+            val branchTipId = branchTips[branchName] ?: return null
+            val branchTip = nodeMap[branchTipId] ?: return null
 
-            val parentNodeId = branchRoot.parentId ?: return false
-            val parentNode = nodeMap[parentNodeId] ?: return false
+            val parentNodeId = branchRoot.parentId ?: return null
+            val parentNode = nodeMap[parentNodeId] ?: return null
 
-            // 将分支 tip 的所有子节点重新挂到分支根节点的父节点下
+            // 将分支 tip 的 Adjustments 作为新节点追加到父分支
+            val mergedNode = HistoryNode(
+                parentId = parentNode.id,
+                adjustments = branchTip.adjustments,
+                label = "合并分支: $branchName",
+                branchName = parentNode.branchName,
+            )
+            val mergedWithHash = mergedNode.copy(contentHash = mergedNode.computeHash())
+            parentNode.childrenIds.add(mergedWithHash.id)
+            nodeMap[mergedWithHash.id] = mergedWithHash
+
+            // 从父节点的子列表中移除分支根
+            parentNode.childrenIds.remove(branchRootId)
+
+            // 将分支 tip 的子节点重新挂到合并节点下
             for (childId in branchTip.childrenIds) {
                 val child = nodeMap[childId] ?: continue
-                // 更新子节点的 parentId 指向父节点
-                val updatedChild = child.copy(parentId = parentNode.id, branchName = parentNode.branchName)
+                val updatedChild = child.copy(
+                    parentId = mergedWithHash.id,
+                    branchName = parentNode.branchName
+                )
                 nodeMap[childId] = updatedChild
-                // v1.5.5 hotfix: 旧代码判断 `if (parentNode.id != parentNodeId)` 永远为 false，
-                // 因为 parentNode 就是从 parentNodeId 取的。导致分支 tip 的子节点孤立在
-                // 树外，commit 后 children 列表缺失。改为真正检查：若子节点 parentId 不是
-                // 父节点，才需要重新挂载。
-                if (updatedChild.parentId != parentNode.id) {
-                    parentNode.childrenIds.add(childId)
-                }
+                mergedWithHash.childrenIds.add(childId)
             }
 
-            // 将分支中从 root 到 tip 的所有节点的 branchName 标记为父分支
+            // 将分支中从 root 到 tip 的所有节点标记为已合并
             val branchNodes = collectBranchNodes(branchRootId)
             for (node in branchNodes) {
-                val updated = node.copy(branchName = parentNode.branchName)
+                val updated = node.copy(branchName = parentNode.branchName + "_merged")
                 nodeMap[node.id] = updated
             }
-
-            // 从父节点的 childrenIds 中移除分支根
-            parentNode.childrenIds.remove(branchRootId)
 
             // 删除分支映射
             branchTips.remove(branchName)
             branchRoots.remove(branchName)
 
+            // 更新父分支 tip
+            branchTips[parentNode.branchName] = mergedWithHash.id
+
+            // 更新 Merkle 哈希
+            rehashPathToRoot(parentNode.id)
+
             // 如果当前就在被折叠的分支上，切回父分支
             if (currentBranchName == branchName) {
                 currentBranchName = parentNode.branchName
-                // 将当前节点设为合并后的 tip
-                val newTip = branchTip.childrenIds.firstOrNull()
-                    ?: parentNode.id
-                currentNodeId = newTip
+                currentNodeId = mergedWithHash.id
             }
 
-            return true
+            return mergedWithHash
         }
     }
 
@@ -299,6 +388,65 @@ data class BranchableHistory(
     fun getAllNodes(): List<HistoryNode> {
         synchronized(lock) {
             return nodeMap.values.toList()
+        }
+    }
+
+    // ── Merkle-tree 验证 ──────────────────────────────────────
+
+    /**
+     * 验证整棵历史树的完整性。
+     * 从叶子节点向上递归计算 Merkle 哈希，与存储的 contentHash 比较。
+     *
+     * @return Pair(isValid, mismatchedNodeIds) - 整体是否有效 + 不匹配的节点 ID 列表
+     */
+    fun validateIntegrity(): Pair<Boolean, List<String>> {
+        synchronized(lock) {
+            val mismatches = mutableListOf<String>()
+            validateSubtree(root.id, mismatches)
+            return Pair(mismatches.isEmpty(), mismatches)
+        }
+    }
+
+    /**
+     * 递归验证子树的 Merkle 哈希完整性。
+     */
+    private fun validateSubtree(nodeId: String, mismatches: MutableList<String>) {
+        val node = nodeMap[nodeId] ?: return
+
+        // 先验证所有子节点
+        val childHashes = mutableListOf<String>()
+        for (childId in node.childrenIds) {
+            val child = nodeMap[childId]
+            if (child != null) {
+                validateSubtree(childId, mismatches)
+                childHashes.add(child.contentHash)
+            }
+        }
+
+        // 计算当前节点的期望哈希
+        val expectedHash = node.computeHash(childHashes)
+        if (node.contentHash != expectedHash) {
+            mismatches.add(nodeId)
+        }
+    }
+
+    /**
+     * 重新计算从指定节点到根节点路径上所有节点的 Merkle 哈希。
+     * 在节点结构变更后调用，确保哈希链完整性。
+     */
+    private fun rehashPathToRoot(startNodeId: String) {
+        var currentId: String? = startNodeId
+        while (currentId != null) {
+            val node = nodeMap[currentId] ?: break
+            val childHashes = node.childrenIds.mapNotNull { cid ->
+                nodeMap[cid]?.contentHash
+            }
+            val newHash = node.computeHash(childHashes)
+            if (node.contentHash != newHash) {
+                val updated = node.copy(contentHash = newHash)
+                nodeMap[currentId] = updated
+            }
+            currentId = node.parentId
         }
     }
 
@@ -358,7 +506,30 @@ data class BranchableHistory(
      */
     val branchNames: List<String>
         get() = synchronized(lock) { branchTips.keys.toList() }
+
+    /**
+     * 获取历史树的统计信息。
+     */
+    val stats: HistoryStats
+        get() = synchronized(lock) {
+            HistoryStats(
+                totalNodes = nodeMap.size,
+                totalBranches = branchTips.size,
+                currentBranch = currentBranchName,
+                currentDepth = getPathToRoot(currentNodeId).size - 1,
+            )
+        }
 }
+
+/**
+ * 历史树统计信息。
+ */
+data class HistoryStats(
+    val totalNodes: Int,
+    val totalBranches: Int,
+    val currentBranch: String,
+    val currentDepth: Int,
+)
 
 /**
  * 伴生对象工厂方法，便于创建 BranchableHistory 实例。
@@ -375,6 +546,7 @@ object BranchableHistoryFactory {
             label = "初始状态",
             branchName = "main",
         )
-        return BranchableHistory(root = root)
+        val rootWithHash = root.copy(contentHash = root.computeHash())
+        return BranchableHistory(root = rootWithHash)
     }
 }

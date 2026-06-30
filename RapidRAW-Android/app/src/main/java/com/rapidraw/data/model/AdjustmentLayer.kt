@@ -27,6 +27,9 @@ enum class BlendMode {
     OVERLAY,          // 叠加
     SOFT_LIGHT,       // 柔光
     HARD_LIGHT,       // 强光
+    DIFFERENCE,       // 差值
+    COLOR_DODGE,      // 颜色减淡
+    COLOR_BURN,       // 颜色加深
     COLOR,            // 颜色
     LUMINOSITY,       // 明度
 }

@@ -1,6 +1,7 @@
 package com.rapidraw.core
 
 import kotlin.math.abs
+import kotlin.math.cbrt
 import kotlin.math.pow
 import kotlin.math.sqrt
 
@@ -271,6 +272,77 @@ object ColorMath {
 
     fun clamp(v: Float, min: Float = 0f, max: Float = 1f): Float {
         return v.coerceIn(min, max)
+    }
+
+    // ── RGB ↔ CIE LAB ─────────────────────────────────────────────
+
+    /** sRGB [0,1] → CIE XYZ (D65 white point) */
+    fun rgbToXyz(r: Float, g: Float, b: Float): FloatArray {
+        val lr = srgbToLinear(r)
+        val lg = srgbToLinear(g)
+        val lb = srgbToLinear(b)
+        val x = 0.4124564f * lr + 0.3575761f * lg + 0.1804375f * lb
+        val y = 0.2126729f * lr + 0.7151522f * lg + 0.0721750f * lb
+        val z = 0.0193339f * lr + 0.1191920f * lg + 0.9503041f * lb
+        return floatArrayOf(x, y, z)
+    }
+
+    /** CIE XYZ → sRGB [0,1] */
+    fun xyzToRgb(x: Float, y: Float, z: Float): FloatArray {
+        val lr =  3.2404542f * x - 1.5371385f * y - 0.4985314f * z
+        val lg = -0.9692660f * x + 1.8760108f * y + 0.0415560f * z
+        val lb =  0.0556434f * x - 0.2040259f * y + 1.0572252f * z
+        return floatArrayOf(
+            linearToSrgb(lr.coerceIn(0f, 1f)),
+            linearToSrgb(lg.coerceIn(0f, 1f)),
+            linearToSrgb(lb.coerceIn(0f, 1f))
+        )
+    }
+
+    // D65 white point
+    private const val XN = 0.95047f
+    private const val YN = 1.00000f
+    private const val ZN = 1.08883f
+
+    private fun labF(t: Float): Float {
+        val delta = 6f / 29f
+        return if (t > delta * delta * delta) {
+            cbrt(t.toDouble()).toFloat()
+        } else {
+            t / (3f * delta * delta) + 4f / 29f
+        }
+    }
+
+    private fun labFInv(t: Float): Float {
+        val delta = 6f / 29f
+        return if (t > delta) {
+            t * t * t
+        } else {
+            3f * delta * delta * (t - 4f / 29f)
+        }
+    }
+
+    /** sRGB [0,1] → CIE L*a*b* */
+    fun rgbToLab(r: Float, g: Float, b: Float): FloatArray {
+        val xyz = rgbToXyz(r, g, b)
+        val fx = labF(xyz[0] / XN)
+        val fy = labF(xyz[1] / YN)
+        val fz = labF(xyz[2] / ZN)
+        val L = 116f * fy - 16f
+        val A = 500f * (fx - fy)
+        val B = 200f * (fy - fz)
+        return floatArrayOf(L, A, B)
+    }
+
+    /** CIE L*a*b* → sRGB [0,1] */
+    fun labToRgb(L: Float, A: Float, B: Float): FloatArray {
+        val fy = (L + 16f) / 116f
+        val fx = A / 500f + fy
+        val fz = fy - B / 200f
+        val x = XN * labFInv(fx)
+        val y = YN * labFInv(fy)
+        val z = ZN * labFInv(fz)
+        return xyzToRgb(x, y, z)
     }
 
     // ── HSL Range Detection ────────────────────────────────────────

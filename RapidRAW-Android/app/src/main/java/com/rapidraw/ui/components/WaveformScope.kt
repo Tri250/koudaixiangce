@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.core.ScopeAnalyzer
 import com.rapidraw.ui.theme.ColorOS16Colors
-import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -38,19 +37,23 @@ enum class ScopeMode {
     WAVEFORM,
     /** RGB Parade（红/绿/蓝三通道并排） */
     PARADE,
+    /** RGB 叠加波形（三通道在同一区域叠加） */
+    RGB_OVERLAY,
     /** 矢量示波器（色相/饱和度极坐标） */
     VECTORSCOPE,
 }
 
 /**
- * 专业波形监视器 & 矢量示波器
+ * 专业波形监视器
  *
- * AlcedoStudio 风格的三合一示波器组件：
+ * 支持：
  * - WAVEFORM: 亮度波形图，纵轴 IRE 0-100，横轴画面水平位置
  * - PARADE: RGB 三通道并排波形，独立诊断各通道曝光
+ * - RGB_OVERLAY: RGB 三通道叠加波形
  * - VECTORSCOPE: 色相/饱和度极坐标图，含肤色指示线
  *
  * 数据由 [ScopeAnalyzer] 计算，在 [LaunchedEffect] 中异步更新。
+ * Canvas 高性能渲染，支持实时刷新。
  */
 @Composable
 fun WaveformScope(
@@ -100,6 +103,7 @@ fun WaveformScope(
                 textMeasurer = textMeasurer,
                 labelStyle = labelStyle,
                 showParade = false,
+                showRgbOverlay = false,
             )
             ScopeMode.PARADE -> WaveformCanvas(
                 data = waveformData,
@@ -107,6 +111,15 @@ fun WaveformScope(
                 textMeasurer = textMeasurer,
                 labelStyle = labelStyle,
                 showParade = true,
+                showRgbOverlay = false,
+            )
+            ScopeMode.RGB_OVERLAY -> WaveformCanvas(
+                data = waveformData,
+                showLabels = showLabels,
+                textMeasurer = textMeasurer,
+                labelStyle = labelStyle,
+                showParade = false,
+                showRgbOverlay = true,
             )
             ScopeMode.VECTORSCOPE -> VectorscopeCanvas(
                 data = vectorscopeData,
@@ -119,7 +132,7 @@ fun WaveformScope(
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Waveform 绘制（Luma / Parade 共用）
+// Waveform 绘制（Luma / Parade / RGB Overlay 共用）
 // ═══════════════════════════════════════════════════════════════════
 
 @Composable
@@ -129,6 +142,7 @@ private fun WaveformCanvas(
     textMeasurer: TextMeasurer,
     labelStyle: TextStyle,
     showParade: Boolean,
+    showRgbOverlay: Boolean,
 ) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val canvasW = size.width
@@ -142,7 +156,6 @@ private fun WaveformCanvas(
         if (showParade) {
             // ── RGB Parade 模式：三通道各占 1/3 高度 ──────────────
             val channelH = canvasH / 3f
-            val channelPadding = 1f
 
             // 通道分隔线
             drawLine(
@@ -183,21 +196,16 @@ private fun WaveformCanvas(
                 val maxVal = maxValues[idx]
                 val binW = canvasW / data.width
 
-                for (x in 0 until data.width) {
-                    for (y in 0 until data.height) {
-                        val v = channelData[x * data.height + y]
-                        if (v > 0) {
-                            val intensity = (v.toFloat() / maxVal).coerceIn(0f, 1f)
-                            // y: 0=暗, height=亮 → 屏幕: 顶部=亮
-                            val screenY = offsetY + (1f - y.toFloat() / data.height) * channelH
-                            drawRect(
-                                color = color.copy(alpha = intensity * 0.85f),
-                                topLeft = Offset(x * binW, screenY - 0.5f),
-                                size = Size(binW + 0.5f, 1.5f),
-                            )
-                        }
-                    }
-                }
+                drawWaveformBins(
+                    data = channelData,
+                    width = data.width,
+                    height = data.height,
+                    maxVal = maxVal,
+                    binW = binW,
+                    canvasHeight = channelH,
+                    offsetY = offsetY,
+                    color = color,
+                )
 
                 // 通道标签
                 if (showLabels) {
@@ -227,9 +235,8 @@ private fun WaveformCanvas(
                     )
                 }
             }
-        } else {
-            // ── Luma Waveform 模式 ─────────────────────────────────
-            // 网格线
+        } else if (showRgbOverlay) {
+            // ── RGB Overlay 模式：三通道叠加显示 ──────────────────
             drawWaveformGrid(
                 canvasWidth = canvasW,
                 canvasHeight = canvasH,
@@ -237,22 +244,65 @@ private fun WaveformCanvas(
                 gridColor = ColorOS16Colors.Hairline,
             )
 
-            // 绘制 Luma 波形
-            val maxLuma = (data.luma.maxOrNull() ?: 1).coerceAtLeast(1)
             val binW = canvasW / data.width
 
-            for (x in 0 until data.width) {
-                for (y in 0 until data.height) {
-                    val v = data.luma[x * data.height + y]
-                    if (v > 0) {
-                        val intensity = (v.toFloat() / maxLuma).coerceIn(0f, 1f)
-                        val screenY = (1f - y.toFloat() / data.height) * canvasH
-                        drawRect(
-                            color = ColorOS16Colors.ScopeTraceGreen.copy(alpha = intensity * 0.9f),
-                            topLeft = Offset(x * binW, screenY - 0.5f),
-                            size = Size(binW + 0.5f, 1.5f),
-                        )
-                    }
+            // 找到所有通道的全局最大值用于归一化
+            val globalMax = maxOf(
+                data.red.maxOrNull() ?: 1,
+                data.green.maxOrNull() ?: 1,
+                data.blue.maxOrNull() ?: 1,
+            ).coerceAtLeast(1)
+
+            // 绘制 RGB 三通道叠加
+            val rgbChannels = listOf(
+                data.blue to ColorOS16Colors.ScopeChannelB,
+                data.green to ColorOS16Colors.ScopeChannelG,
+                data.red to ColorOS16Colors.ScopeChannelR,
+            )
+
+            rgbChannels.forEach { (channelData, color) ->
+                drawWaveformBins(
+                    data = channelData,
+                    width = data.width,
+                    height = data.height,
+                    maxVal = globalMax,
+                    binW = binW,
+                    canvasHeight = canvasH,
+                    offsetY = 0f,
+                    color = color.copy(alpha = 0.7f),
+                )
+            }
+
+            // Luma 叠加（白色描边）
+            val maxLuma = (data.luma.maxOrNull() ?: 1).coerceAtLeast(1)
+            drawWaveformBins(
+                data = data.luma,
+                width = data.width,
+                height = data.height,
+                maxVal = maxLuma,
+                binW = binW,
+                canvasHeight = canvasH,
+                offsetY = 0f,
+                color = Color.White.copy(alpha = 0.15f),
+            )
+
+            // 通道图例
+            if (showLabels) {
+                val legendItems = listOf(
+                    "R" to ColorOS16Colors.ScopeChannelR,
+                    "G" to ColorOS16Colors.ScopeChannelG,
+                    "B" to ColorOS16Colors.ScopeChannelB,
+                )
+                legendItems.forEachIndexed { i, (label, color) ->
+                    drawText(
+                        textMeasurer = textMeasurer,
+                        text = label,
+                        topLeft = Offset(canvasW - 20f, 4f + i * 14f),
+                        style = TextStyle(
+                            color = color.copy(alpha = 0.7f),
+                            fontSize = 9.sp,
+                        ),
+                    )
                 }
             }
 
@@ -268,6 +318,73 @@ private fun WaveformCanvas(
                         style = labelStyle,
                     )
                 }
+            }
+        } else {
+            // ── Luma Waveform 模式 ─────────────────────────────────
+            drawWaveformGrid(
+                canvasWidth = canvasW,
+                canvasHeight = canvasH,
+                offsetY = 0f,
+                gridColor = ColorOS16Colors.Hairline,
+            )
+
+            // 绘制 Luma 波形
+            val maxLuma = (data.luma.maxOrNull() ?: 1).coerceAtLeast(1)
+            val binW = canvasW / data.width
+
+            drawWaveformBins(
+                data = data.luma,
+                width = data.width,
+                height = data.height,
+                maxVal = maxLuma,
+                binW = binW,
+                canvasHeight = canvasH,
+                offsetY = 0f,
+                color = ColorOS16Colors.ScopeTraceGreen,
+            )
+
+            // IRE 标签
+            if (showLabels) {
+                val ireValues = listOf(100, 75, 50, 25, 0)
+                ireValues.forEach { ire ->
+                    val y = (1f - ire / 100f) * canvasH
+                    drawText(
+                        textMeasurer = textMeasurer,
+                        text = ire.toString(),
+                        topLeft = Offset(2f, (y - 5f).coerceIn(0f, canvasH - 12f)),
+                        style = labelStyle,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 绘制波形数据bins
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWaveformBins(
+    data: IntArray,
+    width: Int,
+    height: Int,
+    maxVal: Int,
+    binW: Float,
+    canvasHeight: Float,
+    offsetY: Float,
+    color: Color,
+) {
+    if (maxVal <= 0) return
+    for (x in 0 until width) {
+        for (y in 0 until height) {
+            val v = data[x * height + y]
+            if (v > 0) {
+                val intensity = (v.toFloat() / maxVal).coerceIn(0f, 1f)
+                val screenY = offsetY + (1f - y.toFloat() / height) * canvasHeight
+                drawRect(
+                    color = color.copy(alpha = intensity * 0.9f),
+                    topLeft = Offset(x * binW, screenY - 0.5f),
+                    size = Size(binW + 0.5f, 1.5f),
+                )
             }
         }
     }
@@ -355,6 +472,7 @@ private fun VectorscopeCanvas(
         )
 
         // ── 6 色目标标记 + 色相角度标签 ─────────────────────────
+        // BT.709 标准色度坐标对应的矢量角度
         val colorTargets = listOf(
             0f to "R" to ColorOS16Colors.ScopeChannelR,
             60f to "Y" to Color(0xFFFFFF00),
@@ -402,9 +520,9 @@ private fun VectorscopeCanvas(
             }
         }
 
-        // ── 肤线（Skin Tone Line）─────────────────────────────────
+        // ── 肤色线（Skin Tone Line）─────────────────────────────────
         // I 轴方向约 123°（行业标准肤色线，BT.709 下约 I 轴 33° 偏移）
-        val skinToneAngle = Math.toRadians(123.0 - 90.0) // 从顶部 0° 算
+        val skinToneAngle = Math.toRadians(123.0 - 90.0)
         val skinStartX = cx + radius * 0.1f * cos(skinToneAngle).toFloat()
         val skinStartY = cy + radius * 0.1f * sin(skinToneAngle).toFloat()
         val skinEndX = cx + radius * cos(skinToneAngle).toFloat()
@@ -415,6 +533,21 @@ private fun VectorscopeCanvas(
             end = Offset(skinEndX, skinEndY),
             strokeWidth = 1.5f,
         )
+
+        // 肤色线标签
+        if (showLabels) {
+            val skinLabelX = cx + radius * 0.6f * cos(skinToneAngle).toFloat() + 6f
+            val skinLabelY = cy + radius * 0.6f * sin(skinToneAngle).toFloat() - 4f
+            drawText(
+                textMeasurer = textMeasurer,
+                text = "Skin",
+                topLeft = Offset(skinLabelX, skinLabelY),
+                style = TextStyle(
+                    color = ColorOS16Colors.ScopeSkinTone.copy(alpha = 0.6f),
+                    fontSize = 7.sp,
+                ),
+            )
+        }
 
         // ── 绘制像素分布 ─────────────────────────────────────────
         if (data != null && data.maxValue > 0) {

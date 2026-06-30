@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,7 +26,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,14 +38,94 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
-import kotlin.math.sqrt
 
+/**
+ * CDL 调色轮状态（HSL 表示）
+ */
 data class CdlWheelState(
-    val hue: Float = 0f,
-    val saturation: Float = 0f,
-    val luminance: Float = 0f,
+    val hue: Float = 0f,         // 0..360
+    val saturation: Float = 0f,   // 0..100
+    val luminance: Float = 0f,    // 0..100 (50 = 中性)
 )
 
+/**
+ * CDL 参数（Lift/Gamma/Gain 标准表示）
+ *
+ * CDL (Color Decision List) 是 ASC CDL 标准：
+ * - Lift: 阴影偏移（影响暗部色调）
+ * - Gamma: 中间调幂次（影响中间调色调）
+ * - Gain: 高光增益（影响亮部色调）
+ *
+ * 每个 CDL 通道包含 R/G/B 三分量。
+ */
+data class CdlParameters(
+    val liftR: Float = 0f,
+    val liftG: Float = 0f,
+    val liftB: Float = 0f,
+    val gammaR: Float = 1f,
+    val gammaG: Float = 1f,
+    val gammaB: Float = 1f,
+    val gainR: Float = 1f,
+    val gainG: Float = 1f,
+    val gainB: Float = 1f,
+    val saturation: Float = 1f,
+)
+
+/**
+ * 从 CdlWheelState 转换为 CDL 参数
+ *
+ * 色轮的 HSL 值映射到 CDL 的 Lift/Gamma/Gain：
+ * - Hue/Saturation → 对应频段的色偏方向
+ * - Luminance → 影响对应频段的偏移量
+ */
+fun CdlWheelState.toCdlParameters(toneRange: CdlToneRange): CdlParameters {
+    val hueRad = Math.toRadians(hue.toDouble()).toFloat()
+    val satNorm = saturation / 100f
+    val lumOffset = (luminance - 50f) / 50f // -1..1
+
+    // 色偏向量（基于色相角度分解为 RGB 分量）
+    val colorVecR = (cos(hueRad) * 0.5f + 0.5f) * satNorm
+    val colorVecG = (cos(hueRad - 2.094f) * 0.5f + 0.5f) * satNorm
+    val colorVecB = (cos(hueRad - 4.189f) * 0.5f + 0.5f) * satNorm
+
+    return when (toneRange) {
+        CdlToneRange.SHADOWS -> CdlParameters(
+            liftR = colorVecR * lumOffset,
+            liftG = colorVecG * lumOffset,
+            liftB = colorVecB * lumOffset,
+            saturation = 1f + satNorm * 0.2f,
+        )
+        CdlToneRange.MIDTONES -> CdlParameters(
+            gammaR = 1f + colorVecR * lumOffset * 0.3f,
+            gammaG = 1f + colorVecG * lumOffset * 0.3f,
+            gammaB = 1f + colorVecB * lumOffset * 0.3f,
+            saturation = 1f + satNorm * 0.2f,
+        )
+        CdlToneRange.HIGHLIGHTS -> CdlParameters(
+            gainR = 1f + colorVecR * lumOffset * 0.5f,
+            gainG = 1f + colorVecG * lumOffset * 0.5f,
+            gainB = 1f + colorVecB * lumOffset * 0.5f,
+            saturation = 1f + satNorm * 0.2f,
+        )
+    }
+}
+
+enum class CdlToneRange(val label: String) {
+    SHADOWS("阴影"),
+    MIDTONES("中间调"),
+    HIGHLIGHTS("高光"),
+}
+
+/**
+ * CDL 调色轮组件
+ *
+ * 功能：
+ * - 显示色轮并支持拖拽改变色相/饱和度
+ * - 三轮分别对应阴影/中间调/高光
+ * - 显示 CDL Lift/Gamma/Gain 数值
+ * - 亮度滑块
+ * - 实时更新
+ */
 @Composable
 fun CdlColorWheel(
     title: String,
@@ -55,6 +133,7 @@ fun CdlColorWheel(
     onStateChange: (CdlWheelState) -> Unit,
     modifier: Modifier = Modifier,
     wheelSize: Int = 200,
+    toneRange: CdlToneRange = CdlToneRange.MIDTONES,
 ) {
     Surface(
         color = EditorSurface,
@@ -81,6 +160,8 @@ fun CdlColorWheel(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // CDL 参数显示
+            val cdlParams = state.toCdlParameters(toneRange)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -89,6 +170,32 @@ fun CdlColorWheel(
                 ValueIndicator("S", String.format("%.0f%%", state.saturation))
                 ValueIndicator("L", String.format("%.0f", state.luminance))
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // CDL Lift/Gamma/Gain 值显示
+            CdlValueRow(
+                label = when (toneRange) {
+                    CdlToneRange.SHADOWS -> "Lift"
+                    CdlToneRange.MIDTONES -> "Gamma"
+                    CdlToneRange.HIGHLIGHTS -> "Gain"
+                },
+                rValue = when (toneRange) {
+                    CdlToneRange.SHADOWS -> cdlParams.liftR
+                    CdlToneRange.MIDTONES -> cdlParams.gammaR
+                    CdlToneRange.HIGHLIGHTS -> cdlParams.gainR
+                },
+                gValue = when (toneRange) {
+                    CdlToneRange.SHADOWS -> cdlParams.liftG
+                    CdlToneRange.MIDTONES -> cdlParams.gammaG
+                    CdlToneRange.HIGHLIGHTS -> cdlParams.gainG
+                },
+                bValue = when (toneRange) {
+                    CdlToneRange.SHADOWS -> cdlParams.liftB
+                    CdlToneRange.MIDTONES -> cdlParams.gammaB
+                    CdlToneRange.HIGHLIGHTS -> cdlParams.gainB
+                },
+            )
         }
     }
 }
@@ -107,6 +214,43 @@ private fun ValueIndicator(label: String, value: String) {
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
         )
+    }
+}
+
+@Composable
+private fun CdlValueRow(label: String, rValue: Float, gValue: Float, bValue: Float) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = label,
+            color = TextTertiary,
+            fontSize = 9.sp,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            Text(
+                text = "R${String.format("%.2f", rValue)}",
+                color = Color(0xFFFF453A).copy(alpha = 0.8f),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = "G${String.format("%.2f", gValue)}",
+                color = Color(0xFF30D158).copy(alpha = 0.8f),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = "B${String.format("%.2f", bValue)}",
+                color = Color(0xFF0A84FF).copy(alpha = 0.8f),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
     }
 }
 
@@ -136,6 +280,7 @@ private fun ColorWheelCanvas(
                         },
                         onDrag = { change, _ ->
                             if (isDragging) {
+                                change.consume()
                                 updateFromOffset(
                                     change.position,
                                     size.width,
@@ -156,10 +301,13 @@ private fun ColorWheelCanvas(
             val center = Offset(size.width / 2f, size.height / 2f)
             val radius = minOf(size.width, size.height) / 2f - 4.dp.toPx()
 
+            // 绘制饱和度色轮
             drawSaturationWheel(center, radius)
 
+            // 绘制亮度环
             drawLuminanceRing(center, radius + 4.dp.toPx(), state.luminance)
 
+            // 指示器
             val indicatorRadius = 8.dp.toPx()
             val indicatorAngle = Math.toRadians(state.hue.toDouble()).toFloat()
             val indicatorDist = (state.saturation / 100f) * radius
@@ -167,6 +315,15 @@ private fun ColorWheelCanvas(
                 x = center.x + cos(indicatorAngle) * indicatorDist,
                 y = center.y + sin(indicatorAngle) * indicatorDist,
             )
+
+            // 拖拽时高亮
+            if (isDragging) {
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.15f),
+                    radius = indicatorRadius + 8.dp.toPx(),
+                    center = indicatorPos,
+                )
+            }
 
             drawCircle(
                 color = Color.White,
@@ -177,6 +334,21 @@ private fun ColorWheelCanvas(
                 color = hslToColor(state.hue, state.saturation, 0.5f),
                 radius = indicatorRadius,
                 center = indicatorPos,
+            )
+
+            // 中心十字线
+            val crossSize = 4.dp.toPx()
+            drawLine(
+                color = Color.White.copy(alpha = 0.3f),
+                start = Offset(center.x - crossSize, center.y),
+                end = Offset(center.x + crossSize, center.y),
+                strokeWidth = 1f,
+            )
+            drawLine(
+                color = Color.White.copy(alpha = 0.3f),
+                start = Offset(center.x, center.y - crossSize),
+                end = Offset(center.x, center.y + crossSize),
+                strokeWidth = 1f,
             )
         }
 
@@ -254,6 +426,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSaturationWheel
         )
     }
 
+    // 从中心到边缘的饱和度渐变覆盖（中心=白，边缘=原色）
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(Color.White, Color.Transparent),
@@ -327,6 +500,7 @@ private fun LuminanceSlider(
                     },
                     onDrag = { change, _ ->
                         if (isDragging) {
+                            change.consume()
                             val value = (change.position.x / size.width).coerceIn(0f, 1f) * 100f
                             onLuminanceChange(value)
                         }
@@ -392,6 +566,14 @@ fun hslToColor(h: Float, s: Float, l: Float): Color {
     )
 }
 
+/**
+ * CDL 三轮面板
+ *
+ * 阴影/中间调/高光三组调色轮，完整显示 CDL 参数：
+ * - Lift（阴影偏移）
+ * - Gamma（中间调幂次）
+ * - Gain（高光增益）
+ */
 @Composable
 fun CdlThreeWheelPanel(
     shadowsState: CdlWheelState,
@@ -413,6 +595,7 @@ fun CdlThreeWheelPanel(
                 onStateChange = onShadowsChange,
                 modifier = Modifier.weight(1f),
                 wheelSize = 140,
+                toneRange = CdlToneRange.SHADOWS,
             )
             CdlColorWheel(
                 title = "中间调",
@@ -420,6 +603,7 @@ fun CdlThreeWheelPanel(
                 onStateChange = onMidtonesChange,
                 modifier = Modifier.weight(1f),
                 wheelSize = 140,
+                toneRange = CdlToneRange.MIDTONES,
             )
             CdlColorWheel(
                 title = "高光",
@@ -427,7 +611,68 @@ fun CdlThreeWheelPanel(
                 onStateChange = onHighlightsChange,
                 modifier = Modifier.weight(1f),
                 wheelSize = 140,
+                toneRange = CdlToneRange.HIGHLIGHTS,
             )
         }
+
+        // 综合 CDL 参数汇总
+        val shadowsCdl = shadowsState.toCdlParameters(CdlToneRange.SHADOWS)
+        val midtonesCdl = midtonesState.toCdlParameters(CdlToneRange.MIDTONES)
+        val highlightsCdl = highlightsState.toCdlParameters(CdlToneRange.HIGHLIGHTS)
+
+        Surface(
+            color = EditorSurface,
+            shape = RoundedCornerShape(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = "CDL 参数汇总",
+                    color = TextTertiary,
+                    fontSize = 9.sp,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    CdlParamColumn("Lift", shadowsCdl)
+                    CdlParamColumn("Gamma", midtonesCdl)
+                    CdlParamColumn("Gain", highlightsCdl)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CdlParamColumn(label: String, params: CdlParameters) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            color = TextSecondary,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            text = "R ${String.format("%.2f", params.liftR + params.gammaR + params.gainR - 2f)}",
+            color = Color(0xFFFF453A).copy(alpha = 0.7f),
+            fontSize = 8.sp,
+        )
+        Text(
+            text = "G ${String.format("%.2f", params.liftG + params.gammaG + params.gainG - 2f)}",
+            color = Color(0xFF30D158).copy(alpha = 0.7f),
+            fontSize = 8.sp,
+        )
+        Text(
+            text = "B ${String.format("%.2f", params.liftB + params.gammaB + params.gainB - 2f)}",
+            color = Color(0xFF0A84FF).copy(alpha = 0.7f),
+            fontSize = 8.sp,
+        )
     }
 }

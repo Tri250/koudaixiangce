@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("rawdecoder")
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -112,3 +112,56 @@ target_link_libraries(rawdecoder
     jnigraphics
     log
 )
+
+# ── Vulkan Compute Library ────────────────────────────────────────────────
+# Find Android NDK packages: Vulkan, shaderc
+find_package(Vulkan REQUIRED)
+# shaderc is provided by the Android NDK (API 24+)
+# If shaderc is not available, we fall back at runtime
+
+# Vulkan compute JNI shared library
+add_library(vulkancompute SHARED
+    vulkan_compute_jni.cpp
+    vulkan_compute.cpp
+)
+
+target_include_directories(vulkancompute PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Link libvulkan.so, libshaderc, jnigraphics (for AndroidBitmap), liblog, and libraw
+target_link_libraries(vulkancompute
+    Vulkan::Vulkan
+    jnigraphics
+    log
+    raw
+    android
+)
+
+# shaderc: available in NDK r21+ as a shared library
+# On older NDKs, it may not exist; we handle this gracefully
+if(EXISTS "${ANDROID_NDK}/sources/third_party/shaderc")
+    target_include_directories(vulkancompute PRIVATE
+        ${ANDROID_NDK}/sources/third_party/shaderc/include
+    )
+endif()
+
+# Try to find shaderc in the NDK toolchain
+find_library(SHADERC_LIB shaderc)
+if(SHADERC_LIB)
+    target_link_libraries(vulkancompute ${SHADERC_LIB})
+    message(STATUS "Found shaderc: ${SHADERC_LIB}")
+else()
+    # shaderc not found - we'll need to handle this
+    # Try looking in common NDK paths
+    find_library(SHADERC_COMBINED_LIB shaderc_combined)
+    if(SHADERC_COMBINED_LIB)
+        target_link_libraries(vulkancompute ${SHADERC_COMBINED_LIB})
+        message(STATUS "Found shaderc_combined: ${SHADERC_COMBINED_LIB}")
+    else()
+        message(WARNING "shaderc not found - Vulkan compute shader compilation will not be available")
+    endif()
+endif()
+
+# Compile options for the Vulkan compute library
+target_compile_options(vulkancompute PRIVATE -O2 -Wall)

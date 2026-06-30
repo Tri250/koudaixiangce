@@ -30,10 +30,11 @@ import kotlin.math.sqrt
  *
  * 支持：
  * - Ultra HDR (Android 14+ / API 34+): 在 JPEG 中嵌入 gain map，
- *   遵循 ISO 21496-1 标准与 Android 14 Ultra HDR 规范，兼容所有设备，HDR 设备显示高动态范围
+ *   遵循 ISO 21496-1 标准与 Android 14 Ultra HDR 规范
  * - HDR HLG / PQ 曲线选择（HEIF 10-bit 与 Ultra HDR 元数据）
  * - HDR 元数据写入：Content Light Level (MaxCLL/MaxFALL)、Mastering Display 信息
  * - HDR + SDR 双图层（Gain Map）自动构建与嵌入
+ * - 公开 Gain Map 生成接口（从 SDR + HDR 版本生成）
  * - SDR JPEG fallback
  *
  * Ultra HDR 工作原理（ISO 21496-1 / Android 14）：
@@ -46,7 +47,6 @@ import kotlin.math.sqrt
  * 参考：
  * - ISO 21496-1:2024 Gain Map Metadata
  * - https://developer.android.com/media/platform/hdr-image-format
- * - https://developer.android.com/guide/topics/media/hdr
  * - ITU-R BT.2100 (HLG / PQ)
  * - SMPTE ST 2086 (Mastering Display Color Volume)
  * - CTA-861-G (Content Light Level)
@@ -57,8 +57,6 @@ object HdrExporter {
 
     // SDR 标称亮度 (nits)
     private const val SDR_WHITE_NITS = 203f
-    // sRGB 显示白点
-    private const val SRGB_WHITE = 1.0f
 
     enum class HdrFormat(val displayName: String, val mimeType: String, val extension: String) {
         ULTRA_HDR_JPEG("Ultra HDR JPEG", "image/jpeg", ".jpg"),
@@ -81,9 +79,6 @@ object HdrExporter {
 
     /**
      * Content Light Level 信息（CTA-861-G / HDR10+）
-     *
-     * @param maxCll 最大内容亮度（nits），如 1000
-     * @param maxFall 最大帧平均亮度（nits），如 400
      */
     data class ContentLightLevel(
         val maxCll: Int = 1000,
@@ -92,13 +87,6 @@ object HdrExporter {
 
     /**
      * Mastering Display Color Volume（SMPTE ST 2086）
-     *
-     * @param primaryR 红原色色度 [x, y]（CIE 1931），默认 DCI-P3 红
-     * @param primaryG 绿原色色度 [x, y]，默认 DCI-P3 绿
-     * @param primaryB 蓝原色色度 [x, y]，默认 DCI-P3 蓝
-     * @param whitePoint 白点色度 [x, y]，默认 D65
-     * @param maxLuminance 母版显示器最大亮度（nits），如 1000
-     * @param minLuminance 母版显示器最小亮度（nits），如 0.0001
      */
     data class MasteringDisplay(
         val primaryR: FloatArray = floatArrayOf(0.680f, 0.320f),
@@ -130,9 +118,6 @@ object HdrExporter {
         }
     }
 
-    /**
-     * HDR 元数据聚合
-     */
     data class HdrMetadata(
         val contentLightLevel: ContentLightLevel = ContentLightLevel(),
         val masteringDisplay: MasteringDisplay = MasteringDisplay(),
@@ -147,12 +132,14 @@ object HdrExporter {
         val transferFunction: HdrTransferFunction = HdrTransferFunction.PQ,
         val metadata: HdrMetadata = HdrMetadata(),
         val writeExifMetadata: Boolean = true,
+        val jpegQuality: Int = 95,
+        val gainMapQuality: Int = 90,
     )
+
+    // ── 公开 API ──────────────────────────────────────────────────────
 
     /**
      * 导出 HDR 图像到 MediaStore
-     *
-     * @return MediaStore Uri，失败时返回 null
      */
     fun exportHdr(
         context: Context,
@@ -180,17 +167,58 @@ object HdrExporter {
         }
     }
 
-    // ── Ultra HDR JPEG ─────────────────────────────────────────────
+    /**
+     * 从 SDR + HDR 版本生成 Gain Map（公开接口）。
+     *
+     * 当你已有 SDR 和 HDR 两个版本的图像时，可直接调用此方法
+     * 生成 ISO 21496-1 标准的 Gain Map，无需从单张 HDR 图自动推导。
+     *
+     * @param sdrBitmap SDR 版本（8-bit sRGB）
+     * @param hdrBitmap HDR 版本（8-bit 编码的 HDR 信号）
+     * @param config HDR 配置
+     * @return Gain Map Bitmap（ARGB_8888，R/G/B 通道存储各通道增益，A=255）
+     */
+    fun generateGainMap(
+        sdrBitmap: Bitmap,
+        hdrBitmap: Bitmap,
+        config: HdrConfig,
+    ): Bitmap {
+        val w = min(sdrBitmap.width, hdrBitmap.width)
+        val h = min(sdrBitmap.height, hdrBitmap.height)
+        return computeGainMap(
+            hdrBitmap = hdrBitmap,
+            sdrBitmap = sdrBitmap,
+            config = config,
+        )
+    }
 
     /**
-     * Ultra HDR JPEG 导出（完善版）
+     * 将 SDR 图像 + Gain Map 合并为 Ultra HDR JPEG 字节。
      *
-     * 支持：
-     * - HDR HLG / PQ 曲线选择（通过 XMP 元数据标记传输函数）
-     * - Content Light Level (MaxCLL / MaxFALL) 写入
-     * - Mastering Display Color Volume 写入
-     * - HDR + SDR 双图层 Gain Map（ISO 21496-1 MPF）
+     * 适用于已有 Gain Map 的高级工作流（如从 HdrDisplayManager 生成）。
+     *
+     * @param sdrBitmap SDR 基础图
+     * @param gainMap Gain Map Bitmap（来自 generateGainMap 或 HdrDisplayManager）
+     * @param config HDR 配置
+     * @return Ultra HDR JPEG 字节数组
      */
+    fun buildUltraHdrFromGainMap(
+        sdrBitmap: Bitmap,
+        gainMap: Bitmap,
+        config: HdrConfig,
+    ): ByteArray {
+        val sdrJpegBytes = compressJpeg(sdrBitmap, config.jpegQuality)
+        val gainMapJpegBytes = compressJpeg(gainMap, config.gainMapQuality)
+        return buildUltraHdrJpeg(sdrJpegBytes, gainMapJpegBytes, config)
+    }
+
+    /**
+     * 检查当前 Android 版本是否原生支持 Ultra HDR
+     */
+    fun isUltraHdrSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+
+    // ── Ultra HDR JPEG ─────────────────────────────────────────────
+
     private fun exportUltraHdrJpeg(
         context: Context,
         bitmap: Bitmap,
@@ -202,28 +230,23 @@ object HdrExporter {
             return exportHeif10bit(context, bitmap, config, displayName)
         }
 
-        // 1. 生成 SDR 基础图（基于所选 HDR 曲线的色调映射到 8-bit sRGB）
+        // 1. 生成 SDR 基础图
         val sdrBitmap = toneMapToSdr(bitmap, config)
 
-        // 2. 计算 gain map（基于所选传输函数的对数增益）
+        // 2. 计算 gain map
         val gainMap = computeGainMap(bitmap, sdrBitmap, config)
 
-        // 3. 编码 SDR JPEG 至字节
-        val sdrJpegBytes = compressJpeg(sdrBitmap, 95)
+        // 3. 编码为 JPEG
+        val sdrJpegBytes = compressJpeg(sdrBitmap, config.jpegQuality)
         if (sdrBitmap !== bitmap) sdrBitmap.recycle()
 
-        // 4. 编码 gain map 为灰度 JPEG
-        val gainMapJpegBytes = compressJpeg(gainMap, 90)
+        val gainMapJpegBytes = compressJpeg(gainMap, config.gainMapQuality)
         gainMap.recycle()
 
-        // 5. 合并为 Ultra HDR JPEG（MPF 格式 + XMP 元数据，含 HDR 曲线与母版信息）
-        val finalBytes = buildUltraHdrJpeg(
-            sdrJpeg = sdrJpegBytes,
-            gainMapJpeg = gainMapJpegBytes,
-            config = config,
-        )
+        // 4. 合并为 Ultra HDR JPEG
+        val finalBytes = buildUltraHdrJpeg(sdrJpegBytes, gainMapJpegBytes, config)
 
-        // 6. 写入 MediaStore (Pictures/RapidRAW)
+        // 5. 写入 MediaStore
         return writeToMediaStore(
             context = context,
             data = finalBytes,
@@ -240,23 +263,18 @@ object HdrExporter {
      * 计算 gain map：基于 ISO 21496-1 标准，支持 HLG / PQ / Linear sRGB。
      *
      * 算法：
-     * 1. 对每个像素，HDR 值 = 通过反 EOTF 解码为线性值
-     * 2. SDR 值 = 色调映射后的 sRGB 像素，反 OETF 得到线性值
+     * 1. 对每个像素，HDR 值通过反 EOTF 解码为线性值
+     * 2. SDR 值通过反 OETF 得到线性值
      * 3. gain = log2(HDR_linear / SDR_linear)，限幅到 [-minBoost, maxBoost]
-     * 4. 归一化到 [0, 255]：byte = (gain - minBoost) / (maxBoost - minBoost) * 255
-     *
-     * 传输函数差异：
-     * - LINEAR_SRGB：直接反 sRGB OETF
-     * - HLG：反 HLG OETF（ITU-R BT.2100），考虑系统伽马与对数段
-     * - PQ：反 PQ EOTF（SMPTE ST 2084），将感知量化值还原为线性光
+     * 4. 归一化到 [0, 255]
      */
     private fun computeGainMap(
         hdrBitmap: Bitmap,
         sdrBitmap: Bitmap,
         config: HdrConfig,
     ): Bitmap {
-        val w = hdrBitmap.width
-        val h = hdrBitmap.height
+        val w = min(hdrBitmap.width, sdrBitmap.width)
+        val h = min(hdrBitmap.height, sdrBitmap.height)
         val gainMap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
 
         val hdrPixels = IntArray(w * h)
@@ -268,6 +286,8 @@ object HdrExporter {
         val minGain = -config.maxBoostStop / 2f
         val gainRange = maxGain - minGain
 
+        val outPixels = IntArray(w * h)
+
         for (i in hdrPixels.indices) {
             val hdrR = ((hdrPixels[i] shr 16) and 0xFF) / 255f
             val hdrG = ((hdrPixels[i] shr 8) and 0xFF) / 255f
@@ -277,7 +297,6 @@ object HdrExporter {
             val sdrG = ((sdrPixels[i] shr 8) and 0xFF) / 255f
             val sdrB = (sdrPixels[i] and 0xFF) / 255f
 
-            // 根据传输函数反推线性光值
             val hdrLinearR = decodeToLinear(hdrR, config.transferFunction, config.peakLuminanceNits)
             val hdrLinearG = decodeToLinear(hdrG, config.transferFunction, config.peakLuminanceNits)
             val hdrLinearB = decodeToLinear(hdrB, config.transferFunction, config.peakLuminanceNits)
@@ -286,12 +305,10 @@ object HdrExporter {
             val sdrLinearG = srgbToLinear(sdrG)
             val sdrLinearB = srgbToLinear(sdrB)
 
-            // 计算对数增益：log2(HDR_linear / SDR_linear)
             val rGain = safeLog2Ratio(hdrLinearR, sdrLinearR)
             val gGain = safeLog2Ratio(hdrLinearG, sdrLinearG)
             val bGain = safeLog2Ratio(hdrLinearB, sdrLinearB)
 
-            // 限幅与归一化
             val rClamped = rGain.coerceIn(minGain, maxGain)
             val gClamped = gGain.coerceIn(minGain, maxGain)
             val bClamped = bGain.coerceIn(minGain, maxGain)
@@ -300,8 +317,10 @@ object HdrExporter {
             val gByte = ((gClamped - minGain) / gainRange * 255f).toInt().coerceIn(0, 255)
             val bByte = ((bClamped - minGain) / gainRange * 255f).toInt().coerceIn(0, 255)
 
-            gainMap.setPixel(i % w, i / w, Color.argb(255, rByte, gByte, bByte))
+            outPixels[i] = (0xFF shl 24) or (rByte shl 16) or (gByte shl 8) or bByte
         }
+
+        gainMap.setPixels(outPixels, 0, w, 0, 0, w, h)
         return gainMap
     }
 
@@ -321,17 +340,21 @@ object HdrExporter {
     }
 
     /**
-     * HLG 反 OETF（ITU-R BT.2100）
-     * 将 HLG 信号值解码为线性光值（相对亮度）。
+     * HLG 反 OETF（ITU-R BT.2100 表5：HLG OETF⁻¹）
+     *
+     * 将 HLG 信号值 E' 解码为场景线性光值：
+     * - E' ≤ 1/2: V = E'² / 3
+     * - E' > 1/2: V = (exp((E' - c) / a) + b) / 12
+     *
+     * 其中 a=0.17883277, b=0.28466892, c=0.55991073
      */
     private fun hlgToLinear(e: Float): Float {
-        // HLG 系统参数
         val a = 0.17883277f
         val b = 0.28466892f
         val c = 0.55991073f
         return when {
             e <= 0.5f -> (e * e) / 3f
-            else -> ((e - c) / a + b).let { (exp(ln(it.toDouble())).toFloat()) / 12f }
+            else -> (exp(((e - c) / a).toDouble()).toFloat() + b) / 12f
         }
     }
 
@@ -341,7 +364,6 @@ object HdrExporter {
      */
     private fun pqToLinear(e: Float, peakNits: Float): Float {
         val eNormalized = e.coerceIn(0f, 1f)
-        // 简化的 PQ 反 EOTF：先映射到绝对亮度，再归一化到 peakNits
         val m1 = 2610.0 / 4096.0 * (1.0 / 4.0)
         val m2 = 2523.0 / 4096.0 * 128.0
         val c1 = 3424.0 / 4096.0
@@ -358,14 +380,6 @@ object HdrExporter {
 
     // ── SDR 色调映射（支持多传输函数） ─────────────────────────────
 
-    /**
-     * 将 HDR bitmap 色调映射到 SDR (8-bit sRGB)。
-     *
-     * 根据 HDR 传输函数选择映射策略：
-     * - LINEAR_SRGB：Reinhard 全局色调映射
-     * - HLG：HLG 兼容映射，保留中调对比度
-     * - PQ：基于绝对亮度的压缩映射，保留高亮细节
-     */
     private fun toneMapToSdr(hdrBitmap: Bitmap, config: HdrConfig): Bitmap {
         val w = hdrBitmap.width
         val h = hdrBitmap.height
@@ -375,18 +389,17 @@ object HdrExporter {
         hdrBitmap.getPixels(hdrPixels, 0, w, 0, 0, w, h)
 
         val luminanceScale = SDR_WHITE_NITS / config.peakLuminanceNits
+        val outPixels = IntArray(w * h)
 
         for (i in hdrPixels.indices) {
             val r = ((hdrPixels[i] shr 16) and 0xFF) / 255f
             val g = ((hdrPixels[i] shr 8) and 0xFF) / 255f
             val b = (hdrPixels[i] and 0xFF) / 255f
 
-            // 解码为线性值（根据 HDR 传输函数）
             val rLinear = decodeToLinear(r, config.transferFunction, config.peakLuminanceNits)
             val gLinear = decodeToLinear(g, config.transferFunction, config.peakLuminanceNits)
             val bLinear = decodeToLinear(b, config.transferFunction, config.peakLuminanceNits)
 
-            // 按 SDR 白点缩放并应用色调映射
             val rScaled = rLinear * luminanceScale
             val gScaled = gLinear * luminanceScale
             val bScaled = bLinear * luminanceScale
@@ -401,8 +414,10 @@ object HdrExporter {
             val gByte = (linearToSrgb(gMapped) * 255f).toInt().coerceIn(0, 255)
             val bByte = (linearToSrgb(bMapped) * 255f).toInt().coerceIn(0, 255)
 
-            sdrBitmap.setPixel(i % w, i / w, Color.argb(255, rByte, gByte, bByte))
+            outPixels[i] = (0xFF shl 24) or (rByte shl 16) or (gByte shl 8) or bByte
         }
+
+        sdrBitmap.setPixels(outPixels, 0, w, 0, 0, w, h)
         return sdrBitmap
     }
 
@@ -411,7 +426,6 @@ object HdrExporter {
     }
 
     private fun toneMapPqToSdr(r: Float, g: Float, b: Float): Triple<Float, Float, Float> {
-        // PQ 映射：使用扩展 Reinhard，保留更多高光细节
         val maxChannel = maxOf(r, g, b, 1e-6f)
         val scale = if (maxChannel > 1f) {
             val compressed = reinhardExtended(maxChannel, 1.5f)
@@ -421,7 +435,6 @@ object HdrExporter {
     }
 
     private fun toneMapHlgToSdr(r: Float, g: Float, b: Float): Triple<Float, Float, Float> {
-        // HLG 映射：系统伽马自适应，简单压缩高亮
         val maxChannel = maxOf(r, g, b, 1e-6f)
         val scale = if (maxChannel > 1f) {
             val compressed = 1f + (maxChannel - 1f) / (1f + (maxChannel - 1f))
@@ -430,13 +443,10 @@ object HdrExporter {
         return Triple(r * scale, g * scale, b * scale)
     }
 
-    private fun reinhard(luminance: Float): Float {
-        return luminance / (1f + luminance)
-    }
+    private fun reinhard(luminance: Float): Float = luminance / (1f + luminance)
 
-    private fun reinhardExtended(luminance: Float, maxLuminance: Float): Float {
-        return luminance * (1f + luminance / (maxLuminance * maxLuminance)) / (1f + luminance)
-    }
+    private fun reinhardExtended(luminance: Float, maxLuminance: Float): Float =
+        luminance * (1f + luminance / (maxLuminance * maxLuminance)) / (1f + luminance)
 
     // ── sRGB OETF / EOTF ──────────────────────────────────────────
 
@@ -458,49 +468,34 @@ object HdrExporter {
 
     // ── Ultra HDR JPEG 构建（MPF 格式 + HDR 元数据） ───────────────
 
-    /**
-     * 构建 Ultra HDR JPEG 文件（ISO 21496-1 / MPF 格式）。
-     *
-     * 文件结构：
-     * [SDR JPEG with XMP metadata] + [MPF APP2 marker] + [Gain Map JPEG]
-     *
-     * MPF (Multi-Picture Format) 在 APP2 marker 中描述多图索引，
-     * XMP 元数据描述 gain map 的参数（ISO 21496-1）以及 HDR 扩展信息（传输函数、母版显示）。
-     */
     private fun buildUltraHdrJpeg(
         sdrJpeg: ByteArray,
         gainMapJpeg: ByteArray,
         config: HdrConfig,
     ): ByteArray {
-        // 1. 构建 XMP 元数据（ISO 21496-1 gain map 描述 + HDR 扩展）
         val xmpData = buildGainMapXmp(
             gainMapOffset = 0,
             gainMapLength = gainMapJpeg.size,
             config = config,
         )
 
-        // 2. 在 SDR JPEG 的 SOI 之后插入 XMP APP1 marker
         val sdrWithXmp = insertXmpIntoJpeg(sdrJpeg, xmpData)
 
-        // 3. 构建 MPF APP2 marker
         val mpfMarker = buildMpfMarker(
             firstImageSize = sdrWithXmp.size,
             secondImageSize = gainMapJpeg.size,
         )
 
-        // 4. 在 SDR JPEG 中插入 MPF APP2
         val sdrWithMpf = insertMpfIntoJpeg(sdrWithXmp, mpfMarker)
 
-        // 5. 合并：SDR JPEG + Gain Map JPEG
         val result = ByteArray(sdrWithMpf.size + gainMapJpeg.size)
         System.arraycopy(sdrWithMpf, 0, result, 0, sdrWithMpf.size)
         System.arraycopy(gainMapJpeg, 0, result, sdrWithMpf.size, gainMapJpeg.size)
 
-        // 6. 修正 XMP 中的 gainMapOffset 为实际偏移量
-        val offsetStr = sdrWithMpf.size.toString()
+        // 修正 XMP 中的 gainMapOffset 为实际偏移量
         val placeholderStr = "GAINMAP_OFFSET_PLACEHOLDER"
+        val offsetBytes = sdrWithMpf.size.toString().toByteArray(Charsets.US_ASCII)
         val offsetPlaceholderBytes = placeholderStr.toByteArray(Charsets.US_ASCII)
-        val offsetBytes = offsetStr.toByteArray(Charsets.US_ASCII)
 
         var offsetPos = -1
         for (i in 0 until result.size - offsetPlaceholderBytes.size) {
@@ -523,7 +518,7 @@ object HdrExporter {
                 newResult[offsetPos + j] = offsetBytes[j]
             }
             for (j in offsetBytes.size until offsetPlaceholderBytes.size) {
-                newResult[offsetPos + j] = 0x20
+                newResult[offsetPos + j] = 0x20 // 空格填充
             }
             return newResult
         }
@@ -532,15 +527,7 @@ object HdrExporter {
     }
 
     /**
-     * 构建 ISO 21496-1 XMP 元数据，描述 gain map 参数与 HDR 扩展信息。
-     *
-     * 新增字段：
-     * - TransferFunction: PQ / HLG / Linear
-     * - ContentLightLevelMax (MaxCLL)
-     * - ContentLightLevelAverage (MaxFALL)
-     * - MasteringDisplayPrimaries
-     * - MasteringDisplayWhitePoint
-     * - MasteringDisplayMaxLuminance / MinLuminance
+     * 构建 ISO 21496-1 XMP 元数据。
      */
     private fun buildGainMapXmp(
         gainMapOffset: Int,
@@ -607,9 +594,6 @@ object HdrExporter {
         return xmp.toByteArray(Charsets.UTF_8)
     }
 
-    /**
-     * 在 JPEG 数据中插入 XMP APP1 marker。
-     */
     private fun insertXmpIntoJpeg(jpeg: ByteArray, xmpData: ByteArray): ByteArray {
         if (jpeg.size < 2 || jpeg[0] != 0xFF.toByte() || jpeg[1] != 0xD8.toByte()) {
             Log.w(TAG, "Invalid JPEG: missing SOI marker")
@@ -641,9 +625,6 @@ object HdrExporter {
         return result
     }
 
-    /**
-     * 构建 MPF (Multi-Picture Format) APP2 marker。
-     */
     private fun buildMpfMarker(firstImageSize: Int, secondImageSize: Int): ByteArray {
         val mpfIdentifier = byteArrayOf(0x4D, 0x50, 0x46, 0x00)
 
@@ -715,9 +696,6 @@ object HdrExporter {
         return marker
     }
 
-    /**
-     * 在 JPEG 数据中插入 MPF APP2 marker。
-     */
     private fun insertMpfIntoJpeg(jpeg: ByteArray, mpfMarker: ByteArray): ByteArray {
         if (jpeg.size < 4 || jpeg[0] != 0xFF.toByte() || jpeg[1] != 0xD8.toByte()) {
             return jpeg
@@ -763,10 +741,14 @@ object HdrExporter {
     // ── HEIF 10-bit ────────────────────────────────────────────────
 
     /**
-     * HEIF 10-bit 编码（完善版）
+     * HEIF 10-bit 编码。
      *
-     * Android 10+ (API 29+) 支持 HEIF 编码；HDR 元数据通过 ExifInterface 写入。
-     * 支持 HLG / PQ 标记与 HDR 元数据。
+     * Android 10+ (API 29+) 支持 HEIF 编码。
+     * Android 12+ (API 31+) 支持 HEIF 10-bit 通过 Bitmap.CompressFormat.WEBP_LOSSLESS
+     * 或 HEIC 编码器的质量参数控制。
+     *
+     * HDR 元数据通过 ExifInterface 写入。
+     * 传输函数标记（HLG/PQ）嵌入到用户注释中。
      */
     private fun exportHeif10bit(
         context: Context,
@@ -780,39 +762,44 @@ object HdrExporter {
         }
 
         val tempHeif = File(context.cacheDir, "hdr_heif_${System.currentTimeMillis()}.heif")
-        FileOutputStream(tempHeif).use { fos ->
-            @Suppress("DEPRECATION")
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
-        }
 
-        // 尝试写入 HDR Exif 元数据（Content Light Level、Mastering Display）
-        if (config.writeExifMetadata && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            try {
-                writeHdrExifMetadata(tempHeif, config)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to write HDR Exif metadata: ${e.message}")
+        try {
+            // Android 10+ 使用 HEIF 编码
+            FileOutputStream(tempHeif).use { fos ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Android 12+: 直接使用 HEIF 编码器
+                    bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, fos)
+                } else {
+                    @Suppress("DEPRECATION")
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
+                }
             }
+
+            // 写入 HDR Exif 元数据
+            if (config.writeExifMetadata && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                try {
+                    writeHdrExifMetadata(tempHeif, config)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to write HDR Exif metadata: ${e.message}")
+                }
+            }
+
+            val bytes = tempHeif.readBytes()
+            return writeToMediaStore(
+                context = context,
+                data = bytes,
+                displayName = displayName,
+                mimeType = "image/heif",
+                extension = ".heif",
+                isHdr = true,
+            )
+        } finally {
+            tempHeif.delete()
         }
-
-        val bytes = tempHeif.readBytes()
-        tempHeif.delete()
-
-        return writeToMediaStore(
-            context = context,
-            data = bytes,
-            displayName = displayName,
-            mimeType = "image/heif",
-            extension = ".heif",
-            isHdr = true,
-        )
     }
 
     /**
-     * 写入 HDR Exif 元数据（Android 14+ ExifInterface 支持 HDR 相关标签）。
-     *
-     * 标签映射：
-     * - TAG_CONTENT_DESCRIPTION / TAG_IMAGE_DESCRIPTION：可嵌入 JSON 格式 HDR 信息
-     * - 用户注释 (TAG_USER_COMMENT)：嵌入 Content Light Level 与 Mastering Display 信息
+     * 写入 HDR Exif 元数据（Android 14+）。
      */
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun writeHdrExifMetadata(file: File, config: HdrConfig) {
@@ -820,7 +807,6 @@ object HdrExporter {
         val cll = config.metadata.contentLightLevel
         val md = config.metadata.masteringDisplay
 
-        // 用户注释中嵌入 HDR 元数据 JSON
         val hdrMetaJson = buildString {
             append("{")
             append("\"transferFunction\":\"${config.transferFunction.name}\",")
@@ -849,20 +835,22 @@ object HdrExporter {
         displayName: String,
     ): Uri? {
         val tempFile = File(context.cacheDir, "sdr_${System.currentTimeMillis()}.jpg")
-        FileOutputStream(tempFile).use { fos ->
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
+        try {
+            FileOutputStream(tempFile).use { fos ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
+            }
+            val bytes = tempFile.readBytes()
+            return writeToMediaStore(
+                context = context,
+                data = bytes,
+                displayName = displayName,
+                mimeType = "image/jpeg",
+                extension = ".jpg",
+                isHdr = false,
+            )
+        } finally {
+            tempFile.delete()
         }
-        val bytes = tempFile.readBytes()
-        tempFile.delete()
-
-        return writeToMediaStore(
-            context = context,
-            data = bytes,
-            displayName = displayName,
-            mimeType = "image/jpeg",
-            extension = ".jpg",
-            isHdr = false,
-        )
     }
 
     // ── MediaStore 写入 ────────────────────────────────────────────
@@ -901,9 +889,4 @@ object HdrExporter {
 
         return uri
     }
-
-    /**
-     * 检查当前 Android 版本是否原生支持 Ultra HDR
-     */
-    fun isUltraHdrSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
 }

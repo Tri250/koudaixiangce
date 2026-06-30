@@ -787,6 +787,7 @@ fun EditorScreen(
                                 val label = when (mode) {
                                     ScopeMode.WAVEFORM -> "波形"
                                     ScopeMode.PARADE -> "RGB"
+                                    ScopeMode.RGB_OVERLAY -> "叠加"
                                     ScopeMode.VECTORSCOPE -> "矢量"
                                 }
                                 Text(

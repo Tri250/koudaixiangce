@@ -34,7 +34,7 @@ enum class TagCategory(val displayName: String) {
 
 class AiSemanticTagger(context: Context) {
 
-    private val engine = InferenceEngine(context)
+    private val engine = InferenceEngine.getInstance(context)
     private var isModelLoaded = false
     private val isCancelled = AtomicBoolean(false)
 
@@ -392,7 +392,10 @@ class AiSemanticTagger(context: Context) {
         isCancelled.set(true)
     }
 
-    fun close() = engine.close()
+    fun close() {
+        // 不关闭共享的 InferenceEngine 单例
+        // 若需释放所有资源，调用 InferenceEngine.destroyInstance()
+    }
 
     companion object {
         private const val CONFIDENCE_THRESHOLD = 0.3f

@@ -333,7 +333,14 @@ private fun RecipeCard(
 
             // 分享
             Row(
-                modifier = Modifier.clickable { /* TODO: 分享配方 */ },
+                modifier = Modifier.clickable {
+                    val sendIntent = android.content.Intent().apply {
+                        action = android.content.Intent.ACTION_SEND
+                        putExtra(android.content.Intent.EXTRA_TEXT, "RapidRAW 配方: ${recipe.name}")
+                        type = "text/plain"
+                    }
+                    context.startActivity(android.content.Intent.createChooser(sendIntent, "分享配方"))
+                },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(

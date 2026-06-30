@@ -8,6 +8,7 @@ enum class SceneType(val displayName: String) {
     PORTRAIT("人像"),
     LANDSCAPE("风景"),
     NIGHT("夜景"),
+    SUNSET("日落"),
     FOOD("美食"),
     ARCHITECTURE("建筑"),
     PET("宠物"),
@@ -16,6 +17,7 @@ enum class SceneType(val displayName: String) {
     BEACH("海滩"),
     SNOW("雪景"),
     INDOOR("室内"),
+    MACRO("微距"),
     GENERAL("通用"),
 }
 

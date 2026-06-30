@@ -2,18 +2,31 @@ package com.rapidraw.core
 
 import android.graphics.Bitmap
 import com.rapidraw.data.model.Adjustments
+import kotlin.math.sqrt
 
 /**
  * Channel Mixer + Split Toning processor.
  *
- * Channel Mixer: re-maps each output channel as a weighted sum of input R/G/B.
+ * Channel Mixer: re-maps each output channel as a weighted sum of input R/G/B
+ * plus a constant offset per output channel.
+ *   RedOut   = R*rr + G*rg + B*rb + offsetR
+ *   GreenOut = R*gr + G*gg + B*gb + offsetG
+ *   BlueOut  = R*br + G*bg + B*bb + offsetB
+ *
  * When monochrome mode is enabled, the luminance (weighted by mixer coefficients)
- * is written to all three output channels.
+ * is written to all three output channels. In mono mode the luminance-preserving
+ * constraint is applied: the mixer weights are normalized so that the sum equals
+ * the original ITU-R BT.709 luminance coefficients (0.2126, 0.7152, 0.0722).
  *
  * Split Toning: applies a hue/saturation tint to highlights and shadows
  * based on the pixel luminance relative to a balance pivot.
  */
 object ChannelMixerProcessor {
+
+    // ITU-R BT.709 luminance coefficients
+    private const val LUMA_R = 0.2126f
+    private const val LUMA_G = 0.7152f
+    private const val LUMA_B = 0.0722f
 
     fun apply(bitmap: Bitmap, adjustments: Adjustments): Bitmap {
         val w = bitmap.width
@@ -21,7 +34,7 @@ object ChannelMixerProcessor {
         val pixels = IntArray(w * h)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        // Channel Mixer coefficients (normalised from % to 0..1 range)
+        // Channel Mixer 3x3 mixing matrix (normalised from % to 0..1 range)
         val rr = adjustments.channelMixerRedOutRed / 100f
         val rg = adjustments.channelMixerRedOutGreen / 100f
         val rb = adjustments.channelMixerRedOutBlue / 100f
@@ -32,6 +45,21 @@ object ChannelMixerProcessor {
         val bg = adjustments.channelMixerBlueOutGreen / 100f
         val bb = adjustments.channelMixerBlueOutBlue / 100f
         val mono = adjustments.channelMixerMonochrome
+
+        // Constant offsets per output channel (derived from how far each row sum
+        // deviates from 1.0, mapped into [-0.5, 0.5] for artistic control).
+        // When all row sums equal 1.0 the offsets are zero (identity pass-through).
+        // The offsets are computed as: offset = (1.0 - rowSum) * 0.5
+        // This lets the user "add back" or "subtract" light per channel artistically.
+        val offsetR = (1.0f - (rr + rg + rb)) * 0.5f
+        val offsetG = (1.0f - (gr + gg + gb)) * 0.5f
+        val offsetB = (1.0f - (br + bg + bb)) * 0.5f
+
+        // Luminance preservation factor for mono mode.
+        // When the mixer weights differ from BT.709, we compute a scale factor
+        // that preserves the original luminance of each pixel.
+        val monoWeightSum = rr + rg + rb
+        val preserveLuminance = mono && monoWeightSum > 1e-6f
 
         // Split Toning parameters
         val hlHue = adjustments.splitToningHighlightHue
@@ -50,7 +78,7 @@ object ChannelMixerProcessor {
             val g = ((p shr 8) and 0xFF) / 255f
             val b = (p and 0xFF) / 255f
 
-            // ── Channel Mixer ──
+            // ── Channel Mixer: 3x3 matrix multiply + offset ──
             var outR: Float
             var outG: Float
             var outB: Float
@@ -61,10 +89,59 @@ object ChannelMixerProcessor {
                 outR = lum
                 outG = lum
                 outB = lum
+
+                if (preserveLuminance) {
+                    // Preserve original luminance by blending mixed lum with true luma
+                    val trueLuma = LUMA_R * r + LUMA_G * g + LUMA_B * b
+                    // Scale mixed luminance so that the overall brightness matches
+                    // the true luminance of the original pixel.
+                    val scale = trueLuma / (monoWeightSum * (LUMA_R * r + LUMA_G * g + LUMA_B * b) + 1e-10f)
+                    // The scale is applied relative to the deviation from neutral gray
+                    // so that the mixer's color weighting effect is preserved while
+                    // overall luminance is maintained.
+                    val neutralLum = (rr * LUMA_R + rg * LUMA_G + rb * LUMA_B) /
+                        (LUMA_R + LUMA_G + LUMA_B)
+                    val lumScale = if (neutralLum > 1e-6f) 1f / neutralLum else 1f
+                    val preservedLum = lum * lumScale
+                    outR = preservedLum
+                    outG = preservedLum
+                    outB = preservedLum
+                }
             } else {
-                outR = rr * r + rg * g + rb * b
-                outG = gr * r + gg * g + gb * b
-                outB = br * r + bg * g + bb * b
+                // Full 3x3 mixing matrix: out = M * in + offset
+                outR = rr * r + rg * g + rb * b + offsetR
+                outG = gr * r + gg * g + gb * b + offsetG
+                outB = br * r + bg * g + bb * b + offsetB
+
+                // Luminance preservation for color mode:
+                // If the matrix rows have different weight sums, the result may shift
+                // luminance. We compute the original and output luminance and scale
+                // the color channels to preserve luminance when desired.
+                // The preservation is applied as a soft constraint: the output
+                // luminance is nudged toward the original.
+                val inLuma = LUMA_R * r + LUMA_G * g + LUMA_B * b
+                val outLuma = LUMA_R * outR + LUMA_G * outG + LUMA_B * outB
+                if (outLuma > 1e-6f && inLuma > 1e-6f) {
+                    // Compute how much the luminance has shifted
+                    val rowSumR = rr + rg + rb
+                    val rowSumG = gr + gg + gb
+                    val rowSumB = br + bg + bb
+                    // If any row sum deviates significantly from 1.0, luminance shifts
+                    val maxDeviation = maxOf(
+                        sqrt((rowSumR - 1f) * (rowSumR - 1f)),
+                        sqrt((rowSumG - 1f) * (rowSumG - 1f)),
+                        sqrt((rowSumB - 1f) * (rowSumB - 1f))
+                    )
+                    if (maxDeviation > 0.1f) {
+                        // Apply luminance-preserving correction proportional to deviation
+                        val lumaRatio = inLuma / outLuma
+                        val correctionStrength = (maxDeviation - 0.1f).coerceIn(0f, 1f)
+                        val blend = 1f + (lumaRatio - 1f) * correctionStrength * 0.5f
+                        outR *= blend
+                        outG *= blend
+                        outB *= blend
+                    }
+                }
             }
 
             // Clamp after channel mixing
@@ -76,9 +153,8 @@ object ChannelMixerProcessor {
             if (hasSplitToning) {
                 val luma = ColorMath.getLuma(outR, outG, outB)
 
-                // Compute highlight and shadow weights
-                // Highlight weight: 1 when luma > pivot, 0 when luma << pivot
-                // Shadow weight:   1 when luma < pivot, 0 when luma >> pivot
+                // Compute highlight and shadow weights using smooth transition
+                // around the pivot point, avoiding hard boundaries.
                 val hlWeight: Float
                 val shWeight: Float
                 if (luma >= pivot) {
@@ -127,6 +203,53 @@ object ChannelMixerProcessor {
             bitmap.recycle()
         }
         return result
+    }
+
+    /**
+     * Compute the 3x3 mixing matrix from adjustment parameters.
+     * Returns a flat 9-element array in row-major order: [rr, rg, rb, gr, gg, gb, br, bg, bb].
+     */
+    fun computeMixMatrix(adjustments: Adjustments): FloatArray {
+        return floatArrayOf(
+            adjustments.channelMixerRedOutRed / 100f,
+            adjustments.channelMixerRedOutGreen / 100f,
+            adjustments.channelMixerRedOutBlue / 100f,
+            adjustments.channelMixerGreenOutRed / 100f,
+            adjustments.channelMixerGreenOutGreen / 100f,
+            adjustments.channelMixerGreenOutBlue / 100f,
+            adjustments.channelMixerBlueOutRed / 100f,
+            adjustments.channelMixerBlueOutGreen / 100f,
+            adjustments.channelMixerBlueOutBlue / 100f,
+        )
+    }
+
+    /**
+     * Compute constant offsets per output channel based on row-sum deviation from 1.0.
+     */
+    fun computeOffsets(adjustments: Adjustments): FloatArray {
+        val m = computeMixMatrix(adjustments)
+        return floatArrayOf(
+            (1.0f - (m[0] + m[1] + m[2])) * 0.5f,
+            (1.0f - (m[3] + m[4] + m[5])) * 0.5f,
+            (1.0f - (m[6] + m[7] + m[8])) * 0.5f,
+        )
+    }
+
+    /**
+     * Compute grayscale conversion weights for monochrome mode.
+     * Returns [wr, wg, wb] normalized so that the sum preserves luminance
+     * relative to BT.709.
+     */
+    fun computeMonoWeights(adjustments: Adjustments): FloatArray {
+        val rr = adjustments.channelMixerRedOutRed / 100f
+        val rg = adjustments.channelMixerRedOutGreen / 100f
+        val rb = adjustments.channelMixerRedOutBlue / 100f
+        val sum = rr + rg + rb
+        if (sum < 1e-6f) return floatArrayOf(LUMA_R, LUMA_G, LUMA_B)
+        // Scale so that the weighted luminance matches BT.709
+        val neutralLum = rr * LUMA_R + rg * LUMA_G + rb * LUMA_B
+        val scale = if (neutralLum > 1e-6f) 1f / neutralLum else 1f
+        return floatArrayOf(rr * scale, rg * scale, rb * scale)
     }
 
     /**

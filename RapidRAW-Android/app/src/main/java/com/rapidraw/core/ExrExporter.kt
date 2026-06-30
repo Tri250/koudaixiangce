@@ -10,52 +10,93 @@ import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.zip.Deflater
 
 /**
  * Pure Kotlin OpenEXR encoder.
- * Supports 16-bit half-float and 32-bit float RGBA output.
+ * Implements the OpenEXR binary format specification (version 2, single-part scanline).
+ *
+ * Supported features:
+ * - 16-bit half-float (PixelType.HALF) and 32-bit float (PixelType.FLOAT) pixel data
+ * - RGB (3-channel) and RGBA (4-channel) output
+ * - No compression, ZIPS (per-scanline deflate), and ZIP (32-scanline block deflate)
+ * - Scanline-based file layout with proper offset table
+ * - Correct OpenEXR header with channel list, data/display windows, and line order
  */
 object ExrExporter {
 
-    enum class PixelType { HALF, FLOAT }
+    enum class PixelType(val code: Int) {
+        HALF(1),
+        FLOAT(2),
+    }
+
+    enum class Compression(val code: Int, val scanlinesPerBlock: Int) {
+        NONE(0, 1),
+        ZIPS(2, 1),
+        ZIP(3, 32),
+    }
+
+    enum class ChannelMode(val channels: List<String>) {
+        // EXR channels must be listed alphabetically in the header
+        RGB(listOf("B", "G", "R")),
+        RGBA(listOf("A", "B", "G", "R")),
+    }
+
+    data class ExrConfig(
+        val pixelType: PixelType = PixelType.HALF,
+        val compression: Compression = Compression.ZIPS,
+        val channelMode: ChannelMode = ChannelMode.RGBA,
+    )
 
     /**
      * Write EXR data directly to an OutputStream.
      */
-    fun writeExr(bitmap: Bitmap, out: OutputStream, pixelType: PixelType = PixelType.HALF) {
+    fun writeExr(bitmap: Bitmap, out: OutputStream, config: ExrConfig = ExrConfig()) {
         val w = bitmap.width
         val h = bitmap.height
-        val channels = listOf("R", "G", "B", "A")
+        val channels = config.channelMode.channels
+        val compression = config.compression
 
-        val headerBytes = buildHeader(w, h, channels, pixelType)
+        // --- Magic number and version field ---
+        // Magic: 0x762f3101 (little-endian)
+        // Version: 2, single-part scanline (no flags set)
+        val headerBytes = buildHeader(w, h, channels, config.pixelType, compression)
 
-        val numScanlines = h
-        val offsetTableSize = numScanlines * 8L
-        val headerEndOffset = 4 + 4 + headerBytes.size // magic + version + header
-        val offsetTableOffset = headerEndOffset
-        val pixelDataStartOffset = offsetTableOffset + offsetTableSize
+        // Number of scanline blocks depends on compression type
+        val numBlocks = (h + compression.scanlinesPerBlock - 1) / compression.scanlinesPerBlock
+        val headerSize = 4 + 4 + headerBytes.size // magic(4) + version(4) + header bytes
+        val offsetTableSize = numBlocks.toLong() * 8
 
-        val scanlineData = buildScanlineData(bitmap, pixelType)
+        // Build all scanline blocks (with compression applied)
+        val blocks = buildScanlineBlocks(bitmap, config)
 
-        // Offset table
-        val offsetTable = ByteArray(numScanlines * 8)
-        val offsetBuf = ByteBuffer.wrap(offsetTable).order(ByteOrder.LITTLE_ENDIAN)
-        var currentOffset = pixelDataStartOffset
-        for (i in 0 until numScanlines) {
-            offsetBuf.putLong(currentOffset)
-            currentOffset += scanlineData[i].size
+        // --- Build the offset table ---
+        // Each entry is an int64 file-offset pointing to the start of a scanline block.
+        val offsetTable = ByteBuffer.allocate(numBlocks * 8).order(ByteOrder.LITTLE_ENDIAN)
+        var currentOffset = headerSize + offsetTableSize
+        for (block in blocks) {
+            offsetTable.putLong(currentOffset)
+            currentOffset += block.size
         }
 
-        // Write file
-        val magic = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0x762f3101).array()
-        val version = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(2).array()
-
-        out.write(magic)
-        out.write(version)
+        // --- Write the file ---
+        out.write(ByteArray(4).also { buf ->
+            ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).putInt(0x762f3101)
+        })
+        out.write(ByteArray(4).also { buf ->
+            ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).putInt(2)
+        })
         out.write(headerBytes)
-        out.write(offsetTable)
-        for (scanline in scanlineData) {
-            out.write(scanline)
+        offsetTable.flip()
+        if (offsetTable.hasArray()) {
+            out.write(offsetTable.array(), offsetTable.arrayOffset(), offsetTable.remaining())
+        } else {
+            val tmp = ByteArray(offsetTable.remaining())
+            offsetTable.get(tmp)
+            out.write(tmp)
+        }
+        for (block in blocks) {
+            out.write(block)
         }
     }
 
@@ -65,15 +106,15 @@ object ExrExporter {
     fun export(
         bitmap: Bitmap,
         context: Context,
-        pixelType: PixelType = PixelType.HALF,
-        fileName: String = "RapidRAW_${System.currentTimeMillis()}.exr"
+        config: ExrConfig = ExrConfig(),
+        fileName: String = "RapidRAW_${System.currentTimeMillis()}.exr",
     ): Uri {
         val cacheDir = context.cacheDir
         val tempFile = java.io.File(cacheDir, "export_exr_${System.currentTimeMillis()}.exr")
 
         try {
             tempFile.outputStream().use { fos ->
-                writeExr(bitmap, fos, pixelType)
+                writeExr(bitmap, fos, config)
             }
 
             val contentValues = ContentValues().apply {
@@ -107,70 +148,188 @@ object ExrExporter {
         }
     }
 
-    private fun buildHeader(w: Int, h: Int, channels: List<String>, pixelType: PixelType): ByteArray {
+    // ---------------------------------------------------------------------------
+    // Header construction
+    // ---------------------------------------------------------------------------
+
+    private fun buildHeader(
+        w: Int,
+        h: Int,
+        channels: List<String>,
+        pixelType: PixelType,
+        compression: Compression,
+    ): ByteArray {
         val baos = ByteArrayOutputStream()
 
-        // channels attribute
+        // channels attribute – chlist
         writeAttribute(baos, "channels", "chlist") {
             for (ch in channels) {
                 writeNullTerminatedString(it, ch)
-                writeInt(it, if (pixelType == PixelType.HALF) 1 else 2) // 1=HALF, 2=FLOAT
+                // pixelType: 1=HALF, 2=FLOAT
+                writeInt(it, pixelType.code)
                 it.write(0) // pLinear
                 it.write(byteArrayOf(0, 0, 0)) // reserved
                 writeInt(it, 1) // xSampling
                 writeInt(it, 1) // ySampling
             }
-            it.write(0) // end of channel list
+            it.write(0) // null-terminator ends the channel list
         }
 
-        // compression = none
+        // compression attribute
         writeAttribute(baos, "compression", "compression") {
-            it.write(0) // NO_COMPRESSION
+            it.write(compression.code)
         }
 
-        // dataWindow
+        // dataWindow – box2i (xMin, yMin, xMax, yMax)
         writeAttribute(baos, "dataWindow", "box2i") {
-            writeInt(it, 0)
-            writeInt(it, 0)
-            writeInt(it, w - 1)
-            writeInt(it, h - 1)
+            writeInt(it, 0); writeInt(it, 0)
+            writeInt(it, w - 1); writeInt(it, h - 1)
         }
 
-        // displayWindow
+        // displayWindow – box2i
         writeAttribute(baos, "displayWindow", "box2i") {
-            writeInt(it, 0)
-            writeInt(it, 0)
-            writeInt(it, w - 1)
-            writeInt(it, h - 1)
+            writeInt(it, 0); writeInt(it, 0)
+            writeInt(it, w - 1); writeInt(it, h - 1)
         }
 
-        // lineOrder
+        // lineOrder – INCREASING_Y
         writeAttribute(baos, "lineOrder", "lineOrder") {
-            it.write(0) // INCREASING_Y
+            it.write(0)
         }
 
-        // pixelAspectRatio
+        // pixelAspectRatio – float
         writeAttribute(baos, "pixelAspectRatio", "float") {
             writeFloat(it, 1.0f)
         }
 
-        // screenWindowCenter
+        // screenWindowCenter – v2f
         writeAttribute(baos, "screenWindowCenter", "v2f") {
             writeFloat(it, 0.0f)
             writeFloat(it, 0.0f)
         }
 
-        // screenWindowWidth
+        // screenWindowWidth – float
         writeAttribute(baos, "screenWindowWidth", "float") {
             writeFloat(it, 1.0f)
         }
 
-        baos.write(0) // end of header
+        // End of header
+        baos.write(0)
 
         return baos.toByteArray()
     }
 
-    private fun writeAttribute(baos: ByteArrayOutputStream, name: String, type: String, writer: (ByteArrayOutputStream) -> Unit) {
+    // ---------------------------------------------------------------------------
+    // Scanline block construction
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Build scanline blocks according to the compression mode.
+     * Each block is: [y_coordinate: Int32][data_size: Int32][pixel_data]
+     * For compressed blocks, pixel_data contains the deflated raw data.
+     */
+    private fun buildScanlineBlocks(bitmap: Bitmap, config: ExrConfig): List<ByteArray> {
+        val w = bitmap.width
+        val h = bitmap.height
+        val channels = config.channelMode.channels
+        val pixelType = config.pixelType
+        val compression = config.compression
+        val blockHeight = compression.scanlinesPerBlock
+
+        // Extract all pixels once
+        val pixels = IntArray(w * h)
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        val channelSize = if (pixelType == PixelType.HALF) 2 else 4
+        val numChannels = channels.size
+        val bytesPerScanline = w * channelSize * numChannels
+
+        val blocks = mutableListOf<ByteArray>()
+        var y = 0
+
+        while (y < h) {
+            val blockEnd = minOf(y + blockHeight, h)
+            val linesInBlock = blockEnd - y
+
+            // Build raw pixel data for all scanlines in this block
+            val rawSize = linesInBlock * bytesPerScanline
+            val rawBuf = ByteBuffer.allocate(rawSize).order(ByteOrder.LITTLE_ENDIAN)
+
+            for (line in y until blockEnd) {
+                for (channelName in channels) {
+                    for (x in 0 until w) {
+                        val pixel = pixels[line * w + x]
+                        val intValue = when (channelName) {
+                            "R" -> (pixel shr 16) and 0xFF
+                            "G" -> (pixel shr 8) and 0xFF
+                            "B" -> pixel and 0xFF
+                            "A" -> (pixel shr 24) and 0xFF
+                            else -> 0
+                        }
+                        val value = intValue / 255f
+
+                        if (pixelType == PixelType.HALF) {
+                            val half = floatToHalf(value)
+                            rawBuf.putShort(half)
+                        } else {
+                            rawBuf.putFloat(value)
+                        }
+                    }
+                }
+            }
+
+            rawBuf.flip()
+            val rawData = ByteArray(rawBuf.remaining())
+            rawBuf.get(rawData)
+
+            // Apply compression
+            val pixelData = when (compression) {
+                Compression.NONE -> rawData
+                Compression.ZIPS, Compression.ZIP -> deflateBlock(rawData)
+            }
+
+            // Build the block: [y_coordinate][data_size][pixel_data]
+            val baos = ByteArrayOutputStream()
+            writeInt(baos, y) // y coordinate of first scanline in block
+            writeInt(baos, pixelData.size) // size of (possibly compressed) data
+            baos.write(pixelData)
+
+            blocks.add(baos.toByteArray())
+            y = blockEnd
+        }
+
+        return blocks
+    }
+
+    /**
+     * Deflate-compress a block of raw pixel data.
+     * Uses Deflater with BEST_SPEED for a good balance of speed vs ratio.
+     */
+    private fun deflateBlock(rawData: ByteArray): ByteArray {
+        val deflater = Deflater(Deflater.BEST_SPEED, true) // nowrap = true (zlib without header)
+        deflater.setInput(rawData)
+        deflater.finish()
+
+        val baos = ByteArrayOutputStream(rawData.size / 2)
+        val buffer = ByteArray(8192)
+        while (!deflater.finished()) {
+            val n = deflater.deflate(buffer)
+            if (n > 0) baos.write(buffer, 0, n)
+        }
+        deflater.end()
+        return baos.toByteArray()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Attribute writers
+    // ---------------------------------------------------------------------------
+
+    private fun writeAttribute(
+        baos: ByteArrayOutputStream,
+        name: String,
+        type: String,
+        writer: (ByteArrayOutputStream) -> Unit,
+    ) {
         val valueBaos = ByteArrayOutputStream()
         writer(valueBaos)
         val valueBytes = valueBaos.toByteArray()
@@ -182,7 +341,7 @@ object ExrExporter {
     }
 
     private fun writeNullTerminatedString(os: ByteArrayOutputStream, s: String) {
-        os.write(s.toByteArray(Charsets.UTF_8))
+        os.write(s.toByteArray(Charsets.US_ASCII))
         os.write(0)
     }
 
@@ -196,76 +355,56 @@ object ExrExporter {
         os.write(buf)
     }
 
-    private fun buildScanlineData(bitmap: Bitmap, pixelType: PixelType): List<ByteArray> {
-        val w = bitmap.width
-        val h = bitmap.height
-        val pixels = IntArray(w * h)
-        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
-
-        val channelSize = if (pixelType == PixelType.HALF) 2 else 4
-        val bytesPerLine = w * channelSize * 4 // RGBA
-
-        return (0 until h).map { y ->
-            val baos = ByteArrayOutputStream()
-            writeInt(baos, y) // y coordinate
-            writeInt(baos, bytesPerLine) // data size (uncompressed)
-
-            for (ch in 0..3) {
-                for (x in 0 until w) {
-                    val pixel = pixels[y * w + x]
-                    val intValue = when (ch) {
-                        0 -> (pixel shr 16) and 0xFF // R
-                        1 -> (pixel shr 8) and 0xFF  // G
-                        2 -> pixel and 0xFF          // B
-                        else -> (pixel shr 24) and 0xFF // A
-                    }
-                    val value = intValue / 255f
-
-                    if (pixelType == PixelType.HALF) {
-                        val half = floatToHalf(value)
-                        baos.write(half.toInt() and 0xFF)
-                        baos.write((half.toInt() shr 8) and 0xFF)
-                    } else {
-                        writeFloat(baos, value)
-                    }
-                }
-            }
-
-            baos.toByteArray()
-        }
-    }
+    // ---------------------------------------------------------------------------
+    // Float ↔ Half conversion
+    // ---------------------------------------------------------------------------
 
     /**
-     * Convert an IEEE 754 float to IEEE 754 half-precision float.
+     * Convert an IEEE 754 single-precision float to IEEE 754 half-precision float.
+     * Handles normals, denormals, overflow (→ Infinity), underflow (→ signed zero),
+     * and preserves NaN/Inf.
      */
     private fun floatToHalf(f: Float): Short {
         val bits = f.toBits()
         val sign = (bits ushr 31) and 0x1
-        var exponent = ((bits ushr 23) and 0xFF) - 127
-        var mantissa = bits and 0x7FFFFF
+        val exponent = ((bits ushr 23) and 0xFF) - 127
+        val mantissa = bits and 0x7FFFFF
 
-        if (exponent == 128) { // Inf or NaN
+        // NaN or Infinity (exponent == 128 in float)
+        if (exponent == 128) {
             return ((sign shl 15) or 0x7C00 or (mantissa ushr 13)).toShort()
         }
 
         val newExponent = exponent + 15
         return when {
             newExponent >= 31 -> {
-                // Overflow -> Infinity
+                // Overflow → Infinity
                 ((sign shl 15) or 0x7C00).toShort()
             }
             newExponent > 0 -> {
-                // Normalized
-                ((sign shl 15) or (newExponent shl 10) or (mantissa ushr 13)).toShort()
+                // Normalized half-float
+                // Apply rounding: add 0x1000 (the first bit that gets dropped) and check carry
+                val roundedMantissa = mantissa + 0x1000
+                val carry = (roundedMantissa ushr 23) and 0x1
+                val finalExp = newExponent + carry
+                val finalMantissa = (roundedMantissa ushr 13) and 0x3FF
+                if (finalExp >= 31) {
+                    ((sign shl 15) or 0x7C00).toShort()
+                } else {
+                    ((sign shl 15) or (finalExp shl 10) or finalMantissa).toShort()
+                }
             }
             newExponent > -11 -> {
-                // Denormalized
+                // Denormalized half-float
                 val shift = 14 - newExponent
                 val halfMantissa = (mantissa or 0x800000) ushr shift
-                ((sign shl 15) or halfMantissa).toShort()
+                // Rounding for denormals
+                val roundBit = (mantissa ushr (shift - 1)) and 0x1
+                val adjusted = halfMantissa + roundBit
+                ((sign shl 15) or adjusted).toShort()
             }
             else -> {
-                // Underflow -> Zero
+                // Underflow → signed zero
                 (sign shl 15).toShort()
             }
         }
