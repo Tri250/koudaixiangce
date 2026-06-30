@@ -200,6 +200,7 @@ dependencies {
     // TensorFlow Lite — 端侧推理
     implementation("org.tensorflow:tensorflow-lite:2.15.0")
     implementation("org.tensorflow:tensorflow-lite-gpu:2.15.0")
+    implementation("org.tensorflow:tensorflow-lite-gpu-api:2.15.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
     // Debug
