@@ -388,6 +388,23 @@ class GpuPipeline(private val context: Context) {
             "uCdlShadowsR", "uCdlShadowsG", "uCdlShadowsB",
             "uCdlMidtonesR", "uCdlMidtonesG", "uCdlMidtonesB",
             "uCdlHighlightsR", "uCdlHighlightsG", "uCdlHighlightsB",
+            // Channel Mixer
+            "uChannelMixerRR", "uChannelMixerRG", "uChannelMixerRB",
+            "uChannelMixerGR", "uChannelMixerGG", "uChannelMixerGB",
+            "uChannelMixerBR", "uChannelMixerBG", "uChannelMixerBB",
+            "uChannelMixerMono",
+            // Split Toning
+            "uSplitToneHLHue", "uSplitToneHLSat",
+            "uSplitToneSHHue", "uSplitToneSHSat",
+            "uSplitToneBalance",
+            // Local Tint
+            "uShadowsTintHue", "uShadowsTintSat",
+            "uHighlightsTintHue", "uHighlightsTintSat",
+            // Edge Light
+            "uEdgeLightAmount", "uEdgeLightHue", "uEdgeLightSat",
+            // Color Range Selector
+            "uColorRangeHue", "uColorRangeWidth",
+            "uColorRangeSatAdjust", "uColorRangeLumAdjust",
             // Blur-based creative effects
             "uBlurGlow", "uBlurHalation",
             "uRotation", "uOrientationSteps",
@@ -671,12 +688,14 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uAgXEnabled", if (agxEnabled) 1f else 0f)
         setUniform1f("uAgXContrast", adjustments.agxContrast.coerceIn(0f, 1f))
         setUniform1f("uAgXPedestal", adjustments.agxPedestal.coerceIn(0f, 0.5f))
-        setUniform1i("uAces2DisplayColorSpace", 0)
-        setUniform1i("uAces2Eotf", 0)
-        setUniform1f("uAces2PeakLuminance", 100f)
-        setUniform1i("uOpenDrtDisplayColorSpace", 0)
-        setUniform1i("uOpenDrtEotf", 0)
-        setUniform1f("uOpenDrtPeakLuminance", 100f)
+        // ACES 2.0 display parameters
+        setUniform1i("uAces2DisplayColorSpace", adjustments.displayColorSpace.coerceIn(0, 2))
+        setUniform1i("uAces2Eotf", adjustments.eotf.coerceIn(0, 2))
+        setUniform1f("uAces2PeakLuminance", adjustments.peakLuminanceNits.coerceIn(100f, 10000f))
+        // OpenDRT display parameters
+        setUniform1i("uOpenDrtDisplayColorSpace", adjustments.displayColorSpace.coerceIn(0, 2))
+        setUniform1i("uOpenDrtEotf", adjustments.eotf.coerceIn(0, 2))
+        setUniform1f("uOpenDrtPeakLuminance", adjustments.peakLuminanceNits.coerceIn(100f, 10000f))
 
         // ── LUT Intensity ──
         setUniform1f("uLutIntensity", adjustments.activeLutBlend.coerceIn(0f, 1f))
@@ -694,6 +713,37 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uFlareAmount", adjustments.flareAmount / 100f)
         setUniform1f("uColorGradingBalance", adjustments.colorGrading.balance / 100f)
         setUniform1f("uColorCalibrationShadowsTint", adjustments.colorCalibration.shadowsTint / 100f)
+        // Channel Mixer (0-200% range → 0.0-2.0)
+        setUniform1f("uChannelMixerRR", adjustments.channelMixerRedOutRed / 100f)
+        setUniform1f("uChannelMixerRG", adjustments.channelMixerRedOutGreen / 100f)
+        setUniform1f("uChannelMixerRB", adjustments.channelMixerRedOutBlue / 100f)
+        setUniform1f("uChannelMixerGR", adjustments.channelMixerGreenOutRed / 100f)
+        setUniform1f("uChannelMixerGG", adjustments.channelMixerGreenOutGreen / 100f)
+        setUniform1f("uChannelMixerGB", adjustments.channelMixerGreenOutBlue / 100f)
+        setUniform1f("uChannelMixerBR", adjustments.channelMixerBlueOutRed / 100f)
+        setUniform1f("uChannelMixerBG", adjustments.channelMixerBlueOutGreen / 100f)
+        setUniform1f("uChannelMixerBB", adjustments.channelMixerBlueOutBlue / 100f)
+        setUniform1f("uChannelMixerMono", if (adjustments.channelMixerMonochrome) 1f else 0f)
+        // Split Toning
+        setUniform1f("uSplitToneHLHue", adjustments.splitToningHighlightHue)
+        setUniform1f("uSplitToneHLSat", adjustments.splitToningHighlightSaturation / 100f)
+        setUniform1f("uSplitToneSHHue", adjustments.splitToningShadowHue)
+        setUniform1f("uSplitToneSHSat", adjustments.splitToningShadowSaturation / 100f)
+        setUniform1f("uSplitToneBalance", adjustments.splitToningBalance / 100f)
+        // Local Tint
+        setUniform1f("uShadowsTintHue", adjustments.shadowsTintHue)
+        setUniform1f("uShadowsTintSat", adjustments.shadowsTintSaturation / 100f)
+        setUniform1f("uHighlightsTintHue", adjustments.highlightsTintHue)
+        setUniform1f("uHighlightsTintSat", adjustments.highlightsTintSaturation / 100f)
+        // Edge Light
+        setUniform1f("uEdgeLightAmount", adjustments.edgeLightAmount / 100f)
+        setUniform1f("uEdgeLightHue", adjustments.edgeLightHue)
+        setUniform1f("uEdgeLightSat", adjustments.edgeLightSaturation)
+        // Color Range Selector
+        setUniform1f("uColorRangeHue", adjustments.colorRangeHue)
+        setUniform1f("uColorRangeWidth", adjustments.colorRangeWidth)
+        setUniform1f("uColorRangeSatAdjust", adjustments.colorRangeSatAdjust / 100f)
+        setUniform1f("uColorRangeLumAdjust", adjustments.colorRangeLumAdjust / 100f)
         // CDL Color Grading
         setUniform1f("uCdlShadowsR", adjustments.colorGradingShadowsR / 100f)
         setUniform1f("uCdlShadowsG", adjustments.colorGradingShadowsG / 100f)

@@ -205,6 +205,42 @@ class ImageProcessor {
         // Color Calibration (additional)
         val colorCalibrationShadowsTint: Float = 0f,
 
+        // Channel Mixer
+        val channelMixerRR: Float = 1f,
+        val channelMixerRG: Float = 0f,
+        val channelMixerRB: Float = 0f,
+        val channelMixerGR: Float = 0f,
+        val channelMixerGG: Float = 1f,
+        val channelMixerGB: Float = 0f,
+        val channelMixerBR: Float = 0f,
+        val channelMixerBG: Float = 0f,
+        val channelMixerBB: Float = 1f,
+        val channelMixerMono: Boolean = false,
+
+        // Split Toning
+        val splitToneHLHue: Float = 0f,
+        val splitToneHLSat: Float = 0f,
+        val splitToneSHHue: Float = 0f,
+        val splitToneSHSat: Float = 0f,
+        val splitToneBalance: Float = 0f,
+
+        // Local Tint (局部调色)
+        val shadowsTintHue: Float = 0f,
+        val shadowsTintSat: Float = 0f,
+        val highlightsTintHue: Float = 0f,
+        val highlightsTintSat: Float = 0f,
+
+        // Edge Light (边缘光)
+        val edgeLightAmount: Float = 0f,
+        val edgeLightHue: Float = 0f,
+        val edgeLightSat: Float = 0f,
+
+        // Color Range Selector (颜色范围选择器)
+        val colorRangeHue: Float = 0f,
+        val colorRangeWidth: Float = 30f,
+        val colorRangeSatAdjust: Float = 0f,
+        val colorRangeLumAdjust: Float = 0f,
+
         // Transform
         val rotation: Float = 0f,
         val orientationSteps: Int = 0,
@@ -233,6 +269,8 @@ class ImageProcessor {
         val agxEnabled: Boolean = false,
         val agxContrast: Float = 0.0f,
         val agxPedestal: Float = 0.0f,
+        val displayColorSpace: Int = 0, // 0=sRGB, 1=Display P3, 2=Rec.2020
+        val eotf: Int = 0, // 0=SDR, 1=HDR10/PQ, 2=HLG
         val peakLuminanceNits: Float = 1000f,
 
         // Lens Correction
@@ -336,6 +374,8 @@ class ImageProcessor {
                 agxEnabled = src.toneMapper == "agx" || src.colorScienceMode == 0,
                 agxContrast = src.agxContrast,
                 agxPedestal = src.agxPedestal,
+                displayColorSpace = src.displayColorSpace.coerceIn(0, 2),
+                eotf = src.eotf.coerceIn(0, 2),
                 peakLuminanceNits = src.peakLuminanceNits.coerceIn(100f, 10000f),
                 // Lens correction
                 lensDistortion = src.lensDistortion / 100f,
@@ -375,6 +415,37 @@ class ImageProcessor {
                 colorGradingBalance = src.colorGrading.balance / 100f,
                 // Color calibration shadows tint
                 colorCalibrationShadowsTint = src.colorCalibration.shadowsTint / 100f,
+                // Channel Mixer (0-200% → 0-2x)
+                channelMixerRR = src.channelMixerRedOutRed / 100f,
+                channelMixerRG = src.channelMixerRedOutGreen / 100f,
+                channelMixerRB = src.channelMixerRedOutBlue / 100f,
+                channelMixerGR = src.channelMixerGreenOutRed / 100f,
+                channelMixerGG = src.channelMixerGreenOutGreen / 100f,
+                channelMixerGB = src.channelMixerGreenOutBlue / 100f,
+                channelMixerBR = src.channelMixerBlueOutRed / 100f,
+                channelMixerBG = src.channelMixerBlueOutGreen / 100f,
+                channelMixerBB = src.channelMixerBlueOutBlue / 100f,
+                channelMixerMono = src.channelMixerMonochrome,
+                // Split Toning
+                splitToneHLHue = src.splitToningHighlightHue,
+                splitToneHLSat = src.splitToningHighlightSaturation / 100f,
+                splitToneSHHue = src.splitToningShadowHue,
+                splitToneSHSat = src.splitToningShadowSaturation / 100f,
+                splitToneBalance = src.splitToningBalance / 100f,
+                // Local Tint
+                shadowsTintHue = src.shadowsTintHue,
+                shadowsTintSat = src.shadowsTintSaturation / 100f,
+                highlightsTintHue = src.highlightsTintHue,
+                highlightsTintSat = src.highlightsTintSaturation / 100f,
+                // Edge Light
+                edgeLightAmount = src.edgeLightAmount / 100f,
+                edgeLightHue = src.edgeLightHue,
+                edgeLightSat = src.edgeLightSaturation,
+                // Color Range Selector
+                colorRangeHue = src.colorRangeHue,
+                colorRangeWidth = src.colorRangeWidth,
+                colorRangeSatAdjust = src.colorRangeSatAdjust / 100f,
+                colorRangeLumAdjust = src.colorRangeLumAdjust / 100f,
                 // Transform
                 rotation = src.rotation,
                 orientationSteps = src.orientationSteps,
@@ -959,10 +1030,12 @@ class ImageProcessor {
         val exposureMultiplier = 2f.pow(n.exposure)
         val brightnessShift = n.brightness * 2f
         val colorScienceMode = ColorScience.Mode.entries.getOrElse(n.colorScienceMode) { ColorScience.Mode.STANDARD }
+        val displayColorSpace = ColorScience.DisplayColorSpace.entries.getOrElse(n.displayColorSpace) { ColorScience.DisplayColorSpace.SRGB }
+        val eotf = ColorScience.Eotf.entries.getOrElse(n.eotf) { ColorScience.Eotf.SDR }
         val colorScienceConfig = ColorScience.Config(
             mode = colorScienceMode,
-            displaySpace = ColorScience.DisplayColorSpace.SRGB,
-            eotf = ColorScience.Eotf.SDR,
+            displaySpace = displayColorSpace,
+            eotf = eotf,
             peakLuminanceNits = n.peakLuminanceNits,
             contrast = n.agxContrast,
             pedestal = n.agxPedestal,
@@ -1182,6 +1255,116 @@ class ImageProcessor {
                     b += tint
                 }
 
+                // ── 16c. Channel Mixer ──
+                val cmR: Float
+                val cmG: Float
+                val cmB: Float
+                if (n.channelMixerMono) {
+                    val lum = n.channelMixerRR * r + n.channelMixerRG * g + n.channelMixerRB * b
+                    cmR = lum
+                    cmG = lum
+                    cmB = lum
+                } else {
+                    cmR = n.channelMixerRR * r + n.channelMixerRG * g + n.channelMixerRB * b
+                    cmG = n.channelMixerGR * r + n.channelMixerGG * g + n.channelMixerGB * b
+                    cmB = n.channelMixerBR * r + n.channelMixerBG * g + n.channelMixerBB * b
+                }
+                r = cmR.coerceIn(0f, 1f)
+                g = cmG.coerceIn(0f, 1f)
+                b = cmB.coerceIn(0f, 1f)
+
+                // ── 16d. Split Toning ──
+                val hasSplitTone = n.splitToneHLSat > 1e-6f || n.splitToneSHSat > 1e-6f
+                if (hasSplitTone) {
+                    val stLuma = ColorMath.getLuma(r, g, b)
+                    val stPivot = 0.5f + n.splitToneBalance * 0.5f
+                    val stHLW = ((stLuma - stPivot + 0.15f) / 0.3f).coerceIn(0f, 1f)
+                    val stSHW = 1f - stHLW
+
+                    if (stHLW > 1e-6f && n.splitToneHLSat > 1e-6f) {
+                        val hsv = ColorMath.rgbToHsv(r, g, b)
+                        val delta = n.splitToneHLHue - hsv[0]
+                        val shortest = if (delta > 180f) delta - 360f else if (delta < -180f) delta + 360f else delta
+                        val blendedHue = hsv[0] + shortest * stHLW * n.splitToneHLSat
+                        val blendedSat = hsv[1] + (n.splitToneHLSat - hsv[1]) * stHLW * n.splitToneHLSat
+                        val rgb = ColorMath.hsvToRgb(blendedHue, blendedSat.coerceIn(0f, 1f), hsv[2])
+                        r = rgb[0]; g = rgb[1]; b = rgb[2]
+                    }
+                    if (stSHW > 1e-6f && n.splitToneSHSat > 1e-6f) {
+                        val hsv = ColorMath.rgbToHsv(r, g, b)
+                        val delta = n.splitToneSHHue - hsv[0]
+                        val shortest = if (delta > 180f) delta - 360f else if (delta < -180f) delta + 360f else delta
+                        val blendedHue = hsv[0] + shortest * stSHW * n.splitToneSHSat
+                        val blendedSat = hsv[1] + (n.splitToneSHSat - hsv[1]) * stSHW * n.splitToneSHSat
+                        val rgb = ColorMath.hsvToRgb(blendedHue, blendedSat.coerceIn(0f, 1f), hsv[2])
+                        r = rgb[0]; g = rgb[1]; b = rgb[2]
+                    }
+                }
+
+                // ── 16e. Local Tint (局部调色) ──
+                val hasLocalTint = n.shadowsTintSat > 1e-6f || n.highlightsTintSat > 1e-6f
+                if (hasLocalTint) {
+                    val ltLuma = ColorMath.getLuma(r, g, b)
+
+                    // Shadows tint
+                    if (n.shadowsTintSat > 1e-6f) {
+                        val sMask = ColorMath.shadowsMask(ltLuma)
+                        if (sMask > 1e-6f) {
+                            val hsv = ColorMath.rgbToHsv(r, g, b)
+                            val delta = n.shadowsTintHue - hsv[0]
+                            val shortest = if (delta > 180f) delta - 360f else if (delta < -180f) delta + 360f else delta
+                            val blendedHue = hsv[0] + shortest * sMask * n.shadowsTintSat
+                            val blendedSat = hsv[1] + (n.shadowsTintSat - hsv[1]) * sMask * n.shadowsTintSat
+                            val rgb = ColorMath.hsvToRgb(blendedHue, blendedSat.coerceIn(0f, 1f), hsv[2])
+                            r = rgb[0]; g = rgb[1]; b = rgb[2]
+                        }
+                    }
+
+                    // Highlights tint
+                    if (n.highlightsTintSat > 1e-6f) {
+                        val hMask = ColorMath.highlightsMask(ltLuma)
+                        if (hMask > 1e-6f) {
+                            val hsv = ColorMath.rgbToHsv(r, g, b)
+                            val delta = n.highlightsTintHue - hsv[0]
+                            val shortest = if (delta > 180f) delta - 360f else if (delta < -180f) delta + 360f else delta
+                            val blendedHue = hsv[0] + shortest * hMask * n.highlightsTintSat
+                            val blendedSat = hsv[1] + (n.highlightsTintSat - hsv[1]) * hMask * n.highlightsTintSat
+                            val rgb = ColorMath.hsvToRgb(blendedHue, blendedSat.coerceIn(0f, 1f), hsv[2])
+                            r = rgb[0]; g = rgb[1]; b = rgb[2]
+                        }
+                    }
+                }
+
+                // ── 16f. Color Range Selector (颜色范围选择器) ──
+                val hasColorRange = Math.abs(n.colorRangeSatAdjust) > 1e-6f || Math.abs(n.colorRangeLumAdjust) > 1e-6f
+                if (hasColorRange) {
+                    val hsv = ColorMath.rgbToHsv(r, g, b)
+                    val hue = hsv[0]
+                    val halfWidth = n.colorRangeWidth * 0.5f
+                    var dist = Math.abs(hue - n.colorRangeHue)
+                    if (dist > 180f) dist = 360f - dist
+                    val weight = if (dist <= halfWidth) (1f - dist / halfWidth) else 0f
+                    val smoothWeight = weight * weight * (3f - 2f * weight) // smoothstep
+
+                    if (smoothWeight > 1e-6f) {
+                        var newSat = hsv[1]
+                        var newVal = hsv[2]
+
+                        if (Math.abs(n.colorRangeSatAdjust) > 1e-6f) {
+                            val satDelta = n.colorRangeSatAdjust * smoothWeight
+                            newSat = (newSat + satDelta).coerceIn(0f, 1f)
+                        }
+
+                        if (Math.abs(n.colorRangeLumAdjust) > 1e-6f) {
+                            val lumDelta = n.colorRangeLumAdjust * smoothWeight * 0.5f
+                            newVal = (newVal + lumDelta).coerceIn(0f, 1f)
+                        }
+
+                        val rgb = ColorMath.hsvToRgb(hsv[0], newSat, newVal)
+                        r = rgb[0]; g = rgb[1]; b = rgb[2]
+                    }
+                }
+
                 // ── 17. Color Science Tone Mapping ──
                 // colorScienceConfig 已在循环外预计算，避免每像素创建对象
                 val toneMapped = ColorScience.apply(r, g, b, colorScienceConfig)
@@ -1357,11 +1540,15 @@ class ImageProcessor {
         val finalBitmap = applySpatialOperations(outputBitmap, n)
         if (finalBitmap != outputBitmap) outputBitmap.recycle()
 
+        // Post-processing: Edge Light (边缘光)
+        val edgeLightBitmap = applyEdgeLight(finalBitmap, n)
+        if (edgeLightBitmap != finalBitmap) finalBitmap.recycle()
+
         // Recycle intermediate bitmaps if created
         if (workBitmap !== sourceBitmap) workBitmap.recycle()
         if (sourceBitmap !== originalBitmap) sourceBitmap.recycle()
 
-        finalBitmap
+        edgeLightBitmap
     } catch (oom: OutOfMemoryError) {
         Log.e(TAG, "OOM in processFullResolution: w=$w h=$h totalPixels=$totalPixels", oom)
         // 2026 hotfix: 出现 OOM 时清理可能已分配但未完成的所有中间 bitmap，
@@ -1799,6 +1986,82 @@ class ImageProcessor {
                 val gi = (g * 255f).toInt().coerceIn(0, 255)
                 val bi = (b * 255f).toInt().coerceIn(0, 255)
                 dstPixels[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+            }
+        }
+
+        result.setPixels(dstPixels, 0, w, 0, 0, w, h)
+        return result
+    }
+
+    /** Edge Light / Rim Light (边缘光) */
+    private fun applyEdgeLight(bitmap: Bitmap, n: NormAdj): Bitmap {
+        if (n.edgeLightAmount < 1e-6f) return bitmap
+
+        val w = bitmap.width
+        val h = bitmap.height
+        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+
+        val srcPixels = IntArray(w * h)
+        bitmap.getPixels(srcPixels, 0, w, 0, 0, w, h)
+        val dstPixels = IntArray(w * h)
+
+        val rimColor = ColorMath.hsvToRgb(n.edgeLightHue, n.edgeLightSat, 1f)
+        val rimR = rimColor[0] * 0.5f
+        val rimG = rimColor[1] * 0.5f
+        val rimB = rimColor[2] * 0.5f
+
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val idx = y * w + x
+                val pixel = srcPixels[idx]
+                val r = ((pixel shr 16) and 0xFF) / 255f
+                val g = ((pixel shr 8) and 0xFF) / 255f
+                val b = (pixel and 0xFF) / 255f
+
+                // Sobel-like edge detection
+                val xL = (x - 1).coerceIn(0, w - 1)
+                val xR = (x + 1).coerceIn(0, w - 1)
+                val yU = (y - 1).coerceIn(0, h - 1)
+                val yD = (y + 1).coerceIn(0, h - 1)
+
+                val lL = ColorMath.getLuma(
+                    ((srcPixels[y * w + xL] shr 16) and 0xFF) / 255f,
+                    ((srcPixels[y * w + xL] shr 8) and 0xFF) / 255f,
+                    (srcPixels[y * w + xL] and 0xFF) / 255f
+                )
+                val lR = ColorMath.getLuma(
+                    ((srcPixels[y * w + xR] shr 16) and 0xFF) / 255f,
+                    ((srcPixels[y * w + xR] shr 8) and 0xFF) / 255f,
+                    (srcPixels[y * w + xR] and 0xFF) / 255f
+                )
+                val lU = ColorMath.getLuma(
+                    ((srcPixels[yU * w + x] shr 16) and 0xFF) / 255f,
+                    ((srcPixels[yU * w + x] shr 8) and 0xFF) / 255f,
+                    (srcPixels[yU * w + x] and 0xFF) / 255f
+                )
+                val lD = ColorMath.getLuma(
+                    ((srcPixels[yD * w + x] shr 16) and 0xFF) / 255f,
+                    ((srcPixels[yD * w + x] shr 8) and 0xFF) / 255f,
+                    (srcPixels[yD * w + x] and 0xFF) / 255f
+                )
+
+                val gx = lR - lL
+                val gy = lD - lU
+                val edge = Math.sqrt((gx * gx + gy * gy).toDouble()).toFloat()
+
+                val luma = ColorMath.getLuma(r, g, b)
+                val edgeMask = ColorMath.smoothstep(0.02f, 0.15f, edge)
+                val toneMask = ColorMath.smoothstep(0.2f, 0.7f, luma)
+                val rimStrength = edgeMask * toneMask * n.edgeLightAmount
+
+                val outR = (r + rimR * rimStrength).coerceIn(0f, 1f)
+                val outG = (g + rimG * rimStrength).coerceIn(0f, 1f)
+                val outB = (b + rimB * rimStrength).coerceIn(0f, 1f)
+
+                val ri = (outR * 255f).toInt().coerceIn(0, 255)
+                val gi = (outG * 255f).toInt().coerceIn(0, 255)
+                val bi = (outB * 255f).toInt().coerceIn(0, 255)
+                dstPixels[idx] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
             }
         }
 

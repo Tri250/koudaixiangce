@@ -150,9 +150,46 @@ uniform float uCdlHighlightsR;
 uniform float uCdlHighlightsG;
 uniform float uCdlHighlightsB;
 
-// Blur-based creative effects
-uniform float uBlurGlow;         // 0.0 - 1.0
-uniform float uBlurHalation;     // 0.0 - 1.0
+// Channel Mixer
+uniform float uChannelMixerRR;    // 0.0 - 2.0 (red output from red input)
+uniform float uChannelMixerRG;    // green input contribution to red output
+uniform float uChannelMixerRB;    // blue input contribution to red output
+uniform float uChannelMixerGR;    // red input to green output
+uniform float uChannelMixerGG;
+uniform float uChannelMixerGB;
+uniform float uChannelMixerBR;    // red input to blue output
+uniform float uChannelMixerBG;
+uniform float uChannelMixerBB;
+uniform float uChannelMixerMono;  // 0.0 or 1.0 (monochrome mode)
+
+// Split Toning
+uniform float uSplitToneHLHue;    // 0.0 - 360.0
+uniform float uSplitToneHLSat;    // 0.0 - 1.0
+uniform float uSplitToneSHHue;    // 0.0 - 360.0
+uniform float uSplitToneSHSat;    // 0.0 - 1.0
+uniform float uSplitToneBalance;  // -1.0 - 1.0
+
+// Local Tint
+uniform float uShadowsTintHue;       // 0.0 - 360.0
+uniform float uShadowsTintSat;       // 0.0 - 1.0
+uniform float uHighlightsTintHue;    // 0.0 - 360.0
+uniform float uHighlightsTintSat;    // 0.0 - 1.0
+
+// Edge Light / Rim Light
+uniform float uEdgeLightAmount;      // 0.0 - 1.0
+uniform float uEdgeLightHue;         // 0.0 - 360.0
+uniform float uEdgeLightSat;         // 0.0 - 1.0
+
+// Color Range Selector
+uniform float uColorRangeHue;        // 0.0 - 360.0
+uniform float uColorRangeWidth;      // 1.0 - 180.0
+uniform float uColorRangeSatAdjust;  // -1.0 - 1.0
+uniform float uColorRangeLumAdjust;  // -1.0 - 1.0
+
+// Blur-based creative effects (uniforms for future multi-pass blur pipeline)
+// Currently single-pass glow/halation uses uGlowAmount / uHalationAmount
+uniform float uBlurGlow;         // 0.0 - 1.0 (reserved)
+uniform float uBlurHalation;     // 0.0 - 1.0 (reserved)
 uniform float uRotation;            // -180 - 180
 uniform int uOrientationSteps;      // 0 - 3
 uniform float uFlipHorizontal;      // 0.0 or 1.0
@@ -630,6 +667,186 @@ vec3 apply_color_calibration(vec3 color) {
     );
 
     return calibrationMatrix * color;
+}
+
+// ── Channel Mixer ──────────────────────────────────────────────────────
+
+vec3 apply_channel_mixer(vec3 color) {
+    float rr = uChannelMixerRR;
+    float rg = uChannelMixerRG;
+    float rb = uChannelMixerRB;
+    float gr = uChannelMixerGR;
+    float gg = uChannelMixerGG;
+    float gb = uChannelMixerGB;
+    float br = uChannelMixerBR;
+    float bg = uChannelMixerBG;
+    float bb = uChannelMixerBB;
+
+    vec3 result;
+    if (uChannelMixerMono > 0.5) {
+        // Monochrome mode: use red-out coefficients as luminance weights
+        float lum = rr * color.r + rg * color.g + rb * color.b;
+        result = vec3(lum, lum, lum);
+    } else {
+        result.r = rr * color.r + rg * color.g + rb * color.b;
+        result.g = gr * color.r + gg * color.g + gb * color.b;
+        result.b = br * color.r + bg * color.g + bb * color.b;
+    }
+
+    return clamp(result, 0.0, 1.0);
+}
+
+// ── Split Toning ───────────────────────────────────────────────────────
+
+vec3 apply_split_toning(vec3 color) {
+    float hlSat = uSplitToneHLSat;
+    float shSat = uSplitToneSHSat;
+
+    if (hlSat <= 0.0 && shSat <= 0.0) {
+        return color;
+    }
+
+    float luma = get_luma(color);
+    float pivot = 0.5 + uSplitToneBalance * 0.5;  // balance -1..1 → pivot 0..1
+
+    // Compute highlight and shadow weights with smooth transition
+    float hlWeight = smoothstep(pivot - 0.15, pivot + 0.15, luma);
+    float shWeight = 1.0 - hlWeight;
+
+    vec3 result = color;
+
+    // Apply highlight toning
+    if (hlSat > 0.0 && hlWeight > 0.0) {
+        vec3 hsv = rgb_to_hsv(result);
+        float blendedHue = blend_hue(hsv.x, uSplitToneHLHue, hlWeight * hlSat);
+        float blendedSat = hsv.y + (hlSat - hsv.y) * hlWeight * hlSat;
+        result = hsv_to_rgb(vec3(blendedHue, clamp(blendedSat, 0.0, 1.0), hsv.z));
+    }
+
+    // Apply shadow toning
+    if (shSat > 0.0 && shWeight > 0.0) {
+        vec3 hsv = rgb_to_hsv(result);
+        float blendedHue = blend_hue(hsv.x, uSplitToneSHHue, shWeight * shSat);
+        float blendedSat = hsv.y + (shSat - hsv.y) * shWeight * shSat;
+        result = hsv_to_rgb(vec3(blendedHue, clamp(blendedSat, 0.0, 1.0), hsv.z));
+    }
+
+    return result;
+}
+
+float blend_hue(float fromHue, float toHue, float t) {
+    float delta = toHue - fromHue;
+    if (delta > 180.0) delta -= 360.0;
+    if (delta < -180.0) delta += 360.0;
+    float result = fromHue + delta * t;
+    result = mod(result + 360.0, 360.0);
+    return result;
+}
+
+// ── Local Tint (局部调色) ────────────────────────────────────────────
+
+vec3 apply_local_tint(vec3 color) {
+    if (uShadowsTintSat <= 0.0 && uHighlightsTintSat <= 0.0) {
+        return color;
+    }
+
+    float luma = get_luma(color);
+    vec3 result = color;
+
+    // Shadows tint
+    if (uShadowsTintSat > 0.0) {
+        float sMask = shadows_mask(luma);
+        if (sMask > EPS) {
+            vec3 hsv = rgb_to_hsv(result);
+            float blendedHue = blend_hue(hsv.x, uShadowsTintHue, sMask * uShadowsTintSat);
+            float blendedSat = hsv.y + (uShadowsTintSat - hsv.y) * sMask * uShadowsTintSat;
+            result = hsv_to_rgb(vec3(blendedHue, clamp(blendedSat, 0.0, 1.0), hsv.z));
+        }
+    }
+
+    // Highlights tint
+    if (uHighlightsTintSat > 0.0) {
+        float hMask = highlights_mask(luma);
+        if (hMask > EPS) {
+            vec3 hsv = rgb_to_hsv(result);
+            float blendedHue = blend_hue(hsv.x, uHighlightsTintHue, hMask * uHighlightsTintSat);
+            float blendedSat = hsv.y + (uHighlightsTintSat - hsv.y) * hMask * uHighlightsTintSat;
+            result = hsv_to_rgb(vec3(blendedHue, clamp(blendedSat, 0.0, 1.0), hsv.z));
+        }
+    }
+
+    return result;
+}
+
+// ── Edge Light / Rim Light (边缘光) ──────────────────────────────────
+
+vec3 apply_edge_light(vec3 color, vec2 uv) {
+    if (uEdgeLightAmount <= 0.0) {
+        return color;
+    }
+
+    float luma = get_luma(color);
+
+    // Edge detection using simple luminance gradient approximation
+    vec2 texel = 1.0 / uResolution;
+    float lL = get_luma(texture(uTexture, uv + vec2(-texel.x, 0.0)).rgb);
+    float lR = get_luma(texture(uTexture, uv + vec2(texel.x, 0.0)).rgb);
+    float lU = get_luma(texture(uTexture, uv + vec2(0.0, -texel.y)).rgb);
+    float lD = get_luma(texture(uTexture, uv + vec2(0.0, texel.y)).rgb);
+    float gx = lR - lL;
+    float gy = lD - lU;
+    float edge = sqrt(gx * gx + gy * gy);
+
+    // Edge mask: stronger edges = more rim light
+    float edgeMask = smoothstep(0.02, 0.15, edge);
+
+    // Only apply to mid-tone to highlight edges
+    float toneMask = smoothstep(0.2, 0.7, luma);
+
+    float rimStrength = edgeMask * toneMask * uEdgeLightAmount;
+
+    if (rimStrength > EPS) {
+        // Create rim light color from hue/saturation
+        vec3 rimColor = hsv_to_rgb(vec3(uEdgeLightHue, uEdgeLightSat, 1.0));
+        color = mix(color, color + rimColor * 0.5, rimStrength);
+    }
+
+    return color;
+}
+
+// ── Color Range Selector (颜色范围选择器) ────────────────────────────
+
+vec3 apply_color_range(vec3 color) {
+    if (abs(uColorRangeSatAdjust) < EPS && abs(uColorRangeLumAdjust) < EPS) {
+        return color;
+    }
+
+    vec3 hsv = rgb_to_hsv(color);
+    float hue = hsv.x;
+
+    // Calculate weight based on hue distance
+    float halfWidth = uColorRangeWidth * 0.5;
+    float dist = hue_delta(hue, uColorRangeHue);
+    float weight = (dist <= halfWidth) ? (1.0 - dist / halfWidth) : 0.0;
+    weight = smoothstep(0.0, 1.0, weight);
+
+    if (weight > EPS) {
+        // Adjust saturation
+        if (abs(uColorRangeSatAdjust) > EPS) {
+            float satDelta = uColorRangeSatAdjust * weight;
+            hsv.y = clamp(hsv.y + satDelta, 0.0, 1.0);
+        }
+
+        // Adjust luminance
+        if (abs(uColorRangeLumAdjust) > EPS) {
+            float lumDelta = uColorRangeLumAdjust * weight * 0.5;
+            hsv.z = clamp(hsv.z + lumDelta, 0.0, 1.0);
+        }
+
+        color = hsv_to_rgb(hsv);
+    }
+
+    return color;
 }
 
 // ── Hash & Gradient Noise ──────────────────────────────────────────────
@@ -1526,10 +1743,22 @@ void main() {
     // === Step 12: Color calibration ===
     color = apply_color_calibration(color);
 
-    // === Step 12b: Color calibration shadows tint ===
+    // === Step 12b: Channel Mixer ===
+    color = apply_channel_mixer(color);
+
+    // === Step 12c: Color calibration shadows tint ===
     color = apply_color_calibration_shadows_tint(color);
 
-    // === Step 12c: CDL color grading (Lift/Gamma/Gain per-channel offsets) ===
+    // === Step 12d: Split Toning ===
+    color = apply_split_toning(color);
+
+    // === Step 12e: Local Tint (局部调色) ===
+    color = apply_local_tint(color);
+
+    // === Step 12f: Color Range Selector (颜色范围选择器) ===
+    color = apply_color_range(color);
+
+    // === Step 12g: CDL color grading (Lift/Gamma/Gain per-channel offsets) ===
     color = apply_cdl_grading(color);
 
     // === Step 13: Local contrast (clarity/structure) ===
@@ -1540,6 +1769,9 @@ void main() {
 
     // === Step 15: Chromatic aberration ===
     color = apply_chromatic_aberration(color, uv);
+
+    // === Step 15b: Edge Light / Rim Light ===
+    color = apply_edge_light(color, uv);
 
     // === Step 16: Dehaze ===
     color = apply_dehaze(color);
