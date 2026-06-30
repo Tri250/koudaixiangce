@@ -207,13 +207,15 @@ class VulkanBackend(private val context: Context) {
 
             val result = nativeProcessImage(rgbaBitmap, adjustments)
             if (result != null) {
-                // 如果创建了副本且处理成功，回收副本
                 if (rgbaBitmap !== bitmap) {
-                    // 不回收原始位图，返回处理后的位图
+                    rgbaBitmap.recycle()
                 }
                 result
             } else {
                 Log.w(TAG, "Vulkan processing returned null, falling back to GLES")
+                if (rgbaBitmap !== bitmap) {
+                    rgbaBitmap.recycle()
+                }
                 processWithGpuPipeline(bitmap, adjustments)
             }
         } catch (e: UnsatisfiedLinkError) {

@@ -126,8 +126,20 @@ class GpuPipeline(private val context: Context) {
         this.height = height
         this.isOffscreen = false
 
-        setupEgl(surfaceTexture)
-        compileShaders()
+        if (!setupEgl(surfaceTexture)) {
+            Log.e(TAG, "EGL setup failed, pipeline not initialized")
+            initialized = false
+            return
+        }
+
+        try {
+            compileShaders()
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Shader compilation failed", e)
+            initialized = false
+            return
+        }
+
         setupGeometry()
         setupTexture()
         setupMaskTexture()
@@ -145,8 +157,20 @@ class GpuPipeline(private val context: Context) {
         this.height = height
         this.isOffscreen = true
 
-        setupEglOffscreen()
-        compileShaders()
+        if (!setupEglOffscreen()) {
+            Log.e(TAG, "EGL offscreen setup failed, pipeline not initialized")
+            initialized = false
+            return
+        }
+
+        try {
+            compileShaders()
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Shader compilation failed", e)
+            initialized = false
+            return
+        }
+
         setupGeometry()
         setupTexture()
         setupMaskTexture()
@@ -156,18 +180,50 @@ class GpuPipeline(private val context: Context) {
         initialized = true
     }
 
+    /**
+     * Safe initialization wrapper that catches all exceptions and returns
+     * a boolean indicating success/failure instead of crashing.
+     */
+    fun initializeSafe(surfaceTexture: SurfaceTexture, width: Int, height: Int): Boolean {
+        return try {
+            initialize(surfaceTexture, width, height)
+            initialized
+        } catch (e: Exception) {
+            Log.e(TAG, "initializeSafe failed", e)
+            initialized = false
+            false
+        }
+    }
+
+    /**
+     * Safe offscreen initialization wrapper that catches all exceptions
+     * and returns a boolean indicating success/failure instead of crashing.
+     */
+    fun initializeOffscreenSafe(width: Int, height: Int): Boolean {
+        return try {
+            initializeOffscreen(width, height)
+            initialized
+        } catch (e: Exception) {
+            Log.e(TAG, "initializeOffscreenSafe failed", e)
+            initialized = false
+            false
+        }
+    }
+
     // ── EGL Setup ──────────────────────────────────────────────────
 
-    private fun setupEgl(surfaceTexture: SurfaceTexture) {
+    private fun setupEgl(surfaceTexture: SurfaceTexture): Boolean {
         val display = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY)
         if (display === android.opengl.EGL14.EGL_NO_DISPLAY) {
-            throw RuntimeException("Unable to get EGL display")
+            Log.e(TAG, "Unable to get EGL display")
+            return false
         }
         eglDisplay = display
 
         val version = IntArray(2)
         if (!android.opengl.EGL14.eglInitialize(display, version, 0, version, 1)) {
-            throw RuntimeException("Unable to initialize EGL")
+            Log.e(TAG, "Unable to initialize EGL")
+            return false
         }
 
         // Choose config: request OpenGL ES 3.0 capable config
@@ -185,9 +241,13 @@ class GpuPipeline(private val context: Context) {
         val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
         val numConfigs = IntArray(1)
         if (!android.opengl.EGL14.eglChooseConfig(display, attribList, 0, configs, 0, 1, numConfigs, 0)) {
-            throw RuntimeException("Unable to choose EGL config")
+            Log.e(TAG, "Unable to choose EGL config")
+            return false
         }
-        val config = configs[0] ?: throw RuntimeException("No EGL config chosen")
+        val config = configs[0] ?: run {
+            Log.e(TAG, "No EGL config chosen")
+            return false
+        }
         eglConfig = config
 
         // Create context
@@ -200,7 +260,8 @@ class GpuPipeline(private val context: Context) {
             display, config, android.opengl.EGL14.EGL_NO_CONTEXT, contextAttribs, 0
         )
         if (context === android.opengl.EGL14.EGL_NO_CONTEXT) {
-            throw RuntimeException("Unable to create EGL context")
+            Log.e(TAG, "Unable to create EGL context")
+            return false
         }
         eglContext = context
 
@@ -209,23 +270,26 @@ class GpuPipeline(private val context: Context) {
             display, config, surfaceTexture, intArrayOf(android.opengl.EGL14.EGL_NONE), 0
         )
         if (surface === android.opengl.EGL14.EGL_NO_SURFACE) {
-            throw RuntimeException("Unable to create EGL surface")
+            Log.e(TAG, "Unable to create EGL surface")
+            return false
         }
         eglSurface = surface
 
-        makeCurrent()
+        return makeCurrent()
     }
 
-    private fun setupEglOffscreen() {
+    private fun setupEglOffscreen(): Boolean {
         val display = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY)
         if (display === android.opengl.EGL14.EGL_NO_DISPLAY) {
-            throw RuntimeException("Unable to get EGL display")
+            Log.e(TAG, "Unable to get EGL display (offscreen)")
+            return false
         }
         eglDisplay = display
 
         val version = IntArray(2)
         if (!android.opengl.EGL14.eglInitialize(display, version, 0, version, 1)) {
-            throw RuntimeException("Unable to initialize EGL")
+            Log.e(TAG, "Unable to initialize EGL (offscreen)")
+            return false
         }
 
         val attribList = intArrayOf(
@@ -241,9 +305,13 @@ class GpuPipeline(private val context: Context) {
         val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
         val numConfigs = IntArray(1)
         if (!android.opengl.EGL14.eglChooseConfig(display, attribList, 0, configs, 0, 1, numConfigs, 0)) {
-            throw RuntimeException("Unable to choose EGL config")
+            Log.e(TAG, "Unable to choose EGL config (offscreen)")
+            return false
         }
-        val config = configs[0] ?: throw RuntimeException("No EGL config chosen")
+        val config = configs[0] ?: run {
+            Log.e(TAG, "No EGL config chosen (offscreen)")
+            return false
+        }
         eglConfig = config
 
         val contextAttribs = intArrayOf(
@@ -255,7 +323,8 @@ class GpuPipeline(private val context: Context) {
             display, config, android.opengl.EGL14.EGL_NO_CONTEXT, contextAttribs, 0
         )
         if (context === android.opengl.EGL14.EGL_NO_CONTEXT) {
-            throw RuntimeException("Unable to create EGL context")
+            Log.e(TAG, "Unable to create EGL context (offscreen)")
+            return false
         }
         eglContext = context
 
@@ -270,21 +339,24 @@ class GpuPipeline(private val context: Context) {
             display, config, pbufferAttribs, 0
         )
         if (surface === android.opengl.EGL14.EGL_NO_SURFACE) {
-            throw RuntimeException("Unable to create EGL pbuffer surface")
+            Log.e(TAG, "Unable to create EGL pbuffer surface")
+            return false
         }
         eglSurface = surface
 
-        makeCurrent()
+        return makeCurrent()
     }
 
-    private fun makeCurrent() {
-        val display = eglDisplay ?: return
-        val surface = eglSurface ?: return
-        val context = eglContext ?: return
+    private fun makeCurrent(): Boolean {
+        val display = eglDisplay ?: return false
+        val surface = eglSurface ?: return false
+        val context = eglContext ?: return false
 
         if (!android.opengl.EGL14.eglMakeCurrent(display, surface, surface, context)) {
-            throw RuntimeException("Unable to make EGL context current")
+            Log.e(TAG, "Unable to make EGL context current")
+            return false
         }
+        return true
     }
 
     // ── Shader Compilation ─────────────────────────────────────────
@@ -915,6 +987,8 @@ class GpuPipeline(private val context: Context) {
             GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
 
+            // Flip rows in the buffer so the bitmap doesn't need a second allocation
+            flipRowsInBuffer(buffer, width, height)
             buffer.rewind()
 
             // 复用 Bitmap 避免频繁创建
@@ -926,10 +1000,7 @@ class GpuPipeline(private val context: Context) {
             }
             bitmap.copyPixelsFromBuffer(buffer)
 
-            // OpenGL reads bottom-to-top, need to flip vertically
-            val matrix = android.graphics.Matrix()
-            matrix.postScale(1f, -1f)
-            return Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
+            return bitmap
         } catch (e: RuntimeException) {
             Log.e(TAG, "getProcessedBitmap failed", e)
             initialized = false
@@ -938,6 +1009,35 @@ class GpuPipeline(private val context: Context) {
             initialized = false
         }
         return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    }
+
+    // ── Buffer Helpers ────────────────────────────────────────────
+
+    /**
+     * Flip pixel rows in an RGBA ByteBuffer in-place (reverse row order).
+     * Used to convert OpenGL's bottom-to-top pixel order to top-to-bottom.
+     */
+    private fun flipRowsInBuffer(buffer: ByteBuffer, width: Int, height: Int) {
+        val rowBytes = width * 4
+        val halfRows = height / 2
+        val tmp = ByteArray(rowBytes)
+        val topRow = ByteArray(rowBytes)
+        for (i in 0 until halfRows) {
+            val topPos = i * rowBytes
+            val botPos = (height - 1 - i) * rowBytes
+            // Save top row
+            buffer.position(topPos)
+            buffer.get(topRow, 0, rowBytes)
+            // Save bottom row
+            buffer.position(botPos)
+            buffer.get(tmp, 0, rowBytes)
+            // Write bottom row to top position
+            buffer.position(topPos)
+            buffer.put(tmp, 0, rowBytes)
+            // Write top row to bottom position
+            buffer.position(botPos)
+            buffer.put(topRow, 0, rowBytes)
+        }
     }
 
     // ── Uniform Helpers ────────────────────────────────────────────

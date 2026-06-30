@@ -126,6 +126,7 @@
 
     <!-- 权限 -->
     <string name="permission_storage">需要存储权限以访问照片</string>
+    <string name="permission_permanently_denied">权限已被永久拒绝，请在设置中手动开启</string>
 
     <!-- 设置 -->
     <string name="settings_title">设置</string>

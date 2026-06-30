@@ -26,10 +26,11 @@ class GuidedFilterDenoiser {
         val h = source.height
         if (w <= 0 || h <= 0) return source.copy(Bitmap.Config.ARGB_8888, true)
 
+        // 大图半分辨率处理再上采样
+        val needDownsample = w * h > 2_000_000
+        var workBitmap: Bitmap? = null
         try {
-            // 大图半分辨率处理再上采样
-            val needDownsample = w * h > 2_000_000
-            val workBitmap = if (needDownsample) {
+            workBitmap = if (needDownsample) {
                 val scale = sqrt(2_000_000f / (w * h))
                 val sw = (w * scale).toInt().coerceAtLeast(1)
                 val sh = (h * scale).toInt().coerceAtLeast(1)
@@ -40,13 +41,13 @@ class GuidedFilterDenoiser {
 
             val ww = workBitmap.width
             val wh = workBitmap.height
-            val pixels = IntArray(ww * wh)
+            var pixels = IntArray(ww * wh)
             workBitmap.getPixels(pixels, 0, ww, 0, 0, ww, wh)
 
             // RGB → YUV (BT.601)
-            val yChannel = FloatArray(ww * wh)
-            val uChannel = FloatArray(ww * wh)
-            val vChannel = FloatArray(ww * wh)
+            var yChannel = FloatArray(ww * wh)
+            var uChannel = FloatArray(ww * wh)
+            var vChannel = FloatArray(ww * wh)
             for (i in pixels.indices) {
                 val r = ((pixels[i] shr 16) and 0xFF) / 255f
                 val g = ((pixels[i] shr 8) and 0xFF) / 255f
@@ -56,16 +57,23 @@ class GuidedFilterDenoiser {
                 vChannel[i] = 0.5f * r - 0.419f * g - 0.081f * b + 0.5f
             }
 
+            // pixels no longer needed — free before guided filter allocations
+            pixels = IntArray(0)
+
             // 亮度通道：保边降噪（高细节保留）
             val radiusLuma = 4
             val epsLuma = 0.001f * (1f - preserveDetails.coerceIn(0f, 1f))
             val denoisedY = guidedFilter(yChannel, yChannel, ww, wh, radiusLuma, epsLuma)
+            yChannel = FloatArray(0) // free luma input
 
             // 色度通道：更激进去噪
             val radiusChroma = 6
             val epsChroma = 0.004f * chromaStrength.coerceIn(0f, 1f)
             val denoisedU = guidedFilter(uChannel, uChannel, ww, wh, radiusChroma, epsChroma)
+            uChannel = FloatArray(0) // free U input
+
             val denoisedV = guidedFilter(vChannel, vChannel, ww, wh, radiusChroma, epsChroma)
+            vChannel = FloatArray(0) // free V input
 
             // YUV → RGB
             val result = IntArray(ww * wh)
@@ -100,10 +108,16 @@ class GuidedFilterDenoiser {
             }
         } catch (e: OutOfMemoryError) {
             Log.e("GuidedFilterDenoiser", "OOM during denoise", e)
-            return try {
-                source.copy(Bitmap.Config.ARGB_8888, true)
-            } catch (oom: OutOfMemoryError) {
-                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            // Best effort: return workBitmap upsampled if we got that far, otherwise source
+            val wb = workBitmap
+            return if (wb != null && needDownsample) {
+                try {
+                    Bitmap.createScaledBitmap(wb, w, h, true)
+                } catch (oom: OutOfMemoryError) {
+                    try { source.copy(Bitmap.Config.ARGB_8888, true) } catch (_: OutOfMemoryError) { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
+                }
+            } else {
+                try { source.copy(Bitmap.Config.ARGB_8888, true) } catch (_: OutOfMemoryError) { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
             }
         }
     }

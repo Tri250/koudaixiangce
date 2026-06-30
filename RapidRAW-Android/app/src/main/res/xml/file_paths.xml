@@ -4,6 +4,4 @@
     <external-files-path name="rapidraw_exports" path="." />
     <!-- 应用内部缓存目录（临时导出文件） -->
     <cache-path name="rapidraw_cache" path="." />
-    <!-- 应用内部文件目录 -->
-    <files-path name="rapidraw_files" path="." />
 </paths>

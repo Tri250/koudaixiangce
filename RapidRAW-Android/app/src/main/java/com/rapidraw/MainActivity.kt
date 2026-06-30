@@ -6,9 +6,11 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.view.WindowInsetsController
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -52,6 +54,25 @@ class MainActivity : AppCompatActivity() {
             Log.w(TAG, "Permissions denied: $denied")
             // 如果关键存储权限被拒绝，仍然可以继续使用外部 intent 传入的图片，
             // 但图库功能会受限。这里仅记录，不在启动时阻塞。
+
+            // Check for permanently denied permissions and guide user to Settings.
+            // 注意：shouldShowRequestPermissionRationale 在首次请求时也返回 false，
+            // 因此需要结合"是否曾经请求过"来判断是否为永久拒绝。
+            val previouslyRequested = getPreviouslyRequestedPermissions()
+            val permanentlyDenied = denied.filter { perm ->
+                !shouldShowRationale(perm) && previouslyRequested.contains(perm)
+            }
+            if (permanentlyDenied.isNotEmpty()) {
+                Toast.makeText(
+                    this,
+                    getString(com.rapidraw.R.string.permission_permanently_denied),
+                    Toast.LENGTH_LONG
+                ).show()
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                }
+                startActivity(intent)
+            }
         } else {
             Log.d(TAG, "All requested permissions granted")
         }
@@ -72,9 +93,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // 安全隐私：防止截图和录屏
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
 
         // Edge-to-Edge: 让系统栏透明并让内容绘制到系统栏后面
         // 部分 OEM 皮肤对 edge-to-edge 支持不完整，做 try-catch 防止崩溃
@@ -265,8 +283,32 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (needsRequest) {
+            markPermissionsRequested(permissions)
             permissionLauncher.launch(permissions.toTypedArray())
         }
+    }
+
+    /**
+     * Checks whether the app should show permission rationale.
+     * Returns false if the permission was permanently denied (user checked "Don't ask again").
+     */
+    private fun shouldShowRationale(permission: String): Boolean {
+        return shouldShowRequestPermissionRationale(permission)
+    }
+
+    /**
+     * 记录已请求过的权限，用于区分"首次拒绝"和"永久拒绝"。
+     * shouldShowRequestPermissionRationale 在首次请求时也返回 false，
+     * 需要结合历史记录才能正确判断。
+     */
+    private fun markPermissionsRequested(permissions: List<String>) {
+        val prefs = getSharedPreferences("permission_history", MODE_PRIVATE)
+        prefs.edit().putStringSet("requested", (prefs.getStringSet("requested", emptySet()) ?: emptySet()) + permissions.toSet()).apply()
+    }
+
+    private fun getPreviouslyRequestedPermissions(): Set<String> {
+        val prefs = getSharedPreferences("permission_history", MODE_PRIVATE)
+        return prefs.getStringSet("requested", emptySet()) ?: emptySet()
     }
 
     private fun applyImmersiveMode() {

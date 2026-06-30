@@ -66,7 +66,7 @@ class CloudSyncManager(private val context: Context) {
     private val _pendingQueue = MutableStateFlow<List<SyncItem>>(emptyList())
     val pendingQueue: StateFlow<List<SyncItem>> = _pendingQueue.asStateFlow()
 
-    val isLoggedIn: Boolean get() = prefs.getString(KEY_AUTH_TOKEN, null) != null
+    val isLoggedIn: Boolean get() = isValidLocalToken(prefs.getString(KEY_AUTH_TOKEN, null))
     val isSyncEnabled: Boolean get() = prefs.getBoolean(KEY_SYNC_ENABLED, false)
     val userId: String? get() = prefs.getString(KEY_USER_ID, null)
 
@@ -78,6 +78,13 @@ class CloudSyncManager(private val context: Context) {
     /**
      * 登录 — 使用匿名认证（后续可扩展为邮箱/手机号/第三方登录）
      * 生成本地 UUID 作为用户标识，创建本地同步数据目录
+     *
+     * SECURITY NOTE: The auth token is currently stored as plaintext in SharedPreferences.
+     * This is acceptable only because the token is a local-only identifier ("local_$uid")
+     * that grants no remote access — the cloud sync backend is not yet configured.
+     * When a real backend is integrated and tokens grant remote access, this MUST be
+     * migrated to EncryptedSharedPreferences (androidx.security:security-crypto) or
+     * use the Android Keystore to encrypt tokens before storage.
      */
     suspend fun signInAnonymously(): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
@@ -261,6 +268,20 @@ class CloudSyncManager(private val context: Context) {
     }
 
     // ── 内部方法 ──────────────────────────────────────────────
+
+    /**
+     * Validates that the stored auth token has the expected "local_" prefix format.
+     * This prevents token injection — a malicious app with shared-UID access could
+     * write an arbitrary value into SharedPreferences; we reject anything that
+     * doesn't match the format our own signInAnonymously() produces.
+     */
+    private fun isValidLocalToken(token: String?): Boolean {
+        if (token == null) return false
+        if (!token.startsWith("local_")) return false
+        val uidPart = token.removePrefix("local_")
+        // Verify the UID portion is a valid UUID format (8-4-4-4-12 hex chars)
+        return uidPart.matches(Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))
+    }
 
     /**
      * 处理单个同步项目

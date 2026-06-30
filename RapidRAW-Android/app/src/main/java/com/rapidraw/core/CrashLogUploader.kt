@@ -32,9 +32,10 @@ class CrashLogUploader(private val context: Context) {
      * 上传成功后删除本地文件。
      * 仅在 Wi-Fi 且用户同意时上传（需调用方检查）。
      */
-    suspend fun uploadPendingLogs(wifiOnly: Boolean = true): UploadResult = withContext(Dispatchers.IO) {
+    suspend fun uploadPendingLogs(wifiOnly: Boolean = true, userConsented: Boolean = false): UploadResult = withContext(Dispatchers.IO) {
         val crashDir = File(context.filesDir, "crash_logs")
         if (!crashDir.exists()) return@withContext UploadResult(0, 0, 0)
+        if (!userConsented) return@withContext UploadResult(0, 0, 0)
 
         val logs = crashDir.listFiles()?.filter { it.extension == "log" } ?: return@withContext UploadResult(0, 0, 0)
         var uploaded = 0
@@ -47,24 +48,27 @@ class CrashLogUploader(private val context: Context) {
                 try {
                     val content = logFile.readText()
                     val connection = URL(UPLOAD_ENDPOINT).openConnection() as HttpURLConnection
-                    connection.requestMethod = "POST"
-                    connection.setRequestProperty("Content-Type", "text/plain")
-                    connection.setRequestProperty("X-App-Version", getAppVersion())
-                    connection.setRequestProperty("X-Device-Id", getDeviceId())
-                    connection.doOutput = true
-                    connection.connectTimeout = 10000
-                    connection.readTimeout = 15000
+                    try {
+                        connection.requestMethod = "POST"
+                        connection.setRequestProperty("Content-Type", "text/plain")
+                        connection.setRequestProperty("X-App-Version", getAppVersion())
+                        connection.setRequestProperty("X-Device-Id", getDeviceId())
+                        connection.doOutput = true
+                        connection.connectTimeout = 10000
+                        connection.readTimeout = 15000
 
-                    connection.outputStream.use { os ->
-                        os.write(content.toByteArray(Charsets.UTF_8))
-                    }
+                        connection.outputStream.use { os ->
+                            os.write(content.toByteArray(Charsets.UTF_8))
+                        }
 
-                    val responseCode = connection.responseCode
-                    connection.disconnect()
+                        val responseCode = connection.responseCode
 
-                    if (responseCode in 200..299) {
-                        success = true
-                        return@repeat
+                        if (responseCode in 200..299) {
+                            success = true
+                            return@repeat
+                        }
+                    } finally {
+                        connection.disconnect()
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Upload attempt ${attempt + 1} failed: ${e.message}")

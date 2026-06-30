@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.ceil
@@ -18,6 +19,10 @@ class TiledProcessor(
     private val tileSize: Int = 2048,
     private val overlap: Float = 0.1f,
 ) {
+
+    private companion object {
+        const val TAG = "TiledProcessor"
+    }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
@@ -39,7 +44,12 @@ class TiledProcessor(
             return@withContext processor(source)
         }
 
-        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val result = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating result bitmap ${w}x${h}", e)
+            return@withContext source
+        }
         val canvas = Canvas(result)
 
         val overlapPx = (tileSize * overlap).toInt()
@@ -58,7 +68,17 @@ class TiledProcessor(
                 if (tw <= 0 || th <= 0) continue
 
                 val tile = Bitmap.createBitmap(source, x, y, tw, th)
-                val processedTile = processor(tile)
+                val processedTile = try {
+                    processor(tile)
+                } catch (e: OutOfMemoryError) {
+                    Log.e(TAG, "OOM processing tile at ($x,$y)", e)
+                    if (tile !== source) tile.recycle()
+                    continue
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error processing tile at ($x,$y)", e)
+                    if (tile !== source) tile.recycle()
+                    continue
+                }
 
                 // 绘制时排除重叠区域（仅绘制非重叠部分）
                 val drawX = x
