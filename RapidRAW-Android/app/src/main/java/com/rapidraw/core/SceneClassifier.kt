@@ -31,6 +31,7 @@ class SceneClassifier {
     fun classify(bitmap: Bitmap): SceneAnalysis {
         val width = bitmap.width
         val height = bitmap.height
+        if (width <= 0 || height <= 0) return SceneAnalysis(SceneType.GENERAL, 0.5f, null, emptyMap())
         val totalPixels = width * height
 
         var skinTonePixels = 0
@@ -43,7 +44,7 @@ class SceneClassifier {
         var whitePixels = 0
         var avgBrightness = 0f
 
-        val sampleStep = maxOf(1, (totalPixels / 10000).coerceAtLeast(1))
+        val sampleStep = maxOf(1, (totalPixels / 10000).coerceAtLeast(1)).coerceAtMost(minOf(width, height))
 
         for (y in 0 until height step sampleStep) {
             for (x in 0 until width step sampleStep) {

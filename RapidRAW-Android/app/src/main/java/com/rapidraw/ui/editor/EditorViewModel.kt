@@ -323,8 +323,8 @@ class EditorViewModel(
 
             val result = runCatching {
                 withContext(Dispatchers.IO) {
+                    if (imageFile.path.isBlank()) throw IllegalArgumentException("Empty image path")
                     val uri = Uri.parse(imageFile.path)
-                        ?: throw IllegalArgumentException("Invalid image path: ${imageFile.path}")
                     imageProcessor.loadAndDecode(appContext, uri)
                 }
             }
@@ -351,8 +351,13 @@ class EditorViewModel(
                 val originalPreview = try {
                     validPreview.copy(validPreview.config ?: Bitmap.Config.ARGB_8888, false)
                 } catch (e: OutOfMemoryError) {
-                    Log.w(TAG, "OOM creating original preview copy", e)
-                    null
+                    Log.w(TAG, "OOM creating original preview copy, trying half-resolution fallback", e)
+                    try {
+                        Bitmap.createScaledBitmap(validPreview, validPreview.width / 2, validPreview.height / 2, true)
+                    } catch (e2: OutOfMemoryError) {
+                        Log.w(TAG, "OOM creating half-resolution original preview fallback", e2)
+                        null
+                    }
                 }
                 _originalPreviewBitmap.value?.let { old ->
                     if (!old.isRecycled && old !== previewBitmapCache && old !== originalBitmap) old.recycle()

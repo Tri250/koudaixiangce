@@ -1,6 +1,7 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
+import android.util.Log
 import kotlin.math.abs
 import kotlin.math.sqrt
 
@@ -23,77 +24,87 @@ class GuidedFilterDenoiser {
     fun denoise(source: Bitmap, preserveDetails: Float = 0.5f, chromaStrength: Float = 0.3f): Bitmap {
         val w = source.width
         val h = source.height
-        
-        // 大图半分辨率处理再上采样
-        val needDownsample = w * h > 2_000_000
-        val workBitmap = if (needDownsample) {
-            val scale = sqrt(2_000_000f / (w * h))
-            val sw = (w * scale).toInt().coerceAtLeast(1)
-            val sh = (h * scale).toInt().coerceAtLeast(1)
-            Bitmap.createScaledBitmap(source, sw, sh, true)
-        } else {
-            source.copy(Bitmap.Config.ARGB_8888, true)
-        }
-        
-        val ww = workBitmap.width
-        val wh = workBitmap.height
-        val pixels = IntArray(ww * wh)
-        workBitmap.getPixels(pixels, 0, ww, 0, 0, ww, wh)
-        
-        // RGB → YUV (BT.601)
-        val yChannel = FloatArray(ww * wh)
-        val uChannel = FloatArray(ww * wh)
-        val vChannel = FloatArray(ww * wh)
-        for (i in pixels.indices) {
-            val r = ((pixels[i] shr 16) and 0xFF) / 255f
-            val g = ((pixels[i] shr 8) and 0xFF) / 255f
-            val b = (pixels[i] and 0xFF) / 255f
-            yChannel[i] = 0.299f * r + 0.587f * g + 0.114f * b
-            uChannel[i] = -0.169f * r - 0.331f * g + 0.5f * b + 0.5f
-            vChannel[i] = 0.5f * r - 0.419f * g - 0.081f * b + 0.5f
-        }
-        
-        // 亮度通道：保边降噪（高细节保留）
-        val radiusLuma = 4
-        val epsLuma = 0.001f * (1f - preserveDetails.coerceIn(0f, 1f))
-        val denoisedY = guidedFilter(yChannel, yChannel, ww, wh, radiusLuma, epsLuma)
-        
-        // 色度通道：更激进去噪
-        val radiusChroma = 6
-        val epsChroma = 0.004f * chromaStrength.coerceIn(0f, 1f)
-        val denoisedU = guidedFilter(uChannel, uChannel, ww, wh, radiusChroma, epsChroma)
-        val denoisedV = guidedFilter(vChannel, vChannel, ww, wh, radiusChroma, epsChroma)
-        
-        // YUV → RGB
-        val result = IntArray(ww * wh)
-        for (i in result.indices) {
-            val y = denoisedY[i]
-            val u = denoisedU[i] - 0.5f
-            val v = denoisedV[i] - 0.5f
-            val r = (y + 1.402f * v).coerceIn(0f, 1f)
-            val g = (y - 0.344f * u - 0.714f * v).coerceIn(0f, 1f)
-            val b = (y + 1.772f * u).coerceIn(0f, 1f)
-            val ri = (r * 255f).toInt().coerceIn(0, 255)
-            val gi = (g * 255f).toInt().coerceIn(0, 255)
-            val bi = (b * 255f).toInt().coerceIn(0, 255)
-            result[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
-        }
-        
-        val denoisedBitmap = Bitmap.createBitmap(ww, wh, Bitmap.Config.ARGB_8888)
-        denoisedBitmap.setPixels(result, 0, ww, 0, 0, ww, wh)
+        if (w <= 0 || h <= 0) return source.copy(Bitmap.Config.ARGB_8888, true)
 
-        // Recycle the work bitmap (scaled copy of source, no longer needed)
-        if (workBitmap !== source) {
-            workBitmap.recycle()
-        }
+        try {
+            // 大图半分辨率处理再上采样
+            val needDownsample = w * h > 2_000_000
+            val workBitmap = if (needDownsample) {
+                val scale = sqrt(2_000_000f / (w * h))
+                val sw = (w * scale).toInt().coerceAtLeast(1)
+                val sh = (h * scale).toInt().coerceAtLeast(1)
+                Bitmap.createScaledBitmap(source, sw, sh, true)
+            } else {
+                source.copy(Bitmap.Config.ARGB_8888, true)
+            }
 
-        // 上采样回原尺寸
-        return if (needDownsample) {
-            val upsampled = Bitmap.createScaledBitmap(denoisedBitmap, w, h, true)
-            if (denoisedBitmap != source) denoisedBitmap.recycle()
-            upsampled
-        } else {
-            denoisedBitmap
+            val ww = workBitmap.width
+            val wh = workBitmap.height
+            val pixels = IntArray(ww * wh)
+            workBitmap.getPixels(pixels, 0, ww, 0, 0, ww, wh)
+
+            // RGB → YUV (BT.601)
+            val yChannel = FloatArray(ww * wh)
+            val uChannel = FloatArray(ww * wh)
+            val vChannel = FloatArray(ww * wh)
+            for (i in pixels.indices) {
+                val r = ((pixels[i] shr 16) and 0xFF) / 255f
+                val g = ((pixels[i] shr 8) and 0xFF) / 255f
+                val b = (pixels[i] and 0xFF) / 255f
+                yChannel[i] = 0.299f * r + 0.587f * g + 0.114f * b
+                uChannel[i] = -0.169f * r - 0.331f * g + 0.5f * b + 0.5f
+                vChannel[i] = 0.5f * r - 0.419f * g - 0.081f * b + 0.5f
+            }
+
+            // 亮度通道：保边降噪（高细节保留）
+            val radiusLuma = 4
+            val epsLuma = 0.001f * (1f - preserveDetails.coerceIn(0f, 1f))
+            val denoisedY = guidedFilter(yChannel, yChannel, ww, wh, radiusLuma, epsLuma)
+
+            // 色度通道：更激进去噪
+            val radiusChroma = 6
+            val epsChroma = 0.004f * chromaStrength.coerceIn(0f, 1f)
+            val denoisedU = guidedFilter(uChannel, uChannel, ww, wh, radiusChroma, epsChroma)
+            val denoisedV = guidedFilter(vChannel, vChannel, ww, wh, radiusChroma, epsChroma)
+
+            // YUV → RGB
+            val result = IntArray(ww * wh)
+            for (i in result.indices) {
+                val y = denoisedY[i]
+                val u = denoisedU[i] - 0.5f
+                val v = denoisedV[i] - 0.5f
+                val r = (y + 1.402f * v).coerceIn(0f, 1f)
+                val g = (y - 0.344f * u - 0.714f * v).coerceIn(0f, 1f)
+                val b = (y + 1.772f * u).coerceIn(0f, 1f)
+                val ri = (r * 255f).toInt().coerceIn(0, 255)
+                val gi = (g * 255f).toInt().coerceIn(0, 255)
+                val bi = (b * 255f).toInt().coerceIn(0, 255)
+                result[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+            }
+
+            val denoisedBitmap = Bitmap.createBitmap(ww, wh, Bitmap.Config.ARGB_8888)
+            denoisedBitmap.setPixels(result, 0, ww, 0, 0, ww, wh)
+
+            // Recycle the work bitmap (scaled copy of source, no longer needed)
+            if (workBitmap !== source) {
+                workBitmap.recycle()
+            }
+
+            // 上采样回原尺寸
+            return if (needDownsample) {
+                val upsampled = Bitmap.createScaledBitmap(denoisedBitmap, w, h, true)
+                if (denoisedBitmap != source) denoisedBitmap.recycle()
+                upsampled
+            } else {
+                denoisedBitmap
+            }
+        } catch (e: OutOfMemoryError) {
+            Log.e("GuidedFilterDenoiser", "OOM during denoise", e)
+            return try {
+                source.copy(Bitmap.Config.ARGB_8888, true)
+            } catch (oom: OutOfMemoryError) {
+                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            }
         }
     }
     

@@ -30,6 +30,7 @@ class AiMaskGenerator {
     fun generateMask(source: Bitmap, type: MaskType): Bitmap {
         val w = source.width
         val h = source.height
+        if (w <= 0 || h <= 0) return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
         val pixels = IntArray(w * h)
         source.getPixels(pixels, 0, w, 0, 0, w, h)
         
@@ -244,8 +245,8 @@ class AiMaskGenerator {
         val result = FloatArray(w * h)
         for (y in 0 until h) {
             for (x in 0 until w) {
-                val sx = (x.toFloat() * (sw - 1) / (w - 1)).coerceIn(0f, (sw - 1).toFloat())
-                val sy = (y.toFloat() * (sh - 1) / (h - 1)).coerceIn(0f, (sh - 1).toFloat())
+                val sx = (x.toFloat() * (sw - 1) / (w - 1).coerceAtLeast(1)).coerceIn(0f, (sw - 1).toFloat())
+                val sy = (y.toFloat() * (sh - 1) / (h - 1).coerceAtLeast(1)).coerceIn(0f, (sh - 1).toFloat())
                 val x0 = sx.toInt()
                 val y0 = sy.toInt()
                 val x1 = (x0 + 1).coerceAtMost(sw - 1)

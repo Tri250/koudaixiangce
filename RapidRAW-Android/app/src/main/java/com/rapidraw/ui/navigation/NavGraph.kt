@@ -167,14 +167,23 @@ fun RapidNavHost(
                 navDeepLink { uriPattern = "${Routes.DEEP_LINK_PREFIX}editor/{imagePath}" }
             ),
         ) { backStackEntry ->
-            val imagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
+            // v1.5.5 hotfix: 空路径防御——外部 Intent / deep link 可能传入空串或非法编码，
+            // 导致后续 Uri.parse(path) 崩溃或 BitmapFactory 收到空路径 OOM。
+            val rawImagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
+            val imagePath = runCatching {
+                java.net.URLDecoder.decode(rawImagePath, "UTF-8")
+            }.getOrDefault(rawImagePath)
+            if (imagePath.isBlank()) {
+                // 无法编辑不存在的图片，返回图库
+                LaunchedEffect(Unit) { navController.popBackStack() }
+                return@composable
+            }
             val image = remember(imagePath) {
-                val safePath = imagePath.ifBlank { "" }
                 ImageFile(
-                    path = safePath,
-                    fileName = safePath.substringAfterLast("/", "image"),
-                    folderPath = safePath.substringBeforeLast("/", ""),
-                    isRaw = ImageFile.isRawFile(safePath),
+                    path = imagePath,
+                    fileName = imagePath.substringAfterLast("/", "image"),
+                    folderPath = imagePath.substringBeforeLast("/", ""),
+                    isRaw = ImageFile.isRawFile(imagePath),
                 )
             }
             val context = LocalContext.current
@@ -257,14 +266,22 @@ fun RapidNavHost(
                 navDeepLink { uriPattern = "${Routes.DEEP_LINK_PREFIX}editor_uri/{uri}" }
             ),
         ) { backStackEntry ->
-            val uriString = backStackEntry.arguments?.getString("uri") ?: ""
-            val uri = remember(uriString) {
-                runCatching { Uri.parse(uriString) }.getOrNull()
+            // v1.5.5 hotfix: URI 参数防御——解析失败时返回图库而非崩溃
+            val rawUriString = backStackEntry.arguments?.getString("uri") ?: ""
+            val decodedUriString = runCatching {
+                java.net.URLDecoder.decode(rawUriString, "UTF-8")
+            }.getOrDefault(rawUriString)
+            if (decodedUriString.isBlank()) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+                return@composable
             }
-            val image = remember(uriString) {
+            val uri = remember(decodedUriString) {
+                runCatching { Uri.parse(decodedUriString) }.getOrNull()
+            }
+            val image = remember(decodedUriString) {
                 val displayName = uri?.lastPathSegment?.substringAfterLast("/") ?: "image"
                 ImageFile(
-                    path = uriString,
+                    path = decodedUriString,
                     fileName = displayName,
                     folderPath = "",
                     isRaw = ImageFile.isRawFile(displayName),
@@ -323,11 +340,18 @@ fun RapidNavHost(
             popEnterTransition = { Motion.enterSlideUp },
             popExitTransition = { Motion.exitSlideDown },
         ) { backStackEntry ->
-            val imagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
+            // v1.5.5 hotfix: URL 解码 + 空路径防御
+            val rawAiPath = backStackEntry.arguments?.getString("imagePath") ?: ""
+            val aiImagePath = runCatching {
+                java.net.URLDecoder.decode(rawAiPath, "UTF-8")
+            }.getOrDefault(rawAiPath)
+            if (aiImagePath.isBlank()) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
             val context = LocalContext.current
-            val bitmap = remember(imagePath) {
+            val bitmap = remember(aiImagePath) {
                 try {
-                    val uri = Uri.parse(imagePath)
+                    val uri = Uri.parse(aiImagePath)
                     val options = BitmapFactory.Options().apply {
                         inJustDecodeBounds = true
                     }
@@ -380,6 +404,7 @@ fun RapidNavHost(
                     navController.popBackStack()
                 }
             }
+            } // end else (aiImagePath non-blank)
         }
 
         composable(

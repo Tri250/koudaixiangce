@@ -412,6 +412,7 @@ class ImageProcessor {
 
     suspend fun loadAndDecode(context: Context, uri: Uri): DecodedImage =
         withContext(Dispatchers.IO) {
+            try {
             val fileName = getFileName(context, uri)
             val isDng = fileName.lowercase().endsWith(".dng")
             val isRaw = isDng ||
@@ -443,7 +444,27 @@ class ImageProcessor {
                     decodeRawFallback(context, uri)
                 }
             } else {
-                decodeRegular(context, uri)
+                try {
+                    decodeRegular(context, uri)
+                } catch (oom: OutOfMemoryError) {
+                    Log.w(TAG, "OOM in decodeRegular, retrying with higher inSampleSize", oom)
+                    // Retry with progressively higher inSampleSize (up to 3 doublings)
+                    var decoded: Bitmap? = null
+                    var sampleSize = 2
+                    var attempts = 0
+                    while (decoded == null && attempts < 3) {
+                        try {
+                            decoded = decodeRegularWithSampleSize(context, uri, sampleSize)
+                        } catch (oom2: OutOfMemoryError) {
+                            Log.w(TAG, "OOM in decodeRegular attempt ${attempts + 1} with inSampleSize=$sampleSize", oom2)
+                            sampleSize *= 2
+                            attempts++
+                        }
+                    }
+                    decoded ?: throw oom
+                } catch (e: IllegalArgumentException) {
+                    throw IllegalArgumentException("Failed to decode image: ${e.message}", e)
+                }
             }
 
             // Apply EXIF orientation
@@ -461,6 +482,10 @@ class ImageProcessor {
                 exif = exif,
                 orientation = orientation
             )
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OutOfMemoryError in loadAndDecode", oom)
+                throw IllegalArgumentException("图片过大，内存不足")
+            }
         }
 
     private fun getFileName(context: Context, uri: Uri): String {
@@ -613,6 +638,27 @@ class ImageProcessor {
         val result = decodeUriStream(context, uri, decodeOptions)
             ?: throw IllegalArgumentException("Failed to decode image")
         return result
+    }
+
+    /**
+     * Variant of [decodeRegular] that forces a specific [inSampleSize].
+     * Used when the initial decode triggers OOM and we retry with more downsampling.
+     */
+    private fun decodeRegularWithSampleSize(context: Context, uri: Uri, inSampleSize: Int): Bitmap {
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        decodeUriStream(context, uri, options)
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inMutable = true
+            this.inSampleSize = inSampleSize.coerceAtLeast(
+                calculateInSampleSize(options.outWidth, options.outHeight, 4096, 4096)
+            )
+        }
+        return decodeUriStream(context, uri, decodeOptions)
+            ?: throw IllegalArgumentException("Failed to decode image with inSampleSize=$inSampleSize")
     }
 
     /**

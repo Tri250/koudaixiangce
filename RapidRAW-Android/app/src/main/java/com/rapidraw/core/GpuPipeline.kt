@@ -542,7 +542,8 @@ class GpuPipeline(private val context: Context) {
     fun updateAdjustments(adjustments: Adjustments) {
         if (!initialized) return
 
-        GLES30.glUseProgram(program)
+        try {
+            GLES30.glUseProgram(program)
 
         // ── Basic ──
         setUniform1f("uExposure", adjustments.exposure)
@@ -743,6 +744,13 @@ class GpuPipeline(private val context: Context) {
 
         // ── Debug ──
         setUniform1f("uClippingPreview", if (adjustments.showClipping) 1f else 0f)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "updateAdjustments failed", e)
+            initialized = false
+        } catch (e: Exception) {
+            Log.e(TAG, "updateAdjustments failed", e)
+            initialized = false
+        }
     }
 
     // ── Render ─────────────────────────────────────────────────────
@@ -795,60 +803,68 @@ class GpuPipeline(private val context: Context) {
     fun renderFrame(inputBitmap: Bitmap) {
         if (!initialized) return
 
-        makeCurrent()
-        GLES30.glUseProgram(program)
+        try {
+            makeCurrent()
+            GLES30.glUseProgram(program)
 
-        // Upload bitmap to texture（仅在尺寸变化时重新分配纹理存储）
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, textureId)
-        if (inputBitmap.width != lastInputWidth || inputBitmap.height != lastInputHeight) {
-            GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, inputBitmap, 0)
-            lastInputWidth = inputBitmap.width
-            lastInputHeight = inputBitmap.height
-        } else {
-            // 尺寸不变时使用 texSubImage2D 避免重新分配
-            GLUtils.texSubImage2D(GLES30.GL_TEXTURE_2D, 0, 0, 0, inputBitmap)
-        }
+            // Upload bitmap to texture（仅在尺寸变化时重新分配纹理存储）
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, textureId)
+            if (inputBitmap.width != lastInputWidth || inputBitmap.height != lastInputHeight) {
+                GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, inputBitmap, 0)
+                lastInputWidth = inputBitmap.width
+                lastInputHeight = inputBitmap.height
+            } else {
+                // 尺寸不变时使用 texSubImage2D 避免重新分配
+                GLUtils.texSubImage2D(GLES30.GL_TEXTURE_2D, 0, 0, 0, inputBitmap)
+            }
 
-        setUniform1i("uTexture", 0)
-        setUniform2f("uResolution", inputBitmap.width.toFloat(), inputBitmap.height.toFloat())
+            setUniform1i("uTexture", 0)
+            setUniform2f("uResolution", inputBitmap.width.toFloat(), inputBitmap.height.toFloat())
 
-        // Bind mask texture to unit 1
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, maskTextureId)
-        setUniform1i("uMaskTexture", 1)
-        setUniform1f("uMaskIntensity", maskIntensity)
+            // Bind mask texture to unit 1
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, maskTextureId)
+            setUniform1i("uMaskTexture", 1)
+            setUniform1f("uMaskIntensity", maskIntensity)
 
-        // Bind LUT texture to unit 2
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, lutTextureId)
-        setUniform1i("uLutTexture", 2)
-        setUniform1f("uLutIntensity", lutIntensity)
+            // Bind LUT texture to unit 2
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, lutTextureId)
+            setUniform1i("uLutTexture", 2)
+            setUniform1f("uLutIntensity", lutIntensity)
 
-        // Render to FBO
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
-        GLES30.glViewport(0, 0, width, height)
-        GLES30.glClearColor(0f, 0f, 0f, 1f)
-        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
-
-        GLES30.glBindVertexArray(vao)
-        GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
-        GLES30.glBindVertexArray(0)
-
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-
-        // 仅窗口 surface 需要额外绘制到默认 surface 并 swap；离屏模式直接读取 FBO 即可
-        if (!isOffscreen) {
+            // Render to FBO
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
             GLES30.glViewport(0, 0, width, height)
+            GLES30.glClearColor(0f, 0f, 0f, 1f)
             GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+
             GLES30.glBindVertexArray(vao)
             GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
             GLES30.glBindVertexArray(0)
 
-            // Swap buffers
-            val display = eglDisplay ?: return
-            val surface = eglSurface ?: return
-            android.opengl.EGL14.eglSwapBuffers(display, surface)
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+
+            // 仅窗口 surface 需要额外绘制到默认 surface 并 swap；离屏模式直接读取 FBO 即可
+            if (!isOffscreen) {
+                GLES30.glViewport(0, 0, width, height)
+                GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+                GLES30.glBindVertexArray(vao)
+                GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
+                GLES30.glBindVertexArray(0)
+
+                // Swap buffers
+                val display = eglDisplay ?: return
+                val surface = eglSurface ?: return
+                android.opengl.EGL14.eglSwapBuffers(display, surface)
+            }
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "renderFrame failed", e)
+            initialized = false
+        } catch (e: Exception) {
+            Log.e(TAG, "renderFrame failed", e)
+            initialized = false
         }
     }
 
@@ -858,37 +874,46 @@ class GpuPipeline(private val context: Context) {
     fun getProcessedBitmap(): Bitmap {
         if (!initialized) return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
-        makeCurrent()
+        try {
+            makeCurrent()
 
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
 
-        // 复用 ByteBuffer 避免频繁分配
-        var buffer = readBackBuffer
-        if (buffer == null || buffer.capacity() < width * height * 4) {
-            buffer = ByteBuffer.allocateDirect(width * height * 4)
-                .order(ByteOrder.nativeOrder())
-            readBackBuffer = buffer
+            // 复用 ByteBuffer 避免频繁分配
+            var buffer = readBackBuffer
+            if (buffer == null || buffer.capacity() < width * height * 4) {
+                buffer = ByteBuffer.allocateDirect(width * height * 4)
+                    .order(ByteOrder.nativeOrder())
+                readBackBuffer = buffer
+            }
+            buffer.clear()
+
+            GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+
+            buffer.rewind()
+
+            // 复用 Bitmap 避免频繁创建
+            var bitmap = readBackBitmap
+            if (bitmap == null || bitmap.width != width || bitmap.height != height) {
+                bitmap?.recycle()
+                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                readBackBitmap = bitmap
+            }
+            bitmap.copyPixelsFromBuffer(buffer)
+
+            // OpenGL reads bottom-to-top, need to flip vertically
+            val matrix = android.graphics.Matrix()
+            matrix.postScale(1f, -1f)
+            return Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "getProcessedBitmap failed", e)
+            initialized = false
+        } catch (e: Exception) {
+            Log.e(TAG, "getProcessedBitmap failed", e)
+            initialized = false
         }
-        buffer.clear()
-
-        GLES30.glReadPixels(0, 0, width, height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buffer)
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-
-        buffer.rewind()
-
-        // 复用 Bitmap 避免频繁创建
-        var bitmap = readBackBitmap
-        if (bitmap == null || bitmap.width != width || bitmap.height != height) {
-            bitmap?.recycle()
-            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            readBackBitmap = bitmap
-        }
-        bitmap.copyPixelsFromBuffer(buffer)
-
-        // OpenGL reads bottom-to-top, need to flip vertically
-        val matrix = android.graphics.Matrix()
-        matrix.postScale(1f, -1f)
-        return Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true)
+        return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
     }
 
     // ── Uniform Helpers ────────────────────────────────────────────
