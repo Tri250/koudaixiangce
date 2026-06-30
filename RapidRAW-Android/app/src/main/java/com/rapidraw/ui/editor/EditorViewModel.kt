@@ -840,7 +840,6 @@ class EditorViewModel(
                             imageProcessor.currentLut = l
                             _adjustments.value = _adjustments.value.copy(
                                 activeLutId = name,
-                                activeLutBlend = 1f,
                                 lutIntensity = 100f,
                             )
                             gpuMutex.withLock {
@@ -1338,7 +1337,6 @@ class EditorViewModel(
                 pushUndo("LUT: ${lutEntry.name}")
                 _adjustments.value = _adjustments.value.copy(
                     activeLutId = lutEntry.id,
-                    activeLutBlend = intensity.coerceIn(0f, 1f),
                     lutIntensity = intensity.coerceIn(0f, 1f) * 100f,
                 )
                 gpuMutex.withLock {
@@ -1356,7 +1354,6 @@ class EditorViewModel(
         imageProcessor.currentLut = null
         _adjustments.value = _adjustments.value.copy(
             activeLutId = "",
-            activeLutBlend = 0f,
             lutIntensity = 0f,
         )
         viewModelScope.launch(coroutineExceptionHandler) {

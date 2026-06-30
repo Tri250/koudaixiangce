@@ -17,9 +17,9 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.5.5 release: versionName 1.5.5，versionCode 1555
-        versionCode = 1555
-        versionName = "1.5.5"
+        // v1.5.6 release: 修复 UI 面板/控件/渲染管线完整对齐
+        versionCode = 1556
+        versionName = "1.5.6"
 
         // 2026 perf: 仅打包应用实际支持的中/英文资源，显著减少 APK 体积。
         resourceConfigurations += listOf("zh", "en")
@@ -33,7 +33,11 @@ android {
         ndk {
             // Release 默认仅打包手机常用 ABI，减少 APK 体积；
             // 如需在 x86_64 模拟器测试/构建，可添加 -PincludeX86_64=true。
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // 低内存 CI 环境默认仅构建 arm64-v8a，可通过 -PincludeArmV7=true 添加 armeabi-v7a。
+            abiFilters += listOf("arm64-v8a")
+            if ((project.findProperty("includeArmV7") as String?)?.toBoolean() == true) {
+                abiFilters += "armeabi-v7a"
+            }
             if ((project.findProperty("includeX86_64") as String?)?.toBoolean() == true) {
                 abiFilters += "x86_64"
             }

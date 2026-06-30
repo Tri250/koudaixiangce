@@ -296,11 +296,11 @@ fun EditorScreen(
     // v1.5.5 hotfix: 之前 setGpuPipeline 从未被调用，导致 GPU 路径完全无效。
     // 在 EditorScreen 首次组合时初始化 GpuPipeline（OpenGL ES 3.0 后端），
     // 并在离开屏幕时正确释放。GL 初始化失败（设备不支持/驱动异常）时静默降级到 CPU 路径。
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val gpuContext = androidx.compose.ui.platform.LocalContext.current
     DisposableEffect(Unit) {
         var pipeline: com.rapidraw.core.GpuPipeline? = null
         try {
-            pipeline = com.rapidraw.core.GpuPipeline(context)
+            pipeline = com.rapidraw.core.GpuPipeline(gpuContext)
             viewModel.setGpuPipeline(pipeline)
         } catch (e: Throwable) {
             Log.w("EditorScreen", "GPU pipeline init failed, falling back to CPU", e)

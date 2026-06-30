@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import java.io.OutputStream
@@ -732,13 +733,15 @@ class ImageProcessor {
         val fileName = file.name
         // v1.5.5 hotfix: RAW 文件必须走 libraw 解码，普通 BitmapFactory.decodeFile 只能拿到缩略图/损坏像素
         if (isRawFileName(fileName)) {
-            return try {
-                val context = appContextRef
-                val uri = Uri.fromFile(file)
-                com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
-            } catch (t: Throwable) {
-                Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
-                loadBitmapFromFileSimple(path, allowDownsample)
+            return runBlocking {
+                try {
+                    val context = appContextRef
+                    val uri = Uri.fromFile(file)
+                    com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
+                    loadBitmapFromFileSimple(path, allowDownsample)
+                }
             }
         }
         return loadBitmapFromFileSimple(path, allowDownsample)
@@ -771,11 +774,13 @@ class ImageProcessor {
         // v1.5.5 hotfix: 通过 URI 加载时也要识别 RAW 后缀并走 libraw 解码路径
         val fileName = getFileName(context, uri)
         if (isRawFileName(fileName)) {
-            return try {
-                com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
-            } catch (t: Throwable) {
-                Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
-                loadBitmapFromUriSimple(context, uri, allowDownsample)
+            return runBlocking {
+                try {
+                    com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
+                    loadBitmapFromUriSimple(context, uri, allowDownsample)
+                }
             }
         }
         return loadBitmapFromUriSimple(context, uri, allowDownsample)
@@ -797,8 +802,8 @@ class ImageProcessor {
 
     private val appContextRef: Context
         get() = com.rapidraw.RapidRawApp.getInstance()
+            ?.applicationContext
             ?: error("RapidRawApp not initialized when loadBitmap was called")
-            .applicationContext
 
     private fun applyExifOrientation(bitmap: Bitmap, orientation: Int): Bitmap {
         if (orientation == 0) return bitmap
