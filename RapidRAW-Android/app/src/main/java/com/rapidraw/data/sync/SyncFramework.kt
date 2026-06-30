@@ -3,6 +3,7 @@ package com.rapidraw.data.sync
 import com.rapidraw.data.model.Adjustments
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 
 /**

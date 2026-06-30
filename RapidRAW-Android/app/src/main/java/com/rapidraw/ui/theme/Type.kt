@@ -28,25 +28,26 @@ import androidx.compose.ui.unit.sp
  * 将 OPPO Sans TTF/OTF 放到 res/font/ 后取消下面 loadOPPOSansFamily() 的注释。
  */
 private fun loadOPPOSansFamily(): FontFamily? = try {
+    val fontClass = Class.forName("com.rapidraw.R\$font")
     val regularId = runCatching {
-        val resId = com.rapidraw.R.font::class.java.getField("opposans_regular").getInt(null)
+        val resId = fontClass.getField("opposans_regular").getInt(null)
         if (resId != 0) resId else null
     }.getOrNull()
     val mediumId = runCatching {
-        val resId = com.rapidraw.R.font::class.java.getField("opposans_medium").getInt(null)
+        val resId = fontClass.getField("opposans_medium").getInt(null)
         if (resId != 0) resId else null
     }.getOrNull()
     val boldId = runCatching {
-        val resId = com.rapidraw.R.font::class.java.getField("opposans_bold").getInt(null)
+        val resId = fontClass.getField("opposans_bold").getInt(null)
         if (resId != 0) resId else null
     }.getOrNull()
     // 2026 hotfix: 尝试加载 Light 和 Thin 字重以支持更完整的字重梯度
     val lightId = runCatching {
-        val resId = com.rapidraw.R.font::class.java.getField("opposans_light").getInt(null)
+        val resId = fontClass.getField("opposans_light").getInt(null)
         if (resId != 0) resId else null
     }.getOrNull()
     val thinId = runCatching {
-        val resId = com.rapidraw.R.font::class.java.getField("opposans_thin").getInt(null)
+        val resId = fontClass.getField("opposans_thin").getInt(null)
         if (resId != 0) resId else null
     }.getOrNull()
     if (regularId == null || mediumId == null || boldId == null) {

@@ -2,6 +2,8 @@ package com.rapidraw.ai
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.PorterDuff
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -60,7 +62,7 @@ class AiSuperResolution(context: Context) {
                 val paddedTile = if (tw < tileSize || th < tileSize) {
                     Bitmap.createBitmap(tileSize, tileSize, Bitmap.Config.ARGB_8888).also { padded ->
                         val canvas = android.graphics.Canvas(padded)
-                        canvas.eraseColor(0)
+                        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
                         val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
                         canvas.drawBitmap(tile, 0f, 0f, paint)
                     }

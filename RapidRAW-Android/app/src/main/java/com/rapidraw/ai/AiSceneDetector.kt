@@ -26,18 +26,18 @@ class AiSceneDetector(context: Context) {
         modelFileName = "scene_classifier.tflite",
         inputWidth = 224,
         inputHeight = 224,
-        preferredBackend = InferenceEngine.Backend.NNAPI,
+        preferredBackend = InferenceEngine.Backend.GPU_DELEGATE,
     )
 
     private val sceneLabelMap = mapOf(
         0 to SceneType.LANDSCAPE,
         1 to SceneType.PORTRAIT,
         2 to SceneType.NIGHT,
-        3 to SceneType.MACRO,
+        3 to SceneType.GENERAL,
         4 to SceneType.ARCHITECTURE,
         5 to SceneType.FOOD,
-        6 to SceneType.STREET,
-        7 to SceneType.UNDERWATER,
+        6 to SceneType.GENERAL,
+        7 to SceneType.GENERAL,
     )
 
     suspend fun detect(bitmap: Bitmap): SceneResult = withContext(Dispatchers.Default) {
@@ -62,7 +62,7 @@ class AiSceneDetector(context: Context) {
             val sorted = scores.sortedByDescending { it.second }
             val topScene = sorted.firstOrNull()?.let { (label, score) ->
                 val idx = labels.indexOf(label)
-                val sceneType = sceneLabelMap[idx] ?: SceneType.UNKNOWN
+                val sceneType = sceneLabelMap[idx] ?: SceneType.GENERAL
                 SceneResult(sceneType, score, sorted)
             } ?: heuristicDetect(bitmap)
 
@@ -114,7 +114,7 @@ class AiSceneDetector(context: Context) {
             else -> SceneType.LANDSCAPE
         }
 
-        SceneResult(scene, 0.6f, listOf(scene.name to 0.6f))
+        return SceneResult(scene, 0.6f, listOf(scene.name to 0.6f))
     }
 
     fun close() = engine.close()

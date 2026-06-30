@@ -136,6 +136,7 @@ fun LutMarketScreen(
                 onCategorySelected = { selectedCategory = it },
                 onDownloadLut = onDownloadLut,
                 onImportLut = onImportLut,
+                categories = categories,
             )
             1 -> LutMyCollectionTab(
                 onImportLut = onImportLut,
@@ -150,6 +151,7 @@ private fun LutDiscoveryTab(
     onCategorySelected: (String) -> Unit,
     onDownloadLut: (LutItem) -> Unit,
     onImportLut: (LutItem) -> Unit,
+    categories: List<String> = listOf("全部", "胶片", "电影", "复古", "手机"),
 ) {
     Column(
         modifier = Modifier

@@ -93,7 +93,7 @@ fun PrivacyPolicyScreen(
             // 引言
             PolicySectionTitle("引言")
             PolicyParagraph(
-                "RapidRAW（以下简称"我们"）深知个人信息对您的重要性，我们将按照法律法规的规定，" +
+                "RapidRAW（以下简称\"我们\"）深知个人信息对您的重要性，我们将按照法律法规的规定，" +
                     "保护您的个人信息及隐私安全。我们制定本隐私政策以帮助您了解我们如何收集、使用、存储和保护您的个人信息。" +
                     "请您在使用我们的产品和服务前，仔细阅读并充分理解本隐私政策。",
             )
@@ -173,7 +173,7 @@ fun PrivacyPolicyScreen(
             PolicyBulletItem("账号注销权：您可以申请注销账号，注销后我们将删除或匿名化您的所有个人信息")
             PolicyBulletItem("获取副本：您有权获取您的个人信息副本")
             PolicyParagraph(
-                "行使上述权利的方式：请在应用内"设置 → 反馈与建议"中提交请求，或通过本政策列明的联系方式与我们联系。",
+                "行使上述权利的方式：请在应用内\"设置 → 反馈与建议\"中提交请求，或通过本政策列明的联系方式与我们联系。",
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -209,7 +209,7 @@ fun PrivacyPolicyScreen(
                 "如您对本隐私政策有任何疑问、意见或建议，请通过以下方式与我们联系：",
             )
             PolicyBulletItem("电子邮箱：privacy@rapidraw.app")
-            PolicyBulletItem("意见反馈：应用内"设置 → 反馈与建议"")
+            PolicyBulletItem("意见反馈：应用内\"设置 → 反馈与建议\"")
             PolicyBulletItem("邮寄地址：广东省深圳市南山区 RapidRAW 隐私保护团队")
             PolicyParagraph(
                 "我们将在 15 个工作日内回复您的请求。",

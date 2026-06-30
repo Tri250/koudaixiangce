@@ -40,8 +40,7 @@ fun ColorLabelPicker(
                     .size(20.dp)
                     .clip(CircleShape)
                     .background(
-                        color = color,
-                        alpha = if (selectedLabel == label) 1f else 0.3f
+                        color = color.copy(alpha = if (selectedLabel == label) 1f else 0.3f)
                     )
                     .clickable { onLabelChange(if (selectedLabel == label) 0 else label) },
             )

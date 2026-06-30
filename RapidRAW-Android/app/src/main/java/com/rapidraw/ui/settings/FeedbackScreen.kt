@@ -274,7 +274,7 @@ fun FeedbackScreen(
                         .clip(RoundedCornerShape(8.dp))
                         .background(ColorOS16Colors.Surface2)
                         .padding(12.dp),
-                    verticalAlignment = Alignment.Center,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         painter = painterResource(android.R.drawable.ic_menu_info_details),

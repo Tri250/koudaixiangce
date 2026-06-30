@@ -16,10 +16,9 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.5.3 hotfix: versionName 保持 1.5.3（用户可见），versionCode 自 153 -> 1531
-        // 以便已安装 v1.5.3 旧包的设备可以正常升级覆盖安装。
-        versionCode = 1531
-        versionName = "1.5.3"
+        // v1.5.5 release: versionName 1.5.5，versionCode 1555
+        versionCode = 1555
+        versionName = "1.5.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -194,6 +193,14 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.2")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // ML Kit — 人脸检测
+    implementation("com.google.mlkit:face-detection:16.1.7")
+
+    // TensorFlow Lite — 端侧推理
+    implementation("org.tensorflow:tensorflow-lite:2.15.0")
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.15.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")

@@ -3,6 +3,8 @@ package com.rapidraw.core
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.ceil
@@ -64,7 +66,14 @@ class TiledProcessor(
                 val drawW = min(tw, step)
                 val drawH = min(th, step)
 
-                canvas.drawBitmap(processedTile, 0f, 0f, drawX.toFloat(), drawY.toFloat(), drawW.toFloat(), drawH.toFloat(), paint)
+                val src = Rect(0, 0, drawW, drawH)
+                val dst = RectF(
+                    drawX.toFloat(),
+                    drawY.toFloat(),
+                    (drawX + drawW).toFloat(),
+                    (drawY + drawH).toFloat(),
+                )
+                canvas.drawBitmap(processedTile, src, dst, paint)
 
                 if (tile !== source) tile.recycle()
                 if (processedTile !== tile) processedTile.recycle()

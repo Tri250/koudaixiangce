@@ -17,7 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.Measurer
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -126,7 +126,7 @@ fun WaveformScope(
 private fun WaveformCanvas(
     data: ScopeAnalyzer.WaveformData?,
     showLabels: Boolean,
-    textMeasurer: Measurer,
+    textMeasurer: TextMeasurer,
     labelStyle: TextStyle,
     showParade: Boolean,
 ) {
@@ -315,7 +315,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWaveformGrid(
 private fun VectorscopeCanvas(
     data: ScopeAnalyzer.VectorscopeData?,
     showLabels: Boolean,
-    textMeasurer: Measurer,
+    textMeasurer: TextMeasurer,
     labelStyle: TextStyle,
 ) {
     Canvas(modifier = Modifier.fillMaxSize()) {

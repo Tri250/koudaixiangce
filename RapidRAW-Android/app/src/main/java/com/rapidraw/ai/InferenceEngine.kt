@@ -2,13 +2,11 @@ package com.rapidraw.ai
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
-import org.tensorflow.lite.nnapi.NnApiDelegate
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.io.File
@@ -24,7 +22,6 @@ class InferenceEngine(private val context: Context) {
 
     enum class Backend {
         GPU_DELEGATE,   // OpenGL ES 3.1+ GPU 加速
-        NNAPI,          // Android NNAPI (芯片 NPU)
         CPU_ONLY        // CPU 回退
     }
 
@@ -43,11 +40,7 @@ class InferenceEngine(private val context: Context) {
     private val delegates = mutableListOf<org.tensorflow.lite.Delegate>()
 
     val isGpuAvailable: Boolean by lazy {
-        runCatching { GpuDelegate.Options().setForceBackend(GpuDelegate.Options.Backend.OPENCL) }.isSuccess
-    }
-
-    val isNnapiAvailable: Boolean by lazy {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        runCatching { GpuDelegate() }.isSuccess
     }
 
     suspend fun loadModel(config: ModelConfig): Interpreter = withContext(Dispatchers.IO) {
@@ -58,22 +51,7 @@ class InferenceEngine(private val context: Context) {
                 when (config.preferredBackend) {
                     Backend.GPU_DELEGATE -> {
                         if (isGpuAvailable) {
-                            val gpuOptions = GpuDelegate.Options().apply {
-                                setForceBackend(GpuDelegate.Options.Backend.OPENCL)
-                                setPrecisionLossAllowed(false)
-                            }
-                            val delegate = GpuDelegate(gpuOptions)
-                            addDelegate(delegate)
-                            delegates.add(delegate)
-                        }
-                    }
-                    Backend.NNAPI -> {
-                        if (isNnapiAvailable) {
-                            val nnapiOptions = NnApiDelegate.Options().apply {
-                                setUseNnapiCaching(true)
-                                setModelToken(config.modelFileName)
-                            }
-                            val delegate = NnApiDelegate(nnapiOptions)
+                            val delegate = GpuDelegate()
                             addDelegate(delegate)
                             delegates.add(delegate)
                         }
@@ -114,7 +92,7 @@ class InferenceEngine(private val context: Context) {
             idx + 1 to buffer.buffer
         }.toMap()
 
-        interpreter.runForMultipleInputsOutputs(arrayOf(processed.buffer), outputMap.mapKeys { (k, _) -> k.toString() })
+        interpreter.runForMultipleInputsOutputs(arrayOf(processed.buffer), outputMap)
         outputs
     }
 

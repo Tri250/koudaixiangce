@@ -29,7 +29,7 @@ object IccProfileEmbedder {
      * Embeds an ICC profile into a JPEG byte array using APP2 markers.
      *
      * JPEG APP2 layout for ICC:
-     *   FF E2  [length:2]  "ICC_PROFILE\0"  [chunk_no:1]  [num_chunks:1]  [data]
+     *   FF E2  [length:2]  "ICC_PROFILE\u0000"  [chunk_no:1]  [num_chunks:1]  [data]
      *
      * Maximum data per APP2 = 65519 bytes (65535 − 2 length − 14 identifier bytes).
      */
@@ -52,8 +52,8 @@ object IccProfileEmbedder {
             buf.put(0xE2.toByte())
             // Length (big-endian, includes itself)
             buf.putShort(segmentLen.toShort())
-            // "ICC_PROFILE\0"
-            buf.put("ICC_PROFILE\0".toByteArray(Charsets.ASCII))
+            // "ICC_PROFILE\u0000"
+            buf.put("ICC_PROFILE\u0000".toByteArray(Charsets.US_ASCII))
             // Chunk number & total chunks (1-based)
             buf.put(chunkNo.toByte())
             buf.put(numChunks.toByte())
@@ -161,7 +161,7 @@ object IccProfileEmbedder {
         val compressedData = compressedBuf.toByteArray()
 
         // Build iCCP chunk data: profile_name\0 + compression_method(0=deflate) + compressed_data
-        val profileName = profile.displayName.toByteArray(Charsets.ASCII)
+        val profileName = profile.displayName.toByteArray(Charsets.US_ASCII)
         val chunkDataLen = profileName.size + 1 + 1 + compressedData.size // name + null + method + data
         val chunkDataBuf = ByteBuffer.allocate(chunkDataLen).order(ByteOrder.BIG_ENDIAN)
         chunkDataBuf.put(profileName)
@@ -172,13 +172,13 @@ object IccProfileEmbedder {
 
         // Build full chunk: length + type + data + crc
         val crc = CRC32()
-        crc.update("iCCP".toByteArray(Charsets.ASCII))
+        crc.update("iCCP".toByteArray(Charsets.US_ASCII))
         crc.update(chunkData)
         val crcVal = crc.value
 
         val fullChunk = ByteBuffer.allocate(4 + 4 + chunkDataLen + 4).order(ByteOrder.BIG_ENDIAN)
         fullChunk.putInt(chunkDataLen)
-        fullChunk.put("iCCP".toByteArray(Charsets.ASCII))
+        fullChunk.put("iCCP".toByteArray(Charsets.US_ASCII))
         fullChunk.put(chunkData)
         fullChunk.putInt(crcVal.toInt())
 
@@ -206,7 +206,7 @@ object IccProfileEmbedder {
                     ((pngBytes[pos + 2].toInt() and 0xFF) shl 8) or
                     (pngBytes[pos + 3].toInt() and 0xFF)
 
-            val type = String(pngBytes, pos + 4, 4, Charsets.ASCII)
+            val type = String(pngBytes, pos + 4, 4, Charsets.US_ASCII)
             val chunkTotal = 4 + 4 + len + 4 // length + type + data + crc
             pos += chunkTotal
 
@@ -445,7 +445,7 @@ object IccProfileEmbedder {
         // 0-3:   Profile size
         buf.putInt(profileSize)
         // 4-7:   Preferred CMM type
-        buf.put(preferredCmm.toByteArray(Charsets.ASCII))
+        buf.put(preferredCmm.toByteArray(Charsets.US_ASCII))
         // 8-11:  Profile version (2.1.0)
         buf.putInt(0x02100000)
         // 12-15: Profile/device class
@@ -462,10 +462,10 @@ object IccProfileEmbedder {
         buf.putShort(0)    // minute
         buf.putShort(0)    // second
         // 36-39: 'acsp' signature
-        buf.put("acsp".toByteArray(Charsets.ASCII))
+        buf.put("acsp".toByteArray(Charsets.US_ASCII))
         buf.put(0)
         // 40-43: Primary platform
-        buf.put("APPL".toByteArray(Charsets.ASCII))
+        buf.put("APPL".toByteArray(Charsets.US_ASCII))
         buf.put(0)
         // 44-47: Profile flags
         buf.putInt(0)
@@ -524,7 +524,7 @@ object IccProfileEmbedder {
      * Unicode count = 0, ScriptCode count = 0.
      */
     private fun buildDescTag(text: String): ByteArray {
-        val ascii = text.toByteArray(Charsets.ASCII)
+        val ascii = text.toByteArray(Charsets.US_ASCII)
         val count = ascii.size + 1 // include null terminator
         val size = 4 + 4 + 4 + count + 4 + 2 + 1 + 4
         // typeSig + reserved + asciiCount + ascii+null + unicodeLang+count + scriptcode
@@ -596,7 +596,7 @@ object IccProfileEmbedder {
 
     /** Encodes a 4-char string as a big-endian 32-bit integer. */
     private fun sig4(s: String): Int {
-        val b = s.toByteArray(Charsets.ASCII)
+        val b = s.toByteArray(Charsets.US_ASCII)
         return ((b[0].toInt() and 0xFF) shl 24) or
                 ((b[1].toInt() and 0xFF) shl 16) or
                 ((b[2].toInt() and 0xFF) shl 8) or
