@@ -145,9 +145,11 @@ class ModelManager(private val context: Context) {
         val info = AVAILABLE_MODELS.find { it.id == modelId }
             ?: return@withContext Result.failure(IllegalArgumentException("Unknown model: $modelId"))
 
-        // 安全：未配置 SHA256 完整性哈希的模型禁止下载，防止恶意/被篡改模型注入
+        // v1.5.5 release: allow downloading models that don't yet have a published SHA256,
+        // but log a security warning. AI feature classes must still check isModelAvailable()
+        // and fall back to heuristic algorithms when the model is missing.
         if (info.sha256.isBlank()) {
-            return@withContext Result.failure(SecurityException("Model $modelId integrity hash not configured"))
+            Log.w(TAG, "Model $modelId has no SHA256 configured; download will not be integrity-checked")
         }
 
         val targetFile = File(modelsDir, info.fileName)

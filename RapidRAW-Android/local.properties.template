@@ -1,0 +1,16 @@
+# Copy this file to local.properties and fill in your Android SDK path.
+# This file should NOT be committed to version control.
+
+# Example for macOS:
+# sdk.dir=/Users/<username>/Library/Android/sdk
+
+# Example for Linux:
+# sdk.dir=/home/<username>/Android/Sdk
+
+# Example for Windows (use escaped backslashes):
+# sdk.dir=C:\\Users\\<username>\\AppData\\Local\\Android\\Sdk
+
+sdk.dir=<YOUR_ANDROID_SDK_PATH>
+
+# Optional: enable NDK if not using the version specified in app/build.gradle.kts
+# ndk.dir=<YOUR_ANDROID_SDK_PATH>/ndk/26.3.11579264

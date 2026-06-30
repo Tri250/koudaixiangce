@@ -99,7 +99,7 @@ class EnhancedPresetManager(context: Context) {
                     }
                     _presets.value = presetCache.toList()
                 }
-                Log.d(TAG, "Preset saved: ${preset.name} (${preset.type})")
+                if (com.rapidraw.BuildConfig.DEBUG) Log.d(TAG, "Preset saved: ${preset.name} (${preset.type})")
                 preset
             }
         }

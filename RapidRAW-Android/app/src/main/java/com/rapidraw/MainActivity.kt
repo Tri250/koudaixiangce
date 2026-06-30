@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity() {
             // 如果关键存储权限被拒绝，仍然可以继续使用外部 intent 传入的图片，
             // 但图库功能会受限。这里仅记录，不在启动时阻塞。
         } else {
-            Log.d(TAG, "All requested permissions granted")
+            if (com.rapidraw.BuildConfig.DEBUG) Log.d(TAG, "All requested permissions granted")
         }
     }
 
@@ -218,7 +218,7 @@ class MainActivity : AppCompatActivity() {
                 args.getString("uri") ?: args.getString("imagePath")
             }
             if (currentUri == uri.toString()) {
-                Log.d(TAG, "navigateToEditor: same URI, skip")
+                if (com.rapidraw.BuildConfig.DEBUG) Log.d(TAG, "navigateToEditor: same URI, skip")
                 return
             }
             navController.popBackStack(Routes.LIBRARY, inclusive = false)

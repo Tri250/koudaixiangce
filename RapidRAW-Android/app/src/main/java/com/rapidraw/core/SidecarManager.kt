@@ -154,9 +154,16 @@ class SidecarManager(private val context: Context) {
                 File(parentDir, sanitizeFileName(imageFile.nameWithoutExtension) + ".rapidraw")
             }
             "content" -> {
-                // content:// URI 无法直接在同目录创建文件，存到 App 私有目录
-                val fileName = sanitizeFileName(uri.lastPathSegment ?: "image")
-                File(context.filesDir, "$fileName.rapidraw")
+                // content:// URI 无法直接在同目录创建文件，存到 App 私有目录。
+                // 使用 URI 的 authority+path 的 hash 作为唯一标识，避免 lastPathSegment 相同导致覆盖。
+                val rawIdentifier = uri.authority.orEmpty() + "/" + uri.path.orEmpty()
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(rawIdentifier.toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) }
+                    .take(16)
+                val baseName = sanitizeFileName(uri.lastPathSegment?.substringBeforeLast(".") ?: "image")
+                    .take(40)
+                File(context.filesDir, "${baseName}_$digest.rapidraw")
             }
             else -> null
         }

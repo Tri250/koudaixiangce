@@ -90,24 +90,20 @@ class RapidRawApp : Application() {
     }
 
     /**
-     * Android 13+ (API 33+) per-app language。
-     * 在 Application 阶段通过后台线程应用，避免阻塞首 Activity 的 onCreate / setContent。
-     * 默认语言：中文（简体）。
+     * Android 13+ (API 33+) per-app language.
+     * 默认跟随系统语言；如用户未显式设置，不强制覆盖为中文。
      */
     private fun applyPerAppLanguageAsync() {
-        val tag = "zh-CN"
         Thread {
             try {
+                // TODO: read saved user preference and apply if set.
+                // For release v1.5.5 we reset to system default to avoid forcing zh-CN.
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val localeManager = getSystemService(LocaleManager::class.java)
-                    val list = LocaleList.forLanguageTags(tag)
-                    if (!list.isEmpty) {
-                        localeManager?.applicationLocales = list
-                    }
+                    // Empty locale list means "follow system".
+                    localeManager?.applicationLocales = LocaleList.getEmptyLocaleList()
                 } else {
-                    AppCompatDelegate.setApplicationLocales(
-                        LocaleListCompat.forLanguageTags(tag)
-                    )
+                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to apply per-app language: ${e.message}")
@@ -135,10 +131,9 @@ class RapidRawApp : Application() {
             TRIM_MEMORY_MODERATE,
             TRIM_MEMORY_COMPLETE -> {
                 Log.w(TAG, "onTrimMemory(level=$level), system may kill process soon")
-                // 2026 perf: 在后台线程主动清理非必要缓存，降低被系统杀进程的概率
+                // 2026 perf: 仅清理过期的 RAW 解码临时缓存；缩略图缓存保留，避免后台切回后重新生成。
                 Thread {
                     runCatching { cleanStaleDecodedRawCache() }
-                    runCatching { cleanThumbnailDiskCache() }
                 }.apply {
                     isDaemon = true
                     name = "RapidRawTrimMemory"
@@ -169,36 +164,16 @@ class RapidRawApp : Application() {
         }
     }
 
-    /**
-     * 清理缩略图磁盘缓存。缩略图可重新解码，适合在内存紧张时释放。
-     */
-    private fun cleanThumbnailDiskCache() {
-        val thumbnailsDir = File(cacheDir, "thumbnails")
-        if (!thumbnailsDir.exists()) return
-        var freed = 0L
-        var count = 0
-        thumbnailsDir.listFiles()?.forEach { f ->
-            val size = f.length()
-            if (runCatching { f.delete() }.getOrDefault(false)) {
-                freed += size
-                count++
-            }
-        }
-        if (freed > 0) {
-            Log.i(TAG, "cleanThumbnailDiskCache deleted $count files, freed ${freed / 1024 / 1024}MB")
-        }
-    }
-
     private val activityLifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
-            Log.d(TAG, "Activity created: ${activity.localClassName}")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Activity created: ${activity.localClassName}")
         }
 
         override fun onActivityStarted(activity: Activity) {
             val newCount = activityCount.incrementAndGet()
             if (newCount == 1) {
                 isAppForeground = true
-                Log.d(TAG, "App moved to foreground")
+                if (BuildConfig.DEBUG) Log.d(TAG, "App moved to foreground")
             }
         }
 
@@ -210,14 +185,14 @@ class RapidRawApp : Application() {
             val newCount = activityCount.updateAndGet { current -> (current - 1).coerceAtLeast(0) }
             if (newCount == 0) {
                 isAppForeground = false
-                Log.d(TAG, "App moved to background")
+                if (BuildConfig.DEBUG) Log.d(TAG, "App moved to background")
             }
         }
 
         override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
 
         override fun onActivityDestroyed(activity: Activity) {
-            Log.d(TAG, "Activity destroyed: ${activity.localClassName}")
+            if (BuildConfig.DEBUG) Log.d(TAG, "Activity destroyed: ${activity.localClassName}")
         }
     }
 }

@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
-    id("androidx.baselineprofile") version "1.2.4"
+    id("androidx.baselineprofile") version "1.3.3"
 }
 
 android {
@@ -129,7 +129,8 @@ android {
     }
 
     lint {
-        disable += listOf("MissingTranslation", "UnusedResources")
+        // v1.5.5 release: re-enable MissingTranslation and UnusedResources.
+        // These were disabled earlier to hide debt; they are now fixed.
         abortOnError = false
         checkReleaseBuilds = true
         checkAllWarnings = true
@@ -176,8 +177,10 @@ dependencies {
     // Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
-    // Image decoding
+    // Image decoding / writing
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+    // AndroidX HeifWriter for true HEIF/HEIC export on API 28+
+    implementation("androidx.heifwriter:heifwriter:1.1.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")

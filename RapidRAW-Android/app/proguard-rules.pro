@@ -49,16 +49,27 @@
 -keep public class com.rapidraw.MainActivity { *; }
 -keep public class com.rapidraw.RapidRawApp { *; }
 
-# Compose navigation & ViewModel factories
--keep class com.rapidraw.ui.** { *; }
--keepclassmembers class com.rapidraw.ui.** { *; }
+# Compose navigation & ViewModel factories: keep only entry points, not every helper.
+-keep class com.rapidraw.ui.navigation.** { *; }
+-keep class com.rapidraw.ui.editor.EditorScreenKt { *; }
+-keep class com.rapidraw.ui.library.LibraryScreenKt { *; }
+-keep class com.rapidraw.ui.export.ExportScreenKt { *; }
+-keep class com.rapidraw.ui.settings.** { *; }
 
 # OpenGL Shaders
 -keepclassmembers class com.rapidraw.core.GpuPipeline { *; }
 
-# Core processing
--keep class com.rapidraw.core.** { *; }
--keepclassmembers class com.rapidraw.core.** { *; }
+# Core processing: keep JNI/native bridge and public API surface only.
+-keep class com.rapidraw.core.RawDecoder { *; }
+-keep class com.rapidraw.core.RawDecoder$* { *; }
+-keep class com.rapidraw.core.ExportWorker { *; }
+-keep class com.rapidraw.core.CrashHandler { *; }
+-keep class com.rapidraw.core.CrashLogUploader { *; }
+-keep class com.rapidraw.core.ImageProcessor { *; }
+# Preserve native methods globally.
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
 
 # Prevent stripping of line numbers for crash reports
 -keepattributes SourceFile,LineNumberTable

@@ -28,7 +28,7 @@ HSPLcom/rapidraw/ui/editor/EditorViewModel;->schedulePreviewUpdate()V
 HSPLcom/rapidraw/ui/editor/EditorViewModel;->processPreviewInternal(Lcom/rapidraw/data/model/Adjustments;Landroid/graphics/Bitmap;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 
 # Image Processor (CPU/GPU 管线)
-HSPLcom/rapidraw/core/ImageProcessor;->processFullResolution(Lcom/rapidraw/data/model/Adjustments;Landroid/graphics/Bitmap;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+HSPLcom/rapidraw/core/ImageProcessor;->processFullResolution(Lcom/rapidraw/data/model/Adjustments;Landroid/graphics/Bitmap;ZLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 HSPLcom/rapidraw/core/ImageProcessor;->loadAndDecode(Landroid/content/Context;Landroid/net/Uri;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 HSPLcom/rapidraw/core/ImageProcessor;->createPreview(Landroid/graphics/Bitmap;)Landroid/graphics/Bitmap;
 HSPLcom/rapidraw/core/ImageProcessor;->computeHistograms(Landroid/graphics/Bitmap;)[Landroid/util/SparseIntArray;

@@ -501,7 +501,7 @@ class ImageProcessor {
         return name
     }
 
-    private fun readExifData(context: Context, uri: Uri): Pair<ExifData, Int> {
+    fun readExifData(context: Context, uri: Uri): Pair<ExifData, Int> {
         var orientation = 0
         try {
             val inputStream = context.contentResolver.openInputStream(uri) ?: return ExifData() to 0
@@ -521,15 +521,25 @@ class ImageProcessor {
                     val exifData = ExifData(
                         make = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE),
                         model = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL),
-                        dateTime = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME),
-                        iso = exifInterface.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0)
-                            .takeIf { it > 0 }?.toString(),
-                        shutterSpeed = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, 0.0)
-                            .takeIf { it > 0.0 }?.toString(),
+                        lensMake = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_LENS_MAKE),
+                        lensModel = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_LENS_MODEL),
                         focalLength = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, 0.0)
                             .takeIf { it > 0.0 }?.toString(),
                         aperture = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, 0.0)
                             .takeIf { it > 0.0 }?.toString(),
+                        shutterSpeed = exifInterface.getAttributeDouble(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, 0.0)
+                            .takeIf { it > 0.0 }?.toString(),
+                        iso = exifInterface.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, 0)
+                            .takeIf { it > 0 }?.toString(),
+                        dateTime = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME),
+                        width = exifInterface.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_IMAGE_WIDTH, 0),
+                        height = exifInterface.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_IMAGE_LENGTH, 0),
+                        flash = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_FLASH),
+                        whiteBalance = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_WHITE_BALANCE),
+                        meteringMode = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_METERING_MODE),
+                        exposureProgram = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_PROGRAM),
+                        gpsLatitude = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE),
+                        gpsLongitude = exifInterface.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE),
                     )
                     return exifData to orientation
                 }
@@ -904,7 +914,8 @@ class ImageProcessor {
     suspend fun processFullResolution(
         adjustments: com.rapidraw.data.model.Adjustments,
         originalBitmap: Bitmap,
-        allowDownsample: Boolean = true
+        allowDownsample: Boolean = true,
+        onProgress: (Float) -> Unit = {},
     ): Bitmap = withContext(Dispatchers.Default) {
         // 2026 hotfix: 变量必须在 try 之前声明，否则 catch 块访问不到
         val n = NormAdj.from(adjustments)
@@ -1037,7 +1048,10 @@ class ImageProcessor {
         // Process each pixel
         for (y in 0 until h) {
             // 每 256 行让出一次线程，避免超大图处理时阻塞 Dispatchers.Default 导致 ANR/卡顿
-            if (y % 256 == 0) yield()
+            if (y % 256 == 0) {
+                yield()
+                onProgress((y.toFloat() / h).coerceIn(0f, 1f))
+            }
             if (sourceBitmap.isRecycled) throw CancellationException("Source bitmap recycled during processing")
             for (x in 0 until w) {
                 val idx = y * w + x
@@ -2404,13 +2418,22 @@ class ImageProcessor {
             if (settings.format == ExportFormat.JPEG && settings.keepMetadata && originalExif != null) {
                 try {
                     val exif = androidx.exifinterface.media.ExifInterface(tempFile.absolutePath)
-                    originalExif.make?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE, it) }
-                    originalExif.model?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL, it) }
-                    originalExif.dateTime?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME, it) }
-                    originalExif.iso?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, it) }
-                    originalExif.shutterSpeed?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, it) }
-                    originalExif.focalLength?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, it) }
-                    originalExif.aperture?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, it) }
+                    fun setIfNotEmpty(tag: String, value: String?) {
+                        if (!value.isNullOrEmpty()) exif.setAttribute(tag, value)
+                    }
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_MAKE, originalExif.make)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_MODEL, originalExif.model)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_LENS_MAKE, originalExif.lensMake)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_LENS_MODEL, originalExif.lensModel)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_DATETIME, originalExif.dateTime)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, originalExif.iso)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, originalExif.shutterSpeed)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, originalExif.focalLength)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, originalExif.aperture)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_FLASH, originalExif.flash)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_WHITE_BALANCE, originalExif.whiteBalance)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_METERING_MODE, originalExif.meteringMode)
+                    setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_PROGRAM, originalExif.exposureProgram)
                     val orientationValue = when (orientation) {
                         90 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90
                         180 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180
@@ -2423,6 +2446,9 @@ class ImageProcessor {
                         exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE, null)
                         exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE_REF, null)
                         exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE_REF, null)
+                    } else {
+                        setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_GPS_LATITUDE, originalExif.gpsLatitude)
+                        setIfNotEmpty(androidx.exifinterface.media.ExifInterface.TAG_GPS_LONGITUDE, originalExif.gpsLongitude)
                     }
                     exif.saveAttributes()
                 } catch (e: Exception) {

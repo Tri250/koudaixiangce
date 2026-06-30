@@ -94,7 +94,7 @@ class CloudSyncManager(private val context: Context) {
         runCatching {
             // TODO: 实际 API 调用
             // 当前仅记录到本地同步队列
-            Log.d(TAG, "Preset queued for upload: $presetId")
+            if (com.rapidraw.BuildConfig.DEBUG) Log.d(TAG, "Preset queued for upload: $presetId")
             _syncStatus.value = SyncStatus.SUCCESS
             _lastSyncTime.value = System.currentTimeMillis()
             prefs.edit().putLong(KEY_LAST_SYNC, _lastSyncTime.value).apply()

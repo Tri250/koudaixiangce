@@ -78,7 +78,7 @@ private val QUICK_PARAMS = listOf(
     QuickParamDef(
         label = "锐度",
         key = "sharpness",
-        range = 0f..100f,
+        range = 0f..150f,
         stepSize = 1f,
         defaultValue = 0f,
         format = { v -> v.toInt().toString() },
@@ -86,7 +86,7 @@ private val QUICK_PARAMS = listOf(
     QuickParamDef(
         label = "暗角",
         key = "vignetteAmount",
-        range = 0f..100f,
+        range = -100f..100f,
         stepSize = 1f,
         defaultValue = 0f,
         format = { v -> v.toInt().toString() },
@@ -94,7 +94,7 @@ private val QUICK_PARAMS = listOf(
     QuickParamDef(
         label = "去雾",
         key = "dehaze",
-        range = 0f..100f,
+        range = -100f..100f,
         stepSize = 1f,
         defaultValue = 0f,
         format = { v -> v.toInt().toString() },
@@ -109,9 +109,9 @@ private fun getQuickValue(adjustments: Adjustments, key: String): Float {
         "saturation"    -> adjustments.saturation
         "temperature"   -> adjustments.temperature
         "greenMagenta"  -> adjustments.greenMagenta
-        "sharpness"     -> adjustments.sharpness.coerceIn(0f, 100f)
-        "vignetteAmount" -> adjustments.vignetteAmount.coerceIn(0f, 100f)
-        "dehaze"        -> adjustments.dehaze.coerceIn(0f, 100f)
+        "sharpness"     -> adjustments.sharpness.coerceIn(0f, 150f)
+        "vignetteAmount" -> adjustments.vignetteAmount.coerceIn(-100f, 100f)
+        "dehaze"        -> adjustments.dehaze.coerceIn(-100f, 100f)
         else            -> 0f
     }
 }

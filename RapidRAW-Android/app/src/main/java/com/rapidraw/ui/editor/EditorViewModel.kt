@@ -79,6 +79,7 @@ enum class EditorTab {
 
 sealed class EditorEvent {
     data class Error(val message: String) : EditorEvent()
+    data class Message(val message: String) : EditorEvent()
     data class ExportComplete(val uri: Uri) : EditorEvent()
     data class ShareImage(val uri: Uri) : EditorEvent()
     data object Idle : EditorEvent()
@@ -381,7 +382,7 @@ class EditorViewModel(
                 detectSceneAsync(validPreview)
             }.onFailure { throwable ->
                 if (throwable is CancellationException) {
-                    Log.d(TAG, "loadImage cancelled")
+                    if (com.rapidraw.BuildConfig.DEBUG) Log.d(TAG, "loadImage cancelled")
                     return@onFailure
                 }
                 Log.e(TAG, "Failed to load image: ${imageFile.path}", throwable)
@@ -491,7 +492,7 @@ class EditorViewModel(
             _userPresets.value = presetManager.getAll()
             withContext(Dispatchers.Main) {
                 pushUndo("保存预设: $name")
-                _event.value = EditorEvent.Error("预设已保存: $name")
+                _event.value = EditorEvent.Message("预设已保存: $name")
             }
         }
     }

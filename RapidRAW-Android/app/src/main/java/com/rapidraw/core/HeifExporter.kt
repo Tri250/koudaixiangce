@@ -7,21 +7,18 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import androidx.annotation.RequiresApi
+import androidx.heifwriter.HeifWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
+import java.io.File
 
 /**
- * HEIF 10-bit 导出器
+ * HEIF/HEIC 导出器。
  *
  * 支持：
- * - Android 10+ (API 29+) 使用 HeifWriter 进行 10-bit HEVC 编码
- * - 降级方案：不支持 HeifWriter 的设备使用 WEBP_LOSSLESS 转存
- *
- * HeifWriter 工作原理：
- * 1. 将 Bitmap 通过 YUV 转换输入 HeifWriter
- * 2. HeifWriter 内部使用 MediaCodec 编码为 HEVC Main10 Profile
- * 3. 封装为 HEIF 容器并写入输出文件
+ * - Android 10+ (API 29+) 使用 androidx.heifwriter.HeifWriter 进行 HEVC 编码。
+ * - 当设备不支持 HEIF 编码时降级为高质量 WEBP。
  */
 object HeifExporter {
 
@@ -34,15 +31,15 @@ object HeifExporter {
 
     data class HeifConfig(
         val quality: Int = 95,
-        val bitDepth: HeifBitDepth = HeifBitDepth.DEPTH_10,
+        val bitDepth: HeifBitDepth = HeifBitDepth.DEPTH_8,
     )
 
     /**
-     * 导出 Bitmap 为 HEIF 并写入 MediaStore
+     * 导出 Bitmap 为 HEIF/HEIC 并写入 MediaStore Pictures/RapidRAW。
      *
      * @param context 应用上下文
      * @param bitmap 源图像
-     * @param config HEIF 配置（quality、bitDepth）
+     * @param config HEIF 配置
      * @param displayName 输出文件名（不含扩展名）
      * @return MediaStore Uri，失败返回 null
      */
@@ -57,21 +54,66 @@ object HeifExporter {
             return@withContext null
         }
 
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Log.w(TAG, "HEIF export requires API 29+, falling back to WEBP")
+            return@withContext exportWebpFallback(context, bitmap, config.quality, displayName)
+        }
+
         try {
-            // HeifWriter 在 compileSdk 36 中不可用，统一降级为 WEBP_LOSSLESS
-            Log.w(TAG, "HeifWriter unavailable; falling back to WEBP_LOSSLESS")
-            exportWebpFallback(context, bitmap, config.quality, displayName)
+            exportHeifInternal(context, bitmap, config, displayName)
         } catch (oom: OutOfMemoryError) {
             Log.e(TAG, "OOM during HEIF export: ${oom.message}", oom)
             null
         } catch (e: Exception) {
             Log.e(TAG, "Failed to export HEIF: ${e.message}", e)
-            null
+            // Graceful fallback so the user still gets an image.
+            exportWebpFallback(context, bitmap, config.quality, displayName)
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun exportHeifInternal(
+        context: Context,
+        bitmap: Bitmap,
+        config: HeifConfig,
+        displayName: String,
+    ): Uri? {
+        val cacheDir = context.cacheDir
+        val tempFile = File(cacheDir, "${displayName}.heic")
+
+        val quality = config.quality.coerceIn(1, 100)
+        val writer = HeifWriter.Builder(
+            tempFile.absolutePath,
+            bitmap.width,
+            bitmap.height,
+            HeifWriter.INPUT_MODE_BITMAP,
+        )
+            .setQuality(quality)
+            .build()
+
+        writer.use { w ->
+            w.start()
+            w.addBitmap(bitmap)
+            w.stop(null)
+        }
+
+        val uri = writeToMediaStore(
+            context = context,
+            file = tempFile,
+            displayName = displayName,
+            mimeType = "image/heic",
+            extension = ".heic",
+        )
+
+        // Clean up temp file regardless of success.
+        if (tempFile.exists()) {
+            tempFile.delete()
+        }
+        return uri
+    }
+
     /**
-     * 降级方案：使用 Bitmap.compress WEBP_LOSSLESS 并转存到 MediaStore
+     * 降级方案：使用 Bitmap.compress WEBP 并转存到 MediaStore。
      */
     private fun exportWebpFallback(
         context: Context,
@@ -79,12 +121,16 @@ object HeifExporter {
         quality: Int,
         displayName: String,
     ): Uri? {
-        val baos = ByteArrayOutputStream()
-        val compressed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, baos)
-        } else {
-            @Suppress("DEPRECATION")
-            bitmap.compress(Bitmap.CompressFormat.WEBP, quality.coerceIn(1, 100), baos)
+        val cacheDir = context.cacheDir
+        val tempFile = File(cacheDir, "${displayName}.webp")
+
+        val compressed = tempFile.outputStream().use { fos ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, fos)
+            } else {
+                @Suppress("DEPRECATION")
+                bitmap.compress(Bitmap.CompressFormat.WEBP, quality.coerceIn(1, 100), fos)
+            }
         }
 
         if (!compressed) {
@@ -92,26 +138,31 @@ object HeifExporter {
             return null
         }
 
-        return writeToMediaStore(
+        val uri = writeToMediaStore(
             context = context,
-            data = baos.toByteArray(),
+            file = tempFile,
             displayName = displayName,
             mimeType = "image/webp",
             extension = ".webp",
         )
+
+        if (tempFile.exists()) {
+            tempFile.delete()
+        }
+        return uri
     }
 
     /**
-     * 检查当前设备是否支持 HeifWriter 10-bit 编码（当前版本统一返回 false）
+     * 检查当前设备是否支持 HEIF 编码。
      */
-    fun isHeif10BitSupported(): Boolean = false
+    fun isHeifSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
     /**
      * 写入 MediaStore (Pictures/RapidRAW)
      */
     private fun writeToMediaStore(
         context: Context,
-        data: ByteArray,
+        file: File,
         displayName: String,
         mimeType: String,
         extension: String,
@@ -130,7 +181,7 @@ object HeifExporter {
             ?: return null
 
         resolver.openOutputStream(uri)?.use { os ->
-            os.write(data)
+            file.inputStream().use { it.copyTo(os) }
             os.flush()
         }
 

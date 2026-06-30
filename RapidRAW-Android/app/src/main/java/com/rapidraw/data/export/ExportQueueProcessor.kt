@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.SidecarManager
 import com.rapidraw.data.model.Adjustments
@@ -146,14 +147,26 @@ object ExportQueueProcessor {
                 return
             }
 
+            // Preserve original EXIF and orientation for exported JPEG/HEIF.
+            val imageUri = runCatching { job.imagePath.toUri() }.getOrNull()
+            val (originalExif, originalOrientation) = if (imageUri != null) {
+                imageProcessor.readExifData(appContext, imageUri)
+            } else {
+                null to 0
+            }
+
             ExportQueueRepository.updateJobProgress(jobId, 0.3f)
             processed = imageProcessor.processFullResolution(
                 adjustments, source, allowDownsample = false,
+                onProgress = { fraction ->
+                    // Map processing progress 0..1 to export progress 0.3..0.7
+                    ExportQueueRepository.updateJobProgress(jobId, 0.3f + fraction * 0.4f)
+                },
             ) ?: throw IllegalStateException("processFullResolution returned null")
             ExportQueueRepository.updateJobProgress(jobId, 0.7f)
 
             val uri: Uri = imageProcessor.exportImage(
-                processed, settings, appContext, originalExif = null, orientation = 0,
+                processed, settings, appContext, originalExif = originalExif, orientation = originalOrientation,
             )
             ExportQueueRepository.updateJobProgress(jobId, 0.95f)
 

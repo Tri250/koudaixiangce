@@ -225,6 +225,10 @@ fun EditorScreen(
                 snackbarHostState.showSnackbar(e.message)
                 viewModel.consumeEvent()
             }
+            is EditorEvent.Message -> {
+                snackbarHostState.showSnackbar(e.message)
+                viewModel.consumeEvent()
+            }
             is EditorEvent.ExportComplete -> {
                 snackbarHostState.showSnackbar("导出成功: ${e.uri}")
                 viewModel.consumeEvent()
