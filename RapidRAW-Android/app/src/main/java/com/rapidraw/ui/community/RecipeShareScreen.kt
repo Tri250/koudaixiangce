@@ -56,7 +56,7 @@ import com.rapidraw.ui.theme.TextTertiary
 @Composable
 fun RecipeShareScreen(
     onBack: () -> Unit,
-    onShareRecipe: () -> Unit = {},
+    onShareRecipe: (SharedRecipe) -> Unit = {},
     onRecipeClick: (SharedRecipe) -> Unit = {},
     onLikeRecipe: (SharedRecipe) -> Unit = {},
 ) {
@@ -117,6 +117,7 @@ fun RecipeShareScreen(
                     recipe = recipe,
                     onRecipeClick = { onRecipeClick(recipe) },
                     onLike = { onLikeRecipe(recipe) },
+                    onShare = { onShareRecipe(recipe) },
                 )
                 HorizontalDivider(
                     color = ColorOS16Colors.Hairline,
@@ -133,6 +134,7 @@ private fun RecipeCard(
     recipe: SharedRecipe,
     onRecipeClick: () -> Unit,
     onLike: () -> Unit,
+    onShare: (SharedRecipe) -> Unit,
 ) {
     var liked by remember { mutableStateOf(recipe.isLikedByMe) }
     var likeCount by remember { mutableStateOf(recipe.likeCount) }
@@ -333,7 +335,7 @@ private fun RecipeCard(
 
             // 分享
             Row(
-                modifier = Modifier.clickable { /* TODO: 分享配方 */ },
+                modifier = Modifier.clickable { onShare(recipe) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(

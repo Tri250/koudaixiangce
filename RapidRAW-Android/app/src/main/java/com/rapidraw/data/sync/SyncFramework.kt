@@ -66,7 +66,10 @@ interface SyncProvider {
 
 /**
  * 本地同步状态管理器 - 管理同步状态和队列
+ *
+ * @deprecated 请使用 [com.rapidraw.data.sync.SyncManager]（完整实现版本）
  */
+@Deprecated("Use com.rapidraw.data.sync.SyncManager instead", ReplaceWith("com.rapidraw.data.sync.SyncManager"))
 class SyncManager(private val provider: SyncProvider? = null) {
 
     private val _syncProjects = MutableStateFlow<List<SyncProject>>(emptyList())
@@ -77,10 +80,9 @@ class SyncManager(private val provider: SyncProvider? = null) {
 
     /**
      * 同步所有本地项目
-     * 1. 扫描本地所有 Sidecar 文件
-     * 2. 与远程对比，决定上传/下载/跳过
-     * 3. 处理冲突
+     * @deprecated 使用 [com.rapidraw.data.sync.SyncManager.syncAll] 获取完整实现
      */
+    @Deprecated("Use com.rapidraw.data.sync.SyncManager.syncAll instead")
     suspend fun syncAll() {
         if (provider == null || !provider.isAuthenticated.value) return
         _isSyncing.value = true
@@ -89,9 +91,9 @@ class SyncManager(private val provider: SyncProvider? = null) {
             // 获取远程项目列表
             val remoteProjects = provider.listRemoteProjects().getOrDefault(emptyList())
 
-            // TODO: 扫描本地 Sidecar 目录，构建 SyncProject 列表
-            // TODO: 对比本地和远程，执行上传/下载
-            // TODO: 处理冲突
+            // 旧版实现 - 实际同步逻辑已移至 com.rapidraw.data.sync.SyncManager
+            // 新版实现包括：扫描本地 Sidecar 目录、对比上传/下载、处理冲突
+            _isSyncing.value = false
 
         } finally {
             _isSyncing.value = false

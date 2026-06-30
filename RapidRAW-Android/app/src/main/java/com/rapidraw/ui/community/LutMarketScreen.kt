@@ -66,6 +66,7 @@ fun LutMarketScreen(
     onBack: () -> Unit,
     onDownloadLut: (LutItem) -> Unit = {},
     onImportLut: (LutItem) -> Unit = {},
+    onLutPackClick: (FeaturedLutPack) -> Unit = {},
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("发现", "我的收藏")
@@ -137,6 +138,7 @@ fun LutMarketScreen(
                 onCategorySelected = { selectedCategory = it },
                 onDownloadLut = onDownloadLut,
                 onImportLut = onImportLut,
+                onLutPackClick = onLutPackClick,
                 categories = categories,
             )
             1 -> LutMyCollectionTab(
@@ -152,6 +154,7 @@ private fun LutDiscoveryTab(
     onCategorySelected: (String) -> Unit,
     onDownloadLut: (LutItem) -> Unit,
     onImportLut: (LutItem) -> Unit,
+    onLutPackClick: (FeaturedLutPack) -> Unit = {},
     categories: List<String> = listOf("全部", "胶片", "电影", "复古", "手机"),
 ) {
     Column(
@@ -202,7 +205,7 @@ private fun LutDiscoveryTab(
             contentPadding = PaddingValues(end = 4.dp),
         ) {
             items(featuredLutPacks, key = { it.id }) { pack ->
-                FeaturedLutPackCard(pack = pack)
+                FeaturedLutPackCard(pack = pack, onClick = onLutPackClick)
             }
         }
 
@@ -338,13 +341,16 @@ private fun LutMyCollectionTab(
 }
 
 @Composable
-private fun FeaturedLutPackCard(pack: FeaturedLutPack) {
+private fun FeaturedLutPackCard(
+    pack: FeaturedLutPack,
+    onClick: (FeaturedLutPack) -> Unit,
+) {
     Column(
         modifier = Modifier
             .width(220.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(ColorOS16Colors.Surface2)
-            .clickable { /* TODO: 打开 LUT 包详情 */ }
+            .clickable { onClick(pack) }
             .padding(12.dp),
     ) {
         // 预览渐变

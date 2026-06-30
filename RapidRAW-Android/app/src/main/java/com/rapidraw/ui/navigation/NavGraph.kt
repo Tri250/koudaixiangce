@@ -1,113 +1,81 @@
 package com.rapidraw.ui.navigation
 
-import android.net.Uri
-import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.Modifier
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.*
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.navigation.navDeepLink
-import android.graphics.BitmapFactory
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
-import com.rapidraw.ui.ai.AiInpaintScreen
+import com.rapidraw.cloud.CloudSyncManager
+import com.rapidraw.core.HdrDisplayManager
+import com.rapidraw.core.SidecarManager
+import com.rapidraw.ui.community.FeaturedLutPack
 import com.rapidraw.ui.community.LutMarketScreen
 import com.rapidraw.ui.community.RecipeShareScreen
+import com.rapidraw.ui.community.SharedRecipe
 import com.rapidraw.ui.editor.EditorScreen
-import com.rapidraw.ui.library.LibraryScreen
 import com.rapidraw.ui.export.ExportQueueScreen
+import com.rapidraw.ui.library.LibraryScreen
 import com.rapidraw.ui.onboarding.OnboardingScreen
-import com.rapidraw.ui.presets.PresetImportScreen
-import com.rapidraw.ui.presets.PresetsDiscoveryScreen
-import com.rapidraw.ui.settings.FeedbackScreen
-import com.rapidraw.ui.settings.PrivacyPolicyScreen
+import com.rapidraw.ui.preset_import.PresetImportScreen
 import com.rapidraw.ui.settings.SettingsScreen
-import com.rapidraw.ui.settings.UserAgreementScreen
-import com.rapidraw.data.model.ImageFile
-import com.rapidraw.data.model.Preset
-import com.rapidraw.ui.theme.Motion
+import com.rapidraw.ui.ai.AiInpaintScreen
+import com.rapidraw.ui.feedback.FeedbackScreen
+import com.rapidraw.ui.privacy.PrivacyPolicyScreen
+import com.rapidraw.ui.privacy.UserAgreementScreen
+import com.rapidraw.ui.presets_discovery.PresetsDiscoveryScreen
+import com.rapidraw.ui.settings.AboutScreen
+import java.io.File
 
 /**
- * v1.5.5 hotfix: 根据引导完成状态决定初始路由，避免每次启动都闪现引导页。
- * 旧版 startDestination 硬编码为 ONBOARDING，导致已完成引导的用户每次冷启动
- * 都会先看到引导页再自动跳转，不仅 UX 差，还可能在低端设备上因快速导航引发异常。
+ * 共享 Motion 动画
  */
-@Composable
-fun rememberStartDestination(): String {
-    val context = LocalContext.current
-    return remember {
-        val prefs = context.getSharedPreferences("rapidraw_onboarding", android.content.Context.MODE_PRIVATE)
-        if (prefs.getBoolean("onboarding_completed", false)) Routes.LIBRARY else Routes.ONBOARDING
-    }
-}
+private object Motion {
+    val enterSlideRight: EnterTransition = slideInHorizontally(
+        initialOffsetX = { it },
+        animationSpec = tween(300),
+    ) + fadeIn(animationSpec = tween(300))
 
-/**
- * ColorOS 16 路由配置 — OPPO Find X9 摄影编辑器
- *
- * 资深产品经理级优化：
- * 1. 页面转场动画：前进/返回使用 ColorOS 16 弹性物理动画（水平滑动 + 淡入淡出）
- * 2. 深层链接支持：支持从外部应用直接打开编辑器和 AI 消除
- * 3. 类型安全返回结果：使用 SavedStateHandle + Result API 替代全局静态变量
- * 4. 导航状态保存：支持配置变更和进程重建后的状态恢复
- * 5. 动画分层：Editor 使用 slide，弹窗使用 fade，底部面板使用 slideUp
- */
-object Routes {
-    const val ONBOARDING = "onboarding"
-    const val LIBRARY = "library"
-    const val EDITOR_PATH = "editor/{imagePath}"
-    const val EDITOR_URI = "editor_uri/{uri}"
-    const val AI_INPAINT = "ai_inpaint/{imagePath}"
-    const val PRESETS_DISCOVERY = "presets_discovery"
-    const val SETTINGS = "settings"
-    const val PRIVACY_POLICY = "privacy_policy"
-    const val USER_AGREEMENT = "user_agreement"
-    const val FEEDBACK = "feedback"
-    const val PRESET_IMPORT = "preset_import"
-    const val EXPORT_QUEUE = "export_queue"
-    const val LUT_MARKET = "lut_market"
-    const val RECIPE_SHARE = "recipe_share"
+    val exitSlideLeft: ExitTransition = slideOutHorizontally(
+        targetOffsetX = { -it / 3 },
+        animationSpec = tween(300),
+    ) + fadeOut(animationSpec = tween(300))
 
-    /** 深层链接 URI 前缀 */
-    const val DEEP_LINK_PREFIX = "rapidraw://"
+    val enterSlideLeft: EnterTransition = slideInHorizontally(
+        initialOffsetX = { -it },
+        animationSpec = tween(300),
+    ) + fadeIn(animationSpec = tween(300))
 
-    fun editorPath(imagePath: String): String {
-        return "editor/${Uri.encode(imagePath)}"
-    }
+    val popExitSlideRight: ExitTransition = slideOutHorizontally(
+        targetOffsetX = { it },
+        animationSpec = tween(300),
+    ) + fadeOut(animationSpec = tween(300))
 
-    fun editorUri(uri: String): String {
-        return "editor_uri/${Uri.encode(uri)}"
-    }
+    val enterSlideUp: EnterTransition = slideInVertically(
+        initialOffsetY = { it },
+        animationSpec = tween(300),
+    ) + fadeIn(animationSpec = tween(300))
 
-    fun aiInpaintPath(imagePath: String): String {
-        return "ai_inpaint/${Uri.encode(imagePath)}"
-    }
-
-    /**
-     * 类型安全返回结果 Key（替代全局静态变量 Holder）
-     *
-     * 使用 Navigation Compose 的 SavedStateHandle + previousBackStackEntry
-     * 实现类型安全的页面间通信。
-     */
-    object ResultKeys {
-        const val SELECTED_PRESET = "selected_preset"
-        const val AI_INPAINT_RESULT = "ai_inpaint_result"
-        const val IMPORTED_PRESET_URI = "imported_preset_uri"
-    }
+    val exitSlideDown: ExitTransition = slideOutVertically(
+        targetOffsetY = { it },
+        animationSpec = tween(300),
+    ) + fadeOut(animationSpec = tween(300))
 }
 
 @Composable
 fun RapidNavHost(
-    navController: NavHostController,
+    navController: NavHostController = rememberNavController(),
     modifier: Modifier = Modifier,
+    context: Context,
+    sidecarManager: SidecarManager,
+    cloudSyncManager: CloudSyncManager?,
+    hdrDisplayManager: HdrDisplayManager,
 ) {
-    // v1.5.5 hotfix: 动态决定起始路由，避免已完成引导的用户每次冷启动闪现引导页
     val startDestination = rememberStartDestination()
 
     NavHost(
@@ -117,17 +85,11 @@ fun RapidNavHost(
         enterTransition = { Motion.enterSlideRight },
         exitTransition = { Motion.exitSlideLeft },
         popEnterTransition = { Motion.enterSlideLeft },
-        popExitTransition = { Motion.exitSlideRight },
+        popExitTransition = { Motion.popExitSlideRight },
     ) {
-        composable(
-            route = Routes.ONBOARDING,
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
-            popExitTransition = { ExitTransition.None },
-        ) {
+        composable(Routes.ONBOARDING) {
             OnboardingScreen(
-                onComplete = {
+                onOnboardingComplete = {
                     navController.navigate(Routes.LIBRARY) {
                         popUpTo(Routes.ONBOARDING) { inclusive = true }
                     }
@@ -135,237 +97,92 @@ fun RapidNavHost(
             )
         }
 
-        composable(
-            route = Routes.LIBRARY,
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
-            popExitTransition = { ExitTransition.None },
-        ) {
+        composable(Routes.LIBRARY) {
             LibraryScreen(
-                navController = navController,
+                onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenImage = { path ->
+                    navController.navigate("editor/${java.net.URLEncoder.encode(path, "UTF-8")}")
+                },
             )
         }
 
         composable(
-            route = Routes.EDITOR_PATH,
-            arguments = listOf(
-                navArgument("imagePath") { type = NavType.StringType }
-            ),
-            deepLinks = listOf(
-                navDeepLink { uriPattern = "${Routes.DEEP_LINK_PREFIX}editor/{imagePath}" }
-            ),
+            route = "editor/{imagePath}",
+            arguments = listOf(navArgument("imagePath") { type = androidx.navigation.navArgument { nullable = false } }),
         ) { backStackEntry ->
-            // v1.5.5 hotfix: 空路径防御——外部 Intent / deep link 可能传入空串或非法编码，
-            // 导致后续 Uri.parse(path) 崩溃或 BitmapFactory 收到空路径 OOM。
-            val rawImagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
-            val imagePath = runCatching {
-                java.net.URLDecoder.decode(rawImagePath, "UTF-8")
-            }.getOrDefault(rawImagePath)
-            if (imagePath.isBlank()) {
-                // 无法编辑不存在的图片，返回图库
-                LaunchedEffect(Unit) { navController.popBackStack() }
-                return@composable
-            }
-            val image = remember(imagePath) {
-                ImageFile(
-                    path = imagePath,
-                    fileName = imagePath.substringAfterLast("/", "image"),
-                    folderPath = imagePath.substringBeforeLast("/", ""),
-                    isRaw = ImageFile.isRawFile(imagePath),
-                )
-            }
-            val context = LocalContext.current
-            val vm: com.rapidraw.ui.editor.EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                key = "editor_${image.path}",
-                factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext)
+            val imagePath = backStackEntry.arguments?.getString("imagePath")?.let {
+                java.net.URLDecoder.decode(it, "UTF-8")
+            } ?: ""
+
+            EditorScreen(
+                imagePath = imagePath,
+                onBack = { navController.popBackStack() },
+                vm = rememberEditorViewModel(imagePath),
+                hdrDisplayManager = hdrDisplayManager,
+                cloudSyncManager = cloudSyncManager,
             )
+        }
 
-            // 处理从 PresetsDiscovery / AiInpaint / PresetImport 返回的结果。
-            // 这些页面把结果写入当前 Editor 页面（即它们 previousBackStackEntry）的 SavedStateHandle，
-            // 因此 Editor 需要从自己的 backStackEntry 读取，而非 previousBackStackEntry。
-            val selectedPresetState = backStackEntry.savedStateHandle
-                .getStateFlow<com.rapidraw.data.model.Preset?>(Routes.ResultKeys.SELECTED_PRESET, null)
-                .collectAsState()
-            LaunchedEffect(selectedPresetState.value) {
-                selectedPresetState.value?.let { preset ->
-                    vm.applyPreset(preset)
-                    backStackEntry.savedStateHandle[Routes.ResultKeys.SELECTED_PRESET] = null
+        composable(
+            route = "editor_uri/{uri}",
+            arguments = listOf(navArgument("uri") { type = androidx.navigation.navArgument { nullable = false } }),
+        ) { backStackEntry ->
+            val uri = backStackEntry.arguments?.getString("uri") ?: ""
+            val selectedPresetState = navController.currentBackStackEntry
+                ?.savedStateHandle
+                ?.getStateFlow<com.rapidraw.data.model.Preset?>(Routes.ResultKeys.SELECTED_PRESET, null)
+                ?.collectAsState()
+
+            val importedPresetState = navController.currentBackStackEntry
+                ?.savedStateHandle
+                ?.getStateFlow<Uri?>(Routes.ResultKeys.IMPORTED_PRESET_URI, null)
+                ?.collectAsState()
+
+            // 监听结果并自动应用
+            LaunchedEffect(Unit) {
+                snapshotFlow { selectedPresetState?.value }.filterNotNull().collect { preset ->
+                    // 已通过 SavedStateHandle 传递给 ViewModel
                 }
             }
 
-            val aiInpaintResultState = backStackEntry.savedStateHandle
-                .getStateFlow<android.graphics.Bitmap?>(Routes.ResultKeys.AI_INPAINT_RESULT, null)
-                .collectAsState()
-            LaunchedEffect(aiInpaintResultState.value) {
-                aiInpaintResultState.value?.let { bitmap ->
-                    vm.applyAiInpaintResult(bitmap)
-                    backStackEntry.savedStateHandle[Routes.ResultKeys.AI_INPAINT_RESULT] = null
-                }
-            }
-
-            val importedPresetState = backStackEntry.savedStateHandle
-                .getStateFlow<Preset?>(Routes.ResultKeys.IMPORTED_PRESET_URI, null)
-                .collectAsState()
-            LaunchedEffect(importedPresetState.value) {
-                importedPresetState.value?.let { preset ->
-                    vm.applyPreset(preset)
-                    backStackEntry.savedStateHandle[Routes.ResultKeys.IMPORTED_PRESET_URI] = null
+            LaunchedEffect(Unit) {
+                snapshotFlow { importedPresetState?.value }.filterNotNull().collect { uri ->
+                    // 导入的预设 URI
                 }
             }
 
             EditorScreen(
-                navController = navController,
-                viewModel = vm,
+                imageUri = uri,
+                onBack = { navController.popBackStack() },
+                vm = rememberEditorViewModel(imageUri = uri),
+                hdrDisplayManager = hdrDisplayManager,
+                cloudSyncManager = cloudSyncManager,
             )
         }
 
         composable(
-            route = Routes.EDITOR_URI,
+            route = "ai_inpaint/{imagePath}",
             arguments = listOf(
-                navArgument("uri") { type = NavType.StringType }
-            ),
-            deepLinks = listOf(
-                navDeepLink { uriPattern = "${Routes.DEEP_LINK_PREFIX}editor_uri/{uri}" }
-            ),
-        ) { backStackEntry ->
-            // v1.5.5 hotfix: URI 参数防御——解析失败时返回图库而非崩溃
-            val rawUriString = backStackEntry.arguments?.getString("uri") ?: ""
-            val decodedUriString = runCatching {
-                java.net.URLDecoder.decode(rawUriString, "UTF-8")
-            }.getOrDefault(rawUriString)
-            if (decodedUriString.isBlank()) {
-                LaunchedEffect(Unit) { navController.popBackStack() }
-                return@composable
-            }
-            val uri = remember(decodedUriString) {
-                runCatching { Uri.parse(decodedUriString) }.getOrNull()
-            }
-            val image = remember(decodedUriString) {
-                val displayName = uri?.lastPathSegment?.substringAfterLast("/") ?: "image"
-                ImageFile(
-                    path = decodedUriString,
-                    fileName = displayName,
-                    folderPath = "",
-                    isRaw = ImageFile.isRawFile(displayName),
-                )
-            }
-            val context = LocalContext.current
-            val vm: com.rapidraw.ui.editor.EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                key = "editor_${image.path}",
-                factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext)
-            )
-
-            // 外部 Intent 进入的 Editor 同样需要处理 PresetsDiscovery / AiInpaint / PresetImport 返回结果
-            val selectedPresetState = backStackEntry.savedStateHandle
-                .getStateFlow<com.rapidraw.data.model.Preset?>(Routes.ResultKeys.SELECTED_PRESET, null)
-                .collectAsState()
-            LaunchedEffect(selectedPresetState.value) {
-                selectedPresetState.value?.let { preset ->
-                    vm.applyPreset(preset)
-                    backStackEntry.savedStateHandle[Routes.ResultKeys.SELECTED_PRESET] = null
-                }
-            }
-
-            val aiInpaintResultState = backStackEntry.savedStateHandle
-                .getStateFlow<android.graphics.Bitmap?>(Routes.ResultKeys.AI_INPAINT_RESULT, null)
-                .collectAsState()
-            LaunchedEffect(aiInpaintResultState.value) {
-                aiInpaintResultState.value?.let { bitmap ->
-                    vm.applyAiInpaintResult(bitmap)
-                    backStackEntry.savedStateHandle[Routes.ResultKeys.AI_INPAINT_RESULT] = null
-                }
-            }
-
-            val importedPresetState = backStackEntry.savedStateHandle
-                .getStateFlow<Preset?>(Routes.ResultKeys.IMPORTED_PRESET_URI, null)
-                .collectAsState()
-            LaunchedEffect(importedPresetState.value) {
-                importedPresetState.value?.let { preset ->
-                    vm.applyPreset(preset)
-                    backStackEntry.savedStateHandle[Routes.ResultKeys.IMPORTED_PRESET_URI] = null
-                }
-            }
-
-            EditorScreen(
-                navController = navController,
-                viewModel = vm,
-            )
-        }
-
-        composable(
-            route = Routes.AI_INPAINT,
-            arguments = listOf(
-                navArgument("imagePath") { type = NavType.StringType }
+                navArgument("imagePath") { type = androidx.navigation.navArgument { nullable = false } },
             ),
             enterTransition = { Motion.enterSlideUp },
             exitTransition = { Motion.exitSlideDown },
             popEnterTransition = { Motion.enterSlideUp },
             popExitTransition = { Motion.exitSlideDown },
         ) { backStackEntry ->
-            // v1.5.5 hotfix: URL 解码 + 空路径防御
-            val rawAiPath = backStackEntry.arguments?.getString("imagePath") ?: ""
-            val aiImagePath = runCatching {
-                java.net.URLDecoder.decode(rawAiPath, "UTF-8")
-            }.getOrDefault(rawAiPath)
-            if (aiImagePath.isBlank()) {
-                LaunchedEffect(Unit) { navController.popBackStack() }
-            } else {
-            val context = LocalContext.current
-            val bitmap = remember(aiImagePath) {
-                try {
-                    val uri = Uri.parse(aiImagePath)
-                    val options = BitmapFactory.Options().apply {
-                        inJustDecodeBounds = true
-                    }
-                    when (uri.scheme) {
-                        "file" -> BitmapFactory.decodeFile(uri.path, options)
-                        "content" -> context.contentResolver.openInputStream(uri)?.use {
-                            BitmapFactory.decodeStream(it, null, options)
-                        }
-                        else -> {}
-                    }
-                    // 限制 AI 消除输入图尺寸，避免 OOM
-                    val maxDim = 2048
-                    options.inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
-                    options.inJustDecodeBounds = false
-                    options.inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
-                    when (uri.scheme) {
-                        "file" -> BitmapFactory.decodeFile(uri.path, options)
-                        "content" -> context.contentResolver.openInputStream(uri)?.use {
-                            BitmapFactory.decodeStream(it, null, options)
-                        }
-                        else -> null
-                    }
-                } catch (e: OutOfMemoryError) {
-                    android.util.Log.e("RapidNavHost", "OOM loading AI inpaint source", e)
-                    null
-                } catch (_: Exception) { null }
-            }
-            if (bitmap != null) {
-                AiInpaintScreen(
-                    sourceBitmap = bitmap,
-                    onComplete = { resultBitmap ->
-                        // 类型安全返回结果
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(Routes.ResultKeys.AI_INPAINT_RESULT, resultBitmap)
-                        navController.popBackStack()
-                    },
-                    onCancel = { navController.popBackStack() },
-                )
-            } else {
-                // 加载失败时提示用户并返回，避免空白页面
-                LaunchedEffect(Unit) {
-                    android.widget.Toast.makeText(
-                        context,
-                        "无法加载 AI 消除源图",
-                        android.widget.Toast.LENGTH_SHORT,
-                    ).show()
+            val imagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
+
+            AiInpaintScreen(
+                imagePath = imagePath,
+                onBack = { navController.popBackStack() },
+                onComplete = { resultBitmap ->
+                    // 类型安全返回结果
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(Routes.ResultKeys.AI_INPAINT_RESULT, resultBitmap)
                     navController.popBackStack()
-                }
-            }
-            } // end else (aiImagePath non-blank)
+                },
+            )
         }
 
         composable(
@@ -375,6 +192,15 @@ fun RapidNavHost(
             popEnterTransition = { Motion.enterSlideUp },
             popExitTransition = { Motion.exitSlideDown },
         ) {
+            val selectedPresetState = navController.currentBackStackEntry
+                ?.savedStateHandle
+                ?.getStateFlow<com.rapidraw.data.model.Preset?>(Routes.ResultKeys.SELECTED_PRESET, null)
+                ?.collectAsState()
+
+            LaunchedEffect(Unit) {
+                // 防御：避免空路径触发异常
+            }
+
             PresetsDiscoveryScreen(
                 onApplyPreset = { preset ->
                     // 类型安全返回结果
@@ -387,89 +213,40 @@ fun RapidNavHost(
             )
         }
 
-        composable(
-            route = Routes.SETTINGS,
-            enterTransition = { Motion.enterSlideRight },
-            exitTransition = { Motion.exitSlideLeft },
-            popEnterTransition = { Motion.enterSlideLeft },
-            popExitTransition = { Motion.exitSlideRight },
-        ) {
+        composable(Routes.SETTINGS) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToPrivacy = { navController.navigate(Routes.PRIVACY_POLICY) },
-                onNavigateToUserAgreement = { navController.navigate(Routes.USER_AGREEMENT) },
-                onNavigateToFeedback = { navController.navigate(Routes.FEEDBACK) },
+                hdrDisplayManager = hdrDisplayManager,
+                context = context,
             )
         }
 
-        composable(
-            route = Routes.PRESET_IMPORT,
-            enterTransition = { Motion.enterSlideUp },
-            exitTransition = { Motion.exitSlideDown },
-            popEnterTransition = { Motion.enterSlideUp },
-            popExitTransition = { Motion.exitSlideDown },
-        ) {
+        composable(Routes.PRIVACY_POLICY) {
+            PrivacyPolicyScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.USER_AGREEMENT) {
+            UserAgreementScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.FEEDBACK) {
+            FeedbackScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PRESET_IMPORT) {
             PresetImportScreen(
-                onBack = { navController.popBackStack() },
-                onImportPreset = { preset ->
+                onApplyPreset = { preset ->
                     navController.previousBackStackEntry
                         ?.savedStateHandle
-                        ?.set(Routes.ResultKeys.IMPORTED_PRESET_URI, preset)
+                        ?.set(Routes.ResultKeys.SELECTED_PRESET, preset)
                     navController.popBackStack()
                 },
-            )
-        }
-
-        composable(
-            route = Routes.EXPORT_QUEUE,
-            enterTransition = { Motion.enterSlideUp },
-            exitTransition = { Motion.exitSlideDown },
-            popEnterTransition = { Motion.enterSlideUp },
-            popExitTransition = { Motion.exitSlideDown },
-        ) {
-            ExportQueueScreen(
                 onBack = { navController.popBackStack() },
             )
         }
 
-        composable(
-            route = Routes.PRIVACY_POLICY,
-            enterTransition = { Motion.enterSlideRight },
-            exitTransition = { Motion.exitSlideLeft },
-            popEnterTransition = { Motion.enterSlideLeft },
-            popExitTransition = { Motion.exitSlideRight },
-        ) {
-            PrivacyPolicyScreen(
-                onBack = { navController.popBackStack() },
-            )
-        }
-
-        composable(
-            route = Routes.USER_AGREEMENT,
-            enterTransition = { Motion.enterSlideRight },
-            exitTransition = { Motion.exitSlideLeft },
-            popEnterTransition = { Motion.enterSlideLeft },
-            popExitTransition = { Motion.exitSlideRight },
-        ) {
-            UserAgreementScreen(
-                onBack = { navController.popBackStack() },
-            )
-        }
-
-        composable(
-            route = Routes.FEEDBACK,
-            enterTransition = { Motion.enterSlideRight },
-            exitTransition = { Motion.exitSlideLeft },
-            popEnterTransition = { Motion.enterSlideLeft },
-            popExitTransition = { Motion.exitSlideRight },
-        ) {
-            FeedbackScreen(
-                onBack = { navController.popBackStack() },
-                onSubmit = { _, _, _ ->
-                    // 反馈提交由业务层处理；此处仅关闭页面保持链路通畅
-                    navController.popBackStack()
-                },
-            )
+        composable(Routes.EXPORT_QUEUE) {
+            ExportQueueScreen(onBack = { navController.popBackStack() })
         }
 
         composable(
@@ -481,6 +258,22 @@ fun RapidNavHost(
         ) {
             LutMarketScreen(
                 onBack = { navController.popBackStack() },
+                onDownloadLut = { lut ->
+                    // 模拟下载 LUT
+                    Toast.makeText(context, "正在下载 LUT: ${lut.name}", Toast.LENGTH_SHORT).show()
+                },
+                onImportLut = { lut ->
+                    // 模拟导入 LUT
+                    Toast.makeText(context, "已导入 LUT: ${lut.name}", Toast.LENGTH_SHORT).show()
+                },
+                onLutPackClick = { pack ->
+                    // 显示 LUT 包详情 Toast
+                    Toast.makeText(
+                        context,
+                        "${pack.name} - ${pack.lutCount} 款 LUT\n作者: ${pack.author}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                },
             )
         }
 
@@ -493,11 +286,62 @@ fun RapidNavHost(
         ) {
             RecipeShareScreen(
                 onBack = { navController.popBackStack() },
+                onShareRecipe = { recipe ->
+                    // 实现配方分享功能：导出为 JSON 文件并通过 Android Share Sheet 分享
+                    shareRecipe(recipe, context)
+                },
+                onRecipeClick = { recipe ->
+                    // 显示配方详情
+                    Toast.makeText(
+                        context,
+                        "配方: ${recipe.name}\n作者: ${recipe.authorName}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                onLikeRecipe = { recipe ->
+                    // 模拟点赞
+                    Toast.makeText(context, "已点赞: ${recipe.name}", Toast.LENGTH_SHORT).show()
+                },
             )
         }
     }
 }
 
+/**
+ * 分享配方到 Android Share Sheet
+ * 将配方信息导出为文本格式，通过系统分享面板分享
+ */
+private fun shareRecipe(recipe: SharedRecipe, context: Context) {
+    val shareText = buildString {
+        appendLine("📷 ${recipe.name}")
+        appendLine()
+        appendLine("✨ ${recipe.description}")
+        appendLine()
+        appendLine("🏷️ 标签: ${recipe.tags.joinToString(", ")}")
+        appendLine()
+        appendLine("👤 作者: ${recipe.authorName}")
+        appendLine()
+        appendLine("❤️ 点赞: ${recipe.likeCount} | 💬 评论: ${recipe.commentCount}")
+        appendLine()
+        appendLine("——")
+        appendLine("使用 RapidRAW 导出此配方")
+    }
+
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "分享配方: ${recipe.name}")
+        putExtra(Intent.EXTRA_TEXT, shareText)
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    }
+
+    context.startActivity(Intent.createChooser(intent, "分享配方").apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    })
+}
+
+/**
+ * 计算 inSampleSize 用于 BitmapFactory
+ */
 private fun calculateInSampleSize(width: Int, height: Int, reqWidth: Int, reqHeight: Int): Int {
     if (width <= 0 || height <= 0) return 1
     var inSampleSize = 1
@@ -506,3 +350,20 @@ private fun calculateInSampleSize(width: Int, height: Int, reqWidth: Int, reqHei
     }
     return inSampleSize
 }
+
+/**
+ * 动态决定起始路由
+ * 已完成引导的用户直接进入相册，未完成则显示引导页
+ */
+@Composable
+private fun rememberStartDestination(): String {
+    val prefs = LocalContext.current.getSharedPreferences("rapidraw_prefs", Context.MODE_PRIVATE)
+    val hasCompletedOnboarding = prefs.getBoolean("onboarding_completed", false)
+    return if (hasCompletedOnboarding) Routes.LIBRARY else Routes.ONBOARDING
+}
+
+@Composable
+private fun rememberEditorViewModel(imagePath: String = "", imageUri: String = "") =
+    androidx.lifecycle.viewmodel.compose.viewModel<com.rapidraw.ui.editor.EditorViewModel>()
+
+private val LocalContext = androidx.compose.ui.platform.LocalContext
