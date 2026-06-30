@@ -352,9 +352,9 @@ class ImageProcessor {
                 glowAmount = src.glowAmount / 100f,
                 halationAmount = src.halationAmount / 100f,
                 flareAmount = src.flareAmount / 100f,
-                // Blur-based creative effects
-                blurGlow = src.glow / 100f,
-                blurHalation = src.halation / 100f,
+                // Blur-based creative effects (unified with glowAmount/halationAmount)
+                blurGlow = src.glowAmount / 100f,
+                blurHalation = src.halationAmount / 100f,
                 // CDL Color Grading
                 cdlShadowsR = src.colorGradingShadowsR / 100f,
                 cdlShadowsG = src.colorGradingShadowsG / 100f,
@@ -365,8 +365,7 @@ class ImageProcessor {
                 cdlHighlightsR = src.colorGradingHighlightsR / 100f,
                 cdlHighlightsG = src.colorGradingHighlightsG / 100f,
                 cdlHighlightsB = src.colorGradingHighlightsB / 100f,
-                // LUT: prefer new library blend when a LUT is active, fall back to legacy lutIntensity
-                lutIntensity = if (src.activeLutId.isNotEmpty()) src.activeLutBlend else src.lutIntensity / 100f,
+                lutIntensity = src.lutIntensity / 100f,
                 // Detail (additional)
                 lumaNoiseReduction = src.lumaNoiseReduction / 100f,
                 colorNoiseReduction = src.colorNoiseReduction / 100f,

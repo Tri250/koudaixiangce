@@ -671,15 +671,15 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uAgXEnabled", if (agxEnabled) 1f else 0f)
         setUniform1f("uAgXContrast", adjustments.agxContrast.coerceIn(0f, 1f))
         setUniform1f("uAgXPedestal", adjustments.agxPedestal.coerceIn(0f, 0.5f))
-        setUniform1i("uAces2DisplayColorSpace", 0)
-        setUniform1i("uAces2Eotf", 0)
-        setUniform1f("uAces2PeakLuminance", 100f)
-        setUniform1i("uOpenDrtDisplayColorSpace", 0)
-        setUniform1i("uOpenDrtEotf", 0)
-        setUniform1f("uOpenDrtPeakLuminance", 100f)
+        setUniform1i("uAces2DisplayColorSpace", adjustments.displayColorSpace.coerceIn(0, 2))
+        setUniform1i("uAces2Eotf", adjustments.eotf.coerceIn(0, 2))
+        setUniform1f("uAces2PeakLuminance", adjustments.peakLuminanceNits.coerceIn(100f, 10000f))
+        setUniform1i("uOpenDrtDisplayColorSpace", adjustments.displayColorSpace.coerceIn(0, 2))
+        setUniform1i("uOpenDrtEotf", adjustments.eotf.coerceIn(0, 2))
+        setUniform1f("uOpenDrtPeakLuminance", adjustments.peakLuminanceNits.coerceIn(100f, 10000f))
 
         // ── LUT Intensity ──
-        setUniform1f("uLutIntensity", adjustments.activeLutBlend.coerceIn(0f, 1f))
+        setUniform1f("uLutIntensity", adjustments.lutIntensity.coerceIn(0f, 100f) / 100f)
 
         // ── Missing fields fix ──
         setUniform1f("uLumaNoiseReduction", adjustments.lumaNoiseReduction / 100f)
@@ -705,8 +705,8 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uCdlHighlightsG", adjustments.colorGradingHighlightsG / 100f)
         setUniform1f("uCdlHighlightsB", adjustments.colorGradingHighlightsB / 100f)
         // Blur-based creative effects
-        setUniform1f("uBlurGlow", adjustments.glow / 100f)
-        setUniform1f("uBlurHalation", adjustments.halation / 100f)
+        setUniform1f("uBlurGlow", adjustments.glowAmount / 100f)
+        setUniform1f("uBlurHalation", adjustments.halationAmount / 100f)
         setUniform1f("uRotation", adjustments.rotation)
         setUniform1i("uOrientationSteps", adjustments.orientationSteps)
         setUniform1f("uFlipHorizontal", if (adjustments.flipHorizontal) 1f else 0f)
@@ -726,6 +726,30 @@ class GpuPipeline(private val context: Context) {
         setUniform1f("uLensVignette", adjustments.lensVignette / 100f)
         setUniform1f("uLensTca", adjustments.lensTca / 100f)
         setUniform1f("uLensFocalLength", adjustments.lensFocalLength)
+
+        // ── Perspective Correction ──
+        setUniform1f("uPerspectiveVertical", adjustments.perspectiveVertical / 100f)
+        setUniform1f("uPerspectiveHorizontal", adjustments.perspectiveHorizontal / 100f)
+        setUniform1f("uPerspectiveRotate", adjustments.perspectiveRotate)
+        setUniform1f("uPerspectiveScale", adjustments.perspectiveScale / 100f)
+        setUniform1f("uPerspectiveAspect", adjustments.perspectiveAspect / 100f)
+
+        // ── Local Tint ──
+        setUniform1f("uShadowsTintHue", adjustments.shadowsTintHue / 360f)
+        setUniform1f("uShadowsTintSaturation", adjustments.shadowsTintSaturation / 100f)
+        setUniform1f("uHighlightsTintHue", adjustments.highlightsTintHue / 360f)
+        setUniform1f("uHighlightsTintSaturation", adjustments.highlightsTintSaturation / 100f)
+
+        // ── Edge Light / Rim Light ──
+        setUniform1f("uEdgeLightAmount", adjustments.edgeLightAmount / 100f)
+        setUniform1f("uEdgeLightHue", adjustments.edgeLightHue / 360f)
+        setUniform1f("uEdgeLightSaturation", adjustments.edgeLightSaturation)
+
+        // ── Color Range Selector ──
+        setUniform1f("uColorRangeHue", adjustments.colorRangeHue / 360f)
+        setUniform1f("uColorRangeWidth", adjustments.colorRangeWidth / 180f)
+        setUniform1f("uColorRangeSatAdjust", adjustments.colorRangeSatAdjust / 100f)
+        setUniform1f("uColorRangeLumAdjust", adjustments.colorRangeLumAdjust / 100f)
 
         // RGB Curves: pack up to 12 points into 6 vec4s
         fun uploadCurve(name: String, curve: List<com.rapidraw.data.model.Coord>) {

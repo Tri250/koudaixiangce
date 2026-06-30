@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.Adjustments
 import com.rapidraw.ui.components.HasselSlider
+import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextSecondary
 
 private data class QuickParamDef(
@@ -121,6 +122,8 @@ fun QuickAdjustPanel(
     adjustments: Adjustments,
     onUpdate: (String, Float) -> Unit,
     onAdvancedClick: () -> Unit,
+    onChannelMixerClick: () -> Unit = {},
+    onSplitToningClick: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -149,6 +152,36 @@ fun QuickAdjustPanel(
             Text(
                 text = "高级调整 →",
                 color = TextSecondary,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onChannelMixerClick() }
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "通道混合器 →",
+                color = HasselbladOrange,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onSplitToningClick() }
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "分色调 →",
+                color = HasselbladOrange,
                 fontSize = 14.sp,
                 modifier = Modifier.weight(1f),
             )

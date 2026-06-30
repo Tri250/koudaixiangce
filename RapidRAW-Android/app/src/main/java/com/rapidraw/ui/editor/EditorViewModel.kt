@@ -130,6 +130,14 @@ class EditorViewModel(
     private val _showAdvanced = MutableStateFlow(false)
     val showAdvanced: StateFlow<Boolean> = _showAdvanced.asStateFlow()
 
+    // 调节子面板：null=QuickAdjust, "advanced"=AdvancedPanel, "channelMixer"=ChannelMixerPanel, "splitToning"=SplitToningPanel
+    private val _adjustSubPanel = MutableStateFlow<String?>(null)
+    val adjustSubPanel: StateFlow<String?> = _adjustSubPanel.asStateFlow()
+
+    fun setAdjustSubPanel(panel: String?) {
+        _adjustSubPanel.value = panel
+    }
+
     private val _isSmartOptimized = MutableStateFlow(false)
     val isSmartOptimized: StateFlow<Boolean> = _isSmartOptimized.asStateFlow()
 
@@ -310,7 +318,7 @@ class EditorViewModel(
         gpuPipeline = pipeline
         // 同步上传已加载的 LUT，让 GPU 路径预览反映当前 adjustments
         if (pipeline != null) {
-            loadedLut?.let { pipeline.updateLutTexture(it, _adjustments.value.activeLutBlend) }
+            loadedLut?.let { pipeline.updateLutTexture(it, _adjustments.value.lutIntensity / 100f) }
         }
     }
 

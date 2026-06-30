@@ -204,10 +204,6 @@ data class Adjustments(
     val halationAmount: Float = 0f,
     val flareAmount: Float = 0f,
 
-    // ── Blur-based Creative Effects ────────────────────────────
-    val halation: Float = 0f,          // 0..100, red/orange bloom around bright highlights
-    val glow: Float = 0f,              // 0..100, soft glow around bright tones
-
     // ── Transform ─────────────────────────────────────────────
     val rotation: Float = 0f,
     val orientationSteps: Int = 0,
@@ -239,7 +235,6 @@ data class Adjustments(
 
     // ── LUT Library (AlcedoStudio integration) ────────────────
     val activeLutId: String = "",                // 当前应用的 LUT ID
-    val activeLutBlend: Float = 1f,              // 0..1 强度
 
     // ── HDR Export (2026 Android 14+ Ultra HDR) ───────────────
     // 0=SDR JPEG, 1=Ultra HDR JPEG, 2=HEIF 10-bit
@@ -400,9 +395,6 @@ data class Adjustments(
         "glowAmount" -> copy(glowAmount = value.coerceIn(0f, 100f))
         "halationAmount" -> copy(halationAmount = value.coerceIn(0f, 100f))
         "flareAmount" -> copy(flareAmount = value.coerceIn(0f, 100f))
-        // Blur-based creative effects
-        "halation" -> copy(halation = value.coerceIn(0f, 100f))
-        "glow" -> copy(glow = value.coerceIn(0f, 100f))
         // Transform
         "rotation" -> copy(rotation = value.coerceIn(-180f, 180f))
         "transformDistortion" -> copy(transformDistortion = value.coerceIn(-100f, 100f))
@@ -428,8 +420,6 @@ data class Adjustments(
         "displayColorSpace" -> copy(displayColorSpace = value.toInt().coerceIn(0, 2))
         "eotf" -> copy(eotf = value.toInt().coerceIn(0, 2))
         "peakLuminanceNits" -> copy(peakLuminanceNits = value.coerceIn(100f, 10000f))
-        // LUT
-        "activeLutBlend" -> copy(activeLutBlend = value.coerceIn(0f, 1f))
         // HDR export
         "hdrExportFormat" -> copy(hdrExportFormat = value.toInt().coerceIn(0, 2))
         "hdrPeakLuminance" -> copy(hdrPeakLuminance = value.coerceIn(100f, 10000f))

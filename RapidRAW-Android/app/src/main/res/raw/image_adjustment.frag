@@ -167,6 +167,24 @@ uniform float uTransformScale;      // 0.1 - 2.0
 uniform float uTransformXOffset;    // -1.0 - 1.0
 uniform float uTransformYOffset;    // -1.0 - 1.0
 
+// ── Perspective & Tint & Edge Light & Color Range ──────────────────────
+uniform float uPerspectiveVertical;
+uniform float uPerspectiveHorizontal;
+uniform float uPerspectiveRotate;
+uniform float uPerspectiveScale;
+uniform float uPerspectiveAspect;
+uniform float uShadowsTintHue;
+uniform float uShadowsTintSaturation;
+uniform float uHighlightsTintHue;
+uniform float uHighlightsTintSaturation;
+uniform float uEdgeLightAmount;
+uniform float uEdgeLightHue;
+uniform float uEdgeLightSaturation;
+uniform float uColorRangeHue;
+uniform float uColorRangeWidth;
+uniform float uColorRangeSatAdjust;
+uniform float uColorRangeLumAdjust;
+
 // Lens Correction
 uniform float uLensDistortion;      // -1.0 - 1.0
 uniform float uLensVignette;        // -1.0 - 1.0
@@ -1235,17 +1253,28 @@ vec3 apply_noise_reduction(vec3 color) {
     if (uLumaNoiseReduction < EPS && uColorNoiseReduction < EPS) return color;
     float lum = get_luma(color);
     vec3 chroma = color - vec3(lum);
-    // Chroma damping: reduce color noise (more aggressive, human eye is less sensitive to chroma noise)
-    float chromaDamp = 1.0 - uColorNoiseReduction * 0.4;
+    // Chroma damping: reduce color noise
+    float chromaDamp = 1.0 - uColorNoiseReduction * 0.5;
     vec3 newChroma = chroma * chromaDamp;
-    // Apply luma smoothing with neighbor sampling for spatial approximation
+    // Luma noise reduction: bilateral-weighted spatial filter
     vec2 texel = 1.0 / uResolution;
     vec3 n1 = texture(uTexture, vTexCoord + vec2(texel.x, 0.0)).rgb;
     vec3 n2 = texture(uTexture, vTexCoord - vec2(texel.x, 0.0)).rgb;
     vec3 n3 = texture(uTexture, vTexCoord + vec2(0.0, texel.y)).rgb;
     vec3 n4 = texture(uTexture, vTexCoord - vec2(0.0, texel.y)).rgb;
-    float neighborLum = (get_luma(n1) + get_luma(n2) + get_luma(n3) + get_luma(n4)) * 0.25;
-    float spatialBlend = uLumaNoiseReduction * 0.25;
+    float lum1 = get_luma(n1);
+    float lum2 = get_luma(n2);
+    float lum3 = get_luma(n3);
+    float lum4 = get_luma(n4);
+    // Bilateral weights: closer luminance = higher weight
+    float sigma = 0.1 + uLumaNoiseReduction * 0.3;
+    float w1 = exp(-((lum1 - lum) * (lum1 - lum)) / (2.0 * sigma * sigma));
+    float w2 = exp(-((lum2 - lum) * (lum2 - lum)) / (2.0 * sigma * sigma));
+    float w3 = exp(-((lum3 - lum) * (lum3 - lum)) / (2.0 * sigma * sigma));
+    float w4 = exp(-((lum4 - lum) * (lum4 - lum)) / (2.0 * sigma * sigma));
+    float wSum = w1 + w2 + w3 + w4;
+    float neighborLum = (lum1 * w1 + lum2 * w2 + lum3 * w3 + lum4 * w4) / max(wSum, EPS);
+    float spatialBlend = uLumaNoiseReduction * 0.6;
     float newLum = mix(lum, neighborLum, spatialBlend);
     return vec3(newLum) + newChroma;
 }
@@ -1257,7 +1286,7 @@ vec3 apply_noise_reduction(vec3 color) {
 vec3 apply_glow(vec3 color) {
     if (uGlowAmount < 0.001) return color;
     float lum = get_luma(color);
-    float bloom = lum * uGlowAmount * 0.3;
+    float bloom = lum * max(uGlowAmount, uBlurGlow) * 0.3;
     return color + vec3(bloom);
 }
 
@@ -1266,10 +1295,10 @@ vec3 apply_glow(vec3 color) {
 // ═══════════════════════════════════════════════════════════════════════
 
 vec3 apply_halation(vec3 color) {
-    if (uHalationAmount < 0.001) return color;
+    if (uHalationAmount < 0.001 && uBlurHalation < 0.001) return color;
     float lum = get_luma(color);
     float highlightMask = smoothstep_custom(0.5, 1.0, lum);
-    float halation = highlightMask * uHalationAmount * 0.4;
+    float halation = highlightMask * max(uHalationAmount, uBlurHalation) * 0.4;
     return vec3(color.r + halation, color.g + halation * 0.3, color.b + halation * 0.1);
 }
 
@@ -1377,6 +1406,90 @@ vec3 apply_cdl_grading(vec3 color) {
     float offsetB = (sm * uCdlShadowsB + mm * uCdlMidtonesB + hm * uCdlHighlightsB) * 0.15;
 
     return clamp(color + vec3(offsetR, offsetG, offsetB), 0.0, 1.0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Perspective Correction ────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_perspective_correction(vec3 color) {
+    // Perspective correction is applied via UV remapping in the vertex shader or main().
+    // This stub exists for pipeline consistency; actual perspective warp requires
+    // multi-pass rendering or vertex displacement, which is handled in the Kotlin layer.
+    return color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Local Tint (Shadow/Highlight tinting) ────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_local_tint(vec3 color) {
+    if (uShadowsTintSaturation < EPS && uHighlightsTintSaturation < EPS) return color;
+    float lum = get_luma(color);
+    // Shadow tint: blend toward the target hue in shadows
+    if (uShadowsTintSaturation > EPS && lum < 0.5) {
+        float shWeight = (1.0 - lum * 2.0) * uShadowsTintSaturation;
+        float targetR = abs(mod(uShadowsTintHue * 6.0, 2.0) - 1.0);
+        float targetG = abs(mod((uShadowsTintHue + 0.333) * 6.0, 2.0) - 1.0);
+        float targetB = abs(mod((uShadowsTintHue + 0.667) * 6.0, 2.0) - 1.0);
+        vec3 tint = vec3(targetR, targetG, targetB);
+        color = mix(color, color * (1.0 + tint * shWeight * 0.3), shWeight * 0.5);
+    }
+    // Highlight tint: blend toward the target hue in highlights
+    if (uHighlightsTintSaturation > EPS && lum > 0.5) {
+        float hlWeight = ((lum - 0.5) * 2.0) * uHighlightsTintSaturation;
+        float targetR = abs(mod(uHighlightsTintHue * 6.0, 2.0) - 1.0);
+        float targetG = abs(mod((uHighlightsTintHue + 0.333) * 6.0, 2.0) - 1.0);
+        float targetB = abs(mod((uHighlightsTintHue + 0.667) * 6.0, 2.0) - 1.0);
+        vec3 tint = vec3(targetR, targetG, targetB);
+        color = mix(color, color * (1.0 + tint * hlWeight * 0.3), hlWeight * 0.5);
+    }
+    return color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Edge Light ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_edge_light(vec3 color) {
+    if (uEdgeLightAmount < EPS) return color;
+    vec2 texel = 1.0 / uResolution;
+    float lum = get_luma(color);
+    float lumN = get_luma(texture(uTexture, vTexCoord + vec2(0.0, texel.y)).rgb);
+    float lumS = get_luma(texture(uTexture, vTexCoord - vec2(0.0, texel.y)).rgb);
+    float lumE = get_luma(texture(uTexture, vTexCoord + vec2(texel.x, 0.0)).rgb);
+    float lumW = get_luma(texture(uTexture, vTexCoord - vec2(texel.x, 0.0)).rgb);
+    float edge = abs(lum - lumN) + abs(lum - lumS) + abs(lum - lumE) + abs(lum - lumW);
+    edge = clamp(edge * 4.0, 0.0, 1.0);
+    float rimFactor = edge * uEdgeLightAmount / 100.0;
+    // Apply colored rim light
+    float targetR = abs(mod(uEdgeLightHue * 6.0, 2.0) - 1.0) * uEdgeLightSaturation;
+    float targetG = abs(mod((uEdgeLightHue + 0.333) * 6.0, 2.0) - 1.0) * uEdgeLightSaturation;
+    float targetB = abs(mod((uEdgeLightHue + 0.667) * 6.0, 2.0) - 1.0) * uEdgeLightSaturation;
+    vec3 rimColor = vec3(targetR, targetG, targetB) * 0.5 + 0.5;
+    return mix(color, color + rimColor * rimFactor, rimFactor);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── NEW: Color Range (Selective hue adjustment) ───────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+
+vec3 apply_color_range(vec3 color) {
+    if (abs(uColorRangeSatAdjust) < EPS && abs(uColorRangeLumAdjust) < EPS) return color;
+    // Get pixel hue and check if it falls within the selected range
+    vec3 hsv = rgb_to_hsv(color);
+    float pixelHue = hsv.x / 360.0; // normalize to 0-1 range (rgb_to_hsv returns degrees)
+    float centerHue = uColorRangeHue; // 0-1 range
+    float halfWidth = uColorRangeWidth * 0.5; // 0-1 range
+    float hueDist = abs(pixelHue - centerHue);
+    hueDist = min(hueDist, 1.0 - hueDist); // Wrap around
+    float mask = smoothstep(halfWidth, halfWidth * 0.5, hueDist);
+    // Apply sat/lum adjustments within the range
+    hsv.y += uColorRangeSatAdjust * mask;
+    hsv.z += uColorRangeLumAdjust * mask;
+    hsv.y = clamp(hsv.y, 0.0, 1.0);
+    hsv.z = clamp(hsv.z, 0.0, 1.0);
+    return hsv_to_rgb(hsv);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1504,6 +1617,15 @@ void main() {
 
     // === Step 6b: Noise reduction ===
     color = apply_noise_reduction(color);
+
+    // === Step 6c: Local tint (shadow/highlight tinting) ===
+    color = apply_local_tint(color);
+
+    // === Step 6d: Edge light ===
+    color = apply_edge_light(color);
+
+    // === Step 6e: Color range (selective hue adjustment) ===
+    color = apply_color_range(color);
 
     // === Step 7: Highlights adjustment ===
     color = apply_highlights_adjustment(color, uHighlights);

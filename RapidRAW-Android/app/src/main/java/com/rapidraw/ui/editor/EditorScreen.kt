@@ -126,6 +126,8 @@ import com.rapidraw.data.model.ImageFile
 import com.rapidraw.data.model.ResizeMode
 import com.rapidraw.ui.adjustments.AdvancedPanel
 import com.rapidraw.ui.adjustments.QuickAdjustPanel
+import com.rapidraw.ui.adjustments.ChannelMixerPanel
+import com.rapidraw.ui.adjustments.SplitToningPanel
 import com.rapidraw.ui.components.ColorScienceSheet
 import com.rapidraw.ui.components.EditHistoryPanel
 import com.rapidraw.ui.components.ExportQueueFloatingIndicator
@@ -187,6 +189,7 @@ fun EditorScreen(
     val isShowingOriginal by viewModel.isShowingOriginal.collectAsState()
     val activeTab by viewModel.activeTab.collectAsState()
     val showAdvanced by viewModel.showAdvanced.collectAsState()
+    val adjustSubPanel by viewModel.adjustSubPanel.collectAsState()
     val isSmartOptimized by viewModel.isSmartOptimized.collectAsState()
     val isSmartOptimizing by viewModel.isSmartOptimizing.collectAsState()
     val selectedFilmId by viewModel.selectedFilmId.collectAsState()
@@ -1268,18 +1271,29 @@ fun EditorScreen(
                                 onOpenPresets = { showPresetsSheet = true },
                             )
                             EditorTab.ADJUST -> {
-                                if (showAdvanced) {
-                                    AdvancedPanel(
+                                when (adjustSubPanel) {
+                                    "advanced" -> AdvancedPanel(
                                         adjustments = adjustments,
                                         onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
                                         onCurveUpdate = { key, value -> viewModel.updateCurve(key, value as List<com.rapidraw.data.model.Coord>) },
-                                        onBack = { viewModel.toggleAdvanced() },
+                                        onBack = { viewModel.setAdjustSubPanel(null) },
                                     )
-                                } else {
-                                    QuickAdjustPanel(
+                                    "channelMixer" -> ChannelMixerPanel(
+                                        adjustments = adjustments,
+                                        onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
+                                        onBack = { viewModel.setAdjustSubPanel(null) },
+                                    )
+                                    "splitToning" -> SplitToningPanel(
+                                        adjustments = adjustments,
+                                        onUpdate = { key, value -> viewModel.updateAdjustment(key, value) },
+                                        onBack = { viewModel.setAdjustSubPanel(null) },
+                                    )
+                                    else -> QuickAdjustPanel(
                                         adjustments = adjustments,
                                         onUpdate = { key, value -> viewModel.updateQuickAdjust(key, value) },
-                                        onAdvancedClick = { viewModel.toggleAdvanced() },
+                                        onAdvancedClick = { viewModel.setAdjustSubPanel("advanced") },
+                                        onChannelMixerClick = { viewModel.setAdjustSubPanel("channelMixer") },
+                                        onSplitToningClick = { viewModel.setAdjustSubPanel("splitToning") },
                                     )
                                 }
                             }

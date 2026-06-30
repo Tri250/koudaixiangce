@@ -16,6 +16,10 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -720,6 +724,319 @@ fun AdvancedPanel(
                 onValueChange = { onUpdate("transformYOffset", it) },
                 defaultValue = 0f,
                 stepSize = 1f,
+            )
+        }
+
+        // ── 透视校正 Section ─────────────────────────────────────────
+        CollapsibleSection(
+            title = "透视校正",
+            expanded = expandedSection == "perspectiveCorrection",
+            onToggle = {
+                expandedSection = if (expandedSection == "perspectiveCorrection") null else "perspectiveCorrection"
+            },
+        ) {
+            HasselSlider(
+                label = "垂直",
+                value = adjustments.perspectiveVertical,
+                range = -100f..100f,
+                onValueChange = { onUpdate("perspectiveVertical", it) },
+                defaultValue = 0f,
+            )
+            HasselSlider(
+                label = "水平",
+                value = adjustments.perspectiveHorizontal,
+                range = -100f..100f,
+                onValueChange = { onUpdate("perspectiveHorizontal", it) },
+                defaultValue = 0f,
+            )
+            HasselSlider(
+                label = "旋转",
+                value = adjustments.perspectiveRotate,
+                range = -45f..45f,
+                onValueChange = { onUpdate("perspectiveRotate", it) },
+                defaultValue = 0f,
+                stepSize = 0.1f,
+                format = { v -> String.format("%.1f°", v) },
+            )
+            HasselSlider(
+                label = "缩放",
+                value = adjustments.perspectiveScale,
+                range = 10f..200f,
+                onValueChange = { onUpdate("perspectiveScale", it) },
+                defaultValue = 100f,
+                format = { v -> "${v.toInt()}%" },
+            )
+            HasselSlider(
+                label = "宽高比",
+                value = adjustments.perspectiveAspect,
+                range = -100f..100f,
+                onValueChange = { onUpdate("perspectiveAspect", it) },
+                defaultValue = 0f,
+            )
+        }
+
+        // ── 局部着色 Section ─────────────────────────────────────────
+        CollapsibleSection(
+            title = "局部着色",
+            expanded = expandedSection == "localTint",
+            onToggle = {
+                expandedSection = if (expandedSection == "localTint") null else "localTint"
+            },
+        ) {
+            Text(
+                text = "阴影",
+                color = TextTertiary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            HasselSlider(
+                label = "色相",
+                value = adjustments.shadowsTintHue,
+                range = 0f..360f,
+                onValueChange = { onUpdate("shadowsTintHue", it) },
+                defaultValue = 0f,
+                format = { v -> "${v.toInt()}°" },
+            )
+            HasselSlider(
+                label = "饱和度",
+                value = adjustments.shadowsTintSaturation,
+                range = 0f..100f,
+                onValueChange = { onUpdate("shadowsTintSaturation", it) },
+                defaultValue = 0f,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "高光",
+                color = TextTertiary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            HasselSlider(
+                label = "色相",
+                value = adjustments.highlightsTintHue,
+                range = 0f..360f,
+                onValueChange = { onUpdate("highlightsTintHue", it) },
+                defaultValue = 0f,
+                format = { v -> "${v.toInt()}°" },
+            )
+            HasselSlider(
+                label = "饱和度",
+                value = adjustments.highlightsTintSaturation,
+                range = 0f..100f,
+                onValueChange = { onUpdate("highlightsTintSaturation", it) },
+                defaultValue = 0f,
+            )
+        }
+
+        // ── 边缘光 Section ───────────────────────────────────────────
+        CollapsibleSection(
+            title = "边缘光",
+            expanded = expandedSection == "edgeLight",
+            onToggle = {
+                expandedSection = if (expandedSection == "edgeLight") null else "edgeLight"
+            },
+        ) {
+            HasselSlider(
+                label = "强度",
+                value = adjustments.edgeLightAmount,
+                range = 0f..100f,
+                onValueChange = { onUpdate("edgeLightAmount", it) },
+                defaultValue = 0f,
+            )
+            HasselSlider(
+                label = "色相",
+                value = adjustments.edgeLightHue,
+                range = 0f..360f,
+                onValueChange = { onUpdate("edgeLightHue", it) },
+                defaultValue = 30f,
+                format = { v -> "${v.toInt()}°" },
+            )
+            HasselSlider(
+                label = "饱和度",
+                value = adjustments.edgeLightSaturation,
+                range = 0f..1f,
+                onValueChange = { onUpdate("edgeLightSaturation", it) },
+                defaultValue = 0.5f,
+                stepSize = 0.01f,
+                format = { v -> String.format("%.2f", v) },
+            )
+        }
+
+        // ── 颜色范围 Section ─────────────────────────────────────────
+        CollapsibleSection(
+            title = "颜色范围",
+            expanded = expandedSection == "colorRange",
+            onToggle = {
+                expandedSection = if (expandedSection == "colorRange") null else "colorRange"
+            },
+        ) {
+            HasselSlider(
+                label = "中心色相",
+                value = adjustments.colorRangeHue,
+                range = 0f..360f,
+                onValueChange = { onUpdate("colorRangeHue", it) },
+                defaultValue = 0f,
+                format = { v -> "${v.toInt()}°" },
+            )
+            HasselSlider(
+                label = "范围宽度",
+                value = adjustments.colorRangeWidth,
+                range = 1f..180f,
+                onValueChange = { onUpdate("colorRangeWidth", it) },
+                defaultValue = 30f,
+            )
+            HasselSlider(
+                label = "饱和度调整",
+                value = adjustments.colorRangeSatAdjust,
+                range = -100f..100f,
+                onValueChange = { onUpdate("colorRangeSatAdjust", it) },
+                defaultValue = 0f,
+            )
+            HasselSlider(
+                label = "明度调整",
+                value = adjustments.colorRangeLumAdjust,
+                range = -100f..100f,
+                onValueChange = { onUpdate("colorRangeLumAdjust", it) },
+                defaultValue = 0f,
+            )
+        }
+
+        // ── 色彩科学 Section ─────────────────────────────────────────
+        CollapsibleSection(
+            title = "色彩科学",
+            expanded = expandedSection == "colorScience",
+            onToggle = {
+                expandedSection = if (expandedSection == "colorScience") null else "colorScience"
+            },
+        ) {
+            Text(
+                text = "色调映射",
+                color = TextTertiary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            val csModes = listOf("AgX", "ACES 2.0", "OpenDRT", "标准")
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                csModes.forEachIndexed { index, label ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = csModes.size),
+                        onClick = { onUpdate("colorScienceMode", index.toFloat()) },
+                        selected = adjustments.colorScienceMode == index,
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (adjustments.colorScienceMode == index) HasselbladOrange else TextSecondary,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = "显示色域",
+                color = TextTertiary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            val displaySpaces = listOf("sRGB", "Display P3", "Rec.2020")
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                displaySpaces.forEachIndexed { index, label ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = displaySpaces.size),
+                        onClick = { onUpdate("displayColorSpace", index.toFloat()) },
+                        selected = adjustments.displayColorSpace == index,
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (adjustments.displayColorSpace == index) HasselbladOrange else TextSecondary,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = "EOTF",
+                color = TextTertiary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            val eotfModes = listOf("SDR", "HDR10/PQ", "HLG")
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                eotfModes.forEachIndexed { index, label ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = eotfModes.size),
+                        onClick = { onUpdate("eotf", index.toFloat()) },
+                        selected = adjustments.eotf == index,
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (adjustments.eotf == index) HasselbladOrange else TextSecondary,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+
+            HasselSlider(
+                label = "峰值亮度",
+                value = adjustments.peakLuminanceNits,
+                range = 100f..10000f,
+                onValueChange = { onUpdate("peakLuminanceNits", it) },
+                defaultValue = 1000f,
+                stepSize = 50f,
+                format = { v -> "${v.toInt()} nits" },
+            )
+        }
+
+        // ── 镜头校正 Section ─────────────────────────────────────────
+        CollapsibleSection(
+            title = "镜头校正",
+            expanded = expandedSection == "lensCorrection",
+            onToggle = {
+                expandedSection = if (expandedSection == "lensCorrection") null else "lensCorrection"
+            },
+        ) {
+            HasselSlider(
+                label = "畸变",
+                value = adjustments.lensDistortion,
+                range = -100f..100f,
+                onValueChange = { onUpdate("lensDistortion", it) },
+                defaultValue = 0f,
+            )
+            HasselSlider(
+                label = "暗角",
+                value = adjustments.lensVignette,
+                range = -100f..100f,
+                onValueChange = { onUpdate("lensVignette", it) },
+                defaultValue = 0f,
+            )
+            HasselSlider(
+                label = "色差",
+                value = adjustments.lensTca,
+                range = -100f..100f,
+                onValueChange = { onUpdate("lensTca", it) },
+                defaultValue = 0f,
+            )
+            HasselSlider(
+                label = "焦距",
+                value = adjustments.lensFocalLength,
+                range = 1f..1000f,
+                onValueChange = { onUpdate("lensFocalLength", it) },
+                defaultValue = 50f,
+                format = { v -> "${v.toInt()}mm" },
             )
         }
     }
