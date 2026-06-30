@@ -1,6 +1,7 @@
 package com.rapidraw.ui.theme
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -21,13 +22,20 @@ import androidx.core.view.WindowCompat
  * - Shapes: 4 级圆角 token（见 Shapes.kt）
  * - Motion: 弹性物理动画（见 Motion.kt，组件按需引用）
  * - Spacing: 4dp 网格间距（见 Spacing.kt，组件按需引用）
+ * - LiquidGlass: 液态玻璃动态颜色系统（见 LiquidGlass.kt 组件）
  *
  * 暗色模式（默认，摄影编辑器主力模式）：
  * - AMOLED 纯黑背景省电 + 纯净取景
  * - 分层表面通过白 alpha 叠加，营造深度
+ * - 液态玻璃：白 alpha 底色 + 折射高光 + 边缘光晕
  *
  * 亮色模式（户外强光环境）：
  * - 高对比白底，保证户外可读性
+ * - 液态玻璃：暗 alpha 底色 + 顶部漫射
+ *
+ * 动态颜色（Android 12+ Material You）：
+ * - 暂不启用系统动态颜色提取，以保持哈苏橙品牌一致性
+ * - 保留扩展口，未来可按用户偏好切换
  */
 private val RapidRawDarkColorScheme = darkColorScheme(
     primary = HasselbladOrange,
@@ -122,6 +130,12 @@ fun RapidRawTheme(
 
             // Edge-to-edge 全屏沉浸（Android 15+ 强制，Android 16 兼容）
             WindowCompat.setDecorFitsSystemWindows(window, false)
+
+            // 2026 hotfix: Android 15+ (API 35+) 强制预测性返回时，需确保
+            // window 背景 transparent，否则返回动画会出现白闪
+            if (Build.VERSION.SDK_INT >= 35) {
+                window.setBackgroundDrawableResource(android.R.color.transparent)
+            }
         }
     }
 

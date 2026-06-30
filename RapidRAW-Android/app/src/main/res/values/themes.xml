@@ -1,19 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!--
-        v1.5.3 修复：
+        v1.5.3 → v2026 修复：
         1. 主题必须使用 AppCompat 系列（已与 AppCompatActivity 配套）
         2. forceDarkAllowed=false：禁止系统在暗色模式下把 Light 主题反色覆盖（ColorOS 16 兼容）
         3. windowSplashScreenBackground + windowSplashScreenAnimatedIcon：使用 Android 12+ 启动画面 API
         4. windowLayoutInDisplayCutoutMode=shortEdges：兼容打孔屏、刘海屏
+        5. 2026 hotfix: windowBackground 使用 amoled_black 与 Compose 色值统一
+        6. 2026 hotfix: colorPrimary/colorAccent 使用哈苏橙，与 Compose ColorOS16Colors 统一
+        7. 2026 hotfix: 添加 Android 15+ 预测性返回相关配置
     -->
     <style name="Theme.RapidRAW" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowBackground">@color/amoled_black</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowFullscreen">false</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:forceDarkAllowed" tools:targetApi="29">false</item>
+
+        <!-- 哈苏橙品牌色（系统对话框/EditText 着色/分享 Intent 预览） -->
+        <item name="colorPrimary">@color/hasselblad_orange</item>
+        <item name="colorPrimaryDark">@color/hasselblad_orange_deep</item>
+        <item name="colorAccent">@color/hasselblad_orange_bright</item>
+
+        <!-- Android 12+ 启动画面（哈苏橙背景 + 白色图标） -->
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/hasselblad_orange</item>
     </style>
 </resources>

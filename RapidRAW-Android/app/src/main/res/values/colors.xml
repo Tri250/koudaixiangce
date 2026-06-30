@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Hasselblad Orange Brand -->
+    <!-- ══ Hasselblad Orange Brand (与 ColorOS16Colors.kt 统一) ══ -->
     <color name="hasselblad_orange">#E8600C</color>
+    <color name="hasselblad_orange_bright">#F2803F</color>
+    <color name="hasselblad_orange_deep">#B84D0A</color>
     <color name="hasselblad_orange_20">#33E8600C</color>
     <color name="hasselblad_orange_10">#1AE8600C</color>
+    <color name="hasselblad_orange_glow">#80E8600C</color>
+    <color name="hasselblad_orange_tint">#1FE8600C</color>
 
-    <!-- Neutral Palette -->
+    <!-- ══ AMOLED Surface System (与 ColorOS16Colors.kt 统一) ══ -->
+    <color name="amoled_black">#060606</color>
+    <color name="surface_1">#0F0F10</color>
+    <color name="surface_2">#1A1A1E</color>
+    <color name="surface_3">#2A2A30</color>
+    <color name="surface_4">#26262B</color>
+
+    <!-- ══ Neutral Palette (与 Surface 系统对齐) ══ -->
     <color name="neutral_900">#0F0F0F</color>
     <color name="neutral_800">#1A1A1A</color>
     <color name="neutral_700">#2A2A2A</color>
@@ -16,9 +27,23 @@
     <color name="neutral_200">#E0E0E0</color>
     <color name="neutral_100">#F5F5F5</color>
 
-    <!-- Functional -->
-    <color name="error">#CF6679</color>
-    <color name="success">#4CAF50</color>
-    <color name="warning">#FF9800</color>
-    <color name="info">#2196F3</color>
+    <!-- ══ Text (WCAG AA+ on AMOLED black) ══ -->
+    <color name="text_high">#F5F5F7</color>
+    <color name="text_medium">#AAFFFFFF</color>
+    <color name="text_low">#80FFFFFF</color>
+    <color name="text_disabled">#4DFFFFFF</color>
+
+    <!-- ══ Functional (高饱和，深黑背景可见) ══ -->
+    <color name="error">#FF453A</color>
+    <color name="success">#30D158</color>
+    <color name="warning">#FFD60A</color>
+    <color name="info">#64D2FF</color>
+    <color name="clipping_red">#FF453A</color>
+    <color name="clipping_blue">#0A84FF</color>
+    <color name="ai_purple">#BF5AF2</color>
+
+    <!-- ══ Liquid Glass ══ -->
+    <color name="liquid_glass_base">#1FFFFFFF</color>
+    <color name="liquid_glass_highlight">#52FFFFFF</color>
+    <color name="liquid_glass_edge">#2EFFFFFF</color>
 </resources>

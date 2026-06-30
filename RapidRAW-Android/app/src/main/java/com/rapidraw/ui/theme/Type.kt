@@ -40,14 +40,26 @@ private fun loadOPPOSansFamily(): FontFamily? = try {
         val resId = com.rapidraw.R.font::class.java.getField("opposans_bold").getInt(null)
         if (resId != 0) resId else null
     }.getOrNull()
+    // 2026 hotfix: 尝试加载 Light 和 Thin 字重以支持更完整的字重梯度
+    val lightId = runCatching {
+        val resId = com.rapidraw.R.font::class.java.getField("opposans_light").getInt(null)
+        if (resId != 0) resId else null
+    }.getOrNull()
+    val thinId = runCatching {
+        val resId = com.rapidraw.R.font::class.java.getField("opposans_thin").getInt(null)
+        if (resId != 0) resId else null
+    }.getOrNull()
     if (regularId == null || mediumId == null || boldId == null) {
         null
     } else {
         FontFamily(
-            androidx.compose.ui.text.font.Font(regularId, FontWeight.W400, FontStyle.Normal),
-            androidx.compose.ui.text.font.Font(mediumId, FontWeight.W500, FontStyle.Normal),
-            androidx.compose.ui.text.font.Font(boldId, FontWeight.W700, FontStyle.Normal),
-        )
+            *(listOfNotNull(
+                thinId?.let { androidx.compose.ui.text.font.Font(it, FontWeight.W100, FontStyle.Normal) },
+                lightId?.let { androidx.compose.ui.text.font.Font(it, FontWeight.W300, FontStyle.Normal) },
+                androidx.compose.ui.text.font.Font(regularId, FontWeight.W400, FontStyle.Normal),
+                androidx.compose.ui.text.font.Font(mediumId, FontWeight.W500, FontStyle.Normal),
+                androidx.compose.ui.text.font.Font(boldId, FontWeight.W700, FontStyle.Normal),
+            ).toTypedArray()))
     }
 } catch (_: Exception) {
     null

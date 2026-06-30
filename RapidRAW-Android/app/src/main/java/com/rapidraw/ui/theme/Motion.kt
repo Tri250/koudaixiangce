@@ -285,6 +285,60 @@ object Motion {
             label = "shimmer",
         )
     }
+
+    /**
+     * 液态玻璃模糊半径呼吸动画
+     * 模拟玻璃表面因光线变化产生的微妙模糊度变化
+     */
+    @Composable
+    fun glassBlurBreathAnimation(): State<Float> {
+        val infiniteTransition = rememberInfiniteTransition(label = "glass_blur_breath")
+        return infiniteTransition.animateFloat(
+            initialValue = 0.85f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2400, easing = EmphasizedEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "blur_breath",
+        )
+    }
+
+    /**
+     * 液态玻璃高光位移动画
+     * 模拟光源移动造成的高光位置缓慢变化
+     */
+    @Composable
+    fun glassHighlightShiftAnimation(): State<Float> {
+        val infiniteTransition = rememberInfiniteTransition(label = "glass_highlight_shift")
+        return infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(5000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "highlight_shift",
+        )
+    }
+
+    /**
+     * 哈苏品牌色脉冲强度动画
+     * 用于导出按钮/品牌卡片的橙色辉光脉冲
+     */
+    @Composable
+    fun hasselbladBrandPulseAnimation(): State<Float> {
+        val infiniteTransition = rememberInfiniteTransition(label = "hasselblad_brand_pulse")
+        return infiniteTransition.animateFloat(
+            initialValue = 0.0f,
+            targetValue = 0.15f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(DurationBreath, easing = EmphasizedEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "brand_pulse",
+        )
+    }
 }
 
 /**
