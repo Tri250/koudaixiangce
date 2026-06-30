@@ -78,12 +78,12 @@ fun PrivacyPolicyScreen(
 
             // 更新日期
             Text(
-                text = "更新日期：2025年6月1日",
+                text = "更新日期：2026年6月30日",
                 color = TextTertiary,
                 fontSize = 12.sp,
             )
             Text(
-                text = "生效日期：2025年6月1日",
+                text = "生效日期：2026年6月30日",
                 color = TextTertiary,
                 fontSize = 12.sp,
             )
@@ -108,7 +108,9 @@ fun PrivacyPolicyScreen(
             PolicyBulletItem("设备信息：设备型号、操作系统版本、屏幕分辨率、GPU 信息，用于优化图像处理性能")
             PolicyBulletItem("应用使用信息：功能使用频次、崩溃日志、性能指标，用于改善产品稳定性和用户体验")
             PolicyBulletItem("照片元数据：EXIF 信息（相机型号、镜头参数、拍摄设置），仅用于图像处理和展示，不会上传至服务器")
-            PolicyBulletItem("用户设置：编辑偏好、预设收藏、界面设置，存储于本地设备")
+            PolicyBulletItem("用户设置：编辑偏好、预设收藏、界面设置，默认存储于本地设备")
+            PolicyBulletItem("云端同步数据：如您开启云端同步，您的预设、编辑配方、LUT 收藏等数据会加密传输并存储于服务器，仅用于跨设备同步")
+            PolicyBulletItem("AI/ML 处理数据：人脸检测、场景识别等 AI 功能由设备端 ML Kit / TensorFlow Lite 在本地完成，原始照片不会上传")
             PolicyParagraph(
                 "我们不会收集您的照片原始文件、地理位置信息、通讯录、短信等与核心功能无关的个人信息。",
             )
@@ -160,6 +162,12 @@ fun PrivacyPolicyScreen(
             PolicyParagraph(
                 "4.3 我们会对第三方进行严格的尽职调查，以保护您的个人信息安全。",
             )
+            PolicyParagraph(
+                "4.4 我们使用的第三方 SDK：",
+            )
+            PolicyBulletItem("Google ML Kit（人脸检测）：完全在设备端运行，不会将您的照片或人脸信息上传至 Google 服务器")
+            PolicyBulletItem("TensorFlow Lite：用于加载本地 AI 模型进行端侧推理，模型文件下载前会校验 SHA256 完整性")
+            PolicyBulletItem("AndroidX / Compose 等官方库：仅用于界面与系统功能，不收集个人信息")
 
             Spacer(modifier = Modifier.height(16.dp))
 

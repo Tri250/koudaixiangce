@@ -67,6 +67,7 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.core.CrashHandler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -83,6 +84,7 @@ import java.util.Locale
 class ProjectManagerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ProjectRepository(application)
+    private val coroutineExceptionHandler = CrashHandler.coroutineExceptionHandler(getApplication())
 
     private val _projects = MutableStateFlow<List<Project>>(emptyList())
     val projects: StateFlow<List<Project>> = _projects.asStateFlow()
@@ -98,7 +100,7 @@ class ProjectManagerViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun loadProjects() {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             _isLoading.value = true
             repository.getAllProjects().collect { list ->
                 _projects.value = list.sortedByDescending { it.modifiedAt }
@@ -117,7 +119,7 @@ class ProjectManagerViewModel(application: Application) : AndroidViewModel(appli
 
     fun createProject(name: String) {
         if (name.isBlank()) return
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             repository.createProject(name = name.trim())
             _showCreateDialog.value = false
             loadProjects()
@@ -125,7 +127,7 @@ class ProjectManagerViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun deleteProject(projectId: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteProject(projectId)
             loadProjects()
         }

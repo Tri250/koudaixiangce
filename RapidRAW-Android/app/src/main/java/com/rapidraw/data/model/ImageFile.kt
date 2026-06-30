@@ -1,5 +1,6 @@
 package com.rapidraw.data.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -12,6 +13,7 @@ enum class ColorLabel {
     PURPLE,
 }
 
+@Immutable
 @Serializable
 data class ImageFile(
     val path: String,

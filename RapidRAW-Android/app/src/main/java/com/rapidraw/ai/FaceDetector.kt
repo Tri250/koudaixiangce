@@ -68,9 +68,10 @@ class FaceDetector(context: Context) {
         }
 
         runCatching {
+            val detector = mlKitDetector ?: return@runCatching heuristicDetect(bitmap)
             val inputImage = InputImage.fromBitmap(bitmap, 0)
             val faces: List<Face> = suspendCancellableCoroutine { continuation ->
-                mlKitDetector!!.process(inputImage)
+                detector.process(inputImage)
                     .addOnSuccessListener { continuation.resume(it) }
                     .addOnFailureListener { continuation.resumeWithException(it) }
             }

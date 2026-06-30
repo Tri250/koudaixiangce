@@ -51,6 +51,9 @@ import com.rapidraw.ui.theme.TextTertiary
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigateToPrivacy: () -> Unit = {},
+    onNavigateToUserAgreement: () -> Unit = {},
+    onNavigateToFeedback: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -299,11 +302,25 @@ fun SettingsScreen(
                         fontSize = 14.sp,
                     )
                     Text(
-                        text = "1.4.12",
+                        text = getAppVersion(context),
                         color = TextTertiary,
                         fontSize = 14.sp,
                     )
                 }
+
+                HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
+
+                ClickableRow(
+                    title = "隐私政策",
+                    onClick = onNavigateToPrivacy,
+                )
+
+                HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
+
+                ClickableRow(
+                    title = "用户协议",
+                    onClick = onNavigateToUserAgreement,
+                )
 
                 HorizontalDivider(color = EditorBorder, thickness = 0.5.dp)
 
@@ -323,21 +340,7 @@ fun SettingsScreen(
 
                 ClickableRow(
                     title = "反馈与建议",
-                    onClick = {
-                        try {
-                            val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                data = android.net.Uri.parse("mailto:feedback@rapidraw.app")
-                                putExtra(Intent.EXTRA_SUBJECT, "RapidRAW 反馈 - v${getAppVersion(context)}")
-                            }
-                            if (intent.resolveActivity(context.packageManager) != null) {
-                                context.startActivity(intent)
-                            } else {
-                                Toast.makeText(context, "未找到邮件应用", Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (_: Exception) {
-                            Toast.makeText(context, "无法打开邮件", Toast.LENGTH_SHORT).show()
-                        }
-                    },
+                    onClick = onNavigateToFeedback,
                 )
             }
 

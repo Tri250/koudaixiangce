@@ -75,12 +75,12 @@ fun UserAgreementScreen(
 
             // 更新日期
             Text(
-                text = "更新日期：2025年6月1日",
+                text = "更新日期：2026年6月30日",
                 color = TextTertiary,
                 fontSize = 12.sp,
             )
             Text(
-                text = "生效日期：2025年6月1日",
+                text = "生效日期：2026年6月30日",
                 color = TextTertiary,
                 fontSize = 12.sp,
             )

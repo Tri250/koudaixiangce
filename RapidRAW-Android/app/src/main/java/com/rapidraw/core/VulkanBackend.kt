@@ -53,7 +53,8 @@ class VulkanBackend(private val context: Context) {
      * 初始化后端 — 自动检测最优可用后端
      */
     suspend fun initialize(): BackendInfo = withContext(Dispatchers.IO) {
-        if (isInitialized) return@withContext backendInfo!!
+        if (isInitialized) return@withContext backendInfo
+            ?: throw IllegalStateException("VulkanBackend initialized but backendInfo is null")
 
         // 1. 尝试 Vulkan（当前不支持，自动跳过）
         if (isSupported()) {
@@ -95,7 +96,7 @@ class VulkanBackend(private val context: Context) {
             Log.w(TAG, "GPU init failed, using CPU fallback: ${e.message}")
         }
 
-        backendInfo!!
+        backendInfo ?: throw IllegalStateException("VulkanBackend initialization failed")
     }
 
     /**

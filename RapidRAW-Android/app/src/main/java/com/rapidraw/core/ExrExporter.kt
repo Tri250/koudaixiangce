@@ -71,37 +71,40 @@ object ExrExporter {
         val cacheDir = context.cacheDir
         val tempFile = java.io.File(cacheDir, "export_exr_${System.currentTimeMillis()}.exr")
 
-        tempFile.outputStream().use { fos ->
-            writeExr(bitmap, fos, pixelType)
-        }
+        try {
+            tempFile.outputStream().use { fos ->
+                writeExr(bitmap, fos, pixelType)
+            }
 
-        val contentValues = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/x-exr")
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/x-exr")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/RapidRAW")
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+            }
+
+            val contentResolver = context.contentResolver
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                ?: throw RuntimeException("Failed to create MediaStore entry")
+
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                tempFile.inputStream().use { input ->
+                    input.copyTo(outputStream)
+                }
+            } ?: throw RuntimeException("Failed to open output stream")
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/RapidRAW")
-                put(MediaStore.Images.Media.IS_PENDING, 1)
+                contentValues.clear()
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                contentResolver.update(uri, contentValues, null, null)
             }
+
+            return uri
+        } finally {
+            runCatching { tempFile.delete() }
         }
-
-        val contentResolver = context.contentResolver
-        val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-            ?: throw RuntimeException("Failed to create MediaStore entry")
-
-        contentResolver.openOutputStream(uri)?.use { outputStream ->
-            tempFile.inputStream().use { input ->
-                input.copyTo(outputStream)
-            }
-        } ?: throw RuntimeException("Failed to open output stream")
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            contentValues.clear()
-            contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-            contentResolver.update(uri, contentValues, null, null)
-        }
-
-        tempFile.delete()
-        return uri
     }
 
     private fun buildHeader(w: Int, h: Int, channels: List<String>, pixelType: PixelType): ByteArray {

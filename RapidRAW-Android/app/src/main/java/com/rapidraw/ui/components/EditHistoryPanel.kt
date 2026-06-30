@@ -236,7 +236,7 @@ private fun EditHistoryContent(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            items(branchPath.reversed()) { entry ->
+            items(branchPath.reversed(), key = { it.id }) { entry ->
                 HistoryNodeRow(
                     entry = entry,
                     isHead = entry.id == currentId,

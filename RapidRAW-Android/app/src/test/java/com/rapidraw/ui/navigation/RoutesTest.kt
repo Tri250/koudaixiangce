@@ -30,11 +30,20 @@ class RoutesTest {
 
     @Test
     fun routeConstants_areStable() {
+        assertEquals("onboarding", Routes.ONBOARDING)
         assertEquals("library", Routes.LIBRARY)
         assertEquals("editor/{imagePath}", Routes.EDITOR_PATH)
         assertEquals("editor_uri/{uri}", Routes.EDITOR_URI)
         assertEquals("ai_inpaint/{imagePath}", Routes.AI_INPAINT)
         assertEquals("presets_discovery", Routes.PRESETS_DISCOVERY)
+        assertEquals("settings", Routes.SETTINGS)
+        assertEquals("privacy_policy", Routes.PRIVACY_POLICY)
+        assertEquals("user_agreement", Routes.USER_AGREEMENT)
+        assertEquals("feedback", Routes.FEEDBACK)
+        assertEquals("preset_import", Routes.PRESET_IMPORT)
+        assertEquals("export_queue", Routes.EXPORT_QUEUE)
+        assertEquals("lut_market", Routes.LUT_MARKET)
+        assertEquals("recipe_share", Routes.RECIPE_SHARE)
     }
 
     // 2026 hotfix: 边界场景测试

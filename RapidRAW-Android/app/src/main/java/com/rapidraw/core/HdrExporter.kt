@@ -171,6 +171,9 @@ object HdrExporter {
                 HdrFormat.HEIF_10BIT -> exportHeif10bit(context, bitmap, config, displayName)
                 HdrFormat.SDR_JPEG -> exportSdrJpeg(context, bitmap, displayName)
             }
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM during HDR export: ${oom.message}", oom)
+            null
         } catch (e: Exception) {
             Log.e(TAG, "Failed to export HDR image: ${e.message}", e)
             null
@@ -896,7 +899,6 @@ object HdrExporter {
             resolver.update(uri, contentValues, null, null)
         }
 
-        Log.i(TAG, "Exported HDR image: $uri (format=$mimeType, hdr=$isHdr)")
         return uri
     }
 

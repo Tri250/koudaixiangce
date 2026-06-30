@@ -76,20 +76,20 @@ object RawDecoder {
         return try {
             val pixels = decodeRaw(path, widthArray, heightArray)
             if (pixels == null || widthArray[0] <= 0 || heightArray[0] <= 0) {
-                Log.w(TAG, "Native decoder returned no pixels for $path")
+                Log.w(TAG, "Native decoder returned no pixels")
                 return null
             }
             val bitmap = Bitmap.createBitmap(widthArray[0], heightArray[0], Bitmap.Config.ARGB_8888)
             bitmap.setPixels(pixels, 0, widthArray[0], 0, 0, widthArray[0], heightArray[0])
             bitmap
         } catch (e: Exception) {
-            Log.e(TAG, "decodeRaw failed for $path", e)
+            Log.e(TAG, "decodeRaw failed", e)
             null
         } catch (e: OutOfMemoryError) {
-            Log.e(TAG, "OOM decoding RAW for $path (size=${widthArray[0]}x${heightArray[0]})", e)
+            Log.e(TAG, "OOM decoding RAW (size=${widthArray[0]}x${heightArray[0]})", e)
             null
         } catch (e: Throwable) {
-            Log.e(TAG, "Unexpected error decoding RAW for $path", e)
+            Log.e(TAG, "Unexpected error decoding RAW", e)
             null
         }
     }
@@ -118,9 +118,10 @@ object RawDecoder {
     }
 
     private fun copyUriToTempFile(context: Context, uri: Uri): File? {
+        val ext = getExtensionFromUri(context, uri)
+        val tempFile = File.createTempFile("raw_decode_", ext, context.cacheDir)
         return try {
-            val ext = getExtensionFromUri(context, uri)
-            val tempFile = File.createTempFile("raw_decode_", ext, context.cacheDir)
+            var oversized = false
             context.contentResolver.openInputStream(uri)?.use { input ->
                 tempFile.outputStream().use { output ->
                     // 2026 hotfix: 使用 256KB 缓冲 + 进度限制避免 100MB+ RAW 文件把缓存撑爆
@@ -132,25 +133,34 @@ object RawDecoder {
                         if (read <= 0) break
                         totalBytes += read
                         if (totalBytes > maxBytes) {
-                            // 超过硬上限立即停止并清理临时文件
-                            runCatching { tempFile.delete() }
-                            Log.e(TAG, "RAW file too large (>2GB): $uri")
-                            return null
+                            Log.e(TAG, "RAW file too large (>2GB)")
+                            oversized = true
+                            return@use
                         }
                         output.write(buffer, 0, read)
                     }
                     output.flush()
                 }
-            } ?: return null
+            } ?: run {
+                runCatching { tempFile.delete() }
+                return null
+            }
+            if (oversized || !tempFile.exists() || tempFile.length() == 0L) {
+                runCatching { tempFile.delete() }
+                return null
+            }
             tempFile
         } catch (e: OutOfMemoryError) {
-            Log.e(TAG, "OOM copying URI to temp file: $uri", e)
+            runCatching { tempFile.delete() }
+            Log.e(TAG, "OOM copying URI to temp file", e)
             null
         } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException copying URI to temp file: $uri", e)
+            runCatching { tempFile.delete() }
+            Log.e(TAG, "SecurityException copying URI to temp file", e)
             null
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to copy URI to temp file: $uri", e)
+            runCatching { tempFile.delete() }
+            Log.e(TAG, "Failed to copy URI to temp file", e)
             null
         }
     }
@@ -166,7 +176,7 @@ object RawDecoder {
             }
         } catch (e: Exception) {
             // 部分 URI 不支持 query，fallback 到 lastPathSegment
-            Log.w(TAG, "Failed to query URI for display name: $uri", e)
+            Log.w(TAG, "Failed to query URI for display name", e)
             name = uri.lastPathSegment ?: ""
         }
         // 2026 hotfix: 严格校验扩展名长度和字符集，防止恶意 URI 把

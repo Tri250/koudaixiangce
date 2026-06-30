@@ -42,12 +42,16 @@ import com.rapidraw.data.model.AdjustmentLayer
 import com.rapidraw.data.model.EditHistoryEntry
 import com.rapidraw.data.model.EditHistoryTree
 import com.rapidraw.data.model.ExifData
+import com.rapidraw.data.model.ExportFormat
+import com.rapidraw.data.model.ExportJob
+import com.rapidraw.data.model.ExportJobStatus
 import com.rapidraw.data.model.ExportSettings
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.ImageFile
 import com.rapidraw.data.model.LayerStack
 import com.rapidraw.data.model.Preset
 import com.rapidraw.data.model.describeAdjustmentChange
+import com.rapidraw.data.repository.ExportQueueRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,9 +63,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
 
 enum class EditorTab {
@@ -78,18 +84,6 @@ sealed class EditorEvent {
     data class ShareImage(val uri: Uri) : EditorEvent()
     data object Idle : EditorEvent()
 }
-
-enum class ExportJobStatus { QUEUED, EXPORTING, COMPLETED, FAILED }
-
-data class ExportJob(
-    val id: String,
-    val imagePath: String,
-    val status: ExportJobStatus,
-    val progress: Float,
-    val resultUri: Uri? = null,
-    val error: String? = null,
-    val fileSize: Long = 0L,
-)
 
 class EditorViewModel(
     private val imageFile: ImageFile?,
@@ -178,8 +172,7 @@ class EditorViewModel(
     private val _isAiProcessing = MutableStateFlow(false)
     val isAiProcessing: StateFlow<Boolean> = _isAiProcessing.asStateFlow()
 
-    private val _exportQueue = MutableStateFlow<List<ExportJob>>(emptyList())
-    val exportQueue: StateFlow<List<ExportJob>> = _exportQueue.asStateFlow()
+    val exportQueue: StateFlow<List<ExportJob>> = ExportQueueRepository.jobs
 
     private val _editHistory = MutableStateFlow<EditHistoryTree?>(null)
     val editHistory: StateFlow<EditHistoryTree?> = _editHistory.asStateFlow()
@@ -294,7 +287,9 @@ class EditorViewModel(
     private val isCleared = AtomicBoolean(false)
 
     // 用于 ViewModel 销毁后异步释放 GPU/Bitmap 资源，避免 onCleared 阻塞主线程
-    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val cleanupScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + coroutineExceptionHandler
+    )
     // endregion
 
     init {
@@ -405,7 +400,6 @@ class EditorViewModel(
         _sceneConfidence.value = 0f
         _showClipping.value = false
         _zoomLevel.value = 1f
-        _exportQueue.value = emptyList()
         _editHistory.value = null
         branchableHistory = null
         _currentBranchName.value = "main"
@@ -1479,13 +1473,16 @@ class EditorViewModel(
             imagePath = currentImageFile.path,
             status = ExportJobStatus.QUEUED,
             progress = 0f,
+            format = settings.format,
+            width = currentImageFile.width,
+            height = currentImageFile.height,
         )
-        _exportQueue.value = _exportQueue.value + job
+        ExportQueueRepository.addJob(job)
         processExportQueue(settings)
     }
 
     private fun processExportQueue(pendingSettings: ExportSettings? = null) {
-        val queue = _exportQueue.value
+        val queue = ExportQueueRepository.jobs.value
         val hasActiveJob = queue.any { it.status == ExportJobStatus.EXPORTING }
         if (hasActiveJob) return
 
@@ -1498,47 +1495,46 @@ class EditorViewModel(
             val source = bitmapMutex.withLock {
                 originalBitmap?.takeIf { !it.isRecycled }
             } ?: run {
-                updateJobStatus(jobId, ExportJobStatus.FAILED, error = "没有可导出的原图")
+                ExportQueueRepository.updateJobStatus(jobId, ExportJobStatus.FAILED, error = "没有可导出的原图")
                 // 2026 hotfix: 失败后继续处理队列中的下一个
                 processExportQueue()
                 return@launch
             }
 
-            updateJobStatus(jobId, ExportJobStatus.EXPORTING, progress = 0.1f)
+            ExportQueueRepository.updateJobStatus(jobId, ExportJobStatus.EXPORTING, progress = 0.1f)
 
             // 2026 hotfix: 声明在 try 外部，确保 finally 块可见
             var processed: Bitmap? = null
             runCatching {
-                updateJobProgress(jobId, 0.3f)
+                ExportQueueRepository.updateJobProgress(jobId, 0.3f)
                 processed = imageProcessor.processFullResolution(
                     _adjustments.value, source, allowDownsample = false
                 )
-                updateJobProgress(jobId, 0.7f)
+                ExportQueueRepository.updateJobProgress(jobId, 0.7f)
+                val processedBitmap = processed
+                    ?: throw IllegalStateException("processFullResolution returned null")
                 val uri = imageProcessor.exportImage(
-                    processed!!, settings, appContext, originalExifData, originalOrientation,
+                    processedBitmap, settings, appContext, originalExifData, originalOrientation,
                 )
-                updateJobProgress(jobId, 0.95f)
+                ExportQueueRepository.updateJobProgress(jobId, 0.95f)
 
                 val file = uri.path?.let { java.io.File(it) }
                 val fileSize = file?.length() ?: 0L
 
+                ExportQueueRepository.updateJobStatus(
+                    jobId,
+                    ExportJobStatus.COMPLETED,
+                    progress = 1f,
+                    resultUri = uri,
+                    fileSize = fileSize,
+                )
                 withContext(Dispatchers.Main) {
-                    _exportQueue.value = _exportQueue.value.map {
-                        if (it.id == jobId) it.copy(
-                            status = ExportJobStatus.COMPLETED,
-                            progress = 1f,
-                            resultUri = uri,
-                            fileSize = fileSize,
-                        ) else it
-                    }
                     _event.value = EditorEvent.ExportComplete(uri)
                 }
             }.onFailure { throwable ->
                 if (throwable is CancellationException) throw throwable
                 Log.e(TAG, "Export failed", throwable)
-                withContext(Dispatchers.Main) {
-                    updateJobStatus(jobId, ExportJobStatus.FAILED, error = throwable.localizedMessage)
-                }
+                ExportQueueRepository.updateJobStatus(jobId, ExportJobStatus.FAILED, error = throwable.localizedMessage)
             }
 
             // 2026 hotfix: 始终回收 processFullResolution 产生的全分辨率大位图
@@ -1565,8 +1561,10 @@ class EditorViewModel(
                 processed = imageProcessor.processFullResolution(
                     _adjustments.value, source, allowDownsample = false
                 )
+                val processedBitmap = processed
+                    ?: throw IllegalStateException("processFullResolution returned null")
                 val uri = imageProcessor.exportImage(
-                    processed!!, settings, appContext, originalExifData, originalOrientation,
+                    processedBitmap, settings, appContext, originalExifData, originalOrientation,
                 )
                 withContext(Dispatchers.Main) {
                     _event.value = EditorEvent.ShareImage(uri)
@@ -1581,37 +1579,19 @@ class EditorViewModel(
         }
     }
 
-    private suspend fun updateJobStatus(jobId: String, status: ExportJobStatus, error: String? = null, progress: Float? = null) {
-        withContext(Dispatchers.Main) {
-            _exportQueue.value = _exportQueue.value.map {
-                if (it.id == jobId) it.copy(status = status, error = error, progress = progress ?: it.progress) else it
-            }
-        }
-    }
-
-    private suspend fun updateJobProgress(jobId: String, progress: Float) {
-        withContext(Dispatchers.Main) {
-            _exportQueue.value = _exportQueue.value.map {
-                if (it.id == jobId) it.copy(progress = progress) else it
-            }
-        }
-    }
-
     fun cancelExportJob(jobId: String) {
-        _exportQueue.value = _exportQueue.value.map {
-            if (it.id == jobId) it.copy(status = ExportJobStatus.FAILED, error = "已取消") else it
-        }
-        if (_exportQueue.value.none { it.status == ExportJobStatus.EXPORTING }) {
+        ExportQueueRepository.updateJobStatus(jobId, ExportJobStatus.FAILED, error = "已取消")
+        if (ExportQueueRepository.jobs.value.none { it.status == ExportJobStatus.EXPORTING }) {
             processExportQueue()
         }
     }
 
     fun dismissExportJob(jobId: String) {
-        _exportQueue.value = _exportQueue.value.filter { it.id != jobId }
+        ExportQueueRepository.removeJob(jobId)
     }
 
     fun reorderExportQueue(fromIndex: Int, toIndex: Int) {
-        val queue = _exportQueue.value.toMutableList()
+        val queue = ExportQueueRepository.jobs.value.toMutableList()
         val queuedItems = queue.filter {
             it.status == ExportJobStatus.QUEUED || it.status == ExportJobStatus.EXPORTING
         }
@@ -1627,7 +1607,8 @@ class EditorViewModel(
                 else -> it
             }
         }
-        _exportQueue.value = newQueue
+        ExportQueueRepository.clear()
+        newQueue.forEach { ExportQueueRepository.addJob(it) }
     }
     // endregion
 
@@ -1739,25 +1720,31 @@ class EditorViewModel(
         aiJob?.cancel()
         exportJob?.cancel()
 
-        // 保存 sidecar（轻量、必须同步做；否则用户编辑后未保存就退出将丢失）
+        // 2026 hotfix: 在取消协程前先捕获需要持久化的状态，避免并发修改
         val currentImg = _currentImage.value
-        if (currentImg != null) {
-            try {
-                val sidecarManager = SidecarManager(appContext)
-                sidecarManager.saveSidecar(
-                    currentImg.path, _adjustments.value, _selectedFilmId.value,
-                    editHistoryEntries = collectEditHistoryEntries(),
-                )
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to save sidecar", e)
-            }
-        }
+        val adjustmentsToSave = _adjustments.value
+        val filmIdToSave = _selectedFilmId.value
+        val editHistoryToSave = runCatching { collectEditHistoryEntries() }.getOrNull()
+
+        // 释放 FlowMaskManager 持有的遮罩位图
+        flowMaskManager?.release()
+        flowMaskManager = null
 
         // 异步释放 GPU/Bitmap 资源，避免 onCleared 阻塞主线程导致 ANR
         val pipeline = gpuPipeline
         gpuPipeline = null
-        cleanupScope.launch {
+        val cleanupJob = cleanupScope.launch {
             try {
+                // 在 IO 线程保存 sidecar，避免主线程 IO 导致 ANR
+                if (currentImg != null) {
+                    runCatching {
+                        SidecarManager(appContext).saveSidecar(
+                            currentImg.path, adjustmentsToSave, filmIdToSave,
+                            editHistoryEntries = editHistoryToSave,
+                        )
+                    }.onFailure { Log.w(TAG, "Failed to save sidecar", it) }
+                }
+
                 // 2026 hotfix: 这里用 tryLock 避免和仍在执行的 AI/Export 协程形成死锁；
                 // 如果锁被占用，onCleared 异步通道已 cancel，最终一定会被释放
                 runCatching {
@@ -1769,7 +1756,7 @@ class EditorViewModel(
                         }
                     } else {
                         // 等待最多 500ms 释放 GPU
-                        kotlinx.coroutines.withTimeoutOrNull(500) {
+                        withTimeoutOrNull(500) {
                             gpuMutex.withLock { pipeline?.release() }
                         }
                     }
@@ -1783,7 +1770,7 @@ class EditorViewModel(
                             bitmapMutex.unlock()
                         }
                     } else {
-                        kotlinx.coroutines.withTimeoutOrNull(500) {
+                        withTimeoutOrNull(500) {
                             bitmapMutex.withLock { recycleBitmapsInternal() }
                         }
                     }
@@ -1794,10 +1781,17 @@ class EditorViewModel(
             }
         }
 
+        // 立即释放原图预览位图，避免等到异步清理才释放
         _originalPreviewBitmap.value?.let { old ->
             if (!old.isRecycled) old.recycle()
         }
         _originalPreviewBitmap.value = null
+
+        // 看门狗：即使清理协程死锁/挂起，也在 2 秒后强制取消作用域，防止泄漏
+        cleanupScope.launch {
+            delay(2000)
+            cleanupScope.cancel()
+        }
 
         super.onCleared()
     }

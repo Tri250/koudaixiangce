@@ -1,13 +1,16 @@
 package com.rapidraw.data.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
+@Immutable
 @Serializable
 data class Coord(val x: Float, val y: Float)
 
 /**
  * Represents an AI inpaint patch applied to a region of the image.
  */
+@Immutable
 @Serializable
 data class AiPatch(
     val id: String = "",
@@ -17,6 +20,7 @@ data class AiPatch(
     val applied: Boolean = false,
 )
 
+@Immutable
 @Serializable
 data class HslChannel(
     val hue: Float = 0f,
@@ -24,6 +28,7 @@ data class HslChannel(
     val luminance: Float = 0f,
 )
 
+@Immutable
 @Serializable
 data class ColorGradingRegion(
     val hue: Float = 0f,
@@ -31,6 +36,7 @@ data class ColorGradingRegion(
     val luminance: Float = 0f,
 )
 
+@Immutable
 @Serializable
 data class ColorGrading(
     val shadows: ColorGradingRegion = ColorGradingRegion(),
@@ -40,6 +46,7 @@ data class ColorGrading(
     val balance: Float = 0f,
 )
 
+@Immutable
 @Serializable
 data class ColorCalibration(
     val shadowsTint: Float = 0f,
@@ -51,6 +58,7 @@ data class ColorCalibration(
     val blueSaturation: Float = 0f,
 )
 
+@Immutable
 @Serializable
 data class CropData(
     val x: Float = 0f,
@@ -61,6 +69,7 @@ data class CropData(
     val rotation: Float = 0f,
 )
 
+@Immutable
 @Serializable
 data class SubMaskData(
     val type: String = "brush",
@@ -69,6 +78,7 @@ data class SubMaskData(
     val feather: Float = 0f,
 )
 
+@Immutable
 @Serializable
 data class MaskContainer(
     val id: String = "",
@@ -80,6 +90,7 @@ data class MaskContainer(
     val subMasks: List<SubMaskData> = emptyList(),
 )
 
+@Immutable
 @Serializable
 data class Adjustments(
     // ── Basic ───────────────────────────────────────────────────

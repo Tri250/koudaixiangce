@@ -119,7 +119,7 @@ fun FilterBar(
                 }
 
                 // 相机型号 Chip
-                items(availableCameraModels.take(3)) { model ->
+                items(availableCameraModels.take(3), key = { it }) { model ->
                     val isSelected = activeFilters.cameraModel == model
                     FilterChip(
                         label = model,
@@ -454,7 +454,7 @@ private fun FilterDetailPanel(
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(availableCameraModels) { model ->
+                items(availableCameraModels, key = { it }) { model ->
                     val isSelected = activeFilters.cameraModel == model
                     Surface(
                         modifier = Modifier.clickable {

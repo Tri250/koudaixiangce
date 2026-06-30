@@ -52,6 +52,7 @@ class ImageProcessor {
     companion object {
         private const val TAG = "ImageProcessor"
         private const val PREVIEW_MAX_DIMENSION = 2048
+        private const val MAX_MARK_BYTES = 64 * 1024 * 1024 // 64 MB
     }
 
     // ── Normalised Adjustments (private, proper equals/hashCode) ──────
@@ -542,40 +543,29 @@ class ImageProcessor {
     private fun decodeRawFallback(context: Context, uri: Uri): Bitmap {
         // Try to decode RAW with BitmapFactory - some Android versions support this
         try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-                ?: throw IllegalArgumentException("Cannot open URI")
-
-            inputStream.use { stream ->
-                // First pass: get dimensions
-                val options = BitmapFactory.Options().apply {
-                    inJustDecodeBounds = true
-                }
-                BitmapFactory.decodeStream(stream, null, options)
-
-                // Calculate inSampleSize for manageable size
-                val maxDim = 4096
-                var inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
-
-                // OOM guard: if estimated pixels > 50MP for RAW, enforce at least 2x downsample
-                val estimatedPixels = options.outWidth.toLong() * options.outHeight.toLong()
-                if (estimatedPixels > 50_000_000L && inSampleSize < 2) {
-                    inSampleSize = 2
-                    Log.i(TAG, "Large RAW (~${estimatedPixels / 1_000_000}MP), using inSampleSize=2 for OOM protection")
-                }
-
-                // Second pass: decode
-                val decodeStream = context.contentResolver.openInputStream(uri)
-                    ?: throw IllegalArgumentException("Cannot reopen URI")
-                decodeStream.use { ds ->
-                    val decodeOptions = BitmapFactory.Options().apply {
-                        this.inSampleSize = inSampleSize
-                        inMutable = true
-                        inPreferredConfig = Bitmap.Config.ARGB_8888
-                    }
-                    val result = BitmapFactory.decodeStream(ds, null, decodeOptions)
-                    if (result != null) return result
-                }
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
             }
+            decodeUriStream(context, uri, options)
+
+            // Calculate inSampleSize for manageable size
+            val maxDim = 4096
+            var inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
+
+            // OOM guard: if estimated pixels > 50MP for RAW, enforce at least 2x downsample
+            val estimatedPixels = options.outWidth.toLong() * options.outHeight.toLong()
+            if (estimatedPixels > 50_000_000L && inSampleSize < 2) {
+                inSampleSize = 2
+                Log.i(TAG, "Large RAW (~${estimatedPixels / 1_000_000}MP), using inSampleSize=2 for OOM protection")
+            }
+
+            val decodeOptions = BitmapFactory.Options().apply {
+                this.inSampleSize = inSampleSize
+                inMutable = true
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            val result = decodeUriStream(context, uri, decodeOptions)
+            if (result != null) return result
         } catch (e: OutOfMemoryError) {
             Log.w(TAG, "OOM decoding RAW, falling back to thumbnail", e)
             // 继续走 thumbnail fallback
@@ -609,29 +599,42 @@ class ImageProcessor {
     }
 
     private fun decodeRegular(context: Context, uri: Uri): Bitmap {
-        val inputStream = context.contentResolver.openInputStream(uri)
-            ?: throw IllegalArgumentException("Cannot open URI")
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        decodeUriStream(context, uri, options)
 
-        inputStream.use { stream ->
-            // First pass: get dimensions
-            val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-            }
-            BitmapFactory.decodeStream(stream, null, options)
+        // Second pass: decode with size guard to avoid OOM on extremely large images
+        val decodeOptions = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inMutable = true
+            val maxDim = 4096
+            inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
+        }
+        val result = decodeUriStream(context, uri, decodeOptions)
+            ?: throw IllegalArgumentException("Failed to decode image")
+        return result
+    }
 
-            // Second pass: decode with size guard to avoid OOM on extremely large images
-            val decodeStream = context.contentResolver.openInputStream(uri)
-                ?: throw IllegalArgumentException("Cannot reopen URI")
-            decodeStream.use { ds ->
-                val decodeOptions = BitmapFactory.Options().apply {
-                    inPreferredConfig = Bitmap.Config.ARGB_8888
-                    inMutable = true
-                    val maxDim = 4096
-                    inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
+    /**
+     * 对 content URI 进行单流两次解码（bounds + decode）。
+     * 若流支持 mark/reset 则复用同一 InputStream，避免 contentResolver 两次 open 的 IPC 开销；
+     * 否则回退到重新 open。
+     */
+    private fun decodeUriStream(context: Context, uri: Uri, options: BitmapFactory.Options): Bitmap? {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        return inputStream.use { stream ->
+            if (stream.markSupported()) {
+                stream.mark(MAX_MARK_BYTES)
+                val bitmap = BitmapFactory.decodeStream(stream, null, options)
+                try {
+                    stream.reset()
+                } catch (_: java.io.IOException) {
+                    // reset 失败则让调用方重新 open
                 }
-                val result = BitmapFactory.decodeStream(ds, null, decodeOptions)
-                    ?: throw IllegalArgumentException("Failed to decode image")
-                return result
+                bitmap
+            } else {
+                BitmapFactory.decodeStream(stream, null, options)
             }
         }
     }
@@ -1108,10 +1111,12 @@ class ImageProcessor {
                 // ── 19b. 3D LUT (CPU path) ──
                 // 2026 hotfix: 使用预先提升的 useLut/lut 变量，避免内层循环中重复读取 @Volatile
                 if (useLut && n.lutIntensity > lutIntensityThreshold) {
-                    val lutColor = lut!!.sample(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f))
-                    r = r + (lutColor.first - r) * n.lutIntensity
-                    g = g + (lutColor.second - g) * n.lutIntensity
-                    b = b + (lutColor.third - b) * n.lutIntensity
+                    val lutColor = lut?.sample(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f))
+                    if (lutColor != null) {
+                        r = r + (lutColor.first - r) * n.lutIntensity
+                        g = g + (lutColor.second - g) * n.lutIntensity
+                        b = b + (lutColor.third - b) * n.lutIntensity
+                    }
                 }
 
                 // ── 20. Linear to sRGB ──
@@ -2275,6 +2280,9 @@ class ImageProcessor {
             }
 
             uri
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM during export: ${oom.message}", oom)
+            throw IllegalStateException("内存不足，导出失败", oom)
         } finally {
             if (exportBitmap !== bitmap) exportBitmap.recycle()
             tempFile.delete()

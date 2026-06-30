@@ -1,10 +1,16 @@
 package com.rapidraw.data.db
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 
-@Entity(tableName = "projects")
+@Immutable
+@Entity(
+    tableName = "projects",
+    indices = [Index(value = ["modifiedAt"])],
+)
 @TypeConverters(RecipeConverters::class)
 data class ProjectEntity(
     @PrimaryKey val id: String,

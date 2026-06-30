@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,9 @@ import com.rapidraw.ui.theme.TextTertiary
 import com.rapidraw.core.PresetConverter
 import com.rapidraw.data.model.Preset
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PresetImportScreen(
@@ -48,6 +52,7 @@ fun PresetImportScreen(
     onImportPreset: (Preset) -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
     var importError by remember { mutableStateOf<String?>(null) }
 
@@ -127,17 +132,21 @@ fun PresetImportScreen(
                 onClick = {
                     val uri = selectedUri
                     if (uri != null) {
-                        val result = PresetConverter.importFile(uri, context.contentResolver)
-                        if (result != null) {
-                            val preset = Preset(
-                                id = UUID.randomUUID().toString(),
-                                name = result.name,
-                                adjustments = result.adjustments,
-                                createdAt = System.currentTimeMillis(),
-                            )
-                            onImportPreset(preset)
-                        } else {
-                            importError = "无法识别该预设文件（仅支持 .xmp / .lrtemplate）"
+                        scope.launch(Dispatchers.IO) {
+                            val result = PresetConverter.importFile(uri, context.contentResolver)
+                            withContext(Dispatchers.Main) {
+                                if (result != null) {
+                                    val preset = Preset(
+                                        id = UUID.randomUUID().toString(),
+                                        name = result.name,
+                                        adjustments = result.adjustments,
+                                        createdAt = System.currentTimeMillis(),
+                                    )
+                                    onImportPreset(preset)
+                                } else {
+                                    importError = "无法识别该预设文件（仅支持 .xmp / .lrtemplate）"
+                                }
+                            }
                         }
                     }
                 },

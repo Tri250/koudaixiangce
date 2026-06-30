@@ -37,7 +37,7 @@ object CrashHandler {
             try {
                 writeCrashToFile(appContext, thread, throwable)
             } catch (e: Throwable) {
-                Log.e(TAG, "Failed to persist crash", e)
+                if (com.rapidraw.BuildConfig.DEBUG) Log.e(TAG, "Failed to persist crash", e)
             }
             // 委托给系统默认 handler，保留 Android 原生崩溃行为。
             previous?.uncaughtException(thread, throwable)
@@ -52,10 +52,10 @@ object CrashHandler {
         val appContext = context.applicationContext
         return CoroutineExceptionHandler { _, throwable ->
             try {
-                Log.e(TAG, "Coroutine uncaught exception", throwable)
+                if (com.rapidraw.BuildConfig.DEBUG) Log.e(TAG, "Coroutine uncaught exception", throwable)
                 writeCrashToFile(appContext, Thread.currentThread(), throwable, tag = "coroutine")
             } catch (e: Throwable) {
-                Log.e(TAG, "Failed to persist coroutine crash", e)
+                if (com.rapidraw.BuildConfig.DEBUG) Log.e(TAG, "Failed to persist coroutine crash", e)
             }
         }
     }
@@ -102,7 +102,7 @@ object CrashHandler {
         // v1.5.3 安全加固：对日志做 PII 脱敏，防止用户分享日志时泄露路径/账户名
         val sanitized = sanitizePii(sw.toString())
         file.writeText(sanitized)
-        Log.e(TAG, "Crash written to ${file.absolutePath}")
+        if (com.rapidraw.BuildConfig.DEBUG) Log.e(TAG, "Crash written to ${file.absolutePath}")
     }
 
     /**

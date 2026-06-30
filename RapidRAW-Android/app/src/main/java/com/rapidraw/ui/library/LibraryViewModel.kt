@@ -11,6 +11,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.CrashHandler
+import com.rapidraw.core.ThumbnailDiskCache
 import com.rapidraw.ai.NaturalLanguageSearcher
 import com.rapidraw.ai.SemanticTag
 import com.rapidraw.data.model.ColorLabel
@@ -46,6 +47,8 @@ enum class SceneFilter { ALL, PORTRAIT, LANDSCAPE, NIGHT }
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
 
     private val contentResolver = application.contentResolver
+
+    private val thumbnailCache = ThumbnailDiskCache(application.cacheDir)
 
     private val _images = MutableStateFlow<List<ImageFile>>(emptyList())
     val images: StateFlow<List<ImageFile>> = _images.asStateFlow()
@@ -282,7 +285,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun loadThumbnailForImage(image: ImageFile): Bitmap? {
-        return when {
+        // 先检查磁盘/内存二级缓存，避免重复解码
+        val lastModified = image.dateModified.coerceAtLeast(0L)
+        thumbnailCache.get(image.path, lastModified)?.let { return it }
+
+        val bitmap = when {
             image.path.startsWith("content://") -> {
                 val parsedUri = Uri.parse(image.path)
                 try {
@@ -340,6 +347,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             }
             else -> null
         }
+
+        if (bitmap != null) {
+            thumbnailCache.put(image.path, lastModified, bitmap)
+        }
+        return bitmap
     }
 
     /**

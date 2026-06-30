@@ -2,10 +2,14 @@ package com.rapidraw
 
 import android.app.Activity
 import android.app.Application
+import android.app.LocaleManager
 import android.os.Build
 import android.os.Bundle
+import android.os.LocaleList
 import android.os.StrictMode
 import android.util.Log
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.ImageProcessor
 import java.util.concurrent.atomic.AtomicInteger
@@ -39,6 +43,8 @@ class RapidRawApp : Application() {
             // 不再额外包装 setupUncaughtExceptionHandler（避免双层 handler 冗余）。
             CrashHandler.install(this)
             enableStrictModeInDebug()
+            // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
+            applyPerAppLanguageAsync()
             registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
             // v1.5.3: 主动检查关键设备能力，记录到日志便于后续诊断
             logDeviceCapabilities()
@@ -80,6 +86,36 @@ class RapidRawApp : Application() {
         Log.i(TAG, "Android: ${Build.VERSION.RELEASE} API ${Build.VERSION.SDK_INT}")
         Log.i(TAG, "ABIs: ${Build.SUPPORTED_ABIS.joinToString()}")
         Log.i(TAG, "Available memory: ${Runtime.getRuntime().maxMemory() / 1024 / 1024}MB")
+    }
+
+    /**
+     * Android 13+ (API 33+) per-app language。
+     * 在 Application 阶段通过后台线程应用，避免阻塞首 Activity 的 onCreate / setContent。
+     * 默认语言：中文（简体）。
+     */
+    private fun applyPerAppLanguageAsync() {
+        val tag = "zh-CN"
+        Thread {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val localeManager = getSystemService(LocaleManager::class.java)
+                    val list = LocaleList.forLanguageTags(tag)
+                    if (!list.isEmpty) {
+                        localeManager?.applicationLocales = list
+                    }
+                } else {
+                    AppCompatDelegate.setApplicationLocales(
+                        LocaleListCompat.forLanguageTags(tag)
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to apply per-app language: ${e.message}")
+            }
+        }.apply {
+            isDaemon = true
+            name = "RapidRawLocale"
+            start()
+        }
     }
 
     override fun onTrimMemory(level: Int) {

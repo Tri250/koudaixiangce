@@ -147,7 +147,7 @@ fun LutLibrarySheet(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    items(filtered) { lut ->
+                    items(filtered, key = { it.id }) { lut ->
                         LutRow(
                             lut = lut,
                             isSelected = lut.id == currentLutId,

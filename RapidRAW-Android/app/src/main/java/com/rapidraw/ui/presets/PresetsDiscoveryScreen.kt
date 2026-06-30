@@ -159,7 +159,7 @@ fun PresetsDiscoveryScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(filteredPresets) { preset ->
+                items(filteredPresets, key = { it.id }) { preset ->
                     PresetCard(
                         preset = preset,
                         onApply = { onApplyPreset(preset) },

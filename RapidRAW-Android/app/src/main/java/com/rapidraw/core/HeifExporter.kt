@@ -61,6 +61,9 @@ object HeifExporter {
             // HeifWriter 在 compileSdk 36 中不可用，统一降级为 WEBP_LOSSLESS
             Log.w(TAG, "HeifWriter unavailable; falling back to WEBP_LOSSLESS")
             exportWebpFallback(context, bitmap, config.quality, displayName)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM during HEIF export: ${oom.message}", oom)
+            null
         } catch (e: Exception) {
             Log.e(TAG, "Failed to export HEIF: ${e.message}", e)
             null
@@ -137,7 +140,6 @@ object HeifExporter {
             resolver.update(uri, contentValues, null, null)
         }
 
-        Log.i(TAG, "Exported HEIF image: $uri (mime=$mimeType)")
         return uri
     }
 }

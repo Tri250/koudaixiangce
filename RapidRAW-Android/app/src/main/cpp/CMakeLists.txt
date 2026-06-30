@@ -3,6 +3,14 @@ project("rawdecoder")
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+# Android 15+ (API 35+) 16KB page size support:
+# Ensure native libraries are linked with 16KB max page size so they can be
+# loaded on devices with 16KB pages (Pixel 8+ on Android 16, OPPO Find X8 series
+# with ColorOS 16, etc.).
+# https://developer.android.com/guide/practices/page-sizes
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size=16384")
 
 # libraw source root
 set(LIBRAW_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/libraw)

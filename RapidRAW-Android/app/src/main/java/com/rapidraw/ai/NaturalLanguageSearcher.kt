@@ -191,8 +191,8 @@ class NaturalLanguageSearcher {
         for (queryTag in query.sceneTags) {
             val matched = sceneImageValues.find { it == queryTag.lowercase() }
             if (matched != null) {
-                val confidence = categoryTagMaps[TagCategory.SCENE]!!
-                    .first { it.value.lowercase() == matched }.confidence
+                val confidence = categoryTagMaps[TagCategory.SCENE]
+                    ?.firstOrNull { it.value.lowercase() == matched }?.confidence ?: 0f
                 score += WEIGHT_SCENE * confidence
                 break // 每个类别只计一次最高匹配
             }
@@ -203,8 +203,8 @@ class NaturalLanguageSearcher {
         for (queryTag in query.subjectTags) {
             val matched = subjectImageValues.find { it == queryTag.lowercase() }
             if (matched != null) {
-                val confidence = categoryTagMaps[TagCategory.SUBJECT]!!
-                    .first { it.value.lowercase() == matched }.confidence
+                val confidence = categoryTagMaps[TagCategory.SUBJECT]
+                    ?.firstOrNull { it.value.lowercase() == matched }?.confidence ?: 0f
                 score += WEIGHT_SUBJECT * confidence
                 break
             }
@@ -215,8 +215,8 @@ class NaturalLanguageSearcher {
         for (queryTag in query.moodTags) {
             val matched = moodImageValues.find { it == queryTag.lowercase() }
             if (matched != null) {
-                val confidence = categoryTagMaps[TagCategory.MOOD]!!
-                    .first { it.value.lowercase() == matched }.confidence
+                val confidence = categoryTagMaps[TagCategory.MOOD]
+                    ?.firstOrNull { it.value.lowercase() == matched }?.confidence ?: 0f
                 score += WEIGHT_MOOD * confidence
                 break
             }
@@ -227,8 +227,8 @@ class NaturalLanguageSearcher {
         for (queryTag in query.styleTags) {
             val matched = styleImageValues.find { it == queryTag.lowercase() }
             if (matched != null) {
-                val confidence = categoryTagMaps[TagCategory.STYLE]!!
-                    .first { it.value.lowercase() == matched }.confidence
+                val confidence = categoryTagMaps[TagCategory.STYLE]
+                    ?.firstOrNull { it.value.lowercase() == matched }?.confidence ?: 0f
                 score += WEIGHT_STYLE * confidence
                 break
             }
@@ -239,8 +239,8 @@ class NaturalLanguageSearcher {
         for (queryTag in query.colorToneTags) {
             val matched = colorToneImageValues.find { it == queryTag.lowercase() }
             if (matched != null) {
-                val confidence = categoryTagMaps[TagCategory.COLOR_TONE]!!
-                    .first { it.value.lowercase() == matched }.confidence
+                val confidence = categoryTagMaps[TagCategory.COLOR_TONE]
+                    ?.firstOrNull { it.value.lowercase() == matched }?.confidence ?: 0f
                 score += WEIGHT_COLOR_TONE * confidence
                 break
             }
@@ -251,8 +251,8 @@ class NaturalLanguageSearcher {
         for (queryTag in query.timeOfDayTags) {
             val matched = timeOfDayImageValues.find { it == queryTag.lowercase() }
             if (matched != null) {
-                val confidence = categoryTagMaps[TagCategory.TIME_OF_DAY]!!
-                    .first { it.value.lowercase() == matched }.confidence
+                val confidence = categoryTagMaps[TagCategory.TIME_OF_DAY]
+                    ?.firstOrNull { it.value.lowercase() == matched }?.confidence ?: 0f
                 score += WEIGHT_TIME_OF_DAY * confidence
                 break
             }

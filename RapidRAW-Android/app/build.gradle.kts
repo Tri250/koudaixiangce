@@ -20,6 +20,9 @@ android {
         versionCode = 1555
         versionName = "1.5.5"
 
+        // 2026 perf: 仅打包应用实际支持的中/英文资源，显著减少 APK 体积。
+        resourceConfigurations += listOf("zh", "en")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Android 15+ (API 35) 16KB page size compatibility:
@@ -27,7 +30,12 @@ android {
         // Required by Google Play for all apps targeting API 35+ from Nov 1, 2025.
         // https://developer.android.com/guide/practices/page-sizes
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            // Release 默认仅打包手机常用 ABI，减少 APK 体积；
+            // 如需在 x86_64 模拟器测试/构建，可添加 -PincludeX86_64=true。
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            if ((project.findProperty("includeX86_64") as String?)?.toBoolean() == true) {
+                abiFilters += "x86_64"
+            }
         }
 
         externalNativeBuild {
@@ -83,12 +91,12 @@ android {
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            // 启用测试覆盖率仅在 debug，release 保持关闭避免性能损耗
-            isTestCoverageEnabled = false
+            // release 关闭测试覆盖率避免性能损耗
+            enableUnitTestCoverage = false
+            enableAndroidTestCoverage = false
         }
         debug {
             isMinifyEnabled = false
-            isTestCoverageEnabled = true
             enableUnitTestCoverage = true
             enableAndroidTestCoverage = true
         }

@@ -71,7 +71,8 @@ data class BranchableHistory(
      */
     fun pushState(adjustments: Adjustments, label: String = ""): HistoryNode {
         synchronized(lock) {
-            val parent = nodeMap[currentNodeId]!!
+            val parent = nodeMap[currentNodeId]
+                ?: throw IllegalStateException("BranchableHistory current node missing: $currentNodeId")
             val node = HistoryNode(
                 parentId = parent.id,
                 adjustments = adjustments,
@@ -343,7 +344,10 @@ data class BranchableHistory(
      * 获取当前节点。
      */
     val currentNode: HistoryNode
-        get() = synchronized(lock) { nodeMap[currentNodeId]!! }
+        get() = synchronized(lock) {
+            nodeMap[currentNodeId]
+                ?: throw IllegalStateException("BranchableHistory current node missing: $currentNodeId")
+        }
 
     /**
      * 获取所有分支名称列表。

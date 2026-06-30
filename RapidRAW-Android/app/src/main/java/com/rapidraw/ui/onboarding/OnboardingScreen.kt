@@ -338,17 +338,23 @@ private fun PermissionPage(
 
         Button(
             onClick = {
-                val permissions = when {
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
-                        Manifest.permission.READ_MEDIA_IMAGES,
-                        Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
-                    )
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(
-                        Manifest.permission.READ_MEDIA_IMAGES,
-                    )
-                    else -> arrayOf(
-                        Manifest.permission.READ_EXTERNAL_STORAGE,
-                    )
+                val permissions = mutableListOf<String>().apply {
+                    when {
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                            add(Manifest.permission.READ_MEDIA_IMAGES)
+                            add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                        }
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                            add(Manifest.permission.READ_MEDIA_IMAGES)
+                        }
+                        else -> {
+                            add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                        }
+                    }
+                    // Android 13+ 通知权限与存储权限一并引导申请。
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        add(Manifest.permission.POST_NOTIFICATIONS)
+                    }
                 }
                 val allGranted = permissions.all {
                     ContextCompat.checkSelfPermission(context, it) ==
@@ -357,7 +363,7 @@ private fun PermissionPage(
                 if (allGranted) {
                     onGrant()
                 } else {
-                    permissionLauncher.launch(permissions)
+                    permissionLauncher.launch(permissions.toTypedArray())
                 }
             },
             colors = ButtonDefaults.buttonColors(

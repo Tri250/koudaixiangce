@@ -133,7 +133,7 @@ fun RapidRawTheme(
 
             // 2026 hotfix: Android 15+ (API 35+) 强制预测性返回时，需确保
             // window 背景 transparent，否则返回动画会出现白闪
-            if (Build.VERSION.SDK_INT >= 35) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
                 window.setBackgroundDrawableResource(android.R.color.transparent)
             }
         }

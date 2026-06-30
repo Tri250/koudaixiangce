@@ -137,7 +137,8 @@ class AiSemanticTagger(context: Context) {
                 for (i in tagLabels.indices) {
                     val score = if (buffer.hasRemaining()) buffer.float else 0f
                     if (score > CONFIDENCE_THRESHOLD) {
-                        val (category, value) = tagLabelMap[tagLabels[i]]!!
+                        val (category, value) = tagLabelMap[tagLabels[i]]
+                            ?: continue
                         tags.add(SemanticTag(category, value, score.coerceIn(0f, 1f)))
                     }
                     // 每处理完一批标签更新进度（0.5 → 0.85）

@@ -168,7 +168,7 @@ private fun ColorScienceContent(
         )
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(ColorScience.DisplayColorSpace.entries.toList()) { space ->
+            items(ColorScience.DisplayColorSpace.entries.toList(), key = { it.name }) { space ->
                 Chip(
                     text = space.displayName,
                     isSelected = currentConfig.displaySpace == space,
@@ -188,7 +188,7 @@ private fun ColorScienceContent(
         )
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(ColorScience.Eotf.entries.toList()) { eotf ->
+            items(ColorScience.Eotf.entries.toList(), key = { it.name }) { eotf ->
                 Chip(
                     text = eotf.displayName,
                     isSelected = currentConfig.eotf == eotf,

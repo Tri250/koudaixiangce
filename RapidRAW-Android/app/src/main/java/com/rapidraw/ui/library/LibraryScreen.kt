@@ -63,6 +63,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -108,7 +109,7 @@ fun LibraryScreen(
     val sceneFilter by viewModel.sceneFilter.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val thumbnails by viewModel.thumbnails.collectAsState()
+    val thumbnailsState = viewModel.thumbnails.collectAsState()
     val selectedImages by viewModel.selectedImages.collectAsState()
     val isBatchMode by viewModel.isBatchMode.collectAsState()
     val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
@@ -160,14 +161,16 @@ fun LibraryScreen(
 
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    val folderChips = buildList {
-        add("All")
-        add("DCIM")
-        add("Downloads")
-        folders.forEach { folder ->
-            val name = folder.substringAfterLast('/')
-            if (name !in listOf("DCIM", "Downloads")) {
-                add(name)
+    val folderChips = remember(folders) {
+        buildList {
+            add("All")
+            add("DCIM")
+            add("Downloads")
+            folders.forEach { folder ->
+                val name = folder.substringAfterLast('/')
+                if (name !in listOf("DCIM", "Downloads")) {
+                    add(name)
+                }
             }
         }
     }
@@ -420,7 +423,7 @@ fun LibraryScreen(
                         contentPadding = PaddingValues(horizontal = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(folderChips) { folderName ->
+                        items(folderChips, key = { it }) { folderName ->
                             val isSelected = when {
                                 selectedFolder == null && folderName == "All" -> true
                                 selectedFolder != null && folderName == selectedFolder?.substringAfterLast('/') -> true
@@ -552,28 +555,29 @@ fun LibraryScreen(
                     )
                 }
             } else {
-                // Group images by date for date separators
-                val dateFormat = SimpleDateFormat("yyyy年M月d日", Locale.CHINA)
-                val groupedImages = images.groupBy { image ->
-                    if (image.dateModified > 0L) {
-                        val dayStart = image.dateModified / (24 * 60 * 60 * 1000L)
-                        dayStart.toString()
-                    } else {
-                        "unknown"
-                    }
-                }
-                val dateLabels = groupedImages.map { (dayKey, imgs) ->
-                    val label = if (dayKey == "unknown") {
-                        "未知日期"
-                    } else {
-                        val firstImage = imgs.firstOrNull()
-                        if (firstImage != null && firstImage.dateModified > 0L) {
-                            dateFormat.format(firstImage.dateModified)
+                // Group images by date for date separators; remember 避免每次重组都重新分组/格式化日期
+                val dateLabels = remember(images) {
+                    val dateFormat = SimpleDateFormat("yyyy年M月d日", Locale.CHINA)
+                    images.groupBy { image ->
+                        if (image.dateModified > 0L) {
+                            image.dateModified / (24 * 60 * 60 * 1000L)
                         } else {
-                            dayKey
+                            -1L
                         }
+                    }.map { (dayKey, imgs) ->
+                        val label = when (dayKey) {
+                            -1L -> "未知日期"
+                            else -> {
+                                val firstImage = imgs.firstOrNull()
+                                if (firstImage != null && firstImage.dateModified > 0L) {
+                                    dateFormat.format(firstImage.dateModified)
+                                } else {
+                                    dayKey.toString()
+                                }
+                            }
+                        }
+                        DateGroup(label, imgs)
                     }
-                    DateGroup(label, imgs)
                 }
 
                 LazyVerticalGrid(
@@ -593,9 +597,13 @@ fun LibraryScreen(
                             items = imgs,
                             key = { it.path },
                         ) { image ->
+                            // 使用 derivedStateOf 仅当本 cell 对应缩略图变化时才重组，避免整张图重新组合
+                            val thumbnail by remember(image.path) {
+                                derivedStateOf { thumbnailsState.value[image.path] }
+                            }
                             ImageGridCell(
                                 image = image,
-                                thumbnail = thumbnails[image.path],
+                                thumbnail = thumbnail,
                                 isSelected = image.path in selectedImages,
                                 onClick = {
                                     if (isBatchMode || selectedImages.isNotEmpty()) {

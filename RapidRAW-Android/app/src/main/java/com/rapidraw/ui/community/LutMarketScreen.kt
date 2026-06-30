@@ -34,6 +34,7 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -200,7 +201,7 @@ private fun LutDiscoveryTab(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(end = 4.dp),
         ) {
-            items(featuredLutPacks) { pack ->
+            items(featuredLutPacks, key = { it.id }) { pack ->
                 FeaturedLutPackCard(pack = pack)
             }
         }
@@ -494,6 +495,7 @@ data class LutItem(
     val previewGradient: List<Long> = emptyList(),
 )
 
+@Immutable
 data class FeaturedLutPack(
     val id: String,
     val name: String,

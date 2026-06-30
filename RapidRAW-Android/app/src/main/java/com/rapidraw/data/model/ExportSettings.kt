@@ -1,5 +1,6 @@
 package com.rapidraw.data.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -56,6 +57,7 @@ enum class WatermarkAnchor {
     BOTTOM_RIGHT,
 }
 
+@Immutable
 @Serializable
 data class ExportSettings(
     val format: ExportFormat = ExportFormat.JPEG,

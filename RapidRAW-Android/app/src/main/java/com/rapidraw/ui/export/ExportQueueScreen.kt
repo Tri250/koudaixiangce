@@ -59,10 +59,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
-import java.util.UUID
+import com.rapidraw.data.model.ExportJob
+import com.rapidraw.data.model.ExportJobStatus
+import com.rapidraw.data.repository.ExportQueueRepository
 
 // ═══════════════════════════════════════════════════════════════════
 // 数据模型
@@ -84,6 +85,28 @@ data class ExportTask(
 
 enum class ExportStatus { PENDING, IN_PROGRESS, COMPLETED, FAILED, CANCELLED }
 
+private fun ExportJob.toExportTask(): ExportTask {
+    val displayStatus = when (status) {
+        ExportJobStatus.QUEUED -> ExportStatus.PENDING
+        ExportJobStatus.EXPORTING -> ExportStatus.IN_PROGRESS
+        ExportJobStatus.COMPLETED -> ExportStatus.COMPLETED
+        ExportJobStatus.FAILED -> if (error == "已取消") ExportStatus.CANCELLED else ExportStatus.FAILED
+    }
+    return ExportTask(
+        id = id,
+        fileName = imagePath.substringAfterLast("/", "image"),
+        format = format.name,
+        status = displayStatus,
+        progress = progress,
+        outputPath = resultUri?.toString(),
+        fileSize = fileSize.takeIf { it > 0 },
+        width = width,
+        height = height,
+        error = error,
+        timestamp = System.currentTimeMillis(),
+    )
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // ViewModel
 // ═══════════════════════════════════════════════════════════════════
@@ -93,174 +116,34 @@ class ExportQueueViewModel(application: Application) : AndroidViewModel(applicat
     private val _exportTasks = MutableStateFlow<List<ExportTask>>(emptyList())
     val exportTasks: StateFlow<List<ExportTask>> = _exportTasks.asStateFlow()
 
-    private val _simulatedJobs = mutableMapOf<String, Job>()
-
-    private class Job(
-        var cancelled: Boolean = false,
-    )
-
     init {
-        // 启动模拟任务演示（生产环境由实际导出引擎驱动）
-        addDemoTasks()
-    }
-
-    private fun addDemoTasks() {
-        val now = System.currentTimeMillis()
-        val demoTasks = listOf(
-            ExportTask(
-                id = UUID.randomUUID().toString(),
-                fileName = "DSC_4521.ARW",
-                format = "JPEG",
-                status = ExportStatus.COMPLETED,
-                progress = 1f,
-                outputPath = null,
-                fileSize = 18_400_000L,
-                width = 7952,
-                height = 5304,
-                error = null,
-                timestamp = now - 120_000,
-            ),
-            ExportTask(
-                id = UUID.randomUUID().toString(),
-                fileName = "DSC_4522.ARW",
-                format = "TIFF",
-                status = ExportStatus.IN_PROGRESS,
-                progress = 0.62f,
-                outputPath = null,
-                fileSize = null,
-                width = 7952,
-                height = 5304,
-                error = null,
-                timestamp = now - 60_000,
-            ),
-            ExportTask(
-                id = UUID.randomUUID().toString(),
-                fileName = "DSC_4523.ARW",
-                format = "PNG",
-                status = ExportStatus.PENDING,
-                progress = 0f,
-                outputPath = null,
-                fileSize = null,
-                width = 7952,
-                height = 5304,
-                error = null,
-                timestamp = now - 30_000,
-            ),
-            ExportTask(
-                id = UUID.randomUUID().toString(),
-                fileName = "DSC_4519.ARW",
-                format = "WEBP",
-                status = ExportStatus.FAILED,
-                progress = 0.35f,
-                outputPath = null,
-                fileSize = null,
-                width = 6000,
-                height = 4000,
-                error = "磁盘空间不足",
-                timestamp = now - 180_000,
-            ),
-            ExportTask(
-                id = UUID.randomUUID().toString(),
-                fileName = "DSC_4520.ARW",
-                format = "EXR",
-                status = ExportStatus.CANCELLED,
-                progress = 0.12f,
-                outputPath = null,
-                fileSize = null,
-                width = 7952,
-                height = 5304,
-                error = null,
-                timestamp = now - 240_000,
-            ),
-        )
-        _exportTasks.value = demoTasks
-
-        // 模拟进行中任务的进度推进
         viewModelScope.launch {
-            while (true) {
-                kotlinx.coroutines.delay(500)
-                _exportTasks.update { tasks ->
-                    tasks.map { task ->
-                        if (task.status == ExportStatus.IN_PROGRESS) {
-                            val job = _simulatedJobs[task.id]
-                            if (job?.cancelled == true) {
-                                task.copy(status = ExportStatus.CANCELLED, progress = task.progress)
-                            } else if (task.progress >= 1f) {
-                                task.copy(
-                                    status = ExportStatus.COMPLETED,
-                                    progress = 1f,
-                                    fileSize = (task.width.toLong() * task.height * 3L) / 8,
-                                )
-                            } else {
-                                task.copy(progress = (task.progress + 0.03f).coerceAtMost(1f))
-                            }
-                        } else {
-                            task
-                        }
-                    }
-                }
+            ExportQueueRepository.jobs.collect { jobs ->
+                _exportTasks.value = jobs.map { it.toExportTask() }
             }
         }
     }
 
     fun cancelTask(id: String) {
-        _simulatedJobs[id]?.cancelled = true
-        _exportTasks.update { tasks ->
-            tasks.map { task ->
-                if (task.id == id && (task.status == ExportStatus.PENDING || task.status == ExportStatus.IN_PROGRESS)) {
-                    task.copy(status = ExportStatus.CANCELLED)
-                } else {
-                    task
-                }
-            }
-        }
+        ExportQueueRepository.updateJobStatus(id, com.rapidraw.data.model.ExportJobStatus.FAILED, error = "已取消")
     }
 
     fun cancelAll() {
-        _exportTasks.update { tasks ->
-            tasks.map { task ->
-                if (task.status == ExportStatus.PENDING || task.status == ExportStatus.IN_PROGRESS) {
-                    _simulatedJobs[task.id]?.cancelled = true
-                    task.copy(status = ExportStatus.CANCELLED)
-                } else {
-                    task
-                }
-            }
-        }
+        ExportQueueRepository.jobs.value
+            .filter { it.status == com.rapidraw.data.model.ExportJobStatus.QUEUED || it.status == com.rapidraw.data.model.ExportJobStatus.EXPORTING }
+            .forEach { ExportQueueRepository.updateJobStatus(it.id, com.rapidraw.data.model.ExportJobStatus.FAILED, error = "已取消") }
     }
 
     fun retryTask(id: String) {
-        _exportTasks.update { tasks ->
-            tasks.map { task ->
-                if (task.id == id && (task.status == ExportStatus.FAILED || task.status == ExportStatus.CANCELLED)) {
-                    _simulatedJobs[task.id] = Job()
-                    task.copy(status = ExportStatus.PENDING, progress = 0f, error = null)
-                } else {
-                    task
-                }
-            }
-        }
-        // 短暂延迟后将 PENDING 任务设为 IN_PROGRESS
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(800)
-            _exportTasks.update { tasks ->
-                tasks.map { task ->
-                    if (task.id == id && task.status == ExportStatus.PENDING) {
-                        task.copy(status = ExportStatus.IN_PROGRESS)
-                    } else {
-                        task
-                    }
-                }
-            }
+        // 将失败/取消任务重新置为排队状态；当前 EditorViewModel 存活时会继续处理队列。
+        val job = ExportQueueRepository.jobs.value.firstOrNull { it.id == id } ?: return
+        if (job.status == com.rapidraw.data.model.ExportJobStatus.FAILED || job.status == com.rapidraw.data.model.ExportJobStatus.COMPLETED) {
+            ExportQueueRepository.updateJobStatus(id, com.rapidraw.data.model.ExportJobStatus.QUEUED, progress = 0f, error = null)
         }
     }
 
     fun clearCompleted() {
-        _exportTasks.update { tasks ->
-            tasks.filter { task ->
-                task.status != ExportStatus.COMPLETED && task.status != ExportStatus.CANCELLED
-            }
-        }
+        ExportQueueRepository.clearCompleted()
     }
 }
 
@@ -843,16 +726,22 @@ private fun formatFileSize(size: Long): String {
 }
 
 private fun openFile(context: android.content.Context, task: ExportTask) {
-    val path = task.outputPath ?: return
-    val file = File(path)
-    if (!file.exists()) return
+    val output = task.outputPath ?: return
 
     try {
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file,
-        )
+        val uri = when {
+            output.startsWith("content://") -> android.net.Uri.parse(output)
+            output.startsWith("file://") -> android.net.Uri.parse(output)
+            else -> {
+                val file = File(output)
+                if (!file.exists()) return
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file,
+                )
+            }
+        }
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "image/*")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

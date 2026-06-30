@@ -52,8 +52,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rapidraw.ui.editor.ExportJob
-import com.rapidraw.ui.editor.ExportJobStatus
+import com.rapidraw.data.model.ExportJob
+import com.rapidraw.data.model.ExportJobStatus
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.EditorSurface

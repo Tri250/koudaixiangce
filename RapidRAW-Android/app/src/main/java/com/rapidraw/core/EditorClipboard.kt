@@ -36,7 +36,6 @@ object EditorClipboard {
             sourceFileName = sourceFileName,
             copiedAt = System.currentTimeMillis(),
         )
-        Log.d(TAG, "Adjustments copied from $sourceFileName")
     }
 
     /**
@@ -48,7 +47,6 @@ object EditorClipboard {
             sourceFileName = sourceFileName,
             copiedAt = System.currentTimeMillis(),
         )
-        Log.d(TAG, "Masks copied from $sourceFileName")
     }
 
     /**
@@ -60,7 +58,6 @@ object EditorClipboard {
             sourceFileName = sourceFileName,
             copiedAt = System.currentTimeMillis(),
         )
-        Log.d(TAG, "Crop copied from $sourceFileName")
     }
 
     /**
@@ -79,7 +76,6 @@ object EditorClipboard {
             sourceFileName = sourceFileName,
             copiedAt = System.currentTimeMillis(),
         )
-        Log.d(TAG, "All content copied from $sourceFileName")
     }
 
     /**

@@ -128,3 +128,15 @@
 -keepclassmembers class org.tensorflow.lite.** { *; }
 -dontwarn org.tensorflow.lite.gpu.GpuDelegateFactory$Options
 -dontwarn org.tensorflow.lite.gpu.GpuDelegateFactory$Options$GpuBackend
+
+# v1.5.5 安全加固：release 构建下移除 Android Util Log 调用，减少 logcat 信息泄露
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+    public static int w(...);
+    public static int e(...);
+}
+
+# 隐藏原始源文件名称
+-renamesourcefileattribute SourceFile

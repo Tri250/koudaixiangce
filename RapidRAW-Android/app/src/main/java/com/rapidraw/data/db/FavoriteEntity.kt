@@ -1,9 +1,11 @@
 package com.rapidraw.data.db
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 
+@Immutable
 @Entity(tableName = "favorites")
 @TypeConverters(FavoriteConverters::class)
 data class FavoriteEntity(

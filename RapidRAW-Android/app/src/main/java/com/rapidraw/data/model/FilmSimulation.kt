@@ -1,5 +1,6 @@
 package com.rapidraw.data.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 /**
@@ -7,6 +8,7 @@ import kotlinx.serialization.Serializable
  * Each film is NOT just parameter presets - it's a complete film emulation system
  * with dedicated tone curve, grain model, and dynamic range compression.
  */
+@Immutable
 @Serializable
 data class FilmSimulation(
     val id: String,                           // unique identifier

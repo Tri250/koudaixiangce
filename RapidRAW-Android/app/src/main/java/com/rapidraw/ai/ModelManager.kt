@@ -145,6 +145,11 @@ class ModelManager(private val context: Context) {
         val info = AVAILABLE_MODELS.find { it.id == modelId }
             ?: return@withContext Result.failure(IllegalArgumentException("Unknown model: $modelId"))
 
+        // 安全：未配置 SHA256 完整性哈希的模型禁止下载，防止恶意/被篡改模型注入
+        if (info.sha256.isBlank()) {
+            return@withContext Result.failure(SecurityException("Model $modelId integrity hash not configured"))
+        }
+
         val targetFile = File(modelsDir, info.fileName)
 
         if (targetFile.exists() && prefs.getInt(KEY_MODELS_VERSION + modelId, 0) >= info.version) {

@@ -2,6 +2,7 @@ package com.rapidraw.ui.editor
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import android.util.Log
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -127,6 +128,8 @@ import com.rapidraw.ui.adjustments.AdvancedPanel
 import com.rapidraw.ui.adjustments.QuickAdjustPanel
 import com.rapidraw.ui.components.ColorScienceSheet
 import com.rapidraw.ui.components.EditHistoryPanel
+import com.rapidraw.ui.components.ExportQueueFloatingIndicator
+import com.rapidraw.ui.components.ExportQueuePanel
 import com.rapidraw.ui.components.HdrExportSheet
 import com.rapidraw.ui.components.HistogramView
 import com.rapidraw.ui.components.LayerPanel
@@ -157,6 +160,8 @@ import kotlinx.coroutines.launch
 // 2026 OPPO Find X9 布局：底部 5 Tab（拇指友好，高频功能直达）
 // AI → 滤镜 → 调节 → 构图 → 导出
 private val BOTTOM_TABS = listOf("AI", "滤镜", "调节", "构图", "导出")
+
+private const val TAG = "EditorScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,6 +202,8 @@ fun EditorScreen(
     val layerStack by viewModel.layerStack.collectAsState()
     val showLayerPanelState by viewModel.showLayerPanel.collectAsState()
     val hdrPreviewEnabled by viewModel.hdrPreviewEnabled.collectAsState()
+    val exportQueue by viewModel.exportQueue.collectAsState()
+    var isExportQueueExpanded by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -219,7 +226,11 @@ fun EditorScreen(
                     putExtra(android.content.Intent.EXTRA_STREAM, e.uri)
                     addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(android.content.Intent.createChooser(shareIntent, "分享图片"))
+                runCatching {
+                    context.startActivity(android.content.Intent.createChooser(shareIntent, "分享图片"))
+                }.onFailure {
+                    Log.w(TAG, "No app available to share image", it)
+                }
                 viewModel.consumeEvent()
             }
             EditorEvent.Idle -> { /* no-op */ }
@@ -455,6 +466,20 @@ fun EditorScreen(
                             text = { Text("大师配方社区", color = TextPrimary) },
                             onClick = {
                                 navController.navigate(com.rapidraw.ui.navigation.Routes.PRESETS_DISCOVERY)
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("LUT 市场", color = TextPrimary) },
+                            onClick = {
+                                navController.navigate(com.rapidraw.ui.navigation.Routes.LUT_MARKET)
+                                showMoreMenu = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("配方社区", color = TextPrimary) },
+                            onClick = {
+                                navController.navigate(com.rapidraw.ui.navigation.Routes.RECIPE_SHARE)
                                 showMoreMenu = false
                             },
                         )
@@ -1258,6 +1283,34 @@ fun EditorScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // 导出队列浮层面板：实时展示当前导出进度
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomEnd,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
+            ) {
+                if (isExportQueueExpanded) {
+                    ExportQueuePanel(
+                        exportQueue = exportQueue,
+                        onCancelJob = { viewModel.cancelExportJob(it) },
+                        onShareJob = { /* 分享由 EditorEvent.ShareImage 统一处理；此处暂不重复实现 */ },
+                        onReorder = { from, to -> viewModel.reorderExportQueue(from, to) },
+                        onDismissCompleted = { viewModel.dismissExportJob(it) },
+                        modifier = Modifier
+                            .padding(bottom = 8.dp)
+                            .width(320.dp),
+                    )
+                }
+                ExportQueueFloatingIndicator(
+                    exportQueue = exportQueue,
+                    onToggleExpand = { isExportQueueExpanded = !isExportQueueExpanded },
+                )
             }
         }
 

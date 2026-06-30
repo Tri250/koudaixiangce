@@ -26,13 +26,14 @@ class ThumbnailDiskCache(
         const val DEFAULT_MAX_CACHE_BYTES = 100L * 1024 * 1024 // 100 MB
         private const val THUMBNAILS_DIR = "thumbnails"
         private const val JPEG_QUALITY = 80
-        private const val MEMORY_CACHE_SIZE = 50
+        private const val MEMORY_CACHE_BYTES = 20 * 1024 * 1024 // 20 MB
     }
 
     private val thumbnailsDir = File(cacheDir, THUMBNAILS_DIR)
 
-    private val memoryCache = object : LruCache<String, Bitmap>(MEMORY_CACHE_SIZE) {
-        override fun sizeOf(key: String, value: Bitmap): Int = 1
+    // 按字节数计价的内存 LRU，避免大图占满条目数却浪费内存或小店占满条目数无法缓存
+    private val memoryCache = object : LruCache<String, Bitmap>(MEMORY_CACHE_BYTES) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount.coerceAtLeast(1)
     }
 
     private val lock = Any()

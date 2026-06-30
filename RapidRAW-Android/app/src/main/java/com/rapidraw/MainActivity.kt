@@ -4,15 +4,12 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.app.LocaleManager
 import android.os.Build
 import android.os.Bundle
-import android.os.LocaleList
 import android.util.Log
 import android.view.View
 import android.view.WindowInsetsController
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -79,11 +76,6 @@ class MainActivity : AppCompatActivity() {
         // 安全隐私：防止截图和录屏
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
 
-        // 2026 / Android 13+ (API 33+) Per-app language:
-        // 在系统设置 → 应用 → RapidRAW → 语言 中可独立切换，
-        // 不影响系统其他应用。ColorOS 16 完美支持该 API。
-        applyPerAppLanguage()
-
         // Edge-to-Edge: 让系统栏透明并让内容绘制到系统栏后面
         // 部分 OEM 皮肤对 edge-to-edge 支持不完整，做 try-catch 防止崩溃
         try {
@@ -132,10 +124,10 @@ class MainActivity : AppCompatActivity() {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
 
-                    // Predictive Back: 在非 Library 页面拦截返回键，
-                    // 配合 android:enableOnBackInvokedCallback 使 Navigation Compose
-                    // 在 Android 14+ 上自动提供预测性返回动画。
-                    BackHandler(enabled = currentRoute != Routes.LIBRARY) {
+                    // Predictive Back: 在 Library 与 Onboarding 页面不拦截返回键，
+                    // 其他页面统一返回 Library；配合 android:enableOnBackInvokedCallback
+                    // 使 Navigation Compose 在 Android 14+ 上自动提供预测性返回动画。
+                    BackHandler(enabled = currentRoute != Routes.LIBRARY && currentRoute != Routes.ONBOARDING) {
                         navController.popBackStack(Routes.LIBRARY, inclusive = false)
                     }
 
@@ -149,7 +141,9 @@ class MainActivity : AppCompatActivity() {
                     // Navigate to editor if app was opened with an image from external intent
                     // 2026 hotfix: 监听 pendingImageUriState（mutableStateOf）而非 pendingImageUri
                     // 普通字段变更不会触发 LaunchedEffect 重新组合，导致外部 intent 接收不到。
-                    LaunchedEffect(pendingImageUriState) {
+                    // 同时监听 currentRoute，保证 Onboarding 完成进入 Library 后再处理外部 intent。
+                    LaunchedEffect(pendingImageUriState, currentRoute) {
+                        if (currentRoute == Routes.ONBOARDING) return@LaunchedEffect
                         val uri = pendingImageUriState ?: return@LaunchedEffect
                         navigateToEditor(navController, uri)
                         // 消费后清空，避免 process death & restore 后再次导航
@@ -199,9 +193,11 @@ class MainActivity : AppCompatActivity() {
         val uri = handleIncomingIntent(intent) ?: return
 
         // 2026 hotfix: 始终通过 setPendingImageUri 更新 state，让 LaunchedEffect 重新触发；
-        // 如果直接拿到 navController 也立刻导航一次，避免 Compose 重组时机不可控时漏导航。
+        // 如果当前不在 Onboarding，直接拿到 navController 也立刻导航一次，避免 Compose 重组时机不可控时漏导航。
+        // 当处于 Onboarding 时，必须等待引导完成后再处理外部图片，防止绕过引导流程。
         val controller = findNavController()
-        if (controller != null) {
+        val currentRoute = controller?.currentDestination?.route
+        if (controller != null && currentRoute != Routes.ONBOARDING) {
             navigateToEditor(controller, uri)
             setPendingImageUri(null)
         } else {
@@ -218,7 +214,9 @@ class MainActivity : AppCompatActivity() {
         val currentRoute = navController.currentDestination?.route
         if (currentRoute?.startsWith("editor") == true) {
             // 已经在 editor 页面，比较当前已打开的 URI 防止重复打开
-            val currentUri = navController.currentBackStackEntry?.arguments?.getString("imageUri")
+            val currentUri = navController.currentBackStackEntry?.arguments?.let { args ->
+                args.getString("uri") ?: args.getString("imagePath")
+            }
             if (currentUri == uri.toString()) {
                 Log.d(TAG, "navigateToEditor: same URI, skip")
                 return
@@ -231,10 +229,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent?): Uri? {
-        if (intent?.action == Intent.ACTION_VIEW) {
+        val action = intent?.action
+        if (action == Intent.ACTION_VIEW || action == "com.coloros.gallery3d.action.EDIT_IMAGE") {
             val uri = intent.data
             if (uri != null) {
-                Log.d(TAG, "Opening image from external intent: $uri")
+                // 安全隐私：不在 logcat 中打印外部传入的 URI，避免泄露用户文件路径
                 return uri
             }
         }
@@ -242,18 +241,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestStoragePermissions() {
-        val permissions = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
-                arrayOf(
-                    Manifest.permission.READ_MEDIA_IMAGES,
-                    Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
-                )
+        val permissions = mutableListOf<String>().apply {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                    add(Manifest.permission.READ_MEDIA_IMAGES)
+                    add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                }
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                    add(Manifest.permission.READ_MEDIA_IMAGES)
+                }
+                else -> {
+                    add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                }
             }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
-                arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
-            }
-            else -> {
-                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            // Android 13+ 通知权限必须动态申请；WorkManager 前台任务/导出完成通知需要。
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
 
@@ -262,7 +265,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (needsRequest) {
-            permissionLauncher.launch(permissions)
+            permissionLauncher.launch(permissions.toTypedArray())
         }
     }
 
@@ -287,40 +290,6 @@ class MainActivity : AppCompatActivity() {
                     or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                     or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 )
-        }
-    }
-
-    /**
-     * Android 13+ (API 33+) per-app language
-     *
-     * 使用系统级 LocaleManager（API 33+）或 AppCompatDelegate (API < 33) 让本应用
-     * 可在系统"应用语言"设置中独立切换，不影响系统其他应用。
-     * ColorOS 16 / OxygenOS 14+ / OneUI 6+ 均原生支持。
-     *
-     * 默认语言：中文（简体）。如需国际版，可通过 Resources 配置多 locale。
-     */
-    private fun applyPerAppLanguage() {
-        // 2026 默认 zh-CN；如需检测用户偏好，可在此扩展
-        val tag = "zh-CN"
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val localeManager = getSystemService(LocaleManager::class.java)
-                // 设置空 LocaleList 不会清除；只有 applicationLocales 为 null 才会清空。
-                // 这里总是显式赋一个目标 locale，避免空 LocaleList 在部分 ROM 上崩溃。
-                val list = LocaleList.forLanguageTags(tag)
-                if (!list.isEmpty) {
-                    localeManager?.applicationLocales = list
-                }
-            } else {
-                // AppCompat 1.6+ 支持 per-app language，需要 Activity 继承 AppCompatActivity。
-                AppCompatDelegate.setApplicationLocales(
-                    androidx.core.os.LocaleListCompat.forLanguageTags(tag)
-                )
-            }
-        } catch (e: Exception) {
-            // 任何 OEM ROM（特别是 ColorOS/MIUI/HyperOS）对 per-app language 的实现差异较大，
-            // 这里吞掉异常，避免阻塞首屏渲染。
-            Log.w(TAG, "Failed to apply per-app language: ${e.message}")
         }
     }
 

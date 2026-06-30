@@ -88,7 +88,19 @@ object AppThemes {
     )
 
     fun getTheme(type: ThemeType): ThemeColors =
-        themes[type] ?: themes[ThemeType.HASSELBLAD_ORANGE]!!
+        themes[type]
+            ?: themes[ThemeType.HASSELBLAD_ORANGE]
+            ?: ThemeColors(
+                type = ThemeType.HASSELBLAD_ORANGE,
+                brand = HasselbladOrange,
+                brandBright = HasselbladOrangeBright,
+                brandDark = HasselbladOrangeDark,
+                accent = HasselbladOrange,
+                accentBright = HasselbladOrangeBright,
+                surfaceBrand = HasselbladOrange.copy(alpha = 0.1f),
+                gradientStart = HasselbladOrange,
+                gradientEnd = HasselbladOrangeBright,
+            )
 
     @Volatile
     var currentThemeType: ThemeType = ThemeType.HASSELBLAD_ORANGE

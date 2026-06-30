@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.Immutable
 import com.rapidraw.ui.theme.ColorOS16Colors
 import com.rapidraw.ui.theme.EditorBackground
 import com.rapidraw.ui.theme.HasselbladOrange
@@ -111,7 +112,7 @@ fun RecipeShareScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            items(sampleSharedRecipes) { recipe ->
+            items(sampleSharedRecipes, key = { it.id }) { recipe ->
                 RecipeCard(
                     recipe = recipe,
                     onRecipeClick = { onRecipeClick(recipe) },
@@ -365,6 +366,7 @@ private fun formatTimeAgo(timestamp: Long): String {
 
 // ── Data Model ────────────────────────────────────────────────────────
 
+@Immutable
 data class SharedRecipe(
     val id: String,
     val name: String,

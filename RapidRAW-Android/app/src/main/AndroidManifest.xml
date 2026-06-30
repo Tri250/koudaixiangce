@@ -14,22 +14,16 @@
     <!-- Android 6~12 (API 23~32) 传统读取权限 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-    <!-- Android 4.4~9 (API 19~28) 写入权限；Android 10+ 使用 MediaStore/Scoped Storage -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
-
-    <!-- 通知：Android 13+ 必须动态申请 -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- 触觉反馈 -->
-    <uses-permission android:name="android.permission.VIBRATE" />
-
     <!-- 硬件能力声明 -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <!-- OpenGL ES 3.0（可选：无 GLES 3.0 时回退 CPU 管线） -->
     <uses-feature android:glEsVersion="0x00030000" android:required="false" />
-    <!-- 触觉反馈硬件（可选，OPPO Find 等线性马达设备增强滑块交互） -->
-    <uses-feature android:name="android.hardware.sensor.hifi_sensors" android:required="false" />
+    <!-- 触觉反馈硬件（可选，OPPO / Find 系列线性马达设备增强滑块交互） -->
+    <uses-feature android:name="android.hardware.vibrator" android:required="false" />
+
+    <!-- TensorFlow Lite 等依赖可能合并 READ_PHONE_STATE，但本应用无需该权限；
+         显式移除以避免隐私合规与 Play 商店审核警告。 -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
 
     <application
         android:name=".RapidRawApp"
@@ -44,7 +38,6 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true"
         android:largeHeap="true"
-        android:extractNativeLibs="false"
         android:appCategory="image"
         android:hasFragileUserData="false"
         tools:targetApi="36">
@@ -89,6 +82,24 @@
                 <action android:name="com.coloros.gallery3d.action.EDIT_IMAGE" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <!-- 深层链接：支持 rapidraw://editor/{path} 与 rapidraw://editor_uri/{uri} -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rapidraw" />
+            </intent-filter>
         </activity>
+
+        <!-- FileProvider: 为导出完成的图片提供临时 URI，支持从导出队列打开/分享 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>
