@@ -2,10 +2,13 @@ package com.rapidraw.ui.navigation
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -14,11 +17,13 @@ import androidx.navigation.navArgument
 import com.rapidraw.cloud.CloudSyncManager
 import com.rapidraw.core.HdrDisplayManager
 import com.rapidraw.core.SidecarManager
+import com.rapidraw.data.model.ImageFile
 import com.rapidraw.ui.community.FeaturedLutPack
 import com.rapidraw.ui.community.LutMarketScreen
 import com.rapidraw.ui.community.RecipeShareScreen
 import com.rapidraw.ui.community.SharedRecipe
 import com.rapidraw.ui.editor.EditorScreen
+import com.rapidraw.ui.editor.EditorViewModel
 import com.rapidraw.ui.export.ExportQueueScreen
 import com.rapidraw.ui.library.LibraryScreen
 import com.rapidraw.ui.onboarding.OnboardingScreen
@@ -110,16 +115,29 @@ fun RapidNavHost(
             route = "editor/{imagePath}",
             arguments = listOf(navArgument("imagePath") { type = androidx.navigation.navArgument { nullable = false } }),
         ) { backStackEntry ->
-            val imagePath = backStackEntry.arguments?.getString("imagePath")?.let {
-                java.net.URLDecoder.decode(it, "UTF-8")
-            } ?: ""
+            val rawPath = backStackEntry.arguments?.getString("imagePath") ?: ""
+            val imagePath = runCatching { java.net.URLDecoder.decode(rawPath, "UTF-8") }.getOrDefault(rawPath)
+            if (imagePath.isBlank()) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+                return@composable
+            }
+            val context = LocalContext.current
+            val displayName = File(imagePath).name.ifBlank { "image" }
+            val image = ImageFile(
+                path = imagePath,
+                fileName = displayName,
+                folderPath = File(imagePath).parent ?: "",
+                isRaw = ImageFile.isRawFile(displayName),
+            )
+            val viewModel: EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                key = "editor_${image.path}",
+                factory = EditorViewModel.Factory(image, context.applicationContext),
+            )
 
             EditorScreen(
-                imagePath = imagePath,
-                onBack = { navController.popBackStack() },
-                vm = rememberEditorViewModel(imagePath),
-                hdrDisplayManager = hdrDisplayManager,
-                cloudSyncManager = cloudSyncManager,
+                navController = navController,
+                viewModel = viewModel,
+                initialImage = image,
             )
         }
 
@@ -127,36 +145,50 @@ fun RapidNavHost(
             route = "editor_uri/{uri}",
             arguments = listOf(navArgument("uri") { type = androidx.navigation.navArgument { nullable = false } }),
         ) { backStackEntry ->
-            val uri = backStackEntry.arguments?.getString("uri") ?: ""
-            val selectedPresetState = navController.currentBackStackEntry
-                ?.savedStateHandle
-                ?.getStateFlow<com.rapidraw.data.model.Preset?>(Routes.ResultKeys.SELECTED_PRESET, null)
-                ?.collectAsState()
+            val rawUri = backStackEntry.arguments?.getString("uri") ?: ""
+            val decodedUri = runCatching { java.net.URLDecoder.decode(rawUri, "UTF-8") }.getOrDefault(rawUri)
+            if (decodedUri.isBlank()) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+                return@composable
+            }
+            val parsedUri: Uri? = runCatching { Uri.parse(decodedUri) }.getOrNull()
+            val displayName = parsedUri?.lastPathSegment?.substringAfterLast('/') ?: "image"
+            val image = ImageFile(
+                path = decodedUri,
+                fileName = displayName,
+                folderPath = "",
+                isRaw = ImageFile.isRawFile(displayName),
+            )
+            val context = LocalContext.current
+            val viewModel: EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                key = "editor_uri_${image.path}",
+                factory = EditorViewModel.Factory(image, context.applicationContext),
+            )
 
-            val importedPresetState = navController.currentBackStackEntry
-                ?.savedStateHandle
-                ?.getStateFlow<Uri?>(Routes.ResultKeys.IMPORTED_PRESET_URI, null)
-                ?.collectAsState()
-
-            // 监听结果并自动应用
-            LaunchedEffect(Unit) {
-                snapshotFlow { selectedPresetState?.value }.filterNotNull().collect { preset ->
-                    // 已通过 SavedStateHandle 传递给 ViewModel
+            val selectedPresetState = backStackEntry.savedStateHandle
+                .getStateFlow<com.rapidraw.data.model.Preset?>(Routes.ResultKeys.SELECTED_PRESET, null)
+                .collectAsState()
+            LaunchedEffect(selectedPresetState.value) {
+                selectedPresetState.value?.let { preset ->
+                    viewModel.applyPreset(preset)
+                    backStackEntry.savedStateHandle[Routes.ResultKeys.SELECTED_PRESET] = null
                 }
             }
 
-            LaunchedEffect(Unit) {
-                snapshotFlow { importedPresetState?.value }.filterNotNull().collect { uri ->
-                    // 导入的预设 URI
+            val importedPresetState = backStackEntry.savedStateHandle
+                .getStateFlow<com.rapidraw.data.model.Preset?>(Routes.ResultKeys.IMPORTED_PRESET_URI, null)
+                .collectAsState()
+            LaunchedEffect(importedPresetState.value) {
+                importedPresetState.value?.let { preset ->
+                    viewModel.applyPreset(preset)
+                    backStackEntry.savedStateHandle[Routes.ResultKeys.IMPORTED_PRESET_URI] = null
                 }
             }
 
             EditorScreen(
-                imageUri = uri,
-                onBack = { navController.popBackStack() },
-                vm = rememberEditorViewModel(imageUri = uri),
-                hdrDisplayManager = hdrDisplayManager,
-                cloudSyncManager = cloudSyncManager,
+                navController = navController,
+                viewModel = viewModel,
+                initialImage = image,
             )
         }
 
@@ -170,19 +202,71 @@ fun RapidNavHost(
             popEnterTransition = { Motion.enterSlideUp },
             popExitTransition = { Motion.exitSlideDown },
         ) { backStackEntry ->
-            val imagePath = backStackEntry.arguments?.getString("imagePath") ?: ""
-
-            AiInpaintScreen(
-                imagePath = imagePath,
-                onBack = { navController.popBackStack() },
-                onComplete = { resultBitmap ->
-                    // 类型安全返回结果
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set(Routes.ResultKeys.AI_INPAINT_RESULT, resultBitmap)
+            val rawAiPath = backStackEntry.arguments?.getString("imagePath") ?: ""
+            val aiImagePath = runCatching {
+                java.net.URLDecoder.decode(rawAiPath, "UTF-8")
+            }.getOrDefault(rawAiPath)
+            if (aiImagePath.isBlank()) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+                return@composable
+            }
+            val context = LocalContext.current
+            val bitmap = remember(aiImagePath) {
+                try {
+                    val uri = Uri.parse(aiImagePath)
+                    val options = BitmapFactory.Options().apply {
+                        inJustDecodeBounds = true
+                    }
+                    when (uri.scheme) {
+                        "file" -> BitmapFactory.decodeFile(uri.path, options)
+                        "content" -> context.contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, options)
+                        }
+                        else -> {}
+                    }
+                    val maxDim = 2048
+                    options.inSampleSize = calculateInSampleSize(
+                        options.outWidth, options.outHeight, maxDim, maxDim,
+                    )
+                    options.inJustDecodeBounds = false
+                    options.inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                    when (uri.scheme) {
+                        "file" -> BitmapFactory.decodeFile(uri.path, options)
+                        "content" -> context.contentResolver.openInputStream(uri)?.use {
+                            BitmapFactory.decodeStream(it, null, options)
+                        }
+                        else -> null
+                    }
+                } catch (e: OutOfMemoryError) {
+                    android.util.Log.e("RapidNavHost", "OOM loading AI inpaint source", e)
+                    null
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            if (bitmap != null) {
+                AiInpaintScreen(
+                    sourceBitmap = bitmap,
+                    onComplete = { resultBitmap ->
+                        // 类型安全返回结果
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set(Routes.ResultKeys.AI_INPAINT_RESULT, resultBitmap)
+                        navController.popBackStack()
+                    },
+                    onCancel = { navController.popBackStack() },
+                )
+            } else {
+                // 加载失败时提示用户并返回，避免空白页面
+                LaunchedEffect(Unit) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "无法加载 AI 消除源图",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
                     navController.popBackStack()
-                },
-            )
+                }
+            }
         }
 
         composable(
@@ -361,9 +445,5 @@ private fun rememberStartDestination(): String {
     val hasCompletedOnboarding = prefs.getBoolean("onboarding_completed", false)
     return if (hasCompletedOnboarding) Routes.LIBRARY else Routes.ONBOARDING
 }
-
-@Composable
-private fun rememberEditorViewModel(imagePath: String = "", imageUri: String = "") =
-    androidx.lifecycle.viewmodel.compose.viewModel<com.rapidraw.ui.editor.EditorViewModel>()
 
 private val LocalContext = androidx.compose.ui.platform.LocalContext
