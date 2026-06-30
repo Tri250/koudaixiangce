@@ -410,9 +410,6 @@ class ImageProcessor {
 
     suspend fun loadAndDecode(context: Context, uri: Uri): DecodedImage =
         withContext(Dispatchers.IO) {
-            val inputStream = context.contentResolver.openInputStream(uri)
-                ?: throw IllegalArgumentException("Cannot open URI: $uri")
-
             val fileName = getFileName(context, uri)
             val isDng = fileName.lowercase().endsWith(".dng")
             val isRaw = isDng ||
@@ -782,6 +779,19 @@ class ImageProcessor {
         var workBitmap = sourceBitmap
         try {
 
+        // 2026 perf: 提前计算每像素常量，避免在内层 2000 万+ 像素循环中重复 pow/创建对象
+        val exposureMultiplier = 2f.pow(n.exposure)
+        val brightnessShift = n.brightness * 2f
+        val colorScienceMode = ColorScience.Mode.entries.getOrElse(n.colorScienceMode) { ColorScience.Mode.STANDARD }
+        val colorScienceConfig = ColorScience.Config(
+            mode = colorScienceMode,
+            displaySpace = ColorScience.DisplayColorSpace.SRGB,
+            eotf = ColorScience.Eotf.SDR,
+            peakLuminanceNits = n.peakLuminanceNits,
+            contrast = n.agxContrast,
+            pedestal = n.agxPedestal,
+        )
+
         // Pre-compute white balance multipliers
         val wbMultipliers = ColorMath.temperatureTintToMultipliers(
             n.temperature, n.tint
@@ -868,15 +878,14 @@ class ImageProcessor {
                 b = ColorMath.srgbToLinear(b)
 
                 // ── 2. Linear Exposure ──
-                r = r * 2f.pow(n.exposure)
-                g = g * 2f.pow(n.exposure)
-                b = b * 2f.pow(n.exposure)
+                r = r * exposureMultiplier
+                g = g * exposureMultiplier
+                b = b * exposureMultiplier
 
                 // ── 3. Filmic Brightness (rational curve with midtone emphasis) ──
-                val br = n.brightness * 2f
-                r = applyFilmicBrightness(r, br)
-                g = applyFilmicBrightness(g, br)
-                b = applyFilmicBrightness(b, br)
+                r = applyFilmicBrightness(r, brightnessShift)
+                g = applyFilmicBrightness(g, brightnessShift)
+                b = applyFilmicBrightness(b, brightnessShift)
 
                 // ── 3b. Tone Level (影调: combined brightness control) ──
                 if (abs(n.toneLevel) > 1e-6f) {
@@ -998,14 +1007,7 @@ class ImageProcessor {
                 }
 
                 // ── 17. Color Science Tone Mapping ──
-                val colorScienceConfig = ColorScience.Config(
-                    mode = ColorScience.Mode.entries.getOrElse(n.colorScienceMode) { ColorScience.Mode.STANDARD },
-                    displaySpace = ColorScience.DisplayColorSpace.SRGB,
-                    eotf = ColorScience.Eotf.SDR,
-                    peakLuminanceNits = n.peakLuminanceNits,
-                    contrast = n.agxContrast,
-                    pedestal = n.agxPedestal,
-                )
+                // colorScienceConfig 已在循环外预计算，避免每像素创建对象
                 val toneMapped = ColorScience.apply(r, g, b, colorScienceConfig)
                 r = toneMapped.first
                 g = toneMapped.second

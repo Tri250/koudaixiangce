@@ -94,6 +94,9 @@ import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
 
+// 2026 perf: 顶层缓存内置文件夹 chip，避免 LibraryScreen 每次重组都重建该列表
+private val BUILT_IN_FOLDER_CHIPS = listOf("All", "DCIM", "Downloads")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
@@ -163,12 +166,10 @@ fun LibraryScreen(
 
     val folderChips = remember(folders) {
         buildList {
-            add("All")
-            add("DCIM")
-            add("Downloads")
+            addAll(BUILT_IN_FOLDER_CHIPS)
             folders.forEach { folder ->
                 val name = folder.substringAfterLast('/')
-                if (name !in listOf("DCIM", "Downloads")) {
+                if (name !in BUILT_IN_FOLDER_CHIPS) {
                     add(name)
                 }
             }

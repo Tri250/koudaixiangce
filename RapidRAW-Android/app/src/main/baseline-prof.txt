@@ -1,37 +1,55 @@
-HPLcom/rapidraw/RapidRawApp;->onCreate()V
-HPLcom/rapidraw/RapidRawApp;->applyPerAppLanguageAsync()V
-HPLcom/rapidraw/MainActivity;->onCreate(Landroid/os/Bundle;)V
-HPLcom/rapidraw/MainActivity;->applyImmersiveMode()V
-HPLcom/rapidraw/ui/theme/RapidRawTheme;-><clinit>()V
-HPLcom/rapidraw/ui/theme/RapidRawThemeKt;->RapidRawTheme(Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
-HPLcom/rapidraw/ui/navigation/RapidNavHostKt;->RapidNavHost(Landroidx/navigation/NavHostController;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
-HPLcom/rapidraw/ui/library/LibraryScreenKt;->LibraryScreen(Landroidx/navigation/NavController;Lcom/rapidraw/ui/library/LibraryViewModel;Landroidx/compose/runtime/Composer;II)V
-HPLcom/rapidraw/ui/library/LibraryViewModel;-><init>(Landroid/app/Application;)V
-HPLcom/rapidraw/ui/library/LibraryViewModel;->loadImages(Ljava/lang/String;)V
-HPLcom/rapidraw/ui/library/LibraryViewModel;->loadThumbnails()V
-HPLcom/rapidraw/ui/library/LibraryViewModel;->loadThumbnailForImage(Lcom/rapidraw/data/model/ImageFile;)Landroid/graphics/Bitmap;
-HPLcom/rapidraw/ui/library/LibraryViewModel;->queryImages(Ljava/lang/String;)Ljava/util/List;
-HPLcom/rapidraw/core/ThumbnailDiskCache;->get(Ljava/lang/String;J)Landroid/graphics/Bitmap;
-HPLcom/rapidraw/core/ThumbnailDiskCache;->put(Ljava/lang/String;JLandroid/graphics/Bitmap;)V
-HPLcom/rapidraw/ui/editor/EditorScreenKt;->EditorScreen(Landroidx/navigation/NavController;Lcom/rapidraw/ui/editor/EditorViewModel;Lcom/rapidraw/data/model/ImageFile;Landroidx/compose/runtime/Composer;II)V
-HPLcom/rapidraw/ui/editor/EditorViewModel;-><init>(Lcom/rapidraw/data/model/ImageFile;Landroid/content/Context;)V
-HPLcom/rapidraw/ui/editor/EditorViewModel;->loadImage(Lcom/rapidraw/data/model/ImageFile;)V
-HPLcom/rapidraw/ui/editor/EditorViewModel;->schedulePreviewUpdate()V
-HPLcom/rapidraw/ui/editor/EditorViewModel;->processPreviewInternal(Lcom/rapidraw/data/model/Adjustments;Landroid/graphics/Bitmap;)Landroid/graphics/Bitmap;
-HPLcom/rapidraw/core/ImageProcessor;->loadAndDecode(Landroid/content/Context;Landroid/net/Uri;)Lcom/rapidraw/core/DecodedImage;
-HPLcom/rapidraw/core/ImageProcessor;->createPreview(Landroid/graphics/Bitmap;)Landroid/graphics/Bitmap;
-HPLcom/rapidraw/core/ImageProcessor;->processFullResolution(Lcom/rapidraw/data/model/Adjustments;Landroid/graphics/Bitmap;Z)Landroid/graphics/Bitmap;
-HPLcom/rapidraw/core/ImageProcessor;->calculateInSampleSize(IIII)I
-HPLcom/rapidraw/core/GpuPipeline;->initialize(Landroid/graphics/SurfaceTexture;II)V
-HPLcom/rapidraw/core/GpuPipeline;->renderFrame(Landroid/graphics/Bitmap;)V
-HPLcom/rapidraw/core/GpuPipeline;->getProcessedBitmap()Landroid/graphics/Bitmap;
-HPLcom/rapidraw/core/GpuPipeline;->updateAdjustments(Lcom/rapidraw/data/model/Adjustments;)V
-HPLcom/rapidraw/core/CrashHandler;->install(Landroid/app/Application;)V
-HPLcom/rapidraw/core/CrashHandler;->writeCrashToFile(Landroid/content/Context;Ljava/lang/Thread;Ljava/lang/Throwable;Ljava/lang/String;)V
-HPLcom/rapidraw/data/model/ImageFile;-><init>(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZIIJLjava/lang/Long;Ljava/lang/String;ILjava/util/List;Ljava/util/List;Ljava/lang/String;Lcom/rapidraw/data/model/Adjustments;Ljava/lang/String;Lcom/rapidraw/data/model/ColorLabel;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-HPLcom/rapidraw/data/model/Adjustments;-><init>()V
-HPLcom/rapidraw/data/model/Adjustments;->copyByField(Ljava/lang/String;F)Lcom/rapidraw/data/model/Adjustments;
-HPLandroidx/compose/runtime/SnapshotStateKt;->remember(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;Landroidx/compose/runtime/Composer;II)Ljava/lang/Object;
-HPLandroidx/compose/runtime/SnapshotStateKt;->derivedStateOf(Lkotlin/jvm/functions/Function0;)Landroidx/compose/runtime/State;
-HPLandroidx/profileinstaller/ProfileInstallerInitializer;->create(Landroid/content/Context;)Ljava/lang/Object;
-HPLandroidx/profileinstaller/ProfileInstallReceiver;->onReceive(Landroid/content/Context;Landroid/content/Intent;)V
+# RapidRAW v1.5.5 Baseline Profile
+# 关键启动路径与高频渲染路径预编译规则。
+# 格式: <FLAGS><CLASS_DESCRIPTOR>-><METHOD_SIGNATURE>
+# HSP = Hot Start Path, HS = Hot Startup, PL = Parallel Loading
+
+# Application / Activity 启动
+HSPLcom/rapidraw/RapidRawApp;->onCreate()V
+HSPLcom/rapidraw/RapidRawApp;->applyPerAppLanguageAsync()V
+HSPLcom/rapidraw/RapidRawApp;->enableStrictModeInDebug()V
+HSPLcom/rapidraw/MainActivity;->onCreate(Landroid/os/Bundle;)V
+HSPLcom/rapidraw/MainActivity;->applyImmersiveMode()V
+HSPLcom/rapidraw/MainActivity;->requestStoragePermissions()V
+
+# Compose Theme / Navigation
+HSPLcom/rapidraw/ui/theme/RapidRawThemeKt;->RapidRawTheme(Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+HSPLcom/rapidraw/ui/navigation/RapidNavHostKt;->RapidNavHost(Landroidx/navigation/NavHostController;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+
+# Library Screen (图库首屏)
+HSPLcom/rapidraw/ui/library/LibraryScreenKt;->LibraryScreen(Landroidx/navigation/NavController;Landroidx/lifecycle/viewmodel/compose/ViewModelStoreOwner;Landroidx/compose/runtime/Composer;II)V
+HSPLcom/rapidraw/ui/library/LibraryViewModel;->loadImages(Ljava/lang/String;)V
+HSPLcom/rapidraw/ui/library/LibraryViewModel;->loadThumbnails()V
+HSPLcom/rapidraw/ui/library/LibraryScreenKt;->ImageGridCell(Lcom/rapidraw/data/model/ImageFile;Landroid/graphics/Bitmap;ZLjava/lang/Integer;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)V
+
+# Editor Screen (核心编辑)
+HSPLcom/rapidraw/ui/editor/EditorScreenKt;->EditorScreen(Landroidx/navigation/NavController;Lcom/rapidraw/data/model/ImageFile;Landroidx/compose/runtime/Composer;II)V
+HSPLcom/rapidraw/ui/editor/EditorViewModel;->loadImage(Lcom/rapidraw/data/model/ImageFile;)V
+HSPLcom/rapidraw/ui/editor/EditorViewModel;->schedulePreviewUpdate()V
+HSPLcom/rapidraw/ui/editor/EditorViewModel;->processPreviewInternal(Lcom/rapidraw/data/model/Adjustments;Landroid/graphics/Bitmap;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+
+# Image Processor (CPU/GPU 管线)
+HSPLcom/rapidraw/core/ImageProcessor;->processFullResolution(Lcom/rapidraw/data/model/Adjustments;Landroid/graphics/Bitmap;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+HSPLcom/rapidraw/core/ImageProcessor;->loadAndDecode(Landroid/content/Context;Landroid/net/Uri;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+HSPLcom/rapidraw/core/ImageProcessor;->createPreview(Landroid/graphics/Bitmap;)Landroid/graphics/Bitmap;
+HSPLcom/rapidraw/core/ImageProcessor;->computeHistograms(Landroid/graphics/Bitmap;)[Landroid/util/SparseIntArray;
+
+# GPU Pipeline
+HSPLcom/rapidraw/core/GpuPipeline;-><init>(Landroid/content/Context;)V
+HSPLcom/rapidraw/core/GpuPipeline;->isInitialized()Z
+HSPLcom/rapidraw/core/GpuPipeline;->updateAdjustments(Lcom/rapidraw/data/model/Adjustments;)V
+HSPLcom/rapidraw/core/GpuPipeline;->renderFrame(Landroid/graphics/Bitmap;)V
+HSPLcom/rapidraw/core/GpuPipeline;->getProcessedBitmap()Landroid/graphics/Bitmap;
+
+# Thumbnail Cache
+HSPLcom/rapidraw/core/ThumbnailDiskCache;->get(Ljava/lang/String;J)Landroid/graphics/Bitmap;
+HSPLcom/rapidraw/core/ThumbnailDiskCache;->put(Ljava/lang/String;JLandroid/graphics/Bitmap;)V
+
+# Data Models (Compose 稳定类型)
+HSPLcom/rapidraw/data/model/Adjustments;-><init>()V
+HSPLcom/rapidraw/data/model/ImageFile;-><init>(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)V
+
+# Raw Decoder
+HSPLcom/rapidraw/core/RawDecoder;->decodeRaw(Landroid/content/Context;Landroid/net/Uri;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+
+# Room Database
+HSPLcom/rapidraw/data/db/RecipeDatabase;->getInstance(Landroid/content/Context;)Lcom/rapidraw/data/db/RecipeDatabase;

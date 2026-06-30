@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.ImageProcessor
+import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 class RapidRawApp : Application() {
@@ -134,8 +135,15 @@ class RapidRawApp : Application() {
             TRIM_MEMORY_MODERATE,
             TRIM_MEMORY_COMPLETE -> {
                 Log.w(TAG, "onTrimMemory(level=$level), system may kill process soon")
-                // 2026 hotfix: 主动清理 cacheDir 下的解码临时文件，避免被系统杀进程时残留
-                runCatching { cleanStaleDecodedRawCache() }
+                // 2026 perf: 在后台线程主动清理非必要缓存，降低被系统杀进程的概率
+                Thread {
+                    runCatching { cleanStaleDecodedRawCache() }
+                    runCatching { cleanThumbnailDiskCache() }
+                }.apply {
+                    isDaemon = true
+                    name = "RapidRawTrimMemory"
+                    start()
+                }
             }
         }
     }
@@ -158,6 +166,26 @@ class RapidRawApp : Application() {
         }
         if (freed > 0) {
             Log.i(TAG, "cleanStaleDecodedRawCache freed ${freed / 1024 / 1024}MB")
+        }
+    }
+
+    /**
+     * 清理缩略图磁盘缓存。缩略图可重新解码，适合在内存紧张时释放。
+     */
+    private fun cleanThumbnailDiskCache() {
+        val thumbnailsDir = File(cacheDir, "thumbnails")
+        if (!thumbnailsDir.exists()) return
+        var freed = 0L
+        var count = 0
+        thumbnailsDir.listFiles()?.forEach { f ->
+            val size = f.length()
+            if (runCatching { f.delete() }.getOrDefault(false)) {
+                freed += size
+                count++
+            }
+        }
+        if (freed > 0) {
+            Log.i(TAG, "cleanThumbnailDiskCache deleted $count files, freed ${freed / 1024 / 1024}MB")
         }
     }
 

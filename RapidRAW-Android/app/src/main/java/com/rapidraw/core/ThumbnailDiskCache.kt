@@ -75,6 +75,7 @@ class ThumbnailDiskCache(
 
     /**
      * 保存缩略图到磁盘和内存缓存。
+     * 写入后自动按 [maxCacheBytes] 裁剪磁盘缓存，防止无限增长。
      */
     fun put(path: String, lastModified: Long, bitmap: Bitmap) {
         val key = cacheKey(path, lastModified)
@@ -87,6 +88,8 @@ class ThumbnailDiskCache(
             FileOutputStream(File(thumbnailsDir, key)).use { fos ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, fos)
             }
+            // 控制磁盘缓存总量，避免图库长期积累导致存储膨胀
+            trimToSize(maxCacheBytes)
         } catch (_: Exception) {
             // 磁盘写入失败不影响内存缓存
         }

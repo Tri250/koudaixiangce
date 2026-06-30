@@ -161,6 +161,15 @@ import kotlinx.coroutines.launch
 // AI → 滤镜 → 调节 → 构图 → 导出
 private val BOTTOM_TABS = listOf("AI", "滤镜", "调节", "构图", "导出")
 
+// 2026 perf: 顶层缓存 Tab 图标列表，避免 EditorScreen 每次重组都新建 Icons 列表
+private val TAB_ICONS = listOf(
+    Icons.Default.AutoAwesome,   // AI
+    Icons.Default.Palette,       // 滤镜
+    Icons.Default.Tune,          // 调节
+    Icons.Default.Crop,          // 构图
+    Icons.Default.Share,         // 导出
+)
+
 private const val TAG = "EditorScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1025,13 +1034,6 @@ fun EditorScreen(
         // - 选中态：哈苏橙背景 tint + 图标辉光 + 加粗文字 + 哈苏橙下划线
         // - 图标 + 文字双行布局，24dp 图标（ColorOS 16 触控规范）
         // - 弹性缩放动画（选中图标 1.1x + 弹簧回弹）
-        val tabIcons = listOf(
-            Icons.Default.AutoAwesome,   // AI
-            Icons.Default.Palette,       // 滤镜
-            Icons.Default.Tune,          // 调节
-            Icons.Default.Crop,          // 构图
-            Icons.Default.Share,         // 导出
-        )
         Surface(
             color = EditorBackground,
             modifier = Modifier.navigationBarsPadding(),
@@ -1079,7 +1081,7 @@ fun EditorScreen(
                             },
                         ) {
                             Icon(
-                                imageVector = tabIcons[index],
+                                imageVector = TAB_ICONS[index],
                                 contentDescription = label,
                                 tint = if (isSelected) HasselbladOrangeLight else TextSecondary,
                                 modifier = Modifier.size(22.dp),

@@ -5,6 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
+    id("androidx.baselineprofile") version "1.2.4"
 }
 
 android {
@@ -135,6 +136,14 @@ android {
         warningsAsErrors = false
         xmlReport = true
         htmlReport = true
+    }
+
+    // 2026 perf: Baseline Profile 配置，将关键启动/渲染路径的类和方法预先编译为 AOT。
+    baselineProfile {
+        // 构建时自动合并 src/main/baseline-prof.txt；不依赖 macrobenchmark 模块。
+        // release 构建默认启用 Art 配置文件编译。
+        saveInSrc = true
+        automaticGenerationDuringBuild = false
     }
 
 }
