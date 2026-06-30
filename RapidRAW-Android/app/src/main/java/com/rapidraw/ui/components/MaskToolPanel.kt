@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Visibility
@@ -44,11 +46,16 @@ enum class MaskType(
     val label: String,
     val icon: ImageVector,
 ) {
-    AI_SUBJECT("AI 主体", Icons.Default.AutoFixHigh),
-    AI_SKY("AI 天空", Icons.Default.AutoFixHigh),
     BRUSH("画笔", Icons.Default.Brush),
-    LINEAR_GRADIENT("线性渐变", Icons.Default.Flip),
-    RADIAL_GRADIENT("径向渐变", Icons.Default.Flip),
+    AI_SEMANTIC("AI语义", Icons.Default.AutoAwesome),
+    RADIAL("径向", Icons.Default.Circle),
+    GRADIENT("渐变", Icons.Default.Flip),
+}
+
+enum class AiSubjectType(val label: String) {
+    PORTRAIT("人像"),
+    SKY("天空"),
+    ARCHITECTURE("建筑"),
 }
 
 @Composable
@@ -77,6 +84,18 @@ fun MaskToolPanel(
     onGenerateAiMask: () -> Unit,
     hasAiMaskResult: Boolean,
     onDeleteMask: () -> Unit,
+    aiSubjectType: AiSubjectType,
+    onAiSubjectTypeChange: (AiSubjectType) -> Unit,
+    radialCenterX: Float,
+    onRadialCenterXChange: (Float) -> Unit,
+    radialCenterY: Float,
+    onRadialCenterYChange: (Float) -> Unit,
+    radialRadius: Float,
+    onRadialRadiusChange: (Float) -> Unit,
+    gradientAngle: Float,
+    onGradientAngleChange: (Float) -> Unit,
+    gradientMidpoint: Float,
+    onGradientMidpointChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -139,16 +158,34 @@ fun MaskToolPanel(
                     isErasing = isErasing,
                     onErasingChange = onErasingChange,
                 )
-                MaskType.LINEAR_GRADIENT, MaskType.RADIAL_GRADIENT -> GradientSettings(
-                    gradientOpacity = gradientOpacity,
-                    onGradientOpacityChange = onGradientOpacityChange,
-                    gradientFeather = gradientFeather,
-                    onGradientFeatherChange = onGradientFeatherChange,
+                MaskType.GRADIENT -> GradientMaskSettings(
+                    angle = gradientAngle,
+                    onAngleChange = onGradientAngleChange,
+                    midpoint = gradientMidpoint,
+                    onMidpointChange = onGradientMidpointChange,
+                    opacity = gradientOpacity,
+                    onOpacityChange = onGradientOpacityChange,
+                    feather = gradientFeather,
+                    onFeatherChange = onGradientFeatherChange,
                 )
-                MaskType.AI_SUBJECT, MaskType.AI_SKY -> AiMaskSettings(
+                MaskType.RADIAL -> RadialMaskSettings(
+                    centerX = radialCenterX,
+                    onCenterXChange = onRadialCenterXChange,
+                    centerY = radialCenterY,
+                    onCenterYChange = onRadialCenterYChange,
+                    radius = radialRadius,
+                    onRadiusChange = onRadialRadiusChange,
+                    opacity = gradientOpacity,
+                    onOpacityChange = onGradientOpacityChange,
+                    feather = gradientFeather,
+                    onFeatherChange = onGradientFeatherChange,
+                )
+                MaskType.AI_SEMANTIC -> AiMaskSettings(
                     isProcessing = isAiProcessing,
                     onGenerate = onGenerateAiMask,
                     hasResult = hasAiMaskResult,
+                    subjectType = aiSubjectType,
+                    onSubjectTypeChange = onAiSubjectTypeChange,
                 )
             }
 
@@ -300,26 +337,96 @@ private fun BrushSettings(
 }
 
 @Composable
-private fun GradientSettings(
-    gradientOpacity: Float,
-    onGradientOpacityChange: (Float) -> Unit,
-    gradientFeather: Float,
-    onGradientFeatherChange: (Float) -> Unit,
+private fun RadialMaskSettings(
+    centerX: Float,
+    onCenterXChange: (Float) -> Unit,
+    centerY: Float,
+    onCenterYChange: (Float) -> Unit,
+    radius: Float,
+    onRadiusChange: (Float) -> Unit,
+    opacity: Float,
+    onOpacityChange: (Float) -> Unit,
+    feather: Float,
+    onFeatherChange: (Float) -> Unit,
 ) {
     Column {
         HasselSlider(
-            label = "不透明",
-            value = gradientOpacity,
+            label = "中心 X",
+            value = centerX,
             range = 0f..100f,
-            onValueChange = onGradientOpacityChange,
+            onValueChange = onCenterXChange,
+            defaultValue = 50f,
+        )
+        HasselSlider(
+            label = "中心 Y",
+            value = centerY,
+            range = 0f..100f,
+            onValueChange = onCenterYChange,
+            defaultValue = 50f,
+        )
+        HasselSlider(
+            label = "半径",
+            value = radius,
+            range = 5f..100f,
+            onValueChange = onRadiusChange,
+            defaultValue = 50f,
+        )
+        HasselSlider(
+            label = "不透明",
+            value = opacity,
+            range = 0f..100f,
+            onValueChange = onOpacityChange,
             defaultValue = 100f,
         )
         HasselSlider(
             label = "羽化",
-            value = gradientFeather,
+            value = feather,
             range = 0f..100f,
-            onValueChange = onGradientFeatherChange,
+            onValueChange = onFeatherChange,
+            defaultValue = 30f,
+        )
+    }
+}
+
+@Composable
+private fun GradientMaskSettings(
+    angle: Float,
+    onAngleChange: (Float) -> Unit,
+    midpoint: Float,
+    onMidpointChange: (Float) -> Unit,
+    opacity: Float,
+    onOpacityChange: (Float) -> Unit,
+    feather: Float,
+    onFeatherChange: (Float) -> Unit,
+) {
+    Column {
+        HasselSlider(
+            label = "角度",
+            value = angle,
+            range = 0f..360f,
+            onValueChange = onAngleChange,
+            defaultValue = 0f,
+        )
+        HasselSlider(
+            label = "中点",
+            value = midpoint,
+            range = 0f..100f,
+            onValueChange = onMidpointChange,
             defaultValue = 50f,
+        )
+        HasselSlider(
+            label = "不透明",
+            value = opacity,
+            range = 0f..100f,
+            onValueChange = onOpacityChange,
+            defaultValue = 100f,
+        )
+        HasselSlider(
+            label = "羽化",
+            value = feather,
+            range = 0f..100f,
+            onValueChange = onFeatherChange,
+            defaultValue = 30f,
         )
     }
 }
@@ -329,10 +436,46 @@ private fun AiMaskSettings(
     isProcessing: Boolean,
     onGenerate: () -> Unit,
     hasResult: Boolean,
+    subjectType: AiSubjectType,
+    onSubjectTypeChange: (AiSubjectType) -> Unit,
 ) {
     Column(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
+        // Subject type selector
+        Text(
+            text = "主体类型",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            AiSubjectType.entries.forEach { type ->
+                val isSelected = type == subjectType
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isSelected) HasselbladOrange else EditorBorder)
+                        .clickable { onSubjectTypeChange(type) }
+                        .padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = type.label,
+                        color = if (isSelected) EditorBackground else TextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         Surface(
             modifier = Modifier
                 .fillMaxWidth()

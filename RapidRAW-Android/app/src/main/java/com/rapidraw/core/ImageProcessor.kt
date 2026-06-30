@@ -519,6 +519,15 @@ class ImageProcessor {
                 return android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
                     decoder.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE)
                     decoder.isMutableRequired = true
+                    // Size guard: if DNG exceeds ~50MP, downsample to avoid OOM
+                    val maxDim = 4096
+                    if (info.size.width > maxDim || info.size.height > maxDim) {
+                        val scale = min(maxDim.toFloat() / info.size.width, maxDim.toFloat() / info.size.height)
+                        decoder.setTargetSize(
+                            (info.size.width * scale).toInt(),
+                            (info.size.height * scale).toInt()
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "ImageDecoder failed for DNG, falling back: ${e.message}")
@@ -542,7 +551,14 @@ class ImageProcessor {
 
                 // Calculate inSampleSize for manageable size
                 val maxDim = 4096
-                val inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
+                var inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
+
+                // OOM guard: if estimated pixels > 50MP for RAW, enforce at least 2x downsample
+                val estimatedPixels = options.outWidth.toLong() * options.outHeight.toLong()
+                if (estimatedPixels > 50_000_000L && inSampleSize < 2) {
+                    inSampleSize = 2
+                    Log.i(TAG, "Large RAW (~${estimatedPixels / 1_000_000}MP), using inSampleSize=2 for OOM protection")
+                }
 
                 // Second pass: decode
                 val decodeStream = context.contentResolver.openInputStream(uri)
@@ -601,7 +617,7 @@ class ImageProcessor {
                 val decodeOptions = BitmapFactory.Options().apply {
                     inPreferredConfig = Bitmap.Config.ARGB_8888
                     inMutable = true
-                    val maxDim = 8192
+                    val maxDim = 4096
                     inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
                 }
                 return BitmapFactory.decodeStream(ds, null, decodeOptions)
@@ -673,6 +689,12 @@ class ImageProcessor {
      * Full CPU processing pipeline for export.
      * Applies all adjustments in linear color space with progress reporting.
      */
+    // GPU-CPU CONSISTENCY REQUIREMENT:
+    // Any new adjustment parameter MUST be added to ALL THREE places:
+    // 1. ImageProcessor.NormAdj.from() - CPU normalization
+    // 2. GpuPipeline.updateAdjustments() - GPU uniform upload
+    // 3. res/raw/image_adjustment.fs - Fragment shader processing
+    // Violation will cause preview/export mismatch.
     suspend fun processFullResolution(
         adjustments: com.rapidraw.data.model.Adjustments,
         originalBitmap: Bitmap,

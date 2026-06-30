@@ -128,6 +128,7 @@ import com.rapidraw.ui.components.ColorScienceSheet
 import com.rapidraw.ui.components.EditHistoryPanel
 import com.rapidraw.ui.components.HdrExportSheet
 import com.rapidraw.ui.components.HistogramView
+import com.rapidraw.ui.components.LayerPanel
 import com.rapidraw.ui.components.LiquidGlassSurface
 import com.rapidraw.ui.components.LutLibrarySheet
 import com.rapidraw.ui.components.MaskOverlay
@@ -192,6 +193,9 @@ fun EditorScreen(
     val colorReplacementTargetHue by viewModel.colorReplacementTargetHue.collectAsState()
     val colorReplacementRange by viewModel.colorReplacementRange.collectAsState()
     val colorReplacementIntensity by viewModel.colorReplacementIntensity.collectAsState()
+    val layerStack by viewModel.layerStack.collectAsState()
+    val showLayerPanelState by viewModel.showLayerPanel.collectAsState()
+    val hdrPreviewEnabled by viewModel.hdrPreviewEnabled.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -242,11 +246,17 @@ fun EditorScreen(
     var maskBrushHardness by remember { mutableFloatStateOf(50f) }
     var maskIsErasing by remember { mutableStateOf(false) }
     var maskGradientOpacity by remember { mutableFloatStateOf(100f) }
-    var maskGradientFeather by remember { mutableFloatStateOf(50f) }
+    var maskGradientFeather by remember { mutableFloatStateOf(30f) }
     var maskVisible by remember { mutableStateOf(true) }
     var maskInverted by remember { mutableStateOf(false) }
     var maskIntensity by remember { mutableFloatStateOf(100f) }
     var hasAiMaskResult by remember { mutableStateOf(false) }
+    var aiSubjectType by remember { mutableStateOf(com.rapidraw.ui.components.AiSubjectType.PORTRAIT) }
+    var radialCenterX by remember { mutableFloatStateOf(50f) }
+    var radialCenterY by remember { mutableFloatStateOf(50f) }
+    var radialRadius by remember { mutableFloatStateOf(50f) }
+    var gradientAngle by remember { mutableFloatStateOf(0f) }
+    var gradientMidpoint by remember { mutableFloatStateOf(50f) }
 
     val lutPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -392,6 +402,15 @@ fun EditorScreen(
                         imageVector = Icons.Default.Compare,
                         contentDescription = "对比",
                         tint = if (displayOriginal) Color.White else TextSecondary,
+                    )
+                }
+
+                // Smart Optimize (一键智能优化)
+                IconButton(onClick = { viewModel.smartOptimize() }) {
+                    Icon(
+                        Icons.Default.AutoAwesome,
+                        contentDescription = "智能优化",
+                        tint = HasselbladOrange,
                     )
                 }
 
@@ -839,6 +858,16 @@ fun EditorScreen(
                     gradientOpacity = maskGradientOpacity,
                     gradientFeather = maskGradientFeather,
                     modifier = Modifier.fillMaxSize(),
+                    radialCenterX = radialCenterX / 100f,
+                    radialCenterY = radialCenterY / 100f,
+                    radialRadius = radialRadius,
+                    onRadialCenterChange = { cx, cy ->
+                        radialCenterX = cx * 100f
+                        radialCenterY = cy * 100f
+                        viewModel.generateRadialFlowMask(cx, cy, radialRadius / 100f, maskGradientFeather / 100f)
+                    },
+                    gradientAngle = gradientAngle,
+                    gradientMidpoint = gradientMidpoint / 100f,
                 )
 
                 // Brush painting overlay
@@ -1076,7 +1105,15 @@ fun EditorScreen(
                     if (maskMode) {
                         MaskToolPanel(
                             selectedMaskType = maskType,
-                            onSelectMaskType = { maskType = it },
+                            onSelectMaskType = {
+                                maskType = it
+                                // Auto-generate mask when switching to radial/gradient
+                                if (it == MaskType.RADIAL) {
+                                    viewModel.generateRadialFlowMask(radialCenterX / 100f, radialCenterY / 100f, radialRadius / 100f, maskGradientFeather / 100f)
+                                } else if (it == MaskType.GRADIENT) {
+                                    viewModel.generateGradientFlowMask(gradientAngle, gradientMidpoint / 100f, maskGradientFeather / 100f)
+                                }
+                            },
                             brushSize = maskBrushSize,
                             onBrushSizeChange = { maskBrushSize = it },
                             brushOpacity = maskBrushOpacity,
@@ -1088,7 +1125,15 @@ fun EditorScreen(
                             gradientOpacity = maskGradientOpacity,
                             onGradientOpacityChange = { maskGradientOpacity = it },
                             gradientFeather = maskGradientFeather,
-                            onGradientFeatherChange = { maskGradientFeather = it },
+                            onGradientFeatherChange = {
+                                maskGradientFeather = it
+                                // Update mask in real-time for radial/gradient
+                                if (maskType == MaskType.RADIAL) {
+                                    viewModel.generateRadialFlowMask(radialCenterX / 100f, radialCenterY / 100f, radialRadius / 100f, it / 100f)
+                                } else if (maskType == MaskType.GRADIENT) {
+                                    viewModel.generateGradientFlowMask(gradientAngle, gradientMidpoint / 100f, it / 100f)
+                                }
+                            },
                             maskVisible = maskVisible,
                             onMaskVisibleChange = { maskVisible = it },
                             maskInverted = maskInverted,
@@ -1097,10 +1142,10 @@ fun EditorScreen(
                             onFlowMaskIntensityChange = { maskIntensity = it },
                             isAiProcessing = isAiProcessing,
                             onGenerateAiMask = {
-                                val aiType = when (maskType) {
-                                    MaskType.AI_SUBJECT -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
-                                    MaskType.AI_SKY -> com.rapidraw.core.AiMaskGenerator.MaskType.SKY
-                                    else -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
+                                val aiType = when (aiSubjectType) {
+                                    com.rapidraw.ui.components.AiSubjectType.PORTRAIT -> com.rapidraw.core.AiMaskGenerator.MaskType.SUBJECT
+                                    com.rapidraw.ui.components.AiSubjectType.SKY -> com.rapidraw.core.AiMaskGenerator.MaskType.SKY
+                                    com.rapidraw.ui.components.AiSubjectType.ARCHITECTURE -> com.rapidraw.core.AiMaskGenerator.MaskType.FOREGROUND
                                 }
                                 viewModel.generateAiMask(aiType) { _ ->
                                     hasAiMaskResult = true
@@ -1110,6 +1155,33 @@ fun EditorScreen(
                             onDeleteMask = {
                                 viewModel.clearFlowMask()
                                 hasAiMaskResult = false
+                            },
+                            aiSubjectType = aiSubjectType,
+                            onAiSubjectTypeChange = { aiSubjectType = it },
+                            radialCenterX = radialCenterX,
+                            onRadialCenterXChange = {
+                                radialCenterX = it
+                                viewModel.generateRadialFlowMask(it / 100f, radialCenterY / 100f, radialRadius / 100f, maskGradientFeather / 100f)
+                            },
+                            radialCenterY = radialCenterY,
+                            onRadialCenterYChange = {
+                                radialCenterY = it
+                                viewModel.generateRadialFlowMask(radialCenterX / 100f, it / 100f, radialRadius / 100f, maskGradientFeather / 100f)
+                            },
+                            radialRadius = radialRadius,
+                            onRadialRadiusChange = {
+                                radialRadius = it
+                                viewModel.generateRadialFlowMask(radialCenterX / 100f, radialCenterY / 100f, it / 100f, maskGradientFeather / 100f)
+                            },
+                            gradientAngle = gradientAngle,
+                            onGradientAngleChange = {
+                                gradientAngle = it
+                                viewModel.generateGradientFlowMask(it, gradientMidpoint / 100f, maskGradientFeather / 100f)
+                            },
+                            gradientMidpoint = gradientMidpoint,
+                            onGradientMidpointChange = {
+                                gradientMidpoint = it
+                                viewModel.generateGradientFlowMask(gradientAngle, it / 100f, maskGradientFeather / 100f)
                             },
                         )
                     } else {
@@ -1179,6 +1251,8 @@ fun EditorScreen(
                                 onExportQueue = { navController.navigate(Routes.EXPORT_QUEUE) },
                                 hdrExportFormat = adjustments.hdrExportFormat,
                                 colorScienceMode = adjustments.colorScienceMode,
+                                hdrPreviewEnabled = hdrPreviewEnabled,
+                                onToggleHdrPreview = { viewModel.toggleHdrPreview() },
                             )
                         }
                     }
@@ -1386,6 +1460,18 @@ fun EditorScreen(
             )
         }
     }
+
+    // ── Layer Panel Sheet ──────────────────────────────────────────
+    LayerPanel(
+        visible = showLayerPanelState,
+        layerStack = layerStack,
+        onAddLayer = { viewModel.addAdjustmentLayer() },
+        onRemoveLayer = { viewModel.removeAdjustmentLayer(it) },
+        onUpdateLayer = { id, transform -> viewModel.updateAdjustmentLayer(id, transform) },
+        onSelectLayer = { viewModel.setActiveLayer(it) },
+        onMoveLayer = { from, to -> viewModel.moveLayer(from, to) },
+        onDismiss = { viewModel.hideLayerPanel() },
+    )
 }
 }
 
@@ -1782,6 +1868,8 @@ private fun ExportPanel(
     onExportQueue: (() -> Unit)? = null,
     hdrExportFormat: Int = 0,
     colorScienceMode: Int = 0,
+    hdrPreviewEnabled: Boolean = false,
+    onToggleHdrPreview: () -> Unit = {},
 ) {
     var selectedFormat by remember { mutableStateOf(ExportFormat.JPEG) }
     var quality by remember { mutableFloatStateOf(95f) }
@@ -1837,6 +1925,37 @@ private fun ExportPanel(
                 onValueChange = { quality = it },
                 defaultValue = 95f,
             )
+
+            // HDR 预览开关（JPEG + 设备支持HDR显示时可用）
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleHdrPreview() }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "HDR 预览",
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Surface(
+                    color = if (hdrPreviewEnabled) HasselbladOrange else EditorBorder,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(44.dp, 24.dp),
+                ) {
+                    Box(contentAlignment = if (hdrPreviewEnabled) Alignment.CenterEnd else Alignment.CenterStart) {
+                        Box(
+                            modifier = Modifier
+                                .padding(2.dp)
+                                .size(20.dp)
+                                .background(Color.White, CircleShape),
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))

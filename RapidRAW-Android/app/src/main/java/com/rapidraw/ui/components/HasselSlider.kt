@@ -172,6 +172,7 @@ fun HasselSlider(
                             onDragStart = { isDragging = true },
                             onDragEnd = {
                                 isDragging = false
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             },
                             onDragCancel = { isDragging = false },
                         ) { change, dragAmount ->

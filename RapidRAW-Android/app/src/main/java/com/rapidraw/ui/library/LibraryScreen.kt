@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
@@ -76,6 +77,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
+import java.util.Locale
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -101,11 +104,14 @@ fun LibraryScreen(
     val selectedFolder by viewModel.selectedFolder.collectAsState()
     val sortOrder by viewModel.sortOrder.collectAsState()
     val filterRaw by viewModel.filterRaw.collectAsState()
+    val formatFilter by viewModel.formatFilter.collectAsState()
+    val sceneFilter by viewModel.sceneFilter.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val thumbnails by viewModel.thumbnails.collectAsState()
     val selectedImages by viewModel.selectedImages.collectAsState()
     val isBatchMode by viewModel.isBatchMode.collectAsState()
+    val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
     val batchProgress by viewModel.batchProgress.collectAsState()
     val hasCopiedAdjustments by viewModel.hasCopiedAdjustments.collectAsState()
 
@@ -182,23 +188,100 @@ fun LibraryScreen(
                 tonalElevation = 2.dp,
             ) {
                 Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "RapidRAW",
-                            color = HasselbladOrange,
-                            style = MaterialTheme.typography.headlineMedium,
-                            modifier = Modifier.padding(start = 12.dp),
-                        )
+                    if (isMultiSelectMode || (isBatchMode && selectedImages.isNotEmpty())) {
+                        // ── Multi-Select Top Bar ─────────────────────────
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(
+                                onClick = { viewModel.exitMultiSelectMode() },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "取消多选",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
 
-                        Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                text = "已选 ${selectedImages.size} 张",
+                                color = TextPrimary,
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(start = 4.dp),
+                            )
 
-                        if (isSearchExpanded) {
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            IconButton(
+                                onClick = { viewModel.selectAll() },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SelectAll,
+                                    contentDescription = "全选",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { showFilmPicker = true },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PhotoFilter,
+                                    contentDescription = "批量应用预设",
+                                    tint = if (selectedImages.isNotEmpty()) HasselbladOrange else TextTertiary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    val batchProcessor = com.rapidraw.core.BatchProcessor(
+                                        context = context,
+                                        imageProcessor = com.rapidraw.core.ImageProcessor(),
+                                    )
+                                    viewModel.batchExport(
+                                        batchProcessor,
+                                        com.rapidraw.data.model.ExportSettings(),
+                                    )
+                                },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = "批量导出",
+                                    tint = if (selectedImages.isNotEmpty()) HasselbladOrange else TextTertiary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
+                    } else {
+                        // ── Normal Top Bar ───────────────────────────────
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "RapidRAW",
+                                color = HasselbladOrange,
+                                style = MaterialTheme.typography.headlineMedium,
+                                modifier = Modifier.padding(start = 12.dp),
+                            )
+
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            if (isSearchExpanded) {
                             TextField(
                                 value = searchQuery,
                                 onValueChange = { viewModel.searchImages(it) },
@@ -327,6 +410,7 @@ fun LibraryScreen(
                             )
                         }
                     }
+                    } // end else (normal top bar)
 
                     // ── Folder Chips ────────────────────────────────────────
                     LazyRow(
@@ -365,6 +449,78 @@ fun LibraryScreen(
                             }
                         }
                     }
+
+                    // ── Filter Chips Row ─────────────────────────────────────
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // 格式筛选
+                        Text(
+                            text = "格式",
+                            color = TextTertiary,
+                            style = com.rapidraw.ui.theme.EditorTypography.badge,
+                        )
+                        FormatFilter.entries.forEach { filter ->
+                            val isSelected = formatFilter == filter
+                            val label = when (filter) {
+                                FormatFilter.ALL -> "ALL"
+                                FormatFilter.RAW_ONLY -> "RAW"
+                                FormatFilter.JPEG_ONLY -> "JPEG"
+                            }
+                            Surface(
+                                modifier = Modifier.clickable { viewModel.setFormatFilter(filter) },
+                                color = if (isSelected) HasselbladOrange else EditorSurface,
+                                shape = RoundedCornerShape(16.dp),
+                                border = if (!isSelected) {
+                                    androidx.compose.foundation.BorderStroke(1.dp, EditorBorder)
+                                } else null,
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) EditorBackground else TextSecondary,
+                                    style = com.rapidraw.ui.theme.EditorTypography.badge,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // 场景筛选
+                        Text(
+                            text = "场景",
+                            color = TextTertiary,
+                            style = com.rapidraw.ui.theme.EditorTypography.badge,
+                        )
+                        SceneFilter.entries.forEach { filter ->
+                            val isSelected = sceneFilter == filter
+                            val label = when (filter) {
+                                SceneFilter.ALL -> "ALL"
+                                SceneFilter.PORTRAIT -> "人像"
+                                SceneFilter.LANDSCAPE -> "风景"
+                                SceneFilter.NIGHT -> "夜景"
+                            }
+                            Surface(
+                                modifier = Modifier.clickable { viewModel.setSceneFilter(filter) },
+                                color = if (isSelected) HasselbladOrange else EditorSurface,
+                                shape = RoundedCornerShape(16.dp),
+                                border = if (!isSelected) {
+                                    androidx.compose.foundation.BorderStroke(1.dp, EditorBorder)
+                                } else null,
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) EditorBackground else TextSecondary,
+                                    style = com.rapidraw.ui.theme.EditorTypography.badge,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -396,6 +552,30 @@ fun LibraryScreen(
                     )
                 }
             } else {
+                // Group images by date for date separators
+                val dateFormat = SimpleDateFormat("yyyy年M月d日", Locale.CHINA)
+                val groupedImages = images.groupBy { image ->
+                    if (image.dateModified > 0L) {
+                        val dayStart = image.dateModified / (24 * 60 * 60 * 1000L)
+                        dayStart.toString()
+                    } else {
+                        "unknown"
+                    }
+                }
+                val dateLabels = groupedImages.map { (dayKey, imgs) ->
+                    val label = if (dayKey == "unknown") {
+                        "未知日期"
+                    } else {
+                        val firstImage = imgs.firstOrNull()
+                        if (firstImage != null && firstImage.dateModified > 0L) {
+                            dateFormat.format(firstImage.dateModified)
+                        } else {
+                            dayKey
+                        }
+                    }
+                    DateGroup(label, imgs)
+                }
+
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 120.dp),
                     modifier = Modifier.weight(1f),
@@ -403,29 +583,37 @@ fun LibraryScreen(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    items(
-                        items = images,
-                        key = { it.path },
-                    ) { image ->
-                        ImageGridCell(
-                            image = image,
-                            thumbnail = thumbnails[image.path],
-                            isSelected = image.path in selectedImages,
-                            onClick = {
-                                if (isBatchMode || selectedImages.isNotEmpty()) {
+                    dateLabels.forEach { (dateLabel, imgs) ->
+                        // Date separator
+                        item(key = "header_$dateLabel", span = { GridItemSpan(this.maxLineSpan) }) {
+                            DateSeparator(dateLabel = dateLabel)
+                        }
+                        // Image cells for this date group
+                        items(
+                            items = imgs,
+                            key = { it.path },
+                        ) { image ->
+                            ImageGridCell(
+                                image = image,
+                                thumbnail = thumbnails[image.path],
+                                isSelected = image.path in selectedImages,
+                                onClick = {
+                                    if (isBatchMode || selectedImages.isNotEmpty()) {
+                                        viewModel.toggleImageSelection(image.path)
+                                    } else {
+                                        navController.navigate(com.rapidraw.ui.navigation.Routes.editorPath(image.path))
+                                    }
+                                },
+                                onLongClick = {
+                                    // 长按直接进入多选模式
+                                    if (!isBatchMode) viewModel.enterMultiSelectMode()
                                     viewModel.toggleImageSelection(image.path)
-                                } else {
-                                    navController.navigate(com.rapidraw.ui.navigation.Routes.editorPath(image.path))
-                                }
-                            },
-                            onLongClick = {
-                                contextMenuImage = image
-                                showContextMenu = true
-                            },
-                            onRatingClick = {
-                                ratingDialogImage = image
-                            },
-                        )
+                                },
+                                onRatingClick = {
+                                    ratingDialogImage = image
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -492,7 +680,7 @@ fun LibraryScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             IconButton(
-                                onClick = { viewModel.exitBatchMode() },
+                                onClick = { viewModel.exitMultiSelectMode() },
                                 modifier = Modifier.size(36.dp),
                             ) {
                                 Icon(
@@ -740,7 +928,7 @@ fun LibraryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                if (!isBatchMode) viewModel.enterBatchMode()
+                                if (!isBatchMode) viewModel.enterMultiSelectMode()
                                 viewModel.toggleImageSelection(ctxImage.path)
                                 showContextMenu = false
                                 contextMenuImage = null
@@ -917,6 +1105,26 @@ private fun ImageGridCell(
             }
         }
 
+        // Selection check indicator
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(HasselbladOrange),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "已选",
+                    tint = EditorBackground,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
+
         // RAW badge
         if (image.isRaw) {
             Surface(
@@ -1015,6 +1223,36 @@ private fun BatchActionButton(
             text = label,
             color = if (enabled) TextPrimary else TextTertiary,
             style = com.rapidraw.ui.theme.EditorTypography.toolbarLabel,
+        )
+    }
+}
+
+private data class DateGroup(
+    val label: String,
+    val images: List<ImageFile>,
+)
+
+@Composable
+private fun DateSeparator(dateLabel: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp, bottom = 8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(16.dp)
+                .clip(RoundedCornerShape(1.dp))
+                .background(HasselbladOrange)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = dateLabel,
+            color = TextPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
         )
     }
 }

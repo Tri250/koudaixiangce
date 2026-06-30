@@ -39,6 +39,10 @@ enum class SortOrder {
     NAME,
 }
 
+enum class FormatFilter { ALL, RAW_ONLY, JPEG_ONLY }
+
+enum class SceneFilter { ALL, PORTRAIT, LANDSCAPE, NIGHT }
+
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
 
     private val contentResolver = application.contentResolver
@@ -57,6 +61,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _filterRaw = MutableStateFlow(false)
     val filterRaw: StateFlow<Boolean> = _filterRaw.asStateFlow()
+
+    private val _formatFilter = MutableStateFlow(FormatFilter.ALL)
+    val formatFilter: StateFlow<FormatFilter> = _formatFilter.asStateFlow()
+
+    private val _sceneFilter = MutableStateFlow(SceneFilter.ALL)
+    val sceneFilter: StateFlow<SceneFilter> = _sceneFilter.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -77,6 +87,22 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     // Alias for backward compatibility
     val selectedImages: StateFlow<Set<String>> = _selectedImagePaths.asStateFlow()
+
+    // Multi-select mode (additional layer for long-press entry)
+    private val _isMultiSelectMode = MutableStateFlow(false)
+    val isMultiSelectMode: StateFlow<Boolean> = _isMultiSelectMode.asStateFlow()
+
+    fun enterMultiSelectMode() {
+        _isMultiSelectMode.value = true
+        _isBatchMode.value = true
+        _hasCopiedAdjustments.value = com.rapidraw.core.AdjustmentClipboard.hasData()
+    }
+
+    fun exitMultiSelectMode() {
+        _isMultiSelectMode.value = false
+        _isBatchMode.value = false
+        _selectedImagePaths.value = emptySet()
+    }
 
     private val _hasCopiedAdjustments = MutableStateFlow(com.rapidraw.core.AdjustmentClipboard.hasData())
     val hasCopiedAdjustments: StateFlow<Boolean> = _hasCopiedAdjustments.asStateFlow()
@@ -351,6 +377,24 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun setFormatFilter(filter: FormatFilter) {
+        _formatFilter.value = filter
+        // 同步旧的 filterRaw 状态以保持兼容
+        _filterRaw.value = filter == FormatFilter.RAW_ONLY
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            val allImages = queryImages(_selectedFolder.value)
+            applyFilters(allImages)
+        }
+    }
+
+    fun setSceneFilter(filter: SceneFilter) {
+        _sceneFilter.value = filter
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            val allImages = queryImages(_selectedFolder.value)
+            applyFilters(allImages)
+        }
+    }
+
     fun enterBatchMode() {
         _isBatchMode.value = true
         _hasCopiedAdjustments.value = com.rapidraw.core.AdjustmentClipboard.hasData()
@@ -471,8 +515,34 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private fun applyFilters(allImages: List<ImageFile>) {
         var filtered = allImages
 
-        if (_filterRaw.value) {
+        // 格式筛选（整合 FormatFilter，兼容旧的 filterRaw）
+        when (_formatFilter.value) {
+            FormatFilter.ALL -> { /* 不筛选 */ }
+            FormatFilter.RAW_ONLY -> filtered = filtered.filter { it.isRaw }
+            FormatFilter.JPEG_ONLY -> filtered = filtered.filter { !it.isRaw }
+        }
+        // 旧的 filterRaw 开关兼容（如果 formatFilter 为 ALL 但 filterRaw 为 true，仍然过滤）
+        if (_formatFilter.value == FormatFilter.ALL && _filterRaw.value) {
             filtered = filtered.filter { it.isRaw }
+        }
+
+        // 场景筛选（基于 AI 语义标签）
+        if (_sceneFilter.value != SceneFilter.ALL) {
+            val targetTag = when (_sceneFilter.value) {
+                SceneFilter.PORTRAIT -> "人像"
+                SceneFilter.LANDSCAPE -> "山野"
+                SceneFilter.NIGHT -> "夜晚"
+                SceneFilter.ALL -> null
+            }
+            if (targetTag != null) {
+                filtered = filtered.filter { image ->
+                    // 匹配 image 的 tags 列表或语义标签缓存
+                    image.tags.any { it.contains(targetTag) } ||
+                    semanticTagCache[image.path]?.any { tag ->
+                        tag.value.contains(targetTag)
+                    } ?: false
+                }
+            }
         }
 
         val query = _searchQuery.value.trim()

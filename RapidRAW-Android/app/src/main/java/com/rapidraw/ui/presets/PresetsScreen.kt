@@ -47,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.Adjustments
@@ -415,6 +417,32 @@ private fun FilmCard(
                 else androidx.compose.ui.text.font.FontWeight.Normal,
             modifier = Modifier.padding(top = 4.dp),
         )
+
+        // Gradient color bar preview (based on film color shifts)
+        if (film != null) {
+            val shadowColor = Color(
+                red = (0.5f + film.redShift * 0.5f).coerceIn(0f, 1f),
+                green = (0.5f + film.greenShift * 0.5f).coerceIn(0f, 1f),
+                blue = (0.5f + film.blueShift * 0.5f).coerceIn(0f, 1f),
+            )
+            val highlightColor = Color(
+                red = (0.85f + film.redShift * 0.15f).coerceIn(0f, 1f),
+                green = (0.85f + film.greenShift * 0.15f).coerceIn(0f, 1f),
+                blue = (0.85f + film.blueShift * 0.15f).coerceIn(0f, 1f),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(shadowColor, highlightColor),
+                        )
+                    )
+                    .padding(top = 2.dp),
+            )
+        }
 
         // Film English name
         if (film != null) {

@@ -38,12 +38,14 @@ import com.rapidraw.core.copyWithHdrConfig
 import com.rapidraw.core.toColorScienceConfig
 import com.rapidraw.core.toHdrConfig
 import com.rapidraw.data.model.Adjustments
+import com.rapidraw.data.model.AdjustmentLayer
 import com.rapidraw.data.model.EditHistoryEntry
 import com.rapidraw.data.model.EditHistoryTree
 import com.rapidraw.data.model.ExifData
 import com.rapidraw.data.model.ExportSettings
 import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.ImageFile
+import com.rapidraw.data.model.LayerStack
 import com.rapidraw.data.model.Preset
 import com.rapidraw.data.model.describeAdjustmentChange
 import kotlinx.coroutines.CancellationException
@@ -209,12 +211,23 @@ class EditorViewModel(
     private val _colorReplacementIntensity = MutableStateFlow(1f)
     val colorReplacementIntensity: StateFlow<Float> = _colorReplacementIntensity.asStateFlow()
 
+    // 面板滚动位置记忆：切换面板时保留各面板滚动位置
+    private val _panelScrollPositions = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val panelScrollPositions: StateFlow<Map<String, Int>> = _panelScrollPositions.asStateFlow()
+
+    fun savePanelScrollPosition(panelKey: String, position: Int) {
+        _panelScrollPositions.value = _panelScrollPositions.value + (panelKey to position)
+    }
+
     // ── 2026 / AlcedoStudio / RapidRAW 集成状态 ──────────────────────
     private val _showColorScienceSheet = MutableStateFlow(false)
     val showColorScienceSheet: StateFlow<Boolean> = _showColorScienceSheet.asStateFlow()
 
     private val _showHdrExportSheet = MutableStateFlow(false)
     val showHdrExportSheet: StateFlow<Boolean> = _showHdrExportSheet.asStateFlow()
+
+    private val _hdrPreviewEnabled = MutableStateFlow(false)
+    val hdrPreviewEnabled: StateFlow<Boolean> = _hdrPreviewEnabled.asStateFlow()
 
     private val _showLutLibrarySheet = MutableStateFlow(false)
     val showLutLibrarySheet: StateFlow<Boolean> = _showLutLibrarySheet.asStateFlow()
@@ -898,6 +911,55 @@ class EditorViewModel(
     }
 
     fun getFlowMaskBitmap(): Bitmap? = flowMaskManager?.getMaskBitmap()
+
+    fun generateRadialFlowMask(cx: Float, cy: Float, radius: Float, feather: Float) {
+        flowMaskManager?.generateRadialMask(cx, cy, radius, feather)
+    }
+
+    fun generateGradientFlowMask(angle: Float, midpoint: Float, feather: Float) {
+        flowMaskManager?.generateGradientMask(angle, midpoint, feather)
+    }
+    // endregion
+
+    // region Layer System
+    private val _layerStack = MutableStateFlow(LayerStack())
+    val layerStack: StateFlow<LayerStack> = _layerStack.asStateFlow()
+
+    private val _showLayerPanel = MutableStateFlow(false)
+    val showLayerPanel: StateFlow<Boolean> = _showLayerPanel.asStateFlow()
+
+    fun addAdjustmentLayer(name: String = "调整图层") {
+        val newLayer = AdjustmentLayer(name = name)
+        _layerStack.value = _layerStack.value.addLayer(newLayer)
+        pushUndo("添加图层: $name")
+    }
+
+    fun removeAdjustmentLayer(layerId: String) {
+        val name = _layerStack.value.layers.find { it.id == layerId }?.name ?: ""
+        _layerStack.value = _layerStack.value.removeLayer(layerId)
+        pushUndo("删除图层: $name")
+    }
+
+    fun updateAdjustmentLayer(layerId: String, transform: (AdjustmentLayer) -> AdjustmentLayer) {
+        _layerStack.value = _layerStack.value.updateLayer(layerId, transform)
+    }
+
+    fun setActiveLayer(layerId: String) {
+        _layerStack.value = _layerStack.value.setActiveLayer(layerId)
+    }
+
+    fun moveLayer(fromIndex: Int, toIndex: Int) {
+        _layerStack.value = _layerStack.value.moveLayer(fromIndex, toIndex)
+        pushUndo("移动图层")
+    }
+
+    fun showLayerPanel() {
+        _showLayerPanel.value = true
+    }
+
+    fun hideLayerPanel() {
+        _showLayerPanel.value = false
+    }
     // endregion
 
     // region Scene Detection
@@ -1124,6 +1186,17 @@ class EditorViewModel(
 
     fun hideHdrExport() {
         _showHdrExportSheet.value = false
+    }
+
+    fun toggleHdrPreview() {
+        _hdrPreviewEnabled.value = !_hdrPreviewEnabled.value
+        // 当HDR预览开启时，调整peakLuminanceNits到设备最大值
+        if (_hdrPreviewEnabled.value) {
+            _adjustments.value = _adjustments.value.copy(peakLuminanceNits = 1000f)
+        } else {
+            _adjustments.value = _adjustments.value.copy(peakLuminanceNits = 100f)
+        }
+        schedulePreviewUpdate()
     }
 
     /** 当前 HDR 导出配置 */

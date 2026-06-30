@@ -249,6 +249,30 @@ data class Adjustments(
     val masks: List<MaskContainer> = emptyList(),
     val flowMaskIntensity: Float = 100f,
 
+    // ── Perspective Correction ────────────────────────────────
+    val perspectiveVertical: Float = 0f,
+    val perspectiveHorizontal: Float = 0f,
+    val perspectiveRotate: Float = 0f,
+    val perspectiveScale: Float = 100f,
+    val perspectiveAspect: Float = 0f,
+
+    // ── Local Tint ───────────────────────────────────────────
+    val shadowsTintHue: Float = 0f,
+    val shadowsTintSaturation: Float = 0f,
+    val highlightsTintHue: Float = 0f,
+    val highlightsTintSaturation: Float = 0f,
+
+    // ── Edge Light / Rim Light ───────────────────────────────
+    val edgeLightAmount: Float = 0f,
+    val edgeLightHue: Float = 30f,
+    val edgeLightSaturation: Float = 0.5f,
+
+    // ── Color Range Selector ─────────────────────────────────
+    val colorRangeHue: Float = 0f,
+    val colorRangeWidth: Float = 30f,
+    val colorRangeSatAdjust: Float = 0f,
+    val colorRangeLumAdjust: Float = 0f,
+
     // ── AI Patches ────────────────────────────────────────────
     val aiPatches: List<AiPatch> = emptyList(),
 ) {
@@ -416,6 +440,26 @@ data class Adjustments(
         "splitToningShadowHue" -> copy(splitToningShadowHue = value.coerceIn(0f, 360f))
         "splitToningShadowSaturation" -> copy(splitToningShadowSaturation = value.coerceIn(0f, 100f))
         "splitToningBalance" -> copy(splitToningBalance = value.coerceIn(-100f, 100f))
+        // Perspective Correction
+        "perspectiveVertical" -> copy(perspectiveVertical = value.coerceIn(-100f, 100f))
+        "perspectiveHorizontal" -> copy(perspectiveHorizontal = value.coerceIn(-100f, 100f))
+        "perspectiveRotate" -> copy(perspectiveRotate = value.coerceIn(-45f, 45f))
+        "perspectiveScale" -> copy(perspectiveScale = value.coerceIn(10f, 200f))
+        "perspectiveAspect" -> copy(perspectiveAspect = value.coerceIn(-100f, 100f))
+        // Local Tint
+        "shadowsTintHue" -> copy(shadowsTintHue = value.coerceIn(0f, 360f))
+        "shadowsTintSaturation" -> copy(shadowsTintSaturation = value.coerceIn(0f, 100f))
+        "highlightsTintHue" -> copy(highlightsTintHue = value.coerceIn(0f, 360f))
+        "highlightsTintSaturation" -> copy(highlightsTintSaturation = value.coerceIn(0f, 100f))
+        // Edge Light
+        "edgeLightAmount" -> copy(edgeLightAmount = value.coerceIn(0f, 100f))
+        "edgeLightHue" -> copy(edgeLightHue = value.coerceIn(0f, 360f))
+        "edgeLightSaturation" -> copy(edgeLightSaturation = value.coerceIn(0f, 1f))
+        // Color Range Selector
+        "colorRangeHue" -> copy(colorRangeHue = value.coerceIn(0f, 360f))
+        "colorRangeWidth" -> copy(colorRangeWidth = value.coerceIn(1f, 180f))
+        "colorRangeSatAdjust" -> copy(colorRangeSatAdjust = value.coerceIn(-100f, 100f))
+        "colorRangeLumAdjust" -> copy(colorRangeLumAdjust = value.coerceIn(-100f, 100f))
         else -> this
     }
 

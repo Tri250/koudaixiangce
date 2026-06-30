@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.ExportFormat
@@ -60,20 +61,31 @@ fun ExportSheet(
     isExporting: Boolean,
     onShare: ((ExportSettings) -> Unit)? = null,
 ) {
-    var format by remember { mutableStateOf(ExportFormat.JPEG) }
-    var quality by remember { mutableStateOf(95) }
-    var resizeMode by remember { mutableStateOf(ResizeMode.ORIGINAL) }
-    var resizeValue by remember { mutableStateOf("") }
-    var dontEnlarge by remember { mutableStateOf(true) }
-    var keepMetadata by remember { mutableStateOf(true) }
-    var stripGps by remember { mutableStateOf(false) }
-    var filenameTemplate by remember { mutableStateOf("") }
-    var socialPlatform by remember { mutableStateOf(SocialPlatform.ORIGINAL) }
-    var addWatermark by remember { mutableStateOf(false) }
-    var watermarkText by remember { mutableStateOf("RapidRAW") }
-    var watermarkAnchor by remember { mutableStateOf(WatermarkAnchor.BOTTOM_RIGHT) }
-    var watermarkScale by remember { mutableStateOf(15f) }
-    var watermarkOpacity by remember { mutableStateOf(50f) }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("export_settings", 0) }
+
+    var format by remember { mutableStateOf(
+        try { ExportFormat.valueOf(prefs.getString("export_format", "JPEG") ?: "JPEG") } catch (_: Exception) { ExportFormat.JPEG }
+    ) }
+    var quality by remember { mutableStateOf(prefs.getInt("export_quality", 95)) }
+    var resizeMode by remember { mutableStateOf(
+        try { ResizeMode.valueOf(prefs.getString("export_resize_mode", "ORIGINAL") ?: "ORIGINAL") } catch (_: Exception) { ResizeMode.ORIGINAL }
+    ) }
+    var resizeValue by remember { mutableStateOf(prefs.getString("export_resize_value", "") ?: "") }
+    var dontEnlarge by remember { mutableStateOf(prefs.getBoolean("export_dont_enlarge", true)) }
+    var keepMetadata by remember { mutableStateOf(prefs.getBoolean("export_keep_metadata", true)) }
+    var stripGps by remember { mutableStateOf(prefs.getBoolean("export_strip_gps", false)) }
+    var filenameTemplate by remember { mutableStateOf(prefs.getString("export_filename_template", "") ?: "") }
+    var socialPlatform by remember { mutableStateOf(
+        try { SocialPlatform.valueOf(prefs.getString("export_social_platform", "ORIGINAL") ?: "ORIGINAL") } catch (_: Exception) { SocialPlatform.ORIGINAL }
+    ) }
+    var addWatermark by remember { mutableStateOf(prefs.getBoolean("export_add_watermark", false)) }
+    var watermarkText by remember { mutableStateOf(prefs.getString("export_watermark_text", "RapidRAW") ?: "RapidRAW") }
+    var watermarkAnchor by remember { mutableStateOf(
+        try { WatermarkAnchor.valueOf(prefs.getString("export_watermark_anchor", "BOTTOM_RIGHT") ?: "BOTTOM_RIGHT") } catch (_: Exception) { WatermarkAnchor.BOTTOM_RIGHT }
+    ) }
+    var watermarkScale by remember { mutableStateOf(prefs.getFloat("export_watermark_scale", 15f)) }
+    var watermarkOpacity by remember { mutableStateOf(prefs.getFloat("export_watermark_opacity", 50f)) }
     var resizeModeExpanded by remember { mutableStateOf(false) }
 
     // Collapsible section expansion states
@@ -561,6 +573,24 @@ fun ExportSheet(
                         shape = RoundedCornerShape(8.dp),
                     )
                     .clickable(enabled = !isExporting) {
+                        // 保存导出设置到 SharedPreferences
+                        prefs.edit().apply {
+                            putString("export_format", format.name)
+                            putInt("export_quality", quality)
+                            putString("export_resize_mode", resizeMode.name)
+                            putString("export_resize_value", resizeValue)
+                            putBoolean("export_dont_enlarge", dontEnlarge)
+                            putBoolean("export_keep_metadata", keepMetadata)
+                            putBoolean("export_strip_gps", stripGps)
+                            putString("export_filename_template", filenameTemplate)
+                            putString("export_social_platform", socialPlatform.name)
+                            putBoolean("export_add_watermark", addWatermark)
+                            putString("export_watermark_text", watermarkText)
+                            putString("export_watermark_anchor", watermarkAnchor.name)
+                            putFloat("export_watermark_scale", watermarkScale)
+                            putFloat("export_watermark_opacity", watermarkOpacity)
+                            apply()
+                        }
                         onExport(
                             ExportSettings(
                                 format = format,

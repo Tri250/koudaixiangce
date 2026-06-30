@@ -19,6 +19,8 @@ object RawDecoder {
 
     private const val TAG = "RawDecoder"
 
+    private var nativeLibraryLoaded = false
+
     init {
         // v1.5.3 加固：
         // 部分 OEM ROM（特别是 ColorOS 16 / HyperOS 2）会在 System.loadLibrary 阶段
@@ -26,15 +28,18 @@ object RawDecoder {
         // VerifyError、NullPointerException 等）。这里统一兜底，绝不阻塞调用方。
         try {
             System.loadLibrary("rawdecoder")
+            nativeLibraryLoaded = true
             Log.i(TAG, "rawdecoder native library loaded")
         } catch (e: UnsatisfiedLinkError) {
-            Log.e(TAG, "Failed to load rawdecoder native library (UnsatisfiedLinkError)", e)
+            Log.e(TAG, "Failed to load rawdecoder native library", e)
         } catch (e: SecurityException) {
-            Log.e(TAG, "Failed to load rawdecoder native library (SecurityException)", e)
+            Log.e(TAG, "Failed to load rawdecoder native library", e)
         } catch (e: Throwable) {
-            Log.e(TAG, "Failed to load rawdecoder native library (other)", e)
+            Log.e(TAG, "Failed to load rawdecoder native library", e)
         }
     }
+
+    fun isNativeAvailable(): Boolean = nativeLibraryLoaded
 
     /**
      * Decode a RAW file (or any content URI that can be copied to a temporary file)
@@ -45,6 +50,10 @@ object RawDecoder {
      * @return Decoded Bitmap, or null if libraw could not decode it
      */
     suspend fun decodeRaw(context: Context, uri: Uri): Bitmap? = withContext(Dispatchers.IO) {
+        if (!nativeLibraryLoaded) {
+            Log.w(TAG, "Native library not loaded, cannot decode RAW")
+            return@withContext null
+        }
         val tempFile = copyUriToTempFile(context, uri) ?: return@withContext null
         try {
             decodeRawFile(tempFile.absolutePath)
@@ -57,6 +66,10 @@ object RawDecoder {
      * Decode a RAW file at the given absolute path.
      */
     fun decodeRawFile(path: String): Bitmap? {
+        if (!nativeLibraryLoaded) {
+            Log.w(TAG, "Native library not loaded, cannot decode RAW file")
+            return null
+        }
         val widthArray = IntArray(1)
         val heightArray = IntArray(1)
 
@@ -85,6 +98,9 @@ object RawDecoder {
      * Check whether the native libraw decoder can open/decode the given URI.
      */
     suspend fun canDecodeRaw(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        if (!nativeLibraryLoaded) {
+            return@withContext false
+        }
         val tempFile = copyUriToTempFile(context, uri) ?: return@withContext false
         try {
             canDecodeRaw(tempFile.absolutePath)

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import com.rapidraw.core.SceneType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -35,6 +36,7 @@ class AiSemanticTagger(context: Context) {
 
     private val engine = InferenceEngine(context)
     private var isModelLoaded = false
+    private val isCancelled = AtomicBoolean(false)
 
     private val modelConfig = InferenceEngine.ModelConfig(
         modelFileName = "semantic_tags.tflite",
@@ -98,30 +100,54 @@ class AiSemanticTagger(context: Context) {
     /**
      * 为图片生成语义标签列表。
      * 优先使用 TFLite 模型推理，模型不可用时回退到启发式分析。
+     * @param progressCallback 进度回调，0.0 → 1.0
      */
-    suspend fun tag(bitmap: Bitmap, sceneType: SceneType? = null): List<SemanticTag> =
+    suspend fun tag(
+        bitmap: Bitmap,
+        sceneType: SceneType? = null,
+        progressCallback: ((Float) -> Unit)? = null,
+    ): List<SemanticTag> =
         withContext(Dispatchers.Default) {
+            isCancelled.set(false)
+            progressCallback?.invoke(0.0f)
+
             isModelLoaded = runCatching { engine.loadModel(modelConfig) }.isSuccess
+            progressCallback?.invoke(0.1f)
 
             if (!isModelLoaded) {
-                return@withContext heuristicTag(bitmap, sceneType)
+                progressCallback?.invoke(0.2f)
+                return@withContext heuristicTag(bitmap, sceneType, progressCallback)
             }
+
+            if (isCancelled.get()) return@withContext emptyList<SemanticTag>()
 
             runCatching {
                 val outputs = engine.runInference(modelConfig, bitmap)
+                progressCallback?.invoke(0.5f)
+
+                if (isCancelled.get()) return@withContext emptyList<SemanticTag>()
+
                 val buffer = outputs.firstOrNull()?.buffer
-                    ?: return@withContext heuristicTag(bitmap, sceneType)
+                    ?: return@withContext heuristicTag(bitmap, sceneType, progressCallback)
                 buffer.rewind()
 
                 // 多标签 sigmoid 输出，每个标签独立 0-1 概率
                 val tags = mutableListOf<SemanticTag>()
+                val totalLabels = tagLabels.size
                 for (i in tagLabels.indices) {
                     val score = if (buffer.hasRemaining()) buffer.float else 0f
                     if (score > CONFIDENCE_THRESHOLD) {
                         val (category, value) = tagLabelMap[tagLabels[i]]!!
                         tags.add(SemanticTag(category, value, score.coerceIn(0f, 1f)))
                     }
+                    // 每处理完一批标签更新进度（0.5 → 0.85）
+                    if (i % 10 == 0) {
+                        progressCallback?.invoke(0.5f + 0.35f * (i.toFloat() / totalLabels))
+                        if (isCancelled.get()) return@withContext emptyList<SemanticTag>()
+                    }
                 }
+
+                progressCallback?.invoke(0.85f)
 
                 // 如果场景类型已提供，补充/强化场景标签
                 if (sceneType != null) {
@@ -131,14 +157,19 @@ class AiSemanticTagger(context: Context) {
                     }
                 }
 
+                progressCallback?.invoke(1.0f)
                 tags.sortedByDescending { it.confidence }
-            }.getOrElse { heuristicTag(bitmap, sceneType) }
+            }.getOrElse { heuristicTag(bitmap, sceneType, progressCallback) }
         }
 
     /**
      * 启发式回退：基于颜色分布、亮度、饱和度、宽高比和场景类型推断标签。
      */
-    private fun heuristicTag(bitmap: Bitmap, sceneType: SceneType? = null): List<SemanticTag> {
+    private fun heuristicTag(
+        bitmap: Bitmap,
+        sceneType: SceneType? = null,
+        progressCallback: ((Float) -> Unit)? = null,
+    ): List<SemanticTag> {
         val w = bitmap.width
         val h = bitmap.height
         val pixels = IntArray(w * h)
@@ -211,6 +242,8 @@ class AiSemanticTagger(context: Context) {
         val tags = mutableListOf<SemanticTag>()
 
         // ====== SCENE 场景标签 ======
+        progressCallback?.invoke(0.3f)
+        if (isCancelled.get()) return emptyList()
         val sceneTag = when {
             sceneType == SceneType.BEACH || (blueRatio > 0.2f && yellowRatio > 0.08f) ->
                 SemanticTag(TagCategory.SCENE, "海滩", 0.75f)
@@ -233,6 +266,8 @@ class AiSemanticTagger(context: Context) {
         sceneTag?.let { tags.add(it) }
 
         // ====== SUBJECT 主体标签 ======
+        progressCallback?.invoke(0.4f)
+        if (isCancelled.get()) return emptyList()
         when {
             sceneType == SceneType.PORTRAIT || isPortrait && warmRatio > 0.2f ->
                 tags.add(SemanticTag(TagCategory.SUBJECT, "人像", 0.7f))
@@ -253,6 +288,8 @@ class AiSemanticTagger(context: Context) {
         }
 
         // ====== STYLE 风格标签 ======
+        progressCallback?.invoke(0.55f)
+        if (isCancelled.get()) return emptyList()
         when {
             avgSat < 0.1f && lumaStd < 0.15f ->
                 tags.add(SemanticTag(TagCategory.STYLE, "简约", 0.7f))
@@ -269,6 +306,8 @@ class AiSemanticTagger(context: Context) {
         }
 
         // ====== MOOD 情绪标签 ======
+        progressCallback?.invoke(0.65f)
+        if (isCancelled.get()) return emptyList()
         when {
             warmRatio > coolRatio * 1.5f && avgLuma > 0.4f ->
                 tags.add(SemanticTag(TagCategory.MOOD, "温暖", 0.7f))
@@ -287,6 +326,8 @@ class AiSemanticTagger(context: Context) {
         }
 
         // ====== COLOR_TONE 色调标签 ======
+        progressCallback?.invoke(0.75f)
+        if (isCancelled.get()) return emptyList()
         when {
             warmRatio > coolRatio * 1.5f && avgSat > 0.15f ->
                 tags.add(SemanticTag(TagCategory.COLOR_TONE, "暖色调", 0.7f))
@@ -301,6 +342,8 @@ class AiSemanticTagger(context: Context) {
         }
 
         // ====== TIME_OF_DAY 时段标签 ======
+        progressCallback?.invoke(0.85f)
+        if (isCancelled.get()) return emptyList()
         when {
             darkRatio > 0.5f && avgLuma < 0.2f ->
                 tags.add(SemanticTag(TagCategory.TIME_OF_DAY, "夜晚", 0.75f))
@@ -324,6 +367,7 @@ class AiSemanticTagger(context: Context) {
             }
         }
 
+        progressCallback?.invoke(1.0f)
         return tags.sortedByDescending { it.confidence }
     }
 
@@ -342,6 +386,11 @@ class AiSemanticTagger(context: Context) {
         else -> null
     }
 
+    /** 取消正在进行的标签生成 */
+    fun cancel() {
+        isCancelled.set(true)
+    }
+
     fun close() = engine.close()
 
     companion object {
@@ -354,9 +403,10 @@ class AiSemanticTagger(context: Context) {
             context: Context,
             bitmap: Bitmap,
             sceneType: SceneType? = null,
+            progressCallback: ((Float) -> Unit)? = null,
         ): List<SemanticTag> {
             return AiSemanticTagger(context).use { tagger ->
-                tagger.tag(bitmap, sceneType)
+                tagger.tag(bitmap, sceneType, progressCallback)
             }
         }
     }

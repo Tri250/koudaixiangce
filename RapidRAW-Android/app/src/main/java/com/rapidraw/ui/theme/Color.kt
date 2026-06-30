@@ -28,10 +28,10 @@ object ColorOS16Colors {
     val Surface1: Color = Color(0xFF0F0F10)
 
     /** 表面层级 2：底部面板、弹窗底色（白 9% 叠加） */
-    val Surface2: Color = Color(0xFF161618)
+    val Surface2: Color = Color(0xFF1A1A1E)
 
-    /** 表面层级 3：模态弹窗、抽屉（白 14% 叠加） */
-    val Surface3: Color = Color(0xFF1E1E22)
+    /** 表面层级 3：模态弹窗、抽屉（白 18% 叠加） */
+    val Surface3: Color = Color(0xFF2A2A30)
 
     /** 表面层级 4：高亮卡片、选中态（白 18% 叠加） */
     val Surface4: Color = Color(0xFF26262B)
@@ -47,11 +47,11 @@ object ColorOS16Colors {
     /** 主文字：标题、数值（95% 白，对比度 12:1） */
     val TextHigh: Color = Color(0xFFF5F5F7)
 
-    /** 次文字：标签、说明（70% 白，对比度 8:1） */
-    val TextMedium: Color = Color(0xFFB4B4BA)
+    /** 次文字：标签、说明（67% 白，对比度 AA+） */
+    val TextMedium: Color = Color(0xAAFFFFFF)
 
-    /** 辅助文字：提示、占位（45% 白，对比度 4.5:1） */
-    val TextLow: Color = Color(0xFF7A7A82)
+    /** 辅助文字：提示、占位（50% 白，对比度 AA） */
+    val TextLow: Color = Color(0x80FFFFFF)
 
     /** 禁用文字（30% 白） */
     val TextDisabled: Color = Color(0x4DFFFFFF)

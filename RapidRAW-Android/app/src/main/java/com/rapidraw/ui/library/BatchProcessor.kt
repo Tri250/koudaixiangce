@@ -1,0 +1,172 @@
+package com.rapidraw.ui.library
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.net.Uri
+import android.util.Log
+import com.rapidraw.core.ImageProcessor
+import com.rapidraw.data.model.Adjustments
+import com.rapidraw.data.model.ExportSettings
+import com.rapidraw.data.model.FilmSimulation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+
+/**
+ * 批量处理器 - 支持多图应用预设/导出
+ */
+class BatchProcessor(private val context: Context) {
+
+    data class BatchJob(
+        val id: String,
+        val imageUri: Uri,
+        val fileName: String,
+        val status: BatchJobStatus,
+        val progress: Float = 0f,
+        val error: String? = null,
+        val resultUri: Uri? = null,
+    )
+
+    enum class BatchJobStatus { PENDING, PROCESSING, EXPORTING, COMPLETED, FAILED, CANCELLED }
+
+    private val imageProcessor = ImageProcessor()
+
+    private val _jobs = MutableStateFlow<List<BatchJob>>(emptyList())
+    val jobs: StateFlow<List<BatchJob>> = _jobs.asStateFlow()
+
+    private val _isProcessing = MutableStateFlow(false)
+    val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
+
+    private val _totalProgress = MutableStateFlow(0f)
+    val totalProgress: StateFlow<Float> = _totalProgress.asStateFlow()
+
+    /**
+     * 开始批量处理任务
+     * @param imageUris 要处理的图片URI列表
+     * @param adjustments 要应用的调整参数
+     * @param filmId 可选的胶片模拟ID
+     * @param exportSettings 导出设置
+     */
+    suspend fun startBatch(
+        imageUris: List<Uri>,
+        adjustments: Adjustments,
+        filmId: String? = null,
+        exportSettings: ExportSettings = ExportSettings(),
+    ) {
+        if (_isProcessing.value) return
+        _isProcessing.value = true
+        _totalProgress.value = 0f
+
+        // 创建任务列表
+        val newJobs = imageUris.mapIndexed { index, uri ->
+            val fileName = getFileName(uri) ?: "image_$index"
+            BatchJob(
+                id = "batch_${System.currentTimeMillis()}_$index",
+                imageUri = uri,
+                fileName = fileName,
+                status = BatchJobStatus.PENDING,
+            )
+        }
+        _jobs.value = newJobs
+
+        // 准备调整参数（含胶片模拟）
+        val finalAdjustments = if (filmId != null) {
+            FilmSimulation.getById(filmId)?.let { adjustments.withFilmSimulation(it) } ?: adjustments
+        } else {
+            adjustments
+        }
+
+        // 逐个处理
+        var completed = 0
+        for (job in newJobs) {
+            if (!_isProcessing.value) break // 被取消
+
+            updateJobStatus(job.id, BatchJobStatus.PROCESSING)
+
+            try {
+                // 1. 解码
+                val decoded = withContext(Dispatchers.IO) {
+                    imageProcessor.loadAndDecode(context, job.imageUri)
+                }
+                updateJobProgress(job.id, 0.3f)
+
+                // 2. 处理
+                val processed = withContext(Dispatchers.Default) {
+                    imageProcessor.processFullResolution(finalAdjustments, decoded.original)
+                }
+                updateJobProgress(job.id, 0.6f)
+
+                // 3. 导出
+                updateJobStatus(job.id, BatchJobStatus.EXPORTING)
+                val exportUri = withContext(Dispatchers.IO) {
+                    imageProcessor.exportImage(
+                        processed, exportSettings, context, decoded.exif, decoded.orientation
+                    )
+                }
+                updateJobProgress(job.id, 0.9f)
+
+                // 回收
+                if (processed !== decoded.original) processed.recycle()
+
+                updateJobResult(job.id, BatchJobStatus.COMPLETED, resultUri = exportUri)
+                completed++
+            } catch (e: Exception) {
+                Log.e(TAG, "Batch job failed: ${job.fileName}", e)
+                updateJobResult(job.id, BatchJobStatus.FAILED, error = e.localizedMessage)
+                completed++
+            }
+
+            _totalProgress.value = completed.toFloat() / newJobs.size
+        }
+
+        _isProcessing.value = false
+    }
+
+    fun cancelBatch() {
+        _isProcessing.value = false
+        _jobs.value = _jobs.value.map {
+            if (it.status == BatchJobStatus.PENDING || it.status == BatchJobStatus.PROCESSING) {
+                it.copy(status = BatchJobStatus.CANCELLED)
+            } else it
+        }
+    }
+
+    fun clearCompletedJobs() {
+        _jobs.value = _jobs.value.filter {
+            it.status != BatchJobStatus.COMPLETED && it.status != BatchJobStatus.FAILED
+        }
+    }
+
+    private suspend fun updateJobStatus(jobId: String, status: BatchJobStatus) {
+        _jobs.value = _jobs.value.map {
+            if (it.id == jobId) it.copy(status = status) else it
+        }
+    }
+
+    private suspend fun updateJobProgress(jobId: String, progress: Float) {
+        _jobs.value = _jobs.value.map {
+            if (it.id == jobId) it.copy(progress = progress) else it
+        }
+    }
+
+    private suspend fun updateJobResult(jobId: String, status: BatchJobStatus, resultUri: Uri? = null, error: String? = null) {
+        _jobs.value = _jobs.value.map {
+            if (it.id == jobId) it.copy(status = status, resultUri = resultUri, error = error, progress = if (status == BatchJobStatus.COMPLETED) 1f else it.progress) else it
+        }
+    }
+
+    private fun getFileName(uri: Uri): String? {
+        return context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0) cursor.getString(idx) else null
+            } else null
+        }
+    }
+
+    companion object {
+        private const val TAG = "BatchProcessor"
+    }
+}
