@@ -35,6 +35,9 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 
 @Composable
 fun AdvancedPanel(
