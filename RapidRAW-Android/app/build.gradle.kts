@@ -17,9 +17,9 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.5.6 release: 修复 UI 面板/控件/渲染管线完整对齐
-        versionCode = 1556
-        versionName = "1.5.6"
+        // v1.5.7 release: P0-P3 全面修复，正式版发布
+        versionCode = 1557
+        versionName = "1.5.7"
 
         // 2026 perf: 仅打包应用实际支持的中/英文资源，显著减少 APK 体积。
         resourceConfigurations += listOf("zh", "en")
