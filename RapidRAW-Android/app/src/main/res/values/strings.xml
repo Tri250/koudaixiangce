@@ -134,6 +134,9 @@
     <string name="settings_dark">深色</string>
     <string name="settings_light">浅色</string>
     <string name="settings_about">关于</string>
+    <string name="settings_privacy">隐私政策</string>
+    <string name="settings_version">版本</string>
+    <string name="settings_check_update">检查更新</string>
 
     <!-- AI 语义标签（AlcedoStudio 对标） -->
     <string name="ai_tag_scene">场景</string>
@@ -183,4 +186,14 @@
     <string name="film_ilford_delta_3200">Ilford Delta 3200</string>
     <string name="film_cinestill_800t">CineStill 800T</string>
     <string name="film_kodak_vision3_500d">Kodak Vision3 500D</string>
+
+    <!-- 隐私政策 -->
+    <string name="privacy_title">隐私政策</string>
+    <string name="privacy_content">RapidRAW 尊重你的隐私。\n\n我们不收集、存储或传输任何个人信息或照片数据。所有图像处理均在设备本地完成。\n\n所需权限：\n• 存储权限：仅用于本地访问和保存你的照片。\n• 通知权限：仅用于通知你导出完成状态。\n\n我们不会与任何第三方共享数据。\n\n如有疑问，请联系：support@rapidraw.app</string>
+
+    <!-- 应用内更新 -->
+    <string name="update_available">发现新版本</string>
+    <string name="update_downloading">正在下载更新…</string>
+    <string name="update_ready">更新已就绪，重启即可生效</string>
+    <string name="update_failed">更新失败，请稍后重试</string>
 </resources>

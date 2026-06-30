@@ -69,19 +69,43 @@ android {
         }
     }
 
-    // 仅在存在 release.keystore 时创建 release 签名配置，避免 debug/日常构建因缺少环境变量而失败
+    // ── Release Signing Configuration ─────────────────────────────────────
+    // 支持三种签名来源，按优先级:
+    //   1. 环境变量 KEYSTORE_BASE64  → CI 动态注入（最安全）
+    //   2. app/release.keystore      → 本地开发/发布
+    //   3. 无签名配置               → release 构建使用 debug 签名（仅用于测试）
+    //
+    // 发布到 Google Play 或应用商店时必须使用正式签名密钥。
+    // 密钥生成脚本: scripts/generate-release-keystore.sh
     val releaseKeystore = rootProject.file("app/release.keystore")
+
+    // CI 环境: 从 KEYSTORE_BASE64 环境变量解码 keystore
+    val ciKeystoreBase64 = System.getenv("KEYSTORE_BASE64")
+    if (ciKeystoreBase64 != null && ciKeystoreBase64.isNotBlank()) {
+        try {
+            val ciKeystore = rootProject.file("app/ci-release.keystore")
+            ciKeystore.writeBytes(
+                java.util.Base64.getDecoder().decode(ciKeystoreBase64.trim())
+            )
+            ciKeystore.deleteOnExit()
+            logger.info("CI keystore decoded from KEYSTORE_BASE64")
+        } catch (e: Exception) {
+            logger.warn("Failed to decode KEYSTORE_BASE64: ${e.message}")
+        }
+    }
+
     val hasReleaseKeystore = releaseKeystore.exists()
     if (hasReleaseKeystore) {
         signingConfigs {
             create("release") {
                 storeFile = releaseKeystore
-                // 禁止硬编码回退密码；CI 或发布构建前必须通过环境变量注入
                 storePassword = System.getenv("KEYSTORE_PASSWORD")
-                    ?: throw GradleException("Missing environment variable KEYSTORE_PASSWORD for release signing")
-                keyAlias = "rapidraw"
+                    ?: throw GradleException("Missing environment variable KEYSTORE_PASSWORD for release signing. " +
+                        "Set KEYSTORE_PASSWORD and KEY_PASSWORD environment variables, or run scripts/generate-release-keystore.sh")
+                keyAlias = System.getenv("KEY_ALIAS") ?: "rapidraw"
                 keyPassword = System.getenv("KEY_PASSWORD")
-                    ?: throw GradleException("Missing environment variable KEY_PASSWORD for release signing")
+                    ?: throw GradleException("Missing environment variable KEY_PASSWORD for release signing. " +
+                        "Set KEY_PASSWORD environment variable.")
             }
         }
     }
@@ -223,6 +247,9 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite-gpu:2.15.0")
     implementation("org.tensorflow:tensorflow-lite-gpu-api:2.15.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+
+    // Google Play In-App Update — 应用内更新
+    implementation("com.google.android.play:app-update:2.1.0")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
