@@ -6,6 +6,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -41,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,11 +51,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rapidraw.core.ThumbnailDiskCache
 import com.rapidraw.data.model.ExportJob
 import com.rapidraw.data.model.ExportJobStatus
 import com.rapidraw.ui.theme.EditorBackground
@@ -63,6 +70,9 @@ import com.rapidraw.ui.theme.SuccessGreen
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * 导出队列浮动指示器：导出进行中时显示在编辑器右下角的小圆点，
@@ -318,6 +328,20 @@ private fun ExportQueueItem(
         ExportJobStatus.FAILED -> "失败"
     }
 
+    val context = LocalContext.current
+    val thumbnailCache = remember { ThumbnailDiskCache(context.cacheDir) }
+    val thumbnail by produceState<Bitmap?>(null, job.imagePath) {
+        val path = job.imagePath
+        val file = File(path)
+        if (file.exists()) {
+            val isRaw = path.substringAfterLast(".", "").lowercase() in
+                setOf("dng", "raw", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2", "pef", "srw")
+            value = withContext(Dispatchers.IO) {
+                thumbnailCache.getOrGenerate(path, file.lastModified(), isRaw)
+            }
+        }
+    }
+
     Surface(
         color = EditorBackground.copy(alpha = 0.5f),
         modifier = Modifier
@@ -347,7 +371,7 @@ private fun ExportQueueItem(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 缩略图占位
+            // 实际缩略图加载（回退到占位图标）
             Box(
                 modifier = Modifier
                     .size(48.dp)
@@ -355,13 +379,22 @@ private fun ExportQueueItem(
                     .background(EditorBorder),
                 contentAlignment = Alignment.Center,
             ) {
-                // 这里应替换为实际缩略图加载，目前使用占位
-                Icon(
-                    imageVector = Icons.Default.PhotoLibrary,
-                    contentDescription = null,
-                    tint = TextTertiary,
-                    modifier = Modifier.size(24.dp),
-                )
+                val bmp = thumbnail
+                if (bmp != null && !bmp.isRecycled) {
+                    androidx.compose.foundation.Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PhotoLibrary,
+                        contentDescription = null,
+                        tint = TextTertiary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(10.dp))

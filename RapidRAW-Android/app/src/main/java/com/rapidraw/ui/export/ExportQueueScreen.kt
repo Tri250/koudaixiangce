@@ -43,10 +43,14 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,10 +60,12 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import com.rapidraw.data.model.ExportJob
 import com.rapidraw.data.model.ExportJobStatus
@@ -72,6 +78,7 @@ import com.rapidraw.data.repository.ExportQueueRepository
 data class ExportTask(
     val id: String,
     val fileName: String,
+    val imagePath: String,
     val format: String,
     val status: ExportStatus,
     val progress: Float,
@@ -95,6 +102,7 @@ private fun ExportJob.toExportTask(): ExportTask {
     return ExportTask(
         id = id,
         fileName = imagePath.substringAfterLast("/", "image"),
+        imagePath = imagePath,
         format = format.name,
         status = displayStatus,
         progress = progress,
@@ -458,6 +466,22 @@ private fun ExportTaskCard(
         label = "cardBg_${task.id}",
     )
 
+    val context = LocalContext.current
+    val thumbnailCache = remember { com.rapidraw.core.ThumbnailDiskCache(context.cacheDir) }
+    val thumbnail by produceState<android.graphics.Bitmap?>(null, task.imagePath) {
+        val path = task.imagePath
+        if (path.isNotEmpty()) {
+            val file = File(path)
+            if (file.exists()) {
+                val isRaw = path.substringAfterLast(".", "").lowercase() in
+                    setOf("dng", "raw", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2", "pef", "srw")
+                value = withContext(Dispatchers.IO) {
+                    thumbnailCache.getOrGenerate(path, file.lastModified(), isRaw)
+                }
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -469,12 +493,12 @@ private fun ExportTaskCard(
                 .fillMaxWidth()
                 .padding(12.dp),
         ) {
-            // ── 第一行：缩略图占位 + 文件名 + 操作按钮 ─────
+            // ── 第一行：缩略图 + 文件名 + 操作按钮 ─────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // 缩略图占位
+                // 实际缩略图加载（回退到占位图标）
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -482,12 +506,22 @@ private fun ExportTaskCard(
                         .background(com.rapidraw.ui.theme.ColorOS16Colors.Surface4),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Image,
-                        contentDescription = null,
-                        tint = com.rapidraw.ui.theme.ColorOS16Colors.TextLow,
-                        modifier = Modifier.size(22.dp),
-                    )
+                    val bmp = thumbnail
+                    if (bmp != null && !bmp.isRecycled) {
+                        androidx.compose.foundation.Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = null,
+                            tint = com.rapidraw.ui.theme.ColorOS16Colors.TextLow,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(10.dp))
