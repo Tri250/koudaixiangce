@@ -254,6 +254,7 @@ fun RapidNavHost(
                     val maxDim = 2048
                     options.inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
                     options.inJustDecodeBounds = false
+                    options.inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
                     when (uri.scheme) {
                         "file" -> BitmapFactory.decodeFile(uri.path, options)
                         "content" -> context.contentResolver.openInputStream(uri)?.use {
@@ -261,6 +262,9 @@ fun RapidNavHost(
                         }
                         else -> null
                     }
+                } catch (e: OutOfMemoryError) {
+                    android.util.Log.e("RapidNavHost", "OOM loading AI inpaint source", e)
+                    null
                 } catch (_: Exception) { null }
             }
             if (bitmap != null) {

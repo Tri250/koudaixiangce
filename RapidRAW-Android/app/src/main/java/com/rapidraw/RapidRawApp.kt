@@ -8,6 +8,7 @@ import android.os.StrictMode
 import android.util.Log
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.ImageProcessor
+import java.util.concurrent.atomic.AtomicInteger
 
 class RapidRawApp : Application() {
 
@@ -22,7 +23,9 @@ class RapidRawApp : Application() {
 
     val imageProcessor: ImageProcessor by lazy { ImageProcessor() }
 
-    private var activityCount = 0
+    // 2026 hotfix: 使用 AtomicInteger 防止极端边界下 lifecycle 回调并发导致计数异常
+    private val activityCount = AtomicInteger(0)
+    @Volatile
     var isAppForeground: Boolean = false
         private set
 
@@ -79,14 +82,57 @@ class RapidRawApp : Application() {
         Log.i(TAG, "Available memory: ${Runtime.getRuntime().maxMemory() / 1024 / 1024}MB")
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        when (level) {
+            TRIM_MEMORY_RUNNING_MODERATE,
+            TRIM_MEMORY_RUNNING_LOW,
+            TRIM_MEMORY_RUNNING_CRITICAL,
+            TRIM_MEMORY_UI_HIDDEN -> {
+                // 提示：此处建议清理 image cache / 内存中的解码结果。
+                // 当前实现由各 ViewModel 的 onCleared 负责，
+                // 但已退到后台的 Activity 持有的 ViewModel 不会被立即释放。
+                Log.i(TAG, "onTrimMemory(level=$level), suggest cleaning up cache")
+            }
+            TRIM_MEMORY_BACKGROUND,
+            TRIM_MEMORY_MODERATE,
+            TRIM_MEMORY_COMPLETE -> {
+                Log.w(TAG, "onTrimMemory(level=$level), system may kill process soon")
+                // 2026 hotfix: 主动清理 cacheDir 下的解码临时文件，避免被系统杀进程时残留
+                runCatching { cleanStaleDecodedRawCache() }
+            }
+        }
+    }
+
+    /**
+     * 清理 RawDecoder 在 cacheDir 留下的临时 .dng/.raw/.cr3 文件。
+     * 这些文件如果在升级或低内存时被系统缓存会占用数百 MB 空间。
+     */
+    private fun cleanStaleDecodedRawCache() {
+        val cacheDir = cacheDir
+        val stale = cacheDir.listFiles { file ->
+            file.name.startsWith("raw_decode_") && System.currentTimeMillis() - file.lastModified() > 60_000L
+        } ?: return
+        var freed = 0L
+        stale.forEach { f ->
+            val size = f.length()
+            if (runCatching { f.delete() }.getOrDefault(false)) {
+                freed += size
+            }
+        }
+        if (freed > 0) {
+            Log.i(TAG, "cleanStaleDecodedRawCache freed ${freed / 1024 / 1024}MB")
+        }
+    }
+
     private val activityLifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
             Log.d(TAG, "Activity created: ${activity.localClassName}")
         }
 
         override fun onActivityStarted(activity: Activity) {
-            activityCount++
-            if (activityCount == 1) {
+            val newCount = activityCount.incrementAndGet()
+            if (newCount == 1) {
                 isAppForeground = true
                 Log.d(TAG, "App moved to foreground")
             }
@@ -97,8 +143,8 @@ class RapidRawApp : Application() {
         override fun onActivityPaused(activity: Activity) {}
 
         override fun onActivityStopped(activity: Activity) {
-            activityCount--
-            if (activityCount == 0) {
+            val newCount = activityCount.updateAndGet { current -> (current - 1).coerceAtLeast(0) }
+            if (newCount == 0) {
                 isAppForeground = false
                 Log.d(TAG, "App moved to background")
             }

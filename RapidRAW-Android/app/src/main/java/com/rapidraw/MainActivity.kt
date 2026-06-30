@@ -25,6 +25,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -61,6 +63,16 @@ class MainActivity : AppCompatActivity() {
     private var pendingImageUri: Uri? = null
     private var navController: NavHostController? = null
 
+    // 2026 hotfix: pendingImageUri 需要作为 Compose state 才能被 LaunchedEffect 观察；
+    // 原实现为普通 var 字段，在 onNewIntent 中重新赋值后不会触发 recompose。
+    // 通过 mutableStateOf 包装后，setPendingImageUri 写入会通知所有 reader。
+    private var pendingImageUriState by mutableStateOf<Uri?>(null)
+
+    private fun setPendingImageUri(uri: Uri?) {
+        pendingImageUri = uri
+        pendingImageUriState = uri
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -91,7 +103,7 @@ class MainActivity : AppCompatActivity() {
 
         val initialUri = handleIncomingIntent(intent)
         if (initialUri != null) {
-            pendingImageUri = initialUri
+            setPendingImageUri(initialUri)
         }
 
         // 延迟请求权限，避免阻塞首帧渲染
@@ -135,11 +147,13 @@ class MainActivity : AppCompatActivity() {
                     )
 
                     // Navigate to editor if app was opened with an image from external intent
-                    LaunchedEffect(pendingImageUri) {
-                        pendingImageUri?.let { uri ->
-                            navigateToEditor(navController, uri)
-                            pendingImageUri = null
-                        }
+                    // 2026 hotfix: 监听 pendingImageUriState（mutableStateOf）而非 pendingImageUri
+                    // 普通字段变更不会触发 LaunchedEffect 重新组合，导致外部 intent 接收不到。
+                    LaunchedEffect(pendingImageUriState) {
+                        val uri = pendingImageUriState ?: return@LaunchedEffect
+                        navigateToEditor(navController, uri)
+                        // 消费后清空，避免 process death & restore 后再次导航
+                        setPendingImageUri(null)
                     }
                 }
             }
@@ -182,13 +196,16 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleIncomingIntent(intent)?.let { uri ->
-            val controller = findNavController()
-            if (controller != null) {
-                navigateToEditor(controller, uri)
-            } else {
-                pendingImageUri = uri
-            }
+        val uri = handleIncomingIntent(intent) ?: return
+
+        // 2026 hotfix: 始终通过 setPendingImageUri 更新 state，让 LaunchedEffect 重新触发；
+        // 如果直接拿到 navController 也立刻导航一次，避免 Compose 重组时机不可控时漏导航。
+        val controller = findNavController()
+        if (controller != null) {
+            navigateToEditor(controller, uri)
+            setPendingImageUri(null)
+        } else {
+            setPendingImageUri(uri)
         }
     }
 
@@ -200,6 +217,12 @@ class MainActivity : AppCompatActivity() {
         // 避免重复导航到同一个 editor 页面
         val currentRoute = navController.currentDestination?.route
         if (currentRoute?.startsWith("editor") == true) {
+            // 已经在 editor 页面，比较当前已打开的 URI 防止重复打开
+            val currentUri = navController.currentBackStackEntry?.arguments?.getString("imageUri")
+            if (currentUri == uri.toString()) {
+                Log.d(TAG, "navigateToEditor: same URI, skip")
+                return
+            }
             navController.popBackStack(Routes.LIBRARY, inclusive = false)
         }
         navController.navigate(Routes.editorUri(uri.toString())) {

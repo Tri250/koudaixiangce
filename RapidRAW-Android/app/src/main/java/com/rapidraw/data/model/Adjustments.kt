@@ -409,7 +409,7 @@ data class Adjustments(
         "lensVignette" -> copy(lensVignette = value.coerceIn(-100f, 100f))
         "lensTca" -> copy(lensTca = value.coerceIn(-100f, 100f))
         "lensFocalLength" -> copy(lensFocalLength = value.coerceIn(1f, 1000f))
-        "orientationSteps" -> copy(orientationSteps = value.toInt() % 4)
+        "orientationSteps" -> copy(orientationSteps = Math.floorMod(value.toInt(), 4))
         "flipHorizontal" -> copy(flipHorizontal = value != 0f)
         "flipVertical" -> copy(flipVertical = value != 0f)
         // 2026 Color Science (AlcedoStudio integration)

@@ -123,29 +123,59 @@ object RawDecoder {
             val tempFile = File.createTempFile("raw_decode_", ext, context.cacheDir)
             context.contentResolver.openInputStream(uri)?.use { input ->
                 tempFile.outputStream().use { output ->
-                    input.copyTo(output)
+                    // 2026 hotfix: 使用 256KB 缓冲 + 进度限制避免 100MB+ RAW 文件把缓存撑爆
+                    val buffer = ByteArray(256 * 1024)
+                    var totalBytes = 0L
+                    val maxBytes = 2L * 1024L * 1024L * 1024L // 2GB 硬上限，防止恶意/损坏文件
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        totalBytes += read
+                        if (totalBytes > maxBytes) {
+                            // 超过硬上限立即停止并清理临时文件
+                            runCatching { tempFile.delete() }
+                            Log.e(TAG, "RAW file too large (>2GB): $uri")
+                            return null
+                        }
+                        output.write(buffer, 0, read)
+                    }
+                    output.flush()
                 }
             } ?: return null
             tempFile
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to copy URI to temp file: $uri", e)
-            null
         } catch (e: OutOfMemoryError) {
             Log.e(TAG, "OOM copying URI to temp file: $uri", e)
+            null
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException copying URI to temp file: $uri", e)
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy URI to temp file: $uri", e)
             null
         }
     }
 
     private fun getExtensionFromUri(context: Context, uri: Uri): String {
         var name = ""
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (idx >= 0) name = cursor.getString(idx) ?: ""
+        try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) name = cursor.getString(idx) ?: ""
+                }
             }
+        } catch (e: Exception) {
+            // 部分 URI 不支持 query，fallback 到 lastPathSegment
+            Log.w(TAG, "Failed to query URI for display name: $uri", e)
+            name = uri.lastPathSegment ?: ""
         }
-        val ext = name.substringAfterLast('.', "raw")
-        return if (ext.length <= 8) ".$ext" else ".raw"
+        // 2026 hotfix: 严格校验扩展名长度和字符集，防止恶意 URI 把
+        // 包含路径分隔符或空字符的"扩展名"写到临时文件
+        val raw = name.substringAfterLast('.', "raw")
+        val sanitized = raw.lowercase()
+            .filter { it.isLetterOrDigit() }
+            .take(8)
+        return if (sanitized.isEmpty()) ".raw" else ".$sanitized"
     }
 
     private external fun decodeRaw(path: String, outWidth: IntArray, outHeight: IntArray): IntArray?

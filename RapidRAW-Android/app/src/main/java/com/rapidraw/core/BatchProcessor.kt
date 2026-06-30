@@ -3,6 +3,8 @@ package com.rapidraw.core
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -10,6 +12,10 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
 class BatchProcessor(private val context: Context, private val imageProcessor: ImageProcessor) {
+
+    companion object {
+        private const val TAG = "BatchProcessor"
+    }
 
     data class BatchProgress(
         val current: Int,
@@ -32,18 +38,33 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                 emit(BatchProgress(current = index + 1, total = total, currentFileName = fileName))
 
                 withContext(Dispatchers.IO) {
-                    val processed = imageProcessor.loadAndDecode(context, uri)
+                    val processed = try {
+                        imageProcessor.loadAndDecode(context, uri)
+                    } catch (e: OutOfMemoryError) {
+                        Log.e(TAG, "OOM loading image for batch: $uri", e)
+                        throw e
+                    }
+                    // 2026 hotfix: processed 内部位图可能因 OOM/解码失败为 null，做空检查
+                    if (processed.original.isRecycled || processed.preview.isRecycled) {
+                        throw IllegalStateException("Decoded bitmap already recycled for: $uri")
+                    }
                     // Apply film adjustments to full resolution
                     val adjusted = imageProcessor.processFullResolution(filmAdjustments, processed.original)
                     // Release decoded bitmaps no longer needed (adjusted is a fresh bitmap)
-                    processed.original.recycle()
-                    processed.preview.recycle()
-                    // Export
-                    imageProcessor.exportImage(adjusted, exportSettings, context, processed.exif, processed.orientation)
-                    // Clean up
-                    if (adjusted != processed.original) adjusted.recycle()
+                    if (!processed.original.isRecycled) processed.original.recycle()
+                    if (!processed.preview.isRecycled) processed.preview.recycle()
+                    try {
+                        // Export
+                        imageProcessor.exportImage(adjusted, exportSettings, context, processed.exif, processed.orientation)
+                    } finally {
+                        // Clean up
+                        if (adjusted !== processed.original && !adjusted.isRecycled) adjusted.recycle()
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                Log.e(TAG, "Batch apply film failed for $uri", e)
                 emit(BatchProgress(
                     current = index + 1, total = total,
                     currentFileName = uri.lastPathSegment ?: "unknown",
@@ -67,12 +88,21 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
 
                 withContext(Dispatchers.IO) {
                     val processed = imageProcessor.loadAndDecode(context, uri)
-                    imageProcessor.exportImage(processed.original, exportSettings, context, processed.exif, processed.orientation)
-                    // Release decoded bitmaps after export
-                    processed.original.recycle()
-                    processed.preview.recycle()
+                    if (processed.original.isRecycled || processed.preview.isRecycled) {
+                        throw IllegalStateException("Decoded bitmap already recycled for: $uri")
+                    }
+                    try {
+                        imageProcessor.exportImage(processed.original, exportSettings, context, processed.exif, processed.orientation)
+                    } finally {
+                        // Release decoded bitmaps after export
+                        if (!processed.original.isRecycled) processed.original.recycle()
+                        if (!processed.preview.isRecycled) processed.preview.recycle()
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                Log.e(TAG, "Batch export failed for $uri", e)
                 emit(BatchProgress(
                     current = index + 1, total = total,
                     currentFileName = uri.lastPathSegment ?: "unknown",
@@ -90,3 +120,4 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
         exportSettings: com.rapidraw.data.model.ExportSettings,
     ): Flow<BatchProgress> = batchApplyFilm(imageUris, adjustments, exportSettings)
 }
+

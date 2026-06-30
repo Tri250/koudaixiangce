@@ -397,7 +397,10 @@ class ImageProcessor {
         }
     }
 
-    /** Current 3D LUT to apply during CPU processing (GPU preview uses texture directly) */
+    /** Current 3D LUT to apply during CPU processing (GPU preview uses texture directly).
+     *  2026 hotfix: 使用 @Volatile 保证多协程并发调用 processFullResolution 时
+     *  对 LUT 引用的可见性，避免脏读导致的预览/导出不一致。 */
+    @Volatile
     var currentLut: CubeLutParser.Lut3D? = null
 
     private val aiDenoiser = AiDenoiser()
@@ -573,6 +576,9 @@ class ImageProcessor {
                     if (result != null) return result
                 }
             }
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "OOM decoding RAW, falling back to thumbnail", e)
+            // 继续走 thumbnail fallback
         } catch (e: Exception) {
             Log.w(TAG, "BitmapFactory failed to decode RAW: ${e.message}")
         }
@@ -593,6 +599,9 @@ class ImageProcessor {
                 thumbnail?.copy(Bitmap.Config.ARGB_8888, true)
                     ?: throw IllegalArgumentException("No thumbnail available for RAW image")
             }
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM extracting thumbnail for RAW; cannot decode", e)
+            throw IllegalArgumentException("无法解码 RAW 图像：内存不足")
         } catch (e: Exception) {
             Log.w(TAG, "Thumbnail fallback also failed for RAW: ${e.message}")
             throw IllegalArgumentException("Failed to decode RAW image and no thumbnail available")
@@ -620,8 +629,9 @@ class ImageProcessor {
                     val maxDim = 4096
                     inSampleSize = calculateInSampleSize(options.outWidth, options.outHeight, maxDim, maxDim)
                 }
-                return BitmapFactory.decodeStream(ds, null, decodeOptions)
+                val result = BitmapFactory.decodeStream(ds, null, decodeOptions)
                     ?: throw IllegalArgumentException("Failed to decode image")
+                return result
             }
         }
     }
@@ -658,14 +668,34 @@ class ImageProcessor {
         val maxDim = PREVIEW_MAX_DIMENSION
         if (original.width <= maxDim && original.height <= maxDim) {
             // 始终创建独立副本，避免 originalBitmap 与 previewBitmapCache 共享引用导致重复回收或并发问题
-            return original.copy(original.config ?: Bitmap.Config.ARGB_8888, false)
+            return try {
+                original.copy(original.config ?: Bitmap.Config.ARGB_8888, false)
+            } catch (e: OutOfMemoryError) {
+                Log.w(TAG, "OOM creating preview copy, falling back to scaled", e)
+                // OOM 时降级到缩略图策略
+                val scale = 0.5f
+                Bitmap.createScaledBitmap(
+                    original,
+                    (original.width * scale).toInt().coerceAtLeast(1),
+                    (original.height * scale).toInt().coerceAtLeast(1),
+                    true,
+                )
+            }
         }
 
         val scale = min(maxDim.toFloat() / original.width, maxDim.toFloat() / original.height)
-        val newWidth = (original.width * scale).toInt()
-        val newHeight = (original.height * scale).toInt()
+        val newWidth = (original.width * scale).toInt().coerceAtLeast(1)
+        val newHeight = (original.height * scale).toInt().coerceAtLeast(1)
 
-        return Bitmap.createScaledBitmap(original, newWidth, newHeight, true)
+        return try {
+            Bitmap.createScaledBitmap(original, newWidth, newHeight, true)
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "OOM creating scaled preview, returning source", e)
+            original
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "IllegalArgumentException creating scaled preview, returning source", e)
+            original
+        }
     }
 
     // ── GPU Preview Processing ─────────────────────────────────────
@@ -700,19 +730,24 @@ class ImageProcessor {
         originalBitmap: Bitmap,
         allowDownsample: Boolean = true
     ): Bitmap = withContext(Dispatchers.Default) {
-        // Convert to NormAdj for internal processing
+        // 2026 hotfix: 变量必须在 try 之前声明，否则 catch 块访问不到
         val n = NormAdj.from(adjustments)
 
         // 内存保护：对于超大图（>64MP），可选降采样处理
         val maxPixels = 64_000_000 // 64MP
         val totalPixels = originalBitmap.width.toLong() * originalBitmap.height.toLong()
-        val sourceBitmap = if (allowDownsample && totalPixels > maxPixels) {
-            val scale = sqrt(maxPixels.toDouble() / totalPixels.toDouble()).toFloat()
-            val newW = (originalBitmap.width * scale).toInt()
-            val newH = (originalBitmap.height * scale).toInt()
-            Bitmap.createScaledBitmap(originalBitmap, newW, newH, true)
-        } else {
-            originalBitmap
+        val sourceBitmap = try {
+            if (allowDownsample && totalPixels > maxPixels) {
+                val scale = sqrt(maxPixels.toDouble() / totalPixels.toDouble()).toFloat()
+                val newW = (originalBitmap.width * scale).toInt()
+                val newH = (originalBitmap.height * scale).toInt()
+                Bitmap.createScaledBitmap(originalBitmap, newW, newH, true)
+            } else {
+                originalBitmap
+            }
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating source bitmap (downsample)", oom)
+            throw IllegalStateException("内存不足，无法准备图像（${originalBitmap.width}x${originalBitmap.height}）", oom)
         }
 
         val w = sourceBitmap.width
@@ -720,11 +755,27 @@ class ImageProcessor {
         val pixelCount = w.toLong() * h.toLong()
 
         // Create output bitmap
-        val outputBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val outputBitmap = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating output bitmap", oom)
+            if (sourceBitmap !== originalBitmap) sourceBitmap.recycle()
+            throw IllegalStateException("内存不足，无法创建输出位图（${w}x${h}）", oom)
+        }
 
         // Get pixels as int array
         val pixels = IntArray(w * h)
-        sourceBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        try {
+            sourceBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        } catch (oom: OutOfMemoryError) {
+            // IntArray 分配时已成功，但 getPixels 不应 OOM；兜底
+            if (!outputBitmap.isRecycled) outputBitmap.recycle()
+            if (sourceBitmap !== originalBitmap) sourceBitmap.recycle()
+            throw IllegalStateException("内存不足，无法读取像素（${w}x${h}）", oom)
+        }
+
+        // 2026 hotfix: 整个处理流程使用 try 包裹，确保 OOM/取消时能正确清理所有中间位图
+        try {
 
         // Pre-compute white balance multipliers
         val wbMultipliers = ColorMath.temperatureTintToMultipliers(
@@ -786,6 +837,12 @@ class ImageProcessor {
                 workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
             }
         }
+
+        // 2026 hotfix: 提升 currentLut 到局部变量并缓存 lutIntensity 阈值
+        // 避免内层像素循环反复读取 @Volatile 字段，显著降低千万级像素图的 CPU 开销
+        val lut = currentLut
+        val useLut = lut != null
+        val lutIntensityThreshold = 1e-6f
 
         // Process each pixel
         for (y in 0 until h) {
@@ -1048,9 +1105,9 @@ class ImageProcessor {
                 }
 
                 // ── 19b. 3D LUT (CPU path) ──
-                val lut = currentLut
-                if (lut != null && n.lutIntensity > 1e-6f) {
-                    val lutColor = lut.sample(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f))
+                // 2026 hotfix: 使用预先提升的 useLut/lut 变量，避免内层循环中重复读取 @Volatile
+                if (useLut && n.lutIntensity > lutIntensityThreshold) {
+                    val lutColor = lut!!.sample(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f))
                     r = r + (lutColor.first - r) * n.lutIntensity
                     g = g + (lutColor.second - g) * n.lutIntensity
                     b = b + (lutColor.third - b) * n.lutIntensity
@@ -1121,8 +1178,26 @@ class ImageProcessor {
         if (sourceBitmap !== originalBitmap) sourceBitmap.recycle()
 
         finalBitmap
+    } catch (oom: OutOfMemoryError) {
+        Log.e(TAG, "OOM in processFullResolution: w=$w h=$h totalPixels=$totalPixels", oom)
+        // 2026 hotfix: 出现 OOM 时清理可能已分配但未完成的所有中间 bitmap，
+        // 避免 Activity 重建时大量未释放的 native 内存累积导致后续 ANR/OOM
+        if (!outputBitmap.isRecycled) outputBitmap.recycle()
+        if (workBitmap.isRecycled) throw oom
+        if (workBitmap !== sourceBitmap && workBitmap !== originalBitmap) workBitmap.recycle()
+        if (sourceBitmap !== originalBitmap && !sourceBitmap.isRecycled) sourceBitmap.recycle()
+        System.gc()
+        throw IllegalStateException("内存不足，无法处理此图像（${w}x${h}）", oom)
+    } catch (ce: CancellationException) {
+        // 取消时同样清理，避免泄漏
+        if (!outputBitmap.isRecycled) outputBitmap.recycle()
+        if (!workBitmap.isRecycled && workBitmap !== sourceBitmap && workBitmap !== originalBitmap) {
+            workBitmap.recycle()
+        }
+        if (sourceBitmap !== originalBitmap && !sourceBitmap.isRecycled) sourceBitmap.recycle()
+        throw ce
     }
-
+    }  // 关闭 withContext(Dispatchers.Default) {
     // ── Processing Functions (CPU path, linear color space) ────────
 
     /** Filmic brightness: rational curve with midtone emphasis */

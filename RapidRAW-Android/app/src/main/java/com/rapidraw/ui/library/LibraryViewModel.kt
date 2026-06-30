@@ -288,7 +288,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         // Android 10+ 可直接对任意 content URI 加载缩略图
-                        contentResolver.loadThumbnail(parsedUri, android.util.Size(256, 256), null)
+                        try {
+                            contentResolver.loadThumbnail(parsedUri, android.util.Size(256, 256), null)
+                        } catch (e: OutOfMemoryError) {
+                            // 2026 hotfix: 缩略图 OOM 降级为更小尺寸
+                            Log.w(TAG, "OOM loading thumbnail at 256, falling back to 128", e)
+                            contentResolver.loadThumbnail(parsedUri, android.util.Size(128, 128), null)
+                        }
                     } else {
                         // 低版本仅处理 MediaStore URI，兼容 document id 形式 image:123
                         val mediaStoreId = parsedUri.lastPathSegment
@@ -303,6 +309,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                             null,
                         )
                     }
+                } catch (e: OutOfMemoryError) {
+                    Log.w(TAG, "OOM loading thumbnail for ${image.fileName}", e)
+                    null
                 } catch (_: Exception) {
                     null
                 }
@@ -319,10 +328,15 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 android.graphics.BitmapFactory.decodeFile(filePath, options)
                 if (options.outWidth <= 0 || options.outHeight <= 0) return null
 
-                android.graphics.BitmapFactory.decodeFile(filePath, android.graphics.BitmapFactory.Options().apply {
-                    inSampleSize = max(options.outWidth / 256, options.outHeight / 256).coerceAtLeast(1)
-                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
-                })
+                try {
+                    android.graphics.BitmapFactory.decodeFile(filePath, android.graphics.BitmapFactory.Options().apply {
+                        inSampleSize = max(options.outWidth / 256, options.outHeight / 256).coerceAtLeast(1)
+                        inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                    })
+                } catch (e: OutOfMemoryError) {
+                    Log.w(TAG, "OOM decoding thumbnail for ${image.fileName}", e)
+                    null
+                }
             }
             else -> null
         }
@@ -602,15 +616,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                                 sidecarManager.deleteSidecar(path)
                                 val deleted = file.delete()
                                 if (deleted) {
-                                    // 通知 MediaStore 文件已删除，避免图库仍显示
-                                    try {
-                                        getApplication<Application>().sendBroadcast(
-                                            android.content.Intent(
-                                                android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE,
-                                                android.net.Uri.fromFile(file)
-                                            )
-                                        )
-                                    } catch (_: Exception) { }
+                                    // 2026 hotfix: 用 MediaScannerConnection 替代 deprecated 的
+                                    // ACTION_MEDIA_SCANNER_SCAN_FILE 广播（Android 10+ 不可用）
+                                    android.media.MediaScannerConnection.scanFile(
+                                        getApplication(),
+                                        arrayOf(file.absolutePath),
+                                        arrayOf("image/*"),
+                                        null,
+                                    )
                                 }
                             }
                         }

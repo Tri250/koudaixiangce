@@ -82,4 +82,58 @@ class AdjustmentsTest {
         val adj = Adjustments().copyByField("contrast", 200f)
         assertEquals(100f, adj.contrast, 0.001f)
     }
+
+    // 2026 hotfix: 边界场景测试
+    @Test
+    fun copyByField_contrast_minClamped() {
+        val adj = Adjustments().copyByField("contrast", -200f)
+        assertEquals(-100f, adj.contrast, 0.001f)
+    }
+
+    @Test
+    fun copyByField_orientationSteps_negativeWraps() {
+        // 2026 hotfix: 使用 Math.floorMod 替代 %，确保 -1 也得到 3
+        val adj = Adjustments().copyByField("orientationSteps", -1f)
+        assertEquals(3, adj.orientationSteps)
+        val adj2 = Adjustments().copyByField("orientationSteps", 7f)
+        assertEquals(3, adj2.orientationSteps)
+        val adj3 = Adjustments().copyByField("orientationSteps", 4f)
+        assertEquals(0, adj3.orientationSteps)
+    }
+
+    @Test
+    fun copyByField_flipVertical_zeroIsFalse() {
+        val adj = Adjustments().copyByField("flipVertical", 0f)
+        assertFalse(adj.flipVertical)
+    }
+
+    @Test
+    fun copyByField_nestedKey_unknownPart_returnsOriginal() {
+        val adj = Adjustments().copyByField("hslReds.unknown", 50f)
+        // 未知的子字段应被忽略，保留原始值
+        assertEquals(0f, adj.hslReds.hue, 0.001f)
+    }
+
+    @Test
+    fun copyByField_showClipping_boolean() {
+        val adj = Adjustments().copyByField("showClipping", 1f)
+        assertTrue(adj.showClipping)
+        val adj2 = adj.copyByField("showClipping", 0f)
+        assertFalse(adj2.showClipping)
+    }
+
+    @Test
+    fun copyByField_lutIntensity_clamped() {
+        val adj = Adjustments().copyByField("lutIntensity", 500f)
+        // 假定 lutIntensity 上限为 100
+        assertTrue(adj.lutIntensity <= 100f)
+    }
+
+    @Test
+    fun copyByField_rotation_clamps() {
+        val adj = Adjustments().copyByField("rotation", 500f)
+        // 角度应被限制在 [-180, 180]
+        assertTrue(adj.rotation in -180f..180f)
+    }
 }
+

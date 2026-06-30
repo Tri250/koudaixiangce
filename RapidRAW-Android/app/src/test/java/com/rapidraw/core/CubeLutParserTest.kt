@@ -139,4 +139,95 @@ class CubeLutParserTest {
         """.trimIndent()
         assertNull(parser.parse(ByteArrayInputStream(content.toByteArray())))
     }
+
+    // 2026 hotfix: 额外的边界场景测试
+    @Test
+    fun parse_malformedFloatValue_returnsNull() {
+        val parser = CubeLutParser()
+        val content = """
+            LUT_3D_SIZE 2
+            notanumber 0.0 0.0
+            1.0 1.0 1.0
+            0.0 0.0 0.0
+            0.0 0.0 0.0
+            0.0 0.0 0.0
+            0.0 0.0 0.0
+            0.0 0.0 0.0
+            1.0 1.0 1.0
+        """.trimIndent()
+        // 包含非数字的 LUT 应该返回 null
+        assertNull(parser.parse(ByteArrayInputStream(content.toByteArray())))
+    }
+
+    @Test
+    fun parse_negativeSize_returnsNull() {
+        val parser = CubeLutParser()
+        val content = """
+            LUT_3D_SIZE -1
+        """.trimIndent()
+        assertNull(parser.parse(ByteArrayInputStream(content.toByteArray())))
+    }
+
+    @Test
+    fun parse_lutWithComment_ignoresComments() {
+        val parser = CubeLutParser()
+        val sb = StringBuilder()
+        sb.append("# This is a comment\n")
+        sb.append("LUT_3D_SIZE 2\n")
+        for (i in 0 until 8) sb.append("0.5 0.5 0.5\n")
+        val lut = parser.parse(ByteArrayInputStream(sb.toString().toByteArray()))
+        assertNotNull(lut)
+        assertEquals(2, lut?.size)
+    }
+
+    @Test
+    fun parse_lutWithTitle_setsTitle() {
+        val parser = CubeLutParser()
+        val sb = StringBuilder()
+        sb.append("TITLE \"My Custom LUT\"\n")
+        sb.append("LUT_3D_SIZE 2\n")
+        for (i in 0 until 8) sb.append("0.5 0.5 0.5\n")
+        val lut = parser.parse(ByteArrayInputStream(sb.toString().toByteArray()))
+        assertNotNull(lut)
+        assertEquals("My Custom LUT", lut?.title)
+    }
+
+    @Test
+    fun lut3DSample_identityCorner_returnsCorner() {
+        val parser = CubeLutParser()
+        val lut = parser.parse(ByteArrayInputStream(createIdentityCube(3).toByteArray()))!!
+
+        // (0,0,0) 应映射到 (0,0,0)
+        val black = lut.sample(0f, 0f, 0f)
+        assertEquals(0f, black.first, 0.001f)
+        assertEquals(0f, black.second, 0.001f)
+        assertEquals(0f, black.third, 0.001f)
+
+        // (1,1,1) 应映射到 (1,1,1)
+        val white = lut.sample(1f, 1f, 1f)
+        assertEquals(1f, white.first, 0.001f)
+        assertEquals(1f, white.second, 0.001f)
+        assertEquals(1f, white.third, 0.001f)
+    }
+
+    @Test
+    fun parse_truncatedInput_returnsNull() {
+        val parser = CubeLutParser()
+        // LUT_3D_SIZE 8 但只给了一行数据
+        val content = """
+            LUT_3D_SIZE 8
+            0.0 0.0 0.0
+        """.trimIndent()
+        assertNull(parser.parse(ByteArrayInputStream(content.toByteArray())))
+    }
+
+    @Test
+    fun parse_extraWhitespace_isTolerated() {
+        val parser = CubeLutParser()
+        val sb = StringBuilder()
+        sb.append("LUT_3D_SIZE   2\n")  // 多余空格
+        for (i in 0 until 8) sb.append("  0.5  0.5  0.5  \n")
+        val lut = parser.parse(ByteArrayInputStream(sb.toString().toByteArray()))
+        assertNotNull(lut)
+    }
 }

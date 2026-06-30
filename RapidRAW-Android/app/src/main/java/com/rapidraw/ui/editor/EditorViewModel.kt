@@ -288,6 +288,7 @@ class EditorViewModel(
     private var flowMaskManager: FlowMaskManager? = null
 
     // Latest LUT loaded from LutLibrary; uploaded to GPU once pipeline is ready
+    @Volatile
     private var loadedLut: CubeLutParser.Lut3D? = null
 
     private val isCleared = AtomicBoolean(false)
@@ -334,24 +335,37 @@ class EditorViewModel(
             }
 
             result.onSuccess { processed ->
+                // 2026 hotfix: 校验 processed 中的关键位图有效性，避免 recycled 状态被误用
+                val validPreview = processed.preview.takeIf { !it.isRecycled }
+                val validOriginal = processed.original.takeIf { !it.isRecycled }
+                if (validPreview == null || validOriginal == null) {
+                    Log.e(TAG, "Decoded bitmap invalid: preview=${processed.preview}, original=${processed.original}")
+                    _isLoading.value = false
+                    _event.value = EditorEvent.Error("无法加载图片: 解码结果无效")
+                    return@onSuccess
+                }
+
                 bitmapMutex.withLock {
                     recycleBitmapsInternal()
-                    originalBitmap = processed.original
-                    previewBitmapCache = processed.preview
+                    originalBitmap = validOriginal
+                    previewBitmapCache = validPreview
                     originalExifData = processed.exif
                     originalOrientation = processed.orientation
                 }
                 // 原图预览用于对比模式：复制一份避免与 previewBitmapCache 共享引用
-                val originalPreview = processed.preview.let { src ->
-                    if (src.isRecycled) null else src.copy(src.config ?: Bitmap.Config.ARGB_8888, false)
+                val originalPreview = try {
+                    validPreview.copy(validPreview.config ?: Bitmap.Config.ARGB_8888, false)
+                } catch (e: OutOfMemoryError) {
+                    Log.w(TAG, "OOM creating original preview copy", e)
+                    null
                 }
                 _originalPreviewBitmap.value?.let { old ->
                     if (!old.isRecycled && old !== previewBitmapCache && old !== originalBitmap) old.recycle()
                 }
                 _originalPreviewBitmap.value = originalPreview
-                _previewBitmap.value = processed.preview
+                _previewBitmap.value = validPreview
                 _isLoading.value = false
-                updateHistogramAsync(processed.preview)
+                updateHistogramAsync(validPreview)
 
                 // 恢复 sidecar
                 val sidecarManager = SidecarManager(appContext)
@@ -364,11 +378,15 @@ class EditorViewModel(
                 } else {
                     smartOptimize()
                 }
-                detectSceneAsync(processed.preview)
+                detectSceneAsync(validPreview)
             }.onFailure { throwable ->
+                if (throwable is CancellationException) {
+                    Log.d(TAG, "loadImage cancelled")
+                    return@onFailure
+                }
                 Log.e(TAG, "Failed to load image: ${imageFile.path}", throwable)
                 _isLoading.value = false
-                _event.value = EditorEvent.Error("无法加载图片: ${throwable.localizedMessage}")
+                _event.value = EditorEvent.Error("无法加载图片: ${throwable.localizedMessage ?: throwable.javaClass.simpleName}")
             }
         }
     }
@@ -1220,9 +1238,23 @@ class EditorViewModel(
                 return@launch
             }
             // 全分辨率处理
-            val processed = imageProcessor.processFullResolution(_adjustments.value, source)
-            val name = "RapidRAW_HDR_${System.currentTimeMillis()}"
-            val uri = HdrExporter.exportHdr(appContext, processed, config, name)
+            val processed = try {
+                imageProcessor.processFullResolution(_adjustments.value, source)
+            } catch (e: Exception) {
+                Log.e(TAG, "HDR export processing failed", e)
+                _event.value = EditorEvent.Error("HDR 处理失败: ${e.localizedMessage ?: e.javaClass.simpleName}")
+                return@launch
+            }
+            val uri = try {
+                HdrExporter.exportHdr(appContext, processed, config, "RapidRAW_HDR_${System.currentTimeMillis()}")
+            } catch (e: Exception) {
+                Log.e(TAG, "HDR export IO failed", e)
+                _event.value = EditorEvent.Error("HDR 导出失败: ${e.localizedMessage ?: e.javaClass.simpleName}")
+                return@launch
+            } finally {
+                // 2026 hotfix: 始终回收 processFullResolution 产生的中间大位图
+                if (!processed.isRecycled && processed !== source) processed.recycle()
+            }
             if (uri != null) {
                 _event.value = EditorEvent.ExportComplete(uri)
             } else {
@@ -1467,19 +1499,23 @@ class EditorViewModel(
                 originalBitmap?.takeIf { !it.isRecycled }
             } ?: run {
                 updateJobStatus(jobId, ExportJobStatus.FAILED, error = "没有可导出的原图")
+                // 2026 hotfix: 失败后继续处理队列中的下一个
+                processExportQueue()
                 return@launch
             }
 
             updateJobStatus(jobId, ExportJobStatus.EXPORTING, progress = 0.1f)
 
+            // 2026 hotfix: 声明在 try 外部，确保 finally 块可见
+            var processed: Bitmap? = null
             runCatching {
                 updateJobProgress(jobId, 0.3f)
-                val processed = imageProcessor.processFullResolution(
+                processed = imageProcessor.processFullResolution(
                     _adjustments.value, source, allowDownsample = false
                 )
                 updateJobProgress(jobId, 0.7f)
                 val uri = imageProcessor.exportImage(
-                    processed, settings, appContext, originalExifData, originalOrientation,
+                    processed!!, settings, appContext, originalExifData, originalOrientation,
                 )
                 updateJobProgress(jobId, 0.95f)
 
@@ -1505,6 +1541,11 @@ class EditorViewModel(
                 }
             }
 
+            // 2026 hotfix: 始终回收 processFullResolution 产生的全分辨率大位图
+            processed?.let { p ->
+                if (!p.isRecycled && p !== source) p.recycle()
+            }
+
             // 处理队列中的下一个任务
             processExportQueue()
         }
@@ -1519,18 +1560,23 @@ class EditorViewModel(
                 originalBitmap?.takeIf { !it.isRecycled }
             } ?: return@launch
 
+            var processed: Bitmap? = null
             runCatching {
-                val processed = imageProcessor.processFullResolution(
+                processed = imageProcessor.processFullResolution(
                     _adjustments.value, source, allowDownsample = false
                 )
                 val uri = imageProcessor.exportImage(
-                    processed, settings, appContext, originalExifData, originalOrientation,
+                    processed!!, settings, appContext, originalExifData, originalOrientation,
                 )
                 withContext(Dispatchers.Main) {
                     _event.value = EditorEvent.ShareImage(uri)
                 }
             }.onFailure {
                 Log.e(TAG, "Share failed", it)
+            }
+            // 2026 hotfix: 回收全分辨率大位图，避免连续分享造成 OOM
+            processed?.let { p ->
+                if (!p.isRecycled && p !== source) p.recycle()
             }
         }
     }
@@ -1693,7 +1739,7 @@ class EditorViewModel(
         aiJob?.cancel()
         exportJob?.cancel()
 
-        // 保存 sidecar
+        // 保存 sidecar（轻量、必须同步做；否则用户编辑后未保存就退出将丢失）
         val currentImg = _currentImage.value
         if (currentImg != null) {
             try {
@@ -1712,12 +1758,36 @@ class EditorViewModel(
         gpuPipeline = null
         cleanupScope.launch {
             try {
-                gpuMutex.withLock {
-                    pipeline?.release()
-                }
-                bitmapMutex.withLock {
-                    recycleBitmapsInternal()
-                }
+                // 2026 hotfix: 这里用 tryLock 避免和仍在执行的 AI/Export 协程形成死锁；
+                // 如果锁被占用，onCleared 异步通道已 cancel，最终一定会被释放
+                runCatching {
+                    if (gpuMutex.tryLock()) {
+                        try {
+                            pipeline?.release()
+                        } finally {
+                            gpuMutex.unlock()
+                        }
+                    } else {
+                        // 等待最多 500ms 释放 GPU
+                        kotlinx.coroutines.withTimeoutOrNull(500) {
+                            gpuMutex.withLock { pipeline?.release() }
+                        }
+                    }
+                }.onFailure { Log.w(TAG, "GPU release failed", it) }
+
+                runCatching {
+                    if (bitmapMutex.tryLock()) {
+                        try {
+                            recycleBitmapsInternal()
+                        } finally {
+                            bitmapMutex.unlock()
+                        }
+                    } else {
+                        kotlinx.coroutines.withTimeoutOrNull(500) {
+                            bitmapMutex.withLock { recycleBitmapsInternal() }
+                        }
+                    }
+                }.onFailure { Log.w(TAG, "Bitmap recycle failed", it) }
             } finally {
                 // 清理完成后取消作用域，防止协程泄漏
                 cleanupScope.cancel()

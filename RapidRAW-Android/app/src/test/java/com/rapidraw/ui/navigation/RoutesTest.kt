@@ -36,4 +36,62 @@ class RoutesTest {
         assertEquals("ai_inpaint/{imagePath}", Routes.AI_INPAINT)
         assertEquals("presets_discovery", Routes.PRESETS_DISCOVERY)
     }
+
+    // 2026 hotfix: 边界场景测试
+    @Test
+    fun editorPath_chinesePath_encodesCorrectly() {
+        val path = "/sdcard/DCIM/照片.jpg"
+        val route = Routes.editorPath(path)
+        // 路径中所有 "/" 之后的字符应被 URL 编码
+        assertTrue("Route should start with editor/: $route", route.startsWith("editor/"))
+        // 解码后应能还原原始路径
+        val encoded = route.removePrefix("editor/")
+        val decoded = java.net.URLDecoder.decode(encoded, "UTF-8")
+        assertEquals(path, decoded)
+    }
+
+    @Test
+    fun editorPath_emptyPath_createsValidRoute() {
+        val route = Routes.editorPath("")
+        // 即使路径为空，也应该产生合法路由字符串
+        assertEquals("editor/", route)
+    }
+
+    @Test
+    fun editorUri_uriWithQueryString_encodesCorrectly() {
+        val uri = "content://media/external/images/media/123?user=alice&token=abc"
+        val route = Routes.editorUri(uri)
+        // '?' '&' '=' 等特殊字符必须被编码
+        assertFalse("Query string chars should be encoded: $route", route.contains("?"))
+        assertFalse(route.contains("&"))
+        assertFalse(route.contains("="))
+        val encoded = route.removePrefix("editor_uri/")
+        val decoded = java.net.URLDecoder.decode(encoded, "UTF-8")
+        assertEquals(uri, decoded)
+    }
+
+    @Test
+    fun editorPath_pathWithSlashes_preservesStructure() {
+        val path = "/sdcard/DCIM/2024/01/IMG_001.dng"
+        val route = Routes.editorPath(path)
+        val encoded = route.removePrefix("editor/")
+        val decoded = java.net.URLDecoder.decode(encoded, "UTF-8")
+        assertEquals("Decoded path should equal original", path, decoded)
+    }
+
+    @Test
+    fun deepLinkPrefix_isCorrect() {
+        assertEquals("rapidraw://", Routes.DEEP_LINK_PREFIX)
+    }
+
+    @Test
+    fun resultKeys_areDistinct() {
+        val keys = setOf(
+            Routes.ResultKeys.SELECTED_PRESET,
+            Routes.ResultKeys.AI_INPAINT_RESULT,
+            Routes.ResultKeys.IMPORTED_PRESET_URI,
+        )
+        assertEquals("All result keys should be distinct", 3, keys.size)
+    }
 }
+
