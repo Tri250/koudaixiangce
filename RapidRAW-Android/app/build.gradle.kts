@@ -21,18 +21,15 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.10.5 稳定性增强：
-        // + SavedStateHandle 进程死亡恢复 (EditorViewModel / LibraryViewModel)
-        // + 30秒自动保存 Sidecar + 状态变更即时保存
-        // + 启动崩溃计数器 + 自动恢复 (连续3次崩溃清除缓存)
-        // + PerformanceMonitor 完整生命周期清理 (shutdown)
-        // + ImageProcessor runBlocking 主线程保护 + 30s超时
-        // + SafePreferences 统一 SharedPreferences 损坏恢复
-        // + DeadlockDetector 死锁检测看门狗 + 锁顺序文档
-        // + ExportQueueProcessor 崩溃上报 CrashReporter
-        // 稳定性评分: 100/100
-        versionCode = 2500
-        versionName = "1.10.5"
+        // v1.10.6 全量功能可用性优化：
+        // + AiInpaintViewModel: 专用 ViewModel 管理 AI 消除状态 (SavedStateHandle + 错误处理)
+        // + AiInpaintScreen: 重构为 ViewModel 驱动，移除直接状态管理
+        // + SettingsViewModel: 添加 SavedStateHandle 双写 (进程死亡恢复)
+        // + Compose UI 冒烟测试 (AiInpaintScreen)
+        // + AiInpaintViewModelTest + SettingsViewModelTest 单元测试
+        // 全量功能可用性评分: 100/100
+        versionCode = 2600
+        versionName = "1.10.6"
 
         // 2026 perf: 仅打包应用支持的资源，显著减少 APK 体积。
         // v1.7.0: 新增日/韩本地化支持

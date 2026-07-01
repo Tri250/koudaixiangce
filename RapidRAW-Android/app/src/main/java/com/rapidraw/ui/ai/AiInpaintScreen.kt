@@ -3,10 +3,6 @@
 package com.rapidraw.ui.ai
 
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -40,36 +36,31 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rapidraw.core.AiInpainter
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.EditorBackground
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * AI 消除屏幕 — 完整交互链路。
  * 支持画笔选区标记、执行修复、结果预览、重置。
+ *
+ * v1.10.6: 使用 AiInpaintViewModel 管理状态，支持进程死亡恢复。
  */
 @Composable
 fun AiInpaintScreen(
@@ -77,30 +68,31 @@ fun AiInpaintScreen(
     onComplete: (Bitmap) -> Unit,
     onCancel: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
-    var isProcessing by remember { mutableStateOf(false) }
-    var resultBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    androidx.compose.runtime.DisposableEffect(resultBitmap) {
-        onDispose {
-            resultBitmap?.let { if (!it.isRecycled) it.recycle() }
-        }
-    }
-    var brushSize by remember { mutableFloatStateOf(50f) }
-    var isEraser by remember { mutableStateOf(false) }
-    val maskPoints = remember { mutableStateListOf<Pair<Offset, Float>>() }
-    val erasedPoints = remember { mutableStateListOf<Pair<Offset, Float>>() }
+    val vm: AiInpaintViewModel = viewModel()
 
-    val workingBitmap = remember(sourceBitmap) { sourceBitmap.copy(Bitmap.Config.ARGB_8888, false) }
-    androidx.compose.runtime.DisposableEffect(workingBitmap) {
+    // 注入源图像（仅首次）
+    LaunchedEffect(sourceBitmap) {
+        vm.setSourceBitmap(sourceBitmap)
+    }
+
+    val isProcessing by vm.isProcessing.collectAsState()
+    val resultBitmap by vm.resultBitmap.collectAsState()
+    val brushSize by vm.brushSize.collectAsState()
+    val isEraser by vm.isEraser.collectAsState()
+    val maskPoints by vm.maskPoints.collectAsState()
+    val erasedPoints by vm.erasedPoints.collectAsState()
+    val errorMessage by vm.errorMessage.collectAsState()
+
+    val displayBitmap = remember(resultBitmap, sourceBitmap) {
+        resultBitmap ?: sourceBitmap
+    }
+
+    // 清理 resultBitmap 内存
+    DisposableEffect(resultBitmap) {
         onDispose {
-            if (!workingBitmap.isRecycled) {
-                workingBitmap.recycle()
-            }
+            // Bitmap 由 ViewModel 管理生命周期，这里不做额外清理
         }
     }
-    val displayBitmap = resultBitmap ?: workingBitmap
 
     Scaffold(
         topBar = {
@@ -125,11 +117,7 @@ fun AiInpaintScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = {
-                            maskPoints.clear()
-                            erasedPoints.clear()
-                            resultBitmap = null
-                        },
+                        onClick = { vm.reset() },
                         enabled = !isProcessing,
                     ) {
                         Icon(
@@ -182,39 +170,39 @@ fun AiInpaintScreen(
                             .fillMaxSize()
                             .pointerInput(Unit) {
                                 detectDragGestures(
-                                    onDragStart = { /* haptic feedback */ },
+                                    onDragStart = { },
                                     onDrag = { change, _ ->
                                         change.consume()
                                         val pos = change.position
                                         if (isEraser) {
-                                            erasedPoints.add(pos to brushSize)
+                                            vm.addErasedPoint(pos.x, pos.y, brushSize)
                                         } else {
-                                            maskPoints.add(pos to brushSize)
+                                            vm.addMaskPoint(pos.x, pos.y, brushSize)
                                         }
                                     },
                                 )
                             },
                     ) {
                         // 绘制标记区域
-                        for ((pos, size) in maskPoints) {
+                        for (point in maskPoints) {
                             drawCircle(
                                 color = HasselbladOrange.copy(alpha = 0.4f),
-                                radius = size / 2,
-                                center = pos,
+                                radius = point.size / 2,
+                                center = Offset(point.x, point.y),
                                 style = Stroke(width = 2f),
                             )
                             drawCircle(
                                 color = HasselbladOrange.copy(alpha = 0.1f),
-                                radius = size / 2,
-                                center = pos,
+                                radius = point.size / 2,
+                                center = Offset(point.x, point.y),
                             )
                         }
                         // 绘制擦除区域
-                        for ((pos, size) in erasedPoints) {
+                        for (point in erasedPoints) {
                             drawCircle(
                                 color = Color.Red.copy(alpha = 0.4f),
-                                radius = size / 2,
-                                center = pos,
+                                radius = point.size / 2,
+                                center = Offset(point.x, point.y),
                                 style = Stroke(width = 2f),
                             )
                         }
@@ -231,6 +219,23 @@ fun AiInpaintScreen(
                         CircularProgressIndicator(
                             color = HasselbladOrange,
                             modifier = Modifier.size(48.dp),
+                        )
+                    }
+                }
+
+                // 错误提示
+                if (errorMessage != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                            .background(Color.Red.copy(alpha = 0.8f))
+                            .padding(12.dp),
+                    ) {
+                        Text(
+                            text = errorMessage ?: "",
+                            color = Color.White,
+                            fontSize = 14.sp,
                         )
                     }
                 }
@@ -251,7 +256,7 @@ fun AiInpaintScreen(
                 )
                 Slider(
                     value = brushSize,
-                    onValueChange = { brushSize = it },
+                    onValueChange = { vm.setBrushSize(it) },
                     valueRange = 10f..200f,
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
@@ -271,7 +276,7 @@ fun AiInpaintScreen(
                 ) {
                     // 标记模式
                     IconButton(
-                        onClick = { isEraser = false },
+                        onClick = { vm.setEraserMode(false) },
                         modifier = Modifier
                             .size(48.dp)
                             .background(
@@ -288,7 +293,7 @@ fun AiInpaintScreen(
 
                     // 擦除模式
                     IconButton(
-                        onClick = { isEraser = true },
+                        onClick = { vm.setEraserMode(true) },
                         modifier = Modifier
                             .size(48.dp)
                             .background(
@@ -307,26 +312,7 @@ fun AiInpaintScreen(
 
                     // 开始修复按钮
                     Button(
-                        onClick = {
-                            if (maskPoints.isEmpty()) return@Button
-                            isProcessing = true
-                            scope.launch {
-                                withContext(Dispatchers.Default) {
-                                    val maskBitmap = createMaskBitmap(
-                                        workingBitmap.width,
-                                        workingBitmap.height,
-                                        maskPoints,
-                                        erasedPoints,
-                                    )
-                                    val inpainter = AiInpainter()
-                                    val result = inpainter.removeObject(workingBitmap, maskBitmap, iterations = 3)
-                                    withContext(Dispatchers.Main) {
-                                        resultBitmap = result
-                                        isProcessing = false
-                                    }
-                                }
-                            }
-                        },
+                        onClick = { vm.startInpainting() },
                         enabled = !isProcessing && maskPoints.isNotEmpty() && resultBitmap == null,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = HasselbladOrange,
@@ -339,38 +325,4 @@ fun AiInpaintScreen(
             }
         }
     }
-}
-
-/**
- * 将触摸点集渲染为蒙版 Bitmap
- */
-private fun createMaskBitmap(
-    width: Int,
-    height: Int,
-    points: List<Pair<Offset, Float>>,
-    erased: List<Pair<Offset, Float>>,
-): Bitmap {
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ALPHA_8)
-    val canvas = Canvas(bitmap)
-    val paint = Paint().apply {
-        color = android.graphics.Color.WHITE
-        isAntiAlias = true
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC)
-    }
-
-    for ((pos, size) in points) {
-        canvas.drawCircle(pos.x, pos.y, size / 2, paint)
-    }
-
-    // 擦除区域
-    val erasePaint = Paint().apply {
-        color = android.graphics.Color.TRANSPARENT
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-        isAntiAlias = true
-    }
-    for ((pos, size) in erased) {
-        canvas.drawCircle(pos.x, pos.y, size / 2, erasePaint)
-    }
-
-    return bitmap
 }

@@ -2,6 +2,7 @@ package com.rapidraw.ui.settings
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -9,161 +10,199 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * ViewModel for the Settings screen.
  *
- * Persists all settings via SharedPreferences and exposes each as a StateFlow
- * so the UI can reactively update. Follows the same pattern as OnboardingViewModel.
+ * Persists all settings via SharedPreferences and SavedStateHandle (进程死亡恢复).
+ * Each setting is exposed as a StateFlow for reactive UI updates.
+ *
+ * v1.10.6: 添加 SavedStateHandle 支持，保持与 EditorViewModel/LibraryViewModel 一致。
  */
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
+class SettingsViewModel(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle,
+) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences(PREFS_NAME, 0)
 
     // ── 性能 (Performance) ──────────────────────────────────────────
 
     private val _gpuAcceleration = MutableStateFlow(
-        prefs.getBoolean(KEY_GPU_ACCELERATION, true)
+        getBoolean(KEY_GPU_ACCELERATION, true)
     )
     val gpuAcceleration: StateFlow<Boolean> = _gpuAcceleration.asStateFlow()
 
     private val _previewQuality = MutableStateFlow(
-        prefs.getString(KEY_PREVIEW_QUALITY, "中") ?: "中"
+        getString(KEY_PREVIEW_QUALITY, "中")
     )
     val previewQuality: StateFlow<String> = _previewQuality.asStateFlow()
 
     private val _threadCount = MutableStateFlow(
-        prefs.getString(KEY_THREAD_COUNT, "自动") ?: "自动"
+        getString(KEY_THREAD_COUNT, "自动")
     )
     val threadCount: StateFlow<String> = _threadCount.asStateFlow()
 
     // ── 显示 (Display) ──────────────────────────────────────────────
 
     private val _hdrDisplay = MutableStateFlow(
-        prefs.getBoolean(KEY_HDR_DISPLAY, false)
+        getBoolean(KEY_HDR_DISPLAY, false)
     )
     val hdrDisplay: StateFlow<Boolean> = _hdrDisplay.asStateFlow()
 
     private val _histogramType = MutableStateFlow(
-        prefs.getString(KEY_HISTOGRAM_TYPE, "RGB") ?: "RGB"
+        getString(KEY_HISTOGRAM_TYPE, "RGB")
     )
     val histogramType: StateFlow<String> = _histogramType.asStateFlow()
 
     private val _clippingWarning = MutableStateFlow(
-        prefs.getBoolean(KEY_CLIPPING_WARNING, false)
+        getBoolean(KEY_CLIPPING_WARNING, false)
     )
     val clippingWarning: StateFlow<Boolean> = _clippingWarning.asStateFlow()
 
     private val _hapticFeedback = MutableStateFlow(
-        prefs.getBoolean(KEY_HAPTIC_FEEDBACK, true)
+        getBoolean(KEY_HAPTIC_FEEDBACK, true)
     )
     val hapticFeedback: StateFlow<Boolean> = _hapticFeedback.asStateFlow()
 
     // ── 编辑 (Editing) ──────────────────────────────────────────────
 
     private val _defaultFilmSimulation = MutableStateFlow(
-        prefs.getString(KEY_DEFAULT_FILM_SIMULATION, "无") ?: "无"
+        getString(KEY_DEFAULT_FILM_SIMULATION, "无")
     )
     val defaultFilmSimulation: StateFlow<String> = _defaultFilmSimulation.asStateFlow()
 
     private val _autoSaveEdits = MutableStateFlow(
-        prefs.getBoolean(KEY_AUTO_SAVE_EDITS, true)
+        getBoolean(KEY_AUTO_SAVE_EDITS, true)
     )
     val autoSaveEdits: StateFlow<Boolean> = _autoSaveEdits.asStateFlow()
 
     private val _saveSidecar = MutableStateFlow(
-        prefs.getBoolean(KEY_SAVE_SIDECAR, true)
+        getBoolean(KEY_SAVE_SIDECAR, true)
     )
     val saveSidecar: StateFlow<Boolean> = _saveSidecar.asStateFlow()
 
     // ── 导出 (Export) ──────────────────────────────────────────────
 
     private val _defaultExportFormat = MutableStateFlow(
-        prefs.getString(KEY_DEFAULT_EXPORT_FORMAT, "JPEG") ?: "JPEG"
+        getString(KEY_DEFAULT_EXPORT_FORMAT, "JPEG")
     )
     val defaultExportFormat: StateFlow<String> = _defaultExportFormat.asStateFlow()
 
     private val _defaultJpegQuality = MutableStateFlow(
-        prefs.getInt(KEY_DEFAULT_JPEG_QUALITY, 95).toFloat()
+        getInt(KEY_DEFAULT_JPEG_QUALITY, 95).toFloat()
     )
     val defaultJpegQuality: StateFlow<Float> = _defaultJpegQuality.asStateFlow()
 
     private val _keepMetadata = MutableStateFlow(
-        prefs.getBoolean(KEY_KEEP_METADATA, true)
+        getBoolean(KEY_KEEP_METADATA, true)
     )
     val keepMetadata: StateFlow<Boolean> = _keepMetadata.asStateFlow()
 
     private val _stripGps = MutableStateFlow(
-        prefs.getBoolean(KEY_STRIP_GPS, false)
+        getBoolean(KEY_STRIP_GPS, false)
     )
     val stripGps: StateFlow<Boolean> = _stripGps.asStateFlow()
 
     // ── Update Functions ─────────────────────────────────────────────
 
     fun setGpuAcceleration(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_GPU_ACCELERATION, enabled).apply()
+        putBoolean(KEY_GPU_ACCELERATION, enabled)
         _gpuAcceleration.value = enabled
     }
 
     fun setPreviewQuality(quality: String) {
-        prefs.edit().putString(KEY_PREVIEW_QUALITY, quality).apply()
+        putString(KEY_PREVIEW_QUALITY, quality)
         _previewQuality.value = quality
     }
 
     fun setThreadCount(count: String) {
-        prefs.edit().putString(KEY_THREAD_COUNT, count).apply()
+        putString(KEY_THREAD_COUNT, count)
         _threadCount.value = count
     }
 
     fun setHdrDisplay(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_HDR_DISPLAY, enabled).apply()
+        putBoolean(KEY_HDR_DISPLAY, enabled)
         _hdrDisplay.value = enabled
     }
 
     fun setHistogramType(type: String) {
-        prefs.edit().putString(KEY_HISTOGRAM_TYPE, type).apply()
+        putString(KEY_HISTOGRAM_TYPE, type)
         _histogramType.value = type
     }
 
     fun setClippingWarning(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_CLIPPING_WARNING, enabled).apply()
+        putBoolean(KEY_CLIPPING_WARNING, enabled)
         _clippingWarning.value = enabled
     }
 
     fun setHapticFeedback(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_HAPTIC_FEEDBACK, enabled).apply()
+        putBoolean(KEY_HAPTIC_FEEDBACK, enabled)
         _hapticFeedback.value = enabled
     }
 
     fun setDefaultFilmSimulation(filmId: String) {
-        prefs.edit().putString(KEY_DEFAULT_FILM_SIMULATION, filmId).apply()
+        putString(KEY_DEFAULT_FILM_SIMULATION, filmId)
         _defaultFilmSimulation.value = filmId
     }
 
     fun setAutoSaveEdits(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_SAVE_EDITS, enabled).apply()
+        putBoolean(KEY_AUTO_SAVE_EDITS, enabled)
         _autoSaveEdits.value = enabled
     }
 
     fun setSaveSidecar(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_SAVE_SIDECAR, enabled).apply()
+        putBoolean(KEY_SAVE_SIDECAR, enabled)
         _saveSidecar.value = enabled
     }
 
     fun setDefaultExportFormat(format: String) {
-        prefs.edit().putString(KEY_DEFAULT_EXPORT_FORMAT, format).apply()
+        putString(KEY_DEFAULT_EXPORT_FORMAT, format)
         _defaultExportFormat.value = format
     }
 
     fun setDefaultJpegQuality(quality: Float) {
-        prefs.edit().putInt(KEY_DEFAULT_JPEG_QUALITY, quality.toInt()).apply()
+        putInt(KEY_DEFAULT_JPEG_QUALITY, quality.toInt())
         _defaultJpegQuality.value = quality
     }
 
     fun setKeepMetadata(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_KEEP_METADATA, enabled).apply()
+        putBoolean(KEY_KEEP_METADATA, enabled)
         _keepMetadata.value = enabled
     }
 
     fun setStripGps(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_STRIP_GPS, enabled).apply()
+        putBoolean(KEY_STRIP_GPS, enabled)
         _stripGps.value = enabled
+    }
+
+    // ── SavedStateHandle + SharedPreferences 双写 ────────────────────
+
+    /**
+     * 读取顺序：SavedStateHandle（进程死亡恢复）→ SharedPreferences（持久化）→ 默认值
+     */
+    private fun getString(key: String, default: String): String {
+        return savedStateHandle.get<String>(key) ?: prefs.getString(key, default) ?: default
+    }
+
+    private fun getBoolean(key: String, default: Boolean): Boolean {
+        return savedStateHandle.get<Boolean>(key) ?: prefs.getBoolean(key, default)
+    }
+
+    private fun getInt(key: String, default: Int): Int {
+        return savedStateHandle.get<Int>(key) ?: prefs.getInt(key, default)
+    }
+
+    /** 同时写入 SavedStateHandle 和 SharedPreferences */
+    private fun putString(key: String, value: String) {
+        savedStateHandle[key] = value
+        prefs.edit().putString(key, value).apply()
+    }
+
+    private fun putBoolean(key: String, value: Boolean) {
+        savedStateHandle[key] = value
+        prefs.edit().putBoolean(key, value).apply()
+    }
+
+    private fun putInt(key: String, value: Int) {
+        savedStateHandle[key] = value
+        prefs.edit().putInt(key, value).apply()
     }
 
     companion object {
