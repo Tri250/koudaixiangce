@@ -476,6 +476,13 @@ data class Adjustments(
         "colorRangeWidth" -> copy(colorRangeWidth = value.coerceIn(1f, 180f))
         "colorRangeSatAdjust" -> copy(colorRangeSatAdjust = value.coerceIn(-100f, 100f))
         "colorRangeLumAdjust" -> copy(colorRangeLumAdjust = value.coerceIn(-100f, 100f))
+        // Oklab Perceptual Color Space (ZenFilters pipeline)
+        "oklabHueShift" -> copy(oklabHueShift = value.coerceIn(-1f, 1f))
+        "oklabSaturation" -> copy(oklabSaturation = value.coerceIn(-1f, 1f))
+        "oklabChroma" -> copy(oklabChroma = value.coerceIn(-1f, 1f))
+        "oklabLightness" -> copy(oklabLightness = value.coerceIn(-1f, 1f))
+        "oklabContrast" -> copy(oklabContrast = value.coerceIn(-1f, 1f))
+        "oklabTextureAmount" -> copy(oklabTextureAmount = value.coerceIn(0f, 1f))
         else -> this
     }
 

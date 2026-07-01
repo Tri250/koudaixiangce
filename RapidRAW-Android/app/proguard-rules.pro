@@ -140,3 +140,18 @@
 
 # 隐藏原始源文件名称
 -renamesourcefileattribute SourceFile
+
+# v1.6.1 安全加固: Release 构建中移除 Log.v/d/i 调用，防止敏感信息泄漏
+# 仅保留 Log.w/e 用于 crash 诊断（wtf 保留用于 assert 级别问题）
+-assumenosideeffects class android.util.Log {
+    public static *** v(...);
+    public static *** d(...);
+    public static *** i(...);
+}
+
+# v1.6.1 安全加固: 保留 Oklab/FilmPresets 等 v1.6.0 新增的序列化模型
+-keep class com.rapidraw.data.model.FilmPresets { *; }
+-keep class com.rapidraw.data.model.FilmPresets$* { *; }
+
+# v1.6.1 安全加固: cloud sync 后端
+-keep class com.rapidraw.cloud.** { *; }

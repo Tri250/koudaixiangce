@@ -19,9 +19,9 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.6.0 功能移植: ZenFilters Oklab 感知色彩空间 + Film Presets 预设库 + 非破坏性编辑增强
-        versionCode = 1600
-        versionName = "1.6.0"
+        // v1.6.1 自检修复: CloudSyncBackend 真实化 + ProGuard 安全加固 + 日志剥离
+        versionCode = 1610
+        versionName = "1.6.1"
 
         // 2026 perf: 仅打包应用实际支持的中/英文资源，显著减少 APK 体积。
         resourceConfigurations += listOf("zh", "en")
