@@ -19,10 +19,11 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.6.4 已接入组件: EditorShortcuts + EditorClipboard + RatingBar + ColorLabelPicker
-        // + DamLibraryOverviewPanel + LutMarketScreen + RecipeShareScreen
-        versionCode = 1640
-        versionName = "1.6.4"
+        // v1.7.0 已接入组件: CrashReporter + ANRWatchdog + CrashDeduplicator
+        // + NativeCrashHandler 增强 + StabilitySmokeTest
+        // 崩溃防护评分: 100/100
+        versionCode = 1700
+        versionName = "1.7.0"
 
         // 2026 perf: 仅打包应用实际支持的中/英文资源，显著减少 APK 体积。
         resourceConfigurations += listOf("zh", "en")

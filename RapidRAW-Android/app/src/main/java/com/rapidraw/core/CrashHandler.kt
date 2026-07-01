@@ -40,6 +40,15 @@ object CrashHandler {
                 // v1.5.5 hotfix: 写入崩溃日志失败不应阻止委托给默认 handler
                 if (com.rapidraw.BuildConfig.DEBUG) Log.e(TAG, "Failed to persist crash", e)
             }
+            // v1.7.0: 通过 CrashReporter 异步上报至远程服务
+            runCatching {
+                val type = if (throwable is OutOfMemoryError) {
+                    CrashReporter.CrashType.OOM
+                } else {
+                    CrashReporter.CrashType.JAVA
+                }
+                CrashReporter.report(throwable, type)
+            }
             // 委托给系统默认 handler，保留 Android 原生崩溃行为。
             // v1.5.5 hotfix: 委托前检查 previous 是否为空，避免 NPE。
             try {
@@ -60,9 +69,17 @@ object CrashHandler {
                 Log.i(TAG, "Native crash handler installed")
             } else {
                 Log.w(TAG, "Native crash handler not installed (library may not be available)")
+                // v1.7.0: native 库不可用时，安装 Java 层信号兜底
+                runCatching {
+                    NativeCrashHandler.installFallback(appContext)
+                }.onFailure { Log.e(TAG, "Fallback signal handler also failed", it) }
             }
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to install native crash handler", e)
+            // v1.7.0: 异常时也尝试安装兜底
+            runCatching {
+                NativeCrashHandler.installFallback(appContext)
+            }.onFailure { Log.e(TAG, "Fallback signal handler also failed", it) }
         }
     }
 
@@ -78,6 +95,10 @@ object CrashHandler {
                 // 确保协程异常能被离线诊断。
                 Log.e(TAG, "Coroutine uncaught exception", throwable)
                 writeCrashToFile(appContext, Thread.currentThread(), throwable, tag = "coroutine")
+                // v1.7.0: 通过 CrashReporter 异步上报
+                runCatching {
+                    CrashReporter.report(throwable, CrashReporter.CrashType.COROUTINE)
+                }
             } catch (e: Throwable) {
                 // 写入失败不应导致二次崩溃
                 Log.e(TAG, "Failed to persist coroutine crash", e)
@@ -162,4 +183,75 @@ object CrashHandler {
         pi.versionCode.toLong()
     }
 }.getOrDefault(0L)
+
+    // ── 静态辅助方法（供 CrashReporter / ANRWatchdog 等调用） ──────────
+
+    /**
+     * 静态版本号获取，供 [CrashReporter] 和 [ANRWatchdog] 在初始化期间使用。
+     */
+    @JvmStatic
+    fun appVersionNameStatic(context: Context): String = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+    }.getOrDefault("?")
+
+    /**
+     * 暴露 crashLogDir 的静态访问，供 [ANRWatchdog] 写入日志。
+     */
+    @JvmStatic
+    fun crashLogDirStatic(): File {
+        // 使用反射获取 externally visible 的 crashLogDir; 此处直接构造
+        // 注意：必须与 crashLogDir(context) 返回相同路径
+        return File("/data/data/com.rapidraw/files", LOG_DIR)
+    }
+
+    /**
+     * 暴露 writeCrashToFile 的静态访问，供 [ANRWatchdog] 写入 ANR 日志。
+     */
+    @JvmStatic
+    fun writeCrashToFileStatic(
+        dir: File,
+        thread: Thread,
+        throwable: Throwable,
+        tag: String = "uncaught",
+    ) {
+        if (!dir.exists()) dir.mkdirs()
+        // 清理过期日志
+        runCatching {
+            val files = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
+            if (files.size > MAX_LOG_FILES) {
+                files.drop(MAX_LOG_FILES).forEach { runCatching { it.delete() } }
+            }
+        }
+        val ts = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val file = File(dir, "crash_${tag}_${ts}.log")
+        val sw = StringWriter()
+        PrintWriter(sw).use { pw ->
+            pw.println("=== RapidRAW Crash Report ===")
+            pw.println("Time: ${Date()}")
+            pw.println("Thread: ${thread.name} (id=${thread.id})")
+            pw.println("Tag: $tag")
+            pw.println("Manufacturer: ${android.os.Build.MANUFACTURER}")
+            pw.println("Model: ${android.os.Build.MODEL}")
+            pw.println("Brand: ${android.os.Build.BRAND}")
+            pw.println("Android: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
+            pw.println()
+            throwable.printStackTrace(pw)
+        }
+        val sanitized = sanitizePiiStatic(sw.toString())
+        file.writeText(sanitized)
+    }
+
+    /**
+     * 静态 PII 脱敏（供 [ANRWatchdog] 使用）。
+     */
+    private fun sanitizePiiStatic(text: String): String {
+        return text
+            .replace(Regex("/storage/emulated/\\d+/[^/\n]+"), "<user_path>")
+            .replace(Regex("/data/data/[^/\n]+"), "<app_data>")
+            .replace(Regex("/Users/[^/\n]+/"), "/Users/<username>/")
+            .replace(Regex("\\b[0-9a-fA-F]{32,}\\b"), "<id>")
+            .replace(Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"), "<email>")
+            .replace(Regex("\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b"), "<ip>")
+            .replace(Regex("\\b\\d{11,}\\b"), "<number>")
+    }
 }

@@ -10,7 +10,9 @@ import android.os.StrictMode
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import com.rapidraw.core.ANRWatchdog
 import com.rapidraw.core.CrashHandler
+import com.rapidraw.core.CrashReporter
 import com.rapidraw.core.ImageProcessor
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
@@ -43,6 +45,15 @@ class RapidRawApp : Application() {
             // CrashHandler.install 已包含完整链路（日志写入 + 委托默认 handler），
             // 不再额外包装 setupUncaughtExceptionHandler（避免双层 handler 冗余）。
             CrashHandler.install(this)
+            // v1.7.0: 初始化远程崩溃上报（CrashReporter）
+            // 在 CrashHandler 之后初始化，确保 CrashReporter 可以复用 CrashHandler 的静态方法
+            runCatching {
+                CrashReporter.init(this)
+            }.onFailure { Log.e(TAG, "Failed to init CrashReporter", it) }
+            // v1.7.0: 启动 ANR 看门狗，监控主线程卡顿
+            runCatching {
+                ANRWatchdog.start(blockThresholdMs = 2_000L, checkIntervalMs = 1_000L)
+            }.onFailure { Log.e(TAG, "Failed to start ANRWatchdog", it) }
             enableStrictModeInDebug()
             // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
             applyPerAppLanguageAsync()
