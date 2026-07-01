@@ -172,8 +172,10 @@ class MainActivity : AppCompatActivity() {
         } catch (t: Throwable) {
             // 记录到本地 crash log，并展示降级 UI
             Log.e(TAG, "setContent failed, falling back to safe UI", t)
-            com.rapidraw.core.CrashHandler.coroutineExceptionHandler(this)
-                .handleException(this.lifecycleScope.coroutineContext, t)
+            runCatching {
+                com.rapidraw.core.CrashHandler.coroutineExceptionHandler(this)
+                    .handleException(this.lifecycleScope.coroutineContext, t)
+            }
             showFallbackUi()
         }
     }
@@ -181,9 +183,10 @@ class MainActivity : AppCompatActivity() {
     /**
      * 极端情况（Compose/字体/资源异常）下的降级 UI：仅一个白底 + 应用名。
      * 配合 CrashHandler 已落盘的日志，可在用户反馈后定位问题。
+     * v1.5.11: 增强保护，防止连 setContent 都失败时的最后兜底。
      */
     private fun showFallbackUi() {
-        try {
+        runCatching {
             setContent {
                 androidx.compose.foundation.layout.Box(
                     modifier = Modifier
@@ -199,9 +202,13 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             }
-        } catch (t: Throwable) {
-            // 实在连 setContent 都不能调用时，依靠系统默认 UI（黑屏 + Log）
-            Log.e(TAG, "showFallbackUi also failed", t)
+        }.onFailure { outer ->
+            Log.e(TAG, "showFallbackUi setContent also failed", outer)
+            // 最后手段：直接 finish 并重启 Activity
+            runCatching { finish() }
+            runCatching {
+                startActivity(intent?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+            }
         }
     }
 

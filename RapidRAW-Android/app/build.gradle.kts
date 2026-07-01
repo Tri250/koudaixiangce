@@ -19,9 +19,9 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.5.10 hotfix: 框架稳定性全面加固 — EGL/GPU/TFLite 初始化防护 + 参数调节链路 NaN 校验
-        versionCode = 1560
-        versionName = "1.5.10"
+        // v1.5.11 hotfix: 启动阶段框架稳定性修复 — Theme unwrapActivity 循环保护、MainActivity fallback UI 双层兜底
+        versionCode = 1570
+        versionName = "1.5.11"
 
         // 2026 perf: 仅打包应用实际支持的中/英文资源，显著减少 APK 体积。
         resourceConfigurations += listOf("zh", "en")
