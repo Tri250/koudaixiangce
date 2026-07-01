@@ -233,6 +233,21 @@ data class Adjustments(
     val eotf: Int = 0,
     val peakLuminanceNits: Float = 1000f,        // HDR peak luminance
 
+    // ── Oklab Perceptual Color Space (ZenFilters pipeline) ──────
+    // ZenFilters/AlcedoStudio: perceptually uniform color operations in oklab space
+    // Hue rotation: -1.0=CCW 180°, 0=no change, 1.0=CW 180°
+    val oklabHueShift: Float = 0f,
+    // Saturation: -1.0=desaturate to gray, 0=no change, 1.0=double chroma
+    val oklabSaturation: Float = 0f,
+    // Chroma: -1.0=reduce to 25%, 0=no change, 1.0=increase to 4x
+    val oklabChroma: Float = 0f,
+    // Lightness: -1.0=darken, 0=no change, 1.0=brighten (S-curve)
+    val oklabLightness: Float = 0f,
+    // Contrast: -1.0=flatten, 0=no change, 1.0=maximum contrast (S-curve around L=0.5)
+    val oklabContrast: Float = 0f,
+    // Texture preserve: 0=full oklab blend, 1.0=preserve edges and texture
+    val oklabTextureAmount: Float = 0f,
+
     // ── LUT Library (AlcedoStudio integration) ────────────────
     val activeLutId: String = "",                // 当前应用的 LUT ID
 

@@ -77,6 +77,13 @@ data class HistoryNode(
             append(adjustments.hslMagentas.hue)
             append(adjustments.hslMagentas.saturation)
             append(adjustments.hslMagentas.luminance)
+            // Oklab perceptual adjustments (v1.6.0 ZenFilters pipeline)
+            append(adjustments.oklabHueShift)
+            append(adjustments.oklabSaturation)
+            append(adjustments.oklabChroma)
+            append(adjustments.oklabLightness)
+            append(adjustments.oklabContrast)
+            append(adjustments.oklabTextureAmount)
             // 子节点哈希（Merkle-tree）
             for (childHash in childHashes.sorted()) {
                 append(childHash)

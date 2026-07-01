@@ -482,6 +482,8 @@ class GpuPipeline(private val context: Context) {
             "uRedCurve[0]", "uRedCurve[1]", "uRedCurve[2]", "uRedCurve[3]", "uRedCurve[4]", "uRedCurve[5]",
             "uGreenCurve[0]", "uGreenCurve[1]", "uGreenCurve[2]", "uGreenCurve[3]", "uGreenCurve[4]", "uGreenCurve[5]",
             "uBlueCurve[0]", "uBlueCurve[1]", "uBlueCurve[2]", "uBlueCurve[3]", "uBlueCurve[4]", "uBlueCurve[5]",
+            "uOklabHueShift", "uOklabSaturation", "uOklabChroma",
+            "uOklabLightness", "uOklabContrast", "uOklabTextureAmount",
         )
 
         for (name in uniformNames) {
@@ -847,6 +849,14 @@ class GpuPipeline(private val context: Context) {
         uploadCurve("uRedCurve", adjustments.redCurve)
         uploadCurve("uGreenCurve", adjustments.greenCurve)
         uploadCurve("uBlueCurve", adjustments.blueCurve)
+
+        // ── Oklab Perceptual Color Space ──
+        setUniform1f("uOklabHueShift", adjustments.oklabHueShift)
+        setUniform1f("uOklabSaturation", adjustments.oklabSaturation)
+        setUniform1f("uOklabChroma", adjustments.oklabChroma)
+        setUniform1f("uOklabLightness", adjustments.oklabLightness)
+        setUniform1f("uOklabContrast", adjustments.oklabContrast)
+        setUniform1f("uOklabTextureAmount", adjustments.oklabTextureAmount)
 
         // ── Debug ──
         setUniform1f("uClippingPreview", if (adjustments.showClipping) 1f else 0f)
