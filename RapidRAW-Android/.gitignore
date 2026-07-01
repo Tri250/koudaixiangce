@@ -49,6 +49,9 @@ app/jacoco.exec
 # Kotlin compiler session cache
 .kotlin/
 
+# Gradle configuration cache
+.gradle/configuration-cache/
+
 # Reference repositories downloaded for feature analysis (do not commit)
 /AlcedoStudio-ref/
 /RapidRAW-ref/

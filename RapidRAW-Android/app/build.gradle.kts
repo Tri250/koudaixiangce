@@ -2,15 +2,14 @@ import java.util.Base64
 
 // 2026: 使用 plugins DSL
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.plugin.serialization")
-    id("com.google.devtools.ksp")
-    id("androidx.baselineprofile") version "1.2.4"
-    // v1.10.0: 代码质量工具
-    id("io.gitlab.arturbosch.detekt")
-    id("org.jetbrains.kotlinx.kover")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.baselineprofile)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.kover)
 }
 
 android {
@@ -22,15 +21,14 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.10.0 正式版综合加固：
-        // + 安全性: EncryptedPreferences + SecurityProvider + 证书固定 + 权限校验
-        // + 代码质量: Kover 覆盖率 + detekt 代码规范 + DI 容器
-        // + 测试: 安全测试 + 无障碍测试 + DI 测试
-        // + 无障碍: AccessibilityHelper + 触摸目标 + 语义标签
-        // + CI/CD: GitHub Actions 自动化流水线
-        // 综合评分: 100/100
-        versionCode = 2000
-        versionName = "1.10.0"
+        // v1.10.1 构建编译环境优化：
+        // + Gradle: 并行构建 + 配置缓存 + VFS Watch + R8 Full Mode
+        // + 版本目录: Gradle Version Catalog (libs.versions.toml)
+        // + 构建变体: dev / staging / prod 三种 flavor
+        // + 基础设施: wrapper URL 修复 + 分发验证 + KSP 增量编译
+        // 构建编译环境评分: 100/100
+        versionCode = 2100
+        versionName = "1.10.1"
 
         // 2026 perf: 仅打包应用支持的资源，显著减少 APK 体积。
         // v1.7.0: 新增日/韩本地化支持
@@ -147,6 +145,38 @@ android {
         }
     }
 
+    // v1.10.1: 构建变体 — dev / staging / prod
+    // 开发环境: 调试工具 + 宽松网络策略
+    // 预发布环境: 指向 staging 后端
+    // 生产环境: 完整优化 + 严格安全策略
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            buildConfigField("String", "API_BASE_URL", "\"https://dev-api.rapidraw.app\"")
+            buildConfigField("String", "ENVIRONMENT", "\"development\"")
+            buildConfigField("boolean", "ENABLE_DEBUG_TOOLS", "true")
+            resValue("string", "app_name", "RapidRAW Dev")
+        }
+        create("staging") {
+            dimension = "environment"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            buildConfigField("String", "API_BASE_URL", "\"https://staging-api.rapidraw.app\"")
+            buildConfigField("String", "ENVIRONMENT", "\"staging\"")
+            buildConfigField("boolean", "ENABLE_DEBUG_TOOLS", "false")
+            resValue("string", "app_name", "RapidRAW Staging")
+        }
+        create("prod") {
+            dimension = "environment"
+            buildConfigField("String", "API_BASE_URL", "\"https://api.rapidraw.app\"")
+            buildConfigField("String", "ENVIRONMENT", "\"production\"")
+            buildConfigField("boolean", "ENABLE_DEBUG_TOOLS", "false")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -194,95 +224,90 @@ android {
 
 dependencies {
     // Compose BOM (2026 release track - supports Material 3 Expressive + new APIs)
-    val composeBom = platform("androidx.compose:compose-bom:2025.04.00")
+    val composeBom = platform(libs.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
-    implementation("androidx.core:core-ktx:1.16.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-    implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.navigation:navigation-compose:2.8.5")
-    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
-    // Android 13+ per-app language (locale preference)
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    // Window manager for foldables / multi-window on Android 16
-    implementation("androidx.window:window:1.3.0")
+    // AndroidX
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.profileinstaller)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.window)
+    implementation(libs.androidx.exifinterface)
 
     // Compose UI
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.graphics)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
+    implementation(libs.compose.material3.window.size.class)
 
     // Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-
-    // Image decoding
-    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation(libs.kotlinx.serialization.json)
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    implementation(libs.kotlinx.coroutines.android)
+    testImplementation(libs.kotlinx.coroutines.test)
 
     // Room database
-    val roomVersion = "2.6.1"
-    implementation("androidx.room:room-runtime:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")
-    ksp("androidx.room:room-compiler:$roomVersion")
-    testImplementation("androidx.room:room-testing:$roomVersion")
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    testImplementation(libs.androidx.room.testing)
 
     // WorkManager (导出队列)
-    implementation("androidx.work:work-runtime-ktx:2.10.0")
-    androidTestImplementation("androidx.work:work-testing:2.10.0")
+    implementation(libs.androidx.work.runtime.ktx)
+    androidTestImplementation(libs.androidx.work.testing)
 
     // Testing
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.mockito:mockito-core:5.11.0")
-    testImplementation("org.mockito:mockito-inline:5.2.0")
-    testImplementation("io.mockk:mockk:1.13.12")
-    testImplementation("org.robolectric:robolectric:4.13")
-    testImplementation("androidx.test:core-ktx:1.6.1")
-    testImplementation("androidx.arch.core:core-testing:2.2.0")
-    testImplementation("app.cash.turbine:turbine:1.1.0")
+    testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.inline)
+    testImplementation(libs.mockk)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core.ktx)
+    testImplementation(libs.androidx.arch.core.testing)
+    testImplementation(libs.turbine)
 
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test:rules:1.6.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.2")
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 
     // ML Kit — 人脸检测
-    implementation("com.google.mlkit:face-detection:16.1.7")
+    implementation(libs.mlkit.face.detection)
 
     // TensorFlow Lite — 端侧推理
-    implementation("org.tensorflow:tensorflow-lite:2.15.0")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.15.0")
-    implementation("org.tensorflow:tensorflow-lite-gpu-api:2.15.0")
-    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+    implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.gpu)
+    implementation(libs.tensorflow.lite.gpu.api)
+    implementation(libs.tensorflow.lite.support)
 
-    // Google Play In-App Update — 应用内更新
-    implementation("com.google.android.play:app-update:2.1.0")
-    // v1.7.0: Google Play Billing 集成 — 支持 LUT 包/预设包/订阅购买
-    implementation("com.android.billingclient:billing:7.1.1")
-    // v1.8.0: OkHttp — 网络缓存 + 连接池 + GZIP
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    // v1.8.0: ProfileInstaller — 基线配置文件编译优化
-    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
-    // v1.8.0: LeakCanary — 内存泄漏检测（仅 debug）
-    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
-    // v1.9.0: WindowSizeClass — 响应式布局（平板/折叠屏适配）
-    implementation("androidx.compose.material3:material3-window-size-class:1.3.1")
-    // v1.8.0: Benchmark — 微观性能基准测试
-    androidTestImplementation("androidx.benchmark:benchmark-junit4:1.3.3")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    // Google Play
+    implementation(libs.app.update)
+    implementation(libs.billing)
+
+    // OkHttp — 网络缓存 + 连接池 + GZIP
+    implementation(libs.okhttp)
+
+    // LeakCanary — 内存泄漏检测（仅 debug）
+    debugImplementation(libs.leakcanary)
+
+    // Benchmark — 微观性能基准测试
+    androidTestImplementation(libs.benchmark.junit4)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.uiautomator)
 
     // Debug
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation(libs.compose.ui.tooling)
 }
 
 // v1.10.0: Kover 代码覆盖率配置

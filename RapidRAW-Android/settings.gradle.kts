@@ -18,6 +18,13 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
     }
+    // v1.10.1: 启用 Gradle Version Catalog
+    @Suppress("UnstableApiUsage")
+    versionCatalogs {
+        create("libs") {
+            from(files("gradle/libs.versions.toml"))
+        }
+    }
 }
 
 rootProject.name = "RapidRAW"

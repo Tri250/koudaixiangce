@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+
 jobs:
   lint:
     name: Lint & Code Quality
@@ -22,9 +25,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v3
+        uses: gradle/actions/setup-gradle@v4
       - name: Run Android Lint
-        run: ./gradlew lintRelease
+        run: ./gradlew lintProdRelease
       - name: Run detekt
         run: ./gradlew detekt
         continue-on-error: true
@@ -46,15 +49,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v3
+        uses: gradle/actions/setup-gradle@v4
       - name: Run Unit Tests
-        run: ./gradlew testReleaseUnitTest
+        run: ./gradlew testProdReleaseUnitTest --continue
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: app/build/test-results/
+          retention-days: 7
 
   build:
     name: Build Release APK
@@ -68,11 +72,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v3
+        uses: gradle/actions/setup-gradle@v4
       - name: Build Release
-        run: ./gradlew assembleRelease -PdisableR8=false
+        run: ./gradlew assembleProdRelease -PdisableR8=false
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: app/build/outputs/apk/release/
+          path: app/build/outputs/apk/prod/release/
+          retention-days: 30
