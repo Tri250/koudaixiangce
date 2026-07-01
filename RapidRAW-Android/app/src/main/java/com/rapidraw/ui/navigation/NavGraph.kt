@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.rapidraw.ui.ai.AiInpaintScreen
+import com.rapidraw.ui.ai.ComfyUiScreen
 import com.rapidraw.ui.community.LutMarketScreen
 import com.rapidraw.ui.community.RecipeShareScreen
 import com.rapidraw.ui.dam.DamProjectDetailScreen
@@ -79,6 +80,8 @@ object Routes {
     const val RECIPE_SHARE = "recipe_share"
     const val DAM_PROJECTS = "dam_projects"
     const val DAM_PROJECT_DETAIL = "dam_project_detail/{projectId}"
+    // v1.10.4: AI 工作流引擎
+    const val COMFY_UI = "comfy_ui"
 
     /** 深层链接 URI 前缀 */
     const val DEEP_LINK_PREFIX = "rapidraw://"
@@ -600,6 +603,19 @@ fun RapidNavHost(
                         popUpTo(Routes.DAM_PROJECT) { inclusive = true }
                     }
                 },
+            )
+        }
+
+        // v1.10.4: AI 工作流引擎 (ComfyUI)
+        composable(
+            route = Routes.COMFY_UI,
+            enterTransition = { Motion.enterSlideUp },
+            exitTransition = { Motion.exitSlideDown },
+            popEnterTransition = { Motion.enterSlideUp },
+            popExitTransition = { Motion.exitSlideDown },
+        ) {
+            ComfyUiScreen(
+                onBack = { navController.popBackStack() },
             )
         }
     }

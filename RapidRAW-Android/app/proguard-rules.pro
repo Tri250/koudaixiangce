@@ -265,3 +265,8 @@
 -keep class com.rapidraw.core.InAppReviewManager { *; }
 -keep class com.rapidraw.ui.components.WhatsNewDialog { *; }
 -keep class com.rapidraw.ui.components.WhatsNewDialogKt { *; }
+
+# v1.10.4 全量功能: 保持去雾/渐变滤镜处理器
+-keep class com.rapidraw.core.DehazeProcessor { *; }
+-keep class com.rapidraw.core.GraduatedFilter { *; }
+-keep class com.rapidraw.core.GraduatedFilter$FilterType { *; }
