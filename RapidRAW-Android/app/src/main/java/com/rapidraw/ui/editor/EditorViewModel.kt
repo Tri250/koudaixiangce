@@ -396,7 +396,15 @@ class EditorViewModel(
                     } catch (e2: OutOfMemoryError) {
                         Log.w(TAG, "OOM creating half-resolution original preview fallback", e2)
                         null
+                    } catch (e2: IllegalArgumentException) {
+                        Log.w(TAG, "IllegalArgument creating half-resolution original preview fallback", e2)
+                        null
                     }
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "Cannot copy original preview (HARDWARE bitmap?), using scaled fallback", e)
+                    try {
+                        Bitmap.createScaledBitmap(validPreview, validPreview.width / 2, validPreview.height / 2, true)
+                    } catch (_: Throwable) { null }
                 }
                 _originalPreviewBitmap.value?.let { old ->
                     if (!old.isRecycled && old !== previewBitmapCache && old !== originalBitmap) old.recycle()
@@ -1600,24 +1608,32 @@ class EditorViewModel(
     // ── BM3D Denoising (高级降噪) ──────────────────────────────────
 
     fun applyBm3dDenoising(sigma: Float) {
-        if (sigma <= 0f || originalBitmap == null) return
+        if (sigma <= 0f) return
+        val bitmap = bitmapMutex.withLock {
+            previewBitmapCache?.takeIf { !it.isRecycled }
+        } ?: return
         aiJob?.cancel()
         aiJob = viewModelScope.launch(coroutineExceptionHandler) {
             _isBm3dProcessing.value = true
             _bm3dProgress.value = 0f
             try {
-                val bitmap = previewBitmapCache ?: return@launch
                 val denoiser = com.rapidraw.core.Bm3dDenoiser()
                 val result = denoiser.denoise(bitmap, com.rapidraw.core.Bm3dDenoiser.Params(sigma = sigma)) { progress ->
                     _bm3dProgress.value = progress.progress
                 }
-                if (!result.isRecycled) {
-                    previewBitmapCache = result
+                if (!result.isRecycled && result !== bitmap) {
+                    bitmapMutex.withLock {
+                        previewBitmapCache?.takeIf { it !== result && it !== originalBitmap && !it.isRecycled }?.recycle()
+                        previewBitmapCache = result
+                    }
                     _previewBitmap.value = result
                     updateAdjustments { it.copy(bm3dSigma = sigma) }
                 }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
+            catch (e: OutOfMemoryError) {
+                Log.e(TAG, "BM3D denoising OOM", e)
+                _event.value = EditorEvent.Error("BM3D降噪失败: 内存不足")
+            } catch (e: Exception) {
                 Log.e(TAG, "BM3D denoising failed", e)
                 _event.value = EditorEvent.Error("BM3D降噪失败: ${e.message}")
             } finally {
@@ -1634,7 +1650,9 @@ class EditorViewModel(
     }
 
     fun applyCreativeLightEffects() {
-        val bitmap = previewBitmapCache ?: return
+        val bitmap = bitmapMutex.withLock {
+            previewBitmapCache?.takeIf { !it.isRecycled }
+        } ?: return
         val adj = _adjustments.value
         val hasEffects = adj.glowAmount > 0f || adj.halationAmount > 0f || adj.flareAmount > 0f
         if (!hasEffects) return
@@ -1661,12 +1679,17 @@ class EditorViewModel(
                     )
                 )
                 val result = effects.apply(bitmap, params)
-                if (!result.isRecycled) {
-                    previewBitmapCache = result
+                if (!result.isRecycled && result !== bitmap) {
+                    bitmapMutex.withLock {
+                        previewBitmapCache?.takeIf { it !== result && it !== originalBitmap && !it.isRecycled }?.recycle()
+                        previewBitmapCache = result
+                    }
                     _previewBitmap.value = result
                 }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
+            catch (e: OutOfMemoryError) {
+                Log.e(TAG, "Creative light effects OOM", e)
+            } catch (e: Exception) {
                 Log.e(TAG, "Creative light effects failed", e)
             }
         }
@@ -1679,7 +1702,9 @@ class EditorViewModel(
     }
 
     fun applyAdvancedSkinWhitening(intensity: Float, smoothness: Float) {
-        val bitmap = previewBitmapCache ?: return
+        val bitmap = bitmapMutex.withLock {
+            previewBitmapCache?.takeIf { !it.isRecycled }
+        } ?: return
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             try {
                 val whitener = com.rapidraw.core.AdvancedSkinWhitener()
@@ -1688,15 +1713,20 @@ class EditorViewModel(
                     transitionSmoothness = smoothness.toInt()
                 )
                 val result = whitener.process(bitmap, params)
-                if (!result.isRecycled) {
-                    previewBitmapCache = result
+                if (!result.isRecycled && result !== bitmap) {
+                    bitmapMutex.withLock {
+                        previewBitmapCache?.takeIf { it !== result && it !== originalBitmap && !it.isRecycled }?.recycle()
+                        previewBitmapCache = result
+                    }
                     _previewBitmap.value = result
                     updateAdjustments {
                         it.copy(advancedSkinWhiteningIntensity = intensity, advancedSkinWhiteningSmoothness = smoothness)
                     }
                 }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
+            catch (e: OutOfMemoryError) {
+                Log.e(TAG, "Advanced skin whitening OOM", e)
+            } catch (e: Exception) {
                 Log.e(TAG, "Advanced skin whitening failed", e)
             }
         }
@@ -1816,7 +1846,9 @@ class EditorViewModel(
     // ── Lens Projection Transform (镜头投影变换) ──────────────────
 
     fun applyLensProjectionTransform(srcProjection: Int, dstProjection: Int) {
-        val bitmap = previewBitmapCache ?: return
+        val bitmap = bitmapMutex.withLock {
+            previewBitmapCache?.takeIf { !it.isRecycled }
+        } ?: return
         if (srcProjection == dstProjection) return
 
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
@@ -1829,13 +1861,19 @@ class EditorViewModel(
                     dstProjection = dstType
                 )
                 val result = transform.transform(bitmap, params)
-                if (!result.isRecycled) {
-                    previewBitmapCache = result
+                if (!result.isRecycled && result !== bitmap) {
+                    bitmapMutex.withLock {
+                        previewBitmapCache?.takeIf { it !== result && it !== originalBitmap && !it.isRecycled }?.recycle()
+                        previewBitmapCache = result
+                    }
                     _previewBitmap.value = result
                     updateAdjustments { it.copy(lensProjectionSrc = srcProjection, lensProjectionDst = dstProjection) }
                 }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
+            catch (e: OutOfMemoryError) {
+                Log.e(TAG, "Lens projection transform OOM", e)
+                _event.value = EditorEvent.Error("镜头投影变换失败: 内存不足")
+            } catch (e: Exception) {
                 Log.e(TAG, "Lens projection transform failed", e)
                 _event.value = EditorEvent.Error("镜头投影变换失败: ${e.message}")
             }
@@ -1960,8 +1998,10 @@ class EditorViewModel(
                 )
                 ExportQueueRepository.updateJobProgress(jobId, 0.95f)
 
-                val file = uri.path?.let { java.io.File(it) }
-                val fileSize = file?.length() ?: 0L
+                // 2026 hotfix: content URI 的 path 不一定是本地文件路径，避免 File 构造异常
+                val fileSize = runCatching {
+                    appContext.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
+                }.getOrDefault(0L)
 
                 ExportQueueRepository.updateJobStatus(
                     jobId,
@@ -2015,7 +2055,7 @@ class EditorViewModel(
             } ?: return@launch
 
             var processed: Bitmap? = null
-            runCatching {
+            try {
                 processed = imageProcessor.processFullResolution(
                     _adjustments.value, source, allowDownsample = false
                 )
@@ -2027,8 +2067,13 @@ class EditorViewModel(
                 withContext(Dispatchers.Main) {
                     _event.value = EditorEvent.ShareImage(uri)
                 }
-            }.onFailure {
-                Log.e(TAG, "Share failed", it)
+            } catch (e: CancellationException) { throw e }
+            catch (e: OutOfMemoryError) {
+                Log.e(TAG, "Share OOM", e)
+                _event.value = EditorEvent.Error("分享失败: 内存不足")
+            } catch (e: Exception) {
+                Log.e(TAG, "Share failed", e)
+                _event.value = EditorEvent.Error("分享失败: ${e.message}")
             }
             // 2026 hotfix: 回收全分辨率大位图，避免连续分享造成 OOM
             processed?.let { p ->

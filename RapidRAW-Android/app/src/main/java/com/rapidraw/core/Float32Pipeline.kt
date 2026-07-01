@@ -280,56 +280,68 @@ class Float32Pipeline {
         bitmap: Bitmap,
         adjustments: Adjustments,
     ): Bitmap = withContext(Dispatchers.Default) {
-        val params = PipelineParams.from(adjustments)
+        try {
+            val params = PipelineParams.from(adjustments)
 
-        val w = bitmap.width
-        val h = bitmap.height
-        val pixelCount = w * h
+            val w = bitmap.width
+            val h = bitmap.height
+            val pixelCount = w * h
 
-        // Step 1: Bitmap → Float32 linear RGB
-        val pixels = IntArray(pixelCount)
-        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+            // Step 1: Bitmap → Float32 linear RGB
+            val pixels = IntArray(pixelCount)
+            bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        val linearR = FloatArray(pixelCount)
-        val linearG = FloatArray(pixelCount)
-        val linearB = FloatArray(pixelCount)
+            val linearR = FloatArray(pixelCount)
+            val linearG = FloatArray(pixelCount)
+            val linearB = FloatArray(pixelCount)
 
-        for (i in 0 until pixelCount) {
-            val p = pixels[i]
-            val sr = ((p shr 16) and 0xFF) / 255f
-            val sg = ((p shr 8) and 0xFF) / 255f
-            val sb = (p and 0xFF) / 255f
+            for (i in 0 until pixelCount) {
+                val p = pixels[i]
+                val sr = ((p shr 16) and 0xFF) / 255f
+                val sg = ((p shr 8) and 0xFF) / 255f
+                val sb = (p and 0xFF) / 255f
 
-            linearR[i] = ColorMath.srgbToLinear(sr)
-            linearG[i] = ColorMath.srgbToLinear(sg)
-            linearB[i] = ColorMath.srgbToLinear(sb)
+                linearR[i] = ColorMath.srgbToLinear(sr)
+                linearG[i] = ColorMath.srgbToLinear(sg)
+                linearB[i] = ColorMath.srgbToLinear(sb)
+            }
+
+            // Step 2: Process in linear space
+            processFloat32(linearR, linearG, linearB, w, h, params)
+
+            // Step 3: Float32 linear → sRGB → Bitmap
+            val outBitmap = try {
+                Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            } catch (e: OutOfMemoryError) {
+                Log.e(TAG, "OOM creating output bitmap ${w}x${h}", e)
+                return@withContext try {
+                    Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+                } catch (_: OutOfMemoryError) { bitmap }
+            }
+            val outPixels = IntArray(pixelCount)
+
+            for (i in 0 until pixelCount) {
+                var r = ColorMath.linearToSrgb(linearR[i].coerceIn(0f, 1f))
+                var g = ColorMath.linearToSrgb(linearG[i].coerceIn(0f, 1f))
+                var b = ColorMath.linearToSrgb(linearB[i].coerceIn(0f, 1f))
+
+                // Dither
+                r = (r + ColorMath.gradientNoise(i.toFloat(), 0f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
+                g = (g + ColorMath.gradientNoise(i.toFloat() + 100f, 100f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
+                b = (b + ColorMath.gradientNoise(i.toFloat() + 200f, 200f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
+
+                val ri = (r * 255f).toInt().coerceIn(0, 255)
+                val gi = (g * 255f).toInt().coerceIn(0, 255)
+                val bi = (b * 255f).toInt().coerceIn(0, 255)
+                outPixels[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
+            }
+
+            outBitmap.setPixels(outPixels, 0, w, 0, 0, w, h)
+            outBitmap
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM in Float32Pipeline", e)
+            try { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) } catch (_: OutOfMemoryError) { bitmap }
         }
-
-        // Step 2: Process in linear space
-        processFloat32(linearR, linearG, linearB, w, h, params)
-
-        // Step 3: Float32 linear → sRGB → Bitmap
-        val outBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val outPixels = IntArray(pixelCount)
-
-        for (i in 0 until pixelCount) {
-            var r = ColorMath.linearToSrgb(linearR[i].coerceIn(0f, 1f))
-            var g = ColorMath.linearToSrgb(linearG[i].coerceIn(0f, 1f))
-            var b = ColorMath.linearToSrgb(linearB[i].coerceIn(0f, 1f))
-
-            // Dither
-            r = (r + ColorMath.gradientNoise(i.toFloat(), 0f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
-            g = (g + ColorMath.gradientNoise(i.toFloat() + 100f, 100f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
-            b = (b + ColorMath.gradientNoise(i.toFloat() + 200f, 200f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
-
-            val ri = (r * 255f).toInt().coerceIn(0, 255)
-            val gi = (g * 255f).toInt().coerceIn(0, 255)
-            val bi = (b * 255f).toInt().coerceIn(0, 255)
-            outPixels[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
-        }
-
-        outBitmap.setPixels(outPixels, 0, w, 0, 0, w, h)
-        outBitmap
     }
 
     /**

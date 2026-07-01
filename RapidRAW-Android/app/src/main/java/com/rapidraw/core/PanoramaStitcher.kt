@@ -189,6 +189,9 @@ class PanoramaStitcher {
                 homographies = homographies.map { mat -> floatArrayOf(*mat) },
                 overlapRegions = overlapRegions
             )
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "拼接失败 OOM", e)
+            null
         } catch (e: Exception) {
             Log.e(TAG, "拼接失败", e)
             null
@@ -1163,7 +1166,7 @@ class PanoramaStitcher {
             Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         } catch (_: OutOfMemoryError) {
             Log.e(TAG, "OOM in linearBlend ${w}x${h}")
-            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            return try { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) } catch (_: OutOfMemoryError) { warpedImages.firstOrNull() ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
         }
 
         // 计算每张图的距离权重
@@ -1264,7 +1267,7 @@ class PanoramaStitcher {
             Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         } catch (_: OutOfMemoryError) {
             Log.e(TAG, "OOM in featherBlend ${w}x${h}")
-            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            return try { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) } catch (_: OutOfMemoryError) { warpedImages.firstOrNull() ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
         }
 
         // 计算每张图的羽化权重
@@ -1621,7 +1624,7 @@ class PanoramaStitcher {
             Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         } catch (_: OutOfMemoryError) {
             Log.e(TAG, "OOM in multiBandBlend result ${w}x${h}")
-            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            return try { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) } catch (_: OutOfMemoryError) { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
         }
         val pixels = IntArray(w * h)
         for (i in 0 until w * h) {

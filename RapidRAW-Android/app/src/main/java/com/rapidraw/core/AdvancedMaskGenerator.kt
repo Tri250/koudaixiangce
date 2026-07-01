@@ -62,43 +62,50 @@ class AdvancedMaskGenerator {
     fun generateMask(source: Bitmap, type: MaskType): Bitmap {
         val w = source.width
         val h = source.height
-        if (w <= 0 || h <= 0) return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-
-        val pixels = IntArray(w * h)
-        source.getPixels(pixels, 0, w, 0, 0, w, h)
-
-        val maskPixels = IntArray(w * h)
-
-        when (type) {
-            MaskType.SKY -> generateSkyMask(pixels, w, h, maskPixels)
-            MaskType.SUBJECT -> generateSubjectMask(pixels, w, h, maskPixels)
-            MaskType.FOREGROUND -> generateForegroundMask(pixels, w, h, maskPixels)
-            MaskType.BACKGROUND -> generateBackgroundMask(pixels, w, h, maskPixels)
-            MaskType.SKIN -> generateSkinMask(pixels, w, h, maskPixels)
-            MaskType.HAIR -> generateHairMask(pixels, w, h, maskPixels)
-            MaskType.EYES -> generateEyesMask(pixels, w, h, maskPixels)
-            MaskType.LIPS -> generateLipsMask(pixels, w, h, maskPixels)
-            MaskType.TEETH -> generateTeethMask(pixels, w, h, maskPixels)
-            MaskType.GRASS -> generateGrassMask(pixels, w, h, maskPixels)
-            MaskType.FOLIAGE -> generateFoliageMask(pixels, w, h, maskPixels)
-            MaskType.WATER -> generateWaterMask(pixels, w, h, maskPixels)
-            MaskType.MOUNTAIN -> generateMountainMask(pixels, w, h, maskPixels)
-            MaskType.BUILDING -> generateBuildingMask(pixels, w, h, maskPixels)
-            MaskType.SKY_REPLACEMENT -> generateSkyReplacementMask(pixels, w, h, maskPixels)
-            MaskType.LUMINANCE -> generateLuminanceMask(pixels, w, h, maskPixels)
-            MaskType.COLOR -> generateColorMask(pixels, w, h, maskPixels)
-            MaskType.SATURATION -> generateSaturationMask(pixels, w, h, maskPixels)
-            MaskType.HUE -> generateHueMask(pixels, w, h, maskPixels)
-            MaskType.SHADOWS -> generateShadowsMask(pixels, w, h, maskPixels)
-            MaskType.MIDTONES -> generateMidtonesMask(pixels, w, h, maskPixels)
-            MaskType.HIGHLIGHTS -> generateHighlightsMask(pixels, w, h, maskPixels)
-            MaskType.DARK -> generateDarkMask(pixels, w, h, maskPixels)
-            MaskType.BRIGHT -> generateBrightMask(pixels, w, h, maskPixels)
+        if (w <= 0 || h <= 0) {
+            return try { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) } catch (_: OutOfMemoryError) { source }
         }
 
-        val mask = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        mask.setPixels(maskPixels, 0, w, 0, 0, w, h)
-        return mask
+        return try {
+            val pixels = IntArray(w * h)
+            source.getPixels(pixels, 0, w, 0, 0, w, h)
+
+            val maskPixels = IntArray(w * h)
+
+            when (type) {
+                MaskType.SKY -> generateSkyMask(pixels, w, h, maskPixels)
+                MaskType.SUBJECT -> generateSubjectMask(pixels, w, h, maskPixels)
+                MaskType.FOREGROUND -> generateForegroundMask(pixels, w, h, maskPixels)
+                MaskType.BACKGROUND -> generateBackgroundMask(pixels, w, h, maskPixels)
+                MaskType.SKIN -> generateSkinMask(pixels, w, h, maskPixels)
+                MaskType.HAIR -> generateHairMask(pixels, w, h, maskPixels)
+                MaskType.EYES -> generateEyesMask(pixels, w, h, maskPixels)
+                MaskType.LIPS -> generateLipsMask(pixels, w, h, maskPixels)
+                MaskType.TEETH -> generateTeethMask(pixels, w, h, maskPixels)
+                MaskType.GRASS -> generateGrassMask(pixels, w, h, maskPixels)
+                MaskType.FOLIAGE -> generateFoliageMask(pixels, w, h, maskPixels)
+                MaskType.WATER -> generateWaterMask(pixels, w, h, maskPixels)
+                MaskType.MOUNTAIN -> generateMountainMask(pixels, w, h, maskPixels)
+                MaskType.BUILDING -> generateBuildingMask(pixels, w, h, maskPixels)
+                MaskType.SKY_REPLACEMENT -> generateSkyReplacementMask(pixels, w, h, maskPixels)
+                MaskType.LUMINANCE -> generateLuminanceMask(pixels, w, h, maskPixels)
+                MaskType.COLOR -> generateColorMask(pixels, w, h, maskPixels)
+                MaskType.SATURATION -> generateSaturationMask(pixels, w, h, maskPixels)
+                MaskType.HUE -> generateHueMask(pixels, w, h, maskPixels)
+                MaskType.SHADOWS -> generateShadowsMask(pixels, w, h, maskPixels)
+                MaskType.MIDTONES -> generateMidtonesMask(pixels, w, h, maskPixels)
+                MaskType.HIGHLIGHTS -> generateHighlightsMask(pixels, w, h, maskPixels)
+                MaskType.DARK -> generateDarkMask(pixels, w, h, maskPixels)
+                MaskType.BRIGHT -> generateBrightMask(pixels, w, h, maskPixels)
+            }
+
+            val mask = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            mask.setPixels(maskPixels, 0, w, 0, 0, w, h)
+            mask
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM generating mask", e)
+            try { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) } catch (_: OutOfMemoryError) { source }
+        }
     }
 
     private fun generateSkyMask(pixels: IntArray, w: Int, h: Int, output: IntArray) {

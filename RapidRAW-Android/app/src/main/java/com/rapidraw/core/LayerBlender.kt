@@ -75,18 +75,23 @@ object LayerBlender {
 
         // 初始化为第一层（基底）
         val firstBitmap = layers[0].bitmap
-        var result = if (firstBitmap != null) {
-            firstBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        } else if (layers[0].adjustmentLayer != null) {
-            // 调整图层作为基底时：创建白色画布并应用调整
-            val white = createWhiteBitmap(width, height)
-            val adjLayer = layers[0].adjustmentLayer
-            if (adjLayer != null) {
-                applyAdjustmentLayer(white, adjLayer)
+        var result = try {
+            if (firstBitmap != null) {
+                firstBitmap.copy(Bitmap.Config.ARGB_8888, true)
+            } else if (layers[0].adjustmentLayer != null) {
+                // 调整图层作为基底时：创建白色画布并应用调整
+                val white = createWhiteBitmap(width, height)
+                val adjLayer = layers[0].adjustmentLayer
+                if (adjLayer != null) {
+                    applyAdjustmentLayer(white, adjLayer)
+                }
+                white
+            } else {
+                createWhiteBitmap(width, height)
             }
-            white
-        } else {
-            createWhiteBitmap(width, height)
+        } catch (e: OutOfMemoryError) {
+            Log.e("LayerBlender", "OOM creating base bitmap ${width}x${height}", e)
+            return try { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) } catch (_: OutOfMemoryError) { firstBitmap ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
         }
 
         // 依次混合后续图层
@@ -117,7 +122,12 @@ object LayerBlender {
             layer.bitmap != null -> getLayerPixels(layer.bitmap, w, h)
             layer.adjustmentLayer != null -> {
                 // 调整图层：复制基底，应用调整，作为图层内容
-                val adjusted = base.copy(Bitmap.Config.ARGB_8888, true)
+                val adjusted = try {
+                    base.copy(Bitmap.Config.ARGB_8888, true)
+                } catch (e: OutOfMemoryError) {
+                    Log.e("LayerBlender", "OOM copying base for adjustment layer", e)
+                    return base
+                }
                 val adj = layer.adjustmentLayer
                 if (adj != null) {
                     applyAdjustmentLayer(adjusted, adj)
@@ -193,7 +203,12 @@ object LayerBlender {
         opacity: Float = 1f,
         mask: Bitmap? = null,
     ): Bitmap {
-        val result = base.copy(Bitmap.Config.ARGB_8888, true)
+        val result = try {
+            base.copy(Bitmap.Config.ARGB_8888, true)
+        } catch (e: OutOfMemoryError) {
+            Log.e("LayerBlender", "OOM copying base bitmap", e)
+            return base
+        }
         return blendLayer(result, Layer(bitmap = overlay, blendMode = blendMode, opacity = opacity, mask = mask))
     }
 
@@ -419,7 +434,12 @@ object LayerBlender {
 
     private fun getLayerPixels(layerBitmap: Bitmap, targetW: Int, targetH: Int): IntArray {
         val bmp = if (layerBitmap.width != targetW || layerBitmap.height != targetH) {
-            Bitmap.createScaledBitmap(layerBitmap, targetW, targetH, true)
+            try {
+                Bitmap.createScaledBitmap(layerBitmap, targetW, targetH, true)
+            } catch (e: OutOfMemoryError) {
+                Log.e("LayerBlender", "OOM scaling layer bitmap to ${targetW}x${targetH}", e)
+                layerBitmap
+            }
         } else {
             layerBitmap
         }
@@ -439,7 +459,12 @@ object LayerBlender {
      */
     private fun getMaskPixels(maskBitmap: Bitmap, targetW: Int, targetH: Int): IntArray {
         val bmp = if (maskBitmap.width != targetW || maskBitmap.height != targetH) {
-            Bitmap.createScaledBitmap(maskBitmap, targetW, targetH, true)
+            try {
+                Bitmap.createScaledBitmap(maskBitmap, targetW, targetH, true)
+            } catch (e: OutOfMemoryError) {
+                Log.e("LayerBlender", "OOM scaling mask bitmap to ${targetW}x${targetH}", e)
+                maskBitmap
+            }
         } else {
             maskBitmap
         }

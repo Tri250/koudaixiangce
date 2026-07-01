@@ -214,10 +214,15 @@ class MainActivity : AppCompatActivity() {
             }
         }.onFailure { outer ->
             Log.e(TAG, "showFallbackUi setContent also failed", outer)
-            // 最后手段：直接 finish 并重启 Activity
+            // 最后手段：直接 finish 并尝试重启 Activity
             runCatching { finish() }
             runCatching {
-                startActivity(intent?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                val restartIntent = Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                }
+                startActivity(restartIntent)
+            }.onFailure {
+                Log.e(TAG, "Fallback restart also failed", it)
             }
         }
     }

@@ -430,7 +430,7 @@ class ImageProcessor {
             val (exif, orientation) = readExifData(context, uri)
 
             // Decode bitmap
-            val originalBitmap = if (isRaw) {
+            val originalBitmap: Bitmap = if (isRaw) {
                 // Try libraw-based decoder first (real RAW support for CR2/NEF/ARW/RAF/RW2/ORF/DNG)
                 val librawBitmap = try {
                     RawDecoder.decodeRaw(context, uri)
@@ -816,8 +816,21 @@ class ImageProcessor {
         }
         // v1.5.5 hotfix: createBitmap 在 OOM 或 width*height*4 整数溢出时抛异常。
         // 异常向上传播后原 bitmap 不会被 recycle，造成位图泄漏。这里加 OOM 兜底返回原图。
+        // 2026 hotfix: HARDWARE bitmap 不可变，无法传给 createBitmap，需先 copy 再旋转。
+        val sourceBitmap = try {
+            if (!bitmap.isMutable) {
+                bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, true) ?: bitmap
+            } else bitmap
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "OOM copying immutable bitmap for rotation", e)
+            bitmap
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "Cannot copy bitmap for rotation", e)
+            bitmap
+        }
+
         val rotated = try {
-            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            Bitmap.createBitmap(sourceBitmap, 0, 0, sourceBitmap.width, sourceBitmap.height, matrix, true)
         } catch (e: OutOfMemoryError) {
             Log.w(TAG, "OOM applying EXIF orientation, returning source", e)
             return bitmap
@@ -825,7 +838,10 @@ class ImageProcessor {
             Log.w(TAG, "IllegalArgumentException applying EXIF orientation, returning source", e)
             return bitmap
         }
-        if (rotated != bitmap) bitmap.recycle()
+        if (rotated !== bitmap && rotated !== sourceBitmap) {
+            if (sourceBitmap !== bitmap) sourceBitmap.recycle()
+            bitmap.recycle()
+        }
         return rotated
     }
 

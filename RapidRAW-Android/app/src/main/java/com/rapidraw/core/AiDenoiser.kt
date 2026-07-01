@@ -24,7 +24,11 @@ class GuidedFilterDenoiser {
     fun denoise(source: Bitmap, preserveDetails: Float = 0.5f, chromaStrength: Float = 0.3f): Bitmap {
         val w = source.width
         val h = source.height
-        if (w <= 0 || h <= 0) return source.copy(Bitmap.Config.ARGB_8888, true)
+        if (w <= 0 || h <= 0) {
+            return try {
+                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            } catch (_: OutOfMemoryError) { source }
+        }
 
         // 大图半分辨率处理再上采样
         val needDownsample = w * h > 2_000_000
@@ -36,7 +40,7 @@ class GuidedFilterDenoiser {
                 val sh = (h * scale).toInt().coerceAtLeast(1)
                 Bitmap.createScaledBitmap(source, sw, sh, true)
             } else {
-                source.copy(Bitmap.Config.ARGB_8888, true)
+                source.copy(Bitmap.Config.ARGB_8888, true) ?: source
             }
 
             val ww = workBitmap.width
@@ -109,24 +113,11 @@ class GuidedFilterDenoiser {
         } catch (e: OutOfMemoryError) {
             Log.e("GuidedFilterDenoiser", "OOM during denoise", e)
             // 2026 正式版: 兜底返回安全占位图，避免二次 OOM 导致崩溃。
-            val wb = workBitmap
             return try {
-                if (wb != null && needDownsample) {
-                    Bitmap.createScaledBitmap(wb, w, h, true)
-                } else {
-                    source.copy(Bitmap.Config.ARGB_8888, true)
-                }
+                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
             } catch (_: OutOfMemoryError) {
-                try {
-                    source.copy(Bitmap.Config.ARGB_8888, true)
-                } catch (_: OutOfMemoryError) {
-                    try {
-                        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-                    } catch (_: OutOfMemoryError) {
-                        // 绝对兜底：如果连 1x1 都分配不出，返回原图引用（调用方需自行判断）
-                        source
-                    }
-                }
+                // 绝对兜底：如果连 1x1 都分配不出，返回原图引用（调用方需自行判断）
+                source
             }
         }
     }

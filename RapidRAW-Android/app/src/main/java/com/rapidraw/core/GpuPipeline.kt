@@ -986,6 +986,10 @@ class GpuPipeline(private val context: Context) {
 
     /**
      * Read back pixels from the FBO (offscreen) and return as Bitmap.
+     *
+     * 2026 hotfix: 不再复用 readBackBitmap 返回给外部，因为外部（如 EditorViewModel）
+     * 会长期持有该 Bitmap 并在后续调度中显示/回收。复用会导致外部引用与内部缓冲区竞争，
+     * 在 release() 时产生 use-after-recycle 崩溃。ByteBuffer 仍复用以减少 GC。
      */
     fun getProcessedBitmap(): Bitmap {
         if (!initialized) return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
@@ -1011,16 +1015,14 @@ class GpuPipeline(private val context: Context) {
             flipRowsInBuffer(buffer, width, height)
             buffer.rewind()
 
-            // 复用 Bitmap 避免频繁创建
-            var bitmap = readBackBitmap
-            if (bitmap == null || bitmap.width != width || bitmap.height != height) {
-                bitmap?.recycle()
-                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                readBackBitmap = bitmap
-            }
+            // 每次创建新 Bitmap，避免与外部引用竞争
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             bitmap.copyPixelsFromBuffer(buffer)
 
             return bitmap
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "getProcessedBitmap OOM", e)
+            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
         } catch (e: RuntimeException) {
             Log.e(TAG, "getProcessedBitmap failed", e)
             initialized = false
@@ -1107,10 +1109,8 @@ class GpuPipeline(private val context: Context) {
         if (vao != 0) { GLES30.glDeleteVertexArrays(1, intArrayOf(vao), 0); vao = 0 }
         if (vbo != 0) { GLES30.glDeleteBuffers(1, intArrayOf(vbo), 0); vbo = 0 }
 
-        // Recycle readback bitmap before EGL teardown
-        readBackBitmap?.recycle()
+        // 清理内部缓冲区（readBackBitmap 已废弃复用，仅清理 readBackBuffer）
         readBackBuffer = null
-        readBackBitmap = null
 
         // Destroy EGL
         val display = eglDisplay
