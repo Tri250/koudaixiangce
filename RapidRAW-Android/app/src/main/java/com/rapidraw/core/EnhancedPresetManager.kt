@@ -78,9 +78,12 @@ class EnhancedPresetManager(context: Context) {
     suspend fun savePreset(preset: EnhancedPreset): Result<EnhancedPreset> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val file = File(presetsDir, "${preset.id}.json")
+                // 2026 hotfix: 校验 preset.id 文件名安全，防止路径穿越写入非预期目录
+                val safeId = preset.id.replace(Regex("[^a-zA-Z0-9\\-_]"), "_").take(64)
+                if (safeId.isBlank()) return@runCatching Result.failure<EnhancedPreset>(IllegalArgumentException("Invalid preset id")).getOrThrow()
+                val file = File(presetsDir, "$safeId.json")
                 // v1.5.5 hotfix: 原子写入（先写 .tmp 再 rename），防止进程在写入中途崩溃导致 JSON 半文件。
-                val tmpFile = File(presetsDir, "${preset.id}.json.tmp")
+                val tmpFile = File(presetsDir, "$safeId.json.tmp")
                 tmpFile.writeText(json.encodeToString(preset))
                 if (file.exists() && !file.delete()) {
                     tmpFile.delete()
@@ -152,7 +155,9 @@ class EnhancedPresetManager(context: Context) {
     }
 
     fun deletePreset(presetId: String): Boolean {
-        val file = File(presetsDir, "$presetId.json")
+        val safeId = presetId.replace(Regex("[^a-zA-Z0-9\\-_]"), "_").take(64)
+        if (safeId.isBlank()) return false
+        val file = File(presetsDir, "$safeId.json")
         val deleted = file.delete()
         if (deleted) {
             // v1.5.5 hotfix: 同步块内修改 presetCache 与 _presets，

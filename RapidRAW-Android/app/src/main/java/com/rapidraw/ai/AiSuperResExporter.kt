@@ -45,11 +45,13 @@ object AiSuperResExporter {
         orientation: Int = 0,
         progressCallback: ((Float) -> Unit)? = null,
     ): android.net.Uri? = withContext(Dispatchers.IO) {
+        var processed: Bitmap? = null
+        var scaled: Bitmap? = null
         try {
             // Step 1: 正常处理
             progressCallback?.invoke(0.1f)
             val imageProcessor = ImageProcessor()
-            val processed = imageProcessor.processFullResolution(adjustments, source)
+            processed = imageProcessor.processFullResolution(adjustments, source)
             progressCallback?.invoke(0.4f)
 
             // Step 2: AI超分辨率
@@ -59,7 +61,7 @@ object AiSuperResExporter {
             } else {
                 AiSuperResolution.ScaleFactor.X2
             }
-            val scaled = superRes.upscale(processed, scaleFactor)
+            scaled = superRes.upscale(processed, scaleFactor)
             progressCallback?.invoke(0.8f)
 
             // Step 3: 导出
@@ -67,15 +69,16 @@ object AiSuperResExporter {
                 scaled, exportSettings, context, exifData, orientation
             )
             progressCallback?.invoke(1.0f)
-
-            // 清理
-            if (scaled !== processed) scaled.recycle()
-            if (processed !== source) processed.recycle()
-
             uri
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "AI super resolution export OOM", e)
+            null
         } catch (e: Exception) {
             Log.e(TAG, "AI super resolution export failed", e)
             null
+        } finally {
+            scaled?.let { if (it !== processed && it !== source && !it.isRecycled) it.recycle() }
+            processed?.let { if (it !== source && !it.isRecycled) it.recycle() }
         }
     }
 
@@ -83,12 +86,17 @@ object AiSuperResExporter {
      * 仅执行AI超分辨率（不导出）
      */
     suspend fun upscale(context: Context, bitmap: Bitmap, scale: Int = 2): Bitmap {
-        val superRes = AiSuperResolution(context)
-        val scaleFactor = if (scale >= 3) {
-            AiSuperResolution.ScaleFactor.X4
-        } else {
-            AiSuperResolution.ScaleFactor.X2
+        return try {
+            val superRes = AiSuperResolution(context)
+            val scaleFactor = if (scale >= 3) {
+                AiSuperResolution.ScaleFactor.X4
+            } else {
+                AiSuperResolution.ScaleFactor.X2
+            }
+            superRes.upscale(bitmap, scaleFactor)
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "AI super resolution upscale OOM", e)
+            bitmap
         }
-        return superRes.upscale(bitmap, scaleFactor)
     }
 }

@@ -155,6 +155,8 @@ class DamProjectManager(private val context: Context) {
                 }
 
                 project
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
                 null
@@ -168,6 +170,12 @@ class DamProjectManager(private val context: Context) {
             ZipInputStream(FileInputStream(path)).use { zis ->
                 var entry: ZipEntry? = zis.nextEntry
                 while (entry != null) {
+                    // 2026 hotfix: 防御 zip slip 路径穿越
+                    if (entry.name.contains("..")) {
+                        Log.w(TAG, "Skip suspicious zip entry: ${entry.name}")
+                        entry = zis.nextEntry
+                        continue
+                    }
                     if (entry.name == PROJECT_FILE_NAME) {
                         val json = zis.bufferedReader().readText()
                         return DamProjectFile.fromJson(json)
@@ -184,7 +192,12 @@ class DamProjectManager(private val context: Context) {
 
     private fun loadFromJsonFile(path: String): DamProjectFile? {
         return try {
-            val json = File(path).readText()
+            val file = File(path)
+            if (file.length() > 50L * 1024 * 1024) {
+                Log.w(TAG, "JSON project too large: ${file.length()} bytes")
+                return null
+            }
+            val json = file.readText()
             DamProjectFile.fromJson(json)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load JSON project", e)
@@ -606,10 +619,15 @@ class DamProjectManager(private val context: Context) {
         if (bitmap.width <= maxSize && bitmap.height <= maxSize) return bitmap
 
         val scale = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height)
-        val newWidth = (bitmap.width * scale).toInt()
-        val newHeight = (bitmap.height * scale).toInt()
+        val newWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
+        val newHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
 
-        return android.graphics.Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+        return try {
+            android.graphics.Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+        } catch (e: OutOfMemoryError) {
+            Log.w(TAG, "OOM scaling thumbnail to ${newWidth}x${newHeight}", e)
+            bitmap
+        }
     }
 
     /**

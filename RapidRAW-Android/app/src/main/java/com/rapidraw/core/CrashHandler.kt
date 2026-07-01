@@ -132,6 +132,9 @@ object CrashHandler {
             .replace(Regex("\\b[0-9a-fA-F]{32,}\\b"), "<id>")
             // email 地址 → <email>
             .replace(Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"), "<email>")
+            // 电话/IP/UUID 类敏感片段
+            .replace(Regex("\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b"), "<ip>")
+            .replace(Regex("\\b\\d{11,}\\b"), "<number>")
     }
 
     private fun appVersionName(context: Context): String = runCatching {

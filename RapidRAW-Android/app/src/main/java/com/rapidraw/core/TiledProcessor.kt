@@ -67,7 +67,15 @@ class TiledProcessor(
 
                 if (tw <= 0 || th <= 0) continue
 
-                val tile = Bitmap.createBitmap(source, x, y, tw, th)
+                val tile = try {
+                    Bitmap.createBitmap(source, x, y, tw, th)
+                } catch (e: OutOfMemoryError) {
+                    Log.e(TAG, "OOM creating tile at ($x,$y) size ${tw}x${th}", e)
+                    continue
+                } catch (e: IllegalArgumentException) {
+                    Log.e(TAG, "Cannot create tile at ($x,$y) size ${tw}x${th}", e)
+                    continue
+                }
                 val processedTile = try {
                     processor(tile)
                 } catch (e: OutOfMemoryError) {

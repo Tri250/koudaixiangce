@@ -272,22 +272,39 @@ class LutLibraryManager(private val context: Context) {
                 val name = displayName ?: uri.lastPathSegment?.substringAfterLast('/')
                     ?: "LUT_${System.currentTimeMillis()}"
 
-                val id = UUID.randomUUID().toString()
+                val id = UUID.randomUUID().toString().replace(Regex("[^a-zA-Z0-9\\-]"), "_").take(64)
                 val destFile = File(lutBaseDir, "${id}.cube")
+
+                // 2026 hotfix: 限制导入 LUT 文件大小，防止恶意大文件撑爆私有目录
+                val size = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
+                if (size > MAX_LUT_IMPORT_BYTES) {
+                    Log.w(tag, "LUT file too large: $size bytes")
+                    return@withContext null
+                }
 
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     FileOutputStream(destFile).use { output ->
-                        input.copyTo(output)
+                        var copied = 0L
+                        val buffer = ByteArray(8192)
+                        var read = input.read(buffer)
+                        while (read >= 0) {
+                            copied += read
+                            if (copied > MAX_LUT_IMPORT_BYTES) {
+                                throw IllegalStateException("LUT import exceeds size limit")
+                            }
+                            output.write(buffer, 0, read)
+                            read = input.read(buffer)
+                        }
                     }
                 } ?: run {
-                    Log.w(tag, "Cannot open URI: $uri")
+                    Log.w(tag, "Cannot open URI")
                     return@withContext null
                 }
 
                 val entry = importLutFromFile(destFile, name, id)
                 entry
             } catch (e: Exception) {
-                Log.e(tag, "Failed to import LUT: ${e.message}", e)
+                Log.e(tag, "Failed to import LUT", e)
                 null
             }
         }
@@ -804,6 +821,7 @@ class LutLibraryManager(private val context: Context) {
     companion object {
         private const val PREFS_NAME = "lut_library_prefs"
         private const val LUT_CACHE_MAX_BYTES = 32 * 1024 * 1024 // 32 MB
+        private const val MAX_LUT_IMPORT_BYTES = 50L * 1024 * 1024 // 50 MB
         private const val THUMBNAIL_SIZE = 128
     }
 }

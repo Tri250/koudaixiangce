@@ -238,7 +238,22 @@ class CubeLutParser {
     fun parse(inputStream: InputStream?): ParsedLut? {
         if (inputStream == null) return null
 
-        val lines = inputStream.bufferedReader().readLines()
+        // 2026 hotfix: 限制单次读取的最大行数，防止 adversarial 输入导致内存耗尽
+        val lines = inputStream.bufferedReader().use { reader ->
+            val result = mutableListOf<String>()
+            var line = reader.readLine()
+            var count = 0
+            val maxLines = 2_000_000
+            while (line != null && count < maxLines) {
+                result.add(line)
+                line = reader.readLine()
+                count++
+            }
+            if (count >= maxLines) {
+                Log.w(TAG, "LUT line count exceeds $maxLines, truncated")
+            }
+            result
+        }
 
         var title: String? = null
         var size1D = 0

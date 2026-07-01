@@ -137,16 +137,11 @@ class LocalOnlySyncBackend(
 }
 
 /**
- * REST API 后端 — 对接自建服务器
+ * REST API 后端 — 对接自建服务器。
  *
- * 使用示例：
- * ```kotlin
- * val restBackend = RestSyncBackend(
- *     baseUrl = "https://api.rapidraw.app/v1",
- *     authToken = "Bearer xxx",
- *     httpClient = OkHttpClient(),
- * )
- * ```
+ * 当前为占位实现：V2.2.0 版本未启用真实远程同步，所有操作仅写入应用私有目录。
+ * 未来接入自建服务器时，需替换为 OkHttp/Retrofit 实现，并接入 CloudSyncManager
+ * 的 encryptToken 安全存储机制。
  */
 class RestSyncBackend(
     private val baseUrl: String,
@@ -159,52 +154,71 @@ class RestSyncBackend(
     override val syncState: kotlinx.coroutines.flow.MutableStateFlow<CloudSyncManager.SyncStatus> =
         kotlinx.coroutines.flow.MutableStateFlow(CloudSyncManager.SyncStatus.NOT_CONFIGURED)
 
+    /** 应用私有同步目录，避免写入 /tmp 导致跨应用可读 */
+    private lateinit var appQueueDir: java.io.File
+    private lateinit var appDataDir: java.io.File
+
     override suspend fun initialize(): Boolean {
-        // 本地同步后端无需初始化远程连接，直接标记为已配置
-        syncState.value = CloudSyncManager.SyncStatus.IDLE
-        isAuthenticated.value = false  // 本地模式无认证
-        return true
+        return try {
+            syncState.value = CloudSyncManager.SyncStatus.IDLE
+            isAuthenticated.value = false // 本地模式无远程认证
+            true
+        } catch (e: Exception) {
+            syncState.value = CloudSyncManager.SyncStatus.ERROR
+            false
+        }
+    }
+
+    fun initializeDirs(queueDir: java.io.File, dataDir: java.io.File) {
+        appQueueDir = queueDir
+        appDataDir = dataDir
     }
 
     override suspend fun upload(item: CloudSyncManager.SyncItem): Result<Unit> {
-        // 本地同步后端：写入本地同步队列目录，不发送到远程
+        if (!::appQueueDir.isInitialized) return Result.failure(IllegalStateException("RestSyncBackend not initialized with dirs"))
         return kotlin.runCatching {
             syncState.value = CloudSyncManager.SyncStatus.SYNCING
-            val queueDir = File(System.getProperty("java.io.tmpdir"), "rapidraw_sync_queue")
-            queueDir.mkdirs()
-            val file = File(queueDir, "${item.type}_${item.id}.json")
+            appQueueDir.mkdirs()
+            val file = File(appQueueDir, "${item.type}_${sanitizeFileName(item.id)}.json")
             file.writeText(item.payload)
             syncState.value = CloudSyncManager.SyncStatus.SUCCESS
+        }.onFailure {
+            syncState.value = CloudSyncManager.SyncStatus.ERROR
         }
     }
 
     override suspend fun download(type: String): Result<List<String>> {
-        // 本地同步后端：从本地同步数据目录读取
+        if (!::appDataDir.isInitialized) return Result.success(emptyList())
         return kotlin.runCatching {
-            val dataDir = File(System.getProperty("java.io.tmpdir"), "rapidraw_sync_data/$type")
-            if (!dataDir.exists()) emptyList()
-            else dataDir.listFiles()?.mapNotNull { it.readText() } ?: emptyList()
+            val dir = File(appDataDir, type)
+            if (!dir.exists()) emptyList()
+            else dir.listFiles()?.mapNotNull { it.readText() } ?: emptyList()
         }
     }
 
     override suspend fun delete(itemId: String, type: String): Result<Unit> {
+        if (!::appQueueDir.isInitialized) return Result.success(Unit)
         return kotlin.runCatching {
-            val queueDir = File(System.getProperty("java.io.tmpdir"), "rapidraw_sync_queue")
-            val file = File(queueDir, "${type}_${itemId}.json")
+            val file = File(appQueueDir, "${type}_${sanitizeFileName(itemId)}.json")
             if (file.exists()) file.delete()
         }
     }
 
     override suspend fun listRemoteIds(type: String): Result<List<String>> {
+        if (!::appDataDir.isInitialized) return Result.success(emptyList())
         return kotlin.runCatching {
-            val dataDir = File(System.getProperty("java.io.tmpdir"), "rapidraw_sync_data/$type")
-            if (!dataDir.exists()) emptyList()
-            else dataDir.listFiles()?.map { it.nameWithoutExtension } ?: emptyList()
+            val dir = File(appDataDir, type)
+            if (!dir.exists()) emptyList()
+            else dir.listFiles()?.map { it.nameWithoutExtension } ?: emptyList()
         }
     }
 
     override suspend fun disconnect() {
         isAuthenticated.value = false
         syncState.value = CloudSyncManager.SyncStatus.NOT_CONFIGURED
+    }
+
+    private fun sanitizeFileName(name: String): String {
+        return name.replace(Regex("[^a-zA-Z0-9\\-_]"), "_").take(64)
     }
 }

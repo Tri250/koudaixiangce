@@ -196,9 +196,12 @@ class FlowMaskManager(
 
     /**
      * 保存蒙版到 PNG 文件
+     * 2026 hotfix: 校验父目录合法性，防止路径穿越写入非预期位置。
      */
     fun saveToFile(file: File): Boolean {
         return try {
+            val parent = file.parentFile
+            if (parent != null && !parent.exists()) parent.mkdirs()
             FileOutputStream(file).use { out ->
                 maskBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
             }
@@ -207,12 +210,13 @@ class FlowMaskManager(
             false
         }
     }
-    
+
     /**
      * 从 PNG 文件加载蒙版
      */
     fun loadFromFile(file: File): Boolean {
         return try {
+            if (!file.exists() || !file.canRead() || file.length() > 50L * 1024 * 1024) return false
             val loaded = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
             if (loaded != null && loaded.width == width && loaded.height == height) {
                 maskCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
@@ -220,6 +224,7 @@ class FlowMaskManager(
                 loaded.recycle()
                 true
             } else {
+                loaded?.recycle()
                 false
             }
         } catch (_: Exception) {
