@@ -16,8 +16,10 @@ object FilmPresets {
         val name: String,
         val description: String,
         val category: Category,
-        // Adjustments that differ from defaults
-        val adjustments: Map<String, Float>
+        // Float-valued adjustments (maps to Adjustments Float fields)
+        val adjustments: Map<String, Float>,
+        // Int-valued overrides (e.g., colorScienceMode: Int -> 1)
+        val intOverrides: Map<String, Int> = emptyMap()
     )
 
     enum class Category(val displayName: String) {
@@ -442,9 +444,9 @@ object FilmPresets {
                 "filmGreenShift" to 0.02f,
                 "filmBlueShift" to -0.02f,
                 "oklabLightness" to 0.05f,
-                "oklabContrast" to 0.08f,
-                "colorScienceMode" to 1  // ACES 2.0
-            )
+                "oklabContrast" to 0.08f
+            ),
+            intOverrides = mapOf("colorScienceMode" to 1) // ACES 2.0
         ),
 
         // Kodak Vision3 500T - 电影夜景
@@ -469,9 +471,9 @@ object FilmPresets {
                 "filmGreenShift" to 0.02f,
                 "filmBlueShift" to 0.05f,
                 "oklabHueShift" to -0.02f,
-                "oklabSaturation" to 0.1f,
-                "colorScienceMode" to 1  // ACES 2.0
-            )
+                "oklabSaturation" to 0.1f
+            ),
+            intOverrides = mapOf("colorScienceMode" to 1) // ACES 2.0
         ),
 
         // Fuji Eterna 400T - 电影中灰调
@@ -494,9 +496,9 @@ object FilmPresets {
                 "shadowLift" to 0.1f,
                 "filmSaturation" to 0.0f,
                 "filmContrast" to 0.0f,
-                "oklabContrast" to 0.05f,
-                "colorScienceMode" to 1  // ACES 2.0
-            )
+                "oklabContrast" to 0.05f
+            ),
+            intOverrides = mapOf("colorScienceMode" to 1) // ACES 2.0
         ),
 
         // Fuji Pro Neg Std - 电影负片风格
