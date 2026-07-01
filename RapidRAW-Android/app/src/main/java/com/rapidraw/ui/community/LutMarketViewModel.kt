@@ -137,16 +137,19 @@ class LutMarketViewModel(application: Application) : AndroidViewModel(applicatio
     // ── Private Helpers ───────────────────────────────────────────────
 
     private suspend fun checkConnectivity(): Boolean = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
         try {
             val url = URL("https://www.google.com")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 3000
-            connection.readTimeout = 3000
+            connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = CONNECTIVITY_CHECK_TIMEOUT_MS
+            connection.readTimeout = CONNECTIVITY_CHECK_TIMEOUT_MS
             connection.requestMethod = "HEAD"
             connection.responseCode
             true
         } catch (_: Exception) {
             false
+        } finally {
+            connection?.disconnect()
         }
     }
 
@@ -376,4 +379,8 @@ class LutMarketViewModel(application: Application) : AndroidViewModel(applicatio
             previewGradient = listOf(0xFFFFCC80, 0xFFFFB74D, 0xFFF57C00),
         ),
     )
+
+    companion object {
+        private const val CONNECTIVITY_CHECK_TIMEOUT_MS = 3_000
+    }
 }
