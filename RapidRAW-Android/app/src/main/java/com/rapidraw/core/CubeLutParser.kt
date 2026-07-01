@@ -1,11 +1,14 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.util.Log
 import java.io.File
 import java.io.InputStream
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.cbrt
+import kotlin.math.roundToInt
 
 /**
  * .cube LUT 文件解析器
@@ -222,20 +225,43 @@ class CubeLutParser {
     // ── 解析方法 ──────────────────────────────────────────────────
 
     /**
-     * 解析 .cube 文件
+     * 解析 LUT 文件，根据扩展名自动选择解析器。
+     * 支持：.cube、.3dl、.png (Hald CLUT)
      */
     fun parseFile(file: File): ParsedLut? {
         if (file.length() > MAX_FILE_SIZE) {
             Log.w(TAG, "LUT file too large: ${file.length()} bytes (max $MAX_FILE_SIZE)")
             return null
         }
-        return file.inputStream().use { parse(it) }
+        val ext = file.extension.lowercase()
+        return file.inputStream().use { stream ->
+            parse(stream, ext)
+        }
+    }
+
+    /**
+     * 解析输入流，根据扩展名自动选择解析器。
+     * @param inputStream 输入流
+     * @param extension 文件扩展名 (如 "cube", "3dl", "png")
+     * @return 解析后的 LUT，失败返回 null
+     */
+    fun parse(inputStream: InputStream?, extension: String): ParsedLut? {
+        if (inputStream == null) return null
+        return when (extension.lowercase()) {
+            "cube" -> parseCube(inputStream)
+            "3dl" -> parse3dl(inputStream)
+            "png" -> parseHaldClut(inputStream)
+            else -> {
+                Log.w(TAG, "Unknown LUT format: .$extension, falling back to .cube parser")
+                parseCube(inputStream)
+            }
+        }
     }
 
     /**
      * 解析 .cube 文件输入流（完整版，支持1D/3D/混合）
      */
-    fun parse(inputStream: InputStream?): ParsedLut? {
+    fun parseCube(inputStream: InputStream?): ParsedLut? {
         if (inputStream == null) return null
 
         // 2026 hotfix: 限制单次读取的最大行数，防止 adversarial 输入导致内存耗尽
@@ -365,7 +391,7 @@ class CubeLutParser {
      * 向后兼容：直接返回 Lut3D（仅3D LUT 文件）
      */
     fun parse3D(inputStream: InputStream?): Lut3D? {
-        return parse(inputStream)?.lut3D
+        return parseCube(inputStream)?.lut3D
     }
 
     /**
@@ -373,6 +399,192 @@ class CubeLutParser {
      */
     fun parseFile3D(file: File): Lut3D? {
         return parseFile(file)?.lut3D
+    }
+
+    // ── .3dl 格式解析器 ─────────────────────────────────────────
+
+    /**
+     * 解析 .3dl 格式 LUT 文件。
+     * 3DL 格式被 DaVinci Resolve 等专业工具使用。
+     *
+     * 格式规范：
+     * - 头部：包含 "3DLUT" 或 "3D LUT" 标识
+     * - 尺寸声明：`size N` 或直接以数字开头
+     * - 数据：每行三个 RGB 值，空格分隔
+     * - 值范围：0-1 或 0-1023
+     *
+     * @param input 输入流
+     * @return 解析后的 Lut3D，失败返回 null
+     */
+    fun parse3dl(input: InputStream): Lut3D? {
+        val lines = input.bufferedReader().use { reader ->
+            val result = mutableListOf<String>()
+            var line = reader.readLine()
+            while (line != null) {
+                result.add(line)
+                line = reader.readLine()
+            }
+            result
+        }
+
+        var size = 0
+        val values = mutableListOf<Float>()
+        var valueScale = 1f // 默认为 0-1 范围
+        var headerFound = false
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            when {
+                trimmed.isEmpty() || trimmed.startsWith("#") -> {
+                    // 跳过空行和注释
+                }
+                trimmed.startsWith("3DLUT", ignoreCase = true) ||
+                trimmed.startsWith("3D LUT", ignoreCase = true) -> {
+                    headerFound = true
+                }
+                trimmed.startsWith("size", ignoreCase = true) -> {
+                    size = trimmed.substringAfter(" ", "").trim().toIntOrNull() ?: 0
+                    if (size < 2 || size > MAX_LUT_SIZE) {
+                        Log.w(TAG, "3DL LUT size $size out of valid range [2, $MAX_LUT_SIZE]")
+                        return null
+                    }
+                }
+                else -> {
+                    val parts = trimmed.split(Regex("\\s+"))
+                    if (parts.size == 3) {
+                        parts.forEach { p ->
+                            val v = p.toFloatOrNull()
+                            if (v != null) {
+                                values.add(v)
+                            } else {
+                                Log.w(TAG, "3DL: Invalid value: '$p'")
+                                return null
+                            }
+                        }
+                    } else if (parts.size == 1 && size == 0) {
+                        // 单个数字可能是尺寸声明（无 "size" 前缀）
+                        val maybeSize = parts[0].toIntOrNull()
+                        if (maybeSize != null && maybeSize in 2..MAX_LUT_SIZE) {
+                            size = maybeSize
+                        }
+                    }
+                }
+            }
+        }
+
+        if (size <= 0) {
+            // 尝试从数据量推断尺寸
+            val totalEntries = values.size / 3
+            val inferredSize = cbrt(totalEntries.toDouble()).roundToInt()
+            if (inferredSize * inferredSize * inferredSize == totalEntries && inferredSize in 2..MAX_LUT_SIZE) {
+                size = inferredSize
+            } else {
+                Log.w(TAG, "3DL: Could not determine LUT size from ${values.size} values")
+                return null
+            }
+        }
+
+        val expectedCount = size * size * size * 3
+        if (values.size < expectedCount) {
+            Log.w(TAG, "3DL: Data mismatch: expected $expectedCount values, got ${values.size}")
+            return null
+        }
+
+        // 自动检测值范围：如果大多数值 > 1.0，则使用 0-1023 范围
+        val valuesAboveOne = values.count { it > 1f }
+        if (valuesAboveOne > values.size * 0.3f) {
+            valueScale = 1f / 1023f
+        }
+
+        val data = FloatArray(expectedCount)
+        for (i in 0 until expectedCount) {
+            data[i] = (values[i] * valueScale).coerceIn(0f, 1f)
+        }
+
+        return Lut3D(size = size, data = data)
+    }
+
+    // ── Hald CLUT (.png) 格式解析器 ──────────────────────────────
+
+    /**
+     * 解析 Hald CLUT PNG 格式 LUT 文件。
+     * Hald CLUT 是一种将颜色查找表编码为 PNG 图像像素位置的格式。
+     *
+     * 常见 Hald 尺寸：
+     * - 8  →   512 像素 (8x8x8)
+     * - 16 →  4096 像素 (16x16x16)
+     * - 32 → 32768 像素 (32x32x32)
+     * - 64 → 262144 像素 (64x64x64)
+     *
+     * 图像布局：LUT 索引映射为图像像素，其中 level 增长方向为左→右→下。
+     * 图像宽度 = size * size，高度 = size。
+     * 索引公式：idx = (b * size * size + g * size + r) * 3
+     *
+     * @param input 输入流（PNG 图像数据）
+     * @return 解析后的 Lut3D，失败返回 null
+     */
+    fun parseHaldClut(input: InputStream): Lut3D? {
+        val options = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val bitmap = try {
+            BitmapFactory.decodeStream(input, null, options)
+        } catch (e: Exception) {
+            Log.w(TAG, "Hald CLUT: Failed to decode PNG: ${e.message}")
+            return null
+        } ?: run {
+            Log.w(TAG, "Hald CLUT: Null bitmap after decode")
+            return null
+        }
+
+        val width = bitmap.width
+        val height = bitmap.height
+
+        // 总像素数
+        val totalPixels = width * height
+        // 尺寸 = cuberoot(总像素数)
+        val size = cbrt(totalPixels.toDouble()).roundToInt()
+
+        // 验证是否为有效 Hald 尺寸
+        val validHaldSizes = setOf(8, 16, 32, 64)
+        if (size * size * size != totalPixels) {
+            Log.w(TAG, "Hald CLUT: Pixel count $totalPixels is not a perfect cube (nearest size=$size)")
+            return null
+        }
+        if (size !in 2..MAX_LUT_SIZE) {
+            Log.w(TAG, "Hald CLUT: Inferred size $size out of valid range [2, $MAX_LUT_SIZE]")
+            return null
+        }
+
+        if (!validHaldSizes.contains(size)) {
+            Log.w(TAG, "Hald CLUT: Non-standard size $size (expected one of $validHaldSizes), accepting anyway")
+        }
+
+        // 读取像素
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        // 构建 3D LUT 数据
+        // Hald CLUT 布局：图像宽度 = size * size，高度 = size
+        // 蓝色通道变化最慢（行），绿色次之（列块），红色最快（列内）
+        val data = FloatArray(size * size * size * 3)
+
+        for (b in 0 until size) {
+            for (g in 0 until size) {
+                for (r in 0 until size) {
+                    // 图像坐标：x = r + g * size, y = b
+                    val px = r + g * size
+                    val py = b
+                    val pixel = pixels[py * width + px]
+                    val lutIdx = (b * size * size + g * size + r) * 3
+                    data[lutIdx] = Color.red(pixel) / 255f
+                    data[lutIdx + 1] = Color.green(pixel) / 255f
+                    data[lutIdx + 2] = Color.blue(pixel) / 255f
+                }
+            }
+        }
+
+        return Lut3D(size = size, data = data)
     }
 
     // ── 验证 ──────────────────────────────────────────────────────

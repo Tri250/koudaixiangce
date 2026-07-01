@@ -137,17 +137,24 @@ class LocalOnlySyncBackend(
 }
 
 /**
- * REST API 后端 — 对接自建服务器。
+ * REST API 后端 — 对接自建 RapidRAW Cloud API 服务器。
  *
- * 当前为占位实现：V2.2.0 版本未启用真实远程同步，所有操作仅写入应用私有目录。
- * TODO(P2): V2.2.0 启用真实云同步后端，连接到 RapidRAW Cloud API。
- * 未来接入自建服务器时，需替换为 OkHttp/Retrofit 实现，并接入 CloudSyncManager
- * 的 encryptToken 安全存储机制。
+ * 使用 HttpURLConnection 进行真实的 HTTP 调用（无需外部依赖）。
+ * 支持认证 Header、重试、指数退避、速率限制感知、离线检测。
  */
 class RestSyncBackend(
-    private val baseUrl: String,
+    private val baseUrl: String = DEFAULT_BASE_URL,
     private val authToken: String,
 ) : CloudSyncBackend {
+
+    companion object {
+        const val DEFAULT_BASE_URL = "https://api.rapidraw.app/v1"
+        private const val TAG = "RestSyncBackend"
+        private const val CONNECT_TIMEOUT_MS = 15_000
+        private const val READ_TIMEOUT_MS = 30_000
+        private const val MAX_RETRIES = 3
+        private const val BASE_BACKOFF_MS = 500L
+    }
 
     override val name: String = "RapidRAW Cloud"
     override val isAuthenticated: kotlinx.coroutines.flow.MutableStateFlow<Boolean> =
@@ -155,33 +162,47 @@ class RestSyncBackend(
     override val syncState: kotlinx.coroutines.flow.MutableStateFlow<CloudSyncManager.SyncStatus> =
         kotlinx.coroutines.flow.MutableStateFlow(CloudSyncManager.SyncStatus.NOT_CONFIGURED)
 
-    /** 应用私有同步目录，避免写入 /tmp 导致跨应用可读 */
-    private lateinit var appQueueDir: java.io.File
-    private lateinit var appDataDir: java.io.File
+    @Volatile
+    private var rateLimitRetryTimestamp: Long = 0L
 
     override suspend fun initialize(): Boolean {
         return try {
-            syncState.value = CloudSyncManager.SyncStatus.IDLE
-            isAuthenticated.value = false // 本地模式无远程认证
-            true
+            syncState.value = CloudSyncManager.SyncStatus.SYNCING
+            val result = executeWithRetry("auth/verify", "GET", null)
+            result.fold(
+                onSuccess = {
+                    isAuthenticated.value = true
+                    syncState.value = CloudSyncManager.SyncStatus.IDLE
+                    true
+                },
+                onFailure = {
+                    isAuthenticated.value = false
+                    syncState.value = CloudSyncManager.SyncStatus.ERROR
+                    false
+                },
+            )
+        } catch (e: java.net.UnknownHostException) {
+            isAuthenticated.value = false
+            syncState.value = CloudSyncManager.SyncStatus.OFFLINE
+            false
         } catch (e: Exception) {
+            isAuthenticated.value = false
             syncState.value = CloudSyncManager.SyncStatus.ERROR
             false
         }
     }
 
-    fun initializeDirs(queueDir: java.io.File, dataDir: java.io.File) {
-        appQueueDir = queueDir
-        appDataDir = dataDir
-    }
-
     override suspend fun upload(item: CloudSyncManager.SyncItem): Result<Unit> {
-        if (!::appQueueDir.isInitialized) return Result.failure(IllegalStateException("RestSyncBackend not initialized with dirs"))
         return kotlin.runCatching {
             syncState.value = CloudSyncManager.SyncStatus.SYNCING
-            appQueueDir.mkdirs()
-            val file = File(appQueueDir, "${item.type}_${sanitizeFileName(item.id)}.json")
-            file.writeText(item.payload)
+            val endpoint = "sync/upload/${item.type}/${sanitizeUrlSegment(item.id)}"
+            val body = org.json.JSONObject().apply {
+                put("id", item.id)
+                put("type", item.type)
+                put("payload", item.payload)
+                put("timestamp", item.timestamp)
+            }.toString()
+            executeWithRetry(endpoint, "POST", body).getOrThrow()
             syncState.value = CloudSyncManager.SyncStatus.SUCCESS
         }.onFailure {
             syncState.value = CloudSyncManager.SyncStatus.ERROR
@@ -189,28 +210,35 @@ class RestSyncBackend(
     }
 
     override suspend fun download(type: String): Result<List<String>> {
-        if (!::appDataDir.isInitialized) return Result.success(emptyList())
         return kotlin.runCatching {
-            val dir = File(appDataDir, type)
-            if (!dir.exists()) emptyList()
-            else dir.listFiles()?.mapNotNull { it.readText() } ?: emptyList()
+            val endpoint = "sync/download/${type}"
+            val response = executeWithRetry(endpoint, "GET", null).getOrThrow()
+            val jsonArray = org.json.JSONArray(response)
+            (0 until jsonArray.length()).map { idx ->
+                jsonArray.getJSONObject(idx).getString("payload")
+            }
         }
     }
 
     override suspend fun delete(itemId: String, type: String): Result<Unit> {
-        if (!::appQueueDir.isInitialized) return Result.success(Unit)
         return kotlin.runCatching {
-            val file = File(appQueueDir, "${type}_${sanitizeFileName(itemId)}.json")
-            if (file.exists()) file.delete()
+            syncState.value = CloudSyncManager.SyncStatus.SYNCING
+            val endpoint = "sync/${type}/${sanitizeUrlSegment(itemId)}"
+            executeWithRetry(endpoint, "DELETE", null).getOrThrow()
+            syncState.value = CloudSyncManager.SyncStatus.SUCCESS
+        }.onFailure {
+            syncState.value = CloudSyncManager.SyncStatus.ERROR
         }
     }
 
     override suspend fun listRemoteIds(type: String): Result<List<String>> {
-        if (!::appDataDir.isInitialized) return Result.success(emptyList())
         return kotlin.runCatching {
-            val dir = File(appDataDir, type)
-            if (!dir.exists()) emptyList()
-            else dir.listFiles()?.map { it.nameWithoutExtension } ?: emptyList()
+            val endpoint = "sync/list/${type}"
+            val response = executeWithRetry(endpoint, "GET", null).getOrThrow()
+            val jsonArray = org.json.JSONArray(response)
+            (0 until jsonArray.length()).map { idx ->
+                jsonArray.getJSONObject(idx).getString("id")
+            }
         }
     }
 
@@ -219,7 +247,149 @@ class RestSyncBackend(
         syncState.value = CloudSyncManager.SyncStatus.NOT_CONFIGURED
     }
 
-    private fun sanitizeFileName(name: String): String {
-        return name.replace(Regex("[^a-zA-Z0-9\\-_]"), "_").take(64)
+    // ── HTTP 核心实现 ──────────────────────────────────────────────
+
+    private suspend fun executeWithRetry(
+        endpoint: String,
+        method: String,
+        body: String?,
+    ): Result<String> {
+        var lastException: Exception? = null
+        for (attempt in 0..MAX_RETRIES) {
+            if (attempt > 0) {
+                val delay = BASE_BACKOFF_MS * (1L shl (attempt - 1))
+                kotlinx.coroutines.delay(delay)
+            }
+
+            // 速率限制感知
+            if (rateLimitRetryTimestamp > 0L) {
+                val remaining = rateLimitRetryTimestamp - System.currentTimeMillis()
+                if (remaining > 0) {
+                    kotlinx.coroutines.delay(remaining)
+                }
+                rateLimitRetryTimestamp = 0L
+            }
+
+            val result = executeRequest(endpoint, method, body)
+            result.fold(
+                onSuccess = { return Result.success(it) },
+                onFailure = { e ->
+                    lastException = e as? Exception
+                    // 非可重试错误直接失败
+                    if (e is java.net.UnknownHostException) {
+                        syncState.value = CloudSyncManager.SyncStatus.OFFLINE
+                        return Result.failure(e)
+                    }
+                    if (e is HttpStatusException && e.statusCode in 400..499 && e.statusCode != 429) {
+                        return Result.failure(e)
+                    }
+                    if (e is HttpStatusException && e.statusCode == 429) {
+                        // 429 触发速率限制退避
+                        rateLimitRetryTimestamp = System.currentTimeMillis() + (e.retryAfterMs ?: 60_000L)
+                    }
+                },
+            )
+        }
+        return Result.failure(lastException ?: RuntimeException("Unknown error"))
+    }
+
+    private suspend fun executeRequest(
+        endpoint: String,
+        method: String,
+        body: String?,
+    ): Result<String> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val url = java.net.URL("${baseUrl.trimEnd('/')}/$endpoint")
+            val connection = (url.openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                requestMethod = method
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("User-Agent", "RapidRAW-Android/1.0")
+                if (authToken.isNotEmpty()) {
+                    setRequestProperty("Authorization", "Bearer $authToken")
+                }
+                doOutput = body != null
+                doInput = true
+                useCaches = false
+            }
+
+            try {
+                if (body != null) {
+                    connection.outputStream.use { os ->
+                        os.write(body.toByteArray(Charsets.UTF_8))
+                    }
+                }
+
+                val responseCode = connection.responseCode
+
+                // 读取 Retry-After 头
+                val retryAfter = connection.getHeaderField("Retry-After")?.toLongOrNull()
+
+                val responseBody = if (responseCode in 200..299) {
+                    connection.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+                } else {
+                    val errorBody = try {
+                        connection.errorStream?.use { it.readBytes().toString(Charsets.UTF_8) }
+                    } catch (_: Exception) {
+                        null
+                    }
+                    throw HttpStatusException(
+                        statusCode = responseCode,
+                        message = errorBody ?: connection.responseMessage ?: "HTTP $responseCode",
+                        retryAfterMs = retryAfter?.let { it * 1000L },
+                    )
+                }
+
+                Result.success(responseBody)
+            } finally {
+                connection.disconnect()
+            }
+        } catch (e: java.net.UnknownHostException) {
+            Result.failure(e)
+        } catch (e: java.net.SocketTimeoutException) {
+            Result.failure(e)
+        } catch (e: HttpStatusException) {
+            Result.failure(e)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun sanitizeUrlSegment(segment: String): String {
+        return java.net.URLEncoder.encode(segment.replace(Regex("[^a-zA-Z0-9\\-_]"), "_").take(64), "UTF-8")
     }
 }
+
+/**
+ * 工厂方法：根据类型创建对应的 CloudSyncBackend 实现。
+ */
+fun createBackend(type: String, config: Map<String, String>): CloudSyncBackend {
+    return when (type.lowercase()) {
+        "rest", "cloud" -> RestSyncBackend(
+            baseUrl = config["baseUrl"] ?: RestSyncBackend.DEFAULT_BASE_URL,
+            authToken = config["authToken"] ?: "",
+        )
+        "local" -> {
+            val dataDir = config["dataDir"]?.let { java.io.File(it) }
+                ?: java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp", "rapidraw_sync_data")
+            val queueDir = config["queueDir"]?.let { java.io.File(it) }
+                ?: java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp", "rapidraw_sync_queue")
+            LocalOnlySyncBackend(dataDir, queueDir)
+        }
+        else -> LocalOnlySyncBackend(
+            syncDataDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp", "rapidraw_sync_data"),
+            syncQueueDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp", "rapidraw_sync_queue"),
+        )
+    }
+}
+
+/**
+ * HTTP 状态码异常，携带状态码和 Retry-After 信息。
+ */
+class HttpStatusException(
+    val statusCode: Int,
+    message: String,
+    val retryAfterMs: Long? = null,
+) : Exception(message)

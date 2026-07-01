@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
@@ -166,6 +167,7 @@ fun LibraryScreen(
 
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isSortDropdownExpanded by remember { mutableStateOf(false) }
+    var isOverflowMenuExpanded by remember { mutableStateOf(false) }
     var damViewMode by remember { mutableStateOf(DamViewMode.ALL_PHOTOS) }
     var damSearchQuery by remember { mutableStateOf("") }
     var showFilmPicker by remember { mutableStateOf(false) }
@@ -389,6 +391,35 @@ fun LibraryScreen(
                             )
                         }
 
+                        // Overflow menu (DAM Projects, etc.)
+                        Box {
+                            IconButton(onClick = { isOverflowMenuExpanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.FolderOpen,
+                                    contentDescription = "更多",
+                                    tint = TextSecondary,
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = isOverflowMenuExpanded,
+                                onDismissRequest = { isOverflowMenuExpanded = false },
+                                containerColor = EditorSurface,
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "DAM Projects",
+                                            color = TextPrimary,
+                                        )
+                                    },
+                                    onClick = {
+                                        isOverflowMenuExpanded = false
+                                        navController.navigate(com.rapidraw.ui.navigation.Routes.DAM_PROJECTS)
+                                    },
+                                )
+                            }
+                        }
+
                         // Import button (Android 16 Photo Picker)
                         Surface(
                             modifier = Modifier
@@ -548,6 +579,37 @@ fun LibraryScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            // ── Current Project Indicator ────────────────────────────────
+            val currentProject = viewModel.damProjectManager.currentProject.collectAsState().value
+            if (currentProject != null) {
+                Surface(
+                    color = EditorSurface,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            tint = HasselbladOrange,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = currentProject.name,
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }

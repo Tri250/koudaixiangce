@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.rapidraw.ui.ai.AiInpaintScreen
 import com.rapidraw.ui.community.LutMarketScreen
 import com.rapidraw.ui.community.RecipeShareScreen
+import com.rapidraw.ui.dam.DamProjectScreen
 import com.rapidraw.ui.editor.EditorScreen
 import com.rapidraw.ui.library.LibraryScreen
 import com.rapidraw.ui.export.ExportQueueScreen
@@ -73,6 +74,8 @@ object Routes {
     const val EXPORT_QUEUE = "export_queue"
     const val LUT_MARKET = "lut_market"
     const val RECIPE_SHARE = "recipe_share"
+    const val DAM_PROJECTS = "dam_projects"
+    const val DAM_PROJECT_DETAIL = "dam_project_detail/{projectId}"
 
     /** 深层链接 URI 前缀 */
     const val DEEP_LINK_PREFIX = "rapidraw://"
@@ -533,6 +536,39 @@ fun RapidNavHost(
         ) {
             RecipeShareScreen(
                 onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Routes.DAM_PROJECTS,
+            enterTransition = { Motion.enterSlideRight },
+            exitTransition = { Motion.exitSlideLeft },
+            popEnterTransition = { Motion.enterSlideLeft },
+            popExitTransition = { Motion.exitSlideRight },
+        ) {
+            DamProjectScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToProjectDetail = { projectId ->
+                    navController.navigate("dam_project_detail/$projectId")
+                },
+            )
+        }
+
+        composable(
+            route = Routes.DAM_PROJECT_DETAIL,
+            arguments = listOf(
+                navArgument("projectId") { type = NavType.StringType }
+            ),
+            enterTransition = { Motion.enterSlideRight },
+            exitTransition = { Motion.exitSlideLeft },
+            popEnterTransition = { Motion.enterSlideLeft },
+            popExitTransition = { Motion.exitSlideRight },
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
+            // Placeholder: project detail screen to be implemented in future iteration
+            DamProjectScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToProjectDetail = {},
             )
         }
     }
