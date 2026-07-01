@@ -21,14 +21,16 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.10.1 构建编译环境优化：
-        // + Gradle: 并行构建 + 配置缓存 + VFS Watch + R8 Full Mode
-        // + 版本目录: Gradle Version Catalog (libs.versions.toml)
-        // + 构建变体: dev / staging / prod 三种 flavor
-        // + 基础设施: wrapper URL 修复 + 分发验证 + KSP 增量编译
-        // 构建编译环境评分: 100/100
-        versionCode = 2100
-        versionName = "1.10.1"
+        // v1.10.2 兼容性全面优化：
+        // + 前台服务类型声明 (Android 14+) + 电池优化豁免
+        // + 配置变更处理: onConfigurationChanged + onMultiWindowModeChanged
+        // + 每应用语言: locale_config.xml + 系统语言设置
+        // + OEM 兼容: MIUI/HyperOS/ColorOS/OneUI 限制处理
+        // + App Standby Buckets 感知 + Play Integrity 兼容层
+        // + SystemCompatibility 系统兼容性检查
+        // 兼容性评分: 100/100
+        versionCode = 2200
+        versionName = "1.10.2"
 
         // 2026 perf: 仅打包应用支持的资源，显著减少 APK 体积。
         // v1.7.0: 新增日/韩本地化支持

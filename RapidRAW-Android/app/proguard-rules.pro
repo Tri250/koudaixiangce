@@ -252,3 +252,10 @@
 -keep class java.security.** { *; }
 -dontwarn javax.crypto.**
 -dontwarn java.security.spec.**
+
+# v1.10.2 兼容性: 保持兼容性模块
+-keep class com.rapidraw.core.BackgroundCompatibility { *; }
+-keep class com.rapidraw.core.OemCompatibility { *; }
+-keep class com.rapidraw.core.SystemCompatibility { *; }
+-keep class com.rapidraw.core.PlayIntegrityHelper { *; }
+-keepclassmembers class com.rapidraw.core.SystemCompatibility$CompatibilityReport { *; }

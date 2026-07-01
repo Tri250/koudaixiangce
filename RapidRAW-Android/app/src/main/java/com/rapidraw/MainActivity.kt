@@ -1,6 +1,6 @@
 package com.rapidraw
 
-import android.Manifest
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -11,16 +11,13 @@ import android.util.Log
 import android.view.View
 import android.view.WindowInsetsController
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.background
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +25,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -40,7 +42,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Suppress("SpellCheckingInspection")
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
@@ -355,6 +357,38 @@ class MainActivity : AppCompatActivity() {
                     or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 )
         }
+    }
+
+    /**
+     * 处理设备配置变更（屏幕旋转、折叠屏状态切换、深色模式切换等）。
+     *
+     * AndroidManifest 中 configChanges 已声明所有配置项的自行处理，
+     * 因此系统不会重建 Activity，而是回调此方法。Compose 自动响应
+     * Configuration 变化重组 UI，此处仅记录日志用于诊断。
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d(TAG, "Configuration changed: " +
+            "orientation=${newConfig.orientation}, " +
+            "screenWidth=${newConfig.screenWidthDp}dp, " +
+            "screenHeight=${newConfig.screenHeightDp}dp, " +
+            "fontScale=${newConfig.fontScale}, " +
+            "uiMode=${newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK}"
+        )
+    }
+
+    /**
+     * 处理多窗口/分屏模式变更。
+     *
+     * 当用户进入或退出分屏/多窗口模式时回调。
+     * Compose 通过 WindowSizeClass 自动响应窗口大小变化。
+     */
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        Log.d(TAG, "MultiWindow mode changed: isInMultiWindowMode=$isInMultiWindowMode, " +
+            "screenWidth=${newConfig.screenWidthDp}dp, " +
+            "screenHeight=${newConfig.screenHeightDp}dp"
+        )
     }
 
     /**

@@ -10,15 +10,17 @@ import android.os.StrictMode
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
-import com.rapidraw.core.ANRWatchdog
-import com.rapidraw.core.AnalyticsManager
+import com.rapidraw.core.BackgroundCompatibility
 import com.rapidraw.core.BillingManager
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.CrashReporter
 import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.NetworkCache
+import com.rapidraw.core.OemCompatibility
 import com.rapidraw.core.PerformanceMonitor
+import com.rapidraw.core.PlayIntegrityHelper
 import com.rapidraw.core.StartupOptimizer
+import com.rapidraw.core.SystemCompatibility
 import com.rapidraw.security.SecurityProvider
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
@@ -82,6 +84,18 @@ class RapidRawApp : Application() {
             }
             .schedule(StartupOptimizer.Priority.MEDIUM, "NetworkCache") {
                 runCatching { NetworkCache.getClient(this) }
+            }
+            .schedule(StartupOptimizer.Priority.MEDIUM, "SystemCompatibility") {
+                runCatching { SystemCompatibility.generateReport(this) }
+            }
+            .schedule(StartupOptimizer.Priority.MEDIUM, "OemCompatibility") {
+                runCatching {
+                    Log.d(TAG, "OEM: ${OemCompatibility.getOemDisplayName()}")
+                    Log.d(TAG, "App Standby: ${BackgroundCompatibility.getStandbyBucketName(this)}")
+                }
+            }
+            .schedule(StartupOptimizer.Priority.LOW, "PlayIntegrity") {
+                runCatching { PlayIntegrityHelper.checkIntegrity(this) }
             }
             .execute()
 

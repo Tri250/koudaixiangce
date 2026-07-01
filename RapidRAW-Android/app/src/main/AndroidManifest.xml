@@ -18,6 +18,12 @@
          导致 Android 13+ 上通知权限永远无法授予，WorkManager 前台任务可能因
          缺少通知而抛 RemoteServiceException 闪退。 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- v1.10.2: 前台服务权限（Android 9+ 导出队列需要） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- v1.10.2: 电池优化豁免请求（长时间导出避免被系统杀死） -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- 硬件能力声明 -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <!-- OpenGL ES 3.0（可选：无 GLES 3.0 时回退 CPU 管线） -->
@@ -45,6 +51,7 @@
         android:largeHeap="true"
         android:appCategory="image"
         android:hasFragileUserData="false"
+        android:localeConfig="@xml/locale_config"
         tools:targetApi="36">
 
         <!-- 2026 正式版本：APP 主题使用 3 色调暗色 (AMOLED 友好) -->
