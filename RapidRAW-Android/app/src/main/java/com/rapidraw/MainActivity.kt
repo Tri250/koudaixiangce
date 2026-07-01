@@ -92,6 +92,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // v1.6.3 最严深度自检: 在 super.onCreate 之前就安装基础异常兜底，
+        // 防止主题/资源/类加载阶段的异常直接闪退到桌面。
+        val preOnCreateHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                android.util.Log.e("MainActivity", "Pre-onCreate crash", throwable)
+            } catch (_: Throwable) {}
+            preOnCreateHandler?.uncaughtException(thread, throwable)
+        }
+
         super.onCreate(savedInstanceState)
 
         // Edge-to-Edge: 让系统栏透明并让内容绘制到系统栏后面

@@ -182,3 +182,55 @@
 # v1.6.2 兼容性加固: 保持 CrashHandler 协程异常处理器
 -keep class com.rapidraw.core.CrashHandler { *; }
 -keep class com.rapidraw.core.CrashHandler$** { *; }
+
+# v1.6.3 最严深度自检: 保持 R 类所有资源字段（反射访问 R$font / R$drawable）
+-keep class com.rapidraw.R { *; }
+-keep class com.rapidraw.R$* {
+    public static <fields>;
+}
+
+# v1.6.3 最严深度自检: 保持 Type.kt 反射访问的 R$font
+-keep class com.rapidraw.R$font {
+    public static <fields>;
+}
+
+# v1.6.3 最严深度自检: 保持 HeifExporter / AvifExporter 反射类
+-keep class android.heif.writer.HeifWriter { *; }
+-keep class android.heif.writer.HeifWriter$Builder { *; }
+-dontwarn android.heif.writer.**
+
+# v1.6.3 最严深度自检: 保持 SystemProperties 反射（DeviceOptimizer / ColorScience）
+-keep class android.os.SystemProperties { *; }
+-dontwarn android.os.SystemProperties
+
+# v1.6.3 最严深度自检: 保持 InferenceEngine 反射的 delegate close 方法
+-keep class * {
+    public void close();
+}
+
+# v1.6.3 最严深度自检: 保持 Bitmap.CompressFormat.AVIF 字段反射
+-keep class android.graphics.Bitmap$CompressFormat {
+    public static <fields>;
+}
+
+# v1.6.3 最严深度自检: 保持 AI 模块所有 native 方法和反射
+-keep class com.rapidraw.ai.** { *; }
+-keepclassmembers class com.rapidraw.ai.** {
+    native <methods>;
+}
+
+# v1.6.3 最严深度自检: 保持 cloud sync 后端所有类
+-keep class com.rapidraw.cloud.** { *; }
+
+# v1.6.3 最严深度自检: 保持 Sidecar / Merkle 哈希序列化
+-keep class com.rapidraw.core.SidecarManager { *; }
+-keep class com.rapidraw.core.BranchableHistory { *; }
+-keep class com.rapidraw.core.BranchableHistory$** { *; }
+
+# v1.6.3 最严深度自检: 保持 FilmPresets 所有数据类
+-keep class com.rapidraw.data.model.FilmPresets { *; }
+-keep class com.rapidraw.data.model.FilmPresets$** { *; }
+
+# v1.6.3 最严深度自检: 保持 ExportQueueProcessor / ExportWorker
+-keep class com.rapidraw.data.export.** { *; }
+-keep class com.rapidraw.data.repository.** { *; }
