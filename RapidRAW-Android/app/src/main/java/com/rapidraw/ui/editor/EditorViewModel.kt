@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.AdjustmentClipboard
+import com.rapidraw.core.EditorClipboard
 import com.rapidraw.core.AiDenoiser
 import com.rapidraw.core.BranchableHistory
 import com.rapidraw.core.BranchableHistoryFactory
@@ -671,9 +672,41 @@ class EditorViewModel(
 
     fun copyCurrentAdjustments(): Adjustments {
         val adj = _adjustments.value.copy()
+        // 使用 EditorClipboard 扩展剪贴板（支持遮罩/裁剪跨图复制）
+        val masksData = flowMaskManager?.getMaskBitmap()?.let { mask ->
+            runCatching {
+                val stream = java.io.ByteArrayOutputStream()
+                mask.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+                android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.DEFAULT)
+            }.getOrNull()
+        }
+        val cropData = _adjustments.value.crop?.let { crop ->
+            runCatching {
+                kotlinx.serialization.json.Json.encodeToString(com.rapidraw.data.model.CropData.serializer(), crop)
+            }.getOrNull()
+        }
+        EditorClipboard.copyAll(
+            adjustments = adj,
+            masksData = masksData,
+            cropData = cropData,
+            sourceFileName = _currentImage.value?.fileName,
+        )
+        // 同时更新旧版 AdjustmentClipboard，保持 LibraryScreen 批量粘贴兼容
         AdjustmentClipboard.copy(adj)
         return adj
     }
+
+    /**
+     * 从 EditorClipboard 粘贴调整参数（包含遮罩/裁剪数据）
+     */
+    fun pasteEditorClipboardAdjustments() {
+        val pastedAdjustments = EditorClipboard.pasteAdjustments() ?: return
+        pushUndo("粘贴调整参数 (来源: ${EditorClipboard.getClipboardDescription()})")
+        _adjustments.value = pastedAdjustments
+        schedulePreviewUpdate()
+    }
+
+    fun hasEditorClipboardContent(): Boolean = EditorClipboard.hasContent()
     // endregion
 
     // region AI Modules

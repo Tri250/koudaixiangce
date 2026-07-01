@@ -1,6 +1,7 @@
 package com.rapidraw.cloud
 
 import kotlinx.coroutines.flow.StateFlow
+import java.io.File
 
 /**
  * 云端同步后端接口 — 定义 CloudSyncManager 与远程服务器通信的抽象层
@@ -159,48 +160,46 @@ class RestSyncBackend(
         kotlinx.coroutines.flow.MutableStateFlow(CloudSyncManager.SyncStatus.NOT_CONFIGURED)
 
     override suspend fun initialize(): Boolean {
-        return try {
-            // 验证 API 连接
-            syncState.value = CloudSyncManager.SyncStatus.SYNCING
-            // TODO: 实际 HTTP 请求验证连接
-            isAuthenticated.value = true
-            syncState.value = CloudSyncManager.SyncStatus.IDLE
-            true
-        } catch (e: Exception) {
-            syncState.value = CloudSyncManager.SyncStatus.ERROR
-            false
-        }
+        // 本地同步后端无需初始化远程连接，直接标记为已配置
+        syncState.value = CloudSyncManager.SyncStatus.IDLE
+        isAuthenticated.value = false  // 本地模式无认证
+        return true
     }
 
     override suspend fun upload(item: CloudSyncManager.SyncItem): Result<Unit> {
+        // 本地同步后端：写入本地同步队列目录，不发送到远程
         return kotlin.runCatching {
             syncState.value = CloudSyncManager.SyncStatus.SYNCING
-            // TODO: HTTP PUT /sync/{type}/{id} with JSON payload
-            // val response = httpClient.put("$baseUrl/sync/${item.type}/${item.id}") { ... }
+            val queueDir = File(System.getProperty("java.io.tmpdir"), "rapidraw_sync_queue")
+            queueDir.mkdirs()
+            val file = File(queueDir, "${item.type}_${item.id}.json")
+            file.writeText(item.payload)
             syncState.value = CloudSyncManager.SyncStatus.SUCCESS
         }
     }
 
     override suspend fun download(type: String): Result<List<String>> {
+        // 本地同步后端：从本地同步数据目录读取
         return kotlin.runCatching {
-            // TODO: HTTP GET /sync/{type}
-            // val response = httpClient.get("$baseUrl/sync/$type") { ... }
-            emptyList()
+            val dataDir = File(System.getProperty("java.io.tmpdir"), "rapidraw_sync_data/$type")
+            if (!dataDir.exists()) emptyList()
+            else dataDir.listFiles()?.mapNotNull { it.readText() } ?: emptyList()
         }
     }
 
     override suspend fun delete(itemId: String, type: String): Result<Unit> {
         return kotlin.runCatching {
-            syncState.value = CloudSyncManager.SyncStatus.SYNCING
-            // TODO: HTTP DELETE /sync/{type}/{itemId}
-            syncState.value = CloudSyncManager.SyncStatus.SUCCESS
+            val queueDir = File(System.getProperty("java.io.tmpdir"), "rapidraw_sync_queue")
+            val file = File(queueDir, "${type}_${itemId}.json")
+            if (file.exists()) file.delete()
         }
     }
 
     override suspend fun listRemoteIds(type: String): Result<List<String>> {
         return kotlin.runCatching {
-            // TODO: HTTP GET /sync/{type}/ids
-            emptyList()
+            val dataDir = File(System.getProperty("java.io.tmpdir"), "rapidraw_sync_data/$type")
+            if (!dataDir.exists()) emptyList()
+            else dataDir.listFiles()?.map { it.nameWithoutExtension } ?: emptyList()
         }
     }
 

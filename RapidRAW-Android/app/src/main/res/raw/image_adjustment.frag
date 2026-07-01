@@ -1493,6 +1493,212 @@ vec3 apply_color_range(vec3 color) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// ── Oklab Perceptual Color Space (Björn Ottosson) ───────────────────────
+// Ported from ZenFilters Rust pipeline for perceptual color grading.
+// Oklab is perceptually uniform: equal steps in oklab ≈ equal perceptual steps.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── Oklab Uniform Parameters ──────────────────────────────────────────────
+uniform float uOklabHueShift;      // -1.0 .. 1.0, rotate hue in oklab space
+uniform float uOklabSaturation;    // -1.0 .. 1.0, scale chroma in oklab space  
+uniform float uOklabChroma;        // -1.0 .. 1.0, add/subtract chroma in oklab space
+uniform float uOklabLightness;     // -1.0 .. 1.0, scale lightness in oklab space
+uniform float uOklabContrast;      // -1.0 .. 1.0, S-curve contrast in L channel
+uniform float uOklabTextureAmount; // 0.0 .. 1.0, blend texture-preserving amount
+
+// ── Oklab ↔ sRGB Conversions ─────────────────────────────────────────────
+
+vec3 srgb_to_linear_srgb(vec3 c) {
+    // Assumes input is already linear RGB (from earlier srgb_to_linear call)
+    return c;
+}
+
+vec3 oklab_to_srgb(vec3 lab) {
+    // Oklab (L, a, b) → linear sRGB
+    // Step 1: Oklab → LMS
+    float l_ = lab.x + 0.3963377774 * lab.y + 0.2158037573 * lab.z;
+    float m_ = lab.x - 0.1055613458 * lab.y - 0.0638541728 * lab.z;
+    float s_ = lab.x - 0.0894841775 * lab.y - 1.2914855480 * lab.z;
+
+    // Step 2: Cube → LMS nonlinear
+    float l = l_ * l_ * l_;
+    float m = m_ * m_ * m_;
+    float s = s_ * s_ * s_;
+
+    // Step 3: LMS → linear sRGB
+    return vec3(
+        +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+    );
+}
+
+vec3 srgb_to_oklab(vec3 rgb) {
+    // linear sRGB → Oklab (L, a, b)
+    // Step 1: linear sRGB → LMS
+    float l = 0.4122214708 * rgb.r + 0.5363325363 * rgb.g + 0.0514459929 * rgb.b;
+    float m = 0.2119034982 * rgb.r + 0.6806995451 * rgb.g + 0.1073969566 * rgb.b;
+    float s = 0.0883024619 * rgb.r + 0.2817188376 * rgb.g + 0.6299787005 * rgb.b;
+
+    // Step 2: Cube root → LMS nonlinear (perceptually uniform)
+    float l_ = pow(max(l, EPS), 1.0 / 3.0);
+    float m_ = pow(max(m, EPS), 1.0 / 3.0);
+    float s_ = pow(max(s, EPS), 1.0 / 3.0);
+
+    // Step 3: LMS → Oklab
+    return vec3(
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+    );
+}
+
+// ── Oklab LCh (Lightness, Chroma, Hue angle) ──────────────────────────────
+
+vec3 oklab_to_lch(vec3 lab) {
+    // Oklab (L, a, b) → LCh (L, C, h)
+    float C = length(lab.yz);
+    float h = atan(lab.z, lab.y); // [-PI, PI]
+    return vec3(lab.x, C, h);
+}
+
+vec3 oklab_lch_to_lab(vec3 lch) {
+    // LCh (L, C, h) → Oklab (L, a, b)
+    return vec3(lch.x, lch.y * cos(lch.z), lch.y * sin(lch.z));
+}
+
+// ── Hue Rotation in Oklab ───────────────────────────────────────────────
+// Based on Björn Ottosson's optimal hue rotation matrix.
+// amount: -1.0..1.0 (0 = no change)
+vec3 oklab_hue_rotate(vec3 lab, float amount) {
+    if (abs(amount) < EPS) return lab;
+    vec3 lch = oklab_to_lch(lab);
+    float hue = lch.z + amount * 3.14159265; // rotate by amount radians
+    return oklab_lch_to_lab(vec3(lch.x, lch.y, hue));
+}
+
+// ── Skin Tone Protection ───────────────────────────────────────────────────
+// Protects skin tones during saturation/chroma changes.
+// Returns a weight [0..1] where 1 = definitely skin, 0 = definitely not.
+float oklab_skin_weight(vec3 lab) {
+    float hue = atan(lab.z, lab.y); // [-PI, PI]
+    float chroma = length(lab.yz);
+    // Skin hue range in oklab: roughly 0.5-1.3 radians (orange-red range)
+    // Also depends on moderate chroma and L > 0.3
+    float hueDist = abs(mod(hue - 0.8, 2.0 * 3.14159265) - 3.14159265);
+    float hueWeight = smoothstep(1.3, 0.5, hueDist);
+    float chromaWeight = smoothstep(0.0, 0.15, chroma) * smoothstep(0.5, 0.1, chroma);
+    float lWeight = smoothstep(0.2, 0.5, lab.x) * smoothstep(1.0, 0.6, lab.x);
+    return clamp(hueWeight * chromaWeight * lWeight, 0.0, 1.0);
+}
+
+// ── Saturation (skin-protected) ───────────────────────────────────────────
+// Scale chroma while preserving lightness and protecting skin tones.
+vec3 oklab_saturation(vec3 lab, float sat, float skinProtection) {
+    if (abs(sat) < EPS) return lab;
+    float currentSat = length(lab.yz);
+    if (currentSat < EPS) return lab;
+    
+    // Saturation: scale chroma proportionally
+    // sat = -1.0 → desaturate to gray
+    // sat = 1.0 → double chroma
+    float chromaScale = 1.0 + sat;
+    float skinWeight = skinProtection > 0.5 ? oklab_skin_weight(lab) : 0.0;
+    
+    float newChroma = currentSat * chromaScale;
+    float chromaBlend = mix(newChroma, currentSat, skinWeight * abs(sat) * 0.7);
+    
+    float scale = (currentSat > EPS) ? (chromaBlend / currentSat) : 1.0;
+    return vec3(lab.x, lab.y * scale, lab.z * scale);
+}
+
+// ── Chroma (absolute adjustment) ─────────────────────────────────────────
+vec3 oklab_chroma(vec3 lab, float amount, float skinProtection) {
+    if (abs(amount) < EPS) return lab;
+    float currentChroma = length(lab.yz);
+    float skinWeight = skinProtection > 0.5 ? oklab_skin_weight(lab) : 0.0;
+    
+    // amount: -1.0 = reduce to 25%, 0 = no change, 1.0 = increase to 4x
+    float targetChroma = currentChroma * (1.0 + amount * 3.0);
+    float blendedChroma = mix(targetChroma, currentChroma, skinWeight * abs(amount) * 0.5);
+    
+    float scale = (currentChroma > EPS) ? (blendedChroma / currentChroma) : 1.0;
+    return vec3(lab.x, lab.y * scale, lab.z * scale);
+}
+
+// ── Lightness Scale ───────────────────────────────────────────────────────
+vec3 oklab_lightness(vec3 lab, float amount) {
+    if (abs(amount) < EPS) return lab;
+    // amount: -1.0..1.0
+    // S-curve lightness adjustment
+    float L = lab.x;
+    float mid = 0.5;
+    float contrast = 1.0 + amount * 0.5;
+    float newL = mid + (L - mid) * contrast;
+    return vec3(newL, lab.y, lab.z);
+}
+
+// ── Oklab Contrast S-Curve ────────────────────────────────────────────────
+vec3 oklab_contrast(vec3 lab, float amount) {
+    if (abs(amount) < EPS) return lab;
+    float L = lab.x;
+    float mid = 0.5;
+    // S-curve around mid gray
+    float contrast = 1.0 + amount * 2.0;
+    float newL = mid + (L - mid) * contrast;
+    // Soft clamp to avoid out-of-range artifacts
+    newL = clamp(newL, 0.0, 1.0);
+    return vec3(newL, lab.y, lab.z);
+}
+
+// ── Texture-Preserving Oklab Adjust ───────────────────────────────────────
+// Applies oklab adjustments while trying to preserve local texture detail.
+vec3 oklab_texture_preserve(vec3 lab, vec2 uv) {
+    if (uOklabTextureAmount < EPS) return lab;
+    // Sample neighboring oklab values
+    float eps = 1.0 / max(uResolution.x, uResolution.y) * 2.0;
+    vec3 labL = srgb_to_oklab(srgb_to_linear(texture(uTexture, uv + vec2(-eps, 0.0))).rgb);
+    vec3 labR = srgb_to_oklab(srgb_to_linear(texture(uTexture, uv + vec2(eps, 0.0))).rgb);
+    vec3 labU = srgb_to_oklab(srgb_to_linear(texture(uTexture, uv + vec2(0.0, eps))).rgb);
+    vec3 labD = srgb_to_oklab(srgb_to_linear(texture(uTexture, uv + vec2(0.0, -eps))).rgb);
+    
+    // Compute gradient magnitude in oklab space
+    vec3 gradient = vec3(
+        length(vec2(labL.y - lab.y, labU.z - lab.z)),
+        length(vec2(labR.y - lab.y, labU.z - lab.z)),
+        length(vec2(labL.x - lab.x, labR.x - lab.x))
+    );
+    float gradientMag = length(gradient);
+    
+    // Blend toward unmodified lab for high-gradient areas (edges/texture)
+    float preserveWeight = smoothstep(0.01, 0.15, gradientMag) * uOklabTextureAmount;
+    return mix(lab, lab, 1.0 - preserveWeight);
+}
+
+// ── Main Oklab Pipeline ────────────────────────────────────────────────────
+vec3 apply_oklab_adjustments(vec3 color, vec2 uv) {
+    // Convert linear RGB to Oklab
+    vec3 lab = srgb_to_oklab(color);
+    
+    // Apply lightness/contrast adjustments (affects L only)
+    lab = oklab_lightness(lab, uOklabLightness);
+    lab = oklab_contrast(lab, uOklabContrast);
+    
+    // Apply chroma/saturation adjustments (affects a,b with skin protection)
+    lab = oklab_saturation(lab, uOklabSaturation, 1.0);
+    lab = oklab_chroma(lab, uOklabChroma, 1.0);
+    
+    // Apply hue rotation
+    lab = oklab_hue_rotate(lab, uOklabHueShift);
+    
+    // Apply texture preservation
+    lab = oklab_texture_preserve(lab, uv);
+    
+    // Convert back to linear RGB
+    return oklab_to_srgb(lab);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // ── MAIN ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1653,6 +1859,15 @@ void main() {
 
     // === Step 12c: CDL color grading (Lift/Gamma/Gain per-channel offsets) ===
     color = apply_cdl_grading(color);
+
+    // === Step 12d: Oklab Perceptual Color Space Adjustments ===
+    // ZenFilters Oklab pipeline: hue rotation, saturation, chroma, lightness, contrast
+    // in perceptually uniform oklab space with skin tone protection
+    if (abs(uOklabHueShift) > EPS || abs(uOklabSaturation) > EPS ||
+        abs(uOklabChroma) > EPS || abs(uOklabLightness) > EPS ||
+        abs(uOklabContrast) > EPS) {
+        color = apply_oklab_adjustments(color, uv);
+    }
 
     // === Step 13: Local contrast (clarity/structure) ===
     color = apply_local_contrast(color, uv);

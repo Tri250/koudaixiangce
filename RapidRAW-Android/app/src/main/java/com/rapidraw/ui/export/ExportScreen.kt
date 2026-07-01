@@ -38,6 +38,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.data.model.ExportFormat
@@ -565,6 +569,8 @@ fun ExportSheet(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Export button
+            // v1.6.2: 添加 TalkBack contentDescription + role 说明
+            val exportDescription = if (isExporting) "正在导出" else "导出图片，格式 $format"
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -572,6 +578,10 @@ fun ExportSheet(
                         color = if (isExporting) HasselbladOrange.copy(alpha = 0.5f) else HasselbladOrange,
                         shape = RoundedCornerShape(8.dp),
                     )
+                    .semantics(mergeDescendants = true) {
+                        role = Role.Button
+                        contentDescription = exportDescription
+                    }
                     .clickable(enabled = !isExporting) {
                         // 保存导出设置到 SharedPreferences
                         prefs.edit().apply {

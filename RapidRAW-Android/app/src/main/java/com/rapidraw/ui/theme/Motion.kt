@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -16,8 +17,14 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -352,4 +359,68 @@ object PressFeedback {
     const val PRESSED_SCALE = 0.96f
     const val PRESSED_ALPHA = 0.9f
     const val HOVER_SCALE = 1.02f
+
+    /**
+     * 按压缩放状态（仅 scale，无 alpha）。
+     * 用于在 Modifier 链中嵌入按压动画。
+     *
+     * 用法:
+     * ```
+     * val (scale, _) = PressFeedback.pressScaleAsState()
+     * Box(modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale })
+     * ```
+     */
+    @Composable
+    fun pressScaleAsState(
+        interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    ): Pair<State<Float>, MutableInteractionSource> {
+        val isPressed by interactionSource.collectIsPressedAsState()
+        val scale: State<Float> = animateFloatAsState(
+            targetValue = if (isPressed) PRESSED_SCALE else 1f,
+            animationSpec = Motion.pressScaleSpring(),
+            label = "pressScale",
+        )
+        return scale to interactionSource
+    }
+}
+
+/**
+ * 给任意 Modifier 应用按压反馈动画（scale + alpha 同步）。
+ *
+ * v1.6.2: 集成到 HasselSlider、按钮、卡片等可交互组件，
+ * 提供 ColorOS 16 标准的按下/释放弹性反馈。
+ *
+ * 用法:
+ * ```
+ * Button(
+ *     onClick = { ... },
+ *     modifier = Modifier.pressFeedback(),
+ * )
+ * ```
+ */
+@Composable
+fun Modifier.pressFeedback(
+    pressedScale: Float = PressFeedback.PRESSED_SCALE,
+    pressedAlpha: Float = PressFeedback.PRESSED_ALPHA,
+    enabled: Boolean = true,
+): Modifier {
+    if (!enabled) return this
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) pressedScale else 1f,
+        animationSpec = Motion.pressScaleSpring(),
+        label = "pressScale",
+    )
+    val alpha by animateFloatAsState(
+        targetValue = if (isPressed) pressedAlpha else 1f,
+        animationSpec = Motion.pressScaleSpring(),
+        label = "pressAlpha",
+    )
+    return this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+            this.alpha = alpha
+        }
 }

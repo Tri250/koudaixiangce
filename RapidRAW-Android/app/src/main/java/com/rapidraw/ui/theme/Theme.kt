@@ -158,10 +158,13 @@ fun RapidRawTheme(
  * 直接 as Activity 会抛 ClassCastException。
  */
 private fun unwrapActivity(context: android.content.Context): Activity? {
-    var ctx = context
-    while (ctx is ContextWrapper) {
+    var ctx: android.content.Context = context
+    var visited = 0
+    while (visited < 32) {  // 防御循环上限，防止异常包装导致无限循环
         if (ctx is Activity) return ctx
-        ctx = ctx.baseContext
+        if (ctx !is ContextWrapper) break
+        ctx = ctx.baseContext ?: break
+        visited++
     }
-    return ctx as? Activity
+    return null
 }

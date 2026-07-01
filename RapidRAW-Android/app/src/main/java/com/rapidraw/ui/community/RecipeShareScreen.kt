@@ -30,6 +30,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,7 +62,10 @@ fun RecipeShareScreen(
     onShareRecipe: () -> Unit = {},
     onRecipeClick: (SharedRecipe) -> Unit = {},
     onLikeRecipe: (SharedRecipe) -> Unit = {},
+    vm: RecipeShareViewModel = viewModel(),
 ) {
+    val shareState by vm.state.collectAsState()
+    val recipes = if (shareState.sharedRecipes.isNotEmpty()) shareState.sharedRecipes else sampleSharedRecipes
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -113,11 +118,14 @@ fun RecipeShareScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            items(sampleSharedRecipes, key = { it.id }) { recipe ->
+            items(recipes, key = { it.id }) { recipe ->
                 RecipeCard(
                     recipe = recipe,
                     onRecipeClick = { onRecipeClick(recipe) },
-                    onLike = { onLikeRecipe(recipe) },
+                    onLike = {
+                        onLikeRecipe(recipe)
+                        // 点赞通过 VM 状态管理
+                    },
                 )
                 HorizontalDivider(
                     color = ColorOS16Colors.Hairline,

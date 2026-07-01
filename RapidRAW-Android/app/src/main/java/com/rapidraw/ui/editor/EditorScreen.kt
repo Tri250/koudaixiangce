@@ -150,6 +150,9 @@ import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.EditorSurface
 import com.rapidraw.ui.theme.EditorSurfaceVariant
 import com.rapidraw.ui.theme.HasselbladOrange
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import com.rapidraw.ui.theme.HasselbladOrangeLight
 import com.rapidraw.ui.theme.Motion
 import com.rapidraw.ui.theme.TextPrimary
@@ -378,10 +381,59 @@ fun EditorScreen(
         skipPartiallyExpanded = true,
     )
 
+    // ── EditorShortcuts: 键盘快捷键处理（Chromebook/DeX/平板键盘） ──────
+    val shortcutHandler = remember(viewModel, navController) {
+        object : EditorShortcuts.ShortcutHandler {
+            override fun onSwitchTab(tab: EditorTab) { viewModel.setTab(tab) }
+            override fun onUndo() { viewModel.undo() }
+            override fun onRedo() { viewModel.redo() }
+            override fun onBeforeAfter() { viewModel.toggleShowOriginal() }
+            override fun onFullscreen() { /* 预留：全屏切换 */ }
+            override fun onZoomCycle() {
+                val current = viewModel.zoomLevel.value
+                val next = when {
+                    current < 1.5f -> 2f
+                    current < 2.5f -> 1f
+                    else -> 0.5f
+                }
+                viewModel.setZoomLevel(next)
+            }
+            override fun onExport() { viewModel.exportImage(com.rapidraw.data.model.ExportSettings()) }
+            override fun onCopyAdjustments() { viewModel.copyCurrentAdjustments() }
+            override fun onPasteAdjustments() { viewModel.pasteEditorClipboardAdjustments() }
+            override fun onToggleGrid() { /* 预留：网格切换 */ }
+            override fun onToggleWaveform() {
+                viewModel.showScopes()
+            }
+            override fun onResetCurrentAdjustment() { viewModel.resetAdjustments() }
+            override fun onPreviousPhoto() { /* 多图浏览预留 */ }
+            override fun onNextPhoto() { /* 多图浏览预留 */ }
+            override fun onSetRating(stars: Int) {
+                viewModel.currentImage.value?.let { img ->
+                    // 评级通过 sidecar 持久化
+                }
+            }
+            override fun onNavigateBack() { navController.popBackStack() }
+        }
+    }
+
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(EditorBackground),
+            .background(EditorBackground)
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                val action = EditorShortcuts.resolveAction(event)
+                if (action != null) {
+                    EditorShortcuts.executeAction(action, shortcutHandler)
+                    true
+                } else {
+                    false
+                }
+            },
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,6 +41,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
@@ -93,6 +95,10 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import com.rapidraw.ui.components.RatingBar
+import com.rapidraw.ui.components.ColorLabelPicker
+import com.rapidraw.ui.library.DamLibraryOverviewPanel
+import com.rapidraw.ui.library.DamViewMode
 
 // 2026 perf: 顶层缓存内置文件夹 chip，避免 LibraryScreen 每次重组都重建该列表
 private val BUILT_IN_FOLDER_CHIPS = listOf("All", "DCIM", "Downloads")
@@ -118,6 +124,9 @@ fun LibraryScreen(
     val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
     val batchProgress by viewModel.batchProgress.collectAsState()
     val hasCopiedAdjustments by viewModel.hasCopiedAdjustments.collectAsState()
+    val showDamOverview by viewModel.showDamOverview.collectAsState()
+    val damLibraryStats by viewModel.damLibraryStats.collectAsState()
+    val damFacetData by viewModel.damFacetData.collectAsState()
 
     // Android 16 Photo Picker: 优先使用 PickVisualMedia，低版本回退 OpenMultipleDocuments
     val photoPickerSingle = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -157,6 +166,8 @@ fun LibraryScreen(
 
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isSortDropdownExpanded by remember { mutableStateOf(false) }
+    var damViewMode by remember { mutableStateOf(DamViewMode.ALL_PHOTOS) }
+    var damSearchQuery by remember { mutableStateOf("") }
     var showFilmPicker by remember { mutableStateOf(false) }
     var contextMenuImage by remember { mutableStateOf<ImageFile?>(null) }
     var showContextMenu by remember { mutableStateOf(false) }
@@ -366,6 +377,15 @@ fun LibraryScreen(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = "设置",
                                 tint = TextSecondary,
+                            )
+                        }
+
+                        // DAM 图库统计切换按钮
+                        IconButton(onClick = { viewModel.toggleDamOverview() }) {
+                            Icon(
+                                imageVector = Icons.Default.BarChart,
+                                contentDescription = "图库概览",
+                                tint = if (showDamOverview) HasselbladOrange else TextSecondary,
                             )
                         }
 
@@ -794,6 +814,25 @@ fun LibraryScreen(
             }
         }
 
+        // ── DAM 图库概览侧边面板 ──────────────────────────────────────────
+        if (showDamOverview) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .fillMaxHeight(0.9f)
+                    .width(320.dp),
+            ) {
+                DamLibraryOverviewPanel(
+                    libraryStats = damLibraryStats,
+                    facetData = damFacetData,
+                    selectedView = damViewMode,
+                    onViewChange = { damViewMode = it },
+                    searchQuery = damSearchQuery,
+                    onSearchChange = { damSearchQuery = it },
+                )
+            }
+        }
+
         // ── FAB: Import via Photo Picker ────────────────────────────────
         if (!isBatchMode) {
             FloatingActionButton(
@@ -976,74 +1015,43 @@ fun LibraryScreen(
                 },
                 text = {
                     Column {
-                        // Rating stars
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            repeat(5) { i ->
-                                Text(
-                                    text = "★",
-                                    color = if (i < ratingImage.rating) HasselbladOrange else TextTertiary,
-                                    style = MaterialTheme.typography.displayLarge,
-                                    modifier = Modifier
-                                        .clickable {
-                                            viewModel.updateRating(ratingImage.path, i + 1)
-                                        }
-                                        .padding(2.dp),
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "清除",
-                                color = TextSecondary,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier
-                                    .clickable {
-                                        viewModel.updateRating(ratingImage.path, 0)
-                                    }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                            )
-                        }
+                        // RatingBar 组件替代手动星号
+                        RatingBar(
+                            rating = ratingImage.rating,
+                            onRatingChange = { newRating ->
+                                viewModel.updateRating(ratingImage.path, newRating)
+                            },
+                            starSize = 32,
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
-                        // Color labels
+                        // ColorLabelPicker 组件替代手动颜色标签
                         Text(
                             text = "颜色标签",
                             color = TextSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            val labelColors = listOf(
-                                ColorLabel.NONE to Color(0xFF888888),
-                                ColorLabel.RED to Color(0xFFFF4444),
-                                ColorLabel.YELLOW to Color(0xFFFFCC00),
-                                ColorLabel.GREEN to Color(0xFF44CC44),
-                                ColorLabel.BLUE to Color(0xFF4488FF),
-                                ColorLabel.PURPLE to Color(0xFFAA44FF),
-                            )
-                            labelColors.forEach { (label, color) ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(color)
-                                        .then(
-                                            if (ratingImage.colorLabel == label) {
-                                                Modifier.border(2.dp, TextPrimary, CircleShape)
-                                            } else {
-                                                Modifier
-                                            }
-                                        )
-                                        .clickable {
-                                            viewModel.updateColorLabel(ratingImage.path, label)
-                                        },
-                                )
-                            }
-                        }
+                        ColorLabelPicker(
+                            selectedLabel = when (ratingImage.colorLabel) {
+                                ColorLabel.NONE -> 0
+                                ColorLabel.RED -> 1
+                                ColorLabel.YELLOW -> 2
+                                ColorLabel.GREEN -> 3
+                                ColorLabel.BLUE -> 4
+                                ColorLabel.PURPLE -> 5
+                            },
+                            onLabelChange = { labelCode ->
+                                val label = when (labelCode) {
+                                    1 -> ColorLabel.RED
+                                    2 -> ColorLabel.YELLOW
+                                    3 -> ColorLabel.GREEN
+                                    4 -> ColorLabel.BLUE
+                                    5 -> ColorLabel.PURPLE
+                                    else -> ColorLabel.NONE
+                                }
+                                viewModel.updateColorLabel(ratingImage.path, label)
+                            },
+                        )
                     }
                 },
                 confirmButton = {

@@ -19,9 +19,10 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.5.10 hotfix: 框架稳定性全面加固 — EGL/GPU/TFLite 初始化防护 + 参数调节链路 NaN 校验
-        versionCode = 1560
-        versionName = "1.5.10"
+        // v1.6.4 接入未启用组件: EditorShortcuts + EditorClipboard + RatingBar + ColorLabelPicker
+        // + DamLibraryOverviewPanel + LutMarketViewModel + RecipeShareViewModel + 清理孤立代码
+        versionCode = 1640
+        versionName = "1.6.4"
 
         // 2026 perf: 仅打包应用实际支持的中/英文资源，显著减少 APK 体积。
         resourceConfigurations += listOf("zh", "en")

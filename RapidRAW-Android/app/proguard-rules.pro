@@ -140,3 +140,97 @@
 
 # 隐藏原始源文件名称
 -renamesourcefileattribute SourceFile
+
+# v1.6.1 安全加固: Release 构建中移除 Log.v/d/i 调用，防止敏感信息泄漏
+# 仅保留 Log.w/e 用于 crash 诊断（wtf 保留用于 assert 级别问题）
+-assumenosideeffects class android.util.Log {
+    public static *** v(...);
+    public static *** d(...);
+    public static *** i(...);
+}
+
+# v1.6.1 安全加固: 保留 Oklab/FilmPresets 等 v1.6.0 新增的序列化模型
+-keep class com.rapidraw.data.model.FilmPresets { *; }
+-keep class com.rapidraw.data.model.FilmPresets$* { *; }
+
+# v1.6.1 安全加固: cloud sync 后端
+-keep class com.rapidraw.cloud.** { *; }
+
+# v1.6.2 兼容性加固: Android 16 StrictMode 内部类 (反射访问)
+-keep class android.os.StrictMode$** { *; }
+-dontwarn android.os.StrictMode$VmPolicy$Builder
+
+# v1.6.2 兼容性加固: Android 16 predictive back (OnBackInvokedCallback)
+-keep class androidx.activity.OnBackPressedDispatcher { *; }
+-keep class androidx.activity.OnBackPressedDispatcher$** { *; }
+-dontwarn androidx.activity.**
+
+# v1.6.2 兼容性加固: Compose 交互源 (PressFeedback Modifier)
+-keep class androidx.compose.foundation.interaction.** { *; }
+-dontwarn androidx.compose.foundation.interaction.**
+
+# v1.6.2 兼容性加固: 保持 Motion / PressFeedback 反射访问
+-keep class com.rapidraw.ui.theme.Motion { *; }
+-keep class com.rapidraw.ui.theme.Motion$** { *; }
+-keep class com.rapidraw.ui.theme.PressFeedback { *; }
+-keep class com.rapidraw.ui.theme.PressFeedback$** { *; }
+
+# v1.6.2 兼容性加固: 保持 EditorViewModel 中 ViewModel 工厂
+-keep class com.rapidraw.ui.editor.EditorViewModel$Factory { *; }
+-keep class com.rapidraw.ui.editor.EditorViewModel$** { *; }
+
+# v1.6.2 兼容性加固: 保持 CrashHandler 协程异常处理器
+-keep class com.rapidraw.core.CrashHandler { *; }
+-keep class com.rapidraw.core.CrashHandler$** { *; }
+
+# v1.6.3 最严深度自检: 保持 R 类所有资源字段（反射访问 R$font / R$drawable）
+-keep class com.rapidraw.R { *; }
+-keep class com.rapidraw.R$* {
+    public static <fields>;
+}
+
+# v1.6.3 最严深度自检: 保持 Type.kt 反射访问的 R$font
+-keep class com.rapidraw.R$font {
+    public static <fields>;
+}
+
+# v1.6.3 最严深度自检: 保持 HeifExporter / AvifExporter 反射类
+-keep class android.heif.writer.HeifWriter { *; }
+-keep class android.heif.writer.HeifWriter$Builder { *; }
+-dontwarn android.heif.writer.**
+
+# v1.6.3 最严深度自检: 保持 SystemProperties 反射（DeviceOptimizer / ColorScience）
+-keep class android.os.SystemProperties { *; }
+-dontwarn android.os.SystemProperties
+
+# v1.6.3 最严深度自检: 保持 InferenceEngine 反射的 delegate close 方法
+-keep class * {
+    public void close();
+}
+
+# v1.6.3 最严深度自检: 保持 Bitmap.CompressFormat.AVIF 字段反射
+-keep class android.graphics.Bitmap$CompressFormat {
+    public static <fields>;
+}
+
+# v1.6.3 最严深度自检: 保持 AI 模块所有 native 方法和反射
+-keep class com.rapidraw.ai.** { *; }
+-keepclassmembers class com.rapidraw.ai.** {
+    native <methods>;
+}
+
+# v1.6.3 最严深度自检: 保持 cloud sync 后端所有类
+-keep class com.rapidraw.cloud.** { *; }
+
+# v1.6.3 最严深度自检: 保持 Sidecar / Merkle 哈希序列化
+-keep class com.rapidraw.core.SidecarManager { *; }
+-keep class com.rapidraw.core.BranchableHistory { *; }
+-keep class com.rapidraw.core.BranchableHistory$** { *; }
+
+# v1.6.3 最严深度自检: 保持 FilmPresets 所有数据类
+-keep class com.rapidraw.data.model.FilmPresets { *; }
+-keep class com.rapidraw.data.model.FilmPresets$** { *; }
+
+# v1.6.3 最严深度自检: 保持 ExportQueueProcessor / ExportWorker
+-keep class com.rapidraw.data.export.** { *; }
+-keep class com.rapidraw.data.repository.** { *; }

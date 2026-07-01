@@ -55,3 +55,4 @@ app/jacoco.exec
 /PixelFruit-ref/
 /libraw.tar.gz
 /LibRaw-0.21.2/
+app/release.keystore.bak
