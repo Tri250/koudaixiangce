@@ -67,6 +67,12 @@ object ExportQueueProcessor {
     private val exceptionHandler = CoroutineExceptionHandler { _, t ->
         if (t is CancellationException) return@CoroutineExceptionHandler
         Log.e(TAG, "Unhandled exception in processor scope", t)
+        // v1.10.5: 上报到 CrashReporter，确保崩溃数据不丢失
+        try {
+            com.rapidraw.core.CrashReporter.report(t, com.rapidraw.core.CrashReporter.CrashType.COROUTINE)
+        } catch (_: Exception) {
+            // 上报失败不阻塞异常处理
+        }
     }
 
     /**

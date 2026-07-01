@@ -14,12 +14,14 @@ import com.rapidraw.core.BackgroundCompatibility
 import com.rapidraw.core.BillingManager
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.CrashReporter
+import com.rapidraw.core.DeadlockDetector
 import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.NetworkCache
 import com.rapidraw.core.NotificationChannels
 import com.rapidraw.core.OemCompatibility
 import com.rapidraw.core.PerformanceMonitor
 import com.rapidraw.core.PlayIntegrityHelper
+import com.rapidraw.core.SafePreferences
 import com.rapidraw.core.StartupOptimizer
 import com.rapidraw.core.SystemCompatibility
 import com.rapidraw.security.SecurityProvider
@@ -48,6 +50,35 @@ class RapidRawApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // v1.10.5: 启动崩溃恢复机制 — 连续崩溃计数器
+        // 在最早阶段检测启动循环，超过阈值时清除损坏数据
+        val startupPrefs = SafePreferences.get(this, "rapidraw_startup")
+        val crashCount = SafePreferences.getInt(startupPrefs, "startup_crash_count", 0)
+        if (crashCount >= 3) {
+            Log.w(TAG, "Detected $crashCount consecutive startup crashes, attempting recovery")
+            try {
+                // 清除可能存在问题的缓存和数据
+                val cacheDir = cacheDir
+                cacheDir.listFiles()?.forEach { f ->
+                    runCatching { f.deleteRecursively() }
+                }
+                val prefsDir = java.io.File(filesDir?.parentFile, "shared_prefs")
+                prefsDir?.listFiles()?.filter { it.name.endsWith(".xml") && it.name != "rapidraw_startup.xml" }?.forEach { f ->
+                    runCatching { f.delete() }
+                }
+                Log.w(TAG, "Startup crash recovery: cleared caches and preferences")
+            } catch (e: Exception) {
+                Log.w(TAG, "Startup crash recovery cleanup failed", e)
+            }
+            SafePreferences.putInt(startupPrefs, "startup_crash_count", 0)
+        } else {
+            // 递增计数器，成功启动后重置
+            SafePreferences.putInt(startupPrefs, "startup_crash_count", crashCount + 1)
+        }
+
+        // 启动死锁检测看门狗
+        DeadlockDetector.start()
 
         // v1.8.0 冷启动优化：使用 StartupOptimizer 分级初始化
         // CRITICAL 级在主线程同步执行，确保崩溃捕获最早安装
@@ -102,6 +133,9 @@ class RapidRawApp : Application() {
                 runCatching { PlayIntegrityHelper.checkIntegrity(this) }
             }
             .execute()
+
+        // v1.10.5: 启动成功，重置崩溃计数器
+        SafePreferences.putInt(startupPrefs, "startup_crash_count", 0)
 
         // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
         applyPerAppLanguageAsync()

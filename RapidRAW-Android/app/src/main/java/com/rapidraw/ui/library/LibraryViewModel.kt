@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.DamProjectManager
@@ -45,7 +46,10 @@ enum class FormatFilter { ALL, RAW_ONLY, JPEG_ONLY }
 
 enum class SceneFilter { ALL, PORTRAIT, LANDSCAPE, NIGHT }
 
-class LibraryViewModel(application: Application) : AndroidViewModel(application) {
+class LibraryViewModel(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle,
+) : AndroidViewModel(application) {
 
     private val contentResolver = application.contentResolver
 
@@ -141,11 +145,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         CrashHandler.coroutineExceptionHandler(getApplication())
 
     init {
+        // v1.10.5: 从 SavedStateHandle 恢复进程死亡前的状态
+        restoreSavedState()
         // v1.5.5 hotfix: init 块中的 try-catch 只能捕获协程启动异常，
         // 无法捕获协程体内部的异常。协程体已由 coroutineExceptionHandler 保护。
         // 此处额外保护 loadImages 调用本身可能抛出的同步异常。
         try {
-            loadImages(null)
+            loadImages(_selectedFolder.value)
         } catch (e: Exception) {
             // 防止 MediaStore 查询异常导致 ViewModel 构造失败 → 页面闪退
             Log.w(TAG, "init loadImages failed", e)
@@ -153,10 +159,44 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * v1.10.5: 从 SavedStateHandle 恢复进程死亡前的状态。
+     */
+    private fun restoreSavedState() {
+        try {
+            savedStateHandle.get<String>("selected_folder")?.let { _selectedFolder.value = it }
+            savedStateHandle.get<String>("sort_order")?.let {
+                _sortOrder.value = try { SortOrder.valueOf(it) } catch (_: Exception) { SortOrder.DATE }
+            }
+            savedStateHandle.get<String>("format_filter")?.let {
+                _formatFilter.value = try { FormatFilter.valueOf(it) } catch (_: Exception) { FormatFilter.ALL }
+            }
+            savedStateHandle.get<String>("search_query")?.let { _searchQuery.value = it }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to restore SavedStateHandle state", e)
+        }
+    }
+
+    /**
+     * v1.10.5: 保存当前状态到 SavedStateHandle（进程死亡恢复）。
+     */
+    private fun saveStateToHandle() {
+        try {
+            savedStateHandle["selected_folder"] = _selectedFolder.value
+            savedStateHandle["sort_order"] = _sortOrder.value.name
+            savedStateHandle["format_filter"] = _formatFilter.value.name
+            savedStateHandle["search_query"] = _searchQuery.value
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to save state to SavedStateHandle", e)
+        }
+    }
+
     fun loadImages(folder: String?) {
         _selectedFolder.value = folder
         _isLoading.value = true
         _selectedImagePaths.value = emptySet()
+        // v1.10.5: 保存状态到 SavedStateHandle
+        saveStateToHandle()
 
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val imageList = queryImages(folder)
@@ -415,6 +455,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun searchImages(query: String) {
         _searchQuery.value = query
+        saveStateToHandle()
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val allImages = queryImages(_selectedFolder.value)
             applyFilters(allImages)
@@ -427,6 +468,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             SortOrder.RATING -> SortOrder.NAME
             SortOrder.NAME -> SortOrder.DATE
         }
+        saveStateToHandle()
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val allImages = queryImages(_selectedFolder.value)
             applyFilters(allImages)
@@ -445,6 +487,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         _formatFilter.value = filter
         // 同步旧的 filterRaw 状态以保持兼容
         _filterRaw.value = filter == FormatFilter.RAW_ONLY
+        saveStateToHandle()
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val allImages = queryImages(_selectedFolder.value)
             applyFilters(allImages)

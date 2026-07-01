@@ -11,12 +11,15 @@ import androidx.metrics.performance.JankStats
 import androidx.metrics.performance.PerformanceMetricsState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 
 /**
@@ -45,6 +48,9 @@ object PerformanceMonitor {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var jankStats: JankStats? = null
     private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
+    private var thermalListenerJob: Job? = null
+    private var powerManager: PowerManager? = null
+    private val isInitialized = AtomicBoolean(false)
 
     // ── 帧率指标 ──────────────────────────────────────────────────────
 
@@ -80,6 +86,10 @@ object PerformanceMonitor {
     // ── 初始化 ────────────────────────────────────────────────────────
 
     fun init(application: Application) {
+        if (!isInitialized.compareAndSet(false, true)) {
+            Log.w(TAG, "PerformanceMonitor already initialized")
+            return
+        }
         initJankMonitoring(application)
         initThermalMonitoring(application)
         Log.i(TAG, "PerformanceMonitor initialized")
@@ -166,7 +176,7 @@ object PerformanceMonitor {
     // ── 热降频监控 ────────────────────────────────────────────────────
 
     private fun initThermalMonitoring(application: Application) {
-        val powerManager = application.getSystemService<PowerManager>()
+        powerManager = application.getSystemService<PowerManager>()
         if (powerManager == null) {
             Log.w(TAG, "PowerManager not available")
             return
@@ -183,8 +193,11 @@ object PerformanceMonitor {
         }
 
         try {
-            powerManager.addThermalStatusListener(
-                scope.launch(Dispatchers.Main) {}.let { it },
+            thermalListenerJob = scope.launch(Dispatchers.Main) {
+                // v1.10.5: 持有 Job 引用，用于 shutdown 时取消
+            }
+            powerManager!!.addThermalStatusListener(
+                thermalListenerJob as java.util.concurrent.Executor,
                 thermalListener!!
             )
             Log.i(TAG, "Thermal monitoring enabled")
@@ -233,5 +246,36 @@ object PerformanceMonitor {
         maxFrameTime = 0
         synchronized(frameTimes) { frameTimes.clear() }
         synchronized(jankFrames) { jankFrames.clear() }
+    }
+
+    /**
+     * v1.10.5: 完整清理 PerformanceMonitor 资源。
+     *
+     * 解决原实现中 thermal listener 注册后永不取消、JankStats 无全局 disable 的问题，
+     * 防止 Application 销毁后 listener 泄漏导致崩溃。
+     */
+    fun shutdown() {
+        if (!isInitialized.compareAndSet(true, false)) {
+            Log.d(TAG, "PerformanceMonitor not initialized, skip shutdown")
+            return
+        }
+        // 1. 移除热状态监听器
+        try {
+            thermalListener?.let { listener ->
+                powerManager?.removeThermalStatusListener(listener)
+            }
+            thermalListener = null
+            thermalListenerJob?.cancel()
+            thermalListenerJob = null
+            powerManager = null
+            Log.i(TAG, "Thermal listener removed")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to remove thermal listener", e)
+        }
+        // 2. 停止帧率监控
+        disableJankStats()
+        // 3. 取消所有协程
+        scope.cancel()
+        Log.i(TAG, "PerformanceMonitor shutdown complete")
     }
 }

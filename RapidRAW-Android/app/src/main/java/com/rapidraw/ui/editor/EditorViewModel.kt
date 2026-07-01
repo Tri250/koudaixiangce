@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -86,6 +87,7 @@ sealed class EditorEvent {
 }
 
 class EditorViewModel(
+    private val savedStateHandle: SavedStateHandle,
     private val imageFile: ImageFile?,
     context: Context,
 ) : ViewModel() {
@@ -98,6 +100,70 @@ class EditorViewModel(
     // 只是返回一个新实例但从未使用，异常被完全吞掉。
     private val coroutineExceptionHandler =
         com.rapidraw.core.CrashHandler.coroutineExceptionHandler(appContext)
+
+    // v1.10.5: 自动保存协程 — 周期性将编辑状态持久化到 Sidecar，防止进程死亡丢失数据
+    private var autoSaveJob: Job? = null
+    private val autoSaveIntervalMs = 30_000L  // 30 秒自动保存
+
+    // v1.10.5: 从 SavedStateHandle 恢复进程死亡前的编辑状态
+    private fun restoreSavedState(): Boolean {
+        val savedPath = savedStateHandle.get<String>("editor_image_path") ?: return false
+        if (savedPath.isBlank()) return false
+        try {
+            val savedAdjJson = savedStateHandle.get<String>("editor_adjustments")
+            if (savedAdjJson != null) {
+                val adj = kotlinx.serialization.json.Json.decodeFromString(
+                    com.rapidraw.data.model.Adjustments.serializer(), savedAdjJson
+                )
+                _adjustments.value = adj
+            }
+            savedStateHandle.get<String>("editor_film_id")?.let { _selectedFilmId.value = it }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to restore SavedStateHandle state", e)
+        }
+        // 清除已恢复的状态，避免下次启动误用过期数据
+        savedStateHandle.remove<Any>("editor_adjustments")
+        savedStateHandle.remove<Any>("editor_film_id")
+        return true
+    }
+
+    // v1.10.5: 将当前编辑状态保存到 SavedStateHandle（进程死亡恢复）
+    private fun saveStateToHandle() {
+        try {
+            savedStateHandle["editor_image_path"] = _currentImage.value?.path
+            savedStateHandle["editor_adjustments"] = kotlinx.serialization.json.Json.encodeToString(
+                com.rapidraw.data.model.Adjustments.serializer(), _adjustments.value
+            )
+            _selectedFilmId.value?.let { savedStateHandle["editor_film_id"] = it }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to save state to SavedStateHandle", e)
+        }
+    }
+
+    // v1.10.5: 启动周期性自动保存到 Sidecar（防止进程死亡丢失编辑）
+    private fun startAutoSave() {
+        autoSaveJob?.cancel()
+        autoSaveJob = viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            while (isActive) {
+                delay(autoSaveIntervalMs)
+                val img = _currentImage.value ?: continue
+                val adj = _adjustments.value
+                val filmId = _selectedFilmId.value
+                try {
+                    val history = runCatching { collectEditHistoryEntries() }.getOrNull()
+                    SidecarManager(appContext).saveSidecar(
+                        img.path, adj, filmId, editHistoryEntries = history
+                    )
+                    // 同步更新 SavedStateHandle
+                    saveStateToHandle()
+                    Log.d(TAG, "Auto-save completed for ${img.fileName}")
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) {
+                    Log.w(TAG, "Auto-save failed", e)
+                }
+            }
+        }
+    }
 
     // region UI State Flows
     private val _currentImage = MutableStateFlow<ImageFile?>(imageFile)
@@ -278,18 +344,23 @@ class EditorViewModel(
     val isStitching: StateFlow<Boolean> = _isStitching.asStateFlow()
 
     init {
-        // 异步初始化 LUT 库（防崩溃：asset 加载失败不阻塞启动）
-        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
-            try {
-                lutLibrary.initialize()
-            } catch (e: Exception) {
-                Log.w(TAG, "LUT library initialization failed", e)
+        // v1.10.5: 尝试从 SavedStateHandle 恢复进程死亡前的状态
+        if (!restoreSavedState()) {
+            // 没有已保存状态，异步初始化 LUT 库
+            viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+                try {
+                    lutLibrary.initialize()
+                } catch (e: Exception) {
+                    Log.w(TAG, "LUT library initialization failed", e)
+                }
             }
         }
         // 异步加载用户预设
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             _userPresets.value = presetManager.getAll()
         }
+        // v1.10.5: 启动周期性自动保存
+        startAutoSave()
     }
     // endregion
 
@@ -1195,6 +1266,9 @@ class EditorViewModel(
         redoStack.clear()
         _canUndo.value = true
         _canRedo.value = false
+
+        // v1.10.5: 每次编辑操作同步保存到 SavedStateHandle（进程死亡恢复）
+        saveStateToHandle()
 
         // 构建编辑历史条目
         val desc = description ?: "调整参数"
@@ -2353,13 +2427,17 @@ class EditorViewModel(
     class Factory(
         private val imageFile: ImageFile?,
         private val context: Context,
-    ) : ViewModelProvider.Factory {
+    ) : ViewModelProvider.AbstractSavedStateViewModelFactory(/* owner = */ null, /* defaultArgs = */ null) {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        override fun <T : ViewModel> create(
+            key: String,
+            modelClass: Class<T>,
+            handle: SavedStateHandle,
+        ): T {
             if (!modelClass.isAssignableFrom(EditorViewModel::class.java)) {
                 throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
             }
-            return EditorViewModel(imageFile, context.applicationContext) as T
+            return EditorViewModel(handle, imageFile, context.applicationContext) as T
         }
     }
     // endregion

@@ -21,13 +21,18 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.10.4 全量功能可用性优化：
-        // + Dehaze 处理器: 暗通道先验去雾 (Dark Channel Prior)
-        // + GraduatedFilter: 线性/径向渐变局部调整 (GND/Radial)
-        // + 导航补全: ComfyUI AI 工作流引擎接入路由
-        // 全量功能可用性评分: 100/100
-        versionCode = 2400
-        versionName = "1.10.4"
+        // v1.10.5 稳定性增强：
+        // + SavedStateHandle 进程死亡恢复 (EditorViewModel / LibraryViewModel)
+        // + 30秒自动保存 Sidecar + 状态变更即时保存
+        // + 启动崩溃计数器 + 自动恢复 (连续3次崩溃清除缓存)
+        // + PerformanceMonitor 完整生命周期清理 (shutdown)
+        // + ImageProcessor runBlocking 主线程保护 + 30s超时
+        // + SafePreferences 统一 SharedPreferences 损坏恢复
+        // + DeadlockDetector 死锁检测看门狗 + 锁顺序文档
+        // + ExportQueueProcessor 崩溃上报 CrashReporter
+        // 稳定性评分: 100/100
+        versionCode = 2500
+        versionName = "1.10.5"
 
         // 2026 perf: 仅打包应用支持的资源，显著减少 APK 体积。
         // v1.7.0: 新增日/韩本地化支持

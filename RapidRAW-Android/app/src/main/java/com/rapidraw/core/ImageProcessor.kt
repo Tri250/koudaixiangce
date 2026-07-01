@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import java.io.OutputStream
 import kotlin.math.abs
@@ -733,13 +734,23 @@ class ImageProcessor {
         val fileName = file.name
         // v1.5.5 hotfix: RAW 文件必须走 libraw 解码，普通 BitmapFactory.decodeFile 只能拿到缩略图/损坏像素
         if (isRawFileName(fileName)) {
+            // v1.10.5: 主线程调用 runBlocking 会导致 ANR，添加检测与超时保护
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                Log.w(TAG, "loadBitmapFromFile called on main thread for RAW file, this may cause ANR. Falling back to simple decode.")
+                return loadBitmapFromFileSimple(path, allowDownsample)
+            }
             return runBlocking {
-                try {
-                    val context = appContextRef
-                    val uri = Uri.fromFile(file)
-                    com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
-                } catch (t: Throwable) {
-                    Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
+                withTimeoutOrNull(30_000L) {
+                    try {
+                        val context = appContextRef
+                        val uri = Uri.fromFile(file)
+                        com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
+                        loadBitmapFromFileSimple(path, allowDownsample)
+                    }
+                } ?: run {
+                    Log.w(TAG, "RAW decode timed out for $fileName, falling back to BitmapFactory")
                     loadBitmapFromFileSimple(path, allowDownsample)
                 }
             }
@@ -774,11 +785,21 @@ class ImageProcessor {
         // v1.5.5 hotfix: 通过 URI 加载时也要识别 RAW 后缀并走 libraw 解码路径
         val fileName = getFileName(context, uri)
         if (isRawFileName(fileName)) {
+            // v1.10.5: 主线程调用 runBlocking 会导致 ANR，添加检测与超时保护
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                Log.w(TAG, "loadBitmapFromUri called on main thread for RAW file, this may cause ANR. Falling back to simple decode.")
+                return loadBitmapFromUriSimple(context, uri, allowDownsample)
+            }
             return runBlocking {
-                try {
-                    com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
-                } catch (t: Throwable) {
-                    Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
+                withTimeoutOrNull(30_000L) {
+                    try {
+                        com.rapidraw.core.RawDecoder.decodeRaw(context, uri)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "RAW decode failed for $fileName, falling back to BitmapFactory", t)
+                        loadBitmapFromUriSimple(context, uri, allowDownsample)
+                    }
+                } ?: run {
+                    Log.w(TAG, "RAW decode timed out for $fileName, falling back to BitmapFactory")
                     loadBitmapFromUriSimple(context, uri, allowDownsample)
                 }
             }
