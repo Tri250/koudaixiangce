@@ -101,13 +101,12 @@ object Routes {
         const val IMPORTED_PRESET_URI = "imported_preset_uri"
     }
 
-    // 兼容层：保留旧版 Holder（逐步迁移到 ResultKeys）
-    @Deprecated("Use ResultKeys with SavedStateHandle instead")
+    // 兼容层：保留旧版 Holder，用于与尚未迁移到 ResultKeys 的调用方保持兼容。
+    // TODO: 在 v2.0 中移除此兼容层，所有调用方统一使用 ResultKeys + SavedStateHandle。
     object SelectedPresetHolder {
         var pendingPreset: com.rapidraw.data.model.Preset? = null
     }
 
-    @Deprecated("Use ResultKeys with SavedStateHandle instead")
     object AiInpaintResultHolder {
         var pendingResult: android.graphics.Bitmap? = null
     }

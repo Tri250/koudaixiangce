@@ -19,8 +19,8 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.6.4 接入未启用组件: EditorShortcuts + EditorClipboard + RatingBar + ColorLabelPicker
-        // + DamLibraryOverviewPanel + LutMarketViewModel + RecipeShareViewModel + 清理孤立代码
+        // v1.6.4 已接入组件: EditorShortcuts + EditorClipboard + RatingBar + ColorLabelPicker
+        // + DamLibraryOverviewPanel + LutMarketScreen + RecipeShareScreen
         versionCode = 1640
         versionName = "1.6.4"
 

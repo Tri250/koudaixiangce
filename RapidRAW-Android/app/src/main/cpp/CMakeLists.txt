@@ -160,3 +160,13 @@ if(Vulkan_FOUND AND SHADERC_INCLUDE_DIR AND SHADERC_LIB)
 else()
     message(WARNING "Vulkan/shaderc not available - skipping vulkancompute build; app will use OpenGL/CPU fallback")
 endif()
+
+# ── Native Crash Handler Library ─────────────────────────────────────────────
+# Standalone shared library for native signal handling (SIGSEGV, SIGABRT, etc.).
+# Does not depend on libraw; only needs log and android (for backtrace/dladdr).
+add_library(nativecrash SHARED native_crash_handler.cpp)
+
+target_link_libraries(nativecrash
+    log
+    android
+)

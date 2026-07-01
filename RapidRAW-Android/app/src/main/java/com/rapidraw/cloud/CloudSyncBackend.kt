@@ -140,6 +140,7 @@ class LocalOnlySyncBackend(
  * REST API 后端 — 对接自建服务器。
  *
  * 当前为占位实现：V2.2.0 版本未启用真实远程同步，所有操作仅写入应用私有目录。
+ * TODO(P2): V2.2.0 启用真实云同步后端，连接到 RapidRAW Cloud API。
  * 未来接入自建服务器时，需替换为 OkHttp/Retrofit 实现，并接入 CloudSyncManager
  * 的 encryptToken 安全存储机制。
  */

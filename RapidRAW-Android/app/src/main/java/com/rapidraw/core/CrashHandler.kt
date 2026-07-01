@@ -52,6 +52,18 @@ object CrashHandler {
                 System.exit(10)
             }
         }
+
+        // v1.6.3: 安装原生层崩溃信号处理器，捕获 SIGSEGV/SIGABRT 等原生信号
+        try {
+            val nativeInstalled = NativeCrashHandler.install(appContext)
+            if (nativeInstalled) {
+                Log.i(TAG, "Native crash handler installed")
+            } else {
+                Log.w(TAG, "Native crash handler not installed (library may not be available)")
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to install native crash handler", e)
+        }
     }
 
     /**

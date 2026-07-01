@@ -6,11 +6,28 @@ import android.os.Build
 import java.io.File
 
 /**
+ * 设备性能等级，用于跨 OEM 自适应优化。
+ */
+enum class DeviceTier {
+    /** 低端设备：< 4GB RAM，< 4 核心 */
+    LOW,
+    /** 中端设备：4-6GB RAM，4-6 核心 */
+    MID,
+    /** 高端设备：6-8GB RAM，6-8 核心 */
+    HIGH,
+    /** 旗舰设备：≥ 8GB RAM，≥ 8 核心 */
+    FLAGSHIP
+}
+
+/**
  * 设备优化工具类。
  *
  * 检测 OPPO Find 系列设备并针对其硬件特性（高亮度 HDR 屏幕、大内存、多核 CPU）
  * 提供针对性的优化参数，使 RapidRAW 在 OPPO Find X8 Pro / X9 Pro 等
  * 旗舰设备上获得最佳编辑体验。
+ *
+ * P2 稳定性改进：扩展至 Samsung、Xiaomi、Huawei、Google Pixel、OnePlus、
+ * Vivo、Motorola、ASUS、Sony、Nothing 等主流 OEM 的自适应优化。
  */
 object DeviceOptimizer {
 
@@ -30,6 +47,21 @@ object DeviceOptimizer {
 
     private val OPPO_FIND_MODELS_PREFIX = listOf(
         "find x8", "find x9", "findx8", "findx9",
+    )
+
+    // ── 跨 OEM 制造商检测 ──────────────────────────────────────────
+    private val KNOWN_MANUFACTURERS = mapOf(
+        "samsung" to "Samsung",
+        "xiaomi" to "Xiaomi",
+        "huawei" to "Huawei",
+        "google" to "Google",
+        "oneplus" to "OnePlus",
+        "oppo" to "OPPO",
+        "vivo" to "Vivo",
+        "motorola" to "Motorola",
+        "asus" to "ASUS",
+        "sony" to "Sony",
+        "nothing" to "Nothing",
     )
 
     // 默认预览分辨率
@@ -171,5 +203,121 @@ object DeviceOptimizer {
     private fun extractGbFromProp(prop: String): Long {
         val match = Regex("(\\d+)\\s*GB").find(prop)
         return match?.groupValues?.get(1)?.toLongOrNull() ?: 6L
+    }
+
+    // ── P2 稳定性改进：跨 OEM 自适应优化 ─────────────────────────────
+
+    /**
+     * 检测当前设备是否为指定制造商。
+     */
+    fun isManufacturer(manufacturer: String): Boolean {
+        return manufacturerLower == manufacturer.lowercase()
+    }
+
+    /**
+     * 获取已知制造商列表。
+     */
+    fun getKnownManufacturers(): Map<String, String> = KNOWN_MANUFACTURERS
+
+    /**
+     * 返回当前设备的性能等级。
+     *
+     * 基于 RAM 和 CPU 核心数进行分级：
+     * - LOW:    < 4GB RAM, < 4 cores
+     * - MID:    4-6GB RAM, 4-6 cores
+     * - HIGH:   6-8GB RAM, 6-8 cores
+     * - FLAGSHIP: ≥ 8GB RAM, ≥ 8 cores
+     */
+    fun getDeviceTier(): DeviceTier {
+        val ramMb = getAvailableMemoryMb()
+        val cores = Runtime.getRuntime().availableProcessors()
+
+        return when {
+            ramMb >= 8192 && cores >= 8 -> DeviceTier.FLAGSHIP
+            ramMb >= 6144 && cores >= 6 -> DeviceTier.HIGH
+            ramMb >= 4096 && cores >= 4 -> DeviceTier.MID
+            else -> DeviceTier.LOW
+        }
+    }
+
+    /**
+     * 获取推荐的瓦片处理尺寸。
+     *
+     * 用于分块图像处理，避免一次性加载大图导致 OOM。
+     * - LOW:  512
+     * - MID:  1024
+     * - HIGH: 2048
+     * - FLAGSHIP: 4096
+     */
+    fun getRecommendedTileSize(): Int {
+        return when (getDeviceTier()) {
+            DeviceTier.LOW -> 512
+            DeviceTier.MID -> 1024
+            DeviceTier.HIGH -> 2048
+            DeviceTier.FLAGSHIP -> 4096
+        }
+    }
+
+    /**
+     * 获取最大 GPU 纹理尺寸。
+     *
+     * 基于设备性能等级估算 GPU 可处理的最大纹理尺寸。
+     * - LOW:  2048
+     * - MID:  4096
+     * - HIGH: 8192
+     * - FLAGSHIP: 16384
+     */
+    fun getMaxGpuTextureSize(): Int {
+        return when (getDeviceTier()) {
+            DeviceTier.LOW -> 2048
+            DeviceTier.MID -> 4096
+            DeviceTier.HIGH -> 8192
+            DeviceTier.FLAGSHIP -> 16384
+        }
+    }
+
+    /**
+     * 判断是否应使用 GPU 加速管线。
+     *
+     * 仅 HIGH 和 FLAGSHIP 设备推荐使用 GPU 管线，
+     * LOW/MID 设备使用 CPU 管线以避免 GPU 瓶颈。
+     */
+    fun shouldUseGpuPipeline(): Boolean {
+        return getDeviceTier() in setOf(DeviceTier.HIGH, DeviceTier.FLAGSHIP)
+    }
+
+    /**
+     * 获取推荐的导出 JPEG 质量（1-100）。
+     *
+     * 低端设备使用较低质量以加快导出速度并减少内存占用。
+     * - LOW:  75
+     * - MID:  85
+     * - HIGH: 92
+     * - FLAGSHIP: 95
+     */
+    fun getRecommendedExportQuality(): Int {
+        return when (getDeviceTier()) {
+            DeviceTier.LOW -> 75
+            DeviceTier.MID -> 85
+            DeviceTier.HIGH -> 92
+            DeviceTier.FLAGSHIP -> 95
+        }
+    }
+
+    /**
+     * 获取设备诊断信息摘要。
+     *
+     * 返回人类可读的设备能力概况，用于诊断和调试。
+     * 格式: "Manufacturer: Samsung, Model: Galaxy S24, Tier: HIGH, Memory: 8192MB, Cores: 8"
+     */
+    fun getDeviceProfileSummary(): String {
+        val manufacturer = KNOWN_MANUFACTURERS[manufacturerLower]
+            ?: Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
+        val model = Build.MODEL
+        val tier = getDeviceTier()
+        val ramMb = getAvailableMemoryMb()
+        val cores = Runtime.getRuntime().availableProcessors()
+
+        return "Manufacturer: $manufacturer, Model: $model, Tier: $tier, Memory: ${ramMb}MB, Cores: $cores"
     }
 }
