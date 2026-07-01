@@ -1870,6 +1870,11 @@ class ImageProcessor {
 
     /** Simple box blur for local contrast estimation */
     private fun boxBlur(pixels: IntArray, w: Int, h: Int, radius: Int): IntArray {
+        // 2026 hotfix: 防御 pixels.size*3 整数溢出
+        if (pixels.size.toLong() * 3L > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "boxBlur: pixel buffer too large ${pixels.size}")
+            return pixels.copyOf()
+        }
         val result = IntArray(pixels.size)
         val temp = FloatArray(pixels.size * 3)
 
@@ -1989,7 +1994,14 @@ class ImageProcessor {
     fun computeHistograms(bitmap: Bitmap): Array<IntArray> {
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "computeHistograms: bitmap too large ${w}x$h")
+            return arrayOf(IntArray(256), IntArray(256), IntArray(256), IntArray(256))
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         val redHist = IntArray(256)
@@ -2121,6 +2133,13 @@ class ImageProcessor {
         val threshold = 0.7f
         val bloomRadius = (3 + glowAmount * 10).toInt()
 
+        // 2026 hotfix: 防御 w*h*3 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong() || pixelCount * 3L > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "computeBloomBuffer: dimensions too large ${w}x$h")
+            return FloatArray(0)
+        }
+
         // Extract bright pixels above threshold
         val brightPixels = IntArray(pixels.size)
         for (i in pixels.indices) {
@@ -2144,7 +2163,7 @@ class ImageProcessor {
         val blurredPixels = boxBlur(brightPixels, w, h, bloomRadius)
 
         // Convert to float array
-        val result = FloatArray(w * h * 3)
+        val result = FloatArray(pixelCount.toInt() * 3)
         for (i in blurredPixels.indices) {
             val p = blurredPixels[i]
             result[i * 3] = ((p shr 16) and 0xFF) / 255f
@@ -2660,6 +2679,12 @@ class ImageProcessor {
     private fun writeUncompressedTiff(bitmap: Bitmap, out: OutputStream) {
         val w = bitmap.width
         val h = bitmap.height
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "writeUncompressedTiff: bitmap too large ${w}x$h")
+            return
+        }
         val rowBytes = w * 3
         val imageSize = rowBytes * h
 

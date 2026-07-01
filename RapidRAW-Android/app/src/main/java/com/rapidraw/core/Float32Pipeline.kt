@@ -285,7 +285,13 @@ class Float32Pipeline {
 
             val w = bitmap.width
             val h = bitmap.height
-            val pixelCount = w * h
+            // 2026 hotfix: 防御 w*h 整数溢出
+            val pixelCountLong = w.toLong() * h.toLong()
+            if (pixelCountLong > Int.MAX_VALUE.toLong()) {
+                Log.e(TAG, "process: bitmap too large ${w}x${h}")
+                return@withContext bitmap
+            }
+            val pixelCount = pixelCountLong.toInt()
 
             // Step 1: Bitmap → Float32 linear RGB
             val pixels = IntArray(pixelCount)

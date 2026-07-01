@@ -1,6 +1,7 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
+import android.util.Log
 import android.util.SparseArray
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.sqrt
@@ -89,12 +90,24 @@ class ColorReplacementProcessor {
 
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "applyReplacement: bitmap too large ${w}x$h")
+            return ReplacementResult(bitmap, 0, replacement)
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         val replacedCount = applyReplacementToPixels(pixels, w, h, replacement)
 
-        val result = Bitmap.createBitmap(w, h, bitmap.config ?: Bitmap.Config.ARGB_8888)
+        val result = try {
+            Bitmap.createBitmap(w, h, bitmap.config ?: Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            Log.e(TAG, "OOM in applyReplacement ${w}x$h")
+            return ReplacementResult(bitmap, replacedCount, replacement)
+        }
         result.setPixels(pixels, 0, w, 0, 0, w, h)
 
         history.add(replacement)
@@ -126,7 +139,12 @@ class ColorReplacementProcessor {
             applyReplacementToPixels(pixels, w, h, rep)
         }
 
-        val result = Bitmap.createBitmap(w, h, baselineConfig ?: Bitmap.Config.ARGB_8888)
+        val result = try {
+            Bitmap.createBitmap(w, h, baselineConfig ?: Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            Log.e(TAG, "OOM in undoLast ${w}x$h")
+            return null
+        }
         result.setPixels(pixels, 0, w, 0, 0, w, h)
         return result
     }
@@ -151,12 +169,24 @@ class ColorReplacementProcessor {
 
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "previewReplacement: bitmap too large ${w}x$h")
+            return bitmap
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         val replacedCount = applyReplacementToPixels(pixels, w, h, replacement)
 
-        val result = Bitmap.createBitmap(w, h, bitmap.config ?: Bitmap.Config.ARGB_8888)
+        val result = try {
+            Bitmap.createBitmap(w, h, bitmap.config ?: Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            Log.e(TAG, "OOM in previewReplacement ${w}x$h")
+            return bitmap
+        }
         result.setPixels(pixels, 0, w, 0, 0, w, h)
 
         // Store preview state
@@ -413,11 +443,17 @@ class ColorReplacementProcessor {
 
         val w = bitmap.width
         val h = bitmap.height
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "initBaseline: bitmap too large ${w}x$h")
+            return
+        }
         baselineWidth = w
         baselineHeight = h
         baselineConfig = bitmap.config ?: Bitmap.Config.ARGB_8888
 
-        baselinePixels = IntArray(w * h)
+        baselinePixels = IntArray(pixelCount.toInt())
         bitmap.getPixels(baselinePixels, 0, w, 0, 0, w, h)
     }
 
@@ -461,7 +497,12 @@ class ColorReplacementProcessor {
         val w = baselineWidth
         val h = baselineHeight
         val config = baselineConfig ?: Bitmap.Config.ARGB_8888
-        val result = Bitmap.createBitmap(w, h, config)
+        val result = try {
+            Bitmap.createBitmap(w, h, config)
+        } catch (_: OutOfMemoryError) {
+            Log.e(TAG, "OOM in getBaselineBitmap ${w}x$h")
+            return null
+        }
         result.setPixels(pixels, 0, w, 0, 0, w, h)
         return result
     }

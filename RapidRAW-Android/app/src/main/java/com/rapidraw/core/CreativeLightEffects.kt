@@ -115,14 +115,21 @@ class CreativeLightEffects {
     private fun applyGlow(bitmap: Bitmap, params: GlowParams): Bitmap {
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "applyGlow: bitmap too large ${w}x$h")
+            return bitmap
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         // 解码为 float [0,1] RGB
-        val r = FloatArray(w * h)
-        val g = FloatArray(w * h)
-        val b = FloatArray(w * h)
-        val luma = FloatArray(w * h)
+        val r = FloatArray(count)
+        val g = FloatArray(count)
+        val b = FloatArray(count)
+        val luma = FloatArray(count)
 
         for (i in pixels.indices) {
             val px = pixels[i]
@@ -133,9 +140,9 @@ class CreativeLightEffects {
         }
 
         // Step 1: 提取亮度 > threshold 的像素
-        val glowR = FloatArray(w * h)
-        val glowG = FloatArray(w * h)
-        val glowB = FloatArray(w * h)
+        val glowR = FloatArray(count)
+        val glowG = FloatArray(count)
+        val glowB = FloatArray(count)
 
         for (i in pixels.indices) {
             if (luma[i] > params.brightnessThreshold) {
@@ -163,7 +170,7 @@ class CreativeLightEffects {
         }
 
         // Step 4+5: Screen 混合 + 高光保护
-        val result = IntArray(w * h)
+        val result = IntArray(count)
         val amount = params.amount
 
         for (i in pixels.indices) {
@@ -197,10 +204,10 @@ class CreativeLightEffects {
             Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         } catch (oom: OutOfMemoryError) {
             Log.e(TAG, "OOM creating light effect output", oom)
-            return source
+            return bitmap
         } catch (e: IllegalArgumentException) {
             Log.e(TAG, "IllegalArgument creating light effect output", e)
-            return source
+            return bitmap
         }
         out.setPixels(result, 0, w, 0, 0, w, h)
         return out
@@ -222,13 +229,20 @@ class CreativeLightEffects {
     private fun applyHalation(bitmap: Bitmap, params: HalationParams): Bitmap {
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "applyHalation: bitmap too large ${w}x$h")
+            return bitmap
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        val r = FloatArray(w * h)
-        val g = FloatArray(w * h)
-        val b = FloatArray(w * h)
-        val luma = FloatArray(w * h)
+        val r = FloatArray(count)
+        val g = FloatArray(count)
+        val b = FloatArray(count)
+        val luma = FloatArray(count)
 
         for (i in pixels.indices) {
             val px = pixels[i]
@@ -239,9 +253,9 @@ class CreativeLightEffects {
         }
 
         // Step 2: 创建光晕层
-        val haloR = FloatArray(w * h)
-        val haloG = FloatArray(w * h)
-        val haloB = FloatArray(w * h)
+        val haloR = FloatArray(count)
+        val haloG = FloatArray(count)
+        val haloB = FloatArray(count)
 
         for (i in pixels.indices) {
             val L = luma[i]
@@ -289,7 +303,7 @@ class CreativeLightEffects {
         }
 
         // Step 6: 加法混合
-        val result = IntArray(w * h)
+        val result = IntArray(count)
         for (i in pixels.indices) {
             val outR = (r[i] + blurredR[i]).coerceIn(0f, 1f)
             val outG = (g[i] + blurredG[i]).coerceIn(0f, 1f)
@@ -305,10 +319,10 @@ class CreativeLightEffects {
             Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         } catch (oom: OutOfMemoryError) {
             Log.e(TAG, "OOM creating light effect output", oom)
-            return source
+            return bitmap
         } catch (e: IllegalArgumentException) {
             Log.e(TAG, "IllegalArgument creating light effect output", e)
-            return source
+            return bitmap
         }
         out.setPixels(result, 0, w, 0, 0, w, h)
         return out
@@ -329,7 +343,14 @@ class CreativeLightEffects {
     private fun applyLensFlare(bitmap: Bitmap, params: LensFlareParams): Bitmap {
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "applyLensFlare: bitmap too large ${w}x$h")
+            return bitmap
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         // 光源位置（像素坐标）
@@ -348,9 +369,9 @@ class CreativeLightEffects {
         val anamorphicSqueeze = 0.5f
 
         // 初始化 flare 层（在拉伸空间中计算，尺寸与原图一致）
-        val flareR = FloatArray(w * h)
-        val flareG = FloatArray(w * h)
-        val flareB = FloatArray(w * h)
+        val flareR = FloatArray(count)
+        val flareG = FloatArray(count)
+        val flareB = FloatArray(count)
 
         // ── 光源核心光斑 ──
         val coreRadius = min(w, h) * 0.03f
@@ -500,7 +521,7 @@ class CreativeLightEffects {
         }
 
         // ── 加法混合 ──
-        val result = IntArray(w * h)
+        val result = IntArray(count)
         val amount = params.amount
 
         for (i in pixels.indices) {
@@ -523,10 +544,10 @@ class CreativeLightEffects {
             Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         } catch (oom: OutOfMemoryError) {
             Log.e(TAG, "OOM creating light effect output", oom)
-            return source
+            return bitmap
         } catch (e: IllegalArgumentException) {
             Log.e(TAG, "IllegalArgument creating light effect output", e)
-            return source
+            return bitmap
         }
         out.setPixels(result, 0, w, 0, 0, w, h)
         return out
@@ -603,8 +624,15 @@ class CreativeLightEffects {
      * 每个方向使用 running average（滑动窗口求和），O(n) 每像素。
      */
     private fun boxBlurSeparable(data: FloatArray, w: Int, h: Int, radius: Int): FloatArray {
-        val temp = FloatArray(w * h)
-        val output = FloatArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "boxBlurSeparable: dimensions too large ${w}x$h")
+            return data.copyOf()
+        }
+        val count = pixelCount.toInt()
+        val temp = FloatArray(count)
+        val output = FloatArray(count)
 
         // 水平方向
         boxBlurH(data, temp, w, h, radius)

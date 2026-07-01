@@ -226,11 +226,18 @@ class PanoramaStitcher {
     private fun detectFeatures(bitmap: Bitmap, params: Params): List<Feature> {
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "detectFeatures: bitmap too large ${w}x$h")
+            return emptyList()
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         // 灰度化
-        val gray = FloatArray(w * h)
+        val gray = FloatArray(count)
         for (i in pixels.indices) {
             val p = pixels[i]
             val r = (p shr 16) and 0xFF
@@ -953,9 +960,18 @@ class PanoramaStitcher {
             val ox = canvasInfo.offsetX
             val oy = canvasInfo.offsetY
 
-            val srcPixels = IntArray(srcW * srcH)
+            // 2026 hotfix: 防御 srcW*srcH / dstW*dstH 整数溢出
+            val srcPixelCount = srcW.toLong() * srcH.toLong()
+            val dstPixelCount = dstW.toLong() * dstH.toLong()
+            if (srcPixelCount > Int.MAX_VALUE.toLong() || dstPixelCount > Int.MAX_VALUE.toLong()) {
+                Log.e(TAG, "Image too large for stitching warp: src=${srcW}x$srcH dst=${dstW}x$dstH")
+                runCatching { dst.recycle() }
+                return emptyList()
+            }
+
+            val srcPixels = IntArray(srcPixelCount.toInt())
             src.getPixels(srcPixels, 0, srcW, 0, 0, srcW, srcH)
-            val dstPixels = IntArray(dstW * dstH)
+            val dstPixels = IntArray(dstPixelCount.toInt())
 
             for (dy in 0 until dstH) {
                 for (dx in 0 until dstW) {
@@ -1174,10 +1190,18 @@ class PanoramaStitcher {
             computeDistanceWeight(img, w, h)
         }
 
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "linearBlend: canvas too large ${w}x$h")
+            return result
+        }
+        val count = pixelCount.toInt()
+
         // 加权融合
-        val resultPixels = IntArray(w * h)
+        val resultPixels = IntArray(count)
         for (img in warpedImages) {
-            val pixels = IntArray(w * h)
+            val pixels = IntArray(count)
             img.getPixels(pixels, 0, w, 0, 0, w, h)
             val wIdx = warpedImages.indexOf(img)
             val wm = weightMaps[wIdx]
@@ -1217,10 +1241,17 @@ class PanoramaStitcher {
     }
 
     private fun computeDistanceWeight(img: Bitmap, w: Int, h: Int): FloatArray {
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "computeDistanceWeight: image too large ${w}x$h")
+            return FloatArray(0)
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         img.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        val wm = FloatArray(w * h)
+        val wm = FloatArray(count)
 
         // 先找图像的有效边界
         var x0 = w; var x1 = 0; var y0 = h; var y1 = 0
@@ -1275,22 +1306,30 @@ class PanoramaStitcher {
             computeFeatherWeight(img, w, h, params.blendStrength)
         }
 
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "featherBlend: canvas too large ${w}x$h")
+            return result
+        }
+        val count = pixelCount.toInt()
+
         // 归一化权重
-        val totalWeight = FloatArray(w * h)
+        val totalWeight = FloatArray(count)
         for (wm in weightMaps) {
             for (i in totalWeight.indices) {
                 totalWeight[i] += wm[i]
             }
         }
 
-        val resultR = FloatArray(w * h)
-        val resultG = FloatArray(w * h)
-        val resultB = FloatArray(w * h)
-        val resultA = FloatArray(w * h)
+        val resultR = FloatArray(count)
+        val resultG = FloatArray(count)
+        val resultB = FloatArray(count)
+        val resultA = FloatArray(count)
 
         for (imgIdx in warpedImages.indices) {
             val img = warpedImages[imgIdx]
-            val pixels = IntArray(w * h)
+            val pixels = IntArray(count)
             img.getPixels(pixels, 0, w, 0, 0, w, h)
             val wm = weightMaps[imgIdx]
 
@@ -1310,7 +1349,7 @@ class PanoramaStitcher {
             onProgress((imgIdx + 1).toFloat() / warpedImages.size)
         }
 
-        val resultPixels = IntArray(w * h)
+        val resultPixels = IntArray(count)
         for (i in resultPixels.indices) {
             val r = resultR[i].roundToInt().coerceIn(0, 255)
             val g = resultG[i].roundToInt().coerceIn(0, 255)
@@ -1326,9 +1365,17 @@ class PanoramaStitcher {
     private fun computeFeatherWeight(
         img: Bitmap, w: Int, h: Int, strength: Float
     ): FloatArray {
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "computeFeatherWeight: image too large ${w}x$h")
+            return FloatArray(0)
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         img.getPixels(pixels, 0, w, 0, 0, w, h)
-        val wm = FloatArray(w * h)
+
+        val wm = FloatArray(count)
 
         // 距离变换近似：计算每个有效像素到最近透明边界的距离
         // 简化实现：使用边界距离
@@ -1394,8 +1441,15 @@ class PanoramaStitcher {
         for (level in 0 until levels + 1) {
             val lw = max(1, w shr level)
             val lh = max(1, h shr level)
-            val blended = FloatArray(lw * lh * 4) // RGBA float
-            val totalWeight = FloatArray(lw * lh)
+            // 2026 hotfix: 防御 lw*lh*4 整数溢出
+            val levelPixelCount = lw.toLong() * lh.toLong()
+            if (levelPixelCount > Int.MAX_VALUE.toLong() / 4L) {
+                Log.e(TAG, "multibandBlend: level too large ${lw}x$lh")
+                continue
+            }
+            val levelCount = levelPixelCount.toInt()
+            val blended = FloatArray(levelCount * 4) // RGBA float
+            val totalWeight = FloatArray(levelCount)
 
             for (imgIdx in warpedImages.indices) {
                 val lap = laplacianPyramids[imgIdx][level]
@@ -1441,11 +1495,22 @@ class PanoramaStitcher {
     private fun buildLaplacianPyramid(
         img: Bitmap, w: Int, h: Int, levels: Int
     ): List<FloatArray> {
+        // 2026 hotfix: 防御 w*h / w*h*4 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "buildLaplacianPyramid: image too large ${w}x$h")
+            return emptyList()
+        }
+        if (pixelCount > Int.MAX_VALUE.toLong() / 4L) {
+            Log.e(TAG, "buildLaplacianPyramid: float buffer too large ${w}x$h")
+            return emptyList()
+        }
+        val count = pixelCount.toInt()
         // 从 Bitmap 获取 RGBA float 数据
-        val pixels = IntArray(w * h)
+        val pixels = IntArray(count)
         img.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        val current = FloatArray(w * h * 4)
+        val current = FloatArray(count * 4)
         for (i in pixels.indices) {
             val p = pixels[i]
             current[i * 4] = ((p shr 16) and 0xFF).toFloat()
@@ -1482,7 +1547,13 @@ class PanoramaStitcher {
             val upNext = upsample(gNext, gNextW, gNextH, gW, gH)
 
             // Laplacian = 当前层 - 上采样(下一层)
-            val lap = FloatArray(gW * gH * 4)
+            // 2026 hotfix: 防御 gW*gH*4 整数溢出
+            val lapPixelCount = gW.toLong() * gH.toLong()
+            if (lapPixelCount > Int.MAX_VALUE.toLong() / 4L) {
+                Log.e(TAG, "buildLaplacianPyramid lap level too large ${gW}x$gH")
+                continue
+            }
+            val lap = FloatArray(lapPixelCount.toInt() * 4)
             for (i in lap.indices) {
                 lap[i] = g.getOrElse(i) { 0f } - upNext.getOrElse(i) { 0f }
             }
@@ -1517,7 +1588,13 @@ class PanoramaStitcher {
     private fun downsample(
         data: FloatArray, w: Int, h: Int, outW: Int, outH: Int
     ): FloatArray {
-        val out = FloatArray(outW * outH * 4)
+        // 2026 hotfix: 防御 outW*outH*4 整数溢出
+        val outPixelCount = outW.toLong() * outH.toLong()
+        if (outPixelCount > Int.MAX_VALUE.toLong() / 4L) {
+            Log.e(TAG, "downsample: output too large ${outW}x$outH")
+            return FloatArray(0)
+        }
+        val out = FloatArray(outPixelCount.toInt() * 4)
         for (y in 0 until outH) {
             for (x in 0 until outW) {
                 val sx = x * 2; val sy = y * 2
@@ -1544,7 +1621,13 @@ class PanoramaStitcher {
     private fun downsampleSingle(
         data: FloatArray, w: Int, h: Int, outW: Int, outH: Int
     ): FloatArray {
-        val out = FloatArray(outW * outH)
+        // 2026 hotfix: 防御 outW*outH 整数溢出
+        val outPixelCount = outW.toLong() * outH.toLong()
+        if (outPixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "downsampleSingle: output too large ${outW}x$outH")
+            return FloatArray(0)
+        }
+        val out = FloatArray(outPixelCount.toInt())
         for (y in 0 until outH) {
             for (x in 0 until outW) {
                 val sx = x * 2; val sy = y * 2
@@ -1567,7 +1650,13 @@ class PanoramaStitcher {
     private fun upsample(
         data: FloatArray, inW: Int, inH: Int, outW: Int, outH: Int
     ): FloatArray {
-        val out = FloatArray(outW * outH * 4)
+        // 2026 hotfix: 防御 outW*outH*4 整数溢出
+        val outPixelCount = outW.toLong() * outH.toLong()
+        if (outPixelCount > Int.MAX_VALUE.toLong() / 4L) {
+            Log.e(TAG, "upsample: output too large ${outW}x$outH")
+            return FloatArray(0)
+        }
+        val out = FloatArray(outPixelCount.toInt() * 4)
         for (y in 0 until outH) {
             for (x in 0 until outW) {
                 // 双线性插值
@@ -1611,7 +1700,13 @@ class PanoramaStitcher {
 
             // 加入 Laplacian 细节
             val lap = pyramid[l]
-            current = FloatArray(nextW * nextH * 4)
+            // 2026 hotfix: 防御 nextW*nextH*4 整数溢出
+            val nextPixelCount = nextW.toLong() * nextH.toLong()
+            if (nextPixelCount > Int.MAX_VALUE.toLong() / 4L) {
+                Log.e(TAG, "reconstructFromLaplacianPyramid: level too large ${nextW}x$nextH")
+                continue
+            }
+            current = FloatArray(nextPixelCount.toInt() * 4)
             for (i in current.indices) {
                 current[i] = up.getOrElse(i) { 0f } + lap.getOrElse(i) { 0f }
             }
@@ -1626,8 +1721,15 @@ class PanoramaStitcher {
             Log.e(TAG, "OOM in multiBandBlend result ${w}x${h}")
             return try { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) } catch (_: OutOfMemoryError) { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
         }
-        val pixels = IntArray(w * h)
-        for (i in 0 until w * h) {
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "reconstructFromLaplacianPyramid: result too large ${w}x$h")
+            return result
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
+        for (i in 0 until count) {
             val ci = i * 4
             val r = current[ci].roundToInt().coerceIn(0, 255)
             val g = current[ci + 1].roundToInt().coerceIn(0, 255)
@@ -1646,7 +1748,14 @@ class PanoramaStitcher {
     private fun cropBlackBorders(bitmap: Bitmap): Bitmap {
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "cropBlackBorders: bitmap too large ${w}x$h")
+            return bitmap
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         var left = 0; var right = w - 1

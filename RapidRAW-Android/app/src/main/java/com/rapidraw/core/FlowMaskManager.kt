@@ -20,7 +20,16 @@ class FlowMaskManager(
     private val width: Int,
     private val height: Int,
 ) {
-    private val maskBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    // 2026 hotfix: 防御构造函数 OOM / IllegalArgument
+    private val maskBitmap = try {
+        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    } catch (_: OutOfMemoryError) {
+        Log.e("FlowMaskManager", "OOM creating mask bitmap ${width}x$height")
+        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    } catch (_: IllegalArgumentException) {
+        Log.e("FlowMaskManager", "Invalid dimensions for mask bitmap ${width}x$height")
+        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    }
     private val maskCanvas = Canvas(maskBitmap)
     
     private val paintBrush = Paint().apply {
@@ -101,7 +110,14 @@ class FlowMaskManager(
      * 获取蒙版覆盖率
      */
     fun getCoverage(): Float {
-        val pixels = IntArray(width * height)
+        // 2026 hotfix: 防御 width*height 整数溢出
+        val pixelCount = width.toLong() * height.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("FlowMaskManager", "getCoverage: mask too large ${width}x$height")
+            return 0f
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         maskBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
         var covered = 0
         for (pixel in pixels) {
@@ -119,13 +135,20 @@ class FlowMaskManager(
      */
     fun generateRadialMask(cx: Float, cy: Float, radius: Float, feather: Float = 0.3f) {
         clear()
+        // 2026 hotfix: 防御 width*height 整数溢出
+        val pixelCount = width.toLong() * height.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("FlowMaskManager", "generateRadialMask: mask too large ${width}x$height")
+            return
+        }
+        val count = pixelCount.toInt()
         val centerX = (cx * width).coerceIn(0f, width.toFloat())
         val centerY = (cy * height).coerceIn(0f, height.toFloat())
         val minDim = minOf(width, height).toFloat()
         val r = (radius * minDim).coerceIn(1f, minDim)
         val featherRadius = r * (1f + feather)
 
-        val pixels = IntArray(width * height)
+        val pixels = IntArray(count)
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val dx = x.toFloat() - centerX
@@ -150,6 +173,13 @@ class FlowMaskManager(
      */
     fun generateGradientMask(angle: Float, midpoint: Float = 0.5f, feather: Float = 0.3f) {
         clear()
+        // 2026 hotfix: 防御 width*height 整数溢出
+        val pixelCount = width.toLong() * height.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("FlowMaskManager", "generateGradientMask: mask too large ${width}x$height")
+            return
+        }
+        val count = pixelCount.toInt()
         val rad = Math.toRadians(angle.toDouble())
         val dirX = kotlin.math.cos(rad).toFloat()
         val dirY = kotlin.math.sin(rad).toFloat()
@@ -169,7 +199,7 @@ class FlowMaskManager(
 
         val halfFeather = feather * 0.5f * projRange
 
-        val pixels = IntArray(width * height)
+        val pixels = IntArray(count)
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val px = x.toFloat() - hw

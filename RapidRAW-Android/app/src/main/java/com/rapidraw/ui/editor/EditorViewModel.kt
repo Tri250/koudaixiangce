@@ -1755,9 +1755,16 @@ class EditorViewModel(
                 // Convert bitmap to float array, apply reconstruction, convert back
                 val w = bitmap.width
                 val h = bitmap.height
-                val pixels = IntArray(w * h)
+                // 2026 hotfix: 防御 w*h / w*h*3 整数溢出
+                val pixelCount = w.toLong() * h.toLong()
+                if (pixelCount > Int.MAX_VALUE.toLong() || pixelCount * 3L > Int.MAX_VALUE.toLong()) {
+                    Log.e(TAG, "applyHighlightReconstruction: bitmap too large ${w}x$h")
+                    return@launch
+                }
+                val count = pixelCount.toInt()
+                val pixels = IntArray(count)
                 bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
-                val linearData = FloatArray(w * h * 3)
+                val linearData = FloatArray(count * 3)
                 for (i in pixels.indices) {
                     val p = pixels[i]
                     val r = ((p shr 16) and 0xFF) / 255f

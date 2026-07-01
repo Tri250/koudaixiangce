@@ -30,6 +30,13 @@ class GuidedFilterDenoiser {
             } catch (_: OutOfMemoryError) { source }
         }
 
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val sourcePixelCount = w.toLong() * h.toLong()
+        if (sourcePixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("GuidedFilterDenoiser", "denoise: source too large ${w}x$h")
+            return source
+        }
+
         // 大图半分辨率处理再上采样
         val needDownsample = w * h > 2_000_000
         var workBitmap: Bitmap? = null
@@ -38,20 +45,33 @@ class GuidedFilterDenoiser {
                 val scale = sqrt(2_000_000f / (w * h))
                 val sw = (w * scale).toInt().coerceAtLeast(1)
                 val sh = (h * scale).toInt().coerceAtLeast(1)
-                Bitmap.createScaledBitmap(source, sw, sh, true)
+                try {
+                    Bitmap.createScaledBitmap(source, sw, sh, true)
+                } catch (_: OutOfMemoryError) {
+                    Log.e("GuidedFilterDenoiser", "OOM scaling to ${sw}x$sh")
+                    source.copy(Bitmap.Config.ARGB_8888, true) ?: source
+                }
             } else {
                 source.copy(Bitmap.Config.ARGB_8888, true) ?: source
             }
 
             val ww = workBitmap.width
             val wh = workBitmap.height
-            var pixels = IntArray(ww * wh)
+            // 2026 hotfix: 防御 ww*wh 整数溢出
+            val workPixelCount = ww.toLong() * wh.toLong()
+            if (workPixelCount > Int.MAX_VALUE.toLong()) {
+                Log.e("GuidedFilterDenoiser", "denoise: work bitmap too large ${ww}x$wh")
+                if (workBitmap !== source) workBitmap.recycle()
+                return source
+            }
+            val count = workPixelCount.toInt()
+            var pixels = IntArray(count)
             workBitmap.getPixels(pixels, 0, ww, 0, 0, ww, wh)
 
             // RGB → YUV (BT.601)
-            var yChannel = FloatArray(ww * wh)
-            var uChannel = FloatArray(ww * wh)
-            var vChannel = FloatArray(ww * wh)
+            var yChannel = FloatArray(count)
+            var uChannel = FloatArray(count)
+            var vChannel = FloatArray(count)
             for (i in pixels.indices) {
                 val r = ((pixels[i] shr 16) and 0xFF) / 255f
                 val g = ((pixels[i] shr 8) and 0xFF) / 255f
@@ -80,7 +100,7 @@ class GuidedFilterDenoiser {
             vChannel = FloatArray(0) // free V input
 
             // YUV → RGB
-            val result = IntArray(ww * wh)
+            val result = IntArray(count)
             for (i in result.indices) {
                 val y = denoisedY[i]
                 val u = denoisedU[i] - 0.5f
@@ -94,7 +114,13 @@ class GuidedFilterDenoiser {
                 result[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
             }
 
-            val denoisedBitmap = Bitmap.createBitmap(ww, wh, Bitmap.Config.ARGB_8888)
+            val denoisedBitmap = try {
+                Bitmap.createBitmap(ww, wh, Bitmap.Config.ARGB_8888)
+            } catch (_: OutOfMemoryError) {
+                Log.e("GuidedFilterDenoiser", "OOM creating denoised bitmap ${ww}x$wh")
+                if (workBitmap !== source) workBitmap.recycle()
+                return source
+            }
             denoisedBitmap.setPixels(result, 0, ww, 0, 0, ww, wh)
 
             // Recycle the work bitmap (scaled copy of source, no longer needed)
@@ -104,7 +130,12 @@ class GuidedFilterDenoiser {
 
             // 上采样回原尺寸
             return if (needDownsample) {
-                val upsampled = Bitmap.createScaledBitmap(denoisedBitmap, w, h, true)
+                val upsampled = try {
+                    Bitmap.createScaledBitmap(denoisedBitmap, w, h, true)
+                } catch (_: OutOfMemoryError) {
+                    Log.e("GuidedFilterDenoiser", "OOM upsampling to ${w}x$h")
+                    denoisedBitmap
+                }
                 if (denoisedBitmap != source) denoisedBitmap.recycle()
                 upsampled
             } else {

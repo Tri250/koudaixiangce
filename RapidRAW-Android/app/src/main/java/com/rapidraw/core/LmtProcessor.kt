@@ -467,7 +467,13 @@ class LmtProcessor {
      */
     fun createLutTexture(lutData: CubeLutData): Int {
         val size = lutData.size
-        val pixelCount = size * size * size * 3
+        // 2026 hotfix: 防御 size^3*3 整数溢出
+        val pixelCountLong = size.toLong() * size * size * 3L
+        if (pixelCountLong > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "createLutTexture: LUT size too large $size")
+            return 0
+        }
+        val pixelCount = pixelCountLong.toInt()
 
         // 将浮点数据转换为字节数据（8-bit 精度）
         val buffer = ByteBuffer.allocateDirect(pixelCount)
@@ -535,10 +541,17 @@ class LmtProcessor {
      */
     fun createLutTextureHalfFloat(lutData: CubeLutData): Int {
         val size = lutData.size
-        val total = size * size * size
+        // 2026 hotfix: 防御 size^3*4*2 整数溢出
+        val totalLong = size.toLong() * size * size
+        val bufferBytesLong = totalLong * 4L * 2L
+        if (bufferBytesLong > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "createLutTextureHalfFloat: LUT size too large $size")
+            return 0
+        }
+        val total = totalLong.toInt()
 
         // 半精度浮点 RGBA 缓冲区
-        val buffer = ByteBuffer.allocateDirect(total * 4 * 2) // 4 channels * 2 bytes each
+        val buffer = ByteBuffer.allocateDirect(bufferBytesLong.toInt()) // 4 channels * 2 bytes each
             .order(ByteOrder.nativeOrder())
             .asShortBuffer()
 

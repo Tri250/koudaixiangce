@@ -381,7 +381,14 @@ object LayerBlender {
         // 实际项目中应委托给 ImageProcessor
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("LayerBlender", "applyAdjustmentLayer: bitmap too large ${w}x$h")
+            return
+        }
+        val count = pixelCount.toInt()
+        val pixels = IntArray(count)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         val adjustments = adjustmentLayer.adjustments
@@ -506,7 +513,13 @@ object LayerBlender {
         } catch (_: OutOfMemoryError) {
             return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
         }
-        val pixels = IntArray(w * h) { 0xFFFFFFFF.toInt() }
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("LayerBlender", "createWhiteBitmap: dimensions too large ${w}x$h")
+            return bmp
+        }
+        val pixels = IntArray(pixelCount.toInt()) { 0xFFFFFFFF.toInt() }
         bmp.setPixels(pixels, 0, w, 0, 0, w, h)
         return bmp
     }

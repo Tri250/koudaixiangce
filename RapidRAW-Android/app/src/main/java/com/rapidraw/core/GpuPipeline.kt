@@ -1001,8 +1001,16 @@ class GpuPipeline(private val context: Context) {
 
             // 复用 ByteBuffer 避免频繁分配
             var buffer = readBackBuffer
-            if (buffer == null || buffer.capacity() < width * height * 4) {
-                buffer = ByteBuffer.allocateDirect(width * height * 4)
+            // 2026 hotfix: 防御 width*height*4 整数溢出
+            val requiredBytes = width.toLong() * height.toLong() * 4L
+            if (requiredBytes > Int.MAX_VALUE.toLong()) {
+                Log.e(TAG, "getProcessedBitmap: dimensions too large ${width}x${height}")
+                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+                return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            }
+            val required = requiredBytes.toInt()
+            if (buffer == null || buffer.capacity() < required) {
+                buffer = ByteBuffer.allocateDirect(required)
                     .order(ByteOrder.nativeOrder())
                 readBackBuffer = buffer
             }
@@ -1016,9 +1024,13 @@ class GpuPipeline(private val context: Context) {
             buffer.rewind()
 
             // 每次创建新 Bitmap，避免与外部引用竞争
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val bitmap = try {
+                Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            } catch (_: OutOfMemoryError) {
+                Log.e(TAG, "OOM in getProcessedBitmap ${width}x$height")
+                return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            }
             bitmap.copyPixelsFromBuffer(buffer)
-
             return bitmap
         } catch (e: OutOfMemoryError) {
             Log.e(TAG, "getProcessedBitmap OOM", e)

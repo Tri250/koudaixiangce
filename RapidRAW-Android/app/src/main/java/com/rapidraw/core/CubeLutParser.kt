@@ -491,10 +491,22 @@ class CubeLutParser {
     fun applyLutToBitmap(bitmap: Bitmap, lut: Lut3D, intensity: Float = 1f): Bitmap {
         val width = bitmap.width
         val height = bitmap.height
-        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        // 2026 hotfix: 防御 width*height 整数溢出 + Bitmap OOM
+        val pixelCount = width.toLong() * height.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("CubeLutParser", "applyLutToBitmap: bitmap too large ${width}x$height")
+            return bitmap
+        }
+        val count = pixelCount.toInt()
+        val result = try {
+            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            Log.e("CubeLutParser", "OOM in applyLutToBitmap ${width}x$height")
+            return bitmap
+        }
 
-        val pixels = IntArray(width * height)
-        val outPixels = IntArray(width * height)
+        val pixels = IntArray(count)
+        val outPixels = IntArray(count)
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
         for (i in pixels.indices) {
@@ -529,8 +541,20 @@ class CubeLutParser {
      * @return 应用 LUT 后的渐变 Bitmap
      */
     fun generateThumbnail(lut: Lut3D, width: Int = 128, height: Int = 128): Bitmap {
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val pixels = IntArray(width * height)
+        // 2026 hotfix: 防御 width*height 整数溢出 + Bitmap OOM
+        val pixelCount = width.toLong() * height.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("CubeLutParser", "generateThumbnail: dimensions too large ${width}x$height")
+            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        }
+        val count = pixelCount.toInt()
+        val bitmap = try {
+            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            Log.e("CubeLutParser", "OOM in generateThumbnail ${width}x$height")
+            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        }
+        val pixels = IntArray(count)
 
         for (y in 0 until height) {
             for (x in 0 until width) {
