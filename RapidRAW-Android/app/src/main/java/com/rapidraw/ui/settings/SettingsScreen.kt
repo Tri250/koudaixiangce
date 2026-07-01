@@ -506,9 +506,9 @@ private fun isGles3Available(context: Context): Boolean {
         if (display === EGL14.EGL_NO_DISPLAY) return false
         val version = IntArray(2)
         if (!EGL14.eglInitialize(display, version, 0, version, 1)) {
-            // 可能已初始化，尝试获取版本号
-            EGL14.eglQueryContext(display, display, EGL14.EGL_CONTEXT_CLIENT_VERSION, version, 0)
-            if (EGL14.eglGetError() != EGL14.EGL_SUCCESS) {
+            // display 可能已被其他 EGL 客户端初始化，检查错误码后继续尝试查询配置
+            val error = EGL14.eglGetError()
+            if (error != EGL14.EGL_SUCCESS && error != EGL14.EGL_NOT_INITIALIZED) {
                 return false
             }
         }
