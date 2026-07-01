@@ -65,15 +65,25 @@ object LayerBlender {
         width: Int,
         height: Int,
     ): Bitmap {
-        if (layers.isEmpty()) return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        if (layers.isEmpty()) {
+            return try {
+                Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            } catch (_: OutOfMemoryError) {
+                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            }
+        }
 
         // 初始化为第一层（基底）
-        var result = if (layers[0].bitmap != null) {
-            layers[0].bitmap!!.copy(Bitmap.Config.ARGB_8888, true)
+        val firstBitmap = layers[0].bitmap
+        var result = if (firstBitmap != null) {
+            firstBitmap.copy(Bitmap.Config.ARGB_8888, true)
         } else if (layers[0].adjustmentLayer != null) {
             // 调整图层作为基底时：创建白色画布并应用调整
             val white = createWhiteBitmap(width, height)
-            applyAdjustmentLayer(white, layers[0].adjustmentLayer!!)
+            val adjLayer = layers[0].adjustmentLayer
+            if (adjLayer != null) {
+                applyAdjustmentLayer(white, adjLayer)
+            }
             white
         } else {
             createWhiteBitmap(width, height)
@@ -108,7 +118,10 @@ object LayerBlender {
             layer.adjustmentLayer != null -> {
                 // 调整图层：复制基底，应用调整，作为图层内容
                 val adjusted = base.copy(Bitmap.Config.ARGB_8888, true)
-                applyAdjustmentLayer(adjusted, layer.adjustmentLayer!!)
+                val adj = layer.adjustmentLayer
+                if (adj != null) {
+                    applyAdjustmentLayer(adjusted, adj)
+                }
                 getPixels(adjusted).also { adjusted.recycle() }
             }
             else -> return base // 空图层，不操作
@@ -446,7 +459,11 @@ object LayerBlender {
     }
 
     private fun createWhiteBitmap(w: Int, h: Int): Bitmap {
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val bmp = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        }
         val pixels = IntArray(w * h) { 0xFFFFFFFF.toInt() }
         bmp.setPixels(pixels, 0, w, 0, 0, w, h)
         return bmp

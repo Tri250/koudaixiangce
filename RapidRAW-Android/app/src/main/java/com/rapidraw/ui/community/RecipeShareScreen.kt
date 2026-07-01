@@ -349,7 +349,12 @@ private fun RecipeCard(
                         putExtra(android.content.Intent.EXTRA_TEXT, "RapidRAW 配方: ${recipe.name}")
                         type = "text/plain"
                     }
-                    context.startActivity(android.content.Intent.createChooser(sendIntent, "分享配方"))
+                    // 2026 正式版: 防止无应用处理该 Intent 时崩溃
+                    try {
+                        context.startActivity(android.content.Intent.createChooser(sendIntent, "分享配方"))
+                    } catch (_: Exception) {
+                        android.widget.Toast.makeText(context, "无法分享配方", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 },
                 verticalAlignment = Alignment.CenterVertically,
             ) {

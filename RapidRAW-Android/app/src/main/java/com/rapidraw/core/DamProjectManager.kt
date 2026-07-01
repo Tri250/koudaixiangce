@@ -967,27 +967,27 @@ class DamProjectManager(private val context: Context) {
             } else true
         }.filter { entry ->
             if (query.focalLengthMin != null) {
-                entry.focalLength != null && entry.focalLength!! >= query.focalLengthMin
+                entry.focalLength?.let { it >= query.focalLengthMin } ?: false
             } else true
         }.filter { entry ->
             if (query.focalLengthMax != null) {
-                entry.focalLength != null && entry.focalLength!! <= query.focalLengthMax
+                entry.focalLength?.let { it <= query.focalLengthMax } ?: false
             } else true
         }.filter { entry ->
             if (query.apertureMin != null) {
-                entry.aperture != null && entry.aperture!! >= query.apertureMin
+                entry.aperture?.let { it >= query.apertureMin } ?: false
             } else true
         }.filter { entry ->
             if (query.apertureMax != null) {
-                entry.aperture != null && entry.aperture!! <= query.apertureMax
+                entry.aperture?.let { it <= query.apertureMax } ?: false
             } else true
         }.filter { entry ->
             if (query.isoMin != null) {
-                entry.iso != null && entry.iso!! >= query.isoMin
+                entry.iso?.let { it >= query.isoMin } ?: false
             } else true
         }.filter { entry ->
             if (query.isoMax != null) {
-                entry.iso != null && entry.iso!! <= query.isoMax
+                entry.iso?.let { it <= query.isoMax } ?: false
             } else true
         }.sortedWith(compareBy<DamImageEntry> {
             when (query.sortBy) {
@@ -1043,11 +1043,9 @@ class DamProjectManager(private val context: Context) {
             val cameraKey = "${entry.cameraMake ?: "Unknown"} ${entry.cameraModel ?: "Unknown"}"
             if (entry.cameraModel != null) {
                 val make = entry.cameraMake ?: "Unknown"
-                if (!cameraMap.containsKey(make)) {
-                    cameraMap[make] = mutableListOf()
-                }
-                if (entry.cameraModel !in cameraMap[make]!!) {
-                    cameraMap[make]!!.add(entry.cameraModel)
+                val modelList = cameraMap.getOrPut(make) { mutableListOf() }
+                if (entry.cameraModel !in modelList) {
+                    modelList.add(entry.cameraModel)
                 }
             }
 

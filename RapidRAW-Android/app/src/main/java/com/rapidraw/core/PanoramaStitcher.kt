@@ -489,7 +489,8 @@ class PanoramaStitcher {
             val dstPts = matches.map { featuresList[i + 1][it.dstIdx].keyPoint }
 
             val H = ransacHomography(srcPts, dstPts, params) ?: return null
-            homographies[i + 1] = multiplyHomography(homographies[i]!!, H)
+            val hi = homographies[i] ?: return null
+            homographies[i + 1] = multiplyHomography(hi, H)
             onProgress((i - refIdx + 1).toFloat() / n)
         }
 
@@ -513,7 +514,8 @@ class PanoramaStitcher {
             // H 将 src(i-1) 映射到 dst(i)，即 H: img_{i-1} → img_i
             // 我们需要 homographies[i-1]，使得可以将 img_{i-1} 变换到参考坐标系
             // homographies[i-1] = homographies[i] * H
-            homographies[i - 1] = multiplyHomography(homographies[i]!!, H)
+            val hi = homographies[i] ?: return null
+            homographies[i - 1] = multiplyHomography(hi, H)
             onProgress((refIdx - i + 1).toFloat() / n)
         }
 
@@ -522,7 +524,9 @@ class PanoramaStitcher {
             if (homographies[i] == null) return null
         }
 
-        return homographies.map { it!! }.toTypedArray()
+        return homographies.map {
+            it ?: return null
+        }.toTypedArray()
     }
 
     private fun identityHomography(): DoubleArray {
@@ -924,11 +928,21 @@ class PanoramaStitcher {
             val src = images[idx]
             val H = homographies[idx]
             val Hinv = invertHomography(H) ?: run {
-                warpedImages.add(Bitmap.createBitmap(canvasInfo.width, canvasInfo.height, Bitmap.Config.ARGB_8888))
+                try {
+                    warpedImages.add(Bitmap.createBitmap(canvasInfo.width, canvasInfo.height, Bitmap.Config.ARGB_8888))
+                } catch (_: OutOfMemoryError) {
+                    Log.e(TAG, "OOM creating placeholder warp bitmap ${canvasInfo.width}x${canvasInfo.height}")
+                    return emptyList()
+                }
                 continue
             }
 
-            val dst = Bitmap.createBitmap(canvasInfo.width, canvasInfo.height, Bitmap.Config.ARGB_8888)
+            val dst = try {
+                Bitmap.createBitmap(canvasInfo.width, canvasInfo.height, Bitmap.Config.ARGB_8888)
+            } catch (_: OutOfMemoryError) {
+                Log.e(TAG, "OOM creating warp bitmap ${canvasInfo.width}x${canvasInfo.height}")
+                return emptyList()
+            }
             val srcW = src.width
             val srcH = src.height
             val dstW = canvasInfo.width
@@ -1145,7 +1159,12 @@ class PanoramaStitcher {
     ): Bitmap {
         val w = canvasInfo.width
         val h = canvasInfo.height
-        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val result = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            Log.e(TAG, "OOM in linearBlend ${w}x${h}")
+            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        }
 
         // 计算每张图的距离权重
         val weightMaps = warpedImages.map { img ->
@@ -1241,7 +1260,12 @@ class PanoramaStitcher {
     ): Bitmap {
         val w = canvasInfo.width
         val h = canvasInfo.height
-        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val result = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            Log.e(TAG, "OOM in featherBlend ${w}x${h}")
+            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        }
 
         // 计算每张图的羽化权重
         val weightMaps = warpedImages.map { img ->
@@ -1593,7 +1617,12 @@ class PanoramaStitcher {
         }
 
         // 转换为 Bitmap
-        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val result = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            Log.e(TAG, "OOM in multiBandBlend result ${w}x${h}")
+            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        }
         val pixels = IntArray(w * h)
         for (i in 0 until w * h) {
             val ci = i * 4
@@ -1664,6 +1693,11 @@ class PanoramaStitcher {
 
         val cropW = right - left + 1
         val cropH = bottom - top + 1
-        return Bitmap.createBitmap(bitmap, left, top, cropW, cropH)
+        return try {
+            Bitmap.createBitmap(bitmap, left, top, cropW, cropH)
+        } catch (_: OutOfMemoryError) {
+            Log.e(TAG, "OOM cropping bitmap ${cropW}x${cropH}")
+            bitmap
+        }
     }
 }

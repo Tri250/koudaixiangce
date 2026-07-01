@@ -370,7 +370,12 @@ private fun FeaturedLutPackCard(pack: FeaturedLutPack) {
                     android.content.Intent.ACTION_VIEW,
                     android.net.Uri.parse("rapidraw://lut-pack/${pack.id}")
                 )
-                context.startActivity(intent)
+                // 2026 正式版: 防止无应用处理该 Intent 时崩溃
+                try {
+                    context.startActivity(intent)
+                } catch (_: Exception) {
+                    android.widget.Toast.makeText(context, "无法打开 LUT 包详情", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
             .padding(12.dp),
     ) {

@@ -117,7 +117,8 @@ class ColorReplacementProcessor {
         history.removeAt(history.lastIndex)
 
         // Rebuild from baseline by replaying all remaining replacements
-        val pixels = baselinePixels!!.copyOf()
+        val basePixels = baselinePixels ?: return null
+        val pixels = basePixels.copyOf()
         val w = baselineWidth
         val h = baselineHeight
 

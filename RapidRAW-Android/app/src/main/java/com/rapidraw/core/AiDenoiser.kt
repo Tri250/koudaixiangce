@@ -108,16 +108,25 @@ class GuidedFilterDenoiser {
             }
         } catch (e: OutOfMemoryError) {
             Log.e("GuidedFilterDenoiser", "OOM during denoise", e)
-            // Best effort: return workBitmap upsampled if we got that far, otherwise source
+            // 2026 正式版: 兜底返回安全占位图，避免二次 OOM 导致崩溃。
             val wb = workBitmap
-            return if (wb != null && needDownsample) {
-                try {
+            return try {
+                if (wb != null && needDownsample) {
                     Bitmap.createScaledBitmap(wb, w, h, true)
-                } catch (oom: OutOfMemoryError) {
-                    try { source.copy(Bitmap.Config.ARGB_8888, true) } catch (_: OutOfMemoryError) { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
+                } else {
+                    source.copy(Bitmap.Config.ARGB_8888, true)
                 }
-            } else {
-                try { source.copy(Bitmap.Config.ARGB_8888, true) } catch (_: OutOfMemoryError) { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888) }
+            } catch (_: OutOfMemoryError) {
+                try {
+                    source.copy(Bitmap.Config.ARGB_8888, true)
+                } catch (_: OutOfMemoryError) {
+                    try {
+                        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+                    } catch (_: OutOfMemoryError) {
+                        // 绝对兜底：如果连 1x1 都分配不出，返回原图引用（调用方需自行判断）
+                        source
+                    }
+                }
             }
         }
     }

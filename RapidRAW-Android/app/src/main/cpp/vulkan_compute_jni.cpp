@@ -47,15 +47,21 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
         return;
     }
 
-    // Helper macro to read a float field from the Adjustments object
+    // 2026 正式版: GetFieldID 在 R8 极端情况下可能返回 null，必须校验。
+    #define SAFE_GET_FIELD_ID(name, sig) \
+        env->GetFieldID(cls, name, sig)
+
     #define READ_FLOAT(name) \
-        env->GetFloatField(adjustments, env->GetFieldID(cls, name, "F"))
+        ({ jfieldID fid_ = SAFE_GET_FIELD_ID(name, "F"); \
+           fid_ ? env->GetFloatField(adjustments, fid_) : 0.0f; })
 
     #define READ_INT(name) \
-        env->GetIntField(adjustments, env->GetFieldID(cls, name, "I"))
+        ({ jfieldID fid_ = SAFE_GET_FIELD_ID(name, "I"); \
+           fid_ ? env->GetIntField(adjustments, fid_) : 0; })
 
     #define READ_BOOL(name) \
-        env->GetBooleanField(adjustments, env->GetFieldID(cls, name, "Z"))
+        ({ jfieldID fid_ = SAFE_GET_FIELD_ID(name, "Z"); \
+           fid_ ? env->GetBooleanField(adjustments, fid_) : JNI_FALSE; })
 
     // ── Basic ───────────────────────────────────────────────────
     ubo.exposure   = READ_FLOAT("exposure");

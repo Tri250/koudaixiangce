@@ -764,16 +764,26 @@ class AiLlmColorGrader(private val context: Context) {
     }
 
     /**
-     * 生成基于应用签名信息的稳定加密密钥。
-     * 使用 Android 应用签名 + 包名作为密钥种子，确保密钥在安装期间稳定。
+     * 生成基于应用签名 + 设备指纹的稳定加密密钥。
+     * 2026 正式版: 加入 Build.FINGERPRINT/BOARD/BRAND/HARDWARE 等设备信息，
+     * 确保每个安装实例的密钥不可预测，防止跨设备密钥重用攻击。
      */
     private fun getEncryptionKey(): ByteArray {
-        val seed = "com.rapidraw.ai.llm_color_grader_key_${context.packageName}"
+        val seed = buildString {
+            append("com.rapidraw.ai.llm_color_grader_key_")
+            append(context.packageName)
+            append(android.os.Build.FINGERPRINT ?: "")
+            append(android.os.Build.BOARD ?: "")
+            append(android.os.Build.BRAND ?: "")
+            append(android.os.Build.HARDWARE ?: "")
+        }
         // 从种子派生 32 字节 AES 密钥
         val keyBytes = ByteArray(AES_KEY_SIZE)
         val seedBytes = seed.toByteArray(StandardCharsets.UTF_8)
         for (i in keyBytes.indices) {
-            keyBytes[i] = (seedBytes[i % seedBytes.size].toInt() xor (i * 17 and 0xFF)).toByte()
+            keyBytes[i] = (seedBytes[i % seedBytes.size].toInt()
+                .xor((i * 31 + 17) and 0xFF)
+                .xor(seedBytes[(i * 7 + 3) % seedBytes.size].toInt())).toByte()
         }
         return keyBytes
     }

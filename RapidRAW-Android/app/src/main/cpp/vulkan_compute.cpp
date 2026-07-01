@@ -855,41 +855,60 @@ VulkanDeviceInfo VulkanCompute::probeDevice() {
 bool VulkanCompute::initialize() {
     if (m_initialized) return true;
 
-    if (!createInstance()) return false;
-    if (!pickPhysicalDevice()) return false;
-    if (!createLogicalDevice()) return false;
-    if (!createCommandPool()) return false;
-    if (!createDescriptorSetLayout()) return false;
-    if (!createPipelineLayout()) return false;
-    if (!createComputePipeline()) return false;
+    // 2026 正式版: 初始化失败时自动释放已分配资源，防止句柄泄漏和重复初始化崩溃。
+    bool ok = true;
+    if (ok) ok = createInstance();
+    if (ok) ok = pickPhysicalDevice();
+    if (ok) ok = createLogicalDevice();
+    if (ok) ok = createCommandPool();
+    if (ok) ok = createDescriptorSetLayout();
+    if (ok) ok = createPipelineLayout();
+    if (ok) ok = createComputePipeline();
 
-    // Create descriptor pool
-    VkDescriptorPoolSize poolSize = {};
-    poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSize.descriptorCount = 2;
+    if (ok) {
+        // Create descriptor pool
+        VkDescriptorPoolSize poolSize = {};
+        poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        poolSize.descriptorCount = 2;
 
-    VkDescriptorPoolSize uboPoolSize = {};
-    uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboPoolSize.descriptorCount = 1;
+        VkDescriptorPoolSize uboPoolSize = {};
+        uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboPoolSize.descriptorCount = 1;
 
-    std::array<VkDescriptorPoolSize, 2> poolSizes = {poolSize, uboPoolSize};
+        std::array<VkDescriptorPoolSize, 2> poolSizes = {poolSize, uboPoolSize};
 
-    VkDescriptorPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-    poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = 1;
+        VkDescriptorPoolCreateInfo poolInfo = {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        poolInfo.pPoolSizes = poolSizes.data();
+        poolInfo.maxSets = 1;
 
-    VK_CHECK(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool));
+        VkResult result = vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool);
+        if (result != VK_SUCCESS) {
+            LOGE("Vulkan error creating descriptor pool: %d", result);
+            ok = false;
+        }
+    }
 
-    // Allocate descriptor set
-    VkDescriptorSetAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = m_descriptorPool;
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &m_descriptorSetLayout;
+    if (ok) {
+        // Allocate descriptor set
+        VkDescriptorSetAllocateInfo allocInfo = {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = m_descriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &m_descriptorSetLayout;
 
-    VK_CHECK(vkAllocateDescriptorSets(m_device, &allocInfo, &m_descriptorSet));
+        VkResult result = vkAllocateDescriptorSets(m_device, &allocInfo, &m_descriptorSet);
+        if (result != VK_SUCCESS) {
+            LOGE("Vulkan error allocating descriptor set: %d", result);
+            ok = false;
+        }
+    }
+
+    if (!ok) {
+        release();
+        return false;
+    }
 
     m_initialized = true;
     LOGI("VulkanCompute initialized successfully");

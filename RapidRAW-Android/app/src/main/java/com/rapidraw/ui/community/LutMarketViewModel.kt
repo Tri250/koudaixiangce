@@ -97,23 +97,22 @@ class LutMarketViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    /**
+     * 获取 LUT 包（2026 正式版：当前所有内置 LUT 均可免费获取，无需真实支付）。
+     * 若未来接入 Google Play Billing，应在此处替换为真实的计费校验流程。
+     */
     fun purchaseLutPack(packId: String) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
 
             try {
-                // Simulate purchase flow — in production this would call a billing API
-                withContext(Dispatchers.IO) {
-                    // Simulate network delay
-                    kotlinx.coroutines.delay(1500L)
-                }
-
-                // After purchase, mark the pack as downloadable
+                // 2026 正式版：所有 LUT 均为内置免费资源，直接下载即可。
+                // 此处不模拟网络延迟，确保用户体验真实、无欺骗性等待。
                 downloadLutPack(packId)
             } catch (e: Exception) {
-                Log.e(tag, "Failed to purchase LUT pack: $packId", e)
+                Log.e(tag, "Failed to acquire LUT pack: $packId", e)
                 _state.update {
-                    it.copy(isLoading = false, errorMessage = "购买失败: ${e.message}")
+                    it.copy(isLoading = false, errorMessage = "获取失败: ${e.message}")
                 }
             }
         }

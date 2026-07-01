@@ -1379,14 +1379,16 @@ class EditorViewModel(
             // 全分辨率处理
             val processed = try {
                 imageProcessor.processFullResolution(_adjustments.value, source)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
                 Log.e(TAG, "HDR export processing failed", e)
                 _event.value = EditorEvent.Error("HDR 处理失败: ${e.localizedMessage ?: e.javaClass.simpleName}")
                 return@launch
             }
             val uri = try {
                 HdrExporter.exportHdr(appContext, processed, config, "RapidRAW_HDR_${System.currentTimeMillis()}")
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
                 Log.e(TAG, "HDR export IO failed", e)
                 _event.value = EditorEvent.Error("HDR 导出失败: ${e.localizedMessage ?: e.javaClass.simpleName}")
                 return@launch
@@ -1663,7 +1665,8 @@ class EditorViewModel(
                     previewBitmapCache = result
                     _previewBitmap.value = result
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
                 Log.e(TAG, "Creative light effects failed", e)
             }
         }
@@ -1692,7 +1695,8 @@ class EditorViewModel(
                         it.copy(advancedSkinWhiteningIntensity = intensity, advancedSkinWhiteningSmoothness = smoothness)
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
                 Log.e(TAG, "Advanced skin whitening failed", e)
             }
         }
@@ -1748,8 +1752,17 @@ class EditorViewModel(
                 }
                 val result = Bitmap.createBitmap(w, h, bitmap.config ?: Bitmap.Config.ARGB_8888)
                 result.setPixels(pixels, 0, w, 0, 0, w, h)
-                previewBitmapCache = result
-                _previewBitmap.value = result
+                // 2026 正式版: 通过 bitmapMutex 保护，避免并发访问/回收导致崩溃
+                bitmapMutex.withLock {
+                    previewBitmapCache?.let { old ->
+                        if (!old.isRecycled && old !== originalBitmap) old.recycle()
+                    }
+                    previewBitmapCache = result
+                    _previewBitmap.value = result
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: OutOfMemoryError) {
+                Log.e(TAG, "Highlight reconstruction OOM", e)
             } catch (e: Exception) {
                 Log.e(TAG, "Highlight reconstruction failed", e)
             }
@@ -1821,7 +1834,8 @@ class EditorViewModel(
                     _previewBitmap.value = result
                     updateAdjustments { it.copy(lensProjectionSrc = srcProjection, lensProjectionDst = dstProjection) }
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
                 Log.e(TAG, "Lens projection transform failed", e)
                 _event.value = EditorEvent.Error("镜头投影变换失败: ${e.message}")
             }
@@ -1850,7 +1864,8 @@ class EditorViewModel(
                 _panoramaProgress.value = progress
             }
             return result?.panorama
-        } catch (e: Exception) {
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
             Log.e(TAG, "Panorama stitching failed", e)
             _event.value = EditorEvent.Error("全景拼接失败: ${e.message}")
             return null
