@@ -138,6 +138,11 @@ class GpuPipeline(private val context: Context) {
             Log.e(TAG, "Shader compilation failed", e)
             initialized = false
             return
+        } catch (e: Throwable) {
+            // v1.5.10 hotfix: 捕获 Throwable 处理 IOException / Error 等非 RuntimeException
+            Log.e(TAG, "Shader compilation failed (non-Runtime)", e)
+            initialized = false
+            return
         }
 
         setupGeometry()
@@ -167,6 +172,11 @@ class GpuPipeline(private val context: Context) {
             compileShaders()
         } catch (e: RuntimeException) {
             Log.e(TAG, "Shader compilation failed", e)
+            initialized = false
+            return
+        } catch (e: Throwable) {
+            // v1.5.10 hotfix: 捕获 Throwable 处理 IOException / Error 等非 RuntimeException
+            Log.e(TAG, "Shader compilation failed (non-Runtime)", e)
             initialized = false
             return
         }

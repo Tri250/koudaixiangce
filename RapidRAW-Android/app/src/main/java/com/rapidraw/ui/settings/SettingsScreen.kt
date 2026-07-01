@@ -494,13 +494,24 @@ private fun ClickableRow(
 /**
  * Check whether the device supports OpenGL ES 3.0 (required by GpuPipeline).
  * Uses EGL config query to determine GLES 3.0 capability.
+ *
+ * v1.5.10 hotfix: 旧代码直接调用 eglInitialize 可能与其他 EGL 上下文冲突，
+ * 部分 OEM ROM 在已初始化 EGL 后再次调用 eglInitialize 会返回错误。
+ * 现在使用 try-catch 包裹整个流程，任何失败都回退到 false。
+ * 同时增加 EGL_BAD_DISPLAY / EGL_NOT_INITIALIZED 等错误检查。
  */
 private fun isGles3Available(context: Context): Boolean {
     return try {
         val display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         if (display === EGL14.EGL_NO_DISPLAY) return false
         val version = IntArray(2)
-        if (!EGL14.eglInitialize(display, version, 0, version, 1)) return false
+        if (!EGL14.eglInitialize(display, version, 0, version, 1)) {
+            // 可能已初始化，尝试获取版本号
+            EGL14.eglQueryContext(display, display, EGL14.EGL_CONTEXT_CLIENT_VERSION, version, 0)
+            if (EGL14.eglGetError() != EGL14.EGL_SUCCESS) {
+                return false
+            }
+        }
 
         val attribList = intArrayOf(
             EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
@@ -510,9 +521,10 @@ private fun isGles3Available(context: Context): Boolean {
         val numConfigs = IntArray(1)
         val result = EGL14.eglChooseConfig(display, attribList, 0, configs, 0, 1, numConfigs, 0)
 
-        EGL14.eglTerminate(display)
+        // 不终止 display，避免影响其他 EGL 客户端
         result && numConfigs[0] > 0
-    } catch (_: Exception) {
+    } catch (_: Throwable) {
+        // v1.5.10 hotfix: 捕获 Throwable，部分设备 EGL 调用可能抛 Error
         false
     }
 }

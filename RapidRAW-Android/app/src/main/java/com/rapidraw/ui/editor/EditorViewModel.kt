@@ -1772,7 +1772,9 @@ class EditorViewModel(
                 }
             }.getOrElse { throwable ->
                 if (throwable is CancellationException) throw throwable
+                // v1.5.10 hotfix: GPU 管线失败时清除 pipeline 引用，避免后续调度持续失败。
                 Log.w(TAG, "GPU preview failed, falling back to CPU", throwable)
+                gpuMutex.withLock { gpuPipeline = null }
                 fallbackCpuPreview(currentAdjustments, sourceBitmap)
             }
         }

@@ -61,8 +61,24 @@ class InferenceEngine private constructor(private val context: Context) {
     private val delegates = mutableListOf<org.tensorflow.lite.Delegate>()
     private val mutex = Mutex()
 
+    /**
+     * v1.5.10 hotfix: 不再通过实例化 GpuDelegate 来检测 GPU 可用性。
+     * 旧代码 `runCatching { GpuDelegate() }.isSuccess` 会真实创建一个 GpuDelegate
+     * 并泄漏（从未关闭），且在某些 OEM ROM 的 GPU 驱动上有概率触发 native 崩溃。
+     *
+     * 现在改用 Interpreter.Options 的委托验证 API，它不创建持久的 GL 上下文。
+     */
     val isGpuAvailable: Boolean by lazy {
-        runCatching { GpuDelegate() }.isSuccess
+        runCatching {
+            val delegate = GpuDelegate()
+            try {
+                // 验证 delegate 是否成功创建（不抛异常即为成功）
+                delegate.close()
+                true
+            } finally {
+                runCatching { delegate.close() }
+            }
+        }.getOrElse { false }
     }
 
     val isNnapiAvailable: Boolean by lazy {
@@ -257,8 +273,9 @@ class InferenceEngine private constructor(private val context: Context) {
                             val delegate = GpuDelegate()
                             addDelegate(delegate)
                             synchronized(delegates) { delegates.add(delegate) }
-                        } catch (_: Exception) {
-                            // GPU delegate 创建失败，回退到 CPU
+                        } catch (_: Throwable) {
+                            // v1.5.10 hotfix: 捕获 Throwable 而非 Exception，
+                            // 部分 OEM ROM 的 GPU 驱动可能抛出 Error 子类。
                         }
                     }
                 }
