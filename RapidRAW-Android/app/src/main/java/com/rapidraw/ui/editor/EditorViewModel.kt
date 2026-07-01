@@ -829,24 +829,23 @@ class EditorViewModel(
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             runCatching {
                 appContext.contentResolver.openInputStream(uri)?.use { stream ->
-                    val lut = CubeLutParser().parse(stream)
-                    lut?.let { l ->
-                        val name = uri.lastPathSegment?.substringAfterLast("/")?.removeSuffix(".cube")
-                            ?: "imported_lut"
-                        lutManager.importLut(l, name)
-                        loadedLut = l
-                        withContext(Dispatchers.Main) {
-                            pushUndo("导入 LUT")
-                            imageProcessor.currentLut = l
-                            _adjustments.value = _adjustments.value.copy(
-                                activeLutId = name,
-                                lutIntensity = 100f,
-                            )
-                            gpuMutex.withLock {
-                                gpuPipeline?.updateLutTexture(l, 1f)
-                            }
-                            schedulePreviewUpdate()
+                    val parsedLut = CubeLutParser().parse(stream)
+                    val lut3D = parsedLut?.lut3D ?: throw IllegalArgumentException("LUT 中未找到 3D LUT 数据")
+                    val name = uri.lastPathSegment?.substringAfterLast("/")?.removeSuffix(".cube")
+                        ?: "imported_lut"
+                    lutManager.importLut(lut3D, name)
+                    loadedLut = lut3D
+                    withContext(Dispatchers.Main) {
+                        pushUndo("导入 LUT")
+                        imageProcessor.currentLut = lut3D
+                        _adjustments.value = _adjustments.value.copy(
+                            activeLutId = name,
+                            lutIntensity = 100f,
+                        )
+                        gpuMutex.withLock {
+                            gpuPipeline?.updateLutTexture(lut3D, 1f)
                         }
+                        schedulePreviewUpdate()
                     }
                 } ?: throw IllegalArgumentException("Cannot open LUT URI")
             }.onFailure { throwable ->
@@ -1472,12 +1471,19 @@ class EditorViewModel(
             runCatching {
                 val whitened = com.rapidraw.core.FaceWhiteningProcessor().process(source, _faceWhiteningParams.value)
                 // 将 BeautyPanel 的色相参数转换为 ColorReplacementProcessor.Params
-                val srcColor = android.graphics.Color.HSVToColor(floatArrayOf(_colorReplacementSourceHue.value, 1f, 1f))
-                val tgtColor = android.graphics.Color.HSVToColor(floatArrayOf(_colorReplacementTargetHue.value, 1f, 1f))
+                val sourceHue = _colorReplacementSourceHue.value
+                val targetHue = _colorReplacementTargetHue.value
+                val hueShift = (targetHue - sourceHue).let {
+                    when {
+                        it > 180f -> it - 360f
+                        it < -180f -> it + 360f
+                        else -> it
+                    }
+                }
                 val crParams = com.rapidraw.core.ColorReplacementProcessor.Params(
-                    sourceColor = srcColor,
-                    targetColor = tgtColor,
-                    hueTolerance = _colorReplacementRange.value,
+                    sourceHue = sourceHue,
+                    hueWidth = _colorReplacementRange.value,
+                    hueShift = hueShift,
                     intensity = _colorReplacementIntensity.value,
                 )
                 val result = com.rapidraw.core.ColorReplacementProcessor().process(whitened, crParams)

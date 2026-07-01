@@ -73,7 +73,8 @@ object LayerBlender {
         } else if (layers[0].adjustmentLayer != null) {
             // 调整图层作为基底时：创建白色画布并应用调整
             val white = createWhiteBitmap(width, height)
-            applyAdjustmentLayer(white, layers[0].adjustmentLayer)
+            applyAdjustmentLayer(white, layers[0].adjustmentLayer!!)
+            white
         } else {
             createWhiteBitmap(width, height)
         }
@@ -107,7 +108,7 @@ object LayerBlender {
             layer.adjustmentLayer != null -> {
                 // 调整图层：复制基底，应用调整，作为图层内容
                 val adjusted = base.copy(Bitmap.Config.ARGB_8888, true)
-                applyAdjustmentLayer(adjusted, layer.adjustmentLayer)
+                applyAdjustmentLayer(adjusted, layer.adjustmentLayer!!)
                 getPixels(adjusted).also { adjusted.recycle() }
             }
             else -> return base // 空图层，不操作
@@ -368,8 +369,8 @@ object LayerBlender {
 
             // 亮度
             r = (r + brightness).coerceIn(0f, 1f)
-            g = (g + brightness).coerceIn(0f)
-            b = (b + brightness).coerceIn(0f)
+            g = (g + brightness).coerceIn(0f, 1f)
+            b = (b + brightness).coerceIn(0f, 1f)
 
             // 对比度
             r = applyContrast(r, contrast)

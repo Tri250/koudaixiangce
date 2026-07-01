@@ -49,6 +49,7 @@ class FaceWhiteningProcessor {
         val skinRange: SkinRange = SkinRange.NARROW,    // 肤色检测范围
         val brightnessBoost: Float = 0.4f,              // L 通道提升幅度 0..1
         val desaturation: Float = 0.3f,                 // A/B 去饱和度 0..1
+        val redSuppress: Float = 0.35f,                 // 红色抑制 0..1
         val featherRadius: Int = 4,                      // 羽化半径（像素）
         val edgeAwareStrength: Float = 0.6f,            // 边缘感知强度 0..1（越大越保纹理）
     )

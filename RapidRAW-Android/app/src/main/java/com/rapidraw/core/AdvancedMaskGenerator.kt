@@ -805,7 +805,7 @@ class AdvancedMaskGenerator {
     }
 
     fun featherMask(mask: Bitmap, radius: Int): Bitmap {
-        if (radius <= 0) return mask.copy(mask.config, true)
+        if (radius <= 0) return mask.copy(mask.config ?: Bitmap.Config.ARGB_8888, true)
 
         val w = mask.width
         val h = mask.height

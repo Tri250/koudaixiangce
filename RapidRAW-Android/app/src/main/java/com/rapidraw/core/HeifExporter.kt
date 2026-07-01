@@ -7,6 +7,7 @@ import android.graphics.ImageFormat
 import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
@@ -93,8 +94,6 @@ object HeifExporter {
     fun isHeif10BitSupported(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
         return try {
-            val encoderCount = MediaCodec.getEncoderCreationTime ?: 0
-            val codecs = MediaCodec.listEncoderCreationTime?.size ?: 0
             findHevcEncoder(HeifBitDepth.DEPTH_10) != null
         } catch (e: Exception) {
             false
@@ -223,7 +222,7 @@ object HeifExporter {
             MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
         }
 
-        val codecs = MediaCodec.listEncoders() ?: return null
+        val codecs = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
         for (info in codecs) {
             if (!info.supportedTypes.contains(HEVC_MIME)) continue
             try {
@@ -271,7 +270,7 @@ object HeifExporter {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 setInteger(MediaFormat.KEY_BITRATE_MODE,
                     MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CQ)
-                setInteger(MediaFormat.KEY_QUALITY, quality.toFloat().coerceIn(0f, 100f) / 100f)
+                setInteger(MediaFormat.KEY_QUALITY, quality.coerceIn(0, 100))
             }
             if (bitDepth == HeifBitDepth.DEPTH_10 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 setInteger(MediaFormat.KEY_COLOR_STANDARD,
@@ -649,9 +648,9 @@ object HeifExporter {
         val pixiContent = ByteArrayOutputStream()
         pixiContent.write(int32(0)) // version + flags
         pixiContent.write(3)        // num_channels (YCbCr = 3)
-        pixiContent.write(bitDepth.bitDepth.toByte()) // bits_per_channel[0]
-        pixiContent.write(bitDepth.bitDepth.toByte()) // bits_per_channel[1]
-        pixiContent.write(bitDepth.bitDepth.toByte()) // bits_per_channel[2]
+        pixiContent.write(bitDepth.bitDepth) // bits_per_channel[0]
+        pixiContent.write(bitDepth.bitDepth) // bits_per_channel[1]
+        pixiContent.write(bitDepth.bitDepth) // bits_per_channel[2]
         ipcoContent.write(box("pixi", pixiContent.toByteArray()))
 
         val iprpContent = ByteArrayOutputStream()
@@ -663,9 +662,9 @@ object HeifExporter {
         ipmaContent.write(int32(1)) // entry_count
         ipmaContent.write(int16(1)) // item_id = 1
         ipmaContent.write(3)        // association_count = 3
-        ipmaContent.write((1).toByte()) // property_index=1 (ispe), essential=0
-        ipmaContent.write((2).toByte()) // property_index=2 (hvcC), essential=1
-        ipmaContent.write((3).toByte()) // property_index=3 (pixi), essential=0
+        ipmaContent.write(1) // property_index=1 (ispe), essential=0
+        ipmaContent.write(0x82) // property_index=2 (hvcC), essential=1
+        ipmaContent.write(3) // property_index=3 (pixi), essential=0
 
         iprpContent.write(box("ipma", ipmaContent.toByteArray()))
         metaContentFinal.write(box("iprp", iprpContent.toByteArray()))
@@ -718,18 +717,18 @@ object HeifExporter {
         baos.write(byteArrayOf(0xF0.toByte(), 0x00)) // reserved(4)=0xF + min_spatial_segmentation_idc(12)=0
 
         // parallelismType (2 bits) with reserved
-        baos.write(0xFC.toByte()) // reserved(6)=0x3F + parallelismType(2)=0
+        baos.write(0xFC) // reserved(6)=0x3F + parallelismType(2)=0
 
         // chromaFormat (2 bits) with reserved: 1 = 4:2:0
-        baos.write(0xFD.toByte()) // reserved(6)=0x3F + chromaFormat(2)=1
+        baos.write(0xFD) // reserved(6)=0x3F + chromaFormat(2)=1
 
         // bitDepthLumaMinus8 (3 bits) with reserved
         val bitDepthLumaMinus8 = if (isMain10) 2 else 0
-        baos.write(0xF8.toByte() or (bitDepthLumaMinus8 and 0x7))
+        baos.write(0xF8 or (bitDepthLumaMinus8 and 0x7))
 
         // bitDepthChromaMinus8 (3 bits) with reserved
         val bitDepthChromaMinus8 = if (isMain10) 2 else 0
-        baos.write(0xF8.toByte() or (bitDepthChromaMinus8 and 0x7))
+        baos.write(0xF8 or (bitDepthChromaMinus8 and 0x7))
 
         // avgFrameRate
         baos.write(byteArrayOf(0, 0))

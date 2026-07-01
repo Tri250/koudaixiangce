@@ -86,11 +86,11 @@ fun BeautyPanel(
 
         HasselSlider(
             label = "强度",
-            value = faceWhiteningParams.intensity * 100f,
+            value = faceWhiteningParams.intensity.toFloat(),
             range = 0f..100f,
             onValueChange = { v ->
                 onFaceWhiteningParamsChange(
-                    faceWhiteningParams.copy(intensity = v / 100f),
+                    faceWhiteningParams.copy(intensity = v.toInt()),
                 )
             },
             defaultValue = 50f,

@@ -374,8 +374,8 @@ class DamProjectManager(private val context: Context) {
             result["cameraModel"] = exif.getAttribute(ExifInterface.TAG_MODEL)
 
             // 镜头信息
-            result["lensModel"] = exif.getAttribute(ExifInterface.TAG_LENS_MODEL)
-                ?: exif.getAttribute(ExifInterface.TAG_LENS_MAKE)
+            result["lensModel"] = exif.getAttribute("LensModel")
+                ?: exif.getAttribute("LensMake")
 
             // 焦距
             exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH)?.let { focalStr ->
@@ -393,7 +393,7 @@ class DamProjectManager(private val context: Context) {
             }
 
             // ISO
-            exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)?.let { isoStr ->
+            exif.getAttribute(ExifInterface.TAG_ISO_SPEED_RATINGS)?.let { isoStr ->
                 result["iso"] = isoStr.toIntOrNull()
             }
             if (result["iso"] == null) {
@@ -545,9 +545,8 @@ class DamProjectManager(private val context: Context) {
         // 方法2：libraw 解码（需要 native 库）
         return try {
             if (RawDecoder.isNativeAvailable()) {
-                val uri = Uri.fromFile(file)
-                // 使用缩小尺寸解码
-                RawDecoder.decodeForThumbnail(context, uri, maxSize)
+                // 回退到完整解码并缩放
+                RawDecoder.decodeRawFile(file.absolutePath)?.let { scaleBitmap(it, maxSize) }
             } else null
         } catch (_: Exception) {
             null
@@ -1068,7 +1067,7 @@ class DamProjectManager(private val context: Context) {
 
             entry.aperture?.let { ap ->
                 val apStr = "f/${String.format(Locale.US, "%.1f", ap)}"
-                apertureMap[apStr] = (apMap[apStr] ?: 0) + 1
+                apertureMap[apStr] = (apertureMap[apStr] ?: 0) + 1
             }
 
             entry.iso?.let { iso ->

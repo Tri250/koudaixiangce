@@ -141,6 +141,8 @@ class SyncManager(
      * 对比本地和远程项目，根据校验和决定同步策略
      */
     private suspend fun resolveAndSync(local: SyncProject, remote: SyncProject): SyncProject {
+        val p = provider ?: return local.copy(syncState = SyncState.ERROR)
+
         // 校验和相同：已同步，跳过
         if (local.checksumLocal == remote.checksumRemote) {
             return local.copy(syncState = SyncState.SYNCED, lastModifiedRemote = remote.lastModifiedRemote)
@@ -148,26 +150,26 @@ class SyncManager(
 
         // 本地更新时间更晚：上传覆盖远程
         if (local.lastModifiedLocal > (remote.lastModifiedRemote ?: 0L)) {
-            val result = provider.uploadProject(local)
+            val result = p.uploadProject(local)
             return result.getOrDefault(local.copy(syncState = SyncState.SYNCED))
         }
 
         // 远程更新时间更晚：下载覆盖本地
         if ((remote.lastModifiedRemote ?: 0L) > local.lastModifiedLocal) {
-            val result = provider.downloadProject(remote.id)
+            val result = p.downloadProject(remote.id)
             return result.getOrDefault(remote.copy(syncState = SyncState.SYNCED))
         }
 
         // 时间戳冲突：调用冲突解决策略
-        val resolved = provider.resolveConflict(local, remote)
-        val uploadResult = provider.uploadProject(resolved)
+        val resolved = p.resolveConflict(local, remote)
+        val uploadResult = p.uploadProject(resolved)
         return uploadResult.getOrDefault(resolved.copy(syncState = SyncState.SYNCED))
     }
 
     /**
      * 扫描本地 Sidecar 目录，构建 SyncProject 列表
      */
-    private fun scanLocalSidecar(sidecarDir: File): List<SyncProject> {
+    private fun scanLocalSidecars(sidecarDir: File): List<SyncProject> {
         if (!sidecarDir.exists() || !sidecarDir.isDirectory) return emptyList()
 
         return sidecarDir.listFiles()

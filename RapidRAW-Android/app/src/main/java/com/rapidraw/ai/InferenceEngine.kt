@@ -10,7 +10,6 @@ import kotlinx.coroutines.withContext
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
-import org.tensorflow.lite.nnapi.NnapiDelegate
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.io.File
@@ -67,8 +66,7 @@ class InferenceEngine private constructor(private val context: Context) {
     }
 
     val isNnapiAvailable: Boolean by lazy {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1 &&
-            runCatching { NnapiDelegate() }.isSuccess
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1
     }
 
     /**
@@ -266,13 +264,8 @@ class InferenceEngine private constructor(private val context: Context) {
                 }
                 Backend.NNAPI -> {
                     if (isNnapiAvailable) {
-                        try {
-                            val delegate = NnapiDelegate()
-                            addDelegate(delegate)
-                            synchronized(delegates) { delegates.add(delegate) }
-                        } catch (_: Exception) {
-                            // NNAPI 不可用，回退到 CPU
-                        }
+                        @Suppress("DEPRECATION")
+                        setUseNNAPI(true)
                     }
                 }
                 Backend.CPU_ONLY -> { /* default CPU */ }

@@ -1,3 +1,5 @@
+import java.util.Base64
+
 // 2026: 使用 plugins DSL
 plugins {
     id("com.android.application")
@@ -62,6 +64,10 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // 明确排除 web 资源，避免打包预览/文档 HTML/JS/CSS 到 APK。
+            excludes += "**/*.html"
+            excludes += "**/*.js"
+            excludes += "**/*.css"
         }
         jniLibs {
             // AGP 8.5+ supports 16KB page alignment for unpacked native libraries.
@@ -85,7 +91,7 @@ android {
         try {
             val ciKeystore = rootProject.file("app/ci-release.keystore")
             ciKeystore.writeBytes(
-                java.util.Base64.getDecoder().decode(ciKeystoreBase64.trim())
+                Base64.getDecoder().decode(ciKeystoreBase64.trim())
             )
             ciKeystore.deleteOnExit()
             logger.info("CI keystore decoded from KEYSTORE_BASE64")

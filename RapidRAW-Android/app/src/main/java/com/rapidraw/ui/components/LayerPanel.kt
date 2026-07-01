@@ -296,6 +296,9 @@ private val BlendMode.displayName: String
         BlendMode.OVERLAY -> "叠加"
         BlendMode.SOFT_LIGHT -> "柔光"
         BlendMode.HARD_LIGHT -> "强光"
+        BlendMode.DIFFERENCE -> "差值"
+        BlendMode.COLOR_DODGE -> "颜色减淡"
+        BlendMode.COLOR_BURN -> "颜色加深"
         BlendMode.COLOR -> "颜色"
         BlendMode.LUMINOSITY -> "明度"
     }

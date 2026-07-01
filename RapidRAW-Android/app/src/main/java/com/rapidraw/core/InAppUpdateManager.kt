@@ -36,7 +36,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class InAppUpdateManager(
     private val context: Context,
-    private val updateType: AppUpdateType = AppUpdateType.FLEXIBLE,
+    private val updateType: Int = AppUpdateType.FLEXIBLE,
 ) {
 
     companion object {
@@ -77,7 +77,7 @@ class InAppUpdateManager(
         when (state.installStatus()) {
             InstallStatus.DOWNLOADING -> {
                 _updateState.value = UpdateState.DOWNLOADING
-                _downloadProgress.value = (state.bytesDownloaded.toFloat() / state.totalBytesToDownload.toFloat()).coerceIn(0f, 1f)
+                _downloadProgress.value = (state.bytesDownloaded().toFloat() / state.totalBytesToDownload().toFloat()).coerceIn(0f, 1f)
             }
             InstallStatus.DOWNLOADED -> {
                 _updateState.value = UpdateState.DOWNLOADED

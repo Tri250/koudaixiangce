@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rapidraw.ui.theme.EditorSurface
@@ -272,7 +273,7 @@ private fun ColorWheelCanvas(
                     detectDragGestures(
                         onDragStart = { offset ->
                             isDragging = true
-                            updateFromOffset(offset, size.width, size.height) { h, s ->
+                            updateFromOffset(offset, size.width.toFloat(), size.height.toFloat()) { h, s ->
                                 tempHue = h
                                 tempSaturation = s
                                 onStateChange(state.copy(hue = h, saturation = s))
@@ -283,8 +284,8 @@ private fun ColorWheelCanvas(
                                 change.consume()
                                 updateFromOffset(
                                     change.position,
-                                    size.width,
-                                    size.height
+                                    size.width.toFloat(),
+                                    size.height.toFloat()
                                 ) { h, s ->
                                     tempHue = h
                                     tempSaturation = s
@@ -364,7 +365,7 @@ private fun ColorWheelCanvas(
     }
 }
 
-private fun updateFromOffset(
+private fun Density.updateFromOffset(
     offset: Offset,
     width: Float,
     height: Float,

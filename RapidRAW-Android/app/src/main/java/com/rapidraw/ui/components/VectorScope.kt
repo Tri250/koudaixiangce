@@ -217,17 +217,18 @@ fun VectorScope(
             }
 
             // ── 绘制像素色度分布 ────────────────────────────────
-            if (data != null && data.maxValue > 0) {
-                val gs = data!!.gridSize
+            val vectorscopeData = data
+            if (vectorscopeData != null && vectorscopeData.maxValue > 0) {
+                val gs = vectorscopeData.gridSize
                 val cellSize = (r * 2f) / gs
                 val drawOffsetX = cx - r
                 val drawOffsetY = cy - r
 
                 for (gy in 0 until gs) {
                     for (gx in 0 until gs) {
-                        val v = data!!.bins[gy * gs + gx]
+                        val v = vectorscopeData.bins[gy * gs + gx]
                         if (v > 0) {
-                            val intensity = (v.toFloat() / data!!.maxValue).coerceIn(0f, 1f)
+                            val intensity = (v.toFloat() / vectorscopeData.maxValue).coerceIn(0f, 1f)
                             val px = drawOffsetX + gx * cellSize
                             val py = drawOffsetY + gy * cellSize
 
@@ -320,10 +321,10 @@ fun RgbParade(
             // 背景
             drawRect(ColorOS16Colors.Surface1, Offset.Zero, size)
 
-            if (data == null) return@Canvas
+            val waveformData = data ?: return@Canvas
 
             val channelH = h / 3f
-            val binW = w / data.width
+            val binW = w / waveformData.width
 
             // 通道分隔线
             drawLine(
@@ -352,15 +353,15 @@ fun RgbParade(
                 }
             }
 
-            val maxR = (data.red.maxOrNull() ?: 1).coerceAtLeast(1)
-            val maxG = (data.green.maxOrNull() ?: 1).coerceAtLeast(1)
-            val maxB = (data.blue.maxOrNull() ?: 1).coerceAtLeast(1)
+            val maxR = (waveformData.red.maxOrNull() ?: 1).coerceAtLeast(1)
+            val maxG = (waveformData.green.maxOrNull() ?: 1).coerceAtLeast(1)
+            val maxB = (waveformData.blue.maxOrNull() ?: 1).coerceAtLeast(1)
 
             // R 通道
             drawParadeChannel(
-                data = data.red,
-                width = data.width,
-                height = data.height,
+                data = waveformData.red,
+                width = waveformData.width,
+                height = waveformData.height,
                 maxValue = maxR,
                 color = ColorOS16Colors.ScopeChannelR,
                 canvasWidth = w,
@@ -370,9 +371,9 @@ fun RgbParade(
             )
             // G 通道
             drawParadeChannel(
-                data = data.green,
-                width = data.width,
-                height = data.height,
+                data = waveformData.green,
+                width = waveformData.width,
+                height = waveformData.height,
                 maxValue = maxG,
                 color = ColorOS16Colors.ScopeChannelG,
                 canvasWidth = w,
@@ -382,9 +383,9 @@ fun RgbParade(
             )
             // B 通道
             drawParadeChannel(
-                data = data.blue,
-                width = data.width,
-                height = data.height,
+                data = waveformData.blue,
+                width = waveformData.width,
+                height = waveformData.height,
                 maxValue = maxB,
                 color = ColorOS16Colors.ScopeChannelB,
                 canvasWidth = w,

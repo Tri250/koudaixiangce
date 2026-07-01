@@ -2398,7 +2398,7 @@ class ImageProcessor {
                     } else {
                         ExrExporter.PixelType.FLOAT
                     }
-                    ExrExporter.writeExr(exportBitmap, fos, pixelType)
+                    ExrExporter.writeExr(exportBitmap, fos, ExrExporter.ExrConfig(pixelType = pixelType))
                 } else {
                     compressBitmap(exportBitmap, settings.format, settings.safeQuality, fos)
                 }

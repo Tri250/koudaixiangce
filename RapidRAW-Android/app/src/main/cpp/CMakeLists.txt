@@ -115,53 +115,48 @@ target_link_libraries(rawdecoder
 
 # ── Vulkan Compute Library ────────────────────────────────────────────────
 # Find Android NDK packages: Vulkan, shaderc
-find_package(Vulkan REQUIRED)
-# shaderc is provided by the Android NDK (API 24+)
-# If shaderc is not available, we fall back at runtime
+# shaderc 在部分 NDK 分发中仅以源码形式提供，没有预编译库；此时跳过 vulkancompute
+# 构建，应用会在运行时自动降级到 OpenGL ES / CPU 管线。
 
-# Vulkan compute JNI shared library
-add_library(vulkancompute SHARED
-    vulkan_compute_jni.cpp
-    vulkan_compute.cpp
-)
-
-target_include_directories(vulkancompute PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# Link libvulkan.so, libshaderc, jnigraphics (for AndroidBitmap), liblog, and libraw
-target_link_libraries(vulkancompute
-    Vulkan::Vulkan
-    jnigraphics
-    log
-    raw
-    android
-)
-
-# shaderc: available in NDK r21+ as a shared library
-# On older NDKs, it may not exist; we handle this gracefully
-if(EXISTS "${ANDROID_NDK}/sources/third_party/shaderc")
-    target_include_directories(vulkancompute PRIVATE
-        ${ANDROID_NDK}/sources/third_party/shaderc/include
-    )
+# 检查 shaderc 头文件与库是否同时存在
+set(SHADERC_INCLUDE_DIR "")
+if(EXISTS "${ANDROID_NDK}/sources/third_party/shaderc/libshaderc/include/shaderc/shaderc.hpp")
+    set(SHADERC_INCLUDE_DIR "${ANDROID_NDK}/sources/third_party/shaderc/libshaderc/include")
+elseif(EXISTS "${ANDROID_NDK}/sources/third_party/shaderc/include/shaderc/shaderc.hpp")
+    set(SHADERC_INCLUDE_DIR "${ANDROID_NDK}/sources/third_party/shaderc/include")
 endif()
 
-# Try to find shaderc in the NDK toolchain
 find_library(SHADERC_LIB shaderc)
-if(SHADERC_LIB)
-    target_link_libraries(vulkancompute ${SHADERC_LIB})
-    message(STATUS "Found shaderc: ${SHADERC_LIB}")
-else()
-    # shaderc not found - we'll need to handle this
-    # Try looking in common NDK paths
+if(NOT SHADERC_LIB)
     find_library(SHADERC_COMBINED_LIB shaderc_combined)
     if(SHADERC_COMBINED_LIB)
-        target_link_libraries(vulkancompute ${SHADERC_COMBINED_LIB})
-        message(STATUS "Found shaderc_combined: ${SHADERC_COMBINED_LIB}")
-    else()
-        message(WARNING "shaderc not found - Vulkan compute shader compilation will not be available")
+        set(SHADERC_LIB ${SHADERC_COMBINED_LIB})
     endif()
 endif()
 
-# Compile options for the Vulkan compute library
-target_compile_options(vulkancompute PRIVATE -O2 -Wall)
+if(Vulkan_FOUND AND SHADERC_INCLUDE_DIR AND SHADERC_LIB)
+    message(STATUS "Vulkan + shaderc available - building vulkancompute")
+
+    add_library(vulkancompute SHARED
+        vulkan_compute_jni.cpp
+        vulkan_compute.cpp
+    )
+
+    target_include_directories(vulkancompute PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${SHADERC_INCLUDE_DIR}
+    )
+
+    target_link_libraries(vulkancompute
+        Vulkan::Vulkan
+        ${SHADERC_LIB}
+        jnigraphics
+        log
+        raw
+        android
+    )
+
+    target_compile_options(vulkancompute PRIVATE -O2 -Wall)
+else()
+    message(WARNING "Vulkan/shaderc not available - skipping vulkancompute build; app will use OpenGL/CPU fallback")
+endif()

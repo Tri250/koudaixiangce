@@ -394,7 +394,7 @@ object FilmLutGenerator {
                     val luma1 = 0.2126f * or + 0.7152f * og + 0.0722f * ob
                     val shadowWeight = ColorMath.shadowsMask(luma1)
                     val highlightWeight = ColorMath.highlightsMask(luma1)
-                    val tintShift = params.shadowTint * shadowWeight + params.highlightTint * highlightTint
+                    val tintShift = params.shadowTint * shadowWeight + params.highlightTint * highlightWeight
                     or += tintShift * 0.06f
                     og += tintShift * 0.02f
                     ob -= tintShift * 0.08f
@@ -469,7 +469,7 @@ object FilmLutGenerator {
      * 生成所有预设 LUT
      */
     fun generateAllPresets(lutSize: Int = 17): Map<String, FilmLut> {
-        return PRESETS.associateWith { generateFromParams(it, lutSize) }
+        return PRESETS.associate { it.name to generateFromParams(it, lutSize) }
     }
 
     /**

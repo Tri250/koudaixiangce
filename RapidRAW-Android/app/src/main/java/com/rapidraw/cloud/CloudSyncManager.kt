@@ -177,6 +177,7 @@ class CloudSyncManager(private val context: Context) {
             )
             enqueue(item)
             Log.d(TAG, "Recipe queued for upload: $recipeId")
+            Unit
         }
     }
 
@@ -217,6 +218,7 @@ class CloudSyncManager(private val context: Context) {
             )
             enqueue(item)
             Log.d(TAG, "$type queued for deletion: $itemId")
+            Unit
         }
     }
 

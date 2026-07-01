@@ -350,11 +350,11 @@ class FaceDetector(private val maxFaces: Int = 10) {
             maxY = maxOf(maxY, y)
 
             // 4-connected neighbors
-            val neighbors = intArrayOf(
-                idx - 1 to x > 0,
-                idx + 1 to x < width - 1,
-                idx - width to y > 0,
-                idx + width to y < height - 1,
+            val neighbors = arrayOf(
+                (idx - 1) to (x > 0),
+                (idx + 1) to (x < width - 1),
+                (idx - width) to (y > 0),
+                (idx + width) to (y < height - 1),
             )
 
             for ((nIdx, inBounds) in neighbors) {

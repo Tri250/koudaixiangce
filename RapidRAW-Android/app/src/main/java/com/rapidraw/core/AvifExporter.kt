@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
@@ -172,7 +173,7 @@ class AvifExporter {
     private fun findAv1Encoder(): String? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
 
-        val codecs = MediaCodec.listEncoders() ?: return null
+        val codecs = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
         for (info in codecs) {
             if (info.supportedTypes.contains(AV1_MIME)) {
                 return info.name
@@ -496,10 +497,10 @@ class AvifExporter {
         ipmaContent.write(int32(1)) // entry_count
         ipmaContent.write(int16(1)) // item_id = 1
         ipmaContent.write(4)        // association_count = 4
-        ipmaContent.write(0x81.toByte()) // essential=1, property_index=1 (ispe)
-        ipmaContent.write(0x82.toByte()) // essential=1, property_index=2 (av1C)
-        ipmaContent.write(0x03.toByte()) // essential=0, property_index=3 (pixi)
-        ipmaContent.write(0x04.toByte()) // essential=0, property_index=4 (colr)
+        ipmaContent.write(0x81) // essential=1, property_index=1 (ispe)
+        ipmaContent.write(0x82) // essential=1, property_index=2 (av1C)
+        ipmaContent.write(0x03) // essential=0, property_index=3 (pixi)
+        ipmaContent.write(0x04) // essential=0, property_index=4 (colr)
 
         iprpContent.write(box("ipma", ipmaContent.toByteArray()))
         metaContentFinal.write(box("iprp", iprpContent.toByteArray()))

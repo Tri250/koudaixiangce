@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -134,6 +135,7 @@ private fun RecipeCard(
     onRecipeClick: () -> Unit,
     onLike: () -> Unit,
 ) {
+    val context = LocalContext.current
     var liked by remember { mutableStateOf(recipe.isLikedByMe) }
     var likeCount by remember { mutableStateOf(recipe.likeCount) }
 

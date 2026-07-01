@@ -279,7 +279,7 @@ object IccProfileEmbedder {
      * 如果无法识别则返回 null。
      */
     fun detectProfile(bytes: ByteArray, isJpeg: Boolean): IccProfile? {
-        val profileData = if (isJpeg) readIccFromJpeg(bytes) else readIccFromPng(bytes)
+        val profileData = (if (isJpeg) readIccFromJpeg(bytes) else readIccFromPng(bytes))
             ?: return null
 
         return identifyProfile(profileData)

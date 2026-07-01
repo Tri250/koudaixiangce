@@ -104,10 +104,15 @@ class AutoStraightener {
             val (gradMag, gradDir) = computeSobelGradients(gray, w, h)
 
             // 标准 Hough 变换
-            val (accumulator, maxRho, thetaBins, rhoBins) = computeHoughTransform(gradMag, gradDir, w, h)
+            val houghAccumulator = computeHoughTransform(gradMag, gradDir, w, h)
 
             // 峰值检测
-            val peaks = detectPeaks(accumulator, maxRho, thetaBins, rhoBins)
+            val peaks = detectPeaks(
+                houghAccumulator,
+                houghAccumulator.maxRho,
+                houghAccumulator.thetaBins,
+                houghAccumulator.rhoBins,
+            )
 
             // 分类水平/垂直线
             val horizontalLines = mutableListOf<DetectedLine>()
