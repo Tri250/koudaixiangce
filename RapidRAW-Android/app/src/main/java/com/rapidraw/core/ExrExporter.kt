@@ -54,6 +54,14 @@ object ExrExporter {
     fun writeExr(bitmap: Bitmap, out: OutputStream, config: ExrConfig = ExrConfig()) {
         val w = bitmap.width
         val h = bitmap.height
+        if (w <= 0 || h <= 0) {
+            throw IllegalArgumentException("Invalid bitmap dimensions: $w x $h")
+        }
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            throw IllegalArgumentException("Bitmap too large for EXR: $w x $h")
+        }
         val channels = config.channelMode.channels
         val compression = config.compression
 
@@ -237,12 +245,20 @@ object ExrExporter {
         val blockHeight = compression.scanlinesPerBlock
 
         // Extract all pixels once
-        val pixels = IntArray(w * h)
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            throw IllegalArgumentException("Bitmap too large: $w x $h")
+        }
+        val pixels = IntArray(pixelCount.toInt())
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         val channelSize = if (pixelType == PixelType.HALF) 2 else 4
         val numChannels = channels.size
-        val bytesPerScanline = w * channelSize * numChannels
+        // 2026 hotfix: 防御 bytesPerScanline 整数溢出
+        val bytesPerScanline = w.toLong() * channelSize * numChannels
+        if (bytesPerScanline > Int.MAX_VALUE.toLong()) {
+            throw IllegalArgumentException("Scanline size overflow")
+        }
 
         val blocks = mutableListOf<ByteArray>()
         var y = 0
@@ -252,7 +268,11 @@ object ExrExporter {
             val linesInBlock = blockEnd - y
 
             // Build raw pixel data for all scanlines in this block
-            val rawSize = linesInBlock * bytesPerScanline
+            val rawSizeLong = linesInBlock * bytesPerScanline
+            if (rawSizeLong > Int.MAX_VALUE.toLong()) {
+                throw IllegalArgumentException("Block size overflow")
+            }
+            val rawSize = rawSizeLong.toInt()
             val rawBuf = ByteBuffer.allocate(rawSize).order(ByteOrder.LITTLE_ENDIAN)
 
             for (line in y until blockEnd) {

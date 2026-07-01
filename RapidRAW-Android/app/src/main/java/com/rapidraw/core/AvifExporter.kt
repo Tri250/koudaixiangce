@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -74,15 +75,29 @@ class AvifExporter {
 
         try {
             val data = encodeAvif(bitmap, config)
-                ?: return@withContext fallbackToWebp(context, bitmap, displayName, config)
+                ?: return@withContext runCatching { fallbackToWebp(context, bitmap, displayName, config) }
+                    .getOrElse { err ->
+                        Log.e(TAG, "WebP fallback failed: ${err.message}", err)
+                        null
+                    }
 
-            writeToMediaStore(context, data, displayName, "image/avif")
+            runCatching {
+                writeToMediaStore(context, data, displayName, "image/avif")
+            }.getOrElse { err ->
+                Log.e(TAG, "writeToMediaStore failed: ${err.message}", err)
+                null
+            }
         } catch (e: OutOfMemoryError) {
             Log.e(TAG, "OOM during AVIF export", e)
-            null
+            runCatching { fallbackToWebp(context, bitmap, displayName, config) }
+                .getOrNull()
+        } catch (e: CancellationException) {
+            // 2026 hotfix: 协程取消异常必须重新抛出，避免吞掉结构化并发语义
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "AVIF export failed: ${e.message}")
-            fallbackToWebp(context, bitmap, displayName, config)
+            runCatching { fallbackToWebp(context, bitmap, displayName, config) }
+                .getOrNull()
         }
     }
 
@@ -285,8 +300,17 @@ class AvifExporter {
 
             if (encodedChunks.isEmpty()) return null
 
-            // Combine all output chunks into one OBU stream
-            val obuData = encodedChunks.reduce { acc, bytes -> acc + bytes }
+            // Combine all output chunks into one OBU stream using ByteArrayOutputStream to avoid OOM from reduce
+            val obuBaos = ByteArrayOutputStream()
+            try {
+                for (chunk in encodedChunks) {
+                    obuBaos.write(chunk)
+                }
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM combining encoded chunks", oom)
+                return null
+            }
+            val obuData = obuBaos.toByteArray()
 
             // Build AV1 codec configuration from output format
             val av1C = buildAv1C(config, width, height)
@@ -314,8 +338,19 @@ class AvifExporter {
     private fun bitmapToYuv420(bitmap: Bitmap, subsampling: ChromaSubsampling): YuvData {
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
-        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        if (w <= 0 || h <= 0) return YuvData(ByteArray(0), ByteArray(0), ByteArray(0), 0, 0)
+        // 2026 hotfix: 防御 w*h 整数溢出导致 IntArray 分配失败 / 闪退
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE) {
+            Log.e(TAG, "Image too large for YUV conversion: $w x $h")
+            return YuvData(ByteArray(0), ByteArray(0), ByteArray(0), 0, 0)
+        }
+        val pixels = IntArray(pixelCount.toInt())
+        runCatching { bitmap.getPixels(pixels, 0, w, 0, 0, w, h) }
+            .onFailure {
+                Log.e(TAG, "bitmap.getPixels failed: ${it.message}")
+                return YuvData(ByteArray(0), ByteArray(0), ByteArray(0), 0, 0)
+            }
 
         val strideY = w
         val uvW = (w + subsampling.subsamplingX) / (1 + subsampling.subsamplingX)
@@ -594,11 +629,16 @@ class AvifExporter {
     private fun computeAvifBitRate(width: Int, height: Int, config: AvifExportConfig): Int {
         if (config.lossless) {
             // Lossless: very high bitrate to ensure no information loss
-            return width * height * 24 // 24 bits per pixel (RGB)
+            // 2026 hotfix: 防御 width*height 整数溢出
+            val bpp = 24L // 24 bits per pixel (RGB)
+            val raw = width.toLong() * height.toLong() * bpp
+            return raw.coerceIn(50_000L, 100_000_000L).toInt()
         }
         // Lossy: quality-based bitrate estimation
         val bpp = 0.3 + (config.quality / 100.0) * 2.7
-        return (width * height * bpp).toInt().coerceIn(50_000, 100_000_000)
+        // 2026 hotfix: 防御 width*height*bpp 整数溢出
+        val raw = (width.toLong() * height.toLong() * bpp).toLong()
+        return raw.coerceIn(50_000L, 100_000_000L).toInt()
     }
 
     // -----------------------------------------------------------------------

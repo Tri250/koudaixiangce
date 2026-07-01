@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.EnhancedPresetManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,6 +79,9 @@ class RecipeShareViewModel(application: Application) : AndroidViewModel(applicat
                         isLoading = false,
                     )
                 }
+            } catch (ce: CancellationException) {
+                // 2026 hotfix: 协程取消异常必须重新抛出
+                throw ce
             } catch (e: Exception) {
                 Log.w(tag, "Failed to load recipes from presets, falling back to sample data", e)
                 _state.update {
@@ -130,6 +134,8 @@ class RecipeShareViewModel(application: Application) : AndroidViewModel(applicat
                         it.copy(isLoading = false, errorMessage = "分享失败: ${result.exceptionOrNull()?.message}")
                     }
                 }
+            } catch (ce: CancellationException) {
+                throw ce
             } catch (e: Exception) {
                 Log.e(tag, "Failed to share recipe: ${recipe.name}", e)
                 _state.update {
@@ -165,6 +171,8 @@ class RecipeShareViewModel(application: Application) : AndroidViewModel(applicat
                         it.copy(isLoading = false, errorMessage = "导入失败: 无法解析配方数据")
                     }
                 }
+            } catch (ce: CancellationException) {
+                throw ce
             } catch (e: Exception) {
                 Log.e(tag, "Failed to import recipe", e)
                 _state.update {
@@ -206,6 +214,9 @@ class RecipeShareViewModel(application: Application) : AndroidViewModel(applicat
                         myRecipes = current.myRecipes + recipe,
                     )
                 }
+            } catch (ce: CancellationException) {
+                // 2026 hotfix: 协程取消异常必须重新抛出
+                throw ce
             } catch (e: Exception) {
                 Log.e(tag, "Failed to import recipe: ${recipe.name}", e)
                 _state.update {

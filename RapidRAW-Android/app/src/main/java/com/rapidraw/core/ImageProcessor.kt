@@ -973,7 +973,21 @@ class ImageProcessor {
         }
 
         // Get pixels as int array
-        val pixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixels: IntArray = try {
+            if (pixelCount > Int.MAX_VALUE.toLong()) {
+                throw IllegalArgumentException("Bitmap too large: $w x $h")
+            }
+            IntArray(pixelCount.toInt())
+        } catch (oom: OutOfMemoryError) {
+            if (!outputBitmap.isRecycled) outputBitmap.recycle()
+            if (sourceBitmap !== originalBitmap) sourceBitmap.recycle()
+            throw IllegalStateException("内存不足，无法分配像素数组（${w}x${h}）", oom)
+        } catch (e: IllegalArgumentException) {
+            if (!outputBitmap.isRecycled) outputBitmap.recycle()
+            if (sourceBitmap !== originalBitmap) sourceBitmap.recycle()
+            throw IllegalStateException("Invalid bitmap size: ${w}x${h}", e)
+        }
         try {
             sourceBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
         } catch (oom: OutOfMemoryError) {
@@ -1784,9 +1798,24 @@ class ImageProcessor {
 
         val w = bitmap.width
         val h = bitmap.height
-        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val result = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (oom: OutOfMemoryError) {
+            Log.w(TAG, "OOM creating spatial-ops result bitmap", oom)
+            return bitmap
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "IllegalArgument creating spatial-ops result bitmap", e)
+            return bitmap
+        }
 
-        val srcPixels = IntArray(w * h)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount <= 0L || pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.w(TAG, "Invalid pixel count: $w x $h")
+            if (!result.isRecycled) result.recycle()
+            return bitmap
+        }
+        val srcPixels = IntArray(pixelCount.toInt())
         bitmap.getPixels(srcPixels, 0, w, 0, 0, w, h)
         val dstPixels = srcPixels.copyOf()
 
@@ -2535,7 +2564,15 @@ class ImageProcessor {
             width = (width * ratio).toInt()
         }
 
-        return Bitmap.createScaledBitmap(bitmap, width, height, true)
+        return try {
+            Bitmap.createScaledBitmap(bitmap, width, height, true)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM resizing bitmap", oom)
+            bitmap
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgument resizing bitmap", e)
+            bitmap
+        }
     }
 
     private fun cropToAspectRatio(bitmap: Bitmap, aspectRatio: Float): Bitmap {
@@ -2556,7 +2593,15 @@ class ImageProcessor {
 
         val x = (bitmap.width - newWidth) / 2
         val y = (bitmap.height - newHeight) / 2
-        return Bitmap.createBitmap(bitmap, x, y, newWidth, newHeight)
+        return try {
+            Bitmap.createBitmap(bitmap, x, y, newWidth, newHeight)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM cropping bitmap", oom)
+            bitmap
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgument cropping bitmap", e)
+            bitmap
+        }
     }
 
     private fun drawTextWatermark(bitmap: Bitmap, settings: ExportSettings): Bitmap {
@@ -2702,6 +2747,21 @@ class ImageProcessor {
             result = new
         }
 
+        // 2026 hotfix: 防御 OOM/IllegalArgument：每次几何变换都用安全包装
+        fun safeTransformMatrix(matrix: android.graphics.Matrix) {
+            if (result.isRecycled) return
+            val newBitmap = try {
+                Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+            } catch (oom: OutOfMemoryError) {
+                Log.w(TAG, "OOM applying geometric transform", oom)
+                null
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "IllegalArgument applying geometric transform", e)
+                null
+            }
+            transform(newBitmap)
+        }
+
         // 1. Flip
         if (n.flipHorizontal || n.flipVertical) {
             val matrix = android.graphics.Matrix()
@@ -2709,14 +2769,14 @@ class ImageProcessor {
                 if (n.flipHorizontal) -1f else 1f,
                 if (n.flipVertical) -1f else 1f
             )
-            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
+            safeTransformMatrix(matrix)
         }
 
         // 2. Orientation rotation (90° multiples)
         if (n.orientationSteps != 0) {
             val matrix = android.graphics.Matrix()
             matrix.postRotate((n.orientationSteps * 90).toFloat())
-            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
+            safeTransformMatrix(matrix)
         }
 
         // 3. Fine rotation
@@ -2726,21 +2786,21 @@ class ImageProcessor {
             val rect = android.graphics.RectF(0f, 0f, result.width.toFloat(), result.height.toFloat())
             matrix.mapRect(rect)
             matrix.postTranslate(-rect.left, -rect.top)
-            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
+            safeTransformMatrix(matrix)
         }
 
         // 4. Scale
         if (n.transformScale != 1f) {
             val matrix = android.graphics.Matrix()
             matrix.postScale(n.transformScale, n.transformScale, result.width / 2f, result.height / 2f)
-            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
+            safeTransformMatrix(matrix)
         }
 
         // 4b. Aspect ratio
         if (n.transformAspect != 0f) {
             val matrix = android.graphics.Matrix()
             matrix.postScale(1f + n.transformAspect * 0.5f, 1f, result.width / 2f, result.height / 2f)
-            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
+            safeTransformMatrix(matrix)
         }
 
         // 4c. Transform rotate (perspective panel fine rotation)
@@ -2750,14 +2810,14 @@ class ImageProcessor {
             val rect = android.graphics.RectF(0f, 0f, result.width.toFloat(), result.height.toFloat())
             matrix.mapRect(rect)
             matrix.postTranslate(-rect.left, -rect.top)
-            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
+            safeTransformMatrix(matrix)
         }
 
         // 5. Offset
         if (n.transformXOffset != 0f || n.transformYOffset != 0f) {
             val matrix = android.graphics.Matrix()
             matrix.postTranslate(n.transformXOffset * result.width * 0.1f, n.transformYOffset * result.height * 0.1f)
-            transform(Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true))
+            safeTransformMatrix(matrix)
         }
 
         // 6. Crop
@@ -2784,7 +2844,16 @@ class ImageProcessor {
             cropX = cropX.coerceIn(0, imgW - cropW)
             cropY = cropY.coerceIn(0, imgH - cropH)
             if (cropW > 0 && cropH > 0) {
-                transform(Bitmap.createBitmap(result, cropX, cropY, cropW, cropH))
+                val newBitmap = try {
+                    Bitmap.createBitmap(result, cropX, cropY, cropW, cropH)
+                } catch (oom: OutOfMemoryError) {
+                    Log.w(TAG, "OOM cropping result", oom)
+                    null
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "IllegalArgument cropping result", e)
+                    null
+                }
+                transform(newBitmap)
             }
         }
 
@@ -2800,9 +2869,16 @@ class ImageProcessor {
     private fun applyLensCorrection(source: Bitmap, n: NormAdj): Bitmap {
         val w = source.width
         val h = source.height
-        val srcPixels = IntArray(w * h)
+        if (w <= 0 || h <= 0) return source
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.w(TAG, "applyLensCorrection: bitmap too large ${w}x$h")
+            return source
+        }
+        val srcPixels = IntArray(pixelCount.toInt())
         source.getPixels(srcPixels, 0, w, 0, 0, w, h)
-        val result = IntArray(w * h) { 0xFF000000.toInt() }
+        val result = IntArray(pixelCount.toInt()) { 0xFF000000.toInt() }
 
         val cx = w / 2f
         val cy = h / 2f

@@ -447,8 +447,16 @@ object LayerBlender {
     }
 
     private fun getPixels(bitmap: Bitmap): IntArray {
-        val pixels = IntArray(bitmap.width * bitmap.height)
-        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        val w = bitmap.width
+        val h = bitmap.height
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("LayerBlender", "getPixels: bitmap too large ${w}x$h")
+            return IntArray(0)
+        }
+        val pixels = IntArray(pixelCount.toInt())
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
         return pixels
     }
 
@@ -464,12 +472,21 @@ object LayerBlender {
             } catch (e: OutOfMemoryError) {
                 Log.e("LayerBlender", "OOM scaling mask bitmap to ${targetW}x${targetH}", e)
                 maskBitmap
+            } catch (e: IllegalArgumentException) {
+                Log.e("LayerBlender", "IllegalArgument scaling mask bitmap", e)
+                maskBitmap
             }
         } else {
             maskBitmap
         }
 
-        val pixels = IntArray(targetW * targetH)
+        // 2026 hotfix: 防御 targetW*targetH 整数溢出
+        val maskPixelCount = targetW.toLong() * targetH.toLong()
+        if (maskPixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e("LayerBlender", "getMaskPixels: too large ${targetW}x$targetH")
+            return IntArray(0)
+        }
+        val pixels = IntArray(maskPixelCount.toInt())
         bmp.getPixels(pixels, 0, targetW, 0, 0, targetW, targetH)
 
         // 将 ARGB 转为灰度（使用绿色通道或亮度公式）

@@ -1,6 +1,7 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
+import android.util.Log
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
@@ -21,6 +22,9 @@ import kotlin.math.sqrt
  * 支持大半径高效运算。
  */
 class CreativeLightEffects {
+    companion object {
+        private const val TAG = "CreativeLightEffects"
+    }
 
     data class GlowParams(
         val amount: Float = 0f,
@@ -189,7 +193,15 @@ class CreativeLightEffects {
                     ((outB * 255f).toInt().coerceIn(0, 255))
         }
 
-        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val out = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating light effect output", oom)
+            return source
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgument creating light effect output", e)
+            return source
+        }
         out.setPixels(result, 0, w, 0, 0, w, h)
         return out
     }
@@ -289,7 +301,15 @@ class CreativeLightEffects {
                     ((outB * 255f).toInt().coerceIn(0, 255))
         }
 
-        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val out = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating light effect output", oom)
+            return source
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgument creating light effect output", e)
+            return source
+        }
         out.setPixels(result, 0, w, 0, 0, w, h)
         return out
     }
@@ -499,7 +519,15 @@ class CreativeLightEffects {
                     ((outB * 255f).toInt().coerceIn(0, 255))
         }
 
-        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val out = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating light effect output", oom)
+            return source
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgument creating light effect output", e)
+            return source
+        }
         out.setPixels(result, 0, w, 0, 0, w, h)
         return out
     }

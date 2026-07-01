@@ -10,6 +10,7 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
+import kotlinx.coroutines.CancellationException
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -158,6 +159,9 @@ object HdrExporter {
                 HdrFormat.HEIF_10BIT -> exportHeif10bit(context, bitmap, config, displayName)
                 HdrFormat.SDR_JPEG -> exportSdrJpeg(context, bitmap, displayName)
             }
+        } catch (ce: CancellationException) {
+            // 2026 hotfix: 协程取消异常必须重新抛出
+            throw ce
         } catch (oom: OutOfMemoryError) {
             Log.e(TAG, "OOM during HDR export: ${oom.message}", oom)
             null
@@ -230,31 +234,53 @@ object HdrExporter {
             return exportHeif10bit(context, bitmap, config, displayName)
         }
 
-        // 1. 生成 SDR 基础图
-        val sdrBitmap = toneMapToSdr(bitmap, config)
+        var sdrBitmap: Bitmap? = null
+        var gainMap: Bitmap? = null
+        return try {
+            // 1. 生成 SDR 基础图
+            sdrBitmap = try {
+                toneMapToSdr(bitmap, config)
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM tone mapping to SDR", oom)
+                return null
+            }
 
-        // 2. 计算 gain map
-        val gainMap = computeGainMap(bitmap, sdrBitmap, config)
+            // 2. 计算 gain map
+            gainMap = try {
+                computeGainMap(bitmap, sdrBitmap, config)
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM computing gain map", oom)
+                return null
+            }
 
-        // 3. 编码为 JPEG
-        val sdrJpegBytes = compressJpeg(sdrBitmap, config.jpegQuality)
-        if (sdrBitmap !== bitmap) sdrBitmap.recycle()
+            // 3. 编码为 JPEG
+            val sdrJpegBytes = compressJpeg(sdrBitmap, config.jpegQuality)
+            val gainMapJpegBytes = compressJpeg(gainMap, config.gainMapQuality)
 
-        val gainMapJpegBytes = compressJpeg(gainMap, config.gainMapQuality)
-        gainMap.recycle()
+            // 4. 合并为 Ultra HDR JPEG
+            val finalBytes = try {
+                buildUltraHdrJpeg(sdrJpegBytes, gainMapJpegBytes, config)
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM building Ultra HDR JPEG", oom)
+                return null
+            }
 
-        // 4. 合并为 Ultra HDR JPEG
-        val finalBytes = buildUltraHdrJpeg(sdrJpegBytes, gainMapJpegBytes, config)
-
-        // 5. 写入 MediaStore
-        return writeToMediaStore(
-            context = context,
-            data = finalBytes,
-            displayName = displayName,
-            mimeType = "image/jpeg",
-            extension = ".jpg",
-            isHdr = true,
-        )
+            // 5. 写入 MediaStore
+            writeToMediaStore(
+                context = context,
+                data = finalBytes,
+                displayName = displayName,
+                mimeType = "image/jpeg",
+                extension = ".jpg",
+                isHdr = true,
+            )
+        } finally {
+            // 2026 hotfix: 安全释放资源，避免内存泄漏
+            if (sdrBitmap != null && sdrBitmap !== bitmap) {
+                runCatching { sdrBitmap.recycle() }
+            }
+            runCatching { gainMap?.recycle() }
+        }
     }
 
     // ── Gain Map 计算（ISO 21496-1，支持多传输函数） ──────────────
@@ -275,10 +301,18 @@ object HdrExporter {
     ): Bitmap {
         val w = min(hdrBitmap.width, sdrBitmap.width)
         val h = min(hdrBitmap.height, sdrBitmap.height)
+        if (w <= 0 || h <= 0) {
+            throw IllegalArgumentException("Invalid bitmap dimensions for gain map: $w x $h")
+        }
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            throw IllegalArgumentException("Bitmap too large for gain map: $w x $h")
+        }
         val gainMap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
 
-        val hdrPixels = IntArray(w * h)
-        val sdrPixels = IntArray(w * h)
+        val hdrPixels = IntArray(pixelCount.toInt())
+        val sdrPixels = IntArray(pixelCount.toInt())
         hdrBitmap.getPixels(hdrPixels, 0, w, 0, 0, w, h)
         sdrBitmap.getPixels(sdrPixels, 0, w, 0, 0, w, h)
 
@@ -286,7 +320,7 @@ object HdrExporter {
         val minGain = -config.maxBoostStop / 2f
         val gainRange = maxGain - minGain
 
-        val outPixels = IntArray(w * h)
+        val outPixels = IntArray(pixelCount.toInt())
 
         for (i in hdrPixels.indices) {
             val hdrR = ((hdrPixels[i] shr 16) and 0xFF) / 255f
@@ -383,13 +417,21 @@ object HdrExporter {
     private fun toneMapToSdr(hdrBitmap: Bitmap, config: HdrConfig): Bitmap {
         val w = hdrBitmap.width
         val h = hdrBitmap.height
+        if (w <= 0 || h <= 0) {
+            throw IllegalArgumentException("Invalid HDR bitmap dimensions: $w x $h")
+        }
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            throw IllegalArgumentException("HDR bitmap too large: $w x $h")
+        }
         val sdrBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
 
-        val hdrPixels = IntArray(w * h)
+        val hdrPixels = IntArray(pixelCount.toInt())
         hdrBitmap.getPixels(hdrPixels, 0, w, 0, 0, w, h)
 
         val luminanceScale = SDR_WHITE_NITS / config.peakLuminanceNits
-        val outPixels = IntArray(w * h)
+        val outPixels = IntArray(pixelCount.toInt())
 
         for (i in hdrPixels.indices) {
             val r = ((hdrPixels[i] shr 16) and 0xFF) / 255f
@@ -473,11 +515,17 @@ object HdrExporter {
         gainMapJpeg: ByteArray,
         config: HdrConfig,
     ): ByteArray {
-        val xmpData = buildGainMapXmp(
-            gainMapOffset = 0,
-            gainMapLength = gainMapJpeg.size,
-            config = config,
-        )
+        // 2026 hotfix: 防御分配大数组时 OOM
+        val xmpData = try {
+            buildGainMapXmp(
+                gainMapOffset = 0,
+                gainMapLength = gainMapJpeg.size,
+                config = config,
+            )
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM building XMP", oom)
+            return ByteArray(0)
+        }
 
         val sdrWithXmp = insertXmpIntoJpeg(sdrJpeg, xmpData)
 
@@ -488,7 +536,17 @@ object HdrExporter {
 
         val sdrWithMpf = insertMpfIntoJpeg(sdrWithXmp, mpfMarker)
 
-        val result = ByteArray(sdrWithMpf.size + gainMapJpeg.size)
+        val totalSize = sdrWithMpf.size.toLong() + gainMapJpeg.size.toLong()
+        if (totalSize > Int.MAX_VALUE) {
+            Log.e(TAG, "Combined HDR JPEG size exceeds Int.MAX_VALUE")
+            return ByteArray(0)
+        }
+        val result = try {
+            ByteArray(totalSize.toInt())
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM allocating combined result array", oom)
+            return ByteArray(0)
+        }
         System.arraycopy(sdrWithMpf, 0, result, 0, sdrWithMpf.size)
         System.arraycopy(gainMapJpeg, 0, result, sdrWithMpf.size, gainMapJpeg.size)
 
@@ -513,14 +571,19 @@ object HdrExporter {
         }
 
         if (offsetPos >= 0) {
-            val newResult = result.copyOf()
-            for (j in offsetBytes.indices) {
-                newResult[offsetPos + j] = offsetBytes[j]
+            try {
+                val newResult = result.copyOf()
+                for (j in offsetBytes.indices) {
+                    newResult[offsetPos + j] = offsetBytes[j]
+                }
+                for (j in offsetBytes.size until offsetPlaceholderBytes.size) {
+                    newResult[offsetPos + j] = 0x20 // 空格填充
+                }
+                return newResult
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM copying result array", oom)
+                return result
             }
-            for (j in offsetBytes.size until offsetPlaceholderBytes.size) {
-                newResult[offsetPos + j] = 0x20 // 空格填充
-            }
-            return newResult
         }
 
         return result
@@ -733,9 +796,21 @@ object HdrExporter {
     // ── JPEG 辅助方法 ─────────────────────────────────────────────
 
     private fun compressJpeg(bitmap: Bitmap, quality: Int): ByteArray {
-        val baos = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, baos)
-        return baos.toByteArray()
+        if (bitmap.isRecycled) {
+            Log.e(TAG, "Cannot compress recycled bitmap")
+            return ByteArray(0)
+        }
+        return try {
+            val baos = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, baos)
+            baos.toByteArray()
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM compressing JPEG", oom)
+            ByteArray(0)
+        } catch (e: Exception) {
+            Log.e(TAG, "JPEG compression failed: ${e.message}", e)
+            ByteArray(0)
+        }
     }
 
     // ── HEIF 10-bit ────────────────────────────────────────────────
@@ -762,18 +837,27 @@ object HdrExporter {
         }
 
         val tempHeif = File(context.cacheDir, "hdr_heif_${System.currentTimeMillis()}.heif")
-
-        try {
-            // Android 10+ 使用 HEIF 编码
-            FileOutputStream(tempHeif).use { fos ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    // Android 12+: 直接使用 HEIF 编码器
-                    bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, fos)
-                } else {
-                    @Suppress("DEPRECATION")
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
+        var writeSuccess = false
+        return try {
+            try {
+                // Android 10+ 使用 HEIF 编码
+                FileOutputStream(tempHeif).use { fos ->
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        // Android 12+: 直接使用 HEIF 编码器
+                        bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, fos)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
+                    }
                 }
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM encoding HEIF", oom)
+                return null
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to encode HEIF: ${e.message}", e)
+                return null
             }
+            writeSuccess = true
 
             // 写入 HDR Exif 元数据
             if (config.writeExifMetadata && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -784,8 +868,16 @@ object HdrExporter {
                 }
             }
 
-            val bytes = tempHeif.readBytes()
-            return writeToMediaStore(
+            val bytes = try {
+                tempHeif.readBytes()
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM reading temp HEIF", oom)
+                return null
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to read temp HEIF: ${e.message}", e)
+                return null
+            }
+            writeToMediaStore(
                 context = context,
                 data = bytes,
                 displayName = displayName,
@@ -794,7 +886,10 @@ object HdrExporter {
                 isHdr = true,
             )
         } finally {
-            tempHeif.delete()
+            // 2026 hotfix: 使用 runCatching 防止 delete 抛出异常导致泄漏
+            if (writeSuccess) {
+                runCatching { tempHeif.delete() }
+            }
         }
     }
 
@@ -835,12 +930,31 @@ object HdrExporter {
         displayName: String,
     ): Uri? {
         val tempFile = File(context.cacheDir, "sdr_${System.currentTimeMillis()}.jpg")
-        try {
-            FileOutputStream(tempFile).use { fos ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
+        var writeSuccess = false
+        return try {
+            try {
+                FileOutputStream(tempFile).use { fos ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
+                }
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM encoding SDR JPEG", oom)
+                return null
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to encode SDR JPEG: ${e.message}", e)
+                return null
             }
-            val bytes = tempFile.readBytes()
-            return writeToMediaStore(
+            writeSuccess = true
+
+            val bytes = try {
+                tempFile.readBytes()
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM reading temp SDR JPEG", oom)
+                return null
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to read temp SDR JPEG: ${e.message}", e)
+                return null
+            }
+            writeToMediaStore(
                 context = context,
                 data = bytes,
                 displayName = displayName,
@@ -849,7 +963,10 @@ object HdrExporter {
                 isHdr = false,
             )
         } finally {
-            tempFile.delete()
+            // 2026 hotfix: 使用 runCatching 防止 delete 抛出异常导致泄漏
+            if (writeSuccess) {
+                runCatching { tempFile.delete() }
+            }
         }
     }
 
@@ -873,18 +990,54 @@ object HdrExporter {
         }
 
         val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-            ?: return null
+        // 2026 hotfix: 防御 resolver.insert 抛出异常
+        val uri = try {
+            resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+        } catch (e: Exception) {
+            Log.e(TAG, "MediaStore insert failed: ${e.message}", e)
+            return null
+        } ?: return null
 
-        resolver.openOutputStream(uri)?.use { os: OutputStream ->
-            os.write(data)
-            os.flush()
+        // 2026 hotfix: 防御 openOutputStream 抛出异常；写入失败时回滚 MediaStore entry
+        val outputStream: OutputStream = try {
+            resolver.openOutputStream(uri)
+        } catch (e: Exception) {
+            Log.e(TAG, "openOutputStream failed: ${e.message}", e)
+            null
+        } ?: run {
+            runCatching { resolver.delete(uri, null, null) }
+            return null
+        }
+
+        try {
+            outputStream.use { os ->
+                try {
+                    os.write(data)
+                    os.flush()
+                } catch (oom: OutOfMemoryError) {
+                    Log.e(TAG, "OOM writing to MediaStore", oom)
+                    runCatching { resolver.delete(uri, null, null) }
+                    return null
+                } catch (e: Exception) {
+                    Log.e(TAG, "Write to MediaStore failed: ${e.message}", e)
+                    runCatching { resolver.delete(uri, null, null) }
+                    return null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to close output stream: ${e.message}", e)
+            runCatching { resolver.delete(uri, null, null) }
+            return null
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            contentValues.clear()
-            contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-            resolver.update(uri, contentValues, null, null)
+            try {
+                contentValues.clear()
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(uri, contentValues, null, null)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to mark MediaStore entry as visible: ${e.message}")
+            }
         }
 
         return uri

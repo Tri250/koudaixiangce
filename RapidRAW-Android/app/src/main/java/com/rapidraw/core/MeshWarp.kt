@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.util.Log
 import kotlin.math.*
 
 /**
@@ -16,6 +17,9 @@ class MeshWarp(
     private val imageHeight: Int,
     gridSize: Int = 32,
 ) {
+    companion object {
+        private const val TAG = "MeshWarp"
+    }
     private val cols = gridSize
     private val rows = (gridSize * imageHeight.toFloat() / imageWidth).toInt().coerceAtLeast(2)
 
@@ -133,7 +137,15 @@ class MeshWarp(
      */
     fun render(source: Bitmap): Bitmap {
         if (source.isRecycled) return source
-        val result = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+        val result = try {
+            Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating MeshWarp output", oom)
+            return source
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgument creating MeshWarp output", e)
+            return source
+        }
         val canvas = Canvas(result)
 
         val path = Path()

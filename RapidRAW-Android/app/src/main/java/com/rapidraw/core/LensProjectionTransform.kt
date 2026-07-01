@@ -111,10 +111,17 @@ class LensProjectionTransform {
         val fDst = fPix * scaleFactor
 
         // 获取源图像像素
-        val srcPixels = IntArray(srcW * srcH)
+        // 2026 hotfix: 防御 srcW*srcH 整数溢出
+        val srcPixelCount = srcW.toLong() * srcH.toLong()
+        val outPixelCount = outW.toLong() * outH.toLong()
+        if (srcPixelCount > Int.MAX_VALUE.toLong() || outPixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "LensProjectionTransform bitmap too large: src=${srcW}x$srcH, out=${outW}x$outH")
+            return bitmap
+        }
+        val srcPixels = IntArray(srcPixelCount.toInt())
         bitmap.getPixels(srcPixels, 0, srcW, 0, 0, srcW, srcH)
 
-        val result = IntArray(outW * outH) { 0xFF000000.toInt() }
+        val result = IntArray(outPixelCount.toInt()) { 0xFF000000.toInt() }
 
         val cxOut = outW / 2f
         val cyOut = outH / 2f
@@ -162,7 +169,15 @@ class LensProjectionTransform {
             }
         }
 
-        val output = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
+        val output = try {
+            Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating LensProjection output bitmap", oom)
+            return bitmap
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgument creating LensProjection output bitmap", e)
+            return bitmap
+        }
         output.setPixels(result, 0, outW, 0, 0, outW, outH)
         return output
     }

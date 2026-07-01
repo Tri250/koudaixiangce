@@ -1686,7 +1686,7 @@ class EditorViewModel(
                     }
                     _previewBitmap.value = result
                 }
-            } catch (e: CancellationException) { throw e }
+            } catch (ce: CancellationException) { throw ce }
             catch (e: OutOfMemoryError) {
                 Log.e(TAG, "Creative light effects OOM", e)
             } catch (e: Exception) {
@@ -1780,7 +1780,15 @@ class EditorViewModel(
                     val ai = (pixels[i] ushr 24) and 0xFF
                     pixels[i] = (ai shl 24) or (ri shl 16) or (gi shl 8) or bi
                 }
-                val result = Bitmap.createBitmap(w, h, bitmap.config ?: Bitmap.Config.ARGB_8888)
+                val result = try {
+                    Bitmap.createBitmap(w, h, bitmap.config ?: Bitmap.Config.ARGB_8888)
+                } catch (oom: OutOfMemoryError) {
+                    Log.e(TAG, "OOM creating highlight-reconstructed bitmap", oom)
+                    return@launch
+                } catch (e: IllegalArgumentException) {
+                    Log.e(TAG, "IllegalArgument creating highlight-reconstructed bitmap", e)
+                    return@launch
+                }
                 result.setPixels(pixels, 0, w, 0, 0, w, h)
                 // 2026 正式版: 通过 bitmapMutex 保护，避免并发访问/回收导致崩溃
                 bitmapMutex.withLock {

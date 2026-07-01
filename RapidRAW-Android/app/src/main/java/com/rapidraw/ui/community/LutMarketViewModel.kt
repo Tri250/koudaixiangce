@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.LutLibraryManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,10 +57,13 @@ class LutMarketViewModel(application: Application) : AndroidViewModel(applicatio
                 } else {
                     loadSampleData()
                 }
+            } catch (ce: CancellationException) {
+                // 2026 hotfix: 协程取消异常必须重新抛出
+                throw ce
             } catch (e: Exception) {
                 Log.w(tag, "Failed to load LUT packs from network, falling back to sample data", e)
                 _isOnline.value = false
-                loadSampleData()
+                runCatching { loadSampleData() }
             }
         }
     }
@@ -88,6 +92,8 @@ class LutMarketViewModel(application: Application) : AndroidViewModel(applicatio
                         isLoading = false,
                     )
                 }
+            } catch (ce: CancellationException) {
+                throw ce
             } catch (e: Exception) {
                 Log.e(tag, "Failed to download LUT pack: $packId", e)
                 _state.update {
@@ -109,6 +115,8 @@ class LutMarketViewModel(application: Application) : AndroidViewModel(applicatio
                 // 2026 正式版：所有 LUT 均为内置免费资源，直接下载即可。
                 // 此处不模拟网络延迟，确保用户体验真实、无欺骗性等待。
                 downloadLutPack(packId)
+            } catch (ce: CancellationException) {
+                throw ce
             } catch (e: Exception) {
                 Log.e(tag, "Failed to acquire LUT pack: $packId", e)
                 _state.update {

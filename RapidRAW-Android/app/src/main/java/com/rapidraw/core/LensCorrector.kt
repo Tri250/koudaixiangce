@@ -65,14 +65,21 @@ class LensCorrector(
     fun correct(source: Bitmap): Bitmap {
         val w = source.width
         val h = source.height
+        if (w <= 0 || h <= 0) return source
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "LensCorrector: bitmap too large ${w}x$h")
+            return source
+        }
         val cx = w / 2f
         val cy = h / 2f
         val maxR = sqrt(cx * cx + cy * cy)
 
-        val srcPixels = IntArray(w * h)
+        val srcPixels = IntArray(pixelCount.toInt())
         source.getPixels(srcPixels, 0, w, 0, 0, w, h)
 
-        val result = IntArray(w * h) { 0xFF000000.toInt() }
+        val result = IntArray(pixelCount.toInt()) { 0xFF000000.toInt() }
 
         val hasTca = abs(tcaRedScale - 1f) > 1e-6f || abs(tcaBlueScale - 1f) > 1e-6f
         val hasVignette = abs(vignetteK1) > 1e-8f || abs(vignetteK2) > 1e-8f || abs(vignetteK3) > 1e-8f
@@ -172,7 +179,15 @@ class LensCorrector(
             }
         }
 
-        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val bitmap = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating LensCorrector output", oom)
+            return source
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgument creating LensCorrector output", e)
+            return source
+        }
         bitmap.setPixels(result, 0, w, 0, 0, w, h)
         return bitmap
     }
@@ -187,11 +202,18 @@ class LensCorrector(
 
         val w = source.width
         val h = source.height
+        if (w <= 0 || h <= 0) return source
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "applyVignetteOnly: bitmap too large ${w}x$h")
+            return source
+        }
         val cx = w / 2f
         val cy = h / 2f
         val maxR = sqrt(cx * cx + cy * cy)
 
-        val pixels = IntArray(w * h)
+        val pixels = IntArray(pixelCount.toInt())
         source.getPixels(pixels, 0, w, 0, 0, w, h)
 
         for (y in 0 until h) {
@@ -217,7 +239,15 @@ class LensCorrector(
             }
         }
 
-        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val bitmap = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating vignette output", oom)
+            return source
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "IllegalArgument creating vignette output", e)
+            return source
+        }
         bitmap.setPixels(pixels, 0, w, 0, 0, w, h)
         return bitmap
     }

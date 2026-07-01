@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import com.rapidraw.data.model.ExifData
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -97,22 +98,47 @@ class UltraHdrExporter {
         params: Params = Params(),
         exifData: ExifData? = null,
     ) = withContext(Dispatchers.Default) {
-        require(linearData.size == width * height * 3) {
-            "linearData size mismatch: expected ${width * height * 3}, got ${linearData.size}"
+        // 2026 hotfix: 参数校验改用 if + 抛 IllegalArgumentException，避免 require 异常在协程中触发未捕获崩溃
+        if (width <= 0 || height <= 0) {
+            Log.e(TAG, "Invalid dimensions: ${width}x$height")
+            return@withContext
+        }
+        val expectedSize = width.toLong() * height.toLong() * 3L
+        if (linearData.size.toLong() != expectedSize) {
+            Log.e(TAG, "linearData size mismatch: expected $expectedSize, got ${linearData.size}")
+            return@withContext
         }
 
         // 1. 从 HDR 线性数据生成 HDR Bitmap
-        val hdrBitmap = linearToBitmap(linearData, width, height)
+        val hdrBitmap = try {
+            linearToBitmap(linearData, width, height)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM creating HDR bitmap", oom)
+            return@withContext
+        }
 
         // 2. 色调映射生成 SDR Bitmap
-        val sdrBitmap = toneMapToSdr(hdrBitmap, params)
+        val sdrBitmap = try {
+            toneMapToSdr(hdrBitmap, params)
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM tone mapping to SDR", oom)
+            runCatching { hdrBitmap.recycle() }
+            return@withContext
+        }
 
         // 3. 使用 SDR + HDR 对导出
         try {
-            exportWithGainMap(sdrBitmap, linearData, width, height, outputStream, params, exifData)
+            try {
+                exportWithGainMap(sdrBitmap, linearData, width, height, outputStream, params, exifData)
+            } catch (ce: CancellationException) {
+                // 2026 hotfix: 协程取消异常必须重新抛出
+                throw ce
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM during Ultra HDR export", oom)
+            }
         } finally {
-            hdrBitmap.recycle()
-            sdrBitmap.recycle()
+            runCatching { hdrBitmap.recycle() }
+            runCatching { sdrBitmap.recycle() }
         }
     }
 
@@ -139,37 +165,72 @@ class UltraHdrExporter {
         params: Params = Params(),
         exifData: ExifData? = null,
     ) = withContext(Dispatchers.Default) {
-        require(hdrLinearData.size == width * height * 3) {
-            "hdrLinearData size mismatch: expected ${width * height * 3}, got ${hdrLinearData.size}"
+        // 2026 hotfix: 参数校验改用 if + 抛 IllegalArgumentException
+        if (sdrBitmap.isRecycled) {
+            Log.e(TAG, "SDR bitmap is recycled")
+            return@withContext
+        }
+        if (width <= 0 || height <= 0) {
+            Log.e(TAG, "Invalid dimensions: ${width}x$height")
+            return@withContext
+        }
+        val expectedSize = width.toLong() * height.toLong() * 3L
+        if (hdrLinearData.size.toLong() != expectedSize) {
+            Log.e(TAG, "hdrLinearData size mismatch: expected $expectedSize, got ${hdrLinearData.size}")
+            return@withContext
         }
 
-        // 1. 从 HDR 线性数据生成 HDR Bitmap（编码到 PQ/HLG 信号值）
-        val hdrBitmap = linearToHdrBitmap(hdrLinearData, width, height, params)
+        var hdrBitmap: Bitmap? = null
+        var gainMap: Bitmap? = null
+        try {
+            // 1. 从 HDR 线性数据生成 HDR Bitmap（编码到 PQ/HLG 信号值）
+            hdrBitmap = try {
+                linearToHdrBitmap(hdrLinearData, width, height, params)
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM creating HDR bitmap", oom)
+                return@withContext
+            }
 
-        // 2. 计算 Gain Map
-        val gainMap = computeGainMap(hdrBitmap, sdrBitmap, params)
+            // 2. 计算 Gain Map
+            gainMap = try {
+                computeGainMap(hdrBitmap, sdrBitmap, params)
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM computing gain map", oom)
+                return@withContext
+            }
 
-        // 3. 编码 SDR JPEG
-        val sdrJpegBytes = compressJpeg(sdrBitmap, params.quality)
+            // 3. 编码 SDR JPEG
+            val sdrJpegBytes = compressJpeg(sdrBitmap, params.quality)
 
-        // 4. 编码 Gain Map JPEG（灰度）
-        val gainMapJpegBytes = compressGainMapJpeg(gainMap, params.gainMapQuality)
+            // 4. 编码 Gain Map JPEG（灰度）
+            val gainMapJpegBytes = compressGainMapJpeg(gainMap, params.gainMapQuality)
 
-        gainMap.recycle()
+            // 5. 合并为 Ultra HDR JPEG
+            val finalBytes = buildUltraHdrJpeg(sdrJpegBytes, gainMapJpegBytes, params)
 
-        // 5. 合并为 Ultra HDR JPEG
-        val finalBytes = buildUltraHdrJpeg(sdrJpegBytes, gainMapJpegBytes, params)
+            // 6. 写入 EXIF 元数据（如果提供）
+            val outputBytes = if (exifData != null && params.includeExif) {
+                writeExifMetadata(finalBytes, exifData)
+            } else {
+                finalBytes
+            }
 
-        // 6. 写入 EXIF 元数据（如果提供）
-        val outputBytes = if (exifData != null && params.includeExif) {
-            writeExifMetadata(finalBytes, exifData)
-        } else {
-            finalBytes
+            // 7. 写入输出流
+            try {
+                outputStream.write(outputBytes)
+                outputStream.flush()
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM writing output stream", oom)
+            }
+        } catch (ce: CancellationException) {
+            // 2026 hotfix: 协程取消异常必须重新抛出
+            throw ce
+        } catch (e: Exception) {
+            Log.e(TAG, "Ultra HDR export failed: ${e.message}", e)
+        } finally {
+            runCatching { hdrBitmap?.recycle() }
+            runCatching { gainMap?.recycle() }
         }
-
-        // 7. 写入输出流
-        outputStream.write(outputBytes)
-        outputStream.flush()
     }
 
     // ── HDR 传输函数编码 ─────────────────────────────────────────────
@@ -307,8 +368,13 @@ class UltraHdrExporter {
         height: Int,
         params: Params,
     ): Bitmap {
+        // 2026 hotfix: 防御 width*height 整数溢出
+        val pixelCount = width.toLong() * height.toLong()
+        if (pixelCount <= 0L || pixelCount > Int.MAX_VALUE.toLong()) {
+            throw IllegalArgumentException("Invalid bitmap dimensions: $width x $height")
+        }
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val pixels = IntArray(width * height)
+        val pixels = IntArray(pixelCount.toInt())
         val luminanceScale = params.peakLuminanceNits / 10000f
 
         for (i in 0 until width * height) {
@@ -354,8 +420,13 @@ class UltraHdrExporter {
         width: Int,
         height: Int,
     ): Bitmap {
+        // 2026 hotfix: 防御 width*height 整数溢出
+        val pixelCount = width.toLong() * height.toLong()
+        if (pixelCount <= 0L || pixelCount > Int.MAX_VALUE.toLong()) {
+            throw IllegalArgumentException("Invalid bitmap dimensions: $width x $height")
+        }
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val pixels = IntArray(width * height)
+        val pixels = IntArray(pixelCount.toInt())
 
         for (i in 0 until width * height) {
             val r = linearToSrgb(linearData[i * 3].coerceIn(0f, 1f))
@@ -381,13 +452,21 @@ class UltraHdrExporter {
     private fun toneMapToSdr(hdrBitmap: Bitmap, params: Params): Bitmap {
         val w = hdrBitmap.width
         val h = hdrBitmap.height
+        if (w <= 0 || h <= 0) {
+            throw IllegalArgumentException("Invalid HDR bitmap dimensions: $w x $h")
+        }
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            throw IllegalArgumentException("HDR bitmap too large: $w x $h")
+        }
         val sdrBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
 
-        val hdrPixels = IntArray(w * h)
+        val hdrPixels = IntArray(pixelCount.toInt())
         hdrBitmap.getPixels(hdrPixels, 0, w, 0, 0, w, h)
 
         val luminanceScale = params.sdrBrightness / params.peakLuminanceNits
-        val outPixels = IntArray(w * h)
+        val outPixels = IntArray(pixelCount.toInt())
 
         for (i in hdrPixels.indices) {
             val r = ((hdrPixels[i] shr 16) and 0xFF) / 255f
@@ -458,10 +537,18 @@ class UltraHdrExporter {
     ): Bitmap {
         val w = min(hdrBitmap.width, sdrBitmap.width)
         val h = min(hdrBitmap.height, sdrBitmap.height)
+        if (w <= 0 || h <= 0) {
+            throw IllegalArgumentException("Invalid bitmap dimensions for gain map: $w x $h")
+        }
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            throw IllegalArgumentException("Bitmap too large for gain map: $w x $h")
+        }
         val gainMap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
 
-        val hdrPixels = IntArray(w * h)
-        val sdrPixels = IntArray(w * h)
+        val hdrPixels = IntArray(pixelCount.toInt())
+        val sdrPixels = IntArray(pixelCount.toInt())
         hdrBitmap.getPixels(hdrPixels, 0, w, 0, 0, w, h)
         sdrBitmap.getPixels(sdrPixels, 0, w, 0, 0, w, h)
 
@@ -472,7 +559,7 @@ class UltraHdrExporter {
         val gamma = params.gainMapGamma
         val compression = params.gainMapCompression
 
-        val outPixels = IntArray(w * h)
+        val outPixels = IntArray(pixelCount.toInt())
 
         for (i in hdrPixels.indices) {
             val hdrR = ((hdrPixels[i] shr 16) and 0xFF) / 255f
@@ -552,9 +639,21 @@ class UltraHdrExporter {
     // ── JPEG 编码 ─────────────────────────────────────────────────
 
     private fun compressJpeg(bitmap: Bitmap, quality: Int): ByteArray {
-        val baos = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, baos)
-        return baos.toByteArray()
+        if (bitmap.isRecycled) {
+            Log.e(TAG, "Cannot compress recycled bitmap")
+            return ByteArray(0)
+        }
+        return try {
+            val baos = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, baos)
+            baos.toByteArray()
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM compressing JPEG", oom)
+            ByteArray(0)
+        } catch (e: Exception) {
+            Log.e(TAG, "JPEG compression failed: ${e.message}", e)
+            ByteArray(0)
+        }
     }
 
     /**
@@ -564,11 +663,18 @@ class UltraHdrExporter {
     private fun compressGainMapJpeg(gainMap: Bitmap, quality: Int): ByteArray {
         val w = gainMap.width
         val h = gainMap.height
+        if (w <= 0 || h <= 0) return ByteArray(0)
+        // 2026 hotfix: 防御 w*h 整数溢出
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE.toLong()) {
+            Log.e(TAG, "Gain map too large: $w x $h")
+            return ByteArray(0)
+        }
 
         // 创建灰度 Bitmap 以减少文件大小
         val grayBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val srcPixels = IntArray(w * h)
-        val dstPixels = IntArray(w * h)
+        val srcPixels = IntArray(pixelCount.toInt())
+        val dstPixels = IntArray(pixelCount.toInt())
         gainMap.getPixels(srcPixels, 0, w, 0, 0, w, h)
 
         for (i in srcPixels.indices) {
@@ -584,7 +690,8 @@ class UltraHdrExporter {
 
         val baos = ByteArrayOutputStream()
         grayBitmap.compress(Bitmap.CompressFormat.JPEG, quality, baos)
-        grayBitmap.recycle()
+        // 2026 hotfix: 释放灰度 bitmap，避免内存泄漏
+        runCatching { grayBitmap.recycle() }
         return baos.toByteArray()
     }
 
@@ -925,7 +1032,11 @@ class UltraHdrExporter {
         return try {
             val tempFile = java.io.File.createTempFile("ultrahdr_exif_", ".jpg")
             try {
-                tempFile.writeBytes(jpegBytes)
+                runCatching { tempFile.writeBytes(jpegBytes) }
+                    .onFailure { err ->
+                        Log.e(TAG, "Failed to write temp file: ${err.message}")
+                        return jpegBytes
+                    }
                 val exif = ExifInterface(tempFile.absolutePath)
 
                 exifData.make?.let { exif.setAttribute(ExifInterface.TAG_MAKE, it) }
@@ -946,10 +1057,17 @@ class UltraHdrExporter {
                 }
 
                 exif.saveAttributes()
-                tempFile.readBytes()
+                runCatching { tempFile.readBytes() }
+                    .getOrElse { err ->
+                        Log.e(TAG, "Failed to read temp file: ${err.message}")
+                        jpegBytes
+                    }
             } finally {
-                tempFile.delete()
+                runCatching { tempFile.delete() }
             }
+        } catch (oom: OutOfMemoryError) {
+            Log.e(TAG, "OOM in writeExifMetadata", oom)
+            jpegBytes
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write EXIF metadata: ${e.message}")
             jpegBytes

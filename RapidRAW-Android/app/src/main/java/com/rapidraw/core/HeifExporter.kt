@@ -84,10 +84,10 @@ object HeifExporter {
             )
         } catch (oom: OutOfMemoryError) {
             Log.e(TAG, "OOM during HEIF export: ${oom.message}", oom)
-            null
+            runCatching { fallbackToJpeg(context, bitmap, clampedQuality, displayName) }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to export HEIF: ${e.message}", e)
-            fallbackToJpeg(context, bitmap, clampedQuality, displayName)
+            runCatching { fallbackToJpeg(context, bitmap, clampedQuality, displayName) }
         }
     }
 
@@ -383,7 +383,14 @@ object HeifExporter {
     private fun bitmapToYuv420(bitmap: Bitmap): YuvData {
         val w = bitmap.width
         val h = bitmap.height
-        val pixels = IntArray(w * h)
+        if (w <= 0 || h <= 0) return YuvData(ByteArray(0), ByteArray(0), ByteArray(0), 0, 0)
+        // 2026 hotfix: 防御 w*h 整数溢出，导致 IntArray 分配异常
+        val pixelCount = w.toLong() * h.toLong()
+        if (pixelCount > Int.MAX_VALUE) {
+            Log.e(TAG, "Image too large for YUV conversion: $w x $h")
+            return YuvData(ByteArray(0), ByteArray(0), ByteArray(0), 0, 0)
+        }
+        val pixels = IntArray(pixelCount.toInt())
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
         val strideY = w
