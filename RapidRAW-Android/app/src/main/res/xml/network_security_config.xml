@@ -6,4 +6,19 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!-- v1.10.0 证书固定：对自有后端域名启用 SPKI Pin -->
+    <!-- 生产环境部署时替换为实际证书 SHA-256 指纹 -->
+    <!--
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">rapidraw.app</domain>
+        <pin-set expiration="2027-01-01">
+            <pin digest="SHA-256">REPLACE_WITH_ACTUAL_PIN=</pin>
+            <pin digest="SHA-256">REPLACE_WITH_BACKUP_PIN=</pin>
+        </pin-set>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+    -->
 </network-security-config>

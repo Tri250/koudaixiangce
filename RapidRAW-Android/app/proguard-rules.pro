@@ -234,3 +234,21 @@
 # v1.6.3 最严深度自检: 保持 ExportQueueProcessor / ExportWorker
 -keep class com.rapidraw.data.export.** { *; }
 -keep class com.rapidraw.data.repository.** { *; }
+
+# v1.10.0 安全加固: 保持安全模块所有类
+-keep class com.rapidraw.security.** { *; }
+-keepclassmembers class com.rapidraw.security.** { *; }
+
+# v1.10.0 无障碍: 保持无障碍辅助类
+-keep class com.rapidraw.ui.accessibility.** { *; }
+-keepclassmembers class com.rapidraw.ui.accessibility.** { *; }
+
+# v1.10.0 DI 容器: 保持 DiContainer 反射访问
+-keep class com.rapidraw.core.DiContainer { *; }
+-keep class com.rapidraw.core.DiContainer$** { *; }
+
+# v1.10.0 安全: 保持 Android Keystore 依赖
+-keep class javax.crypto.** { *; }
+-keep class java.security.** { *; }
+-dontwarn javax.crypto.**
+-dontwarn java.security.spec.**

@@ -19,6 +19,7 @@ import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.NetworkCache
 import com.rapidraw.core.PerformanceMonitor
 import com.rapidraw.core.StartupOptimizer
+import com.rapidraw.security.SecurityProvider
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -51,6 +52,9 @@ class RapidRawApp : Application() {
         StartupOptimizer
             .schedule(StartupOptimizer.Priority.CRITICAL, "CrashHandler") {
                 CrashHandler.install(this)
+            }
+            .schedule(StartupOptimizer.Priority.CRITICAL, "SecurityProvider") {
+                runCatching { SecurityProvider.verifyAppSignature(this) }
             }
             .schedule(StartupOptimizer.Priority.CRITICAL, "CrashReporter") {
                 runCatching { CrashReporter.init(this) }
