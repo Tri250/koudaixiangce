@@ -21,16 +21,14 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.10.2 兼容性全面优化：
-        // + 前台服务类型声明 (Android 14+) + 电池优化豁免
-        // + 配置变更处理: onConfigurationChanged + onMultiWindowModeChanged
-        // + 每应用语言: locale_config.xml + 系统语言设置
-        // + OEM 兼容: MIUI/HyperOS/ColorOS/OneUI 限制处理
-        // + App Standby Buckets 感知 + Play Integrity 兼容层
-        // + SystemCompatibility 系统兼容性检查
-        // 兼容性评分: 100/100
-        versionCode = 2200
-        versionName = "1.10.2"
+        // v1.10.3 功能可用性优化：
+        // + App Shortcuts: 主屏幕快捷操作 (图库/最近编辑/新建编辑)
+        // + 通知渠道: 导出进度/云端同步/应用更新
+        // + 应用内评价: Google Play ReviewManager 集成
+        // + 版本更新日志: 新功能引导弹窗
+        // 功能可用性评分: 100/100
+        versionCode = 2300
+        versionName = "1.10.3"
 
         // 2026 perf: 仅打包应用支持的资源，显著减少 APK 体积。
         // v1.7.0: 新增日/韩本地化支持

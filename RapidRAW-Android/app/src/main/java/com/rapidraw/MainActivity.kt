@@ -114,6 +114,9 @@ class MainActivity : ComponentActivity() {
             Log.w(TAG, "enableEdgeToEdge failed", e)
         }
 
+        // v1.10.3: 处理 App Shortcut 意图
+        handleShortcutIntent(intent)
+
         // WindowCompat 设置：确保内容不会与系统栏重叠（由 Compose Insets 处理）
         try {
             WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -389,6 +392,44 @@ class MainActivity : ComponentActivity() {
             "screenWidth=${newConfig.screenWidthDp}dp, " +
             "screenHeight=${newConfig.screenHeightDp}dp"
         )
+    }
+
+    /**
+     * 处理 App Shortcut 意图。
+     * 从 intent extras 中读取 shortcut ID，执行对应的导航操作。
+     */
+    private fun handleShortcutIntent(intent: Intent) {
+        val shortcut = intent.getStringExtra("rapidraw_shortcut") ?: return
+        Log.d(TAG, "Shortcut received: $shortcut")
+        // 延迟导航到 Compose 树构建完成后
+        lifecycleScope.launch {
+            delay(300) // 等待 Compose 初始化
+            navController?.let { handleShortcutNavigation(shortcut, it) }
+        }
+    }
+
+    /**
+     * 根据 shortcut ID 执行对应导航。
+     */
+    private fun handleShortcutNavigation(shortcut: String, nav: NavHostController) {
+        when (shortcut) {
+            "library" -> {
+                nav.navigate(Routes.Library) {
+                    popUpTo(Routes.Library) { inclusive = true }
+                }
+            }
+            "recent_project" -> {
+                nav.navigate(Routes.DamProject) {
+                    popUpTo(Routes.Library) { inclusive = true }
+                }
+            }
+            "new_edit" -> {
+                // 打开图库选择器导入新照片
+                nav.navigate(Routes.Library) {
+                    popUpTo(Routes.Library) { inclusive = true }
+                }
+            }
+        }
     }
 
     /**

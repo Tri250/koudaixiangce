@@ -16,6 +16,7 @@ import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.CrashReporter
 import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.NetworkCache
+import com.rapidraw.core.NotificationChannels
 import com.rapidraw.core.OemCompatibility
 import com.rapidraw.core.PerformanceMonitor
 import com.rapidraw.core.PlayIntegrityHelper
@@ -57,6 +58,9 @@ class RapidRawApp : Application() {
             }
             .schedule(StartupOptimizer.Priority.CRITICAL, "SecurityProvider") {
                 runCatching { SecurityProvider.verifyAppSignature(this) }
+            }
+            .schedule(StartupOptimizer.Priority.CRITICAL, "NotificationChannels") {
+                runCatching { NotificationChannels.initialize(this) }
             }
             .schedule(StartupOptimizer.Priority.CRITICAL, "CrashReporter") {
                 runCatching { CrashReporter.init(this) }

@@ -101,6 +101,10 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="rapidraw" />
             </intent-filter>
+            <!-- v1.10.3: App Shortcuts 元数据 -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- FileProvider: 为导出完成的图片提供临时 URI，支持从导出队列打开/分享 -->

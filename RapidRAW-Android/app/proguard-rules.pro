@@ -259,3 +259,9 @@
 -keep class com.rapidraw.core.SystemCompatibility { *; }
 -keep class com.rapidraw.core.PlayIntegrityHelper { *; }
 -keepclassmembers class com.rapidraw.core.SystemCompatibility$CompatibilityReport { *; }
+
+# v1.10.3 功能可用性: 保持通知渠道和应用内评价
+-keep class com.rapidraw.core.NotificationChannels { *; }
+-keep class com.rapidraw.core.InAppReviewManager { *; }
+-keep class com.rapidraw.ui.components.WhatsNewDialog { *; }
+-keep class com.rapidraw.ui.components.WhatsNewDialogKt { *; }
