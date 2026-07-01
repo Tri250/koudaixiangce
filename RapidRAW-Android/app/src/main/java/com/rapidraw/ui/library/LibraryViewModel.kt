@@ -11,6 +11,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.CrashHandler
+import com.rapidraw.core.DamProjectManager
 import com.rapidraw.core.ThumbnailDiskCache
 import com.rapidraw.ai.NaturalLanguageSearcher
 import com.rapidraw.ai.SemanticTag
@@ -51,6 +52,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     // v1.5.5 hotfix: 使用 lazy 初始化，避免构造器中磁盘操作失败（如 cacheDir 不可写）
     // 导致 ViewModel 创建失败从而整个页面闪退。
     private val thumbnailCache by lazy { ThumbnailDiskCache(application.cacheDir) }
+
+    // DAM 项目管理器（提供图库统计和分面数据）
+    val damProjectManager = DamProjectManager(application)
+    val damLibraryStats: StateFlow<com.rapidraw.data.model.DamLibraryStats> = damProjectManager.libraryStats
+    val damFacetData: StateFlow<com.rapidraw.data.model.DamFacetData> = damProjectManager.facetData
+
+    private val _showDamOverview = MutableStateFlow(false)
+    val showDamOverview: StateFlow<Boolean> = _showDamOverview.asStateFlow()
+
+    fun toggleDamOverview() {
+        _showDamOverview.value = !_showDamOverview.value
+    }
 
     private val _images = MutableStateFlow<List<ImageFile>>(emptyList())
     val images: StateFlow<List<ImageFile>> = _images.asStateFlow()

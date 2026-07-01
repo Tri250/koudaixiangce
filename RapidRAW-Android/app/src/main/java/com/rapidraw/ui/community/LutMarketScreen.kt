@@ -40,6 +40,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,10 +69,12 @@ fun LutMarketScreen(
     onBack: () -> Unit,
     onDownloadLut: (LutItem) -> Unit = {},
     onImportLut: (LutItem) -> Unit = {},
+    vm: LutMarketViewModel = viewModel(),
 ) {
+    val marketState by vm.state.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("发现", "我的收藏")
-    var selectedCategory by remember { mutableStateOf("全部") }
+    var selectedCategory by remember { mutableStateOf(marketState.selectedCategory) }
     val categories = listOf("全部", "胶片", "电影", "复古", "手机")
 
     Column(
@@ -135,13 +139,20 @@ fun LutMarketScreen(
         when (selectedTab) {
             0 -> LutDiscoveryTab(
                 selectedCategory = selectedCategory,
-                onCategorySelected = { selectedCategory = it },
-                onDownloadLut = onDownloadLut,
+                onCategorySelected = {
+                    selectedCategory = it
+                    vm.filterByCategory(it)
+                },
+                onDownloadLut = { lut -> vm.downloadLutPack(lut.id); onDownloadLut(lut) },
                 onImportLut = onImportLut,
                 categories = categories,
+                featuredPacks = marketState.featuredPacks,
+                lutItems = if (marketState.lutPacks.isNotEmpty()) marketState.lutPacks else sampleLutItems,
+                isLoading = marketState.isLoading,
             )
             1 -> LutMyCollectionTab(
                 onImportLut = onImportLut,
+                myLuts = marketState.lutPacks.filter { it.isDownloaded },
             )
         }
     }
@@ -154,6 +165,9 @@ private fun LutDiscoveryTab(
     onDownloadLut: (LutItem) -> Unit,
     onImportLut: (LutItem) -> Unit,
     categories: List<String> = listOf("全部", "胶片", "电影", "复古", "手机"),
+    featuredPacks: List<FeaturedLutPack> = emptyList(),
+    lutItems: List<LutItem> = sampleLutItems,
+    isLoading: Boolean = false,
 ) {
     Column(
         modifier = Modifier
@@ -202,7 +216,10 @@ private fun LutDiscoveryTab(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(end = 4.dp),
         ) {
-            items(featuredLutPacks, key = { it.id }) { pack ->
+            items(
+                items = if (featuredPacks.isNotEmpty()) featuredPacks else featuredLutPacks,
+                key = { it.id },
+            ) { pack ->
                 FeaturedLutPackCard(pack = pack)
             }
         }
@@ -240,9 +257,9 @@ private fun LutDiscoveryTab(
 
         // LUT 卡片网格
         val filteredLuts = if (selectedCategory == "全部") {
-            sampleLutItems
+            lutItems
         } else {
-            sampleLutItems.filter { it.category == selectedCategory }
+            lutItems.filter { it.category == selectedCategory }
         }
 
         // 使用列布局模拟网格（2 列）
@@ -273,8 +290,8 @@ private fun LutDiscoveryTab(
 @Composable
 private fun LutMyCollectionTab(
     onImportLut: (LutItem) -> Unit,
+    myLuts: List<LutItem> = sampleLutItems.filter { it.isDownloaded },
 ) {
-    val myLuts = sampleLutItems.filter { it.isDownloaded }
 
     if (myLuts.isEmpty()) {
         Box(
