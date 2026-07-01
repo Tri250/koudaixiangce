@@ -185,7 +185,10 @@ fun HasselSlider(
                                     newValue = (newValue / stepSize).roundToInt() * stepSize
                                 }
                                 newValue = newValue.coerceIn(range.start, range.endInclusive)
-                                onValueChange(newValue)
+                                // v1.5.9 hotfix: 防止除零/异常手势产生 NaN 或 Infinity 导致后续管线崩溃。
+                                if (newValue.isFinite()) {
+                                    onValueChange(newValue)
+                                }
                             }
                         }
                     }

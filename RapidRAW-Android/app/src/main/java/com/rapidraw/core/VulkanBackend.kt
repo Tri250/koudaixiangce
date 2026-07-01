@@ -26,10 +26,12 @@ class VulkanBackend(private val context: Context) {
 
         init {
             // 加载 Vulkan compute JNI 库
+            // v1.5.9 hotfix: 捕获 Throwable，部分 OEM ROM 在加载原生库时可能抛出
+            // UnsatisfiedLinkError 之外的 Error/RuntimeException，避免直接闪退。
             try {
                 System.loadLibrary("vulkancompute")
                 Log.d(TAG, "vulkancompute library loaded successfully")
-            } catch (e: UnsatisfiedLinkError) {
+            } catch (e: Throwable) {
                 Log.w(TAG, "Failed to load vulkancompute library: ${e.message}")
             }
         }

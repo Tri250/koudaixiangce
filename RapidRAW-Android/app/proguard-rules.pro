@@ -129,15 +129,14 @@
 -dontwarn org.tensorflow.lite.gpu.GpuDelegateFactory$Options
 -dontwarn org.tensorflow.lite.gpu.GpuDelegateFactory$Options$GpuBackend
 
-# v1.5.5 安全加固：release 构建下移除低优先级 Log 调用，减少 logcat 信息泄露。
-# v1.5.5 hotfix: 保留 Log.w 和 Log.e，它们用于错误/异常路径的诊断；
-# 移除后会导致 catch 块变成空操作，R8 可能优化掉整个 catch 块，
-# 使原本被吞掉的异常变成未捕获异常导致闪退。
--assumenosideeffects class android.util.Log {
-    public static int v(...);
-    public static int d(...);
-    public static int i(...);
-}
+# v1.5.9 hotfix: 保留 raw 资源，避免资源收缩误删 GPU shader 等运行时读取的文件。
+-keepresources raw/**
+
+# v1.5.9 hotfix: 禁用 R8 对 Log 调用的移除。
+# 此前规则会删除 Log.v/d/i 调用，虽然编译期不会报错，但可能意外清空某些
+# 异常路径的 catch 块，导致 release 包行为与 debug 包不一致，甚至掩盖崩溃根因。
+# 保留完整日志调用，便于线上通过 crash log 诊断问题。
+# -assumenosideeffects class android.util.Log { ... }
 
 # 隐藏原始源文件名称
 -renamesourcefileattribute SourceFile

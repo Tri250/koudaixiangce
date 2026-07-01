@@ -910,8 +910,21 @@ class ImageProcessor {
         originalBitmap: Bitmap,
         allowDownsample: Boolean = true
     ): Bitmap = withContext(Dispatchers.Default) {
+        // v1.5.9 hotfix: 前置校验输入位图，避免 recycled/空位图进入像素处理循环导致 native 崩溃。
+        if (originalBitmap.isRecycled) {
+            throw IllegalStateException("Cannot process recycled bitmap")
+        }
+        if (originalBitmap.width <= 0 || originalBitmap.height <= 0) {
+            throw IllegalStateException("Invalid bitmap dimensions: ${originalBitmap.width}x${originalBitmap.height}")
+        }
+
         // 2026 hotfix: 变量必须在 try 之前声明，否则 catch 块访问不到
-        val n = NormAdj.from(adjustments)
+        val n = try {
+            NormAdj.from(adjustments)
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to normalize adjustments", e)
+            NormAdj()
+        }
 
         // 内存保护：对于超大图（>64MP），可选降采样处理
         val maxPixels = 64_000_000 // 64MP

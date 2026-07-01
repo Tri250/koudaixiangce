@@ -81,7 +81,12 @@ private fun catmullRomInterpolate(
 fun generateCurveLut(points: List<Pair<Float, Float>>): IntArray {
     if (points.size < 2) return IntArray(256) { it }
 
-    val sorted = points.sortedBy { it.first }
+    // v1.5.9 hotfix: 过滤非法控制点（NaN/Infinity），防止插值阶段污染 LUT。
+    val sorted = points
+        .filter { it.first.isFinite() && it.second.isFinite() }
+        .sortedBy { it.first }
+    if (sorted.size < 2) return IntArray(256) { it }
+
     val lut = IntArray(256)
 
     // 在每对控制点之间用 Catmull-Rom 插值
@@ -411,11 +416,14 @@ fun CurveEditor(
  * @return 插值后的 y 值 [0..255]
  */
 private fun evaluateCatmullRom(sortedPoints: List<Pair<Float, Float>>, x: Float): Float {
-    if (sortedPoints.isEmpty()) return x
-    if (sortedPoints.size == 1) return sortedPoints[0].second
+    if (sortedPoints.isEmpty()) return x.coerceIn(0f, 255f)
+    if (sortedPoints.size == 1) return sortedPoints[0].second.coerceIn(0f, 255f)
+
+    // v1.5.9 hotfix: 防御 NaN/Infinity 输入，避免后续插值和 LUT 生成产生异常值。
+    val safeX = if (x.isFinite()) x else 0f
 
     // 查找 x 所在的段
-    val segIndex = sortedPoints.indexOfLast { it.first <= x }.coerceIn(0, sortedPoints.size - 2)
+    val segIndex = sortedPoints.indexOfLast { it.first <= safeX }.coerceIn(0, sortedPoints.size - 2)
     val p1 = sortedPoints[segIndex]
     val p2 = sortedPoints[segIndex + 1]
 
@@ -423,9 +431,10 @@ private fun evaluateCatmullRom(sortedPoints: List<Pair<Float, Float>>, x: Float)
     val p3 = sortedPoints.getOrElse(segIndex + 2) { p2 }
 
     val segmentLength = p2.first - p1.first
-    val t = if (segmentLength > 0f) ((x - p1.first) / segmentLength).coerceIn(0f, 1f) else 0f
+    val t = if (segmentLength > 0f) ((safeX - p1.first) / segmentLength).coerceIn(0f, 1f) else 0f
 
     return catmullRomInterpolate(t, p0.second, p1.second, p2.second, p3.second)
+        .coerceIn(0f, 255f)
 }
 
 private fun sqrt(x: Float): Float = kotlin.math.sqrt(x)

@@ -73,10 +73,11 @@ object VulkanShaderFallback {
             if (!hasVulkan) return false
 
             // 尝试加载 Vulkan 原生库（验证 shaderc 可用性）
+            // v1.5.9 hotfix: 捕获 Throwable，防止原生库加载异常导致闪退。
             try {
                 System.loadLibrary("vulkan")
                 true
-            } catch (e: UnsatisfiedLinkError) {
+            } catch (e: Throwable) {
                 Log.w(TAG, "Vulkan native library not available: ${e.message}")
                 false
             }

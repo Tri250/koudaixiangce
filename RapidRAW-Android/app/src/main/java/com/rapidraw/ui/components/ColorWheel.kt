@@ -79,12 +79,15 @@ fun ColorWheel(
                             val radius = min(center.x, center.y)
                             val distance = sqrt(dx * dx + dy * dy)
 
-                            if (distance <= radius) {
+                            if (distance <= radius && radius > 0f && distance.isFinite()) {
                                 val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-                                val newHue = if (angle < 0) angle + 360f else angle
+                                val newHue = (if (angle < 0) angle + 360f else angle).coerceIn(0f, 360f)
                                 val newSaturation = (distance / radius).coerceIn(0f, 1f)
-                                onHueChanged(newHue)
-                                onSaturationChanged(newSaturation)
+                                // v1.5.9 hotfix: 确保输出值合法再回调，防止异常色相/饱和度进入处理管线。
+                                if (newHue.isFinite() && newSaturation.isFinite()) {
+                                    onHueChanged(newHue)
+                                    onSaturationChanged(newSaturation)
+                                }
                             }
                         }
                     }

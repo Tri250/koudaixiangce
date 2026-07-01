@@ -438,10 +438,33 @@ class EditorViewModel(
     }
 
     fun updateAdjustment(key: String, value: Float) {
+        // v1.5.9 hotfix: 参数调节链路兜底，非法 key 或异常 value 不崩溃。
+        if (key.isBlank() || !value.isFinite()) {
+            Log.w(TAG, "Ignoring invalid adjustment update: key=$key, value=$value")
+            return
+        }
         // 用户主动编辑时取消正在进行的智能优化，避免结果被覆盖
         smartOptimizeJob?.cancel()
         pushUndo(describeAdjustmentChange(key, value))
         _adjustments.value = _adjustments.value.copyByField(key, value)
+        schedulePreviewUpdate()
+    }
+
+    fun updateQuickAdjust(key: String, value: Float) {
+        // v1.5.9 hotfix: 快速调节入口统一校验，防止非法值进入图像处理管线。
+        if (key.isBlank() || !value.isFinite()) {
+            Log.w(TAG, "Ignoring invalid quick adjust update: key=$key, value=$value")
+            return
+        }
+        smartOptimizeJob?.cancel()
+        pushUndo(describeAdjustmentChange(key, value))
+        _adjustments.value = when (key) {
+            "filmIntensity" -> _adjustments.value.copy(filmIntensity = value.coerceIn(0f, 1f))
+            "softGlow" -> _adjustments.value.copy(softGlow = value.coerceIn(0f, 1f))
+            "toneLevel" -> _adjustments.value.copy(toneLevel = value.coerceIn(-1f, 1f))
+            "greenMagenta" -> _adjustments.value.copy(greenMagenta = value.coerceIn(-1f, 1f))
+            else -> _adjustments.value.copyByField(key, value)
+        }
         schedulePreviewUpdate()
     }
 
@@ -460,19 +483,6 @@ class EditorViewModel(
             ),
             rotation = rotation.coerceIn(-180f, 180f),
         )
-        schedulePreviewUpdate()
-    }
-
-    fun updateQuickAdjust(key: String, value: Float) {
-        smartOptimizeJob?.cancel()
-        pushUndo(describeAdjustmentChange(key, value))
-        _adjustments.value = when (key) {
-            "filmIntensity" -> _adjustments.value.copy(filmIntensity = value.coerceIn(0f, 1f))
-            "softGlow" -> _adjustments.value.copy(softGlow = value.coerceIn(0f, 1f))
-            "toneLevel" -> _adjustments.value.copy(toneLevel = value.coerceIn(-1f, 1f))
-            "greenMagenta" -> _adjustments.value.copy(greenMagenta = value.coerceIn(-1f, 1f))
-            else -> _adjustments.value.copyByField(key, value)
-        }
         schedulePreviewUpdate()
     }
 
