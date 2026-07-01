@@ -16,6 +16,9 @@ import com.rapidraw.core.BillingManager
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.CrashReporter
 import com.rapidraw.core.ImageProcessor
+import com.rapidraw.core.NetworkCache
+import com.rapidraw.core.PerformanceMonitor
+import com.rapidraw.core.StartupOptimizer
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -42,37 +45,44 @@ class RapidRawApp : Application() {
         super.onCreate()
         instance = this
 
-        try {
-            // v1.5.3: 全局崩溃捕获 + 本地持久化，必须早于其他业务初始化
-            // CrashHandler.install 已包含完整链路（日志写入 + 委托默认 handler），
-            // 不再额外包装 setupUncaughtExceptionHandler（避免双层 handler 冗余）。
-            CrashHandler.install(this)
-            // v1.7.0: 初始化远程崩溃上报（CrashReporter）
-            // 在 CrashHandler 之后初始化，确保 CrashReporter 可以复用 CrashHandler 的静态方法
-            runCatching {
-                CrashReporter.init(this)
-            }.onFailure { Log.e(TAG, "Failed to init CrashReporter", it) }
-            // v1.7.0: 启动 ANR 看门狗，监控主线程卡顿
-            runCatching {
-                ANRWatchdog.start(blockThresholdMs = 2_000L, checkIntervalMs = 1_000L)
-            }.onFailure { Log.e(TAG, "Failed to start ANRWatchdog", it) }
-            // v1.7.0: 初始化用户行为分析（隐私优先，用户可控）
-            runCatching {
-                AnalyticsManager.init(this)
-            }.onFailure { Log.e(TAG, "Failed to init AnalyticsManager", it) }
-            // v1.7.0: 连接 Google Play Billing 计费服务
-            runCatching {
-                BillingManager.init(this).connect()
-            }.onFailure { Log.e(TAG, "Failed to init BillingManager", it) }
-            enableStrictModeInDebug()
-            // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
-            applyPerAppLanguageAsync()
-            registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
-            // v1.5.3: 主动检查关键设备能力，记录到日志便于后续诊断
-            logDeviceCapabilities()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in Application.onCreate", e)
-        }
+        // v1.8.0 冷启动优化：使用 StartupOptimizer 分级初始化
+        // CRITICAL 级在主线程同步执行，确保崩溃捕获最早安装
+        // HIGH/MEDIUM/LOW 级延迟到首帧渲染后，减少冷启动阻塞
+        StartupOptimizer
+            .schedule(StartupOptimizer.Priority.CRITICAL, "CrashHandler") {
+                CrashHandler.install(this)
+            }
+            .schedule(StartupOptimizer.Priority.CRITICAL, "CrashReporter") {
+                runCatching { CrashReporter.init(this) }
+            }
+            .schedule(StartupOptimizer.Priority.CRITICAL, "ANRWatchdog") {
+                runCatching { ANRWatchdog.start(blockThresholdMs = 2_000L, checkIntervalMs = 1_000L) }
+            }
+            .schedule(StartupOptimizer.Priority.CRITICAL, "StrictMode") {
+                enableStrictModeInDebug()
+            }
+            .schedule(StartupOptimizer.Priority.CRITICAL, "PerformanceMonitor") {
+                runCatching { PerformanceMonitor.init(this) }
+            }
+            .schedule(StartupOptimizer.Priority.CRITICAL, "ImageProcessor") {
+                runCatching { ImageProcessor.init(this) }
+            }
+            .schedule(StartupOptimizer.Priority.HIGH, "Analytics") {
+                runCatching { AnalyticsManager.init(this) }
+            }
+            .schedule(StartupOptimizer.Priority.HIGH, "Billing") {
+                runCatching { BillingManager.init(this).connect() }
+            }
+            .schedule(StartupOptimizer.Priority.MEDIUM, "NetworkCache") {
+                runCatching { NetworkCache.getClient(this) }
+            }
+            .execute()
+
+        // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
+        applyPerAppLanguageAsync()
+        registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
+        // v1.5.3: 主动检查关键设备能力，记录到日志便于后续诊断
+        logDeviceCapabilities()
     }
 
     /**
@@ -100,6 +110,23 @@ class RapidRawApp : Application() {
                 runCatching { vmBuilder.detectUnsafeIntentLaunch() }
             }
             StrictMode.setVmPolicy(vmBuilder.build())
+        }
+    }
+
+    /**
+     * v1.8.0: Debug 构建启用 LeakCanary 内存泄漏检测。
+     * Release 包零开销（完全排除）。
+     */
+    private fun enableLeakCanaryInDebug() {
+        if (BuildConfig.DEBUG) {
+            runCatching {
+                // LeakCanary 通过 ContentProvider 自动初始化，
+                // 此处仅做显式注册以支持自定义配置
+                leakcanary.LeakCanary.config = leakcanary.LeakCanary.config.copy(
+                    dumpHeap = true,
+                    retainedVisibleThreshold = 5,
+                )
+            }.onFailure { Log.w(TAG, "LeakCanary not available") }
         }
     }
 
