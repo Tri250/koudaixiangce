@@ -247,6 +247,36 @@ class EditorViewModel(
     private val _userPresets = MutableStateFlow<List<Preset>>(emptyList())
     val userPresets: StateFlow<List<Preset>> = _userPresets.asStateFlow()
 
+    // ── BM3D Denoising State ────────────────────────────────────────
+    private val _bm3dProgress = MutableStateFlow(0f)
+    val bm3dProgress: StateFlow<Float> = _bm3dProgress.asStateFlow()
+
+    private val _isBm3dProcessing = MutableStateFlow(false)
+    val isBm3dProcessing: StateFlow<Boolean> = _isBm3dProcessing.asStateFlow()
+
+    // ── Creative Light Effects State ────────────────────────────────
+    private val _showLightEffectsPanel = MutableStateFlow(false)
+    val showLightEffectsPanel: StateFlow<Boolean> = _showLightEffectsPanel.asStateFlow()
+
+    // ── Advanced Skin Whitening State ───────────────────────────────
+    private val _showAdvancedWhiteningPanel = MutableStateFlow(false)
+    val showAdvancedWhiteningPanel: StateFlow<Boolean> = _showAdvancedWhiteningPanel.asStateFlow()
+
+    // ── AI LLM Color Grading State ──────────────────────────────────
+    private val _aiLlmSuggestion = MutableStateFlow<com.rapidraw.ai.AiLlmColorGrader.AnalysisResult?>(null)
+    val aiLlmSuggestion: StateFlow<com.rapidraw.ai.AiLlmColorGrader.AnalysisResult?> = _aiLlmSuggestion.asStateFlow()
+
+    private val _isAiLlmLoading = MutableStateFlow(false)
+    val isAiLlmLoading: StateFlow<Boolean> = _isAiLlmLoading.asStateFlow()
+
+    // ── Panorama Stitcher State ─────────────────────────────────────
+    private val _panoramaProgress = MutableStateFlow(com.rapidraw.core.PanoramaStitcher.Progress(
+        com.rapidraw.core.PanoramaStitcher.Stage.DETECTING_FEATURES, 0f, ""))
+    val panoramaProgress: StateFlow<com.rapidraw.core.PanoramaStitcher.Progress> = _panoramaProgress.asStateFlow()
+
+    private val _isStitching = MutableStateFlow(false)
+    val isStitching: StateFlow<Boolean> = _isStitching.asStateFlow()
+
     init {
         // 异步初始化 LUT 库（防崩溃：asset 加载失败不阻塞启动）
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
@@ -448,6 +478,21 @@ class EditorViewModel(
         smartOptimizeJob?.cancel()
         pushUndo(describeAdjustmentChange(key, value))
         _adjustments.value = _adjustments.value.copyByField(key, value)
+        schedulePreviewUpdate()
+    }
+
+    /**
+     * Update adjustments using a transform lambda (for bulk updates from AI/LLM suggestions etc.)
+     */
+    fun updateAdjustments(transform: (Adjustments) -> Adjustments) {
+        _adjustments.value = transform(_adjustments.value)
+        schedulePreviewUpdate()
+    }
+
+    /**
+     * Trigger a preview refresh after adjustments have been changed externally.
+     */
+    fun triggerPreviewUpdate() {
         schedulePreviewUpdate()
     }
 
@@ -1513,7 +1558,7 @@ class EditorViewModel(
             _isAiProcessing.value = true
             runCatching {
                 val whitened = com.rapidraw.core.FaceWhiteningProcessor().process(source, _faceWhiteningParams.value)
-                // 将 BeautyPanel 的色相参数转换为 ColorReplacementProcessor.Params
+                // 将 BeautyPanel 的色相参数转换为 ColorReplacementProcessor 调用
                 val sourceHue = _colorReplacementSourceHue.value
                 val targetHue = _colorReplacementTargetHue.value
                 val hueShift = (targetHue - sourceHue).let {
@@ -1523,13 +1568,14 @@ class EditorViewModel(
                         else -> it
                     }
                 }
-                val crParams = com.rapidraw.core.ColorReplacementProcessor.Params(
+                val crResult = com.rapidraw.core.ColorReplacementProcessor().processFromHue(
+                    bitmap = whitened,
                     sourceHue = sourceHue,
                     hueWidth = _colorReplacementRange.value,
                     hueShift = hueShift,
                     intensity = _colorReplacementIntensity.value,
                 )
-                val result = com.rapidraw.core.ColorReplacementProcessor().process(whitened, crParams)
+                val result = crResult.bitmap
                 bitmapMutex.withLock {
                     // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出结果包含美颜修改。
                     originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
@@ -1546,6 +1592,270 @@ class EditorViewModel(
                 _event.value = EditorEvent.Error("美颜效果应用失败: ${throwable.localizedMessage}")
             }
             _isAiProcessing.value = false
+        }
+    }
+
+    // ── BM3D Denoising (高级降噪) ──────────────────────────────────
+
+    fun applyBm3dDenoising(sigma: Float) {
+        if (sigma <= 0f || originalBitmap == null) return
+        aiJob?.cancel()
+        aiJob = viewModelScope.launch(coroutineExceptionHandler) {
+            _isBm3dProcessing.value = true
+            _bm3dProgress.value = 0f
+            try {
+                val bitmap = previewBitmapCache ?: return@launch
+                val denoiser = com.rapidraw.core.Bm3dDenoiser()
+                val result = denoiser.denoise(bitmap, com.rapidraw.core.Bm3dDenoiser.Params(sigma = sigma)) { progress ->
+                    _bm3dProgress.value = progress.progress
+                }
+                if (!result.isRecycled) {
+                    previewBitmapCache = result
+                    _previewBitmap.value = result
+                    updateAdjustments { it.copy(bm3dSigma = sigma) }
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                Log.e(TAG, "BM3D denoising failed", e)
+                _event.value = EditorEvent.Error("BM3D降噪失败: ${e.message}")
+            } finally {
+                _isBm3dProcessing.value = false
+                _bm3dProgress.value = 0f
+            }
+        }
+    }
+
+    // ── Creative Light Effects (创意光效) ──────────────────────────
+
+    fun setShowLightEffectsPanel(show: Boolean) {
+        _showLightEffectsPanel.value = show
+    }
+
+    fun applyCreativeLightEffects() {
+        val bitmap = previewBitmapCache ?: return
+        val adj = _adjustments.value
+        val hasEffects = adj.glowAmount > 0f || adj.halationAmount > 0f || adj.flareAmount > 0f
+        if (!hasEffects) return
+
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            try {
+                val effects = com.rapidraw.core.CreativeLightEffects()
+                val params = com.rapidraw.core.CreativeLightEffects.Params(
+                    glow = com.rapidraw.core.CreativeLightEffects.GlowParams(
+                        amount = adj.glowAmount / 100f,
+                        radius = adj.glowRadius,
+                        brightnessThreshold = adj.glowThreshold / 100f
+                    ),
+                    halation = com.rapidraw.core.CreativeLightEffects.HalationParams(
+                        amount = adj.halationAmount / 100f,
+                        radius = adj.halationRadius
+                    ),
+                    flare = com.rapidraw.core.CreativeLightEffects.LensFlareParams(
+                        amount = adj.flareAmount / 100f,
+                        lightX = adj.flareLightX / 100f,
+                        lightY = adj.flareLightY / 100f,
+                        ghostCount = adj.flareGhostCount,
+                        streakCount = adj.flareStreakCount
+                    )
+                )
+                val result = effects.apply(bitmap, params)
+                if (!result.isRecycled) {
+                    previewBitmapCache = result
+                    _previewBitmap.value = result
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Creative light effects failed", e)
+            }
+        }
+    }
+
+    // ── Advanced Skin Whitening (高级美白) ─────────────────────────
+
+    fun setShowAdvancedWhiteningPanel(show: Boolean) {
+        _showAdvancedWhiteningPanel.value = show
+    }
+
+    fun applyAdvancedSkinWhitening(intensity: Float, smoothness: Float) {
+        val bitmap = previewBitmapCache ?: return
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            try {
+                val whitener = com.rapidraw.core.AdvancedSkinWhitener()
+                val params = com.rapidraw.core.AdvancedSkinWhitener.Params(
+                    intensity = intensity.toInt(),
+                    transitionSmoothness = smoothness.toInt()
+                )
+                val result = whitener.process(bitmap, params)
+                if (!result.isRecycled) {
+                    previewBitmapCache = result
+                    _previewBitmap.value = result
+                    updateAdjustments {
+                        it.copy(advancedSkinWhiteningIntensity = intensity, advancedSkinWhiteningSmoothness = smoothness)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Advanced skin whitening failed", e)
+            }
+        }
+    }
+
+    // ── Highlight Reconstruction (高光重建 - 高级版) ──────────────
+
+    fun applyAdvancedHighlightReconstruction() {
+        val bitmap = previewBitmapCache ?: return
+        val adj = _adjustments.value
+        if (adj.highlightReconstructionMethod == 0) return
+
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            try {
+                val reconstructor = com.rapidraw.core.HighlightReconstructor()
+                val method = when (adj.highlightReconstructionMethod) {
+                    1 -> com.rapidraw.core.HighlightReconstructor.Method.RECONSTRUCT
+                    2 -> com.rapidraw.core.HighlightReconstructor.Method.COLOR_BLEND
+                    else -> com.rapidraw.core.HighlightReconstructor.Method.CLIP
+                }
+                val params = com.rapidraw.core.HighlightReconstructor.Params(
+                    method = method,
+                    threshold = adj.highlightReconstructionThreshold,
+                    level = adj.highlightReconstructionLevel
+                )
+                // Convert bitmap to float array, apply reconstruction, convert back
+                val w = bitmap.width
+                val h = bitmap.height
+                val pixels = IntArray(w * h)
+                bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+                val linearData = FloatArray(w * h * 3)
+                for (i in pixels.indices) {
+                    val p = pixels[i]
+                    val r = ((p shr 16) and 0xFF) / 255f
+                    val g = ((p shr 8) and 0xFF) / 255f
+                    val b = (p and 0xFF) / 255f
+                    // sRGB to linear
+                    linearData[i * 3] = com.rapidraw.core.ColorMath.srgbToLinear(r)
+                    linearData[i * 3 + 1] = com.rapidraw.core.ColorMath.srgbToLinear(g)
+                    linearData[i * 3 + 2] = com.rapidraw.core.ColorMath.srgbToLinear(b)
+                }
+                val reconstructed = reconstructor.reconstruct(linearData, w, h, params)
+                // Convert back
+                for (i in pixels.indices) {
+                    val r = com.rapidraw.core.ColorMath.linearToSrgb(reconstructed[i * 3].coerceIn(0f, 1f))
+                    val g = com.rapidraw.core.ColorMath.linearToSrgb(reconstructed[i * 3 + 1].coerceIn(0f, 1f))
+                    val b = com.rapidraw.core.ColorMath.linearToSrgb(reconstructed[i * 3 + 2].coerceIn(0f, 1f))
+                    val ri = (r * 255f).toInt().coerceIn(0, 255)
+                    val gi = (g * 255f).toInt().coerceIn(0, 255)
+                    val bi = (b * 255f).toInt().coerceIn(0, 255)
+                    val ai = (pixels[i] ushr 24) and 0xFF
+                    pixels[i] = (ai shl 24) or (ri shl 16) or (gi shl 8) or bi
+                }
+                val result = Bitmap.createBitmap(w, h, bitmap.config ?: Bitmap.Config.ARGB_8888)
+                result.setPixels(pixels, 0, w, 0, 0, w, h)
+                previewBitmapCache = result
+                _previewBitmap.value = result
+            } catch (e: Exception) {
+                Log.e(TAG, "Highlight reconstruction failed", e)
+            }
+        }
+    }
+
+    // ── AI LLM Color Grading (AI LLM 调色) ────────────────────────
+
+    fun requestAiColorGrading(style: String = "") {
+        val bitmap = previewBitmapCache ?: return
+        aiJob?.cancel()
+        aiJob = viewModelScope.launch(coroutineExceptionHandler) {
+            _isAiLlmLoading.value = true
+            try {
+                val grader = com.rapidraw.ai.AiLlmColorGrader(appContext)
+                val config = grader.loadConfig()
+                if (config.apiKey.isBlank()) {
+                    _event.value = EditorEvent.Error("请先在设置中配置AI调色API Key")
+                    return@launch
+                }
+                val result = grader.analyzeAndSuggest(bitmap, config, style)
+                result.onSuccess { analysis ->
+                    _aiLlmSuggestion.value = analysis
+                    // Auto-apply top suggestion
+                    if (analysis.suggestions.isNotEmpty()) {
+                        val topSuggestion = analysis.suggestions.first()
+                        var adj = _adjustments.value
+                        for ((key, value) in topSuggestion.adjustments) {
+                            adj = adj.copyByField(key, value)
+                        }
+                        _adjustments.value = adj
+                        triggerPreviewUpdate()
+                    }
+                }.onFailure { error ->
+                    _event.value = EditorEvent.Error("AI调色失败: ${error.message}")
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                _event.value = EditorEvent.Error("AI调色失败: ${e.message}")
+            } finally {
+                _isAiLlmLoading.value = false
+            }
+        }
+    }
+
+    fun saveAiLlmConfig(config: com.rapidraw.ai.AiLlmColorGrader.LlmConfig) {
+        val grader = com.rapidraw.ai.AiLlmColorGrader(appContext)
+        grader.saveConfig(config)
+    }
+
+    // ── Lens Projection Transform (镜头投影变换) ──────────────────
+
+    fun applyLensProjectionTransform(srcProjection: Int, dstProjection: Int) {
+        val bitmap = previewBitmapCache ?: return
+        if (srcProjection == dstProjection) return
+
+        viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
+            try {
+                val transform = com.rapidraw.core.LensProjectionTransform()
+                val srcType = com.rapidraw.core.LensProjectionTransform.ProjectionType.entries[srcProjection.coerceIn(0, 7)]
+                val dstType = com.rapidraw.core.LensProjectionTransform.ProjectionType.entries[dstProjection.coerceIn(0, 7)]
+                val params = com.rapidraw.core.LensProjectionTransform.Params(
+                    srcProjection = srcType,
+                    dstProjection = dstType
+                )
+                val result = transform.transform(bitmap, params)
+                if (!result.isRecycled) {
+                    previewBitmapCache = result
+                    _previewBitmap.value = result
+                    updateAdjustments { it.copy(lensProjectionSrc = srcProjection, lensProjectionDst = dstProjection) }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Lens projection transform failed", e)
+                _event.value = EditorEvent.Error("镜头投影变换失败: ${e.message}")
+            }
+        }
+    }
+
+    // ── Panorama Stitcher (全景拼接) ───────────────────────────────
+
+    suspend fun stitchPanorama(uris: List<Uri>): Bitmap? {
+        if (uris.size < 2) return null
+        _isStitching.value = true
+        try {
+            val stitcher = com.rapidraw.core.PanoramaStitcher()
+            val bitmaps = uris.mapNotNull { uri ->
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        android.provider.MediaStore.Images.Media.getBitmap(appContext.contentResolver, uri)
+                    }.getOrNull()
+                }
+            }
+            if (bitmaps.size < 2) {
+                _event.value = EditorEvent.Error("需要至少2张有效图片")
+                return null
+            }
+            val result = stitcher.stitch(bitmaps) { progress ->
+                _panoramaProgress.value = progress
+            }
+            return result?.panorama
+        } catch (e: Exception) {
+            Log.e(TAG, "Panorama stitching failed", e)
+            _event.value = EditorEvent.Error("全景拼接失败: ${e.message}")
+            return null
+        } finally {
+            _isStitching.value = false
         }
     }
 

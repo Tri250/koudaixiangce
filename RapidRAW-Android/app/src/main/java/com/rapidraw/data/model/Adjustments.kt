@@ -296,6 +296,69 @@ data class Adjustments(
 
     // ── AI Patches ────────────────────────────────────────────
     val aiPatches: List<AiPatch> = emptyList(),
+
+    // ── Highlight Reconstruction (AlcedoStudio) ──────────────
+    // 0=Clip, 1=Reconstruct, 2=ColorBlend
+    val highlightReconstructionMethod: Int = 0,
+    // 0..1, clipping threshold for highlight reconstruction
+    val highlightReconstructionThreshold: Float = 0.995f,
+    // 1..5, reconstruction iteration level
+    val highlightReconstructionLevel: Int = 3,
+
+    // ── Lens Projection Transform (AlcedoStudio) ─────────────
+    // 0=Rectilinear, 1=Fisheye, 2=Panini, 3=Equirectangular,
+    // 4=Orthographic, 5=Stereographic, 6=Equisolid, 7=Thoby
+    val lensProjectionSrc: Int = 0,
+    val lensProjectionDst: Int = 0,
+
+    // ── Advanced Skin Whitening (PixelFruit 4-method fusion) ─
+    // 0..100, intensity for advanced 4-method skin whitening
+    val advancedSkinWhiteningIntensity: Float = 0f,
+    // 0..100, transition smoothness
+    val advancedSkinWhiteningSmoothness: Float = 50f,
+
+    // ── BM3D Professional Denoising (RapidRAW) ───────────────
+    // 0..100, noise sigma for BM3D denoising (0=off)
+    val bm3dSigma: Float = 0f,
+
+    // ── Creative Light Effects (RapidRAW) ────────────────────
+    // Glow parameters (separate from existing glowAmount)
+    val glowRadius: Float = 30f,                // pixels
+    val glowThreshold: Float = 70f,             // 0..100 brightness threshold
+    // Halation parameters (separate from existing halationAmount)
+    val halationRadius: Float = 20f,            // pixels
+    // Lens Flare parameters (separate from existing flareAmount)
+    val flareLightX: Float = 30f,               // 0..100 normalized light position
+    val flareLightY: Float = 20f,               // 0..100 normalized light position
+    val flareGhostCount: Int = 6,               // 1..12 ghost elements
+    val flareStreakCount: Int = 6,              // 1..12 streak rays
+
+    // ── Watermark (RapidRAW) ─────────────────────────────────
+    // 0=None, 1=TopLeft, 2=TopCenter, 3=TopRight,
+    // 4=MidLeft, 5=MidCenter, 6=MidRight,
+    // 7=BottomLeft, 8=BottomCenter, 9=BottomRight
+    val watermarkAnchor: Int = 0,
+    val watermarkOpacity: Float = 50f,          // 0..100
+    val watermarkText: String = "",             // empty = no text watermark
+    val watermarkFontSize: Float = 24f,
+    val watermarkImageUri: String = "",         // empty = no image watermark
+    val watermarkScale: Float = 10f,            // 1..50 % of output width
+    val watermarkOffsetX: Float = 16f,          // pixels
+    val watermarkOffsetY: Float = 16f,          // pixels
+
+    // ── Color Replacement (PixelFruit) ──────────────────────
+    val colorReplacementEnabled: Boolean = false,
+    val colorReplacementSourceHue: Float = 0f,      // 0..360
+    val colorReplacementTargetHue: Float = 180f,     // 0..360
+    val colorReplacementRange: Float = 30f,           // 1..180 degrees
+    val colorReplacementTolerance: Float = 80f,      // 10..200
+    val colorReplacementIntensity: Float = 100f,      // 0..100
+
+    // ── LMT Stack (AlcedoStudio OCIO) ──────────────────────
+    // Comma-separated LUT file paths applied in order
+    val lmtStack: String = "",
+    // 0..100, global LMT intensity
+    val lmtIntensity: Float = 100f,
 ) {
     fun copyByField(key: String, value: Float): Adjustments = when (key) {
         // Basic
@@ -483,6 +546,41 @@ data class Adjustments(
         "oklabLightness" -> copy(oklabLightness = value.coerceIn(-1f, 1f))
         "oklabContrast" -> copy(oklabContrast = value.coerceIn(-1f, 1f))
         "oklabTextureAmount" -> copy(oklabTextureAmount = value.coerceIn(0f, 1f))
+        // Highlight Reconstruction (AlcedoStudio)
+        "highlightReconstructionMethod" -> copy(highlightReconstructionMethod = value.toInt().coerceIn(0, 2))
+        "highlightReconstructionThreshold" -> copy(highlightReconstructionThreshold = value.coerceIn(0.9f, 1f))
+        "highlightReconstructionLevel" -> copy(highlightReconstructionLevel = value.toInt().coerceIn(1, 5))
+        // Lens Projection Transform (AlcedoStudio)
+        "lensProjectionSrc" -> copy(lensProjectionSrc = value.toInt().coerceIn(0, 7))
+        "lensProjectionDst" -> copy(lensProjectionDst = value.toInt().coerceIn(0, 7))
+        // Advanced Skin Whitening (PixelFruit)
+        "advancedSkinWhiteningIntensity" -> copy(advancedSkinWhiteningIntensity = value.coerceIn(0f, 100f))
+        "advancedSkinWhiteningSmoothness" -> copy(advancedSkinWhiteningSmoothness = value.coerceIn(0f, 100f))
+        // BM3D Professional Denoising (RapidRAW)
+        "bm3dSigma" -> copy(bm3dSigma = value.coerceIn(0f, 100f))
+        // Creative Light Effects (RapidRAW)
+        "glowRadius" -> copy(glowRadius = value.coerceIn(1f, 100f))
+        "glowThreshold" -> copy(glowThreshold = value.coerceIn(0f, 100f))
+        "halationRadius" -> copy(halationRadius = value.coerceIn(1f, 100f))
+        "flareLightX" -> copy(flareLightX = value.coerceIn(0f, 100f))
+        "flareLightY" -> copy(flareLightY = value.coerceIn(0f, 100f))
+        "flareGhostCount" -> copy(flareGhostCount = value.toInt().coerceIn(1, 12))
+        "flareStreakCount" -> copy(flareStreakCount = value.toInt().coerceIn(1, 12))
+        // Watermark (RapidRAW)
+        "watermarkAnchor" -> copy(watermarkAnchor = value.toInt().coerceIn(0, 9))
+        "watermarkOpacity" -> copy(watermarkOpacity = value.coerceIn(0f, 100f))
+        "watermarkFontSize" -> copy(watermarkFontSize = value.coerceIn(8f, 72f))
+        "watermarkScale" -> copy(watermarkScale = value.coerceIn(1f, 50f))
+        "watermarkOffsetX" -> copy(watermarkOffsetX = value.coerceIn(0f, 500f))
+        "watermarkOffsetY" -> copy(watermarkOffsetY = value.coerceIn(0f, 500f))
+        // Color Replacement (PixelFruit)
+        "colorReplacementSourceHue" -> copy(colorReplacementSourceHue = value.coerceIn(0f, 360f))
+        "colorReplacementTargetHue" -> copy(colorReplacementTargetHue = value.coerceIn(0f, 360f))
+        "colorReplacementRange" -> copy(colorReplacementRange = value.coerceIn(1f, 180f))
+        "colorReplacementTolerance" -> copy(colorReplacementTolerance = value.coerceIn(10f, 200f))
+        "colorReplacementIntensity" -> copy(colorReplacementIntensity = value.coerceIn(0f, 100f))
+        // LMT Stack (AlcedoStudio OCIO)
+        "lmtIntensity" -> copy(lmtIntensity = value.coerceIn(0f, 100f))
         else -> this
     }
 
