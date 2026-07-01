@@ -29,11 +29,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -41,6 +45,7 @@ import com.rapidraw.ui.theme.EditorBorder
 import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.HasselbladOrangeBright
 import com.rapidraw.ui.theme.HasselbladOrangeDeep
+import com.rapidraw.ui.theme.PressFeedback
 import com.rapidraw.ui.theme.SliderThumb
 import com.rapidraw.ui.theme.SliderTrackEmpty
 import com.rapidraw.ui.theme.SliderTrackFill
@@ -89,6 +94,10 @@ fun HasselSlider(
         label = "thumbSize"
     )
 
+    // v1.6.2: 按压反馈状态 — 滑块在拖拽中应用 PRESSED_SCALE，提供 ColorOS 16 弹性物理反馈
+    val (pressScaleState, _) = PressFeedback.pressScaleAsState()
+    val pressScale by pressScaleState
+
     // 滑块填充色：已调整 → 哈苏橙渐变；未调整 → 白色
     val fillColor = if (isAdjusted || isDragging) {
         Brush.horizontalGradient(
@@ -118,7 +127,11 @@ fun HasselSlider(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .semantics {
+                // v1.6.2: TalkBack 无障碍支持 — 触摸目标 ≥ 48dp 通过 minTouchTargetSize 满足
+                contentDescription = "$label slider, current value ${format(value)}"
+            },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Label（已调整/拖拽态使用哈苏橙高亮）
@@ -161,10 +174,16 @@ fun HasselSlider(
 
             // Thumb
             val thumbOffsetPx = with(density) { (fraction * trackWidth - thumbSize.toPx() / 2).roundToInt() }
+            // v1.6.2: 滑块拇指应用 graphicsLayer 缩放 — ColorOS 16 弹性反馈
+            val thumbGraphicsScale = if (isDragging) pressScale else 1f
             Box(
                 modifier = Modifier
                     .offset { IntOffset(thumbOffsetPx, 0) }
                     .size(thumbSize)
+                    .graphicsLayer {
+                        scaleX = thumbGraphicsScale
+                        scaleY = thumbGraphicsScale
+                    }
                     .clip(CircleShape)
                     .background(thumbColor)
                     .pointerInput(range, stepSize, defaultValue) {

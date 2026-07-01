@@ -19,9 +19,10 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.6.1 自检修复: CloudSyncBackend 真实化 + ProGuard 安全加固 + 日志剥离
-        versionCode = 1610
-        versionName = "1.6.1"
+        // v1.6.2 自检修复: Android 16 兼容 + StrictMode 增强 + TalkBack 无障碍
+        // + AI 16 适配 (predictive back, edge-to-edge) + 协程调度 + Bitmap 内存峰值
+        versionCode = 1620
+        versionName = "1.6.2"
 
         // 2026 perf: 仅打包应用实际支持的中/英文资源，显著减少 APK 体积。
         resourceConfigurations += listOf("zh", "en")

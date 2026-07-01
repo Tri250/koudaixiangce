@@ -155,3 +155,30 @@
 
 # v1.6.1 安全加固: cloud sync 后端
 -keep class com.rapidraw.cloud.** { *; }
+
+# v1.6.2 兼容性加固: Android 16 StrictMode 内部类 (反射访问)
+-keep class android.os.StrictMode$** { *; }
+-dontwarn android.os.StrictMode$VmPolicy$Builder
+
+# v1.6.2 兼容性加固: Android 16 predictive back (OnBackInvokedCallback)
+-keep class androidx.activity.OnBackPressedDispatcher { *; }
+-keep class androidx.activity.OnBackPressedDispatcher$** { *; }
+-dontwarn androidx.activity.**
+
+# v1.6.2 兼容性加固: Compose 交互源 (PressFeedback Modifier)
+-keep class androidx.compose.foundation.interaction.** { *; }
+-dontwarn androidx.compose.foundation.interaction.**
+
+# v1.6.2 兼容性加固: 保持 Motion / PressFeedback 反射访问
+-keep class com.rapidraw.ui.theme.Motion { *; }
+-keep class com.rapidraw.ui.theme.Motion$** { *; }
+-keep class com.rapidraw.ui.theme.PressFeedback { *; }
+-keep class com.rapidraw.ui.theme.PressFeedback$** { *; }
+
+# v1.6.2 兼容性加固: 保持 EditorViewModel 中 ViewModel 工厂
+-keep class com.rapidraw.ui.editor.EditorViewModel$Factory { *; }
+-keep class com.rapidraw.ui.editor.EditorViewModel$** { *; }
+
+# v1.6.2 兼容性加固: 保持 CrashHandler 协程异常处理器
+-keep class com.rapidraw.core.CrashHandler { *; }
+-keep class com.rapidraw.core.CrashHandler$** { *; }

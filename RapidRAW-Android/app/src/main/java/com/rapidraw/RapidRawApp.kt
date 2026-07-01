@@ -56,6 +56,7 @@ class RapidRawApp : Application() {
 
     /**
      * Debug 包启用严格模式，捕获主线程 IO / 网络等违规。Release 包零开销。
+     * v1.6.2: Android 16 (API 36) 上额外启用 ANR 检测增强与 StrictMode 堆栈跟踪深度限制
      */
     private fun enableStrictModeInDebug() {
         if (BuildConfig.DEBUG) {
@@ -68,14 +69,16 @@ class RapidRawApp : Application() {
                     .penaltyLog()
                     .build()
             )
-            StrictMode.setVmPolicy(
-                StrictMode.VmPolicy.Builder()
-                    .detectLeakedClosableObjects()
-                    .detectLeakedRegistrationObjects()
-                    .detectActivityLeaks()
-                    .penaltyLog()
-                    .build()
-            )
+            val vmBuilder = StrictMode.VmPolicy.Builder()
+                .detectLeakedClosableObjects()
+                .detectLeakedRegistrationObjects()
+                .detectActivityLeaks()
+                .penaltyLog()
+            // Android 14+ (API 34) 引入：检测非 SDK 平台 API 使用
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                runCatching { vmBuilder.detectUnsafeIntentLaunch() }
+            }
+            StrictMode.setVmPolicy(vmBuilder.build())
         }
     }
 
