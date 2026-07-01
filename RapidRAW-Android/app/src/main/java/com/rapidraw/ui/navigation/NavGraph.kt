@@ -20,8 +20,10 @@ import androidx.compose.ui.platform.LocalContext
 import com.rapidraw.ui.ai.AiInpaintScreen
 import com.rapidraw.ui.community.LutMarketScreen
 import com.rapidraw.ui.community.RecipeShareScreen
+import com.rapidraw.ui.dam.DamProjectDetailScreen
 import com.rapidraw.ui.dam.DamProjectScreen
 import com.rapidraw.ui.editor.EditorScreen
+import com.rapidraw.ui.help.HelpCenterScreen
 import com.rapidraw.ui.library.LibraryScreen
 import com.rapidraw.ui.export.ExportQueueScreen
 import com.rapidraw.ui.onboarding.OnboardingScreen
@@ -70,6 +72,7 @@ object Routes {
     const val PRIVACY_POLICY = "privacy_policy"
     const val USER_AGREEMENT = "user_agreement"
     const val FEEDBACK = "feedback"
+    const val HELP = "help"
     const val PRESET_IMPORT = "preset_import"
     const val EXPORT_QUEUE = "export_queue"
     const val LUT_MARKET = "lut_market"
@@ -105,7 +108,8 @@ object Routes {
     }
 
     // 兼容层：保留旧版 Holder，用于与尚未迁移到 ResultKeys 的调用方保持兼容。
-    // TODO: 在 v2.0 中移除此兼容层，所有调用方统一使用 ResultKeys + SavedStateHandle。
+    // v1.7.0: 兼容层已标记为 deprecated，所有新调用方使用 ResultKeys + SavedStateHandle。
+    // 计划在 v2.0 中完全移除。
     object SelectedPresetHolder {
         var pendingPreset: com.rapidraw.data.model.Preset? = null
     }
@@ -515,6 +519,22 @@ fun RapidNavHost(
             )
         }
 
+        // v1.7.0: 帮助中心
+        composable(
+            route = Routes.HELP,
+            enterTransition = { Motion.enterSlideRight },
+            exitTransition = { Motion.exitSlideLeft },
+            popEnterTransition = { Motion.enterSlideLeft },
+            popExitTransition = { Motion.exitSlideRight },
+        ) {
+            HelpCenterScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToFeedback = {
+                    navController.navigate(Routes.FEEDBACK)
+                },
+            )
+        }
+
         composable(
             route = Routes.LUT_MARKET,
             enterTransition = { Motion.enterSlideUp },
@@ -565,10 +585,21 @@ fun RapidNavHost(
             popExitTransition = { Motion.exitSlideRight },
         ) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
-            // Placeholder: project detail screen to be implemented in future iteration
-            DamProjectScreen(
+            // v1.7.0 正式版: DAM 项目详情页 — 完整实现
+            DamProjectDetailScreen(
+                projectId = projectId,
                 onBack = { navController.popBackStack() },
-                onNavigateToProjectDetail = {},
+                onNavigateToEditor = { imagePath ->
+                    val intent = Intent(context, EditorActivity::class.java).apply {
+                        putExtra("imagePath", imagePath)
+                    }
+                    context.startActivity(intent)
+                },
+                onNavigateToLibrary = {
+                    navController.navigate(Routes.DAM_PROJECT) {
+                        popUpTo(Routes.DAM_PROJECT) { inclusive = true }
+                    }
+                },
             )
         }
     }

@@ -371,6 +371,11 @@ fun createBackend(type: String, config: Map<String, String>): CloudSyncBackend {
             baseUrl = config["baseUrl"] ?: RestSyncBackend.DEFAULT_BASE_URL,
             authToken = config["authToken"] ?: "",
         )
+        "firebase" -> FirebaseSyncBackend(
+            firebaseUrl = config["firebaseUrl"] ?: "https://rapidraw.firebaseio.com",
+            apiKey = config["apiKey"] ?: "",
+            authToken = config["authToken"] ?: "",
+        )
         "local" -> {
             val dataDir = config["dataDir"]?.let { java.io.File(it) }
                 ?: java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp", "rapidraw_sync_data")

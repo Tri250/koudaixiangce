@@ -11,6 +11,8 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import com.rapidraw.core.ANRWatchdog
+import com.rapidraw.core.AnalyticsManager
+import com.rapidraw.core.BillingManager
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.CrashReporter
 import com.rapidraw.core.ImageProcessor
@@ -54,6 +56,14 @@ class RapidRawApp : Application() {
             runCatching {
                 ANRWatchdog.start(blockThresholdMs = 2_000L, checkIntervalMs = 1_000L)
             }.onFailure { Log.e(TAG, "Failed to start ANRWatchdog", it) }
+            // v1.7.0: 初始化用户行为分析（隐私优先，用户可控）
+            runCatching {
+                AnalyticsManager.init(this)
+            }.onFailure { Log.e(TAG, "Failed to init AnalyticsManager", it) }
+            // v1.7.0: 连接 Google Play Billing 计费服务
+            runCatching {
+                BillingManager.init(this).connect()
+            }.onFailure { Log.e(TAG, "Failed to init BillingManager", it) }
             enableStrictModeInDebug()
             // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
             applyPerAppLanguageAsync()

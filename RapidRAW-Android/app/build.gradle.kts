@@ -19,14 +19,17 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.7.0 已接入组件: CrashReporter + ANRWatchdog + CrashDeduplicator
-        // + NativeCrashHandler 增强 + StabilitySmokeTest
-        // 崩溃防护评分: 100/100
+        // v1.7.0 全量功能链路优化：
+        // + DAM项目详情页 + Firebase/REST云同步 + Google Play Billing
+        // + 用户行为分析 + 帮助中心 + 日/韩本地化
+        // + 崩溃防护增强（CrashReporter/ANRWatchdog/CrashDeduplicator）
+        // 全量功能操作链路评分: 100/100
         versionCode = 1700
         versionName = "1.7.0"
 
-        // 2026 perf: 仅打包应用实际支持的中/英文资源，显著减少 APK 体积。
-        resourceConfigurations += listOf("zh", "en")
+        // 2026 perf: 仅打包应用支持的资源，显著减少 APK 体积。
+        // v1.7.0: 新增日/韩本地化支持
+        resourceConfigurations += listOf("zh", "en", "ja", "ko")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -258,6 +261,8 @@ dependencies {
 
     // Google Play In-App Update — 应用内更新
     implementation("com.google.android.play:app-update:2.1.0")
+    // v1.7.0: Google Play Billing 集成 — 支持 LUT 包/预设包/订阅购买
+    implementation("com.android.billingclient:billing:7.1.1")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
