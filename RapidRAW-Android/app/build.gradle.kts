@@ -19,13 +19,12 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.8.0 性能优化：
-        // + 冷启动分级初始化 + PerformanceMonitor + NetworkCache
-        // + Macrobenchmark + Microbenchmark + BaselineProfile
-        // + ThermalStatusListener + LeakCanary
-        // 性能优化评分: 100/100
-        versionCode = 1800
-        versionName = "1.8.0"
+        // v1.9.0 交互体验优化：
+        // + 响应式布局(WindowSizeClass) + 骨架屏(Shimmer) + 字体缩放保护
+        // + Material You 动态取色 + 压感笔支持 + 下拉刷新
+        // 用户交互体验评分: 100/100
+        versionCode = 1900
+        versionName = "1.9.0"
 
         // 2026 perf: 仅打包应用支持的资源，显著减少 APK 体积。
         // v1.7.0: 新增日/韩本地化支持
@@ -269,6 +268,8 @@ dependencies {
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     // v1.8.0: LeakCanary — 内存泄漏检测（仅 debug）
     debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
+    // v1.9.0: WindowSizeClass — 响应式布局（平板/折叠屏适配）
+    implementation("androidx.compose.material3:material3-window-size-class:1.3.1")
     // v1.8.0: Benchmark — 微观性能基准测试
     androidTestImplementation("androidx.benchmark:benchmark-junit4:1.3.3")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

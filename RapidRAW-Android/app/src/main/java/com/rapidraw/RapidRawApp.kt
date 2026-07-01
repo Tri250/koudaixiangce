@@ -61,6 +61,9 @@ class RapidRawApp : Application() {
             .schedule(StartupOptimizer.Priority.CRITICAL, "StrictMode") {
                 enableStrictModeInDebug()
             }
+            .schedule(StartupOptimizer.Priority.CRITICAL, "FontScale") {
+                applyFontScaleLimit()
+            }
             .schedule(StartupOptimizer.Priority.CRITICAL, "PerformanceMonitor") {
                 runCatching { PerformanceMonitor.init(this) }
             }
@@ -270,5 +273,28 @@ class RapidRawApp : Application() {
         override fun onActivityDestroyed(activity: Activity) {
             Log.d(TAG, "Activity destroyed: ${activity.localClassName}")
         }
+    }
+
+    /**
+     * v1.9.0: 限制系统字体缩放倍率，防止超大字体导致 UI 溢出/截断。
+     * 最大缩放 1.3x，超出部分按 1.3x 处理。
+     * 注意：必须 override attachBaseContext，在最早时机执行。
+     */
+    override fun attachBaseContext(base: Context?) {
+        if (base != null) {
+            val config = base.resources.configuration
+            val maxScale = 1.3f
+            if (config.fontScale > maxScale) {
+                config.fontScale = maxScale
+                super.attachBaseContext(base.createConfigurationContext(config))
+                return
+            }
+        }
+        super.attachBaseContext(base)
+    }
+
+    private fun applyFontScaleLimit() {
+        val currentScale = resources.configuration.fontScale
+        Log.d(TAG, "Font scale: $currentScale")
     }
 }

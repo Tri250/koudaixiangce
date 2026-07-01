@@ -7,10 +7,12 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -111,9 +113,18 @@ private val RapidRawLightColorScheme = lightColorScheme(
 @Composable
 fun RapidRawTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,  // v1.9.0: Material You 动态取色
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = if (darkTheme) RapidRawDarkColorScheme else RapidRawLightColorScheme
+    val colorScheme = when {
+        // v1.9.0: Android 12+ 动态取色，跟随系统壁纸
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> RapidRawDarkColorScheme
+        else -> RapidRawLightColorScheme
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
