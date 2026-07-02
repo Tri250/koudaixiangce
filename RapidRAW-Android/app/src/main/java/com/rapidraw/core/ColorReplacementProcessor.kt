@@ -453,8 +453,8 @@ class ColorReplacementProcessor {
         baselineHeight = h
         baselineConfig = bitmap.config ?: Bitmap.Config.ARGB_8888
 
-        baselinePixels = IntArray(pixelCount.toInt())
-        bitmap.getPixels(baselinePixels, 0, w, 0, 0, w, h)
+        if (baselinePixels == null) baselinePixels = IntArray(pixelCount.toInt())
+        bitmap.getPixels(baselinePixels!!, 0, w, 0, 0, w, h)
     }
 
     // ── Preview management ──────────────────────────────────────────

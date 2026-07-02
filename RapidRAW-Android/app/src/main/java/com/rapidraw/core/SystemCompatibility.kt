@@ -125,7 +125,7 @@ object SystemCompatibility {
             isApiCompliant = isApiCompliant,
             isGooglePlayCompliant = isGooglePlayCompliant,
             supportedFeatures = supported,
-            unsupportedFeatures = unsupportedFeatures,
+            unsupportedFeatures = unsupported,
             recommendations = recommendations,
         )
     }

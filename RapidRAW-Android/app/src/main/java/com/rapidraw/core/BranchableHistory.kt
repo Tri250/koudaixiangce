@@ -2,6 +2,7 @@ package com.rapidraw.core
 
 import android.util.Log
 import com.rapidraw.data.model.Adjustments
+import com.rapidraw.data.model.HslChannel
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -1111,7 +1112,7 @@ class VirtualCopyManager(
         )
     }
 
-    private fun serializeHSL(hsl: Adjustments.HSL): JSONObject {
+    private fun serializeHSL(hsl: HslChannel): JSONObject {
         return JSONObject().apply {
             put("hue", hsl.hue)
             put("saturation", hsl.saturation)
@@ -1119,9 +1120,9 @@ class VirtualCopyManager(
         }
     }
 
-    private fun deserializeHSL(json: JSONObject?): Adjustments.HSL {
-        if (json == null) return Adjustments.HSL()
-        return Adjustments.HSL(
+    private fun deserializeHSL(json: JSONObject?): HslChannel {
+        if (json == null) return HslChannel()
+        return HslChannel(
             hue = json.optDouble("hue", 0.0).toFloat(),
             saturation = json.optDouble("saturation", 0.0).toFloat(),
             luminance = json.optDouble("luminance", 0.0).toFloat(),

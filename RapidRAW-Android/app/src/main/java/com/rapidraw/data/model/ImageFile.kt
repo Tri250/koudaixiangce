@@ -31,6 +31,7 @@ data class ImageFile(
     val adjustments: Adjustments? = null,
     val virtualCopyOf: String? = null,
     val lastEdited: Long? = null,
+    val status: String = "pending",
 ) {
     companion object {
         val RAW_EXTENSIONS: Set<String> = setOf(

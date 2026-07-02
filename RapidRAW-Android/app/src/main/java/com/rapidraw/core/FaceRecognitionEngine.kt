@@ -154,14 +154,15 @@ class FaceRecognitionEngine {
 
             // 非极大值抑制
             nonMaxSuppression(candidates)
+            candidates.toList()
         } catch (e: CancellationException) {
             throw e
         } catch (e: OutOfMemoryError) {
             Log.e(TAG, "Face detection OOM: ${e.message}", e)
-            emptyList()
+            emptyList<DetectedFace>()
         } catch (e: Exception) {
             Log.e(TAG, "Face detection failed: ${e.message}", e)
-            emptyList()
+            emptyList<DetectedFace>()
         }
     }
 
@@ -437,7 +438,8 @@ class FaceRecognitionEngine {
                                 1 to 0, 1 to 1, 0 to 1,
                                 -1 to 1, -1 to 0,
                             )
-                            for ((bit, (dx, dy)) in neighbors.withIndex()) {
+                            for ((bit, value) in neighbors.withIndex()) {
+                                val (dx, dy) = value
                                 val nx = (px + dx).coerceIn(0, 31)
                                 val ny = (py + dy).coerceIn(0, 31)
                                 if (grayValue(pixels[ny * 32 + nx]) >= center) {

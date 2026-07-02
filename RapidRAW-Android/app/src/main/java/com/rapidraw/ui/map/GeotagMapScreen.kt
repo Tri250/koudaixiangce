@@ -358,7 +358,7 @@ private fun MapCanvas(
             fun latLonToPixel(lat: Double, lon: Double): Offset {
                 val x = ((lon - minLon) / (maxLon - minLon) * canvasWidth * scale + offsetX)
                 val y = ((maxLat - lat) / (maxLat - minLat) * canvasHeight * scale + offsetY)
-                return Offset(x, y)
+                return Offset(x.toFloat(), y.toFloat())
             }
 
             // 绘制坐标网格
@@ -481,7 +481,7 @@ private fun DrawScope.drawGrid(
         val lat = minLat + latStep * i
         val y = ((maxLat - lat) / (maxLat - minLat) * canvasHeight * scale + offsetY)
         if (y in 0f..canvasHeight) {
-            drawLine(gridColor, Offset(0f, y), Offset(canvasWidth, y), strokeWidth = 1f)
+            drawLine(gridColor, Offset(0f, y.toFloat()), Offset(canvasWidth, y.toFloat()), strokeWidth = 1f)
         }
     }
 
@@ -491,7 +491,7 @@ private fun DrawScope.drawGrid(
         val lon = minLon + lonStep * i
         val x = ((lon - minLon) / (maxLon - minLon) * canvasWidth * scale + offsetX)
         if (x in 0f..canvasWidth) {
-            drawLine(gridColor, Offset(x, 0f), Offset(x, canvasHeight), strokeWidth = 1f)
+            drawLine(gridColor, Offset(x.toFloat(), 0f), Offset(x.toFloat(), canvasHeight), strokeWidth = 1f)
         }
     }
 }

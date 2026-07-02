@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -102,7 +103,7 @@ object CrashReporter {
             Log.w(TAG, "CrashReporter already initialized")
             return
         }
-        if (!scope.isActive) {
+        if (!(scope.coroutineContext[Job]?.isActive == true)) {
             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         }
         appContext = context.applicationContext
@@ -362,7 +363,7 @@ object CrashReporter {
      */
     fun shutdown() {
         if (!initialized.compareAndSet(true, false)) return
-        scope.cancel()
+        scope.coroutineContext[Job]?.cancel()
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         appContext = null
         Log.i(TAG, "CrashReporter shutdown")

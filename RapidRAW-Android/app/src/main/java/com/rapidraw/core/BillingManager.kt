@@ -16,6 +16,7 @@ import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -101,7 +102,7 @@ class BillingManager private constructor(
         }
         if (initialized.compareAndSet(false, true)) {
             userDisconnected.set(false)
-            if (!scope.isActive) {
+            if (!(scope.coroutineContext[Job]?.isActive == true)) {
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             }
             scope.launch { doConnect() }
@@ -364,7 +365,7 @@ class BillingManager private constructor(
     fun shutdown() {
         if (!destroyed.compareAndSet(false, true)) return
         disconnect()
-        scope.cancel()
+        scope.coroutineContext[Job]?.cancel()
         instance = null
         Log.i(TAG, "BillingManager shutdown")
     }

@@ -240,10 +240,20 @@ class FirebaseSyncBackend(
     }
 
     private fun getDeviceId(): String {
-        return android.provider.Settings.Secure.getString(
-            android.app.ActivityThread.currentApplication()?.contentResolver,
-            android.provider.Settings.Secure.ANDROID_ID,
-        ) ?: "unknown"
+        return try {
+            val activityThreadClass = Class.forName("android.app.ActivityThread")
+            val currentActivityThreadMethod = activityThreadClass.getMethod("currentActivityThread")
+            val activityThread = currentActivityThreadMethod.invoke(null)
+            val getApplicationMethod = activityThreadClass.getMethod("getApplication")
+            val application = getApplicationMethod.invoke(activityThread)
+            val contentResolver = application.javaClass.getMethod("getContentResolver").invoke(application)
+            android.provider.Settings.Secure.getString(
+                contentResolver as android.content.ContentResolver,
+                android.provider.Settings.Secure.ANDROID_ID,
+            ) ?: "unknown"
+        } catch (_: Exception) {
+            "unknown"
+        }
     }
 
     private fun sanitizeKey(key: String): String {

@@ -20,10 +20,11 @@ import com.rapidraw.data.model.FilmSimulation
 import com.rapidraw.data.model.MaskContainer
 import com.rapidraw.data.model.ResizeMode
 import com.rapidraw.data.model.WatermarkAnchor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -414,7 +415,7 @@ class ImageProcessor {
     suspend fun loadAndDecode(context: Context, uri: Uri): DecodedImage =
         withContext(Dispatchers.IO) {
             // v1.10.6: 大图解码耗时久，定期检查取消状态，避免用户离开页面后继续浪费资源
-            suspend fun ensureActive() { if (!isActive) throw CancellationException("loadAndDecode cancelled") }
+            suspend fun ensureActive() { if (!(coroutineContext[Job]?.isActive == true)) throw CancellationException("loadAndDecode cancelled") }
             try {
             ensureActive()
             val fileName = getFileName(context, uri)

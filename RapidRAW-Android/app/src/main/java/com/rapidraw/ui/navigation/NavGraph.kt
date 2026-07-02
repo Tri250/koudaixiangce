@@ -209,7 +209,7 @@ fun RapidNavHost(
             val context = LocalContext.current
             val vm: com.rapidraw.ui.editor.EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                 key = "editor_${image.path}",
-                factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext)
+                factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext) as androidx.lifecycle.ViewModelProvider.Factory
             )
 
             // 处理从 PresetsDiscovery / AiInpaint / PresetImport 返回的结果。
@@ -310,7 +310,7 @@ fun RapidNavHost(
             val context = LocalContext.current
             val vm: com.rapidraw.ui.editor.EditorViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                 key = "editor_${image.path}",
-                factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext)
+                factory = com.rapidraw.ui.editor.EditorViewModel.Factory(image, context.applicationContext) as androidx.lifecycle.ViewModelProvider.Factory
             )
 
             // 外部 Intent 进入的 Editor 同样需要处理 PresetsDiscovery / AiInpaint / PresetImport 返回结果

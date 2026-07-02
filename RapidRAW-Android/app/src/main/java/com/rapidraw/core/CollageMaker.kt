@@ -228,7 +228,7 @@ class CollageMaker {
     ): CollageResult {
         val config = if (images.isNotEmpty()) {
             val firstAssigned = assignments.firstOrNull { it >= 0 && it < images.size }
-            if (firstAssigned != null) images[firstAssigned].config else Bitmap.Config.ARGB_8888
+            if (firstAssigned != null) images[firstAssigned].config ?: Bitmap.Config.ARGB_8888 else Bitmap.Config.ARGB_8888
         } else {
             Bitmap.Config.ARGB_8888
         }
@@ -314,9 +314,10 @@ class CollageMaker {
         val srcRight = imgW
         val srcBottom = imgH
 
+        val srcRect = android.graphics.Rect(srcLeft.toInt(), srcTop.toInt(), srcRight.toInt(), srcBottom.toInt())
         canvas.drawBitmap(
             image,
-            RectF(srcLeft, srcTop, srcRight, srcBottom),
+            srcRect,
             RectF(dx, dy, dx + scaledW, dy + scaledH),
             Paint(Paint.FILTER_BITMAP_FLAG),
         )
@@ -363,7 +364,7 @@ class CollageMaker {
 
         canvas.drawBitmap(
             image,
-            RectF(0f, 0f, imgW, imgH),
+            android.graphics.Rect(0, 0, imgW.toInt(), imgH.toInt()),
             RectF(dx, dy, dx + scaledW, dy + scaledH),
             clipPaint,
         )

@@ -2,6 +2,7 @@ package com.rapidraw.core
 
 import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
+import android.util.Log
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint

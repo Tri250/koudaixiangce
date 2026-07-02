@@ -154,7 +154,7 @@ class GraduatedFilter {
         val maskPixels = IntArray(width * height)
         mask.getPixels(maskPixels, 0, width, 0, 0, width, height)
 
-        val exposureFactor = 2.0.pow(exposure.toDouble()).toFloat()
+        val exposureFactor = Math.pow(2.0, exposure.toDouble()).toFloat()
         val contrastFactor = 1f + contrast / 100f
         val saturationFactor = 1f + saturation / 100f
         val highlightsFactor = 1f + highlights / 100f

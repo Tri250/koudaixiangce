@@ -1,6 +1,7 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
+import android.util.Log
 import com.rapidraw.data.model.AdjustmentLayer
 import com.rapidraw.data.model.BlendMode
 import kotlin.math.abs

@@ -45,7 +45,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     fun completeOnboarding() {
         viewModelScope.launch {
             SafePreferences.putBoolean(prefs, OnboardingState.KEY_COMPLETED, true)
-            OnboardingState.markCompleted(application)
+            OnboardingState.markCompleted(getApplication())
             _isCompleted.value = true
         }
     }

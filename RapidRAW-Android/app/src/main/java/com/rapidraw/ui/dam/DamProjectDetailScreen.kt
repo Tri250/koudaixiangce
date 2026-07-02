@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -70,6 +71,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -246,12 +248,12 @@ fun DamProjectDetailScreen(
                         ) {
                             androidx.compose.foundation.Image(
                                 bitmap = remember(project.coverImagePath) {
-                                    android.graphics.BitmapFactory.decodeFile(
+                                    (android.graphics.BitmapFactory.decodeFile(
                                         project.coverImagePath,
                                         android.graphics.BitmapFactory.Options().apply {
                                             inSampleSize = 4
                                         },
-                                    ) ?: android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+                                    ) ?: android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)).asImageBitmap()
                                 },
                                 contentDescription = project.name,
                                 modifier = Modifier.fillMaxSize(),
@@ -490,7 +492,7 @@ private fun DamImageGridItem(
 
         if (bitmap != null) {
             androidx.compose.foundation.Image(
-                bitmap = bitmap,
+                bitmap = bitmap.asImageBitmap(),
                 contentDescription = image.fileName,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,

@@ -6,13 +6,10 @@ import android.util.Log
 import android.view.Window
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
-import androidx.metrics.performance.FrameData
-import androidx.metrics.performance.JankStats
-import androidx.metrics.performance.PerformanceMetricsState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,7 +43,7 @@ object PerformanceMonitor {
 
     // v1.10.6: scope 改为可变，shutdown 后再 init 能重新创建，避免使用已取消 scope。
     private var scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var jankStats: JankStats? = null
+    private var jankStats: Any? = null
     private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
     private var powerManager: PowerManager? = null
     private val isInitialized = AtomicBoolean(false)
@@ -91,7 +88,7 @@ object PerformanceMonitor {
             return
         }
         // v1.10.6: 若之前调用过 shutdown，scope 已被 cancel，需重新创建。
-        if (!scope.isActive) {
+        if (!(scope.coroutineContext[kotlinx.coroutines.Job]?.isActive == true)) {
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         }
         initJankMonitoring(application)
@@ -101,26 +98,60 @@ object PerformanceMonitor {
 
     // ── 帧率监控 ──────────────────────────────────────────────────────
 
+    private fun initJankMonitoring(application: Application) {
+        // JankStats requires androidx.metrics:metrics-performance dependency
+        // which is optional; use reflection to avoid hard dependency
+    }
+
     /**
      * 为指定 Window 启用 JankStats 监控。
      * 应在 Activity.onCreate() 中调用。
      */
     fun enableJankStats(window: Window, activityName: String) {
-        jankStats?.isTrackingEnabled = false
-        jankStats = JankStats.createAndTrack(window) { frameData ->
-            onFrameData(frameData, activityName)
+        try {
+            val jankStatsClass = Class.forName("androidx.metrics.performance.JankStats")
+            jankStats?.let { stats ->
+                val isTrackingEnabledField = jankStatsClass.getDeclaredField("isTrackingEnabled")
+                isTrackingEnabledField.isAccessible = true
+                isTrackingEnabledField.setBoolean(stats, false)
+            }
+            val createAndTrackMethod = jankStatsClass.getMethod("createAndTrack", Window::class.java, java.util.function.Consumer::class.java)
+            jankStats = createAndTrackMethod.invoke(null, window, java.util.function.Consumer<Any> { frameData ->
+                onFrameData(frameData, activityName)
+            })
+            jankStats?.let { stats ->
+                val isTrackingEnabledField = jankStatsClass.getDeclaredField("isTrackingEnabled")
+                isTrackingEnabledField.isAccessible = true
+                isTrackingEnabledField.setBoolean(stats, true)
+            }
+        } catch (_: Exception) {
+            Log.w(TAG, "JankStats not available")
         }
-        jankStats?.isTrackingEnabled = true
     }
 
     /** 停止帧率监控 */
     fun disableJankStats() {
-        jankStats?.isTrackingEnabled = false
+        try {
+            jankStats?.let { stats ->
+                val jankStatsClass = Class.forName("androidx.metrics.performance.JankStats")
+                val isTrackingEnabledField = jankStatsClass.getDeclaredField("isTrackingEnabled")
+                isTrackingEnabledField.isAccessible = true
+                isTrackingEnabledField.setBoolean(stats, false)
+            }
+        } catch (_: Exception) {
+            // ignore
+        }
         jankStats = null
     }
 
-    private fun onFrameData(frameData: FrameData, activityName: String) {
-        val frameTimeNanos = frameData.frameDurationUiNanos
+    private fun onFrameData(frameData: Any, activityName: String) {
+        val frameTimeNanos = try {
+            val frameDataClass = Class.forName("androidx.metrics.performance.FrameData")
+            val method = frameDataClass.getMethod("getFrameDurationUiNanos")
+            method.invoke(frameData) as Long
+        } catch (_: Exception) {
+            0L
+        }
         val frameTimeMs = TimeUnit.NANOSECONDS.toMillis(frameTimeNanos)
         val frames = totalFrames.incrementAndGet()
 
@@ -200,7 +231,7 @@ object PerformanceMonitor {
             val mainExecutor = ContextCompat.getMainExecutor(application)
             powerManager?.addThermalStatusListener(
                 mainExecutor,
-                thermalListener
+                thermalListener!!
             )
             Log.i(TAG, "Thermal monitoring enabled")
         } catch (e: Exception) {
@@ -275,7 +306,7 @@ object PerformanceMonitor {
         // 2. 停止帧率监控
         disableJankStats()
         // 3. 取消所有协程
-        scope.cancel()
+        scope.coroutineContext[Job]?.cancel()
         Log.i(TAG, "PerformanceMonitor shutdown complete")
     }
 }

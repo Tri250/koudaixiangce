@@ -3,9 +3,11 @@ package com.rapidraw.ui.dam
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.DamProjectManager
 import com.rapidraw.data.model.DamProjectFile
+import com.rapidraw.data.model.ImageFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +15,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+data class DamProjectDetailState(
+    val project: DamProjectFile? = null,
+    val isLoading: Boolean = false,
+    val images: List<ImageFile> = emptyList(),
+)
+
 class DamProjectViewModel(application: Application) : AndroidViewModel(application) {
+
+    class Factory(
+        private val projectId: String,
+        private val context: Context,
+    ) : ViewModelProvider.NewInstanceFactory() {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+            return DamProjectViewModel(context.applicationContext as Application) as T
+        }
+    }
+
+    private val _state = MutableStateFlow(DamProjectDetailState())
+    val state: StateFlow<DamProjectDetailState> = _state.asStateFlow()
 
     val damProjectManager: DamProjectManager = DamProjectManager(application)
 
@@ -39,6 +60,60 @@ class DamProjectViewModel(application: Application) : AndroidViewModel(applicati
 
     init {
         loadRecentProjects()
+    }
+
+    fun loadProject() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true)
+            try {
+                withContext(Dispatchers.IO) {
+                    // Project loading logic
+                }
+                _state.value = _state.value.copy(isLoading = false)
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(isLoading = false)
+            }
+        }
+    }
+
+    fun toggleStar() {
+        viewModelScope.launch {
+            val project = _state.value.project ?: return@launch
+            _state.value = _state.value.copy(
+                project = project.copy(isStarred = !project.isStarred)
+            )
+        }
+    }
+
+    fun shareProject() {
+        // Stub for compilation
+    }
+
+    fun batchExport() {
+        viewModelScope.launch {
+            // Stub for compilation
+        }
+    }
+
+    fun removeImage(path: String) {
+        _state.value = _state.value.copy(
+            images = _state.value.images.filter { it.path != path }
+        )
+    }
+
+    fun deleteProject() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(project = null)
+        }
+    }
+
+    fun renameProject(newName: String) {
+        viewModelScope.launch {
+            val project = _state.value.project ?: return@launch
+            _state.value = _state.value.copy(
+                project = project.copy(name = newName)
+            )
+        }
     }
 
     private fun loadRecentProjects() {

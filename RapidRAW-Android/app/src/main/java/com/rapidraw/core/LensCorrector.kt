@@ -1,6 +1,7 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
+import android.util.Log
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.pow
@@ -51,6 +52,7 @@ class LensCorrector(
     /** 暗角系数 v3 */
     private val vignetteK3: Float = 0f,
 ) {
+
     data class LensParams(
         val k1: Float, val k2: Float, val k3: Float,
         val p1: Float, val p2: Float, val scale: Float,
@@ -342,6 +344,8 @@ class LensCorrector(
     }
 
     companion object {
+        private const val TAG = "LensCorrector"
+
         /**
          * 根据焦距自动估算畸变参数
          */
@@ -409,7 +413,7 @@ class LensCorrector(
                 )
             } else {
                 // 数据库无匹配，自动估算
-                val autoParams = autoEstimateParams(focalLength)
+                val autoParams = LensCorrector.autoEstimateParams(focalLength)
                 LensCorrector(
                     k1 = autoParams.k1 * distortionStrength,
                     k2 = autoParams.k2 * distortionStrength,

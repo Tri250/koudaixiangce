@@ -11,7 +11,7 @@ import androidx.compose.ui.input.pointer.pointerInput
  * 提供：
  * 1. 压感检测：从 MotionEvent 读取 pressure 值
  * 2. 笔类型检测：区分手指/触控笔/橡皮擦
- * 3. 压感映射：将 pressure [0..1] 映射到画笔粗细 [min..max]
+ * 3. 压感映射：将 pressure 0..1 映射到画笔粗细 min..max
  *
  * 使用方式：
  * val modifier = Modifier.pressureSensitive { event ->
@@ -61,6 +61,15 @@ object PressureSensitivePainter {
         }
     }
 
+    fun getToolTypeFromChange(change: androidx.compose.ui.input.pointer.PointerInputChange): ToolType {
+        return when (change.type) {
+            androidx.compose.ui.input.pointer.PointerType.Stylus -> ToolType.STYLUS
+            androidx.compose.ui.input.pointer.PointerType.Eraser -> ToolType.ERASER
+            androidx.compose.ui.input.pointer.PointerType.Touch -> ToolType.FINGER
+            else -> ToolType.UNKNOWN
+        }
+    }
+
     /**
      * 将压力值映射到画笔粗细范围。
      * @param pressure 压力值 [0..1]
@@ -105,9 +114,8 @@ fun Modifier.pressureSensitive(
             val event = awaitPointerEvent()
             val change = event.changes.firstOrNull() ?: continue
             if (change.pressed) {
-                val motionEvent = event.motionEvent
-                val pressure = PressureSensitivePainter.getPressure(motionEvent)
-                val toolType = PressureSensitivePainter.getToolType(motionEvent)
+                val pressure = change.pressure
+                val toolType = PressureSensitivePainter.getToolTypeFromChange(change)
                 onPressureEvent(pressure, toolType, change.position)
             }
             change.consume()

@@ -18,8 +18,8 @@ package com.rapidraw.core
  */
 object DiContainer {
 
-    private val registry = mutableMapOf<Class<*>, () -> Any>()
-    private val singletons = mutableMapOf<Class<*>, Any>()
+    @PublishedApi internal val registry = mutableMapOf<Class<*>, () -> Any>()
+    @PublishedApi internal val singletons = mutableMapOf<Class<*>, Any>()
 
     /** 注册工厂函数（每次调用 resolve 都会创建新实例） */
     @Suppress("UNCHECKED_CAST")

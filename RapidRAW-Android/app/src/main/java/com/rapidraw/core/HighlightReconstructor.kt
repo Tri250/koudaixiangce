@@ -69,6 +69,24 @@ class HighlightReconstructor {
         }
     }
 
+    /**
+     * Convenience method that reconstructs from a Bitmap and returns a FloatArray.
+     */
+    fun reconstruct(bitmap: android.graphics.Bitmap, params: Params = Params()): FloatArray {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+        val data = FloatArray(width * height * 3)
+        for (i in pixels.indices) {
+            val color = pixels[i]
+            data[i * 3] = ((color shr 16) and 0xFF) / 255f
+            data[i * 3 + 1] = ((color shr 8) and 0xFF) / 255f
+            data[i * 3 + 2] = (color and 0xFF) / 255f
+        }
+        return reconstruct(data, width, height, params)
+    }
+
     // ── CLIP method ─────────────────────────────────────────────────
 
     private fun reconstructClip(

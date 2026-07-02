@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -72,7 +73,7 @@ object AnalyticsManager {
 
     fun init(context: Context, endpoint: String? = null, apiKey: String? = null) {
         if (!initialized.compareAndSet(false, true)) return
-        if (!scope.isActive) {
+        if (!(scope.coroutineContext[Job]?.isActive == true)) {
             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         }
         appContext = context.applicationContext
@@ -314,7 +315,7 @@ object AnalyticsManager {
         } catch (_: Exception) {
             // ignore
         }
-        scope.cancel()
+        scope.coroutineContext[Job]?.cancel()
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         appContext = null
         prefs = null

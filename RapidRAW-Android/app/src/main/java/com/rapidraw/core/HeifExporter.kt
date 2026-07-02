@@ -84,10 +84,10 @@ object HeifExporter {
             )
         } catch (oom: OutOfMemoryError) {
             Log.e(TAG, "OOM during HEIF export: ${oom.message}", oom)
-            runCatching { fallbackToJpeg(context, bitmap, clampedQuality, displayName) }
+            fallbackToJpeg(context, bitmap, clampedQuality, displayName)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to export HEIF: ${e.message}", e)
-            runCatching { fallbackToJpeg(context, bitmap, clampedQuality, displayName) }
+            fallbackToJpeg(context, bitmap, clampedQuality, displayName)
         }
     }
 

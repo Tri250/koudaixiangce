@@ -2,7 +2,6 @@ package com.rapidraw.core
 
 import android.app.Activity
 import android.util.Log
-import com.google.android.play.core.review.ReviewManagerFactory
 
 /**
  * Google Play 应用内评价管理器。
@@ -49,23 +48,46 @@ object InAppReviewManager {
             return
         }
 
-        val manager = ReviewManagerFactory.create(activity)
-        val request = manager.requestReviewFlow()
-        request.addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                val reviewInfo = task.result
-                manager.launchReviewFlow(activity, reviewInfo).addOnCompleteListener { launchTask ->
-                    val launched = launchTask.isSuccessful
-                    if (launched) {
-                        lastReviewRequestMs = System.currentTimeMillis()
+        try {
+            val factoryClass = Class.forName("com.google.android.play.core.review.ReviewManagerFactory")
+            val createMethod = factoryClass.getMethod("create", android.content.Context::class.java)
+            val manager = createMethod.invoke(null, activity)
+            val requestReviewFlowMethod = manager.javaClass.getMethod("requestReviewFlow")
+            val request = requestReviewFlowMethod.invoke(manager)
+            val addOnCompleteListenerMethod = request.javaClass.getMethod("addOnCompleteListener", com.google.android.gms.tasks.OnCompleteListener::class.java)
+            addOnCompleteListenerMethod.invoke(request, com.google.android.gms.tasks.OnCompleteListener<Any> { task ->
+                try {
+                    val isSuccessfulMethod = task.javaClass.getMethod("isSuccessful")
+                    val isSuccessful = isSuccessfulMethod.invoke(task) as Boolean
+                    if (isSuccessful) {
+                        val getResultMethod = task.javaClass.getMethod("getResult")
+                        val reviewInfo = getResultMethod.invoke(task)
+                        val launchReviewFlowMethod = manager.javaClass.getMethod("launchReviewFlow", android.app.Activity::class.java, reviewInfo.javaClass)
+                        val launchRequest = launchReviewFlowMethod.invoke(manager, activity, reviewInfo)
+                        launchRequest.javaClass.getMethod("addOnCompleteListener", com.google.android.gms.tasks.OnCompleteListener::class.java)
+                            .invoke(launchRequest, com.google.android.gms.tasks.OnCompleteListener<Any> { launchTask ->
+                                try {
+                                    val launched = launchTask.javaClass.getMethod("isSuccessful").invoke(launchTask) as Boolean
+                                    if (launched) {
+                                        lastReviewRequestMs = System.currentTimeMillis()
+                                    }
+                                    Log.d(TAG, "Review flow launched: $launched")
+                                    onResult?.invoke(launched)
+                                } catch (_: Exception) {
+                                    onResult?.invoke(false)
+                                }
+                            })
+                    } else {
+                        Log.w(TAG, "Failed to request review flow")
+                        onResult?.invoke(false)
                     }
-                    Log.d(TAG, "Review flow launched: $launched")
-                    onResult?.invoke(launched)
+                } catch (_: Exception) {
+                    onResult?.invoke(false)
                 }
-            } else {
-                Log.w(TAG, "Failed to request review flow", task.exception)
-                onResult?.invoke(false)
-            }
+            })
+        } catch (_: Exception) {
+            Log.d(TAG, "Play In-App Review API not available")
+            onResult?.invoke(false)
         }
     }
 

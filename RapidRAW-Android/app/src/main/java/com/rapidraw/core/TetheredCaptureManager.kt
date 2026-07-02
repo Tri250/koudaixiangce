@@ -245,7 +245,7 @@ class TetheredCaptureManager(private val context: Context) {
      */
     fun shutdown() {
         disconnect()
-        scope.cancel()
+        scope.coroutineContext[Job]?.cancel()
         Log.i(TAG, "TetheredCaptureManager shutdown")
     }
 

@@ -11,6 +11,8 @@ import android.os.StrictMode
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import com.rapidraw.core.ANRWatchdog
+import com.rapidraw.core.AnalyticsManager
 import com.rapidraw.core.BackgroundCompatibility
 import com.rapidraw.core.BillingManager
 import com.rapidraw.core.CrashHandler
@@ -26,6 +28,7 @@ import com.rapidraw.core.SafePreferences
 import com.rapidraw.core.StartupOptimizer
 import com.rapidraw.core.StartupRecovery
 import com.rapidraw.core.SystemCompatibility
+import com.rapidraw.core.TetheredCaptureManager
 import com.rapidraw.security.SecurityProvider
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
@@ -165,11 +168,14 @@ class RapidRawApp : Application() {
         if (BuildConfig.DEBUG) {
             runCatching {
                 // LeakCanary 通过 ContentProvider 自动初始化，
-                // 此处仅做显式注册以支持自定义配置
-                leakcanary.LeakCanary.config = leakcanary.LeakCanary.config.copy(
-                    dumpHeap = true,
-                    retainedVisibleThreshold = 5,
-                )
+                // 此处使用反射避免 release 编译依赖
+                val clazz = Class.forName("leakcanary.LeakCanary")
+                val configMethod = clazz.getMethod("getConfig")
+                val config = configMethod.invoke(null)
+                val copyMethod = config.javaClass.getMethod("copy", Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+                val newConfig = copyMethod.invoke(config, true, 5)
+                val setConfigMethod = clazz.getMethod("setConfig", newConfig.javaClass)
+                setConfigMethod.invoke(null, newConfig)
             }.onFailure { Log.w(TAG, "LeakCanary not available") }
         }
     }
@@ -348,7 +354,7 @@ class RapidRawApp : Application() {
         // v1.10.6: 集中关闭所有全局单例管理器，避免 Application 销毁后协程/连接泄漏。
         runCatching { StartupOptimizer.shutdown() }
             .onFailure { Log.w(TAG, "StartupOptimizer shutdown failed", it) }
-        runCatching { BillingManager.shutdown() }
+        runCatching { BillingManager.getInstance().shutdown() }
             .onFailure { Log.w(TAG, "BillingManager shutdown failed", it) }
         runCatching { AnalyticsManager.shutdown() }
             .onFailure { Log.w(TAG, "AnalyticsManager shutdown failed", it) }
@@ -362,7 +368,5 @@ class RapidRawApp : Application() {
             .onFailure { Log.w(TAG, "DeadlockDetector stop failed", it) }
         runCatching { ANRWatchdog.stop() }
             .onFailure { Log.w(TAG, "ANRWatchdog stop failed", it) }
-        runCatching { TetheredCaptureManager.shutdown() }
-            .onFailure { Log.w(TAG, "TetheredCaptureManager shutdown failed", it) }
     }
 }

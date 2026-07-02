@@ -128,7 +128,7 @@ fun HelpCenterScreen(
             }
 
             items(faqItems) { faq ->
-                HelpSection(faq.question, Icons.Filled.HelpOutline, listOf(faq.answer))
+                HelpSection(faq.first, Icons.Filled.HelpOutline, listOf(faq.second))
             }
 
             // ── 反馈入口 ──────────────────────────────────────────────

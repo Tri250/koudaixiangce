@@ -1,6 +1,7 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
+import android.util.Log
 import kotlin.math.abs
 import kotlin.math.acos
 import kotlin.math.asin
@@ -726,6 +727,7 @@ class LensProjectionTransform {
     }
 
     companion object {
+        private const val TAG = "LensProjectionTransform"
         private const val PI_F = 3.14159265358979323846f
     }
 }

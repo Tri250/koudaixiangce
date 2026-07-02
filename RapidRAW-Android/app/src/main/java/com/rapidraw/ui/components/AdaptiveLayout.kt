@@ -8,6 +8,7 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -101,7 +102,7 @@ object AdaptiveLayout {
 @Composable
 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 fun rememberAdaptiveLayout(): AdaptiveLayout.LayoutInfo {
-    val windowSizeClass = calculateWindowSizeClass()
+    val windowSizeClass = calculateWindowSizeClass(LocalContext.current as android.app.Activity)
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
 

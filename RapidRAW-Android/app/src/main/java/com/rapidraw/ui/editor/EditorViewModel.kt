@@ -4,10 +4,11 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.AbstractSavedStateViewModelFactory
 import com.rapidraw.core.AdjustmentClipboard
 import com.rapidraw.core.EditorClipboard
 import com.rapidraw.core.AiDenoiser
@@ -65,6 +66,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -146,7 +148,7 @@ class EditorViewModel(
     private fun startAutoSave() {
         autoSaveJob?.cancel()
         autoSaveJob = viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
-            while (isActive) {
+            while (coroutineContext[Job]?.isActive == true) {
                 delay(autoSaveIntervalMs)
                 val img = _currentImage.value ?: continue
                 val adj = _adjustments.value
@@ -444,7 +446,7 @@ class EditorViewModel(
 
                 result.onSuccess { processed ->
                     // v1.10.6: 用户离开页面后及时终止，避免 recycled bitmap 被误用
-                    if (!isActive) {
+                    if (!(coroutineContext[Job]?.isActive == true)) {
                         processed.preview.takeIf { !it.isRecycled }?.recycle()
                         processed.original.takeIf { !it.isRecycled }?.recycle()
                         return@onSuccess
@@ -1032,7 +1034,7 @@ class EditorViewModel(
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             runCatching {
                 appContext.contentResolver.openInputStream(uri)?.use { stream ->
-                    val parsedLut = CubeLutParser().parse(stream)
+                    val parsedLut = CubeLutParser().parse(stream, "cube")
                     val lut3D = parsedLut?.lut3D ?: throw IllegalArgumentException("LUT 中未找到 3D LUT 数据")
                     val name = uri.lastPathSegment?.substringAfterLast("/")?.removeSuffix(".cube")
                         ?: "imported_lut"
@@ -1069,7 +1071,16 @@ class EditorViewModel(
             try {
                 runCatching {
                     val reconstructor = HighlightReconstructor()
-                    val reconstructed = reconstructor.reconstruct(source)
+                    val reconstructedFloat = reconstructor.reconstruct(source)
+                    val reconstructed = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+                    val pixels = IntArray(source.width * source.height)
+                    for (i in pixels.indices) {
+                        val r = (reconstructedFloat[i * 3] * 255f).toInt().coerceIn(0, 255)
+                        val g = (reconstructedFloat[i * 3 + 1] * 255f).toInt().coerceIn(0, 255)
+                        val b = (reconstructedFloat[i * 3 + 2] * 255f).toInt().coerceIn(0, 255)
+                        pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                    }
+                    reconstructed.setPixels(pixels, 0, source.width, 0, 0, source.width, source.height)
                     bitmapMutex.withLock {
                         // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出结果包含高光重建修改。
                         originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
@@ -1733,9 +1744,9 @@ class EditorViewModel(
 
     fun applyBm3dDenoising(sigma: Float) {
         if (sigma <= 0f) return
-        val bitmap = bitmapMutex.withLock {
+        val bitmap = runBlocking { bitmapMutex.withLock {
             previewBitmapCache?.takeIf { !it.isRecycled }
-        } ?: return
+        } } ?: return
         aiJob?.cancel()
         aiJob = viewModelScope.launch(coroutineExceptionHandler) {
             _isBm3dProcessing.value = true
@@ -1774,9 +1785,9 @@ class EditorViewModel(
     }
 
     fun applyCreativeLightEffects() {
-        val bitmap = bitmapMutex.withLock {
+        val bitmap = runBlocking { bitmapMutex.withLock {
             previewBitmapCache?.takeIf { !it.isRecycled }
-        } ?: return
+        } } ?: return
         val adj = _adjustments.value
         val hasEffects = adj.glowAmount > 0f || adj.halationAmount > 0f || adj.flareAmount > 0f
         if (!hasEffects) return
@@ -1826,9 +1837,9 @@ class EditorViewModel(
     }
 
     fun applyAdvancedSkinWhitening(intensity: Float, smoothness: Float) {
-        val bitmap = bitmapMutex.withLock {
+        val bitmap = runBlocking { bitmapMutex.withLock {
             previewBitmapCache?.takeIf { !it.isRecycled }
-        } ?: return
+        } } ?: return
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             try {
                 val whitener = com.rapidraw.core.AdvancedSkinWhitener()
@@ -1985,9 +1996,9 @@ class EditorViewModel(
     // ── Lens Projection Transform (镜头投影变换) ──────────────────
 
     fun applyLensProjectionTransform(srcProjection: Int, dstProjection: Int) {
-        val bitmap = bitmapMutex.withLock {
+        val bitmap = runBlocking { bitmapMutex.withLock {
             previewBitmapCache?.takeIf { !it.isRecycled }
-        } ?: return
+        } } ?: return
         if (srcProjection == dstProjection) return
 
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
@@ -2477,7 +2488,7 @@ class EditorViewModel(
     class Factory(
         private val imageFile: ImageFile?,
         private val context: Context,
-    ) : ViewModelProvider.AbstractSavedStateViewModelFactory(/* owner = */ null, /* defaultArgs = */ null) {
+    ) : AbstractSavedStateViewModelFactory() {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(
             key: String,

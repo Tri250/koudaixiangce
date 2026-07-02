@@ -7,6 +7,8 @@ import okhttp3.ConnectionPool
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
+import okio.buffer
+import okio.source
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
@@ -91,7 +93,7 @@ object NetworkCache {
             val decompressedBody = okhttp3.ResponseBody.create(
                 body.contentType(),
                 body.contentLength(),
-                okio.Okio.buffer(okio.Okio.source(gzipStream)),
+                gzipStream.source().buffer(),
             )
             response.newBuilder()
                 .body(decompressedBody)

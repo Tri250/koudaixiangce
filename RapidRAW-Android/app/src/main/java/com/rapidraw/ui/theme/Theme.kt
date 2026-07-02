@@ -135,8 +135,8 @@ fun RapidRawTheme(
             val activity = unwrapActivity(view.context) ?: return@SideEffect
             val window = activity.window
             // AMOLED 模式：状态栏/导航栏透明，沉浸式取景
-            window.statusBarColor = Color.Transparent.toArgb()
-            window.navigationBarColor = Color.Transparent.toArgb()
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
 
             val insetsController = WindowCompat.getInsetsController(window, view)
             // 暗色模式：状态栏图标白色（深黑背景上可见）

@@ -249,8 +249,14 @@ class CubeLutParser {
         if (inputStream == null) return null
         return when (extension.lowercase()) {
             "cube" -> parseCube(inputStream)
-            "3dl" -> parse3dl(inputStream)
-            "png" -> parseHaldClut(inputStream)
+            "3dl" -> {
+                val lut3d = parse3dl(inputStream)
+                if (lut3d != null) ParsedLut(null, null, lut3d, floatArrayOf(0f, 0f, 0f), floatArrayOf(1f, 1f, 1f)) else null
+            }
+            "png" -> {
+                val lut3d = parseHaldClut(inputStream)
+                if (lut3d != null) ParsedLut(null, null, lut3d, floatArrayOf(0f, 0f, 0f), floatArrayOf(1f, 1f, 1f)) else null
+            }
             else -> {
                 Log.w(TAG, "Unknown LUT format: .$extension, falling back to .cube parser")
                 parseCube(inputStream)

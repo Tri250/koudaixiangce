@@ -18,6 +18,7 @@ import com.rapidraw.data.model.DamProjectSettings
 import com.rapidraw.data.model.DamSearchQuery
 import com.rapidraw.data.model.DamSmartAlbum
 import com.rapidraw.data.model.ImageFile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

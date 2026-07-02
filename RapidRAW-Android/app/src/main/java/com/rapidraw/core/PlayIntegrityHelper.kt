@@ -44,6 +44,8 @@ object PlayIntegrityHelper {
         FAIL,
         /** 未执行 — 服务不可用或未配置 */
         NOT_AVAILABLE,
+        /** 未知状态 */
+        UNKNOWN,
     }
 
     private var cachedResult: IntegrityResult? = null
@@ -59,7 +61,7 @@ object PlayIntegrityHelper {
     fun checkIntegrity(context: Context): IntegrityResult {
         val now = System.currentTimeMillis()
         if (cachedResult != null && (now - lastCheckTimeMs) < CACHE_DURATION_MS) {
-            return cachedResult ?: IntegrityResult.UNKNOWN
+            return cachedResult ?: IntegrityResult(verdict = Verdict.UNKNOWN)
         }
 
         val result = performLocalIntegrityCheck(context)

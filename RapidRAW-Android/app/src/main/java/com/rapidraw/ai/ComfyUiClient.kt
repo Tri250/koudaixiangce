@@ -5,7 +5,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
@@ -18,6 +17,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -133,8 +133,8 @@ class ComfyUiClient {
     private var wsSocket: java.net.Socket? = null
     private var wsInputStream: InputStream? = null
     private var wsOutputStream: OutputStream? = null
-    private var readJob: Job? = null
-    private var statusPollJob: Job? = null
+    private var readJob: kotlinx.coroutines.Job? = null
+    private var statusPollJob: kotlinx.coroutines.Job? = null
 
     private val jobCounter = AtomicInteger(0)
     private val pendingPrompts = ConcurrentHashMap<String, CompletableDeferred<String>>()
@@ -169,7 +169,7 @@ class ComfyUiClient {
         if (_connectionState.value == ConnectionState.CONNECTED) return true
         _connectionState.value = ConnectionState.CONNECTING
         userDisconnected.set(false)
-        if (!scope.isActive) {
+        if (scope.coroutineContext[kotlinx.coroutines.Job]?.isActive != true) {
             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         }
 
@@ -683,8 +683,8 @@ class ComfyUiClient {
                 "progress" -> {
                     val data = msg["data"]?.jsonObject
                     val promptId = data?.get("prompt_id")?.jsonPrimitive?.content
-                    val value = data?.get("value")?.jsonPrimitive?.int
-                    val max = data?.get("max")?.jsonPrimitive?.int
+                    val value = data?.get("value")?.jsonPrimitive?.content?.toIntOrNull()
+                    val max = data?.get("max")?.jsonPrimitive?.content?.toIntOrNull()
                     if (promptId != null && max != null && max > 0 && observedPrompts.contains(promptId)) {
                         val progress = min(1f, (value ?: 0).toFloat() / max.toFloat())
                         updateJobProgress(promptId, progress)
@@ -861,8 +861,8 @@ class ComfyUiClient {
             putJsonObject("3") {
                 put("class_type", JsonPrimitive("VAEEncode"))
                 putJsonObject("inputs") {
-                    put("pixels", JsonPrimitive(listOf("1", 0)))
-                    put("vae", JsonPrimitive(listOf("4", 0)))
+                    put("pixels", JsonArray(listOf(JsonPrimitive("1"), JsonPrimitive(0))))
+                    put("vae", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(0))))
                 }
             }
             putJsonObject("4") {
@@ -874,9 +874,9 @@ class ComfyUiClient {
             putJsonObject("5") {
                 put("class_type", JsonPrimitive("VAEEncodeForInpaint"))
                 putJsonObject("inputs") {
-                    put("pixels", JsonPrimitive(listOf("1", 0)))
-                    put("vae", JsonPrimitive(listOf("4", 0)))
-                    put("mask", JsonPrimitive(listOf("2", 0)))
+                    put("pixels", JsonArray(listOf(JsonPrimitive("1"), JsonPrimitive(0))))
+                    put("vae", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(0))))
+                    put("mask", JsonArray(listOf(JsonPrimitive("2"), JsonPrimitive(0))))
                 }
             }
             putJsonObject("6") {
@@ -888,30 +888,30 @@ class ComfyUiClient {
                     put("sampler_name", JsonPrimitive("euler"))
                     put("scheduler", JsonPrimitive("normal"))
                     put("denoise", JsonPrimitive(1.0))
-                    put("model", JsonPrimitive(listOf("4", 0)))
-                    put("positive", JsonPrimitive(listOf("7", 0)))
-                    put("negative", JsonPrimitive(listOf("7", 1)))
-                    put("latent_image", JsonPrimitive(listOf("5", 0)))
+                    put("model", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(0))))
+                    put("positive", JsonArray(listOf(JsonPrimitive("7"), JsonPrimitive(0))))
+                    put("negative", JsonArray(listOf(JsonPrimitive("7"), JsonPrimitive(1))))
+                    put("latent_image", JsonArray(listOf(JsonPrimitive("5"), JsonPrimitive(0))))
                 }
             }
             putJsonObject("7") {
                 put("class_type", JsonPrimitive("CLIPTextEncode"))
                 putJsonObject("inputs") {
                     put("text", JsonPrimitive("PROMPT"))
-                    put("clip", JsonPrimitive(listOf("4", 1)))
+                    put("clip", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(1))))
                 }
             }
             putJsonObject("8") {
                 put("class_type", JsonPrimitive("VAEDecode"))
                 putJsonObject("inputs") {
-                    put("samples", JsonPrimitive(listOf("6", 0)))
-                    put("vae", JsonPrimitive(listOf("4", 0)))
+                    put("samples", JsonArray(listOf(JsonPrimitive("6"), JsonPrimitive(0))))
+                    put("vae", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(0))))
                 }
             }
             putJsonObject("9") {
                 put("class_type", JsonPrimitive("SaveImage"))
                 putJsonObject("inputs") {
-                    put("images", JsonPrimitive(listOf("8", 0)))
+                    put("images", JsonArray(listOf(JsonPrimitive("8"), JsonPrimitive(0))))
                     put("filename_prefix", JsonPrimitive("rapidraw_inpaint"))
                 }
             }
@@ -935,14 +935,14 @@ class ComfyUiClient {
             putJsonObject("3") {
                 put("class_type", JsonPrimitive("ImageUpscaleWithModel"))
                 putJsonObject("inputs") {
-                    put("upscale_model", JsonPrimitive(listOf("2", 0)))
-                    put("image", JsonPrimitive(listOf("1", 0)))
+                    put("upscale_model", JsonArray(listOf(JsonPrimitive("2"), JsonPrimitive(0))))
+                    put("image", JsonArray(listOf(JsonPrimitive("1"), JsonPrimitive(0))))
                 }
             }
             putJsonObject("4") {
                 put("class_type", JsonPrimitive("SaveImage"))
                 putJsonObject("inputs") {
-                    put("images", JsonPrimitive(listOf("3", 0)))
+                    put("images", JsonArray(listOf(JsonPrimitive("3"), JsonPrimitive(0))))
                     put("filename_prefix", JsonPrimitive("rapidraw_upscale"))
                 }
             }
@@ -978,10 +978,10 @@ class ComfyUiClient {
             putJsonObject("5") {
                 put("class_type", JsonPrimitive("IPAdapterApply"))
                 putJsonObject("inputs") {
-                    put("ipadapter", JsonPrimitive(listOf("6", 0)))
-                    put("clip_vision", JsonPrimitive(listOf("3", 0)))
-                    put("image", JsonPrimitive(listOf("2", 0)))
-                    put("model", JsonPrimitive(listOf("4", 0)))
+                    put("ipadapter", JsonArray(listOf(JsonPrimitive("6"), JsonPrimitive(0))))
+                    put("clip_vision", JsonArray(listOf(JsonPrimitive("3"), JsonPrimitive(0))))
+                    put("image", JsonArray(listOf(JsonPrimitive("2"), JsonPrimitive(0))))
+                    put("model", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(0))))
                 }
             }
             putJsonObject("6") {
@@ -993,8 +993,8 @@ class ComfyUiClient {
             putJsonObject("7") {
                 put("class_type", JsonPrimitive("VAEEncode"))
                 putJsonObject("inputs") {
-                    put("pixels", JsonPrimitive(listOf("1", 0)))
-                    put("vae", JsonPrimitive(listOf("4", 2)))
+                    put("pixels", JsonArray(listOf(JsonPrimitive("1"), JsonPrimitive(0))))
+                    put("vae", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(2))))
                 }
             }
             putJsonObject("8") {
@@ -1006,30 +1006,30 @@ class ComfyUiClient {
                     put("sampler_name", JsonPrimitive("euler"))
                     put("scheduler", JsonPrimitive("normal"))
                     put("denoise", JsonPrimitive(0.8))
-                    put("model", JsonPrimitive(listOf("5", 0)))
-                    put("positive", JsonPrimitive(listOf("9", 0)))
-                    put("negative", JsonPrimitive(listOf("9", 1)))
-                    put("latent_image", JsonPrimitive(listOf("7", 0)))
+                    put("model", JsonArray(listOf(JsonPrimitive("5"), JsonPrimitive(0))))
+                    put("positive", JsonArray(listOf(JsonPrimitive("9"), JsonPrimitive(0))))
+                    put("negative", JsonArray(listOf(JsonPrimitive("9"), JsonPrimitive(1))))
+                    put("latent_image", JsonArray(listOf(JsonPrimitive("7"), JsonPrimitive(0))))
                 }
             }
             putJsonObject("9") {
                 put("class_type", JsonPrimitive("CLIPTextEncode"))
                 putJsonObject("inputs") {
                     put("text", JsonPrimitive("PROMPT"))
-                    put("clip", JsonPrimitive(listOf("4", 1)))
+                    put("clip", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(1))))
                 }
             }
             putJsonObject("10") {
                 put("class_type", JsonPrimitive("VAEDecode"))
                 putJsonObject("inputs") {
-                    put("samples", JsonPrimitive(listOf("8", 0)))
-                    put("vae", JsonPrimitive(listOf("4", 2)))
+                    put("samples", JsonArray(listOf(JsonPrimitive("8"), JsonPrimitive(0))))
+                    put("vae", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(2))))
                 }
             }
             putJsonObject("11") {
                 put("class_type", JsonPrimitive("SaveImage"))
                 putJsonObject("inputs") {
-                    put("images", JsonPrimitive(listOf("10", 0)))
+                    put("images", JsonArray(listOf(JsonPrimitive("10"), JsonPrimitive(0))))
                     put("filename_prefix", JsonPrimitive("rapidraw_style"))
                 }
             }
@@ -1059,9 +1059,9 @@ class ComfyUiClient {
             putJsonObject("4") {
                 put("class_type", JsonPrimitive("GroundingDinoSAMSegment"))
                 putJsonObject("inputs") {
-                    put("sam_model", JsonPrimitive(listOf("2", 0)))
-                    put("grounding_dino_model", JsonPrimitive(listOf("3", 0)))
-                    put("image", JsonPrimitive(listOf("1", 0)))
+                    put("sam_model", JsonArray(listOf(JsonPrimitive("2"), JsonPrimitive(0))))
+                    put("grounding_dino_model", JsonArray(listOf(JsonPrimitive("3"), JsonPrimitive(0))))
+                    put("image", JsonArray(listOf(JsonPrimitive("1"), JsonPrimitive(0))))
                     put("prompt", JsonPrimitive("subject"))
                     put("threshold", JsonPrimitive(0.3))
                 }
@@ -1069,15 +1069,15 @@ class ComfyUiClient {
             putJsonObject("5") {
                 put("class_type", JsonPrimitive("ImageCompositeMasked"))
                 putJsonObject("inputs") {
-                    put("destination", JsonPrimitive(listOf("1", 0)))
-                    put("source", JsonPrimitive(listOf("1", 0)))
-                    put("mask", JsonPrimitive(listOf("4", 0)))
+                    put("destination", JsonArray(listOf(JsonPrimitive("1"), JsonPrimitive(0))))
+                    put("source", JsonArray(listOf(JsonPrimitive("1"), JsonPrimitive(0))))
+                    put("mask", JsonArray(listOf(JsonPrimitive("4"), JsonPrimitive(0))))
                 }
             }
             putJsonObject("6") {
                 put("class_type", JsonPrimitive("SaveImage"))
                 putJsonObject("inputs") {
-                    put("images", JsonPrimitive(listOf("5", 0)))
+                    put("images", JsonArray(listOf(JsonPrimitive("5"), JsonPrimitive(0))))
                     put("filename_prefix", JsonPrimitive("rapidraw_bgremoved"))
                 }
             }

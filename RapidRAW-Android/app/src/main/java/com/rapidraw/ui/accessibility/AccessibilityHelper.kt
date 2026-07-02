@@ -67,7 +67,7 @@ object AccessibilityHelper {
                 if (isHeading) this.heading()
                 role?.let { this.role = it }
                 testTag?.let { this.testTag = it }
-                if (liveRegion) this.liveRegion()
+                if (liveRegion) this.liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Assertive
             }
         )
     }

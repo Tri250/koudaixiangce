@@ -104,7 +104,7 @@ object ExportQueueProcessor {
      */
     fun shutdown() {
         stop()
-        scope.cancel()
+        scope.coroutineContext[Job]?.cancel()
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 

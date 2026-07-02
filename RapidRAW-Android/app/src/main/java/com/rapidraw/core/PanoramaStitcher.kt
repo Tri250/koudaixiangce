@@ -186,7 +186,7 @@ class PanoramaStitcher {
 
             StitchResult(
                 panorama = cropped,
-                homographies = homographies.map { mat -> floatArrayOf(*mat) },
+                homographies = homographies.map { mat -> FloatArray(mat.size) { i -> mat[i].toFloat() } },
                 overlapRegions = overlapRegions
             )
         } catch (e: OutOfMemoryError) {
@@ -937,7 +937,8 @@ class PanoramaStitcher {
         for (idx in images.indices) {
             val src = images[idx]
             val H = homographies[idx]
-            val Hinv = invertHomography(H) ?: run {
+            val Hinv = invertHomography(H)
+            if (Hinv == null) {
                 try {
                     warpedImages.add(Bitmap.createBitmap(canvasInfo.width, canvasInfo.height, Bitmap.Config.ARGB_8888))
                 } catch (_: OutOfMemoryError) {
