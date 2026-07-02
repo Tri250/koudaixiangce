@@ -61,4 +61,23 @@ class GpuPipelineTest {
         val pipeline = GpuPipeline(mockContext)
         assertFalse("Pipeline should not be initialized initially", pipeline.isInitialized())
     }
+
+    // R-18: GPU 不可用 → CPU fallback
+    @Test
+    fun `initializeWithFallback returns true even when GPU unavailable`() {
+        val pipeline = GpuPipeline(mockContext)
+        // Mock SurfaceTexture is not available in unit test, so GPU init will fail.
+        // Fallback should still report success.
+        val success = pipeline.initializeWithFallback(mock(android.graphics.SurfaceTexture::class.java), 128, 128)
+        assertTrue("Fallback init should succeed even without real GPU", success)
+    }
+
+    @Test
+    fun `renderFrameWithFallback does not crash when GPU unavailable`() {
+        val pipeline = GpuPipeline(mockContext)
+        val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        pipeline.renderFrameWithFallback(bitmap, null)
+        // Should not throw
+        bitmap.recycle()
+    }
 }

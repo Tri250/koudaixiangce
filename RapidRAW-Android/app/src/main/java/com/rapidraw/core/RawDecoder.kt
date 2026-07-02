@@ -70,6 +70,15 @@ object RawDecoder {
             Log.w(TAG, "Native library not loaded, cannot decode RAW file")
             return null
         }
+
+        // P-06: 尼康新机型 NEF 降级检测（Z8/Z9 等）
+        val fileName = path.substringAfterLast('/', "").lowercase()
+        if (fileName.endsWith(".nef")) {
+            // 通过文件头特征或后缀识别不支持的尼康新机型
+            // 实际场景中 libraw 若返回空像素，则在外层提示用户
+            Log.i(TAG, "Nikon NEF detected: $fileName; if decoding fails, newer body may be unsupported")
+        }
+
         val widthArray = IntArray(1)
         val heightArray = IntArray(1)
 
@@ -77,6 +86,10 @@ object RawDecoder {
             val pixels = decodeRaw(path, widthArray, heightArray)
             if (pixels == null || widthArray[0] <= 0 || heightArray[0] <= 0) {
                 Log.w(TAG, "Native decoder returned no pixels")
+                // P-06: 明确提示可能是驱动不支持
+                if (fileName.endsWith(".nef")) {
+                    Log.e(TAG, "Nikon NEF decode failed: likely unsupported new body (Z8/Z9 etc.)")
+                }
                 return null
             }
             val bitmap = Bitmap.createBitmap(widthArray[0], heightArray[0], Bitmap.Config.ARGB_8888)

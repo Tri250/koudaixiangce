@@ -107,6 +107,98 @@ class FlowMaskManager(
         return ((pixel ushr 24) and 0xFF) / 255f
     }
     
+    // ═══════════════════════════════════════════════════════════════
+    // 静态工具方法：用于组合、反转、相交多个蒙版（R-08 / R-09 用例）
+    // ═══════════════════════════════════════════════════════════════
+
+    data class Stroke(val x1: Float, val y1: Float, val x2: Float, val y2: Float, val radius: Float)
+
+    companion object {
+        /**
+         * 反转蒙版：Alpha = 255 - originalAlpha
+         */
+        fun invertMask(mask: Bitmap): Bitmap {
+            val inverted = Bitmap.createBitmap(mask.width, mask.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(inverted)
+            val paint = Paint().apply {
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+            }
+            // Draw white background then mask with DST_IN to invert? Simpler: pixel-by-pixel
+            val pixels = IntArray(mask.width * mask.height)
+            mask.getPixels(pixels, 0, mask.width, 0, 0, mask.width, mask.height)
+            for (i in pixels.indices) {
+                val a = (pixels[i] ushr 24) and 0xFF
+                val invA = 255 - a
+                pixels[i] = (invA shl 24) or 0x00FFFFFF
+            }
+            inverted.setPixels(pixels, 0, mask.width, 0, 0, mask.width, mask.height)
+            return inverted
+        }
+
+        /**
+         * 相交蒙版：取两个蒙版的最小 Alpha
+         */
+        fun intersectMasks(mask1: Bitmap, mask2: Bitmap): Bitmap {
+            val w = minOf(mask1.width, mask2.width)
+            val h = minOf(mask1.height, mask2.height)
+            val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val pixels1 = IntArray(w * h)
+            val pixels2 = IntArray(w * h)
+            mask1.getPixels(pixels1, 0, w, 0, 0, w, h)
+            mask2.getPixels(pixels2, 0, w, 0, 0, w, h)
+            for (i in pixels1.indices) {
+                val a1 = (pixels1[i] ushr 24) and 0xFF
+                val a2 = (pixels2[i] ushr 24) and 0xFF
+                val minA = minOf(a1, a2)
+                pixels1[i] = (minA shl 24) or 0x00FFFFFF
+            }
+            result.setPixels(pixels1, 0, w, 0, 0, w, h)
+            return result
+        }
+
+        /**
+         * 多层蒙版叠加：累加 Alpha 后 clamp 到 255
+         */
+        fun combineMasks(masks: List<Bitmap>): Bitmap {
+            require(masks.isNotEmpty()) { "masks must not be empty" }
+            val w = masks.first().width
+            val h = masks.first().height
+            val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val accum = IntArray(w * h) { 0 }
+            for (mask in masks) {
+                val pixels = IntArray(w * h)
+                mask.getPixels(pixels, 0, w, 0, 0, w, h)
+                for (i in pixels.indices) {
+                    val a = (pixels[i] ushr 24) and 0xFF
+                    accum[i] = (accum[i] + a).coerceAtMost(255)
+                }
+            }
+            val out = IntArray(w * h) { i -> (accum[i] shl 24) or 0x00FFFFFF }
+            result.setPixels(out, 0, w, 0, 0, w, h)
+            return result
+        }
+
+        /**
+         * 从笔刷描边创建蒙版
+         */
+        fun createBrushMask(width: Int, height: Int, brushStrokes: List<Stroke>): Bitmap {
+            val manager = FlowMaskManager(width, height)
+            for (stroke in brushStrokes) {
+                manager.paintStroke(stroke.x2, stroke.y2, stroke.radius, opacity = 1f, hardness = 0.5f)
+            }
+            return manager.getMaskBitmap()
+        }
+
+        /**
+         * 创建线性渐变蒙版
+         */
+        fun createLinearGradientMask(width: Int, height: Int, angle: Float, density: Float): Bitmap {
+            val manager = FlowMaskManager(width, height)
+            manager.generateGradientMask(angle, midpoint = 0.5f, feather = density.coerceIn(0f, 1f))
+            return manager.getMaskBitmap()
+        }
+    }
+
     /**
      * 获取蒙版覆盖率
      */

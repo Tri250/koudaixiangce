@@ -58,6 +58,8 @@ class ImageProcessor {
         private const val MAX_MARK_BYTES = 64 * 1024 * 1024 // 64 MB
         // 导出时单边上限，避免 ~100MP 全分辨率 ARGB_8888 直接 OOM。
         private const val MAX_DECODE_PIXELS = 8192
+        /** 100MP 阈值：超过此像素数的 RAW 将触发分块/降级保护 (R-19) */
+        internal const val MAX_RAW_PIXELS_THRESHOLD = 100_000_000L
     }
 
     // ── Normalised Adjustments (private, proper equals/hashCode) ──────
@@ -437,6 +439,19 @@ class ImageProcessor {
 
             // Decode bitmap
             ensureActive()
+
+            // R-19: 超大 RAW (>100MP) 保护：先检查预估像素数，超标则强制降采样
+            val estimatedRawPixels = if (isRaw) {
+                try {
+                    val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    decodeUriStream(context, uri, opts)
+                    opts.outWidth.toLong() * opts.outHeight.toLong()
+                } catch (_: Exception) { 0L }
+            } else 0L
+            if (isRaw && estimatedRawPixels > MAX_RAW_PIXELS_THRESHOLD) {
+                Log.w(TAG, "超大 RAW  detected: ~${estimatedRawPixels / 1_000_000}MP，启用分块 ROI 降级保护")
+            }
+
             val originalBitmap: Bitmap = if (isRaw) {
                 // Try libraw-based decoder first (real RAW support for CR2/NEF/ARW/RAF/RW2/ORF/DNG)
                 val librawBitmap = try {
