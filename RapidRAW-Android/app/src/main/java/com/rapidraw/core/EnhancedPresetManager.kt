@@ -50,6 +50,8 @@ class EnhancedPresetManager(context: Context) {
         val tags: List<String> = emptyList(),
         val createdAt: Long = System.currentTimeMillis(),
         val updatedAt: Long = System.currentTimeMillis(),
+        /** R-05: 预设强度 0.0~1.0，控制预设对当前图像的混合程度。1.0=完全应用，0.0=无效果 */
+        val intensity: Float = 1f,
     )
 
     private val json = Json {
@@ -108,28 +110,66 @@ class EnhancedPresetManager(context: Context) {
         }
 
     /**
-     * 应用预设到调整参数
+     * 应用预设到调整参数，支持强度混合。
      * @param currentAdjustments 当前编辑参数
      * @param preset 要应用的预设
+     * @param intensity 预设强度 0.0~1.0，null 时使用 preset.intensity
      * @return Result<Adjustments> 成功返回应用后的参数，失败携带异常信息
      */
     fun applyPreset(
         currentAdjustments: Adjustments,
         preset: EnhancedPreset,
+        intensity: Float? = null,
     ): Result<Adjustments> {
+        val effectiveIntensity = (intensity ?: preset.intensity).coerceIn(0f, 1f)
+        if (effectiveIntensity <= 0f) return Result.success(currentAdjustments)
+
         val presetAdj = try {
             json.decodeFromString<Adjustments>(preset.adjustmentsJson)
         } catch (e: Exception) {
-            // v1.5.5 hotfix: 静默吞掉 JSON 解析失败会让用户以为预设没反应。
-            // 改为 Result 失败，调用方应发 EditorEvent.Error 通知用户。
             Log.e(TAG, "Failed to decode preset adjustments: ${preset.name}", e)
             return Result.failure(e)
         }
-        return Result.success(
-            when (preset.type) {
-                PresetType.STYLE -> presetAdj
-                PresetType.TOOL -> mergeAdjustments(currentAdjustments, presetAdj)
-            }
+
+        val target = when (preset.type) {
+            PresetType.STYLE -> presetAdj
+            PresetType.TOOL -> mergeAdjustments(currentAdjustments, presetAdj)
+        }
+
+        // R-05: 强度插值 — 在 current 和 target 之间按 intensity 线性混合
+        return if (effectiveIntensity >= 1f) {
+            Result.success(target)
+        } else {
+            Result.success(interpolateAdjustments(currentAdjustments, target, effectiveIntensity))
+        }
+    }
+
+    /**
+     * R-05: 按强度在两组调整参数之间线性插值。
+     * intensity=0 → 返回 base，intensity=1 → 返回 target
+     */
+    private fun interpolateAdjustments(base: Adjustments, target: Adjustments, intensity: Float): Adjustments {
+        val inv = 1f - intensity
+        return base.copy(
+            exposure = base.exposure * inv + target.exposure * intensity,
+            brightness = base.brightness * inv + target.brightness * intensity,
+            contrast = base.contrast * inv + target.contrast * intensity,
+            saturation = base.saturation * inv + target.saturation * intensity,
+            vibrance = base.vibrance * inv + target.vibrance * intensity,
+            clarity = base.clarity * inv + target.clarity * intensity,
+            temperature = base.temperature * inv + target.temperature * intensity,
+            tint = base.tint * inv + target.tint * intensity,
+            highlights = base.highlights * inv + target.highlights * intensity,
+            shadows = base.shadows * inv + target.shadows * intensity,
+            whites = base.whites * inv + target.whites * intensity,
+            blacks = base.blacks * inv + target.blacks * intensity,
+            sharpness = base.sharpness * inv + target.sharpness * intensity,
+            dehaze = base.dehaze * inv + target.dehaze * intensity,
+            vignetteAmount = base.vignetteAmount * inv + target.vignetteAmount * intensity,
+            grainAmount = base.grainAmount * inv + target.grainAmount * intensity,
+            lumaNoiseReduction = base.lumaNoiseReduction * inv + target.lumaNoiseReduction * intensity,
+            colorNoiseReduction = base.colorNoiseReduction * inv + target.colorNoiseReduction * intensity,
+            filmId = if (intensity > 0.5f) target.filmId else base.filmId,
         )
     }
 

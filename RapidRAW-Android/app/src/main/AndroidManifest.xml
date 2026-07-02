@@ -102,6 +102,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="rapidraw" />
             </intent-filter>
+            <!-- X-02: AlcedoStudio 格式分发 → EDIT 意图 -->
+            <intent-filter>
+                <action android:name="com.rapidraw.action.EDIT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
             <!-- v1.10.3: App Shortcuts 元数据 -->
             <meta-data
                 android:name="android.app.shortcuts"

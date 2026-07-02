@@ -10,6 +10,10 @@ enum class ExportFormat {
     TIFF,
     EXR,
     HEIF,
+    /** R-07: AVIF 格式 (API 34+)，高压缩比高质量 */
+    AVIF,
+    /** R-07: JPEG XL 格式，下一代图像编码标准 */
+    JPEG_XL,
 }
 
 @Serializable
@@ -79,6 +83,8 @@ data class ExportSettings(
     // ICC 色彩配置文件嵌入（AlcedoStudio 对标：专业导出 ICC 嵌入）
     val embedIccProfile: Boolean = false,
     val iccProfileName: String = "sRGB",  // sRGB, Display P3, Adobe RGB, Rec.2020, ProPhoto RGB
+    /** R-06: 批量导出时保留原始文件夹结构 */
+    val preserveFolderStructure: Boolean = false,
 ) {
     /**
      * 导出时使用的安全 quality 值，避免反序列化或外部传入非法值导致崩溃。

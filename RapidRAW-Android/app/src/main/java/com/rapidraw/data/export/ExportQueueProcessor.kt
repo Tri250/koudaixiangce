@@ -231,6 +231,7 @@ object ExportQueueProcessor {
 
             val uri: Uri = imageProcessor.exportImage(
                 processed, settings, appContext, originalExif = null, orientation = 0,
+                originalPath = job.imagePath,
             )
             ExportQueueRepository.updateJobProgress(jobId, 0.95f)
 

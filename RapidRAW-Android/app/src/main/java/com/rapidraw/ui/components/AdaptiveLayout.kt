@@ -16,12 +16,14 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 响应式布局工具 — v1.9.0 交互体验优化新增。
+ * v1.10.8: R-14 手机竖屏布局优化，增加小屏 (<6.5") 专项适配。
  *
  * 提供：
  * 1. WindowSizeClass 检测（手机/平板/折叠屏）
  * 2. 横屏/竖屏检测
  * 3. 自适应列数计算
  * 4. 自适应间距计算
+ * 5. 小屏设备专项适配
  *
  * 使用方式：
  * val adaptive = rememberAdaptiveLayout()
@@ -55,11 +57,19 @@ object AdaptiveLayout {
         val isCompactPhone: Boolean get() =
             widthSizeClass == WindowWidthSizeClass.Compact && !isLandscape
 
+        /** R-14: 是否为小屏手机 (<6.5" 约 <360dp 宽) */
+        val isSmallPhone: Boolean get() = isCompactPhone && screenWidthDp < 360.dp
+
+        /** R-14: 是否为窄屏手机 (<6.0" 约 <320dp 宽) */
+        val isNarrowPhone: Boolean get() = isCompactPhone && screenWidthDp < 320.dp
+
         /** 图片网格列数 */
         val gridColumns: Int get() = when {
             widthSizeClass == WindowWidthSizeClass.Expanded -> 5
             widthSizeClass == WindowWidthSizeClass.Medium -> 4
             isLandscape -> 4
+            isNarrowPhone -> 2  // R-14: <6.0" 窄屏仅 2 列
+            isSmallPhone -> 3  // R-14: <6.5" 小屏保留 3 列
             else -> 3
         }
 
@@ -68,6 +78,8 @@ object AdaptiveLayout {
             widthSizeClass == WindowWidthSizeClass.Expanded -> 4
             widthSizeClass == WindowWidthSizeClass.Medium -> 3
             isLandscape -> 3
+            isNarrowPhone -> 1  // R-14: 窄屏导出仅 1 列
+            isSmallPhone -> 2  // R-14: 小屏导出 2 列
             else -> 2
         }
 
@@ -76,6 +88,8 @@ object AdaptiveLayout {
             widthSizeClass == WindowWidthSizeClass.Expanded -> 5
             widthSizeClass == WindowWidthSizeClass.Medium -> 4
             isLandscape -> 4
+            isNarrowPhone -> 2  // R-14: 窄屏预设 2 列
+            isSmallPhone -> 3  // R-14: 小屏预设 3 列
             else -> 3
         }
 
@@ -83,6 +97,8 @@ object AdaptiveLayout {
         val horizontalPadding: Dp get() = when {
             widthSizeClass == WindowWidthSizeClass.Expanded -> 32.dp
             widthSizeClass == WindowWidthSizeClass.Medium -> 24.dp
+            isNarrowPhone -> 8.dp   // R-14: 窄屏最小内边距
+            isSmallPhone -> 12.dp  // R-14: 小屏缩小内边距
             else -> 16.dp
         }
 

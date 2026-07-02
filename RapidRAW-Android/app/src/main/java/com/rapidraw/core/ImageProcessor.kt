@@ -2437,7 +2437,9 @@ class ImageProcessor {
         settings: ExportSettings,
         context: Context,
         originalExif: ExifData? = null,
-        orientation: Int = 0
+        orientation: Int = 0,
+        /** R-06: 原始文件路径，用于 preserveFolderStructure */
+        originalPath: String? = null,
     ): Uri = withContext(Dispatchers.IO) {
         if (bitmap.isRecycled) throw IllegalArgumentException("Cannot export recycled bitmap")
 
@@ -2486,6 +2488,8 @@ class ImageProcessor {
             ExportFormat.JPEG -> "image/jpeg"
             ExportFormat.EXR -> "image/x-exr"
             ExportFormat.HEIF -> "image/heic"
+            ExportFormat.AVIF -> "image/avif"
+            ExportFormat.JPEG_XL -> "image/jxl"
         }
         val extension = when (settings.format) {
             ExportFormat.PNG -> ".png"
@@ -2493,6 +2497,8 @@ class ImageProcessor {
             ExportFormat.JPEG -> ".jpg"
             ExportFormat.EXR -> ".exr"
             ExportFormat.HEIF -> ".heic"
+            ExportFormat.AVIF -> ".avif"
+            ExportFormat.JPEG_XL -> ".jxl"
         }
 
         // HEIF export handled directly by HeifExporter (bypasses temp file flow)
@@ -2516,7 +2522,15 @@ class ImageProcessor {
         }
 
         // Write to temporary file first (required for EXIF writing)
-        val cacheDir = context.cacheDir
+        // R-06: 保留文件夹结构 — 使用原始相对路径作为输出子目录
+        val cacheDir = if (settings.preserveFolderStructure && originalPath != null) {
+            val relativeDir = java.io.File(originalPath).parent ?: ""
+            val exportDir = java.io.File(context.cacheDir, "export/$relativeDir")
+            exportDir.mkdirs()
+            exportDir
+        } else {
+            context.cacheDir
+        }
         val tempFile = java.io.File(cacheDir, "export_temp_${System.currentTimeMillis()}$extension")
 
         try {
@@ -2533,8 +2547,9 @@ class ImageProcessor {
                 }
             }
 
-            // Apply EXIF metadata for JPEG
-            if (settings.format == ExportFormat.JPEG && settings.keepMetadata && originalExif != null) {
+            // Apply EXIF metadata for JPEG, TIFF, PNG (R-13: extend EXIF preservation)
+            val exifFormats = setOf(ExportFormat.JPEG, ExportFormat.TIFF, ExportFormat.PNG)
+            if (settings.format in exifFormats && settings.keepMetadata && originalExif != null) {
                 try {
                     val exif = androidx.exifinterface.media.ExifInterface(tempFile.absolutePath)
                     originalExif.make?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE, it) }
@@ -2544,6 +2559,13 @@ class ImageProcessor {
                     originalExif.shutterSpeed?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_TIME, it) }
                     originalExif.focalLength?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_FOCAL_LENGTH, it) }
                     originalExif.aperture?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_F_NUMBER, it) }
+                    // R-13: 保留闪光灯、白平衡、测光模式、曝光程序等扩展 EXIF 字段
+                    originalExif.flash?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_FLASH, it) }
+                    originalExif.whiteBalance?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_WHITE_BALANCE, it) }
+                    originalExif.meteringMode?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_METERING_MODE, it) }
+                    originalExif.exposureProgram?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_EXPOSURE_PROGRAM, it) }
+                    originalExif.lensMake?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_LENS_MAKE, it) }
+                    originalExif.lensModel?.let { if (it.isNotEmpty()) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_LENS_MODEL, it) }
                     val orientationValue = when (orientation) {
                         90 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90
                         180 -> androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180

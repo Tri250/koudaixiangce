@@ -66,6 +66,10 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
         val spaceCheckBytes: Long = 500L * 1024 * 1024,
         /** R-05: 是否使用原子写入（先写临时文件再重命名） */
         val useAtomicWrites: Boolean = true,
+        /** R-06: 批量导出时保留原始文件夹结构 */
+        val preserveFolderStructure: Boolean = false,
+        /** R-06: 导出根目录，用于 preserveFolderStructure */
+        val exportRootDir: String = "",
     )
 
     /**
@@ -138,7 +142,7 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                     if (!processed.preview.isRecycled) processed.preview.recycle()
 
                     try {
-                        imageProcessor.exportImage(adjusted, exportSettings, context, processed.exif, processed.orientation)
+                        imageProcessor.exportImage(adjusted, exportSettings, context, processed.exif, processed.orientation, originalPath = uri.toString())
                     } finally {
                         if (!adjusted.isRecycled) adjusted.recycle()
                     }
@@ -245,7 +249,7 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                     checkBitmapValid(processed.original, uri)
 
                     try {
-                        imageProcessor.exportImage(processed.original, exportSettings, context, processed.exif, processed.orientation)
+                        imageProcessor.exportImage(processed.original, exportSettings, context, processed.exif, processed.orientation, originalPath = uri.toString())
                     } finally {
                         if (!processed.original.isRecycled) processed.original.recycle()
                         if (!processed.preview.isRecycled) processed.preview.recycle()
