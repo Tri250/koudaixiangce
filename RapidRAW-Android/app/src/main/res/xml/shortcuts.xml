@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v1.10.3: App Shortcuts — 主屏幕长按快捷操作。
+  提供 3 个静态快捷方式 + 支持动态快捷方式。
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 打开图库 -->
+    <shortcut
+        android:shortcutId="open_library"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_library"
+        android:shortcutShortLabel="@string/shortcut_library"
+        android:shortcutLongLabel="@string/shortcut_library_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="${applicationId}"
+            android:targetClass="com.rapidraw.MainActivity">
+            <extra android:name="rapidraw_shortcut" android:value="library" />
+        </intent>
+    </shortcut>
+
+    <!-- 最近编辑项目 -->
+    <shortcut
+        android:shortcutId="recent_project"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_edit"
+        android:shortcutShortLabel="@string/shortcut_recent"
+        android:shortcutLongLabel="@string/shortcut_recent_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="${applicationId}"
+            android:targetClass="com.rapidraw.MainActivity">
+            <extra android:name="rapidraw_shortcut" android:value="recent_project" />
+        </intent>
+    </shortcut>
+
+    <!-- 导入/新建编辑 -->
+    <shortcut
+        android:shortcutId="new_edit"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_import"
+        android:shortcutShortLabel="@string/shortcut_new_edit"
+        android:shortcutLongLabel="@string/shortcut_new_edit_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="${applicationId}"
+            android:targetClass="com.rapidraw.MainActivity">
+            <extra android:name="rapidraw_shortcut" android:value="new_edit" />
+        </intent>
+    </shortcut>
+
+</shortcuts>

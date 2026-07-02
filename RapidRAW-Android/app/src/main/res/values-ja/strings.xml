@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RapidRAW</string>
+    <string name="app_label">RapidRAW Editor</string>
+
+    <!-- 共通操作 -->
+    <string name="action_confirm">確認</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="action_save">保存</string>
+    <string name="action_export">書き出し</string>
+    <string name="action_share">共有</string>
+    <string name="action_delete">削除</string>
+    <string name="action_reset">リセット</string>
+    <string name="action_apply">適用</string>
+    <string name="action_undo">元に戻す</string>
+    <string name="action_redo">やり直す</string>
+
+    <!-- ボトムナビゲーション -->
+    <string name="tab_adjust">調整</string>
+    <string name="tab_crop">切り抜き</string>
+    <string name="tab_film">フィルム</string>
+    <string name="tab_mask">マスク</string>
+    <string name="tab_export">書き出し</string>
+
+    <!-- AI機能 -->
+    <string name="ai_denoise">AIノイズ除去</string>
+    <string name="ai_inpaint">AI消去</string>
+    <string name="ai_mask">AIマスク</string>
+    <string name="smart_optimize">スマート最適化</string>
+    <string name="master_presets">マスタープリセット</string>
+
+    <!-- 分析ツール -->
+    <string name="waveform_scope">波形モニター</string>
+    <string name="before_after">比較</string>
+    <string name="histogram">ヒストグラム</string>
+
+    <!-- 書き出し -->
+    <string name="export_processing">書き出し中…</string>
+    <string name="export_success">書き出し成功</string>
+    <string name="export_failed">書き出し失敗</string>
+
+    <!-- 編集/サイドカー -->
+    <string name="sidecar_saved">編集を保存しました</string>
+    <string name="recipe_shared">レシピを共有しました</string>
+    <string name="recipe_imported">レシピをインポートしました</string>
+
+    <!-- 権限 -->
+    <string name="permission_required">写真にアクセスするにはストレージ権限が必要です</string>
+    <string name="grant_permission">権限を許可</string>
+
+    <!-- ライブラリ -->
+    <string name="library_title">ライブラリ</string>
+    <string name="library_all">すべて</string>
+    <string name="library_dcim">カメラ</string>
+    <string name="library_downloads">ダウンロード</string>
+    <string name="library_screenshots">スクリーンショット</string>
+    <string name="library_raw_only">RAWのみ</string>
+    <string name="library_starred">お気に入り</string>
+    <string name="library_search">写真を検索</string>
+    <string name="library_sort">並び替え</string>
+
+    <!-- エディター -->
+    <string name="editor_title">エディター</string>
+    <string name="editor_film">フィルム</string>
+    <string name="editor_adjust">調整</string>
+    <string name="editor_crop">切り抜き</string>
+    <string name="editor_export">書き出し</string>
+    <string name="editor_undo">元に戻す</string>
+    <string name="editor_redo">やり直す</string>
+    <string name="editor_exif">EXIF情報</string>
+    <string name="editor_original">元画像</string>
+    <string name="editor_optimized">最適化後</string>
+
+    <!-- フィルムシミュレーション -->
+    <string name="film_classic">クラシック</string>
+    <string name="film_emotional">エモーショナル</string>
+    <string name="film_structural">ストラクチャル</string>
+    <string name="film_no_filter">フィルターなし</string>
+
+    <!-- 調整パネル -->
+    <string name="adjust_basic">基本</string>
+    <string name="adjust_color">カラー</string>
+    <string name="adjust_curves">カーブ</string>
+    <string name="adjust_details">ディテール</string>
+    <string name="adjust_effects">エフェクト</string>
+    <string name="adjust_advanced">高度</string>
+    <string name="adjust_transform">変形</string>
+
+    <!-- 切り抜き -->
+    <string name="crop_free">自由</string>
+    <string name="crop_original">オリジナル</string>
+
+    <!-- 書き出し設定 -->
+    <string name="export_format">フォーマット</string>
+    <string name="export_quality">品質</string>
+    <string name="export_resize">リサイズ</string>
+    <string name="export_metadata">メタデータを保持</string>
+    <string name="export_strip_gps">GPSを削除</string>
+    <string name="export_social">SNSプラットフォーム</string>
+    <string name="export_watermark">ウォーターマーク</string>
+    <string name="export_button">書き出し</string>
+
+    <!-- メニュー -->
+    <string name="menu_reset">すべてリセット</string>
+    <string name="menu_smart_optimize">スマート最適化</string>
+    <string name="menu_copy_params">編集パラメータをコピー</string>
+    <string name="menu_recipe_share">レシピを共有</string>
+    <string name="menu_ai_inpaint">AI消去</string>
+    <string name="menu_presets">マスタープリセット</string>
+
+    <!-- AI消去 -->
+    <string name="ai_inpaint_title">AI消去</string>
+    <string name="ai_inpaint_brush">ブラシ</string>
+    <string name="ai_inpaint_erase">消しゴム</string>
+    <string name="ai_inpaint_start">修復開始</string>
+    <string name="ai_inpaint_repairing">修復中…</string>
+
+    <!-- プリセット -->
+    <string name="presets_title">マスタープリセット</string>
+    <string name="presets_all">すべて</string>
+    <string name="presets_portrait">ポートレート</string>
+    <string name="presets_landscape">風景</string>
+    <string name="presets_night">夜景</string>
+    <string name="presets_street">ストリート</string>
+    <string name="presets_food">料理</string>
+
+    <!-- 権限 -->
+    <string name="permission_storage">写真にアクセスするにはストレージ権限が必要です</string>
+    <string name="permission_permanently_denied">権限が恒久的に拒否されました。設定で手動で有効にしてください</string>
+
+    <!-- 設定 -->
+    <string name="settings_title">設定</string>
+    <string name="settings_theme">テーマ</string>
+    <string name="settings_dark">ダーク</string>
+    <string name="settings_light">ライト</string>
+    <string name="settings_about">について</string>
+    <string name="settings_privacy">プライバシーポリシー</string>
+    <string name="settings_version">バージョン</string>
+    <string name="settings_check_update">アップデートを確認</string>
+
+    <!-- AIセマンティックタグ -->
+    <string name="ai_tag_scene">シーン</string>
+    <string name="ai_tag_subject">被写体</string>
+    <string name="ai_tag_style">スタイル</string>
+    <string name="ai_tag_mood">雰囲気</string>
+    <string name="ai_tag_color_tone">色調</string>
+    <string name="ai_tag_time_of_day">時間帯</string>
+    <string name="ai_search_hint">検索（例：「海辺の夕日のポートレート」）</string>
+    <string name="ai_smart_albums">AIスマートアルバム</string>
+
+    <!-- チャンネルミキサー -->
+    <string name="channel_mixer">チャンネルミキサー</string>
+    <string name="channel_mixer_red">赤チャンネル出力</string>
+    <string name="channel_mixer_green">緑チャンネル出力</string>
+    <string name="channel_mixer_blue">青チャンネル出力</string>
+    <string name="channel_mixer_monochrome">モノクロ</string>
+
+    <!-- スプリットトーニング -->
+    <string name="split_toning">スプリットトーニング</string>
+    <string name="split_toning_highlights">ハイライト</string>
+    <string name="split_toning_shadows">シャドウ</string>
+    <string name="split_toning_balance">バランス</string>
+
+    <!-- ICCプロファイル -->
+    <string name="icc_profile">ICCカラープロファイル</string>
+    <string name="icc_embed">ICCプロファイルを埋め込む</string>
+    <string name="icc_srgb">sRGB IEC61966-2.1</string>
+    <string name="icc_display_p3">Display P3</string>
+    <string name="icc_adobe_rgb">Adobe RGB (1998)</string>
+    <string name="icc_rec2020">Rec.2020</string>
+    <string name="icc_prophoto">ProPhoto RGB</string>
+
+    <!-- クラシックフィルムプリセット -->
+    <string name="film_kodak_portra_400">Kodak Portra 400</string>
+    <string name="film_kodak_portra_160">Kodak Portra 160</string>
+    <string name="film_kodak_ektar_100">Kodak Ektar 100</string>
+    <string name="film_kodak_gold_200">Kodak Gold 200</string>
+    <string name="film_fuji_pro_400h">Fujifilm Pro 400H</string>
+    <string name="film_fuji_superia_400">Fujifilm Superia 400</string>
+    <string name="film_fuji_c200">Fujifilm C200</string>
+    <string name="film_fuji_velvia_50">Fujifilm Velvia 50</string>
+    <string name="film_kodak_kodachrome_64">Kodak Kodachrome 64</string>
+    <string name="film_ilford_hp5_400">Ilford HP5 Plus 400</string>
+    <string name="film_kodak_trix_400">Kodak Tri-X 400</string>
+    <string name="film_kodak_tmax_400">Kodak T-Max 400</string>
+    <string name="film_ilford_delta_3200">Ilford Delta 3200</string>
+    <string name="film_cinestill_800t">CineStill 800T</string>
+    <string name="film_kodak_vision3_500d">Kodak Vision3 500D</string>
+
+    <!-- プライバシーポリシー -->
+    <string name="privacy_title">プライバシーポリシー</string>
+    <string name="privacy_content">RapidRAWはあなたのプライバシーを尊重します。\n\n個人情報や写真データを収集、保存、送信することは一切ありません。すべての画像処理はデバイス上でローカルに実行されます。\n\n必要な権限：\n• ストレージ：写真へのローカルアクセスと保存にのみ使用されます。\n• 通知：書き出し完了の通知にのみ使用されます。\n\n第三者とのデータ共有は一切行いません。\n\nご質問はこちら：support@rapidraw.app</string>
+
+    <!-- アプリ内アップデート -->
+    <string name="update_available">新しいバージョンがあります</string>
+    <string name="update_downloading">アップデートをダウンロード中…</string>
+    <string name="update_ready">アップデートの準備ができました。再起動して適用してください</string>
+    <string name="update_failed">アップデートに失敗しました。後でもう一度お試しください</string>
+</resources>
