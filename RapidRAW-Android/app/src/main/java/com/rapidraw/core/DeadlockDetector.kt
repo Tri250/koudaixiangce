@@ -2,6 +2,7 @@ package com.rapidraw.core
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -39,7 +40,7 @@ object DeadlockDetector {
     private const val CHECK_INTERVAL_MS = 2_000L
 
     private val running = AtomicBoolean(false)
-    private val lastResponseTime = AtomicLong(System.currentTimeMillis())
+    private val lastResponseTime = AtomicLong(SystemClock.elapsedRealtime())
     private var watchThread: Thread? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -58,18 +59,18 @@ object DeadlockDetector {
             Log.w(TAG, "DeadlockDetector already running")
             return
         }
-        lastResponseTime.set(System.currentTimeMillis())
+        lastResponseTime.set(SystemClock.elapsedRealtime())
         watchThread = Thread({
             while (running.get()) {
                 try {
                     // 投递消息到主线程，触发响应
                     mainHandler.post {
-                        lastResponseTime.set(System.currentTimeMillis())
+                        lastResponseTime.set(SystemClock.elapsedRealtime())
                     }
                     Thread.sleep(CHECK_INTERVAL_MS)
 
                     // 检查主线程响应
-                    val elapsed = System.currentTimeMillis() - lastResponseTime.get()
+                    val elapsed = SystemClock.elapsedRealtime() - lastResponseTime.get()
                     if (elapsed > thresholdMs) {
                         val stacks = collectAllThreadStacks()
                         val message = buildString {
@@ -117,14 +118,14 @@ object DeadlockDetector {
      * 返回 true 表示主线程正常响应。
      */
     fun checkMainThread(timeoutMs: Long = 3_000L): Boolean {
-        val startTime = System.currentTimeMillis()
+        val startTime = SystemClock.elapsedRealtime()
         val responded = AtomicBoolean(false)
         mainHandler.post {
             responded.set(true)
         }
         try {
             Thread.sleep(100)
-            while (!responded.get() && System.currentTimeMillis() - startTime < timeoutMs) {
+            while (!responded.get() && SystemClock.elapsedRealtime() - startTime < timeoutMs) {
                 Thread.sleep(50)
             }
         } catch (_: InterruptedException) {

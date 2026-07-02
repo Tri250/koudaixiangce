@@ -89,6 +89,9 @@ class GpuPipeline(private val context: Context) {
     private var lutIntensity = 0f
 
     // 性能优化：复用缓冲区避免频繁 GC
+    // v1.10.6: readBackBuffer 标记为 @Volatile，配合 synchronized 块保护读写，
+    // 防止多线程并发调用 getProcessedBitmap() 时的竞态条件。
+    @Volatile
     private var readBackBuffer: java.nio.ByteBuffer? = null
     private var readBackBitmap: android.graphics.Bitmap? = null
     private var lastInputWidth = 0
@@ -1000,7 +1003,10 @@ class GpuPipeline(private val context: Context) {
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
 
             // 复用 ByteBuffer 避免频繁分配
-            var buffer = readBackBuffer
+            var buffer: java.nio.ByteBuffer?
+            synchronized(this) {
+                buffer = readBackBuffer
+            }
             // 2026 hotfix: 防御 width*height*4 整数溢出
             val requiredBytes = width.toLong() * height.toLong() * 4L
             if (requiredBytes > Int.MAX_VALUE.toLong()) {
@@ -1012,7 +1018,9 @@ class GpuPipeline(private val context: Context) {
             if (buffer == null || buffer.capacity() < required) {
                 buffer = ByteBuffer.allocateDirect(required)
                     .order(ByteOrder.nativeOrder())
-                readBackBuffer = buffer
+                synchronized(this) {
+                    readBackBuffer = buffer
+                }
             }
             buffer.clear()
 
@@ -1122,7 +1130,9 @@ class GpuPipeline(private val context: Context) {
         if (vbo != 0) { GLES30.glDeleteBuffers(1, intArrayOf(vbo), 0); vbo = 0 }
 
         // 清理内部缓冲区（readBackBitmap 已废弃复用，仅清理 readBackBuffer）
-        readBackBuffer = null
+        synchronized(this) {
+            readBackBuffer = null
+        }
 
         // Destroy EGL
         val display = eglDisplay

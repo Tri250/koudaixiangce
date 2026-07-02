@@ -1,7 +1,9 @@
 package com.rapidraw.core
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -82,8 +84,11 @@ object ANRWatchdog {
 
     // ── 监控逻辑 ──────────────────────────────────────────────────────
 
+    // v1.10.6 hotfix: 使用 SystemClock.elapsedRealtime() 替代 System.currentTimeMillis()
+    // 进行时间测量。elapsedRealtime 基于系统启动时间，不受用户调整系统时间影响，
+    // 确保 ANR 检测在时间跳变（如自动时区同步）场景下依然准确。
     private fun monitor() {
-        var lastTickTime = System.currentTimeMillis()
+        var lastTickTime = SystemClock.elapsedRealtime()
         while (isRunning.get() && !Thread.currentThread().isInterrupted) {
             val tickResult = AtomicBoolean(false)
             val tickTime = AtomicLong(0L)
@@ -91,7 +96,7 @@ object ANRWatchdog {
             // 向主线程 post 一个 tick
             mainHandler.post {
                 tickResult.set(true)
-                tickTime.set(System.currentTimeMillis())
+                tickTime.set(SystemClock.elapsedRealtime())
             }
 
             try {
@@ -100,7 +105,7 @@ object ANRWatchdog {
                 break
             }
 
-            val now = System.currentTimeMillis()
+            val now = SystemClock.elapsedRealtime()
             if (tickResult.get() && now - tickTime.get() < blockThresholdMs) {
                 // 主线程响应正常
                 lastTickTime = tickTime.get()
@@ -123,7 +128,7 @@ object ANRWatchdog {
 
         // 去重：同一堆栈 5 分钟内不重复上报
         val stackHash = stackTrace.fold(0L) { acc, c -> acc * 31 + c.code }
-        val now = System.currentTimeMillis()
+        val now = SystemClock.elapsedRealtime()
         if (stackHash == lastReportedHash.get() && now - lastReportedTime.get() < DUPLICATE_SUPPRESS_MS) {
             Log.d(TAG, "ANR duplicate suppressed (hash=${stackHash.toString(16)})")
             return
@@ -136,12 +141,15 @@ object ANRWatchdog {
         // 写入本地崩溃日志
         runCatching {
             val exception = RuntimeException("ANR: main thread blocked for ${durationMs}ms\n$stackTrace")
-            CrashHandler.writeCrashToFileStatic(
-                CrashHandler.crashLogDirStatic(),
-                mainThread,
-                exception,
-                "anr",
-            )
+            val appContext = CrashReporter.getAppContext()
+            if (appContext != null) {
+                CrashHandler.writeCrashToFileStatic(
+                    CrashHandler.crashLogDirStatic(appContext),
+                    mainThread,
+                    exception,
+                    "anr",
+                )
+            }
         }.onFailure { Log.e(TAG, "Failed to persist ANR log", it) }
 
         // 通过 CrashReporter 上报

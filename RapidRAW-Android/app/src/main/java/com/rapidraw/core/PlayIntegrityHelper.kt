@@ -59,7 +59,7 @@ object PlayIntegrityHelper {
     fun checkIntegrity(context: Context): IntegrityResult {
         val now = System.currentTimeMillis()
         if (cachedResult != null && (now - lastCheckTimeMs) < CACHE_DURATION_MS) {
-            return cachedResult!!
+            return cachedResult ?: IntegrityResult.UNKNOWN
         }
 
         val result = performLocalIntegrityCheck(context)

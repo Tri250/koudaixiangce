@@ -196,12 +196,15 @@ object CrashHandler {
 
     /**
      * 暴露 crashLogDir 的静态访问，供 [ANRWatchdog] 写入日志。
+     * v1.10.6 hotfix: 移除硬编码路径，改用 context.packageName 动态获取。
+     * 旧代码硬编码 "/data/data/com.rapidraw/files"，在非 com.rapidraw 包名
+     * （如 dev/staging 变体）下会写入错误目录，导致崩溃日志无法被收集。
      */
     @JvmStatic
-    fun crashLogDirStatic(): File {
-        // 使用反射获取 externally visible 的 crashLogDir; 此处直接构造
-        // 注意：必须与 crashLogDir(context) 返回相同路径
-        return File("/data/data/com.rapidraw/files", LOG_DIR)
+    fun crashLogDirStatic(context: Context): File {
+        val dir = File(context.filesDir, LOG_DIR)
+        if (!dir.exists()) dir.mkdirs()
+        return dir
     }
 
     /**

@@ -113,12 +113,20 @@ object Routes {
     // 兼容层：保留旧版 Holder，用于与尚未迁移到 ResultKeys 的调用方保持兼容。
     // v1.7.0: 兼容层已标记为 deprecated，所有新调用方使用 ResultKeys + SavedStateHandle。
     // 计划在 v2.0 中完全移除。
+    // v1.10.6: 添加 setter 回收旧 bitmap，防止内存泄漏。
     object SelectedPresetHolder {
         var pendingPreset: com.rapidraw.data.model.Preset? = null
     }
 
     object AiInpaintResultHolder {
         var pendingResult: android.graphics.Bitmap? = null
+            set(value) {
+                // v1.10.6: 回收旧 bitmap 防止内存泄漏
+                field?.let { old ->
+                    if (!old.isRecycled) old.recycle()
+                }
+                field = value
+            }
     }
 }
 

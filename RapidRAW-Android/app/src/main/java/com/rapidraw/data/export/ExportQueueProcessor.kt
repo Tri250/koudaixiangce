@@ -38,14 +38,14 @@ import java.util.concurrent.atomic.AtomicBoolean
  *   这样即使编辑器被销毁，重试仍能基于上次的调整重新出图。
  *
  * v1.5.5 hotfix.
+ * v1.10.6 hotfix: 添加 shutdown() 方法，在 Application.onTerminate() 中调用，
+ * 防止进程退出时协程未取消导致资源泄漏。
  */
 object ExportQueueProcessor {
 
     private const val TAG = "ExportQueueProcessor"
 
-    private val scope = CoroutineScope(
-        SupervisorJob() + Dispatchers.IO
-    )
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * 同一时刻只允许一个活跃处理协程。
@@ -97,6 +97,16 @@ object ExportQueueProcessor {
     fun stop() {
         currentJob?.cancel()
         currentJob = null
+    }
+
+    /**
+     * v1.10.6: 关闭处理器，取消所有协程。
+     * 应在 Application.onTerminate() 中调用，防止进程退出时资源泄漏。
+     */
+    fun shutdown() {
+        stop()
+        scope.cancel()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
     private suspend fun drainQueue(appContext: Context) {

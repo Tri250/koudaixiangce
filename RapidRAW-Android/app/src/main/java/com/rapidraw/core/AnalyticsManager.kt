@@ -73,10 +73,15 @@ object AnalyticsManager {
     fun init(context: Context, endpoint: String? = null, apiKey: String? = null) {
         if (!initialized.compareAndSet(false, true)) return
         appContext = context.applicationContext
-        prefs = appContext!!.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        appContext?.let { ctx ->
+            prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            _isEnabled.value = prefs?.getBoolean(KEY_ENABLED, true) ?: true
+        } ?: run {
+            Log.e(TAG, "AnalyticsManager.init: appContext is null")
+            return
+        }
         this.endpoint = endpoint
         this.apiKey = apiKey
-        _isEnabled.value = prefs!!.getBoolean(KEY_ENABLED, true)
         ensureUserId()
         startNewSession()
         loadQueuedEvents()

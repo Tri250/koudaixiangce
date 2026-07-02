@@ -196,9 +196,9 @@ object PerformanceMonitor {
             thermalListenerJob = scope.launch(Dispatchers.Main) {
                 // v1.10.5: 持有 Job 引用，用于 shutdown 时取消
             }
-            powerManager!!.addThermalStatusListener(
+            powerManager?.addThermalStatusListener(
                 thermalListenerJob as java.util.concurrent.Executor,
-                thermalListener!!
+                thermalListener
             )
             Log.i(TAG, "Thermal monitoring enabled")
         } catch (e: Exception) {

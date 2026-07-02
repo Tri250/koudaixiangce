@@ -110,6 +110,9 @@ object CrashReporter {
         Log.i(TAG, "CrashReporter initialized (remote=${remoteEndpoint != null})")
     }
 
+    /** v1.10.6: 获取已初始化的 ApplicationContext，供 ANRWatchdog 等模块使用 */
+    fun getAppContext(): Context? = appContext
+
     // ── 公开 API ──────────────────────────────────────────────────────
 
     /** 上报崩溃（异步，失败不抛异常） */
@@ -196,7 +199,7 @@ object CrashReporter {
             stackTrace = stackTrace,
             deviceInfo = DeviceInfo(),
             appVersion = appVersion,
-            appVersionCode = getAppVersionCode(appContext!!),
+            appVersionCode = appContext?.let { getAppVersionCode(it) } ?: 0,
             tags = tags,
         )
     }
@@ -243,8 +246,10 @@ object CrashReporter {
             }
             val success = conn.responseCode in 200..299
             if (success) {
-                CrashStorage.remove(context = appContext!!, entry.id)
-                _pendingReports.value = CrashStorage.pendingCount(appContext!!)
+                appContext?.let { ctx ->
+                    CrashStorage.remove(context = ctx, entry.id)
+                    _pendingReports.value = CrashStorage.pendingCount(ctx)
+                }
             }
             conn.disconnect()
             success
