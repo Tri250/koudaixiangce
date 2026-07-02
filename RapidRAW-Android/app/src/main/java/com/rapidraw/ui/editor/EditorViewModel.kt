@@ -81,6 +81,8 @@ enum class EditorTab {
 
 sealed class EditorEvent {
     data class Error(val message: String) : EditorEvent()
+    // v1.10.6: 新增成功事件，避免用 Error 事件传递成功消息
+    data class Success(val message: String) : EditorEvent()
     data class ExportComplete(val uri: Uri) : EditorEvent()
     data class ShareImage(val uri: Uri) : EditorEvent()
     data object Idle : EditorEvent()
@@ -630,11 +632,20 @@ class EditorViewModel(
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             val filmId = _selectedFilmId.value
             val current = _adjustments.value
-            presetManager.saveFromAdjustments(name, current, filmId)
-            _userPresets.value = presetManager.getAll()
-            withContext(Dispatchers.Main) {
-                pushUndo("保存预设: $name")
-                _event.value = EditorEvent.Error("预设已保存: $name")
+            runCatching {
+                presetManager.saveFromAdjustments(name, current, filmId)
+                _userPresets.value = presetManager.getAll()
+            }.onSuccess {
+                withContext(Dispatchers.Main) {
+                    pushUndo("保存预设: $name")
+                    // v1.10.6: 使用成功提示事件，而非复用 Error 事件
+                    _event.value = EditorEvent.Success("预设已保存: $name")
+                }
+            }.onFailure { throwable ->
+                Log.w(TAG, "saveCurrentAsPreset failed", throwable)
+                withContext(Dispatchers.Main) {
+                    _event.value = EditorEvent.Error("保存预设失败: ${throwable.localizedMessage}")
+                }
             }
         }
     }

@@ -224,10 +224,14 @@ fun EditorScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // 消费一次性事件：错误提示 / 导出完成
+    // 消费一次性事件：错误提示 / 成功提示 / 导出完成
     LaunchedEffect(event) {
         when (val e = event) {
             is EditorEvent.Error -> {
+                snackbarHostState.showSnackbar(e.message)
+                viewModel.consumeEvent()
+            }
+            is EditorEvent.Success -> {
                 snackbarHostState.showSnackbar(e.message)
                 viewModel.consumeEvent()
             }

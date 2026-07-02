@@ -152,18 +152,32 @@ fun PresetsDiscoveryScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // 预设网格
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(filteredPresets, key = { it.id }) { preset ->
-                    PresetCard(
-                        preset = preset,
-                        onApply = { onApplyPreset(preset) },
+            if (filteredPresets.isEmpty()) {
+                // v1.10.6: 添加空状态提示
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "该分类下暂无预设",
+                        color = TextTertiary,
+                        fontSize = 16.sp,
                     )
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(filteredPresets, key = { it.id }) { preset ->
+                        PresetCard(
+                            preset = preset,
+                            onApply = { onApplyPreset(preset) },
+                        )
+                    }
                 }
             }
         }

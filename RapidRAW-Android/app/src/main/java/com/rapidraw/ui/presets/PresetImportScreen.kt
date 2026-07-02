@@ -60,6 +60,8 @@ fun PresetImportScreen(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
         selectedUri = uri
+        // v1.10.6: 选择新文件时清除旧错误
+        importError = null
     }
 
     Column(
@@ -132,8 +134,12 @@ fun PresetImportScreen(
                 onClick = {
                     val uri = selectedUri
                     if (uri != null) {
+                        importError = null
                         scope.launch(Dispatchers.IO) {
-                            val result = PresetConverter.importFile(uri, context.contentResolver)
+                            // v1.10.6: 包裹导入操作，防止异常崩溃
+                            val result = runCatching {
+                                PresetConverter.importFile(uri, context.contentResolver)
+                            }.getOrNull()
                             withContext(Dispatchers.Main) {
                                 if (result != null) {
                                     val preset = Preset(

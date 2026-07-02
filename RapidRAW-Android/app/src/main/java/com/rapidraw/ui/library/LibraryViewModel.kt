@@ -96,6 +96,12 @@ class LibraryViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    // v1.10.6: 添加错误状态，让 UI 能感知并展示错误信息
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    fun clearError() { _error.value = null }
+
     private val _thumbnails = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
     val thumbnails: StateFlow<Map<String, Bitmap>> = _thumbnails.asStateFlow()
 
@@ -194,24 +200,33 @@ class LibraryViewModel(
     fun loadImages(folder: String?) {
         _selectedFolder.value = folder
         _isLoading.value = true
+        _error.value = null
         _selectedImagePaths.value = emptySet()
         // v1.10.5: 保存状态到 SavedStateHandle
         saveStateToHandle()
 
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
-            val imageList = queryImages(folder)
-            val folderSet = mutableSetOf<String>()
+            try {
+                val imageList = queryImages(folder)
+                val folderSet = mutableSetOf<String>()
 
-            for (image in imageList) {
-                val parentFolder = image.folderPath
-                if (parentFolder.isNotEmpty()) {
-                    folderSet.add(parentFolder)
+                for (image in imageList) {
+                    val parentFolder = image.folderPath
+                    if (parentFolder.isNotEmpty()) {
+                        folderSet.add(parentFolder)
+                    }
                 }
-            }
 
-            _folders.value = folderSet.toList().sorted()
-            applyFilters(imageList)
-            _isLoading.value = false
+                _folders.value = folderSet.toList().sorted()
+                applyFilters(imageList)
+            } catch (e: Exception) {
+                // v1.10.6: 确保错误状态传播到 UI
+                Log.e(TAG, "loadImages failed", e)
+                _error.value = e.localizedMessage ?: "图片加载失败"
+            } finally {
+                // v1.10.6: 确保 isLoading 在任何退出路径上都被重置
+                _isLoading.value = false
+            }
         }
     }
 
@@ -455,10 +470,19 @@ class LibraryViewModel(
 
     fun searchImages(query: String) {
         _searchQuery.value = query
+        _isLoading.value = true
+        _error.value = null
         saveStateToHandle()
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
-            val allImages = queryImages(_selectedFolder.value)
-            applyFilters(allImages)
+            try {
+                val allImages = queryImages(_selectedFolder.value)
+                applyFilters(allImages)
+            } catch (e: Exception) {
+                Log.e(TAG, "searchImages failed", e)
+                _error.value = e.localizedMessage ?: "搜索失败"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -469,17 +493,35 @@ class LibraryViewModel(
             SortOrder.NAME -> SortOrder.DATE
         }
         saveStateToHandle()
+        _isLoading.value = true
+        _error.value = null
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
-            val allImages = queryImages(_selectedFolder.value)
-            applyFilters(allImages)
+            try {
+                val allImages = queryImages(_selectedFolder.value)
+                applyFilters(allImages)
+            } catch (e: Exception) {
+                Log.e(TAG, "toggleSortOrder failed", e)
+                _error.value = e.localizedMessage ?: "排序失败"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
     fun toggleFilterRaw() {
         _filterRaw.value = !_filterRaw.value
+        _isLoading.value = true
+        _error.value = null
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
-            val allImages = queryImages(_selectedFolder.value)
-            applyFilters(allImages)
+            try {
+                val allImages = queryImages(_selectedFolder.value)
+                applyFilters(allImages)
+            } catch (e: Exception) {
+                Log.e(TAG, "toggleFilterRaw failed", e)
+                _error.value = e.localizedMessage ?: "筛选失败"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -488,17 +530,35 @@ class LibraryViewModel(
         // 同步旧的 filterRaw 状态以保持兼容
         _filterRaw.value = filter == FormatFilter.RAW_ONLY
         saveStateToHandle()
+        _isLoading.value = true
+        _error.value = null
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
-            val allImages = queryImages(_selectedFolder.value)
-            applyFilters(allImages)
+            try {
+                val allImages = queryImages(_selectedFolder.value)
+                applyFilters(allImages)
+            } catch (e: Exception) {
+                Log.e(TAG, "setFormatFilter failed", e)
+                _error.value = e.localizedMessage ?: "格式筛选失败"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
     fun setSceneFilter(filter: SceneFilter) {
         _sceneFilter.value = filter
+        _isLoading.value = true
+        _error.value = null
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
-            val allImages = queryImages(_selectedFolder.value)
-            applyFilters(allImages)
+            try {
+                val allImages = queryImages(_selectedFolder.value)
+                applyFilters(allImages)
+            } catch (e: Exception) {
+                Log.e(TAG, "setSceneFilter failed", e)
+                _error.value = e.localizedMessage ?: "场景筛选失败"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
