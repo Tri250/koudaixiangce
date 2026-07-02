@@ -28,6 +28,7 @@ import com.rapidraw.ui.help.HelpCenterScreen
 import com.rapidraw.ui.library.LibraryScreen
 import com.rapidraw.ui.export.ExportQueueScreen
 import com.rapidraw.ui.onboarding.OnboardingScreen
+import com.rapidraw.ui.onboarding.OnboardingState
 import com.rapidraw.ui.presets.PresetImportScreen
 import com.rapidraw.ui.presets.PresetsDiscoveryScreen
 import com.rapidraw.ui.settings.FeedbackScreen
@@ -42,13 +43,15 @@ import com.rapidraw.ui.theme.Motion
  * v1.5.5 hotfix: 根据引导完成状态决定初始路由，避免每次启动都闪现引导页。
  * 旧版 startDestination 硬编码为 ONBOARDING，导致已完成引导的用户每次冷启动
  * 都会先看到引导页再自动跳转，不仅 UX 差，还可能在低端设备上因快速导航引发异常。
+ *
+ * v2026.07: 改用 [OnboardingState] 单一事实源，与 [com.rapidraw.ui.onboarding.OnboardingViewModel]
+ * 读到同一份值，避免双源竞态。
  */
 @Composable
 fun rememberStartDestination(): String {
     val context = LocalContext.current
     return remember {
-        val prefs = context.getSharedPreferences("rapidraw_onboarding", android.content.Context.MODE_PRIVATE)
-        if (prefs.getBoolean("onboarding_completed", false)) Routes.LIBRARY else Routes.ONBOARDING
+        if (OnboardingState.isCompleted(context)) Routes.LIBRARY else Routes.ONBOARDING
     }
 }
 

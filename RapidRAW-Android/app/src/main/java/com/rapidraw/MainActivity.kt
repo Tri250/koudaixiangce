@@ -46,6 +46,10 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+
+        // v2026.07: 用于持久化待处理的外部图片 URI，支持 Process Death & Restore。
+        private const val PREFS_PENDING_URI = "rapidraw_pending_uri"
+        private const val KEY_PENDING_URI = "pending_uri"
     }
 
     private val permissionLauncher = registerForActivityResult(
@@ -91,6 +95,21 @@ class MainActivity : ComponentActivity() {
     private fun setPendingImageUri(uri: Uri?) {
         pendingImageUri = uri
         pendingImageUriState = uri
+        // v2026.07: 进程死亡恢复 — 持久化到 SafePreferences，
+        // 使外部 Intent 在 Process Death & Restore 后仍能继续导航到编辑器。
+        val prefs = com.rapidraw.core.SafePreferences.get(this, PREFS_PENDING_URI)
+        if (uri == null) {
+            com.rapidraw.core.SafePreferences.remove(prefs, KEY_PENDING_URI)
+        } else {
+            com.rapidraw.core.SafePreferences.putString(prefs, KEY_PENDING_URI, uri.toString())
+        }
+    }
+
+    private fun restorePendingImageUri(): Uri? {
+        if (pendingImageUri != null) return pendingImageUri
+        val prefs = com.rapidraw.core.SafePreferences.get(this, PREFS_PENDING_URI)
+        val raw = com.rapidraw.core.SafePreferences.getString(prefs, KEY_PENDING_URI, null)
+        return raw?.let { runCatching { Uri.parse(it) }.getOrNull() }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -129,6 +148,13 @@ class MainActivity : ComponentActivity() {
         val initialUri = handleIncomingIntent(intent)
         if (initialUri != null) {
             setPendingImageUri(initialUri)
+        } else {
+            // v2026.07: 进程死亡后 Activity 重建，原始 intent 已丢失，
+            // 尝试从持久化 prefs 恢复上一次的外部图片 URI。
+            val restored = restorePendingImageUri()
+            if (restored != null) {
+                setPendingImageUri(restored)
+            }
         }
 
         // 延迟请求权限，避免阻塞首帧渲染
@@ -329,13 +355,14 @@ class MainActivity : ComponentActivity() {
      * 需要结合历史记录才能正确判断。
      */
     private fun markPermissionsRequested(permissions: List<String>) {
-        val prefs = getSharedPreferences("permission_history", MODE_PRIVATE)
-        prefs.edit().putStringSet("requested", (prefs.getStringSet("requested", emptySet()) ?: emptySet()) + permissions.toSet()).apply()
+        val prefs = com.rapidraw.core.SafePreferences.get(this, "permission_history")
+        val existing = com.rapidraw.core.SafePreferences.getStringSet(prefs, "requested", emptySet()) ?: emptySet()
+        com.rapidraw.core.SafePreferences.putStringSet(prefs, "requested", existing + permissions.toSet())
     }
 
     private fun getPreviouslyRequestedPermissions(): Set<String> {
-        val prefs = getSharedPreferences("permission_history", MODE_PRIVATE)
-        return prefs.getStringSet("requested", emptySet()) ?: emptySet()
+        val prefs = com.rapidraw.core.SafePreferences.get(this, "permission_history")
+        return com.rapidraw.core.SafePreferences.getStringSet(prefs, "requested", emptySet()) ?: emptySet()
     }
 
     private fun applyImmersiveMode() {
@@ -414,32 +441,23 @@ class MainActivity : ComponentActivity() {
     private fun handleShortcutNavigation(shortcut: String, nav: NavHostController) {
         when (shortcut) {
             "library" -> {
-                nav.navigate(Routes.Library) {
-                    popUpTo(Routes.Library) { inclusive = true }
+                nav.navigate(Routes.LIBRARY) {
+                    popUpTo(Routes.LIBRARY) { inclusive = true }
                 }
             }
             "recent_project" -> {
-                nav.navigate(Routes.DamProject) {
-                    popUpTo(Routes.Library) { inclusive = true }
+                nav.navigate(Routes.DAM_PROJECTS) {
+                    popUpTo(Routes.LIBRARY) { inclusive = true }
                 }
             }
             "new_edit" -> {
                 // 打开图库选择器导入新照片
-                nav.navigate(Routes.Library) {
-                    popUpTo(Routes.Library) { inclusive = true }
+                nav.navigate(Routes.LIBRARY) {
+                    popUpTo(Routes.LIBRARY) { inclusive = true }
                 }
             }
         }
     }
 
-    /**
-     * 检测当前是否运行在 ColorOS / OPPO / realme 设备上
-     */
-    private fun isOppoDevice(): Boolean {
-        val manufacturer = Build.MANUFACTURER.lowercase()
-        val brand = Build.BRAND.lowercase()
-        return manufacturer.contains("oppo") || brand.contains("oppo") ||
-            manufacturer.contains("realme") || brand.contains("realme") ||
-            manufacturer.contains("oneplus") || brand.contains("oneplus")
-    }
+    // v2026.07: 私有 isOppoDevice() 与 DeviceOptimizer 内部同名函数重复且无调用方，已删除。
 }

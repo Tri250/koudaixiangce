@@ -62,6 +62,16 @@ object SafePreferences {
         }
     }
 
+    /** 安全读取 StringSet */
+    fun getStringSet(prefs: SharedPreferences, key: String, defaultValue: Set<String>? = null): Set<String>? {
+        return try {
+            prefs.getStringSet(key, defaultValue)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read StringSet preference '$key'", e)
+            defaultValue
+        }
+    }
+
     /** 安全读取 Int */
     fun getInt(prefs: SharedPreferences, key: String, defaultValue: Int = 0): Int {
         return try {
@@ -108,6 +118,15 @@ object SafePreferences {
             prefs.edit().putString(key, value).apply()
         } catch (e: Exception) {
             Log.w(TAG, "Failed to write String preference '$key'", e)
+        }
+    }
+
+    /** 安全写入 StringSet */
+    fun putStringSet(prefs: SharedPreferences, key: String, value: Set<String>?) {
+        try {
+            prefs.edit().putStringSet(key, value).apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write StringSet preference '$key'", e)
         }
     }
 

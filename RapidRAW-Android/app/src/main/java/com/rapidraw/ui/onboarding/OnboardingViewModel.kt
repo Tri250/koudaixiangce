@@ -3,6 +3,7 @@ package com.rapidraw.ui.onboarding
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.rapidraw.core.SafePreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,15 +12,20 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for the onboarding flow.
  *
- * Manages onboarding state and tracks completion using SharedPreferences.
- * DataStore is not used because the project currently has no DataStore dependency,
- * and SharedPreferences is sufficient for a simple boolean flag.
+ * 管理引导完成状态，使用 SafePreferences 持久化：
+ * - 防 SharedPreferences XML 损坏导致启动崩溃
+ * - 与项目其它持久化层保持一致
+ *
+ * 状态读写通过 [OnboardingState] 单例共享，使 [com.rapidraw.ui.navigation.rememberStartDestination]
+ * 与本 ViewModel 读到同一份事实，避免冷启动时闪现引导页后又跳转的竞态。
  */
 class OnboardingViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val prefs = application.getSharedPreferences("rapidraw_onboarding", 0)
+    private val prefs = SafePreferences.get(application, OnboardingState.PREFS_NAME)
 
-    private val _isCompleted = MutableStateFlow(prefs.getBoolean(KEY_COMPLETED, false))
+    private val _isCompleted = MutableStateFlow(
+        SafePreferences.getBoolean(prefs, OnboardingState.KEY_COMPLETED, false)
+    )
     val isCompleted: StateFlow<Boolean> = _isCompleted.asStateFlow()
 
     private val _currentPage = MutableStateFlow(0)
@@ -38,12 +44,9 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
     fun completeOnboarding() {
         viewModelScope.launch {
-            prefs.edit().putBoolean(KEY_COMPLETED, true).apply()
+            SafePreferences.putBoolean(prefs, OnboardingState.KEY_COMPLETED, true)
+            OnboardingState.markCompleted(application)
             _isCompleted.value = true
         }
-    }
-
-    companion object {
-        private const val KEY_COMPLETED = "onboarding_completed"
     }
 }

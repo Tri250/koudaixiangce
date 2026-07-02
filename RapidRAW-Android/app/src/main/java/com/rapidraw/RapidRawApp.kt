@@ -52,29 +52,10 @@ class RapidRawApp : Application() {
         instance = this
 
         // v1.10.5: 启动崩溃恢复机制 — 连续崩溃计数器
-        // 在最早阶段检测启动循环，超过阈值时清除损坏数据
-        val startupPrefs = SafePreferences.get(this, "rapidraw_startup")
-        val crashCount = SafePreferences.getInt(startupPrefs, "startup_crash_count", 0)
-        if (crashCount >= 3) {
-            Log.w(TAG, "Detected $crashCount consecutive startup crashes, attempting recovery")
-            try {
-                // 清除可能存在问题的缓存和数据
-                val cacheDir = cacheDir
-                cacheDir.listFiles()?.forEach { f ->
-                    runCatching { f.deleteRecursively() }
-                }
-                val prefsDir = java.io.File(filesDir?.parentFile, "shared_prefs")
-                prefsDir?.listFiles()?.filter { it.name.endsWith(".xml") && it.name != "rapidraw_startup.xml" }?.forEach { f ->
-                    runCatching { f.delete() }
-                }
-                Log.w(TAG, "Startup crash recovery: cleared caches and preferences")
-            } catch (e: Exception) {
-                Log.w(TAG, "Startup crash recovery cleanup failed", e)
-            }
-            SafePreferences.putInt(startupPrefs, "startup_crash_count", 0)
-        } else {
-            // 递增计数器，成功启动后重置
-            SafePreferences.putInt(startupPrefs, "startup_crash_count", crashCount + 1)
+        // 提取至 StartupRecovery（2026.07）以提升可测试性。
+        val decision = StartupRecovery.onStartupBegin(this)
+        if (decision.shouldRecover) {
+            StartupRecovery.performRecovery(this)
         }
 
         // 启动死锁检测看门狗
@@ -135,7 +116,7 @@ class RapidRawApp : Application() {
             .execute()
 
         // v1.10.5: 启动成功，重置崩溃计数器
-        SafePreferences.putInt(startupPrefs, "startup_crash_count", 0)
+        StartupRecovery.onStartupSuccess(this)
 
         // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
         applyPerAppLanguageAsync()
