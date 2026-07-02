@@ -57,10 +57,12 @@ object OemCompatibility {
     // ── MIUI / HyperOS ────────────────────────────────────────────────
 
     /**
-     * 检查 MIUI 自启动权限是否已启用。
-     * 小米设备需要用户在"自启动管理"中手动开启才能接收推送和后台任务。
+     * 检查 MIUI 自启动管理设置页面是否可达。
+     * v2026.07: 重命名方法以反映实际行为（此前方法名暗示"检查权限是否已启用"，
+     * 但实际仅检测设置 Activity 是否存在）。MIUI 不提供公开 API 查询自启动状态，
+     * 因此只能引导用户到设置页面手动确认。
      */
-    fun isXiaomiAutoStartEnabled(context: Context): Boolean {
+    fun isXiaomiAutoStartSettingReachable(context: Context): Boolean {
         if (detectOem() != OemType.XIAOMI) return true
         return try {
             val intent = Intent()
@@ -73,6 +75,10 @@ object OemCompatibility {
             false
         }
     }
+
+    /** 旧方法名保留为别名，避免调用方编译错误。 */
+    @Deprecated("命名不准确，请使用 isXiaomiAutoStartSettingReachable", ReplaceWith("isXiaomiAutoStartSettingReachable(context)"))
+    fun isXiaomiAutoStartEnabled(context: Context): Boolean = isXiaomiAutoStartSettingReachable(context)
 
     /**
      * 打开 MIUI 自启动管理页面。

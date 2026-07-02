@@ -14,7 +14,7 @@
         android:shortcutLongLabel="@string/shortcut_library_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.rapidraw"
+            android:targetPackage="${applicationId}"
             android:targetClass="com.rapidraw.MainActivity">
             <extra android:name="rapidraw_shortcut" android:value="library" />
         </intent>
@@ -29,7 +29,7 @@
         android:shortcutLongLabel="@string/shortcut_recent_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.rapidraw"
+            android:targetPackage="${applicationId}"
             android:targetClass="com.rapidraw.MainActivity">
             <extra android:name="rapidraw_shortcut" android:value="recent_project" />
         </intent>
@@ -44,7 +44,7 @@
         android:shortcutLongLabel="@string/shortcut_new_edit_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.rapidraw"
+            android:targetPackage="${applicationId}"
             android:targetClass="com.rapidraw.MainActivity">
             <extra android:name="rapidraw_shortcut" android:value="new_edit" />
         </intent>

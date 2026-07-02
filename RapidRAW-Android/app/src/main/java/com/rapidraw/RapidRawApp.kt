@@ -124,7 +124,7 @@ class RapidRawApp : Application() {
         enableLeakCanaryInDebug()
 
         // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
-        applyPerAppLanguageAsync()
+        applyPerAppLanguage()
         registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
         // v1.5.3: 主动检查关键设备能力，记录到日志便于后续诊断
         logDeviceCapabilities()
@@ -190,28 +190,26 @@ class RapidRawApp : Application() {
      * 在 Application 阶段通过后台线程应用，避免阻塞首 Activity 的 onCreate / setContent。
      * 默认语言：中文（简体）。
      */
-    private fun applyPerAppLanguageAsync() {
+    private fun applyPerAppLanguage() {
+        // v2026.07: 从后台线程改为主线程执行。
+        // LocaleManager / AppCompatDelegate.setApplicationLocales 内部涉及
+        // 持久化与 Binder 调用，部分 OEM ROM 在后台线程调用时存在兼容性
+        // 问题（如异步持久化失败、触发 ANR 检测误报）。
         val tag = "zh-CN"
-        Thread {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    val localeManager = getSystemService(LocaleManager::class.java)
-                    val list = LocaleList.forLanguageTags(tag)
-                    if (!list.isEmpty) {
-                        localeManager?.applicationLocales = list
-                    }
-                } else {
-                    AppCompatDelegate.setApplicationLocales(
-                        LocaleListCompat.forLanguageTags(tag)
-                    )
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val localeManager = getSystemService(LocaleManager::class.java)
+                val list = LocaleList.forLanguageTags(tag)
+                if (!list.isEmpty) {
+                    localeManager?.applicationLocales = list
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to apply per-app language: ${e.message}")
+            } else {
+                AppCompatDelegate.setApplicationLocales(
+                    LocaleListCompat.forLanguageTags(tag)
+                )
             }
-        }.apply {
-            isDaemon = true
-            name = "RapidRawLocale"
-            start()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to apply per-app language: ${e.message}")
         }
     }
 

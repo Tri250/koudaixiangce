@@ -406,6 +406,14 @@ class MainActivity : ComponentActivity() {
             "fontScale=${newConfig.fontScale}, " +
             "uiMode=${newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK}"
         )
+
+        // v2026.07: configChanges 声明了 fontScale，Activity 不会重建。
+        // attachBaseContext 的字体缩放限制只在创建时生效；运行时系统字体变化
+        // 超出限制时通过 recreate 重新应用限制，避免超大字体下 Compose UI 溢出。
+        if (newConfig.fontScale > 1.3f) {
+            Log.w(TAG, "fontScale ${newConfig.fontScale} exceeds limit, recreating Activity")
+            recreate()
+        }
     }
 
     /**

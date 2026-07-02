@@ -36,13 +36,15 @@ object SystemCompatibility {
      */
     fun generateReport(context: Context): CompatibilityReport {
         val apiLevel = Build.VERSION.SDK_INT
+        val targetSdk = context.applicationInfo.targetSdkVersion
         val supported = mutableListOf<String>()
         val unsupported = mutableListOf<String>()
         val recommendations = mutableListOf<String>()
 
         // ── API 合规性 ────────────────────────────────────────────────
         val isApiCompliant = apiLevel >= Build.VERSION_CODES.O
-        val isGooglePlayCompliant = apiLevel >= Build.VERSION_CODES.TIRAMISU
+        // v2026.07: 修复原实现错误地检查设备 API 级别而非应用 targetSdk。
+        val isGooglePlayCompliant = targetSdk >= Build.VERSION_CODES.TIRAMISU
 
         if (!isApiCompliant) {
             recommendations.add("系统版本过低，建议升级至 Android 8.0+")
@@ -137,7 +139,9 @@ object SystemCompatibility {
      * - 2025 年起：targetSdk 35+ (Android 15)
      */
     fun isGooglePlayTargetSdkCompliant(context: Context): Boolean {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        // v2026.07: 修复原实现错误地检查设备 API 级别。
+        // Google Play 合规性取决于应用自身的 targetSdkVersion，而非设备系统版本。
+        return context.applicationInfo.targetSdkVersion >= Build.VERSION_CODES.TIRAMISU
     }
 
     /**
