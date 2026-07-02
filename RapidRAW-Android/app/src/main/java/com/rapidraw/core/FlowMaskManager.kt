@@ -97,6 +97,14 @@ class FlowMaskManager(
      * 获取当前蒙版 Bitmap
      */
     fun getMaskBitmap(): Bitmap = maskBitmap
+
+    /**
+     * 用外部 Bitmap 设置蒙版内容（用于恢复已保存的蒙版）
+     */
+    fun setMaskBitmap(bitmap: Bitmap) {
+        maskCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+        maskCanvas.drawBitmap(bitmap, 0f, 0f, null)
+    }
     
     /**
      * 获取指定位置的蒙版强度

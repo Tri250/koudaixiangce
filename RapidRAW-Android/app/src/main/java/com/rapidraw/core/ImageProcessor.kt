@@ -1443,10 +1443,8 @@ class ImageProcessor {
                         b = b + (filmB - b) * n.filmIntensity
                     }
 
-                    }
-            }
-
-            // ── 18b. Independent Film Grain (applied even when film simulation is off) ──
+                }
+                // ── 18b. Independent Film Grain (applied even when film simulation is off) ──
             if (n.filmGrainAmount > 1e-6f) {
                 val fGrainSize = 1f + n.filmGrainSize * 4f
                 val noise = ColorMath.gradientNoise(x * fGrainSize, y * fGrainSize)

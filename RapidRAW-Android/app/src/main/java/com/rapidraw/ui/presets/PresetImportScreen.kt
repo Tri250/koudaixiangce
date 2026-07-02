@@ -148,11 +148,14 @@ fun PresetImportScreen(
 
                             if (isCubeFile) {
                                 // LUT (.cube) file import
-                                val result = runCatching {
+                                val result: CubeLutParser.ParsedLut? = try {
+                                    val parser = CubeLutParser()
                                     context.contentResolver.openInputStream(uri)?.use { stream ->
-                                        CubeLutParser.parse(stream)
+                                        parser.parse(stream, "cube")
                                     }
-                                }.getOrNull()
+                                } catch (e: Exception) {
+                                    null
+                                }
                                 withContext(Dispatchers.Main) {
                                     if (result != null) {
                                         val preset = Preset(

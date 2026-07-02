@@ -2674,7 +2674,7 @@ class EditorViewModel(
         histogramJob?.cancel()
         smartOptimizeJob?.cancel()
         // Save current state
-        _adjustments.value.let { handle.set("last_adjustments", it) }
+        _adjustments.value.let { savedStateHandle.set("last_adjustments", it) }
     }
 
     fun onResume() {
@@ -2695,9 +2695,11 @@ class EditorViewModel(
             android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
             android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
                 // Release GPU pipeline resources
-                gpuMutex.withLock {
-                    gpuPipeline?.release()
-                    gpuPipeline = null
+                viewModelScope.launch {
+                    gpuMutex.withLock {
+                        gpuPipeline?.release()
+                        gpuPipeline = null
+                    }
                 }
                 // Recycle bitmaps and clear caches
                 recycleBitmapsInternal()
@@ -2706,9 +2708,11 @@ class EditorViewModel(
             android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
                 // Cancel auto-save and release GPU
                 previewJob?.cancel()
-                gpuMutex.withLock {
-                    gpuPipeline?.release()
-                    gpuPipeline = null
+                viewModelScope.launch {
+                    gpuMutex.withLock {
+                        gpuPipeline?.release()
+                        gpuPipeline = null
+                    }
                 }
                 Log.w(TAG, "onTrimMemory: UI hidden, released GPU and cancelled auto-save")
             }

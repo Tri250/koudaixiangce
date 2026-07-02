@@ -35,7 +35,7 @@ object StorageChecker {
         return try {
             val stat = StatFs(path.absolutePath)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-                stat.availableBytesLong
+                stat.availableBytes
             } else {
                 @Suppress("DEPRECATION")
                 stat.availableBlocks.toLong() * stat.blockSize.toLong()

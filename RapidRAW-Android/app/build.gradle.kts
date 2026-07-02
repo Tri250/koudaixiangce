@@ -21,9 +21,9 @@ android {
         applicationId = "com.rapidraw"
         minSdk = 26
         targetSdk = 36
-        // v1.6.8 Release 构建
-        versionCode = 10608
-        versionName = "1.6.8"
+        // v2.3.0 Release 构建
+        versionCode = 20300
+        versionName = "2.3.0"
 
         // 2026 perf: 仅打包应用支持的资源，显著减少 APK 体积。
         // v1.7.0: 新增日/韩本地化支持
@@ -234,6 +234,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.window)
     implementation(libs.androidx.exifinterface)
+    implementation("androidx.documentfile:documentfile:1.0.1")
 
     // Compose UI
     implementation(libs.compose.ui)

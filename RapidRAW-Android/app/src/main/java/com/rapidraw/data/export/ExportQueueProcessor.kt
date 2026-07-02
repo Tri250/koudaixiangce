@@ -129,15 +129,13 @@ object ExportQueueProcessor {
         }
     }
 
-    companion object {
-        /**
-         * C-03: 应用启动时调用，恢复因进程被杀而中断的导出任务。
-         * 应在 Application.onCreate() 中调用。
-         */
-        fun initRecovery(context: Context) {
-            recoverIncompleteJobs(context.applicationContext)
-            kick(context.applicationContext)
-        }
+    /**
+     * C-03: 应用启动时调用，恢复因进程被杀而中断的导出任务。
+     * 应在 Application.onCreate() 中调用。
+     */
+    fun initRecovery(context: Context) {
+        recoverIncompleteJobs(context.applicationContext)
+        kick(context.applicationContext)
     }
 
     private suspend fun drainQueue(appContext: Context) {
@@ -214,20 +212,6 @@ object ExportQueueProcessor {
                 adjustments, source, allowDownsample = false,
             ) ?: throw IllegalStateException("processFullResolution returned null")
             ExportQueueRepository.updateJobProgress(jobId, 0.7f)
-
-            // J-06: Verify write permission for SAF export destination
-            val exportUri = job.settingsSnapshot?.outputUri
-            if (exportUri != null) {
-                val writeFlags = appContext.contentResolver.persistedUriPermissions
-                    .any { it.uri == exportUri && it.isWritePermission }
-                if (!writeFlags) {
-                    ExportQueueRepository.updateJobStatus(
-                        jobId, ExportJobStatus.FAILED,
-                        error = "导出目录不可写，请重新选择"
-                    )
-                    return
-                }
-            }
 
             val uri: Uri = imageProcessor.exportImage(
                 processed, settings, appContext, originalExif = null, orientation = 0,

@@ -143,7 +143,7 @@ class BatchProcessor(private val context: Context) {
                 // 将预设的 Adjustments 保存为 sidecar (.rrdata)
                 withContext(Dispatchers.IO) {
                     sidecarManager.saveSidecar(
-                        imageUri = job.imageUri,
+                        imageUri = job.imageUri.toString(),
                         adjustments = preset.adjustments,
                         filmId = preset.filmId,
                     )

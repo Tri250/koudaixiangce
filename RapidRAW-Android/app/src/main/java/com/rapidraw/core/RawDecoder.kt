@@ -160,10 +160,10 @@ object RawDecoder {
         }
         // P-03: 手机 DNG 提示
         if (isDng) {
-            cameraModel = readCameraModel(path)
+            val cameraModel = readCameraModel(path)
             if (cameraModel != null) {
                 val isPhoneDng = PARTIALLY_SUPPORTED_DNG.any { 
-                    cameraModel!!.uppercase().contains(it) 
+                    cameraModel.uppercase().contains(it) 
                 }
                 if (isPhoneDng) {
                     Log.w(TAG, "Phone DNG (ProRAW/Pixel DNG) detected: $cameraModel — partial support only")

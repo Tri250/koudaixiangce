@@ -1,6 +1,6 @@
 package com.rapidraw.ui.metadata
 
-import android.media.ExifInterface
+import androidx.exifinterface.media.ExifInterface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn

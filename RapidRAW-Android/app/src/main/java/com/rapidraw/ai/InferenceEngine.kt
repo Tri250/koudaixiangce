@@ -532,7 +532,9 @@ class InferenceEngine private constructor(private val context: Context) {
      */
     fun isDeviceMemorySufficient(): Boolean {
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-        val totalMem = activityManager?.memoryInfo?.totalMem ?: 0L
+        val memInfo = ActivityManager.MemoryInfo()
+        activityManager?.getMemoryInfo(memInfo)
+        val totalMem = memInfo.totalMem
         // 8GB = 8L * 1024 * 1024 * 1024
         return totalMem >= 6L * 1024 * 1024 * 1024 // 6GB 作为最低门槛
     }

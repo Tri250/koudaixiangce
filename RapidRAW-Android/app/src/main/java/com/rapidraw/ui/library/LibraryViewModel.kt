@@ -13,6 +13,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.DamProjectManager
+import com.rapidraw.core.SidecarManager
 import com.rapidraw.core.ThumbnailDiskCache
 import com.rapidraw.ai.NaturalLanguageSearcher
 import com.rapidraw.ai.SemanticTag
@@ -20,12 +21,14 @@ import com.rapidraw.data.model.ColorLabel
 import com.rapidraw.data.model.ImageFile
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -736,14 +739,14 @@ class LibraryViewModel(
         // 复制原片的 .rrdata 到副本路径
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val sidecarManager = SidecarManager(context)
+                val sidecarManager = SidecarManager(getApplication())
                 val originalSidecar = sidecarManager.loadSidecar(image.path)
                 if (originalSidecar != null) {
                     sidecarManager.saveSidecar(
                         virtualCopy.path,
                         originalSidecar.adjustments,
-                        originalSidecar.filmSimulationId,
-                        originalSidecar.editHistoryEntries
+                        originalSidecar.filmId,
+                        null
                     )
                 }
             } catch (e: Exception) {

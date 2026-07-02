@@ -421,11 +421,6 @@ class SidecarManager(private val context: Context) {
                 File(parentDir, sanitizeFileName(imageFile.nameWithoutExtension) + ".rapidraw")
             }
             "content" -> {
-                // UNINST-02: content:// URI 尝试通过 DocumentFile 在同目录创建 sidecar
-                // 若 SAF 授权不足则降级到 App 私有目录
-                val documentSidecar = tryResolveDocumentSidecar(uri)
-                if (documentSidecar != null) return documentSidecar
-
                 // 降级：存到 filesDir/sidecar/ 子目录（卸载会丢失，但至少不崩溃）
                 val fileName = sanitizeFileName(uri.lastPathSegment ?: "image")
                 val sidecarDir = File(context.filesDir, "sidecar")
@@ -433,32 +428,6 @@ class SidecarManager(private val context: Context) {
                 File(sidecarDir, "$fileName.rapidraw")
             }
             else -> null
-        }
-    }
-
-    /**
-     * 尝试通过 SAF DocumentFile 在 content:// URI 的父目录中解析/创建 sidecar 文件。
-     * 返回 null 表示 SAF 方式不可用（如未授权目录），需要降级处理。
-     */
-    private fun tryResolveDocumentSidecar(contentUri: Uri): File? {
-        return try {
-            // 通过 DocumentFile.fromSingleUri 获取父目录
-            val documentFile = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, contentUri)
-            val parentDoc = documentFile?.parentFile
-            if (parentDoc != null && parentDoc.canWrite()) {
-                // 尝试在父目录中查找或创建 .rapidraw 文件
-                val baseName = documentFile.name?.substringBeforeLast('.') ?: "image"
-                val sidecarName = sanitizeFileName(baseName) + ".rapidraw"
-                val existingSidecar = parentDoc.findFile(sidecarName)
-                if (existingSidecar != null) {
-                    // sidecar 已存在于同目录，返回其本地路径（如有）
-                    // DocumentFile 可能没有本地路径，此时仍返回 null 降级
-                    return null
-                }
-            }
-            null
-        } catch (_: Exception) {
-            null
         }
     }
 

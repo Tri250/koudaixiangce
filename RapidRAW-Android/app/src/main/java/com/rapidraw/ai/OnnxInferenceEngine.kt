@@ -28,6 +28,9 @@ class OnnxInferenceEngine(private val context: Context) {
         @Volatile
         private var _isAvailable = false
 
+        @JvmStatic
+        private external fun nativeIsAvailable(): Boolean
+
         /** 检查 ONNX Runtime 是否可用 */
         val isAvailable: Boolean get() {
             if (!availabilityChecked) {
@@ -184,7 +187,6 @@ class OnnxInferenceEngine(private val context: Context) {
 
     // ── Native 方法 ────────────────────────────────────────────────
 
-    private external fun nativeIsAvailable(): Boolean
     private external fun nativeLoadModel(modelPath: String, numThreads: Int): Long
     private external fun nativeUnloadModel(handle: Long)
     private external fun nativeSubjectMask(handle: Long, src: Bitmap, dst: Bitmap): Boolean
