@@ -26,6 +26,7 @@ object RawDecoder {
         DECODE_FAILED,
         OOM,
         TOO_LARGE,
+        SAF_PERMISSION_REVOKED,
         UNKNOWN
     }
 
@@ -34,6 +35,14 @@ object RawDecoder {
         val error: DecodeError,
         val cameraModel: String?
     )
+
+    /**
+     * 当 SAF 持久化权限被系统撤销时抛出。
+     * UI 层可捕获此异常来显示重新授权弹窗。
+     */
+    class SafPermissionRevokedException(
+        uri: android.net.Uri,
+    ) : Exception("SAF 持久化权限已撤销: $uri")
 
     private val UNSUPPORTED_NEF_MODELS = setOf(
         "NIKON Z8", "NIKON Z9", "NIKON Z6III", "NIKON ZF",
@@ -259,6 +268,10 @@ object RawDecoder {
                 }
             } ?: run {
                 runCatching { tempFile.delete() }
+                // X03: 检测 SAF 权限撤销 — 如果 URI 之前已持久化但无法读取，说明权限已被系统撤销
+                if (uri.scheme == "content" && checkUriPermission(context, uri)) {
+                    throw SafPermissionRevokedException(uri)
+                }
                 return null
             }
             if (oversized || !tempFile.exists() || tempFile.length() == 0L) {
@@ -273,6 +286,10 @@ object RawDecoder {
         } catch (e: SecurityException) {
             runCatching { tempFile.delete() }
             Log.e(TAG, "存储权限已失效，请重新选择目录", e)
+            // X03: 检测 SAF 权限撤销
+            if (uri.scheme == "content" && checkUriPermission(context, uri)) {
+                throw SafPermissionRevokedException(uri)
+            }
             null
         } catch (e: Exception) {
             runCatching { tempFile.delete() }

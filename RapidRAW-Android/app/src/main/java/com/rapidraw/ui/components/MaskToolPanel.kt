@@ -96,6 +96,7 @@ fun MaskToolPanel(
     onGradientAngleChange: (Float) -> Unit,
     gradientMidpoint: Float,
     onGradientMidpointChange: (Float) -> Unit,
+    isNetworkAvailable: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -116,11 +117,22 @@ fun MaskToolPanel(
             ) {
                 MaskType.entries.forEach { type ->
                     val isSelected = type == selectedMaskType
+                    val isAiOffline = type == MaskType.AI_SEMANTIC && !isNetworkAvailable
+                    val chipColor = when {
+                        isAiOffline -> EditorBorder
+                        isSelected -> HasselbladOrange
+                        else -> EditorBorder
+                    }
+                    val contentColor = when {
+                        isAiOffline -> TextTertiary
+                        isSelected -> EditorBackground
+                        else -> TextSecondary
+                    }
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { onSelectMaskType(type) },
-                        color = if (isSelected) HasselbladOrange else EditorBorder,
+                            .clickable(enabled = !isAiOffline) { onSelectMaskType(type) },
+                        color = chipColor,
                         shape = RoundedCornerShape(6.dp),
                     ) {
                         Column(
@@ -130,14 +142,14 @@ fun MaskToolPanel(
                             Icon(
                                 imageVector = type.icon,
                                 contentDescription = type.label,
-                                tint = if (isSelected) EditorBackground else TextSecondary,
+                                tint = contentColor,
                                 modifier = Modifier.size(18.dp),
                             )
                             Text(
-                                text = type.label,
-                                color = if (isSelected) EditorBackground else TextSecondary,
+                                text = if (isAiOffline) "需要网络连接" else type.label,
+                                color = contentColor,
                                 fontSize = 10.sp,
-                                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                                fontWeight = if (isSelected && !isAiOffline) FontWeight.Medium else FontWeight.Normal,
                             )
                         }
                     }

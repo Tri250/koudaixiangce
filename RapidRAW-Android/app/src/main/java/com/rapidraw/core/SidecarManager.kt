@@ -24,6 +24,7 @@ class SidecarManager(private val context: Context) {
     companion object {
         private const val TAG = "SidecarManager"
         private const val MAX_SIDECAR_BYTES = 2L * 1024L * 1024L // 2MB 上限，防止异常 JSON 撑爆磁盘
+        private const val LOCK_TIMEOUT_MS = 30_000L // 30秒锁超时，超时后可抢占
     }
 
     private val json = Json {
@@ -45,6 +46,10 @@ class SidecarManager(private val context: Context) {
         filmId: String? = null,
         editHistoryEntries: List<com.rapidraw.data.model.EditHistoryEntry>? = null,
     ): Boolean {
+        if (!tryAcquireLock(imageUri)) {
+            Log.w(TAG, "Cannot acquire lock for $imageUri, another editor is active")
+            return false
+        }
         return try {
             val sidecarData = SidecarData(
                 version = 2,
@@ -87,6 +92,8 @@ class SidecarManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save sidecar for $imageUri", e)
             false
+        } finally {
+            releaseLock(imageUri)
         }
     }
 
@@ -94,6 +101,10 @@ class SidecarManager(private val context: Context) {
      * 加载 Sidecar 文件
      */
     fun loadSidecar(imageUri: String): SidecarData? {
+        if (!tryAcquireLock(imageUri)) {
+            Log.w(TAG, "Cannot acquire lock for $imageUri, another editor is active")
+            return null
+        }
         return try {
             // UNINST-05: 使用双路径查找（SAF 同目录优先 → filesDir/sidecar/ 降级）
             val sidecarFile = resolveSidecarFileForLoad(imageUri) ?: return null
@@ -115,6 +126,8 @@ class SidecarManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load sidecar for $imageUri", e)
             null
+        } finally {
+            releaseLock(imageUri)
         }
     }
 
@@ -331,6 +344,73 @@ class SidecarManager(private val context: Context) {
      *   若 SAF 不可用则降级到 App 私有目录（filesDir/sidecar/）
      *   并在 loadSidecar 中同时查找两个路径
      */
+    // ──────────────────────────────────────────────
+    // X09: Advisory lock for concurrent editing
+    // ──────────────────────────────────────────────
+
+    /**
+     * 解析锁文件路径（与 sidecar 同目录，扩展名为 .rrdata.lock）。
+     */
+    private fun resolveLockFile(imageUri: String): File? {
+        val uri = runCatching { Uri.parse(imageUri) }.getOrNull() ?: return null
+        return when (uri.scheme?.lowercase()) {
+            "file" -> {
+                val imagePath = uri.path ?: return null
+                val imageFile = File(imagePath)
+                val parentDir = imageFile.parentFile ?: return null
+                File(parentDir, sanitizeFileName(imageFile.nameWithoutExtension) + ".rrdata.lock")
+            }
+            "content" -> {
+                val fileName = sanitizeFileName(uri.lastPathSegment ?: "image")
+                val sidecarDir = File(context.filesDir, "sidecar")
+                if (!sidecarDir.exists()) sidecarDir.mkdirs()
+                File(sidecarDir, "$fileName.rrdata.lock")
+            }
+            else -> null
+        }
+    }
+
+    /**
+     * 尝试获取文件锁，防止并发编辑同一张图片。
+     * 若锁文件不存在，创建之；若存在但已超时（超过 30 秒），视为过期锁并抢占；
+     * 若存在且未超时，返回 false 表示锁被占用。
+     *
+     * @return true 表示成功获取锁，false 表示锁被占用
+     */
+    fun tryAcquireLock(imageUri: String): Boolean {
+        return try {
+            val lockFile = resolveLockFile(imageUri) ?: return false
+            if (lockFile.exists()) {
+                val age = System.currentTimeMillis() - lockFile.lastModified()
+                if (age < LOCK_TIMEOUT_MS) {
+                    Log.d(TAG, "Lock is held by another editor: ${lockFile.absolutePath}")
+                    return false
+                }
+                // 锁已过期，删除后重新获取
+                lockFile.delete()
+            }
+            lockFile.parentFile?.mkdirs()
+            lockFile.createNewFile()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to acquire lock for $imageUri", e)
+            false
+        }
+    }
+
+    /**
+     * 释放文件锁，删除锁文件。
+     */
+    fun releaseLock(imageUri: String) {
+        try {
+            val lockFile = resolveLockFile(imageUri) ?: return
+            if (lockFile.exists()) {
+                lockFile.delete()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to release lock for $imageUri", e)
+        }
+    }
+
     private fun resolveSidecarFile(imageUri: String): File? {
         val uri = runCatching { Uri.parse(imageUri) }.getOrNull() ?: return null
         return when (uri.scheme?.lowercase()) {

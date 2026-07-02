@@ -61,12 +61,13 @@ import com.rapidraw.ui.theme.TextTertiary
 /**
  * 筛选工具栏（Compose）
  *
- * 支持按日期范围、相机型号、文件类型、评分筛选。
+ * 支持按日期范围、相机型号、镜头型号、文件类型、评分筛选。
  * 采用横向快捷筛选 Chip + 展开式详细面板组合布局。
  *
  * @param activeFilters 当前激活的筛选条件
  * @param onFiltersChange 筛选条件变化回调
  * @param availableCameraModels 可选相机型号列表
+ * @param availableLensModels 可选镜头型号列表
  * @param modifier 外部修饰符
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,6 +76,7 @@ fun FilterBar(
     activeFilters: PhotoFilters = PhotoFilters(),
     onFiltersChange: (PhotoFilters) -> Unit = {},
     availableCameraModels: List<String> = emptyList(),
+    availableLensModels: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -129,6 +131,23 @@ fun FilterBar(
                             onFiltersChange(
                                 activeFilters.copy(
                                     cameraModel = if (isSelected) null else model
+                                )
+                            )
+                        },
+                    )
+                }
+
+                // 镜头型号 Chip
+                items(availableLensModels.take(3), key = { it }) { lens ->
+                    val isSelected = activeFilters.lensModel == lens
+                    FilterChip(
+                        label = lens,
+                        icon = Icons.Default.CameraAlt,
+                        isActive = isSelected,
+                        onClick = {
+                            onFiltersChange(
+                                activeFilters.copy(
+                                    lensModel = if (isSelected) null else lens
                                 )
                             )
                         },
@@ -221,6 +240,7 @@ fun FilterBar(
                 activeFilters = activeFilters,
                 onFiltersChange = onFiltersChange,
                 availableCameraModels = availableCameraModels,
+                availableLensModels = availableLensModels,
                 onDateClick = { showDatePicker = true },
             )
         }
@@ -245,11 +265,12 @@ fun FilterBar(
 data class PhotoFilters(
     val dateRange: DateRange? = null,
     val cameraModel: String? = null,
+    val lensModel: String? = null,
     val fileType: FileTypeFilter? = null,
     val minRating: Int? = null,
 ) {
     val hasActiveFilters: Boolean
-        get() = dateRange != null || cameraModel != null || fileType != null || minRating != null
+        get() = dateRange != null || cameraModel != null || lensModel != null || fileType != null || minRating != null
 
     val dateRangeLabel: String?
         get() = dateRange?.let { "${it.startText} ~ ${it.endText}" }
@@ -368,6 +389,7 @@ private fun FilterDetailPanel(
     activeFilters: PhotoFilters,
     onFiltersChange: (PhotoFilters) -> Unit,
     availableCameraModels: List<String>,
+    availableLensModels: List<String>,
     onDateClick: () -> Unit,
 ) {
     Column(
@@ -481,6 +503,55 @@ private fun FilterDetailPanel(
                             )
                             Text(
                                 text = model,
+                                color = if (isSelected) HasselbladOrange else TextPrimary,
+                                fontSize = 13.sp,
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // 镜头型号
+        if (availableLensModels.isNotEmpty()) {
+            Text(
+                text = "镜头型号",
+                color = TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(availableLensModels, key = { it }) { lens ->
+                    val isSelected = activeFilters.lensModel == lens
+                    Surface(
+                        modifier = Modifier.clickable {
+                            onFiltersChange(
+                                activeFilters.copy(
+                                    lensModel = if (isSelected) null else lens
+                                )
+                            )
+                        },
+                        color = if (isSelected) HasselbladOrange.copy(alpha = 0.18f) else EditorBackground,
+                        shape = RoundedCornerShape(8.dp),
+                        border = if (!isSelected) androidx.compose.foundation.BorderStroke(1.dp, EditorBorder) else null,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = null,
+                                tint = if (isSelected) HasselbladOrange else TextSecondary,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = lens,
                                 color = if (isSelected) HasselbladOrange else TextPrimary,
                                 fontSize = 13.sp,
                             )

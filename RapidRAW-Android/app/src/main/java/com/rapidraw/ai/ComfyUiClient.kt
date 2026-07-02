@@ -1,5 +1,8 @@
 package com.rapidraw.ai
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -66,6 +69,18 @@ class ComfyUiClient {
         private val json = Json {
             ignoreUnknownKeys = true
             isLenient = true
+        }
+
+        /**
+         * X10: 检查当前是否有可用的网络连接。
+         * ComfyUI 需要网络连接，离线时 UI 应灰显相关按钮。
+         */
+        fun isNetworkAvailable(context: Context): Boolean {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return false
+            val network = cm.activeNetwork ?: return false
+            val capabilities = cm.getNetworkCapabilities(network) ?: return false
+            return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         }
     }
 
