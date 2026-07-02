@@ -126,6 +126,9 @@ android {
             val disableR8 = (project.findProperty("disableR8") as String?)?.toBoolean() == true
             isMinifyEnabled = !disableR8
             isShrinkResources = !disableR8
+            // 安全加固：显式确保 release 包不可调试
+            isDebuggable = false
+            isJniDebuggable = false
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -199,10 +202,12 @@ android {
 
     lint {
         disable += listOf("MissingTranslation", "UnusedResources")
-        abortOnError = false
+        // CI 发布时 lint 错误应中止构建
+        abortOnError = true
         checkReleaseBuilds = true
         checkAllWarnings = true
-        warningsAsErrors = false
+        // Release 构建时警告视为错误，确保代码质量
+        warningsAsErrors = true
         xmlReport = true
         htmlReport = true
     }
