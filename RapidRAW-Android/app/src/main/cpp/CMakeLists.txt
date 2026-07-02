@@ -170,3 +170,52 @@ target_link_libraries(nativecrash
     log
     android
 )
+
+# ── ONNX Runtime AI Inference Library ────────────────────────────────────────
+# R-08/R-09/R-10/R-12: ONNX Runtime 推理引擎。
+# 提供 AI 主体分割、NIND 降噪、深度估计、LaMa 修复等 ONNX 模型推理。
+# 
+# 模型文件放在 app/src/main/assets/onnx/ 目录，运行时拷贝到内部存储。
+# 
+# 如果 ONNX Runtime 未安装，构建会跳过此库，AI 功能在运行时自动降级为
+# 启发式算法（AiMaskGenerator / GuidedFilter / DiffusionInpainter 兜底）。
+
+# 尝试查找 ONNX Runtime 预编译库
+find_library(ONNXRUNTIME_LIB onnxruntime)
+if(NOT ONNXRUNTIME_LIB)
+    set(ONNXRUNTIME_PATH "${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime")
+    if(EXISTS "${ONNXRUNTIME_PATH}/lib/${ANDROID_ABI}/libonnxruntime.so")
+        set(ONNXRUNTIME_LIB "${ONNXRUNTIME_PATH}/lib/${ANDROID_ABI}/libonnxruntime.so")
+    endif()
+endif()
+
+if(ONNXRUNTIME_LIB)
+    message(STATUS "ONNX Runtime found at ${ONNXRUNTIME_LIB} — building ai_inference")
+
+    add_library(ai_inference SHARED
+        ai_inference_jni.cpp
+        ai_inference.cpp
+    )
+
+    target_include_directories(ai_inference PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    # 如果存在 ONNX Runtime 头文件，添加 include
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime/include")
+        target_include_directories(ai_inference PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime/include
+        )
+    endif()
+
+    target_link_libraries(ai_inference
+        ${ONNXRUNTIME_LIB}
+        jnigraphics
+        log
+        android
+    )
+
+    target_compile_options(ai_inference PRIVATE -O2 -Wall)
+else()
+    message(WARNING "ONNX Runtime not found — skipping ai_inference build; AI features will use heuristic fallback")
+endif()

@@ -35,7 +35,16 @@ object RawDecoder {
         val cameraModel: String?
     )
 
-    private val UNSUPPORTED_NEF_MODELS = setOf("NIKON Z8", "NIKON Z9", "NIKON Z6III", "NIKON ZF")
+    private val UNSUPPORTED_NEF_MODELS = setOf(
+        "NIKON Z8", "NIKON Z9", "NIKON Z6III", "NIKON ZF",
+        "NIKON Z8_2", "NIKON Z9_2", "NIKON Z8_3", "NIKON Z9_3",
+    )
+
+    /** P-03: 已知 DNG 格式限制 — 部分手机 DNG 无法完全解析 */
+    private val PARTIALLY_SUPPORTED_DNG = setOf(
+        "APPLE IPHONE", "GOOGLE PIXEL",
+        "SAMSUNG", "XIAOMI", "ONEPLUS",
+    )
 
     private var nativeLibraryLoaded = false
 
@@ -136,8 +145,21 @@ object RawDecoder {
 
         val fileName = path.substringAfterLast('/', "").lowercase()
         val isNef = fileName.endsWith(".nef")
+        val isDng = fileName.endsWith(".dng")
         if (isNef) {
             Log.i(TAG, "Nikon NEF detected: $fileName; if decoding fails, newer body may be unsupported")
+        }
+        // P-03: 手机 DNG 提示
+        if (isDng) {
+            cameraModel = readCameraModel(path)
+            if (cameraModel != null) {
+                val isPhoneDng = PARTIALLY_SUPPORTED_DNG.any { 
+                    cameraModel!!.uppercase().contains(it) 
+                }
+                if (isPhoneDng) {
+                    Log.w(TAG, "Phone DNG (ProRAW/Pixel DNG) detected: $cameraModel — partial support only")
+                }
+            }
         }
 
         val widthArray = IntArray(1)
