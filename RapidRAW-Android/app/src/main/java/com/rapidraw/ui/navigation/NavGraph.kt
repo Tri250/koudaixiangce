@@ -1,6 +1,7 @@
 package com.rapidraw.ui.navigation
 
 import android.net.Uri
+import android.content.Intent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -596,14 +597,13 @@ fun RapidNavHost(
                 projectId = projectId,
                 onBack = { navController.popBackStack() },
                 onNavigateToEditor = { imagePath ->
-                    val intent = Intent(context, EditorActivity::class.java).apply {
-                        putExtra("imagePath", imagePath)
+                    navController.navigate(Routes.editorPath(imagePath)) {
+                        popUpTo(Routes.DAM_PROJECTS) { inclusive = false }
                     }
-                    context.startActivity(intent)
                 },
                 onNavigateToLibrary = {
-                    navController.navigate(Routes.DAM_PROJECT) {
-                        popUpTo(Routes.DAM_PROJECT) { inclusive = true }
+                    navController.navigate(Routes.DAM_PROJECTS) {
+                        popUpTo(Routes.DAM_PROJECTS) { inclusive = true }
                     }
                 },
             )

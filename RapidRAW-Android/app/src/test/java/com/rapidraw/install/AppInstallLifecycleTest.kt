@@ -284,14 +284,19 @@ class AppInstallLifecycleTest {
     }
 
     @Test
-    fun `RecipeDatabase - migration path includes 3 to 4 for semanticTags column`() {
-        // 通过反射验证 MIGRATION_3_4 存在并能在旧版本上运行
-        val migrationField = RecipeDatabase::class.java.declaredFields
+    fun `RecipeDatabase - migration path includes 1-2 2-3 and 3-4`() {
+        // v2026.07: 补齐 MIGRATION_1_2 和 MIGRATION_2_3 后，Room 能找到完整迁移路径
+        // 1→2→3→4，避免旧用户数据被 fallbackToDestructiveMigration 销毁。
+        val migrationFields = RecipeDatabase::class.java.declaredFields
+            .filter { it.name.startsWith("MIGRATION_") }
+        assertTrue("Should have at least 3 migrations", migrationFields.size >= 3)
+
+        val migration3_4 = migrationFields
             .firstOrNull { it.name == "MIGRATION_3_4" }
-        assertNotNull("MIGRATION_3_4 must be defined", migrationField)
-        migrationField?.isAccessible = true
+        assertNotNull("MIGRATION_3_4 must be defined", migration3_4)
+        migration3_4.isAccessible = true
         @Suppress("UNCHECKED_CAST")
-        val migration = migrationField?.get(null) as androidx.room.migration.Migration
+        val migration = migration3_4.get(null) as androidx.room.migration.Migration
         assertEquals(3, migration.startVersion)
         assertEquals(4, migration.endVersion)
     }

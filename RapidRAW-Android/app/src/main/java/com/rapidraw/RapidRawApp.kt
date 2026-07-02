@@ -23,6 +23,7 @@ import com.rapidraw.core.PerformanceMonitor
 import com.rapidraw.core.PlayIntegrityHelper
 import com.rapidraw.core.SafePreferences
 import com.rapidraw.core.StartupOptimizer
+import com.rapidraw.core.StartupRecovery
 import com.rapidraw.core.SystemCompatibility
 import com.rapidraw.security.SecurityProvider
 import java.io.File

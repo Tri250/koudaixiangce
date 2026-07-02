@@ -18,13 +18,9 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
     }
-    // v1.10.1: 启用 Gradle Version Catalog
-    @Suppress("UnstableApiUsage")
-    versionCatalogs {
-        create("libs") {
-            from(files("gradle/libs.versions.toml"))
-        }
-    }
+    // v2026.07: Gradle 8.10+ 会自动加载 gradle/libs.versions.toml 作为
+    // 版本目录 `libs`，无需显式调用 versionCatalogs { create("libs") { from(...) } }。
+    // 显式调用 from() 会导致 "too many import invocation" 构建错误。
 }
 
 rootProject.name = "RapidRAW"

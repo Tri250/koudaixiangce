@@ -247,7 +247,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
-    implementation(libs.compose.material3.window.size.class)
+    implementation(libs.compose.material3.windowsize)
 
     // Serialization
     implementation(libs.kotlinx.serialization.json)
