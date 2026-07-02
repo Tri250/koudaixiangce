@@ -19,6 +19,24 @@ object RawDecoder {
 
     private const val TAG = "RawDecoder"
 
+    enum class DecodeError {
+        SUCCESS,
+        FILE_DAMAGED,
+        UNSUPPORTED_NEF,
+        DECODE_FAILED,
+        OOM,
+        TOO_LARGE,
+        UNKNOWN
+    }
+
+    data class DecodeResult(
+        val bitmap: Bitmap?,
+        val error: DecodeError,
+        val cameraModel: String?
+    )
+
+    private val UNSUPPORTED_NEF_MODELS = setOf("NIKON Z8", "NIKON Z9", "NIKON Z6III", "NIKON ZF")
+
     private var nativeLibraryLoaded = false
 
     init {
@@ -108,6 +126,65 @@ object RawDecoder {
     }
 
     /**
+     * Decode a RAW file at the given absolute path, returning detailed error information.
+     */
+    fun decodeRawFileWithError(path: String): DecodeResult {
+        if (!nativeLibraryLoaded) {
+            Log.w(TAG, "Native library not loaded, cannot decode RAW file")
+            return DecodeResult(null, DecodeError.DECODE_FAILED, null)
+        }
+
+        val fileName = path.substringAfterLast('/', "").lowercase()
+        val isNef = fileName.endsWith(".nef")
+        if (isNef) {
+            Log.i(TAG, "Nikon NEF detected: $fileName; if decoding fails, newer body may be unsupported")
+        }
+
+        val widthArray = IntArray(1)
+        val heightArray = IntArray(1)
+
+        var cameraModel: String? = null
+
+        val result = try {
+            val pixels = decodeRaw(path, widthArray, heightArray)
+            if (pixels == null || widthArray[0] <= 0 || heightArray[0] <= 0) {
+                Log.w(TAG, "Native decoder returned no pixels")
+                if (isNef) {
+                    cameraModel = readCameraModel(path)
+                    if (cameraModel != null && UNSUPPORTED_NEF_MODELS.contains(cameraModel.uppercase())) {
+                        Log.e(TAG, "Unsupported Nikon NEF body: $cameraModel")
+                        return DecodeResult(null, DecodeError.UNSUPPORTED_NEF, cameraModel)
+                    }
+                    Log.e(TAG, "Nikon NEF decode failed: likely unsupported new body (Z8/Z9 etc.)")
+                }
+                DecodeResult(null, DecodeError.DECODE_FAILED, cameraModel)
+            } else {
+                val bitmap = Bitmap.createBitmap(widthArray[0], heightArray[0], Bitmap.Config.ARGB_8888)
+                bitmap.setPixels(pixels, 0, widthArray[0], 0, 0, widthArray[0], heightArray[0])
+                DecodeResult(bitmap, DecodeError.SUCCESS, null)
+            }
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "OOM decoding RAW (size=${widthArray[0]}x${heightArray[0]})", e)
+            DecodeResult(null, DecodeError.OOM, null)
+        } catch (e: Exception) {
+            if (isNef) {
+                cameraModel = readCameraModel(path)
+                if (cameraModel != null && UNSUPPORTED_NEF_MODELS.contains(cameraModel.uppercase())) {
+                    Log.e(TAG, "Unsupported Nikon NEF body: $cameraModel", e)
+                    return DecodeResult(null, DecodeError.UNSUPPORTED_NEF, cameraModel)
+                }
+            }
+            Log.e(TAG, "decodeRaw failed", e)
+            DecodeResult(null, DecodeError.DECODE_FAILED, cameraModel)
+        } catch (e: Throwable) {
+            Log.e(TAG, "Unexpected error decoding RAW", e)
+            DecodeResult(null, DecodeError.UNKNOWN, null)
+        }
+
+        return result
+    }
+
+    /**
      * Check whether the native libraw decoder can open/decode the given URI.
      */
     suspend fun canDecodeRaw(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
@@ -134,6 +211,10 @@ object RawDecoder {
         val ext = getExtensionFromUri(context, uri)
         val tempFile = File.createTempFile("raw_decode_", ext, context.cacheDir)
         return try {
+            // Check SAF URI permission before opening the stream
+            if (!checkUriPermission(context, uri)) {
+                Log.w(TAG, "SAF permission not persisted for URI, attempting open anyway")
+            }
             var oversized = false
             context.contentResolver.openInputStream(uri)?.use { input ->
                 tempFile.outputStream().use { output ->
@@ -169,7 +250,7 @@ object RawDecoder {
             null
         } catch (e: SecurityException) {
             runCatching { tempFile.delete() }
-            Log.e(TAG, "SecurityException copying URI to temp file", e)
+            Log.e(TAG, "存储权限已失效，请重新选择目录", e)
             null
         } catch (e: Exception) {
             runCatching { tempFile.delete() }
@@ -201,6 +282,49 @@ object RawDecoder {
         return if (sanitized.isEmpty()) ".raw" else ".$sanitized"
     }
 
+    private fun readCameraModel(path: String): String? {
+        return try {
+            val exif = androidx.exifinterface.media.ExifInterface(path)
+            val make = exif.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MAKE)
+            val model = exif.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_MODEL)
+            if (make != null && model != null) "$make $model" else model ?: make
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read camera model from EXIF", e)
+            null
+        }
+    }
+
+    fun checkNefCameraModel(context: Context, uri: Uri): String? {
+        val tempFile = copyUriToTempFile(context, uri) ?: return null
+        return try {
+            val ext = tempFile.name.substringAfterLast('.', "").lowercase()
+            if (ext != "nef") return null
+            readCameraModel(tempFile.absolutePath)
+        } finally {
+            try { tempFile.delete() } catch (_: Exception) { }
+        }
+    }
+
+    fun checkUriPermission(context: Context, uri: Uri): Boolean {
+        return context.contentResolver.persistedUriPermissions.any { it.uri == uri && it.isReadPermission }
+    }
+
+    fun verifySafAccess(context: Context, uri: Uri): Boolean {
+        return checkUriPermission(context, uri)
+    }
+
+    fun getLastDecodeError(): DecodeError {
+        val errorCode = getDecodeError()
+        return when (errorCode) {
+            0 -> DecodeError.SUCCESS
+            1 -> DecodeError.FILE_DAMAGED
+            2 -> DecodeError.DECODE_FAILED
+            3 -> DecodeError.OOM
+            else -> DecodeError.UNKNOWN
+        }
+    }
+
     private external fun decodeRaw(path: String, outWidth: IntArray, outHeight: IntArray): IntArray?
     private external fun canDecodeRaw(path: String): Boolean
+    private external fun getDecodeError(): Int
 }

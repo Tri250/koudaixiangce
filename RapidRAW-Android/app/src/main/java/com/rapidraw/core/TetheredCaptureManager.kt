@@ -145,7 +145,15 @@ class TetheredCaptureManager(private val context: Context) {
         return try {
             val detected = mutableListOf<CameraInfo>()
 
-            val deviceList = usbManager.deviceList
+            val deviceList = try {
+                usbManager.deviceList
+            } catch (e: SecurityException) {
+                // v1.10.6: USB 权限被拒绝（用户未授权或 OEM 限制），等同于 CameraAccessException
+                Log.w(TAG, "USB permission denied while detecting cameras: ${e.message}")
+                _connectionState.value = ConnectionState.ERROR
+                return emptyList()
+            }
+
             for ((_, device) in deviceList) {
                 // 检查设备是否为 PTP/MTP 相机
                 if (isCameraDevice(device)) {
@@ -171,6 +179,11 @@ class TetheredCaptureManager(private val context: Context) {
             detected
         } catch (e: CancellationException) {
             throw e
+        } catch (e: SecurityException) {
+            // v1.10.6: 相机访问被系统安全策略拒绝（等同于 CameraAccessException）
+            Log.e(TAG, "Camera access denied by security policy: ${e.message}", e)
+            _connectionState.value = ConnectionState.ERROR
+            emptyList()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to detect cameras: ${e.message}", e)
             _connectionState.value = ConnectionState.ERROR
@@ -223,6 +236,11 @@ class TetheredCaptureManager(private val context: Context) {
             true
         } catch (e: CancellationException) {
             throw e
+        } catch (e: SecurityException) {
+            // v1.10.6: 相机访问被系统安全策略拒绝（等同于 CameraAccessException）
+            Log.e(TAG, "Camera access denied: ${e.message}", e)
+            _connectionState.value = ConnectionState.ERROR
+            false
         } catch (e: Exception) {
             Log.e(TAG, "Failed to connect camera: ${e.message}", e)
             _connectionState.value = ConnectionState.ERROR

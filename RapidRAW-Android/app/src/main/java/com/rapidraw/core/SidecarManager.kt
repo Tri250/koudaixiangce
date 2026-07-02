@@ -3,6 +3,7 @@ package com.rapidraw.core
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -147,6 +148,179 @@ class SidecarManager(private val context: Context) {
         }
     }
 
+    // ──────────────────────────────────────────────
+    // R-04: Corrupt sidecar recovery
+    // ──────────────────────────────────────────────
+
+    /**
+     * R-04: 检查 sidecar 文件是否存在但无法解析（即已损坏）。
+     * 返回 true 表示文件存在但 JSON 解析失败。
+     */
+    fun isSidecarCorrupt(imageUri: String): Boolean {
+        return try {
+            val sidecarFile = resolveSidecarFileForLoad(imageUri) ?: return false
+            if (!sidecarFile.exists() || !sidecarFile.canRead()) return false
+            if (sidecarFile.length() > MAX_SIDECAR_BYTES) return true
+            val jsonStr = sidecarFile.readText(Charsets.UTF_8)
+            json.decodeFromString<SidecarData>(jsonStr)
+            false // parse succeeded, not corrupt
+        } catch (_: SerializationException) {
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking sidecar corruption for $imageUri", e)
+            false
+        }
+    }
+
+    /**
+     * R-04: 删除损坏的 sidecar 文件。
+     * 仅在 sidecar 确实损坏时才删除，返回是否成功删除。
+     */
+    fun deleteCorruptSidecar(imageUri: String): Boolean {
+        return try {
+            if (!isSidecarCorrupt(imageUri)) return false
+            resolveSidecarFile(imageUri)?.delete() ?: false
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to delete corrupt sidecar for $imageUri", e)
+            false
+        }
+    }
+
+    /**
+     * R-04: 安全加载 sidecar，支持损坏 JSON 的自动恢复。
+     *
+     * 加载流程：
+     * 1. 先尝试正常解析
+     * 2. 若 JSON 解析失败，尝试读取原始文本并修复常见 JSON 问题
+     * 3. 若修复成功，重新解析并保存恢复后的数据
+     * 4. 返回 [SidecarLoadResult] 包含加载结果和恢复状态
+     */
+    fun loadSidecarSafe(imageUri: String): SidecarLoadResult {
+        return try {
+            // Step 1: Try normal load first
+            val normalResult = loadSidecar(imageUri)
+            if (normalResult != null) {
+                return SidecarLoadResult(
+                    data = normalResult,
+                    isCorrupt = false,
+                    errorMessage = null,
+                    wasRecovered = false,
+                )
+            }
+
+            // Step 2: Check if a sidecar file exists at all
+            val sidecarFile = resolveSidecarFileForLoad(imageUri)
+            if (sidecarFile == null || !sidecarFile.exists()) {
+                return SidecarLoadResult(
+                    data = null,
+                    isCorrupt = false,
+                    errorMessage = "No sidecar file found",
+                    wasRecovered = false,
+                )
+            }
+
+            if (!sidecarFile.canRead()) {
+                return SidecarLoadResult(
+                    data = null,
+                    isCorrupt = false,
+                    errorMessage = "Sidecar file not readable",
+                    wasRecovered = false,
+                )
+            }
+
+            if (sidecarFile.length() > MAX_SIDECAR_BYTES) {
+                return SidecarLoadResult(
+                    data = null,
+                    isCorrupt = true,
+                    errorMessage = "Sidecar too large (${sidecarFile.length()} bytes)",
+                    wasRecovered = false,
+                )
+            }
+
+            // Step 3: Read raw text and attempt recovery
+            val rawJson = try {
+                sidecarFile.readText(Charsets.UTF_8)
+            } catch (e: Exception) {
+                return SidecarLoadResult(
+                    data = null,
+                    isCorrupt = true,
+                    errorMessage = "Failed to read sidecar: ${e.message}",
+                    wasRecovered = false,
+                )
+            }
+
+            val recoveredJson = tryRecoverJson(rawJson)
+            if (recoveredJson == null) {
+                return SidecarLoadResult(
+                    data = null,
+                    isCorrupt = true,
+                    errorMessage = "Sidecar JSON is corrupt and unrecoverable",
+                    wasRecovered = false,
+                )
+            }
+
+            // Step 4: Parse recovered JSON
+            val recoveredData = try {
+                json.decodeFromString<SidecarData>(recoveredJson)
+            } catch (e: SerializationException) {
+                Log.w(TAG, "Recovery parse failed for $imageUri", e)
+                return SidecarLoadResult(
+                    data = null,
+                    isCorrupt = true,
+                    errorMessage = "Recovery produced invalid JSON: ${e.message}",
+                    wasRecovered = false,
+                )
+            }
+
+            // Step 5: Version check on recovered data
+            if (recoveredData.version > 2) {
+                Log.w(TAG, "Recovered sidecar version ${recoveredData.version} is newer than supported")
+                return SidecarLoadResult(
+                    data = null,
+                    isCorrupt = true,
+                    errorMessage = "Recovered sidecar version ${recoveredData.version} is newer than supported",
+                    wasRecovered = false,
+                )
+            }
+
+            // Step 6: Save recovered data back to disk
+            val saved = try {
+                saveSidecar(
+                    imageUri,
+                    recoveredData.adjustments,
+                    recoveredData.filmId,
+                    recoveredData.editHistory?.map { snapshot ->
+                        com.rapidraw.data.model.EditHistoryEntry(
+                            id = snapshot.id,
+                            timestamp = snapshot.timestamp,
+                            description = snapshot.description,
+                            parentId = snapshot.parentId,
+                            adjustments = snapshot.adjustments,
+                        )
+                    },
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to save recovered sidecar for $imageUri", e)
+                false
+            }
+
+            SidecarLoadResult(
+                data = recoveredData,
+                isCorrupt = true,
+                errorMessage = if (saved) null else "Recovery succeeded but failed to save repaired sidecar",
+                wasRecovered = true,
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "loadSidecarSafe failed for $imageUri", e)
+            SidecarLoadResult(
+                data = null,
+                isCorrupt = false,
+                errorMessage = "Unexpected error: ${e.message}",
+                wasRecovered = false,
+            )
+        }
+    }
+
     /**
      * 2026 hotfix: 抽出统一的 sidecar 路径解析逻辑，集中做文件名安全化，
      * 防止 uri.lastPathSegment 包含 "/" "../" 等路径分隔符造成任意写入/读取。
@@ -236,6 +410,93 @@ class SidecarManager(private val context: Context) {
             .take(80)
         return sanitized.ifEmpty { "image" }
     }
+
+    // ──────────────────────────────────────────────
+    // R-04: JSON recovery internals
+    // ──────────────────────────────────────────────
+
+    /**
+     * R-04: 尝试修复损坏的 JSON 字符串。
+     *
+     * 处理以下常见损坏模式：
+     * - 无效 UTF-8 字符（替换为 U+FFFD 后移除）
+     * - 截断的 JSON（补齐未闭合的大括号/中括号）
+     * - 尾部多余的逗号
+     *
+     * 恢复后会验证 JSON 是否包含必需的 "version" 和 "adjustments" 字段，
+     * 若缺失则返回 null 表示不可恢复。
+     *
+     * @return 修复后的 JSON 字符串，或 null 表示不可恢复
+     */
+    private fun tryRecoverJson(jsonStr: String): String? {
+        if (jsonStr.isBlank()) return null
+
+        // --- Step 1: Remove invalid UTF-8 sequences ---
+        // Replace any replacement character sequences and strip non-printable control chars
+        // (except common whitespace: \t \n \r)
+        var cleaned = jsonStr
+            .replace("\uFFFD", "") // explicit replacement chars
+            .replace(Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]"), "")
+
+        // --- Step 2: Trim trailing garbage ---
+        // Find the last valid JSON structural character and truncate after it
+        // A well-formed JSON object ends with '}' or ']'
+        cleaned = cleaned.trimEnd()
+
+        // --- Step 3: Balance braces and brackets ---
+        // Count opening vs closing delimiters, but only for those outside strings
+        var depth = 0
+        var bracketDepth = 0
+        var inString = false
+        var escaped = false
+
+        for (ch in cleaned) {
+            if (escaped) {
+                escaped = false
+                continue
+            }
+            when (ch) {
+                '\\' -> if (inString) escaped = true
+                '"' -> inString = !inString
+                '{' -> if (!inString) depth++
+                '}' -> if (!inString) depth--
+                '[' -> if (!inString) bracketDepth++
+                ']' -> if (!inString) bracketDepth--
+            }
+        }
+
+        // Close any unclosed structures
+        if (depth > 0) {
+            val sb = StringBuilder(cleaned)
+            repeat(depth) { sb.append('}') }
+            cleaned = sb.toString()
+        }
+        if (bracketDepth > 0) {
+            val sb = StringBuilder(cleaned)
+            repeat(bracketDepth) { sb.append(']') }
+            cleaned = sb.toString()
+        }
+
+        // --- Step 4: Remove trailing commas before closing braces/brackets ---
+        cleaned = cleaned.replace(Regex(""",\s*([}\]])"""), "$1")
+
+        // --- Step 5: Verify the JSON has the required fields ---
+        // Quick heuristic: the JSON must contain "version" and "adjustments" keys
+        if (!cleaned.contains("\"version\"") || !cleaned.contains("\"adjustments\"")) {
+            Log.w(TAG, "Recovered JSON missing required fields (version/adjustments)")
+            return null
+        }
+
+        // --- Step 6: Quick structural validation ---
+        // Try to parse as a generic JSON object to verify basic structure
+        return try {
+            json.parseToJsonElement(cleaned)
+            cleaned
+        } catch (_: Exception) {
+            Log.w(TAG, "Recovered JSON failed structural validation")
+            null
+        }
+    }
 }
 
 @kotlinx.serialization.Serializable
@@ -259,4 +520,18 @@ data class EditHistorySnapshot(
     val description: String,
     val parentId: String? = null,
     val adjustments: com.rapidraw.data.model.Adjustments,
+)
+
+/**
+ * R-04: Result of a safe sidecar load attempt.
+ * - [data]: The parsed sidecar data, or null if loading/recovery failed.
+ * - [isCorrupt]: True if the sidecar file exists but was unparseable.
+ * - [errorMessage]: Description of the failure, if any.
+ * - [wasRecovered]: True if the data was recovered from a corrupt JSON file.
+ */
+data class SidecarLoadResult(
+    val data: SidecarData?,
+    val isCorrupt: Boolean,
+    val errorMessage: String?,
+    val wasRecovered: Boolean,
 )

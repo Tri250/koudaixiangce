@@ -52,6 +52,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -76,6 +77,8 @@ import com.rapidraw.ui.theme.HasselbladOrange
 import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -533,16 +536,18 @@ private fun MarkerDetailCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 缩略图
+            // v1.10.6: 使用 produceState + Dispatchers.IO 避免主线程 StrictMode 违规
             if (marker.thumbnailPath != null) {
-                val bitmap = remember(marker.thumbnailPath) {
-                    runCatching {
-                        BitmapFactory.decodeFile(marker.thumbnailPath)
-                    }.getOrNull()
+                val bitmap by produceState<android.graphics.Bitmap?>(null, marker.thumbnailPath) {
+                    value = withContext(Dispatchers.IO) {
+                        runCatching {
+                            BitmapFactory.decodeFile(marker.thumbnailPath)
+                        }.getOrNull()
+                    }
                 }
                 if (bitmap != null) {
                     androidx.compose.foundation.Image(
-                        bitmap = bitmap.asImageBitmap(),
+                        bitmap = bitmap!!.asImageBitmap(),
                         contentDescription = marker.imageFile.fileName,
                         modifier = Modifier
                             .fillMaxWidth()

@@ -62,6 +62,22 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
         val continueOnError: Boolean = true,
         val gcHintBetweenImages: Boolean = true,
         val maxConsecutiveOom: Int = 3,
+        /** R-02: 存储空间检查阈值，默认 500MB */
+        val spaceCheckBytes: Long = 500L * 1024 * 1024,
+        /** R-05: 是否使用原子写入（先写临时文件再重命名） */
+        val useAtomicWrites: Boolean = true,
+    )
+
+    /**
+     * C-03: 批量导出进度状态，用于进程被杀后恢复。
+     */
+    data class BatchExportState(
+        val operation: String,
+        val imageUris: List<String>,
+        val currentIndex: Int,
+        val succeeded: Int,
+        val failed: Int,
+        val timestamp: Long = System.currentTimeMillis(),
     )
 
     // ── 公开 API ──────────────────────────────────────────────────────
@@ -94,6 +110,22 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                 break
             }
 
+            // R-02: 存储空间检查，空间不足时中止批处理
+            if (config.spaceCheckBytes > 0) {
+                val available = com.rapidraw.core.StorageChecker.getAvailableBytes(context.filesDir)
+                if (available < config.spaceCheckBytes) {
+                    Log.e(TAG, "Insufficient storage for batch: need ${config.spaceCheckBytes}, have $available")
+                    failed += (total - index)
+                    emit(BatchProgress(
+                        current = index + 1, total = total,
+                        currentFileName = extractFileName(uri, index),
+                        error = "存储空间不足，请清理后重试",
+                        succeeded = succeeded, failed = failed,
+                    ))
+                    break
+                }
+            }
+
             val fileName = extractFileName(uri, index)
 
             try {
@@ -118,6 +150,14 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                     current = index + 1, total = total,
                     currentFileName = fileName,
                     succeeded = succeeded, failed = failed,
+                ))
+                // C-03: 保存进度以便恢复
+                saveBatchState(BatchExportState(
+                    operation = "batchApplyFilm",
+                    imageUris = imageUris.map { it.toString() },
+                    currentIndex = index + 1,
+                    succeeded = succeeded,
+                    failed = failed,
                 ))
             } catch (e: CancellationException) {
                 throw e
@@ -156,6 +196,8 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
             currentFileName = "", isComplete = true,
             succeeded = succeeded, failed = failed,
         ))
+        // C-03: 批处理完成，清除状态文件
+        clearBatchState()
     }.flowOn(Dispatchers.IO)
 
     /**
@@ -179,6 +221,22 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                 break
             }
 
+            // R-02: 存储空间检查，空间不足时中止批处理
+            if (config.spaceCheckBytes > 0) {
+                val available = com.rapidraw.core.StorageChecker.getAvailableBytes(context.filesDir)
+                if (available < config.spaceCheckBytes) {
+                    Log.e(TAG, "Insufficient storage for batch export: need ${config.spaceCheckBytes}, have $available")
+                    failed += (total - index)
+                    emit(BatchProgress(
+                        current = index + 1, total = total,
+                        currentFileName = extractFileName(uri, index),
+                        error = "存储空间不足，请清理后重试",
+                        succeeded = succeeded, failed = failed,
+                    ))
+                    break
+                }
+            }
+
             val fileName = extractFileName(uri, index)
 
             try {
@@ -200,6 +258,14 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
                     current = index + 1, total = total,
                     currentFileName = fileName,
                     succeeded = succeeded, failed = failed,
+                ))
+                // C-03: 保存进度以便恢复
+                saveBatchState(BatchExportState(
+                    operation = "batchExport",
+                    imageUris = imageUris.map { it.toString() },
+                    currentIndex = index + 1,
+                    succeeded = succeeded,
+                    failed = failed,
                 ))
             } catch (e: CancellationException) {
                 throw e
@@ -235,6 +301,8 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
             currentFileName = "", isComplete = true,
             succeeded = succeeded, failed = failed,
         ))
+        // C-03: 批处理完成，清除状态文件
+        clearBatchState()
     }.flowOn(Dispatchers.IO)
 
     /**
@@ -274,5 +342,69 @@ class BatchProcessor(private val context: Context, private val imageProcessor: I
 
     private fun extractFileName(uri: Uri, index: Int): String {
         return uri.lastPathSegment ?: "image_$index"
+    }
+
+    // ── C-03: 批量导出状态持久化与恢复 ──────────────────────────────
+
+    private val batchStateFile: java.io.File
+        get() = java.io.File(context.filesDir, "batch_state.json")
+
+    /**
+     * C-03: 保存批量导出进度到文件，以便进程被杀后恢复。
+     */
+    fun saveBatchState(state: BatchExportState) {
+        try {
+            val json = org.json.JSONObject().apply {
+                put("operation", state.operation)
+                put("imageUris", org.json.JSONArray(state.imageUris))
+                put("currentIndex", state.currentIndex)
+                put("succeeded", state.succeeded)
+                put("failed", state.failed)
+                put("timestamp", state.timestamp)
+            }
+            batchStateFile.writeText(json.toString())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save batch state", e)
+        }
+    }
+
+    /**
+     * C-03: 从文件加载上次的批量导出进度，用于恢复。
+     * 返回 null 表示没有可恢复的状态。
+     */
+    fun loadBatchState(): BatchExportState? {
+        return try {
+            if (!batchStateFile.exists()) return null
+            val json = org.json.JSONObject(batchStateFile.readText())
+            val uris = mutableListOf<String>()
+            val arr = json.getJSONArray("imageUris")
+            for (i in 0 until arr.length()) {
+                uris.add(arr.getString(i))
+            }
+            BatchExportState(
+                operation = json.getString("operation"),
+                imageUris = uris,
+                currentIndex = json.getInt("currentIndex"),
+                succeeded = json.getInt("succeeded"),
+                failed = json.getInt("failed"),
+                timestamp = json.optLong("timestamp", 0L),
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load batch state", e)
+            null
+        }
+    }
+
+    /**
+     * C-03: 清除已保存的批量导出状态（导出完成后调用）。
+     */
+    fun clearBatchState() {
+        try {
+            if (batchStateFile.exists()) {
+                batchStateFile.delete()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to clear batch state", e)
+        }
     }
 }

@@ -42,12 +42,25 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
 
     // Get the Adjustments class
     jclass cls = env->GetObjectClass(adjustments);
+    if (env->ExceptionCheck()) {
+        LOGE("JNI exception after GetObjectClass");
+        env->ExceptionClear();
+        return;
+    }
     if (!cls) {
         LOGE("Failed to get Adjustments class");
         return;
     }
 
     // 2026 正式版: GetFieldID 在 R8 极端情况下可能返回 null，必须校验。
+    #define JNI_CHECK_EXCEPTION(label) \
+        do { \
+            if (env->ExceptionCheck()) { \
+                LOGE("JNI exception at %s", label); \
+                env->ExceptionClear(); \
+            } \
+        } while(0)
+
     #define SAFE_GET_FIELD_ID(name, sig) \
         env->GetFieldID(cls, name, sig)
 
@@ -62,6 +75,8 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
     #define READ_BOOL(name) \
         ({ jfieldID fid_ = SAFE_GET_FIELD_ID(name, "Z"); \
            fid_ ? env->GetBooleanField(adjustments, fid_) : JNI_FALSE; })
+
+    JNI_CHECK_EXCEPTION("SAFE_GET_FIELD_ID / READ_ macros");
 
     // ── Basic ───────────────────────────────────────────────────
     ubo.exposure   = READ_FLOAT("exposure");
@@ -90,15 +105,27 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
     // All normalized from -100..100 → -1..1
     #define READ_HSL_CHANNEL(field, hslStruct) \
         do { \
-            jobject hslObj = env->GetObjectField(adjustments, env->GetFieldID(cls, field, "Lcom/rapidraw/data/model/HslChannel;")); \
+            jfieldID hslFieldId = env->GetFieldID(cls, field, "Lcom/rapidraw/data/model/HslChannel;"); \
+            if (hslFieldId == nullptr || env->ExceptionCheck()) { \
+                env->ExceptionClear(); \
+                LOGE("Failed to get field ID for HSL channel %s", field); \
+                break; \
+            } \
+            jobject hslObj = env->GetObjectField(adjustments, hslFieldId); \
             if (hslObj) { \
                 jclass hslCls = env->GetObjectClass(hslObj); \
-                (hslStruct).hue        = norm(env->GetFloatField(hslObj, env->GetFieldID(hslCls, "hue", "F")), 100.0f); \
-                (hslStruct).saturation = norm(env->GetFloatField(hslObj, env->GetFieldID(hslCls, "saturation", "F")), 100.0f); \
-                (hslStruct).luminance  = norm(env->GetFloatField(hslObj, env->GetFieldID(hslCls, "luminance", "F")), 100.0f); \
+                jfieldID hueFid = env->GetFieldID(hslCls, "hue", "F"); \
+                jfieldID satFid = env->GetFieldID(hslCls, "saturation", "F"); \
+                jfieldID lumFid = env->GetFieldID(hslCls, "luminance", "F"); \
+                if (hueFid && satFid && lumFid) { \
+                    (hslStruct).hue        = norm(env->GetFloatField(hslObj, hueFid), 100.0f); \
+                    (hslStruct).saturation = norm(env->GetFloatField(hslObj, satFid), 100.0f); \
+                    (hslStruct).luminance  = norm(env->GetFloatField(hslObj, lumFid), 100.0f); \
+                } \
                 env->DeleteLocalRef(hslCls); \
                 env->DeleteLocalRef(hslObj); \
             } \
+            JNI_CHECK_EXCEPTION(field); \
         } while(0)
 
     READ_HSL_CHANNEL("hslReds",     ubo.hslRed);
@@ -110,25 +137,72 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
     READ_HSL_CHANNEL("hslPurples",  ubo.hslPurple);
     READ_HSL_CHANNEL("hslMagentas", ubo.hslMagenta);
 
+    JNI_CHECK_EXCEPTION("HSL channels block");
+
     // ── Tone Curve ──────────────────────────────────────────────
     // The Adjustments model stores lumaCurve as List<Coord> (x,y pairs).
     // We need to pack up to 10 control points into the UBO.
     // The curve values in Coord are in 0..255 range, normalized to 0..1.
     {
-        jobject curveList = env->GetObjectField(adjustments,
-            env->GetFieldID(cls, "lumaCurve", "Ljava/util/List;"));
+        jfieldID lumaCurveFid = env->GetFieldID(cls, "lumaCurve", "Ljava/util/List;");
+        if (lumaCurveFid == nullptr || env->ExceptionCheck()) {
+            env->ExceptionClear();
+            LOGE("Failed to get field ID for lumaCurve");
+            // Fill with identity curve
+            for (int i = 0; i < 10; i++) {
+                float t = (float)i / 9.0f;
+                ubo.curveX[i] = t;
+                ubo.curveY[i] = t;
+            }
+            // Don't return, just skip the curve parsing
+            goto tone_curve_done;
+        }
+        jobject curveList = env->GetObjectField(adjustments, lumaCurveFid);
         if (curveList) {
             jclass listCls = env->GetObjectClass(curveList);
-            jint size = env->CallIntMethod(curveList, env->GetMethodID(listCls, "size", "()I"));
+            if (listCls == nullptr || env->ExceptionCheck()) {
+                env->ExceptionClear();
+                env->DeleteLocalRef(curveList);
+                goto tone_curve_identity;
+            }
+            jmethodID sizeMethod = env->GetMethodID(listCls, "size", "()I");
+            if (sizeMethod == nullptr || env->ExceptionCheck()) {
+                env->ExceptionClear();
+                env->DeleteLocalRef(listCls);
+                env->DeleteLocalRef(curveList);
+                goto tone_curve_identity;
+            }
+            jmethodID getMethod = env->GetMethodID(listCls, "get", "(I)Ljava/lang/Object;");
+            if (getMethod == nullptr || env->ExceptionCheck()) {
+                env->ExceptionClear();
+                env->DeleteLocalRef(listCls);
+                env->DeleteLocalRef(curveList);
+                goto tone_curve_identity;
+            }
+            jint size = env->CallIntMethod(curveList, sizeMethod);
             int numPoints = (size < 10) ? size : 10;
             jclass coordCls = env->FindClass("com/rapidraw/data/model/Coord");
+            if (coordCls == nullptr || env->ExceptionCheck()) {
+                env->ExceptionClear();
+                env->DeleteLocalRef(listCls);
+                env->DeleteLocalRef(curveList);
+                goto tone_curve_identity;
+            }
+            jfieldID coordXFid = env->GetFieldID(coordCls, "x", "F");
+            jfieldID coordYFid = env->GetFieldID(coordCls, "y", "F");
+            if (coordXFid == nullptr || coordYFid == nullptr || env->ExceptionCheck()) {
+                env->ExceptionClear();
+                env->DeleteLocalRef(coordCls);
+                env->DeleteLocalRef(listCls);
+                env->DeleteLocalRef(curveList);
+                goto tone_curve_identity;
+            }
 
             for (int i = 0; i < numPoints; i++) {
-                jobject coord = env->CallObjectMethod(curveList,
-                    env->GetMethodID(listCls, "get", "(I)Ljava/lang/Object;"), i);
+                jobject coord = env->CallObjectMethod(curveList, getMethod, i);
                 if (coord) {
-                    float x = env->GetFloatField(coord, env->GetFieldID(coordCls, "x", "F"));
-                    float y = env->GetFloatField(coord, env->GetFieldID(coordCls, "y", "F"));
+                    float x = env->GetFloatField(coord, coordXFid);
+                    float y = env->GetFloatField(coord, coordYFid);
                     ubo.curveX[i] = x / 255.0f;
                     ubo.curveY[i] = y / 255.0f;
                     env->DeleteLocalRef(coord);
@@ -144,6 +218,7 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
             env->DeleteLocalRef(listCls);
             env->DeleteLocalRef(curveList);
         } else {
+            tone_curve_identity:
             // Default identity curve
             for (int i = 0; i < 10; i++) {
                 float t = (float)i / 9.0f;
@@ -151,6 +226,8 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
                 ubo.curveY[i] = t;
             }
         }
+        tone_curve_done:
+        JNI_CHECK_EXCEPTION("tone curve block");
     }
 
     // ── Color Grading ───────────────────────────────────────────
@@ -162,15 +239,27 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
 
             #define READ_CG_REGION(field, region) \
                 do { \
-                    jobject regObj = env->GetObjectField(cg, env->GetFieldID(cgCls, field, "Lcom/rapidraw/data/model/ColorGradingRegion;")); \
+                    jfieldID cgFieldId = env->GetFieldID(cgCls, field, "Lcom/rapidraw/data/model/ColorGradingRegion;"); \
+                    if (cgFieldId == nullptr || env->ExceptionCheck()) { \
+                        env->ExceptionClear(); \
+                        LOGE("Failed to get field ID for CG region %s", field); \
+                        break; \
+                    } \
+                    jobject regObj = env->GetObjectField(cg, cgFieldId); \
                     if (regObj) { \
                         jclass regCls = env->GetObjectClass(regObj); \
-                        (region).hue        = env->GetFloatField(regObj, env->GetFieldID(regCls, "hue", "F")) / 360.0f; \
-                        (region).saturation = env->GetFloatField(regObj, env->GetFieldID(regCls, "saturation", "F")) / 100.0f; \
-                        (region).luminance  = norm(env->GetFloatField(regObj, env->GetFieldID(regCls, "luminance", "F")), 100.0f); \
+                        jfieldID hueFid = env->GetFieldID(regCls, "hue", "F"); \
+                        jfieldID satFid = env->GetFieldID(regCls, "saturation", "F"); \
+                        jfieldID lumFid = env->GetFieldID(regCls, "luminance", "F"); \
+                        if (hueFid && satFid && lumFid) { \
+                            (region).hue        = env->GetFloatField(regObj, hueFid) / 360.0f; \
+                            (region).saturation = env->GetFloatField(regObj, satFid) / 100.0f; \
+                            (region).luminance  = norm(env->GetFloatField(regObj, lumFid), 100.0f); \
+                        } \
                         env->DeleteLocalRef(regCls); \
                         env->DeleteLocalRef(regObj); \
                     } \
+                    JNI_CHECK_EXCEPTION(field); \
                 } while(0)
 
             READ_CG_REGION("shadows",    ubo.cgShadows);
@@ -184,6 +273,8 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
             env->DeleteLocalRef(cg);
         }
     }
+
+    JNI_CHECK_EXCEPTION("color grading block");
 
     // ── CDL Color Grading Per-Channel ───────────────────────────
     ubo.cdlShadowsR     = norm(READ_FLOAT("colorGradingShadowsR"),     100.0f);
@@ -225,6 +316,9 @@ static void fillAdjustmentsUBO(JNIEnv* env, jobject adjustments, AdjustmentsUBO&
     #undef READ_BOOL
     #undef READ_HSL_CHANNEL
     #undef READ_CG_REGION
+
+    JNI_CHECK_EXCEPTION("end of fillAdjustmentsUBO");
+    #undef JNI_CHECK_EXCEPTION
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -19,10 +19,13 @@ import com.rapidraw.ai.SemanticTag
 import com.rapidraw.data.model.ColorLabel
 import com.rapidraw.data.model.ImageFile
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 
 enum class SortOrder {
@@ -106,6 +110,15 @@ class LibraryViewModel(
     val thumbnails: StateFlow<Map<String, Bitmap>> = _thumbnails.asStateFlow()
 
     private var thumbnailJob: Job? = null
+
+    // v1.10.6: 缩略图加载并发保护 — 防止重复启动和 Monkey 测试快速切换导致资源泄漏
+    private val isThumbnailWorkerActive = AtomicBoolean(false)
+
+    /**
+     * v1.10.6: 缩略图加载专用协程作用域，使用 SupervisorJob 确保单个子任务失败不影响其他任务。
+     * 可通过 [cancelPendingThumbnails] 安全取消所有进行中的缩略图工作。
+     */
+    private val thumbnailWorkerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _isBatchMode = MutableStateFlow(false)
     val isBatchMode: StateFlow<Boolean> = _isBatchMode.asStateFlow()
@@ -332,40 +345,85 @@ class LibraryViewModel(
         }
 
     fun loadThumbnails() {
+        // v1.10.6: 防止并发缩略图加载 — 如果已有活跃的 worker，拒绝新的调用
+        if (!isThumbnailWorkerActive.compareAndSet(false, true)) {
+            Log.w(TAG, "loadThumbnails: thumbnail worker already active, skipping")
+            return
+        }
+
         // 取消上一次未完成的缩略图加载，避免结果覆盖与资源浪费
         thumbnailJob?.cancel()
-        thumbnailJob = viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
-            val currentImages = _images.value.take(128)
-            // 限制并发数为 4，防止同时解码过多 Bitmap 导致内存峰值过高
-            val semaphore = Semaphore(4)
+        thumbnailJob = thumbnailWorkerScope.launch {
+            try {
+                val currentImages = _images.value.take(128)
+                // 限制并发数为 4，防止同时解码过多 Bitmap 导致内存峰值过高
+                val semaphore = Semaphore(4)
 
-            val results = currentImages.map { image ->
-                async {
-                    ensureActive()
-                    try {
-                        semaphore.withPermit {
-                            ensureActive()
-                            loadThumbnailForImage(image)?.let { image.path to it }
+                val results = currentImages.map { image ->
+                    async {
+                        ensureActive()
+                        try {
+                            semaphore.withPermit {
+                                ensureActive()
+                                loadThumbnailForImage(image)?.let { image.path to it }
+                            }
+                        } catch (_: Exception) {
+                            null
                         }
-                    } catch (_: Exception) {
-                        null
+                    }
+                }.awaitAll().filterNotNull()
+
+                ensureActive()
+                // v1.5.5 hotfix: 替换缩略图 Map 前主动回收被丢弃的位图，
+                // 否则新图加载时旧图仍驻留内存，最终触发 OOM。
+                val previous = _thumbnails.value
+                _thumbnails.value = results.toMap()
+                val keptKeys = _thumbnails.value.keys
+                for ((oldKey, oldBmp) in previous) {
+                    if (oldKey !in keptKeys && !oldBmp.isRecycled) {
+                        runCatching { oldBmp.recycle() }.onFailure { Log.w(TAG, "recycle failed", it) }
                     }
                 }
-            }.awaitAll().filterNotNull()
+            } catch (_: CancellationException) {
+                // v1.10.6: 取消时在 onCancelled 中回收中间位图，此处仅记录
+                Log.d(TAG, "loadThumbnails cancelled")
+            } finally {
+                // v1.10.6: 确保 worker 标志在任意退出路径上重置
+                isThumbnailWorkerActive.set(false)
+            }
+        }
 
-            ensureActive()
-            // v1.5.5 hotfix: 替换缩略图 Map 前主动回收被丢弃的位图，
-            // 否则新图加载时旧图仍驻留内存，最终触发 OOM。
-            val previous = _thumbnails.value
-            _thumbnails.value = results.toMap()
-            val keptKeys = _thumbnails.value.keys
-            for ((oldKey, oldBmp) in previous) {
-                if (oldKey !in keptKeys && !oldBmp.isRecycled) {
-                    runCatching { oldBmp.recycle() }.onFailure { Log.w(TAG, "recycle failed", it) }
+        // v1.10.6: 在 onCancelled 回调中回收中间产生的位图，防止 Monkey 测试快速切换时泄漏
+        thumbnailJob?.invokeOnCompletion { cause ->
+            if (cause is CancellationException) {
+                Log.d(TAG, "loadThumbnails onCancelled: recycling intermediate bitmaps")
+                val currentThumbnails = _thumbnails.value
+                for ((_, bmp) in currentThumbnails) {
+                    if (!bmp.isRecycled) {
+                        runCatching { bmp.recycle() }.onFailure { Log.w(TAG, "onCancelled recycle failed", it) }
+                    }
                 }
+                _thumbnails.value = emptyMap()
             }
         }
     }
+
+    /**
+     * v1.10.6: 取消所有正在进行的缩略图加载任务。
+     * 安全地取消 thumbnailWorkerScope 并重置并发保护标志。
+     */
+    fun cancelPendingThumbnails() {
+        Log.d(TAG, "cancelPendingThumbnails: cancelling all thumbnail work")
+        thumbnailJob?.cancel()
+        thumbnailWorkerScope.coroutineContext[Job]?.cancelChildren()
+        isThumbnailWorkerActive.set(false)
+    }
+
+    /**
+     * v1.10.6: 检查缩略图 worker 是否正在运行。
+     * 用于健康检查和 UI 状态查询。
+     */
+    fun isThumbnailWorkerActive(): Boolean = isThumbnailWorkerActive.get()
 
     private fun loadThumbnailForImage(image: ImageFile): Bitmap? {
         // 先检查磁盘/内存二级缓存，避免重复解码
@@ -822,6 +880,9 @@ class LibraryViewModel(
     override fun onCleared() {
         super.onCleared()
         thumbnailJob?.cancel()
+        // v1.10.6: 取消缩略图 worker 作用域，防止 ViewModel 销毁后协程泄漏
+        cancelPendingThumbnails()
+        thumbnailWorkerScope.cancel()
         // 回收已加载的缩略图 Bitmap，避免 ViewModel 销毁后泄漏
         val currentThumbnails = _thumbnails.value
         _thumbnails.value = emptyMap()

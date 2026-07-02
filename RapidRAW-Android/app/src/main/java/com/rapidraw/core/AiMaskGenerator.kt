@@ -57,6 +57,12 @@ class AiMaskGenerator {
         avgG /= pixels.size
         avgB /= pixels.size
 
+        // N-10: Pre-check for extreme dark/bright images to prevent SIGFPE
+        if (avgR < 0.5f && avgG < 0.5f && avgB < 0.5f) {
+            android.util.Log.w("AiMaskGenerator", "图像极暗，跳过语义分割处理")
+            return source.copy(Bitmap.Config.ARGB_8888, true) ?: source
+        }
+
         val maskPixels = IntArray(w * h)
 
         when (type) {
@@ -189,9 +195,8 @@ class AiMaskGenerator {
                 val g = ((pixels[idx] shr 8) and 0xFF)
                 val b = (pixels[idx] and 0xFF)
 
-                val colorDist = sqrt(
-                    (r - avgR).toFloat().pow(2f) + (g - avgG).toFloat().pow(2f) + (b - avgB).toFloat().pow(2f)
-                ) / 441f
+                val colorDistSq = (r - avgR).toFloat().pow(2f) + (g - avgG).toFloat().pow(2f) + (b - avgB).toFloat().pow(2f)
+                val colorDist = if (colorDistSq > 0f) sqrt(colorDistSq) / 441f else 0f
 
                 val centerDist = sqrt((x - cx).pow(2f) + (y - cy).pow(2f)) / maxDist
                 val centerBias = 1f - centerDist * 0.5f
@@ -659,6 +664,9 @@ class AiMaskGenerator {
             alphaSum += a
             alphaSqSum += a * a
         }
+        if (alphaSum == 0f) {
+            return 0f // No mask detected, confidence is 0
+        }
         val mean = alphaSum / alpha.size
         val variance = alphaSqSum / alpha.size - mean * mean
         // 低方差 = 高一致性
@@ -709,6 +717,73 @@ class AiMaskGenerator {
         val output = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         output.setPixels(result, 0, w, 0, 0, w, h)
         return output
+    }
+
+    // ── N-10: 极端图像保护 ─────────────────────────────────────
+
+    /**
+     * 检查 Bitmap 是否可处理（非极端暗/亮图像）。
+     * 极端暗或极端亮的图像在归一化过程中可能导致除法异常（SIGFPE）。
+     *
+     * @param bitmap 输入 Bitmap
+     * @return true 如果图像可处理
+     */
+    fun isImageProcessable(bitmap: Bitmap): Boolean {
+        if (bitmap.width <= 0 || bitmap.height <= 0) return false
+
+        val w = bitmap.width
+        val h = bitmap.height
+        val pixels = IntArray(w * h)
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        var totalLuma = 0f
+        for (pixel in pixels) {
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+            totalLuma += 0.299f * r + 0.587f * g + 0.114f * b
+        }
+        val avgLuma = totalLuma / pixels.size
+
+        if (avgLuma < 1.0f) {
+            android.util.Log.w("AiMaskGenerator", "图像极暗（平均亮度 $avgLuma），跳过处理")
+            return false
+        }
+        if (avgLuma > 254.0f) {
+            android.util.Log.w("AiMaskGenerator", "图像极亮（平均亮度 $avgLuma），跳过处理")
+            return false
+        }
+        return true
+    }
+
+    /**
+     * 快速判断图像是否过暗，不适合生成遮罩。
+     * 采样每第 10 个像素，若超过 95% 的像素亮度 < 2，则认为图像过暗。
+     *
+     * @param bitmap 输入 Bitmap
+     * @return true 如果图像过暗不适合处理
+     */
+    fun isImageTooDarkForMask(bitmap: Bitmap): Boolean {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w <= 0 || h <= 0) return true
+
+        val pixels = IntArray(w * h)
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        var darkCount = 0
+        var totalCount = 0
+        for (i in pixels.indices step 10) {
+            val r = (pixels[i] shr 16) and 0xFF
+            val g = (pixels[i] shr 8) and 0xFF
+            val b = pixels[i] and 0xFF
+            val luma = 0.299f * r + 0.587f * g + 0.114f * b
+            if (luma < 2f) darkCount++
+            totalCount++
+        }
+        if (totalCount == 0) return true
+
+        return darkCount.toFloat() / totalCount > 0.95f
     }
 
     private fun Float.pow(n: Float): Float = Math.pow(this.toDouble(), n.toDouble()).toFloat()

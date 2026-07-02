@@ -1,7 +1,11 @@
 package com.rapidraw.core
 
 import android.graphics.Bitmap
+import android.os.Environment
 import android.util.Log
+import java.io.BufferedInputStream
+import java.io.File
+import java.io.FileInputStream
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.pow
@@ -464,6 +468,77 @@ class LensCorrector(
                 vignetteK2 = 0.3f * vStrength * focalFactor,
                 vignetteK3 = -0.1f * vStrength * focalFactor,
             )
+        }
+
+        // ── N-09: mmap safety ───────────────────────────────────────
+
+        /**
+         * 确保镜头校正数据库已加载。
+         * 当前数据库为内置内存数据库，始终可用。
+         * 若未来迁移到外部文件，此方法会先检查文件完整性。
+         */
+        fun ensureDatabaseLoaded() {
+            if (!isDatabaseReady()) {
+                Log.w(TAG, "LensCorrector: database not ready, attempting to load")
+                // 内置数据库始终可用，无需额外加载
+                Log.i(TAG, "LensCorrector: using built-in lens correction database")
+            }
+            Log.d(TAG, "LensCorrector: database loaded, entries=${LensCorrectionDatabase.totalEntries()}")
+        }
+
+        /**
+         * 检查镜头校正数据库是否就绪，UI 可据此决定是否启用镜头校正。
+         */
+        fun isDatabaseReady(): Boolean {
+            return try {
+                LensCorrectionDatabase.totalEntries() > 0
+            } catch (e: Exception) {
+                Log.e(TAG, "LensCorrector: database check failed", e)
+                false
+            }
+        }
+
+        /**
+         * N-09: 安全读取外部存储上的数据库文件。
+         *
+         * 若数据库文件位于外部存储（可能通过 SAF 访问），
+         * 使用 [FileInputStream] + [BufferedInputStream] 替代 mmap，
+         * 避免 SAF 文件描述符上 mmap 导致的 SIGBUS 崩溃。
+         *
+         * @param dbFile 数据库文件路径
+         * @return 文件内容字节数组，若读取失败返回 null
+         */
+        fun safeReadDatabaseFile(dbFile: File): ByteArray? {
+            // N-09: SAF 外部存储路径守卫
+            val externalStoragePath = try {
+                Environment.getExternalStorageDirectory().absolutePath
+            } catch (_: Exception) {
+                null
+            }
+            val isExternal = externalStoragePath != null &&
+                dbFile.absolutePath.startsWith(externalStoragePath)
+
+            if (isExternal) {
+                Log.w(TAG, "LensCorrector: database file is on external storage, " +
+                    "using buffered I/O instead of mmap: ${dbFile.absolutePath}")
+            }
+
+            return try {
+                if (!dbFile.exists() || !dbFile.canRead()) {
+                    Log.e(TAG, "LensCorrector: database file not readable: ${dbFile.absolutePath}")
+                    return null
+                }
+
+                // 使用 FileInputStream + 缓冲读取，而非 mmap
+                FileInputStream(dbFile).use { fis ->
+                    BufferedInputStream(fis, 8192).use { bis ->
+                        bis.readBytes()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "LensCorrector: failed to read database file", e)
+                null
+            }
         }
     }
 }

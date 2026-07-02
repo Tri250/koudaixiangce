@@ -3,6 +3,7 @@ package com.rapidraw.core
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
+import android.os.Debug
 import java.io.File
 
 /**
@@ -329,4 +330,70 @@ object DeviceOptimizer {
 
         return "Manufacturer: $manufacturer, Model: $model, Tier: $tier, Memory: ${ramMb}MB, Cores: $cores"
     }
+
+    // ── R-03: Native Heap ceiling ──────────────────────────────────
+
+    /**
+     * 检查 Native Heap 是否有足够空间，防止 OOM。
+     *
+     * @param context 应用上下文
+     * @param requiredMb 所需的最小空闲 Native Heap 空间（MB），默认 512MB
+     * @return true 表示 Native Heap 空闲空间 >= requiredMb
+     */
+    fun isNativeHeapSafe(context: Context, requiredMb: Long = 512): Boolean {
+        val freeKb = Debug.getNativeHeapSize() - Debug.getNativeHeapAllocatedSize()
+        return freeKb / 1024 >= requiredMb
+    }
+
+    /**
+     * 获取 Native Heap 使用情况详情。
+     */
+    fun getNativeHeapInfo(context: Context): NativeHeapInfo {
+        val sizeKb = Debug.getNativeHeapSize() / 1024
+        val allocatedKb = Debug.getNativeHeapAllocatedSize() / 1024
+        val freeKb = sizeKb - allocatedKb
+        return NativeHeapInfo(
+            allocatedKb = allocatedKb,
+            freeKb = freeKb,
+            sizeKb = sizeKb,
+            isSafe = freeKb >= 512 * 1024,
+        )
+    }
+
+    /**
+     * 判断是否应限制 AI 处理，避免低端设备因 AI 推理导致 OOM。
+     * 当设备等级为 LOW 或 MID 且可用内存 < 4GB 时返回 true。
+     */
+    fun shouldLimitAiProcessing(): Boolean {
+        val tier = getDeviceTier()
+        if (tier != DeviceTier.LOW && tier != DeviceTier.MID) return false
+        return getAvailableMemoryMb() < 4096
+    }
+
+    /**
+     * 获取 AI 处理的内存阈值（MB）。
+     * 低于此阈值的空闲内存时，AI 处理将排队等待而非立即执行。
+     * - LOW: 2048 (2GB free needed)
+     * - MID: 3072
+     * - HIGH: 4096
+     * - FLAGSHIP: 6144
+     */
+    fun getAiMemoryThresholdMb(): Long {
+        return when (getDeviceTier()) {
+            DeviceTier.LOW -> 2048
+            DeviceTier.MID -> 3072
+            DeviceTier.HIGH -> 4096
+            DeviceTier.FLAGSHIP -> 6144
+        }
+    }
 }
+
+/**
+ * Native Heap 使用情况信息。
+ */
+data class NativeHeapInfo(
+    val allocatedKb: Long,
+    val freeKb: Long,
+    val sizeKb: Long,
+    val isSafe: Boolean,
+)

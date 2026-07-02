@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <cstdint>
+#include <atomic>
 #include <string>
 
 // Maximum number of curve control points supported
@@ -142,6 +143,9 @@ public:
 
     bool isInitialized() const { return m_initialized; }
 
+    // Check if the given image dimensions are safe to process on the GPU
+    bool canProcessImage(int width, int height) const;
+
 private:
     bool createInstance();
     bool pickPhysicalDevice();
@@ -176,7 +180,12 @@ private:
     VkDeviceMemory           m_outputMemory     = VK_NULL_HANDLE;
     VkBuffer                 m_uniformBuffer    = VK_NULL_HANDLE;
     VkDeviceMemory           m_uniformMemory    = VK_NULL_HANDLE;
+    VkBuffer                 m_uniformBuffer2   = VK_NULL_HANDLE;
+    VkDeviceMemory           m_uniformMemory2   = VK_NULL_HANDLE;
+    int                      m_uniformBufferIndex = 0;
 
+    std::atomic<bool>        m_isProcessing{false};
+    uint32_t                 m_maxImageDimension = 4096;
     bool                     m_initialized      = false;
     int                      m_lastWidth        = 0;
     int                      m_lastHeight       = 0;

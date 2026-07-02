@@ -64,6 +64,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -83,7 +84,9 @@ import com.rapidraw.core.DamProjectManager
 import com.rapidraw.data.model.ImageFile
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -243,18 +246,28 @@ fun DamProjectDetailScreen(
                             .background(MaterialTheme.colorScheme.surface),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (project.coverImagePath != null &&
-                            java.io.File(project.coverImagePath).exists()
-                        ) {
+                        // v1.10.6: 使用 produceState + Dispatchers.IO 避免主线程 StrictMode 违规
+                        val coverBitmap by produceState<android.graphics.Bitmap?>(null, project.coverImagePath) {
+                            val path = project.coverImagePath
+                            if (path != null) {
+                                value = withContext(Dispatchers.IO) {
+                                    val file = java.io.File(path)
+                                    if (file.exists()) {
+                                        runCatching {
+                                            android.graphics.BitmapFactory.decodeFile(
+                                                path,
+                                                android.graphics.BitmapFactory.Options().apply {
+                                                    inSampleSize = 4
+                                                },
+                                            )
+                                        }.getOrNull()
+                                    } else null
+                                }
+                            }
+                        }
+                        if (coverBitmap != null) {
                             androidx.compose.foundation.Image(
-                                bitmap = remember(project.coverImagePath) {
-                                    (android.graphics.BitmapFactory.decodeFile(
-                                        project.coverImagePath,
-                                        android.graphics.BitmapFactory.Options().apply {
-                                            inSampleSize = 4
-                                        },
-                                    ) ?: android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)).asImageBitmap()
-                                },
+                                bitmap = coverBitmap!!.asImageBitmap(),
                                 contentDescription = project.name,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop,
@@ -480,19 +493,21 @@ private fun DamImageGridItem(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        val context = LocalContext.current
-        val bitmap = remember(image.path) {
-            runCatching {
-                android.graphics.BitmapFactory.decodeFile(
-                    image.path,
-                    android.graphics.BitmapFactory.Options().apply { inSampleSize = 8 },
-                )
-            }.getOrNull()
+        // v1.10.6: 使用 produceState + Dispatchers.IO 避免主线程 StrictMode 违规
+        val bitmap by produceState<android.graphics.Bitmap?>(null, image.path) {
+            value = withContext(Dispatchers.IO) {
+                runCatching {
+                    android.graphics.BitmapFactory.decodeFile(
+                        image.path,
+                        android.graphics.BitmapFactory.Options().apply { inSampleSize = 8 },
+                    )
+                }.getOrNull()
+            }
         }
 
         if (bitmap != null) {
             androidx.compose.foundation.Image(
-                bitmap = bitmap.asImageBitmap(),
+                bitmap = bitmap!!.asImageBitmap(),
                 contentDescription = image.fileName,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,

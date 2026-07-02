@@ -20,6 +20,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -108,7 +109,41 @@ object ExportQueueProcessor {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
+    // ── C-03: 进程被杀后的导出状态恢复 ─────────────────────────────
+
+    /**
+     * 恢复未完成的导出任务：将 EXPORTING 状态的任务重置为 QUEUED。
+     * 进程被杀后，这些任务处于中间状态，需要重新入队。
+     */
+    fun recoverIncompleteJobs(context: Context) {
+        val stuck = ExportQueueRepository.jobs.value
+            .filter { it.status == ExportJobStatus.EXPORTING }
+        if (stuck.isNotEmpty()) {
+            Log.w(TAG, "Recovering ${stuck.size} incomplete export jobs after process restart")
+            stuck.forEach { job ->
+                ExportQueueRepository.updateJobStatus(
+                    job.id, ExportJobStatus.QUEUED,
+                    progress = 0f, error = null,
+                )
+            }
+        }
+    }
+
+    companion object {
+        /**
+         * C-03: 应用启动时调用，恢复因进程被杀而中断的导出任务。
+         * 应在 Application.onCreate() 中调用。
+         */
+        fun initRecovery(context: Context) {
+            recoverIncompleteJobs(context.applicationContext)
+            kick(context.applicationContext)
+        }
+    }
+
     private suspend fun drainQueue(appContext: Context) {
+        // C-03: 恢复因进程被杀而中断的导出任务
+        recoverIncompleteJobs(appContext)
+
         while (true) {
             val next = ExportQueueRepository.jobs.value
                 .firstOrNull { it.status == ExportJobStatus.QUEUED }
@@ -162,10 +197,37 @@ object ExportQueueProcessor {
             }
 
             ExportQueueRepository.updateJobProgress(jobId, 0.3f)
+
+            // R-02: 导出前检查存储空间
+            val storageCheck = com.rapidraw.core.StorageChecker.getAvailableBytes(
+                appContext.filesDir
+            )
+            if (storageCheck < com.rapidraw.core.StorageChecker.MIN_EXPORT_SPACE_BYTES) {
+                ExportQueueRepository.updateJobStatus(
+                    jobId, ExportJobStatus.FAILED,
+                    error = "存储空间不足，请清理后重试"
+                )
+                return
+            }
+
             processed = imageProcessor.processFullResolution(
                 adjustments, source, allowDownsample = false,
             ) ?: throw IllegalStateException("processFullResolution returned null")
             ExportQueueRepository.updateJobProgress(jobId, 0.7f)
+
+            // J-06: Verify write permission for SAF export destination
+            val exportUri = job.settingsSnapshot?.outputUri
+            if (exportUri != null) {
+                val writeFlags = appContext.contentResolver.persistedUriPermissions
+                    .any { it.uri == exportUri && it.isWritePermission }
+                if (!writeFlags) {
+                    ExportQueueRepository.updateJobStatus(
+                        jobId, ExportJobStatus.FAILED,
+                        error = "导出目录不可写，请重新选择"
+                    )
+                    return
+                }
+            }
 
             val uri: Uri = imageProcessor.exportImage(
                 processed, settings, appContext, originalExif = null, orientation = 0,
@@ -185,6 +247,24 @@ object ExportQueueProcessor {
         } catch (cancel: CancellationException) {
             Log.i(TAG, "Export job $jobId cancelled")
             throw cancel
+        } catch (ioe: IOException) {
+            // R-02: 捕获 ENOSPC（存储空间不足）
+            val msg = ioe.message ?: ""
+            if (msg.contains("ENOSPC", ignoreCase = true) || msg.contains("No space left", ignoreCase = true)) {
+                Log.e(TAG, "Export job $jobId failed: disk full", ioe)
+                ExportQueueRepository.updateJobStatus(
+                    jobId,
+                    ExportJobStatus.FAILED,
+                    error = "存储空间不足，请清理后重试"
+                )
+            } else {
+                Log.e(TAG, "Export job $jobId failed", ioe)
+                ExportQueueRepository.updateJobStatus(
+                    jobId,
+                    ExportJobStatus.FAILED,
+                    error = ioe.localizedMessage ?: ioe.javaClass.simpleName,
+                )
+            }
         } catch (t: Throwable) {
             Log.e(TAG, "Export job $jobId failed", t)
             ExportQueueRepository.updateJobStatus(

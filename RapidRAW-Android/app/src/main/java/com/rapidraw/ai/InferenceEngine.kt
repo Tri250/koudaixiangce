@@ -1,5 +1,6 @@
 package com.rapidraw.ai
 
+import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
@@ -168,6 +169,9 @@ class InferenceEngine private constructor(private val context: Context) {
         inputBitmap: Bitmap,
         preprocess: (TensorImage) -> TensorImage = { it },
     ): List<TensorBuffer> = withContext(Dispatchers.Default) {
+        // N-05: 推理前内存检查，防止 native 崩溃
+        checkMemoryBeforeInference()
+
         val interpreter = loadModel(config)
 
         // 自动 resize 输入图像到模型期望尺寸
@@ -206,6 +210,9 @@ class InferenceEngine private constructor(private val context: Context) {
         config: ModelConfig,
         inputBuffer: ByteBuffer,
     ): List<ByteBuffer> = withContext(Dispatchers.Default) {
+        // N-05: 推理前内存检查，防止 native 崩溃
+        checkMemoryBeforeInference()
+
         val interpreter = loadModel(config)
 
         val outputBuffers = (0 until interpreter.outputTensorCount).map { idx ->
@@ -322,59 +329,201 @@ class InferenceEngine private constructor(private val context: Context) {
         )
         val mediaFile = File(mediaDir, "tflite_$fileName")
 
-        if (mediaFile.exists() && mediaFile.length() > 0L) {
+        if (mediaFile.exists() && verifyModelIntegrityInternal(mediaFile)) {
             return mediaFile
+        }
+        // N-06: 如果文件存在但损坏，删除以便重新复制
+        if (mediaFile.exists()) {
+            mediaFile.delete()
         }
 
         // 尝试写入 media 目录
         try {
             if (!mediaDir.exists()) mediaDir.mkdirs()
             if (mediaDir.canWrite()) {
-                context.assets.open("models/$fileName").use { input ->
-                    FileOutputStream(mediaFile).use { output ->
-                        input.copyTo(output)
-                    }
+                copyModelFile(fileName, mediaFile)
+                // N-06: 复制后验证完整性，损坏则删除并重试
+                if (!verifyModelIntegrityInternal(mediaFile)) {
+                    mediaFile.delete()
+                    copyModelFile(fileName, mediaFile)
                 }
-                return mediaFile
+                if (verifyModelIntegrityInternal(mediaFile)) {
+                    return mediaFile
+                }
+                Log.w(TAG, "Model file corrupted after copy to media dir, falling back")
             }
         } catch (e: Exception) {
             Log.w(TAG, "Cannot write to Android/media, falling back to filesDir: ${e.message}")
         }
 
-        // 降级：使用 cacheDir（卸载会清除，但至少能用）
+        // 降级：使用 filesDir（卸载会清除，但至少能用）
         val fallbackDir = File(context.filesDir, "models")
         val fallbackFile = File(fallbackDir, "tflite_$fileName")
-        if (!fallbackFile.exists() || fallbackFile.length() == 0L) {
+        if (!fallbackFile.exists() || !verifyModelIntegrityInternal(fallbackFile)) {
+            if (fallbackFile.exists()) fallbackFile.delete()
             if (!fallbackDir.exists()) fallbackDir.mkdirs()
-            context.assets.open("models/$fileName").use { input ->
-                FileOutputStream(fallbackFile).use { output ->
-                    input.copyTo(output)
-                }
+            copyModelFile(fileName, fallbackFile)
+            // N-06: 复制后验证完整性，损坏则删除并重试
+            if (!verifyModelIntegrityInternal(fallbackFile)) {
+                fallbackFile.delete()
+                copyModelFile(fileName, fallbackFile)
             }
         }
         return fallbackFile
     }
 
     /**
+     * N-06: 将模型文件从 assets 复制到目标路径。
+     */
+    private fun copyModelFile(fileName: String, destFile: File) {
+        context.assets.open("models/$fileName").use { input ->
+            FileOutputStream(destFile).use { output ->
+                input.copyTo(output)
+            }
+        }
+    }
+
+    /**
      * INST-10: 检查 AI 模型是否可用（离线降级判断）。
      * 当模型文件不存在且网络不可用时，调用方可据此禁用 AI 蒙版功能。
+     *
+     * N-06: 添加完整性验证，不再仅检查文件是否存在。
      */
     fun isModelAvailable(fileName: String): Boolean {
+        return getModelIntegrity(fileName).isValid
+    }
+
+    /**
+     * N-06: 获取模型文件完整性检查结果。
+     */
+    fun getModelIntegrity(fileName: String): ModelIntegrityResult {
         // 检查 media 目录
         val mediaDir = File(
             android.os.Environment.getExternalStorageDirectory(),
             "Android/media/${context.packageName}/models"
         )
         val mediaFile = File(mediaDir, "tflite_$fileName")
-        if (mediaFile.exists() && mediaFile.length() > 0L) return true
+        val mediaResult = checkFileIntegrity(mediaFile)
+        if (mediaResult.isValid) return mediaResult
 
         // 检查 filesDir 降级目录
         val fallbackFile = File(File(context.filesDir, "models"), "tflite_$fileName")
-        if (fallbackFile.exists() && fallbackFile.length() > 0L) return true
+        val fallbackResult = checkFileIntegrity(fallbackFile)
+        if (fallbackResult.isValid) return fallbackResult
 
         // 检查旧路径（cacheDir）
         val legacyFile = File(context.cacheDir, "tflite_$fileName")
-        return legacyFile.exists() && legacyFile.length() > 0L
+        return checkFileIntegrity(legacyFile)
+    }
+
+    /**
+     * N-06: 验证模型文件完整性。
+     * - 检查文件是否存在且大小非零
+     * - 读取前 4 字节验证 TFLite FlatBuffer 偏移量魔数
+     * - 读取字节 4-7 验证 "TFL3" 文件标识符
+     * - 检查文件大小是否合理（不小于最小 TFLite 头大小）
+     */
+    fun verifyModelIntegrity(fileName: String): Boolean {
+        return getModelIntegrity(fileName).isValid
+    }
+
+    /**
+     * N-06: 内部完整性检查，直接对 File 对象操作。
+     */
+    private fun verifyModelIntegrityInternal(file: File): Boolean {
+        return checkFileIntegrity(file).isValid
+    }
+
+    /**
+     * N-06: 对单个文件执行完整性检查，返回 ModelIntegrityResult。
+     * TFLite 模型文件格式：
+     * - 字节 0-3: FlatBuffer 根表偏移量（little-endian uint32），通常为 0x1C000000
+     * - 字节 4-7: 文件标识符 "TFL3" (0x54 0x46 0x4C 0x33)
+     */
+    private fun checkFileIntegrity(file: File): ModelIntegrityResult {
+        if (!file.exists()) {
+            return ModelIntegrityResult(
+                exists = false,
+                sizeBytes = 0L,
+                isValid = false,
+                errorMessage = "File not found: ${file.absolutePath}",
+            )
+        }
+
+        val fileSize = file.length()
+        if (fileSize == 0L) {
+            return ModelIntegrityResult(
+                exists = true,
+                sizeBytes = 0L,
+                isValid = false,
+                errorMessage = "File is empty: ${file.absolutePath}",
+            )
+        }
+
+        // 文件大小过小不可能是有效模型（至少需要 FlatBuffer 头 + 一些数据）
+        if (fileSize < 16L) {
+            return ModelIntegrityResult(
+                exists = true,
+                sizeBytes = fileSize,
+                isValid = false,
+                errorMessage = "File too small to be a valid TFLite model: $fileSize bytes",
+            )
+        }
+
+        return try {
+            val buffer = ByteArray(8)
+            file.inputStream().use { input ->
+                var read = 0
+                while (read < buffer.size) {
+                    val n = input.read(buffer, read, buffer.size - read)
+                    if (n < 0) break
+                    read += n
+                }
+                if (read < 8) {
+                    return ModelIntegrityResult(
+                        exists = true,
+                        sizeBytes = fileSize,
+                        isValid = false,
+                        errorMessage = "File truncated: expected at least 8 bytes, got $read",
+                    )
+                }
+            }
+
+            // 验证字节 4-7: "TFL3" 标识符
+            val hasTfl3Marker = buffer[4] == 0x54.toByte()
+                && buffer[5] == 0x46.toByte()
+                && buffer[6] == 0x4C.toByte()
+                && buffer[7] == 0x33.toByte()
+
+            if (!hasTfl3Marker) {
+                return ModelIntegrityResult(
+                    exists = true,
+                    sizeBytes = fileSize,
+                    isValid = false,
+                    errorMessage = "Missing TFL3 file identifier: expected 54 46 4C 33, got " +
+                        "%02X %02X %02X %02X".format(
+                            buffer[4].toInt() and 0xFF,
+                            buffer[5].toInt() and 0xFF,
+                            buffer[6].toInt() and 0xFF,
+                            buffer[7].toInt() and 0xFF,
+                        ),
+                )
+            }
+
+            ModelIntegrityResult(
+                exists = true,
+                sizeBytes = fileSize,
+                isValid = true,
+                errorMessage = null,
+            )
+        } catch (e: Exception) {
+            ModelIntegrityResult(
+                exists = true,
+                sizeBytes = fileSize,
+                isValid = false,
+                errorMessage = "Integrity check failed: ${e.message}",
+            )
+        }
     }
 
     /**
@@ -382,14 +531,101 @@ class InferenceEngine private constructor(private val context: Context) {
      * 建议在 AI 蒙版入口处调用，8GB RAM 以下设备给提示。
      */
     fun isDeviceMemorySufficient(): Boolean {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
         val totalMem = activityManager?.memoryInfo?.totalMem ?: 0L
         // 8GB = 8L * 1024 * 1024 * 1024
         return totalMem >= 6L * 1024 * 1024 * 1024 // 6GB 作为最低门槛
     }
 
+    /**
+     * N-05: 增强版内存检查，同时检查总内存和可用内存。
+     * - 总 RAM >= 6GB
+     * - 可用内存 >= 2GB
+     * 返回详细的 MemoryCheckResult 说明通过或失败原因。
+     */
+    fun isDeviceMemoryAdequateForAi(): MemoryCheckResult {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        val memInfo = ActivityManager.MemoryInfo()
+        activityManager?.getMemoryInfo(memInfo)
+
+        val totalMem = memInfo.totalMem
+        val availMem = memInfo.availMem
+        val totalRamMb = totalMem / (1024 * 1024)
+        val availableRamMb = availMem / (1024 * 1024)
+        val totalRamGb = totalMem / (1024 * 1024 * 1024)
+        val availRamGb = availMem / (1024 * 1024 * 1024)
+
+        if (totalMem < 6L * 1024 * 1024 * 1024) {
+            return MemoryCheckResult(
+                sufficient = false,
+                totalRamMb = totalRamMb,
+                availableRamMb = availableRamMb,
+                reason = "Total RAM (${totalRamGb}GB) is below 6GB minimum threshold",
+            )
+        }
+
+        if (availMem < 2L * 1024 * 1024 * 1024) {
+            return MemoryCheckResult(
+                sufficient = false,
+                totalRamMb = totalRamMb,
+                availableRamMb = availableRamMb,
+                reason = "Available RAM (${availRamGb}GB) is below 2GB minimum threshold",
+            )
+        }
+
+        return MemoryCheckResult(
+            sufficient = true,
+            totalRamMb = totalRamMb,
+            availableRamMb = availableRamMb,
+            reason = "Memory sufficient: ${totalRamGb}GB total, ${availRamGb}GB available",
+        )
+    }
+
+    /**
+     * N-05: 推理前内存检查，可从 UI 线程同步调用。
+     * 如果内存不足，抛出 InsufficientMemoryException 防止 native 崩溃。
+     */
+    fun checkMemoryBeforeInference(): MemoryCheckResult {
+        val result = isDeviceMemoryAdequateForAi()
+        if (!result.sufficient) {
+            throw InsufficientMemoryException(
+                "Insufficient memory for AI inference: ${result.reason}",
+                result,
+            )
+        }
+        return result
+    }
+
+    /**
+     * N-05: 内存不足异常，在推理前内存检查不通过时抛出。
+     */
+    class InsufficientMemoryException(
+        message: String,
+        val result: MemoryCheckResult,
+    ) : RuntimeException(message)
+
     companion object {
         private const val TAG = "InferenceEngine"
+
+        /**
+         * N-05: 内存检查结果，包含是否充足及详细原因。
+         */
+        data class MemoryCheckResult(
+            val sufficient: Boolean,
+            val totalRamMb: Long,
+            val availableRamMb: Long,
+            val reason: String,
+        )
+
+        /**
+         * N-06: 模型文件完整性检查结果。
+         */
+        data class ModelIntegrityResult(
+            val exists: Boolean,
+            val sizeBytes: Long,
+            val isValid: Boolean,
+            val errorMessage: String? = null,
+        )
 
         @Volatile
         private var instance: InferenceEngine? = null

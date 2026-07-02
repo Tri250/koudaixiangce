@@ -72,6 +72,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 enum class EditorTab {
     AI,        // AI 能力聚合：智能优化 / AI消除 / AI去噪 / AI遮罩 / 高光重建
@@ -465,6 +467,13 @@ class EditorViewModel(
     // v1.5.5 hotfix: cleanupJob 完成标志，用于让 onCleared 中的看门狗协程及时退出。
     private val isCleanupDone = AtomicBoolean(false)
 
+    // J-03: lifecycle state tracking for rotation/split/fold
+    private val lifecycleState = AtomicReference("CREATED")
+    // C-05: gesture conflict prevention
+    private val isProcessingGesture = AtomicBoolean(false)
+    // G-03: texture leak prevention
+    private val activeTextureCount = AtomicInteger(0)
+
     // 用于 ViewModel 销毁后异步释放 GPU/Bitmap 资源，避免 onCleared 阻塞主线程
     private val cleanupScope = CoroutineScope(
         SupervisorJob() + Dispatchers.IO + coroutineExceptionHandler
@@ -511,6 +520,14 @@ class EditorViewModel(
                 result.onSuccess { processed ->
                     // v1.10.6: 用户离开页面后及时终止，避免 recycled bitmap 被误用
                     if (!(coroutineContext[Job]?.isActive == true)) {
+                        processed.preview.takeIf { !it.isRecycled }?.recycle()
+                        processed.original.takeIf { !it.isRecycled }?.recycle()
+                        return@onSuccess
+                    }
+                    // J-03: check lifecycle state before posting results
+                    val state = lifecycleState.get()
+                    if (state == "STOPPED" || state == "DESTROYED") {
+                        Log.w(TAG, "loadImage: lifecycle state is $state, discarding loaded image")
                         processed.preview.takeIf { !it.isRecycled }?.recycle()
                         processed.original.takeIf { !it.isRecycled }?.recycle()
                         return@onSuccess
@@ -925,6 +942,11 @@ class EditorViewModel(
 
     // region AI Modules
     fun applyAiDenoise(preserveDetails: Float = 0.5f, chromaStrength: Float = 0.3f) {
+        // R-01: prevent dual AI
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "applyAiDenoise: skipped — another AI job is already running")
+            return
+        }
         launchAiJob {
             val source = bitmapMutex.withLock {
                 previewBitmapCache?.takeIf { !it.isRecycled }
@@ -965,6 +987,11 @@ class EditorViewModel(
     }
 
     fun generateAiMask(maskType: AiMaskGenerator.MaskType, onResult: (Bitmap) -> Unit) {
+        // R-01: prevent dual AI
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "generateAiMask: skipped — another AI job is already running")
+            return
+        }
         launchAiJob {
             val source = bitmapMutex.withLock {
                 previewBitmapCache?.takeIf { !it.isRecycled }
@@ -990,6 +1017,11 @@ class EditorViewModel(
     }
 
     fun applyAiMaskResult(mask: Bitmap) {
+        // R-01: prevent dual AI
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "applyAiMaskResult: skipped — another AI job is already running")
+            return
+        }
         launchAiJob {
             val source = bitmapMutex.withLock {
                 previewBitmapCache?.takeIf { !it.isRecycled }
@@ -1024,6 +1056,11 @@ class EditorViewModel(
     }
 
     fun applyAiInpaint(maskBitmap: Bitmap, onResult: (Bitmap) -> Unit) {
+        // R-01: prevent dual AI
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "applyAiInpaint: skipped — another AI job is already running")
+            return
+        }
         launchAiJob {
             val source = bitmapMutex.withLock {
                 previewBitmapCache?.takeIf { !it.isRecycled }
@@ -1126,6 +1163,11 @@ class EditorViewModel(
     }
 
     fun applyHighlightReconstruction() {
+        // R-01: prevent dual AI
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "applyHighlightReconstruction: skipped — another AI job is already running")
+            return
+        }
         launchAiJob {
             val source = bitmapMutex.withLock {
                 previewBitmapCache?.takeIf { !it.isRecycled }
@@ -1167,6 +1209,11 @@ class EditorViewModel(
     }
 
     fun autoStraighten() {
+        // R-01: prevent dual AI
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "autoStraighten: skipped — another AI job is already running")
+            return
+        }
         launchAiJob {
             val source = bitmapMutex.withLock {
                 previewBitmapCache?.takeIf { !it.isRecycled }
@@ -1194,6 +1241,11 @@ class EditorViewModel(
     }
 
     fun convertNegative() {
+        // R-01: prevent dual AI
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "convertNegative: skipped — another AI job is already running")
+            return
+        }
         launchAiJob {
             val source = bitmapMutex.withLock {
                 previewBitmapCache?.takeIf { !it.isRecycled }
@@ -1229,6 +1281,17 @@ class EditorViewModel(
     }
 
     private fun launchAiJob(block: suspend () -> Unit) {
+        // R-01: reject if another AI job is already running
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "launchAiJob: rejected — another AI job is already running, cancelling it first")
+            cancelAllAiJobs()
+        }
+        // J-03: guard against lifecycle suspension
+        val state = lifecycleState.get()
+        if (state == "STOPPED" || state == "DESTROYED") {
+            Log.w(TAG, "launchAiJob: rejected — lifecycle state is $state")
+            return
+        }
         aiJob?.cancel()
         aiJob = viewModelScope.launch(Dispatchers.Default + coroutineExceptionHandler) {
             if (isCleared.get()) return@launch
@@ -1758,6 +1821,11 @@ class EditorViewModel(
     }
 
     fun applyBeautyEffects() {
+        // R-01: prevent dual AI
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "applyBeautyEffects: skipped — another AI job is already running")
+            return
+        }
         pushUndo("美颜效果")
         // Apply face whitening
         launchAiJob {
@@ -1808,6 +1876,11 @@ class EditorViewModel(
 
     fun applyBm3dDenoising(sigma: Float) {
         if (sigma <= 0f) return
+        // R-01: prevent dual AI
+        if (isAnyAiRunning()) {
+            Log.w(TAG, "applyBm3dDenoising: skipped — another AI job is already running")
+            return
+        }
         val bitmap = runBlocking { bitmapMutex.withLock {
             previewBitmapCache?.takeIf { !it.isRecycled }
         } } ?: return
@@ -2339,6 +2412,9 @@ class EditorViewModel(
     // region Preview Pipeline
     private fun schedulePreviewUpdate() {
         if (_isShowingOriginal.value) return
+        // J-03: guard against lifecycle suspension
+        val state = lifecycleState.get()
+        if (state == "STOPPED" || state == "DESTROYED") return
 
         previewJob?.cancel()
         previewJob = viewModelScope.launch(Dispatchers.Default + coroutineExceptionHandler) {
@@ -2546,6 +2622,104 @@ class EditorViewModel(
         originalBitmap?.takeIf { !it.isRecycled }?.recycle()
         originalBitmap = null
     }
+    // endregion
+
+    // region Lifecycle & System Callbacks (J-03, C-04, C-05, G-03, R-01)
+
+    // ── J-03: Lifecycle Chaos Prevention ────────────────────────────
+
+    fun onPause() {
+        lifecycleState.set("PAUSED")
+        // Cancel non-critical coroutines
+        histogramJob?.cancel()
+        smartOptimizeJob?.cancel()
+        // Save current state
+        _adjustments.value.let { handle.set("last_adjustments", it) }
+    }
+
+    fun onResume() {
+        lifecycleState.set("RESUMED")
+        // Resume auto-save is handled by individual methods checking lifecycle
+    }
+
+    fun onStop() {
+        lifecycleState.set("STOPPED")
+        previewJob?.cancel()
+    }
+
+    // ── C-04: onTrimMemory GPU Resource Release ─────────────────────
+
+    fun onTrimMemory(level: Int) {
+        Log.d(TAG, "onTrimMemory: level=$level")
+        when (level) {
+            android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
+            android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
+                // Release GPU pipeline resources
+                gpuMutex.withLock {
+                    gpuPipeline?.release()
+                    gpuPipeline = null
+                }
+                // Recycle bitmaps and clear caches
+                recycleBitmapsInternal()
+                Log.w(TAG, "onTrimMemory: released GPU pipeline and bitmaps (level=$level)")
+            }
+            android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
+                // Cancel auto-save and release GPU
+                previewJob?.cancel()
+                gpuMutex.withLock {
+                    gpuPipeline?.release()
+                    gpuPipeline = null
+                }
+                Log.w(TAG, "onTrimMemory: UI hidden, released GPU and cancelled auto-save")
+            }
+        }
+    }
+
+    // ── C-05: Gesture Conflict Prevention ───────────────────────────
+
+    fun beginGesture(gestureType: String): Boolean {
+        return isProcessingGesture.compareAndSet(false, true).also { acquired ->
+            if (acquired) {
+                Log.d(TAG, "Gesture started: $gestureType")
+            } else {
+                Log.w(TAG, "Gesture rejected (another active): $gestureType")
+            }
+        }
+    }
+
+    fun endGesture() {
+        isProcessingGesture.set(false)
+    }
+
+    // ── G-03: Texture Leak Prevention ───────────────────────────────
+
+    fun onGpuTextureCreated() {
+        val count = activeTextureCount.incrementAndGet()
+        if (count > 10) {
+            Log.w(TAG, "Active texture count high: $count — possible texture leak")
+        }
+    }
+
+    fun onGpuTextureDestroyed() {
+        activeTextureCount.decrementAndGet()
+    }
+
+    fun getActiveTextureCount(): Int = activeTextureCount.get()
+
+    // ── R-01: Dual AI Prevention ────────────────────────────────────
+
+    fun isAnyAiRunning(): Boolean {
+        return _isAiProcessing.value || _isBm3dProcessing.value
+    }
+
+    fun cancelAllAiJobs() {
+        aiJob?.cancel()
+        _isAiProcessing.value = false
+        _isBm3dProcessing.value = false
+        _aiDenoiseProgress.value = 0f
+        _bm3dProgress.value = 0f
+    }
+
     // endregion
 
     // region Factory

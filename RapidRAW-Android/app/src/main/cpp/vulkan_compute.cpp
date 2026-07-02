@@ -6,6 +6,8 @@
 #include <vector>
 #include <array>
 #include <algorithm>
+#include <mutex>
+#include <atomic>
 
 #include <android/log.h>
 
@@ -23,6 +25,8 @@
             return false;                                                     \
         }                                                                     \
     } while (0)
+
+static std::mutex s_submissionMutex;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SPIR-V Compute Shader (embedded)
@@ -957,7 +961,8 @@ bool VulkanCompute::pickPhysicalDevice() {
 
                 VkPhysicalDeviceProperties props;
                 vkGetPhysicalDeviceProperties(device, &props);
-                LOGI("Selected GPU: %s (API 0x%08X)", props.deviceName, props.apiVersion);
+                m_maxImageDimension = props.limits.maxImageDimension2D;
+                LOGI("Selected GPU: %s (API 0x%08X, maxImageDim=%u)", props.deviceName, props.apiVersion, m_maxImageDimension);
                 return true;
             }
         }
@@ -1155,9 +1160,49 @@ void VulkanCompute::copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) {
     vkQueueWaitIdle(m_computeQueue);
 }
 
+bool VulkanCompute::canProcessImage(int width, int height) const {
+    if (!m_initialized) return false;
+
+    // Check against device maxImageDimension2D limit
+    if (width > static_cast<int>(m_maxImageDimension) ||
+        height > static_cast<int>(m_maxImageDimension)) {
+        return false;
+    }
+
+    // Check 100MP limit for VRAM safety
+    if (static_cast<int64_t>(width) * height > 100000000LL) {
+        return false;
+    }
+
+    return true;
+}
+
 bool VulkanCompute::processImage(uint8_t* pixels, int width, int height,
                                   const AdjustmentsUBO& adjustments) {
     if (!m_initialized) return false;
+
+    // G-04: Prevent concurrent processing — only one image at a time
+    if (m_isProcessing.exchange(true)) {
+        LOGW("Already processing an image, rejecting concurrent request");
+        return false;
+    }
+
+    // G-02: Check image dimensions against device limits
+    if (width > static_cast<int>(m_maxImageDimension) ||
+        height > static_cast<int>(m_maxImageDimension)) {
+        LOGE("Image dimensions (%dx%d) exceed device maxImageDimension2D (%u)",
+             width, height, m_maxImageDimension);
+        m_isProcessing = false;
+        return false;
+    }
+
+    // G-02: 100MP+ VRAM protection — fall back to CPU for very large images
+    if (static_cast<int64_t>(width) * height > 100000000LL) {
+        LOGW("Image too large (%.1f MP) - exceeds 100MP limit, fall back to CPU",
+             static_cast<double>(static_cast<int64_t>(width) * height) / 1e6);
+        m_isProcessing = false;
+        return false;
+    }
 
     VkDeviceSize imageSize = VkDeviceSize(width) * height * 4;  // RGBA8
     VkDeviceSize uboSize = sizeof(AdjustmentsUBO);
@@ -1189,6 +1234,11 @@ bool VulkanCompute::processImage(uint8_t* pixels, int width, int height,
             vkFreeMemory(m_device, m_uniformMemory, nullptr);
             m_uniformBuffer = VK_NULL_HANDLE;
         }
+        if (m_uniformBuffer2 != VK_NULL_HANDLE) {
+            vkDestroyBuffer(m_device, m_uniformBuffer2, nullptr);
+            vkFreeMemory(m_device, m_uniformMemory2, nullptr);
+            m_uniformBuffer2 = VK_NULL_HANDLE;
+        }
 
         // Create input buffer (host-visible for upload)
         if (!createBuffer(imageSize,
@@ -1196,6 +1246,7 @@ bool VulkanCompute::processImage(uint8_t* pixels, int width, int height,
                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                           m_inputBuffer, m_inputMemory)) {
             LOGE("Failed to create input buffer");
+            m_isProcessing = false;
             return false;
         }
 
@@ -1205,15 +1256,27 @@ bool VulkanCompute::processImage(uint8_t* pixels, int width, int height,
                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                           m_outputBuffer, m_outputMemory)) {
             LOGE("Failed to create output buffer");
+            m_isProcessing = false;
             return false;
         }
 
-        // Create uniform buffer
+        // Create uniform buffer (slot 0)
         if (!createBuffer(alignedUboSize,
                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                           m_uniformBuffer, m_uniformMemory)) {
-            LOGE("Failed to create uniform buffer");
+            LOGE("Failed to create uniform buffer 0");
+            m_isProcessing = false;
+            return false;
+        }
+
+        // Create uniform buffer (slot 1) for double-buffering
+        if (!createBuffer(alignedUboSize,
+                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                          m_uniformBuffer2, m_uniformMemory2)) {
+            LOGE("Failed to create uniform buffer 1");
+            m_isProcessing = false;
             return false;
         }
 
@@ -1261,58 +1324,108 @@ bool VulkanCompute::processImage(uint8_t* pixels, int width, int height,
         m_lastHeight = height;
     }
 
+    // Double-buffering: toggle index and select the alternate uniform buffer
+    m_uniformBufferIndex = (m_uniformBufferIndex + 1) % 2;
+    VkBuffer currentUniformBuffer = (m_uniformBufferIndex == 0) ? m_uniformBuffer : m_uniformBuffer2;
+    VkDeviceMemory currentUniformMemory = (m_uniformBufferIndex == 0) ? m_uniformMemory : m_uniformMemory2;
+
+    // Update descriptor set binding 2 to point to the current uniform buffer
+    {
+        VkDescriptorBufferInfo uboBufferInfo = {};
+        uboBufferInfo.buffer = currentUniformBuffer;
+        uboBufferInfo.offset = 0;
+        uboBufferInfo.range = alignedUboSize;
+
+        VkWriteDescriptorSet uboWrite = {};
+        uboWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        uboWrite.dstSet = m_descriptorSet;
+        uboWrite.dstBinding = 2;
+        uboWrite.descriptorCount = 1;
+        uboWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboWrite.pBufferInfo = &uboBufferInfo;
+
+        vkUpdateDescriptorSets(m_device, 1, &uboWrite, 0, nullptr);
+    }
+
     // Upload input pixel data
     void* data;
     vkMapMemory(m_device, m_inputMemory, 0, imageSize, 0, &data);
     memcpy(data, pixels, static_cast<size_t>(imageSize));
     vkUnmapMemory(m_device, m_inputMemory);
 
-    // Upload UBO
-    vkMapMemory(m_device, m_uniformMemory, 0, alignedUboSize, 0, &data);
+    // Upload UBO to the current double-buffered uniform buffer
+    vkMapMemory(m_device, currentUniformMemory, 0, alignedUboSize, 0, &data);
     memcpy(data, &adjustments, sizeof(AdjustmentsUBO));
-    vkUnmapMemory(m_device, m_uniformMemory);
+    vkUnmapMemory(m_device, currentUniformMemory);
 
-    // Record and submit command buffer
-    VkCommandBufferBeginInfo beginInfo = {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    // G-04: Lock submission mutex to protect GPU command buffer submission
+    {
+        std::lock_guard<std::mutex> lock(s_submissionMutex);
 
-    VK_CHECK(vkBeginCommandBuffer(m_commandBuffer, &beginInfo));
+        // Record and submit command buffer
+        VkCommandBufferBeginInfo beginInfo = {};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkCmdBindPipeline(m_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
-    vkCmdBindDescriptorSets(m_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                            m_pipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
+        VkResult result = vkBeginCommandBuffer(m_commandBuffer, &beginInfo);
+        if (result != VK_SUCCESS) {
+            LOGE("Vulkan error at vkBeginCommandBuffer: %d", result);
+            m_isProcessing = false;
+            return false;
+        }
 
-    // Dispatch compute workgroups
-    uint32_t workgroupX = (width + 15) / 16;
-    uint32_t workgroupY = (height + 15) / 16;
-    vkCmdDispatch(m_commandBuffer, workgroupX, workgroupY, 1);
+        vkCmdBindPipeline(m_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
+        vkCmdBindDescriptorSets(m_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                m_pipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
 
-    // Add memory barrier to ensure writes are visible before readback
-    VkMemoryBarrier barrier = {};
-    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-    vkCmdPipelineBarrier(m_commandBuffer,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_HOST_BIT,
-                         0, 1, &barrier, 0, nullptr, 0, nullptr);
+        // Dispatch compute workgroups
+        uint32_t workgroupX = (width + 15) / 16;
+        uint32_t workgroupY = (height + 15) / 16;
+        vkCmdDispatch(m_commandBuffer, workgroupX, workgroupY, 1);
 
-    VK_CHECK(vkEndCommandBuffer(m_commandBuffer));
+        // Add memory barrier to ensure writes are visible before readback
+        VkMemoryBarrier barrier = {};
+        barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+        vkCmdPipelineBarrier(m_commandBuffer,
+                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             VK_PIPELINE_STAGE_HOST_BIT,
+                             0, 1, &barrier, 0, nullptr, 0, nullptr);
 
-    VkSubmitInfo submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &m_commandBuffer;
+        result = vkEndCommandBuffer(m_commandBuffer);
+        if (result != VK_SUCCESS) {
+            LOGE("Vulkan error at vkEndCommandBuffer: %d", result);
+            m_isProcessing = false;
+            return false;
+        }
 
-    VK_CHECK(vkQueueSubmit(m_computeQueue, 1, &submitInfo, VK_NULL_HANDLE));
-    VK_CHECK(vkQueueWaitIdle(m_computeQueue));
+        VkSubmitInfo submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &m_commandBuffer;
+
+        result = vkQueueSubmit(m_computeQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        if (result != VK_SUCCESS) {
+            LOGE("Vulkan error at vkQueueSubmit: %d", result);
+            m_isProcessing = false;
+            return false;
+        }
+
+        result = vkQueueWaitIdle(m_computeQueue);
+        if (result != VK_SUCCESS) {
+            LOGE("Vulkan error at vkQueueWaitIdle: %d", result);
+            m_isProcessing = false;
+            return false;
+        }
+    }
 
     // Read back output
     vkMapMemory(m_device, m_outputMemory, 0, imageSize, 0, &data);
     memcpy(pixels, data, static_cast<size_t>(imageSize));
     vkUnmapMemory(m_device, m_outputMemory);
 
+    m_isProcessing = false;
     return true;
 }
 
@@ -1361,6 +1474,14 @@ void VulkanCompute::release() {
         vkFreeMemory(m_device, m_uniformMemory, nullptr);
         m_uniformMemory = VK_NULL_HANDLE;
     }
+    if (m_uniformBuffer2 != VK_NULL_HANDLE) {
+        vkDestroyBuffer(m_device, m_uniformBuffer2, nullptr);
+        m_uniformBuffer2 = VK_NULL_HANDLE;
+    }
+    if (m_uniformMemory2 != VK_NULL_HANDLE) {
+        vkFreeMemory(m_device, m_uniformMemory2, nullptr);
+        m_uniformMemory2 = VK_NULL_HANDLE;
+    }
     if (m_commandPool != VK_NULL_HANDLE) {
         vkDestroyCommandPool(m_device, m_commandPool, nullptr);
         m_commandPool = VK_NULL_HANDLE;
@@ -1375,6 +1496,9 @@ void VulkanCompute::release() {
     }
 
     m_initialized = false;
+    m_isProcessing = false;
+    m_uniformBufferIndex = 0;
+    m_maxImageDimension = 4096;
     m_lastWidth = 0;
     m_lastHeight = 0;
     LOGI("VulkanCompute released");
