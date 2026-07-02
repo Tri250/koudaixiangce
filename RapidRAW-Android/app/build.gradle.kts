@@ -104,8 +104,11 @@ android {
     }
 
     val hasReleaseKeystore = releaseKeystore.exists()
-    if (hasReleaseKeystore) {
-        signingConfigs {
+    val debugKeystore = rootProject.file("app/debug-signing.keystore")
+    val hasDebugKeystore = debugKeystore.exists()
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
             create("release") {
                 storeFile = releaseKeystore
                 storePassword = System.getenv("KEYSTORE_PASSWORD")
@@ -117,6 +120,14 @@ android {
                         "Set KEY_PASSWORD environment variable.")
             }
         }
+        if (hasDebugKeystore) {
+            create("debugSign") {
+                storeFile = debugKeystore
+                storePassword = "debugpass"
+                keyAlias = "rapidraw-debug"
+                keyPassword = "debugpass"
+            }
+        }
     }
 
     buildTypes {
@@ -126,8 +137,10 @@ android {
             val disableR8 = (project.findProperty("disableR8") as String?)?.toBoolean() == true
             isMinifyEnabled = !disableR8
             isShrinkResources = !disableR8
-            if (hasReleaseKeystore) {
-                signingConfig = signingConfigs.getByName("release")
+            signingConfig = when {
+                hasReleaseKeystore -> signingConfigs.getByName("release")
+                hasDebugKeystore -> signingConfigs.getByName("debugSign")
+                else -> signingConfigs.getByName("debug")
             }
             // release 关闭测试覆盖率避免性能损耗
             enableUnitTestCoverage = false
