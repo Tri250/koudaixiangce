@@ -130,6 +130,12 @@ class SidecarManager(private val context: Context) {
     }
 
     /**
+     * 测试可见的 sidecar 路径解析接口。
+     * 生产代码应使用 saveSidecar/loadSidecar，此处仅供验收测试调用。
+     */
+    fun resolveSidecarFilePublic(imageUri: String): File? = resolveSidecarFile(imageUri)
+
+    /**
      * 删除 Sidecar
      */
     fun deleteSidecar(imageUri: String): Boolean {
