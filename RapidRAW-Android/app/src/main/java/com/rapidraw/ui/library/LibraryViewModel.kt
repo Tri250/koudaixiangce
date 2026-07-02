@@ -664,13 +664,34 @@ class LibraryViewModel(
         }
     }
 
+    // L08 修复：创建虚拟副本时同时复制原片的 .rrdata 到副本路径，确保非破坏性分支独立
     fun createVirtualCopy(image: ImageFile) {
+        val copyFileName = image.fileName.substringBeforeLast('.') + "_copy"
         val virtualCopy = image.copy(
+            path = image.path + ".virtual_copy",
+            fileName = copyFileName,
             virtualCopyOf = image.path,
             rating = 0,
             colorLabel = ColorLabel.NONE,
-            adjustments = null,
+            adjustments = image.adjustments,
         )
+        // 复制原片的 .rrdata 到副本路径
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val sidecarManager = SidecarManager(context)
+                val originalSidecar = sidecarManager.loadSidecar(image.path)
+                if (originalSidecar != null) {
+                    sidecarManager.saveSidecar(
+                        virtualCopy.path,
+                        originalSidecar.adjustments,
+                        originalSidecar.filmSimulationId,
+                        originalSidecar.editHistoryEntries
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to copy sidecar for virtual copy", e)
+            }
+        }
         _images.update { list -> list + virtualCopy }
     }
 

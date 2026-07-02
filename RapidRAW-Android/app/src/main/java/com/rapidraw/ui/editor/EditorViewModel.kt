@@ -110,6 +110,7 @@ class EditorViewModel(
     private val autoSaveIntervalMs = 30_000L  // 30 秒自动保存
 
     // v1.10.5: 从 SavedStateHandle 恢复进程死亡前的编辑状态
+    // L06 修复：恢复 flowMask、layerStack、editHistory，确保蒙版和历史完整还原
     private fun restoreSavedState(): Boolean {
         val savedPath = savedStateHandle.get<String>("editor_image_path") ?: return false
         if (savedPath.isBlank()) return false
@@ -122,16 +123,47 @@ class EditorViewModel(
                 _adjustments.value = adj
             }
             savedStateHandle.get<String>("editor_film_id")?.let { _selectedFilmId.value = it }
+
+            // L06: 恢复 flowMask 蒙版
+            savedStateHandle.get<String>("editor_flow_mask")?.let { maskBase64 ->
+                val maskBytes = android.util.Base64.decode(maskBase64, android.util.Base64.DEFAULT)
+                val maskBitmap = android.graphics.BitmapFactory.decodeByteArray(maskBytes, 0, maskBytes.size)
+                if (maskBitmap != null) {
+                    flowMaskManager = FlowMaskManager(maskBitmap.width, maskBitmap.height)
+                    flowMaskManager?.setMaskBitmap(maskBitmap)
+                }
+            }
+
+            // L06: 恢复 layerStack
+            savedStateHandle.get<String>("editor_layer_stack")?.let { layerJson ->
+                val restoredStack = kotlinx.serialization.json.Json.decodeFromString(
+                    com.rapidraw.data.model.LayerStack.serializer(), layerJson
+                )
+                _layerStack.value = restoredStack
+            }
+
+            // L06: 恢复 editHistory
+            savedStateHandle.get<String>("editor_history")?.let { historyJson ->
+                val snapshots = kotlinx.serialization.json.Json.decodeFromString(
+                    kotlinx.serialization.builtins.ListSerializer(EditHistorySnapshot.serializer()),
+                    historyJson
+                )
+                restoreEditHistory(snapshots)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to restore SavedStateHandle state", e)
         }
         // 清除已恢复的状态，避免下次启动误用过期数据
         savedStateHandle.remove<Any>("editor_adjustments")
         savedStateHandle.remove<Any>("editor_film_id")
+        savedStateHandle.remove<Any>("editor_flow_mask")
+        savedStateHandle.remove<Any>("editor_layer_stack")
+        savedStateHandle.remove<Any>("editor_history")
         return true
     }
 
     // v1.10.5: 将当前编辑状态保存到 SavedStateHandle（进程死亡恢复）
+    // L06 修复：增加 flowMask、layerStack、editHistory 的保存，确保进程杀死后蒙版和历史不丢
     private fun saveStateToHandle() {
         try {
             savedStateHandle["editor_image_path"] = _currentImage.value?.path
@@ -139,6 +171,38 @@ class EditorViewModel(
                 com.rapidraw.data.model.Adjustments.serializer(), _adjustments.value
             )
             _selectedFilmId.value?.let { savedStateHandle["editor_film_id"] = it }
+
+            // L06: 保存 flowMask 蒙版状态
+            val maskBitmap = flowMaskManager?.getMaskBitmap()
+            if (maskBitmap != null && !maskBitmap.isRecycled) {
+                val stream = java.io.ByteArrayOutputStream()
+                maskBitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+                val maskBase64 = android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.DEFAULT)
+                savedStateHandle["editor_flow_mask"] = maskBase64
+            }
+
+            // L06: 保存 layerStack 状态
+            val layerStackJson = kotlinx.serialization.json.Json.encodeToString(
+                com.rapidraw.data.model.LayerStack.serializer(), _layerStack.value
+            )
+            savedStateHandle["editor_layer_stack"] = layerStackJson
+
+            // L06: 保存 editHistory 关键路径
+            val historyEntries = collectEditHistoryEntries()
+            val historySnapshots = historyEntries.map { entry ->
+                EditHistorySnapshot(
+                    id = entry.id,
+                    adjustments = entry.adjustments,
+                    description = entry.description,
+                    parentId = entry.parentId,
+                    timestamp = entry.timestamp,
+                )
+            }
+            val historyJson = kotlinx.serialization.json.Json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(EditHistorySnapshot.serializer()),
+                historySnapshots
+            )
+            savedStateHandle["editor_history"] = historyJson
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save state to SavedStateHandle", e)
         }

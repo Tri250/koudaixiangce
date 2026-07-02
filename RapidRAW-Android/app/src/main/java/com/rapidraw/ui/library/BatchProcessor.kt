@@ -45,15 +45,19 @@ class BatchProcessor(private val context: Context) {
     /**
      * 开始批量处理任务
      * @param imageUris 要处理的图片URI列表
-     * @param adjustments 要应用的调整参数
+     * @param adjustments 要应用的调整参数（注意：预设一般不带蒙版，若有蒙版需确认是否应用到批量）
      * @param filmId 可选的胶片模拟ID
      * @param exportSettings 导出设置
+     * @param continueOnError 单张失败是否继续处理后续（L05 关键断言：失败有红色⚠，已成功不删）
+     * @param onProgress 进度回调，用于 UI 更新"3/20"式进度
      */
     suspend fun startBatch(
         imageUris: List<Uri>,
         adjustments: Adjustments,
         filmId: String? = null,
         exportSettings: ExportSettings = ExportSettings(),
+        continueOnError: Boolean = true,
+        onProgress: ((completed: Int, total: Int, currentFile: String) -> Unit)? = null,
     ) {
         if (_isProcessing.value) return
         _isProcessing.value = true
@@ -71,11 +75,11 @@ class BatchProcessor(private val context: Context) {
         }
         _jobs.value = newJobs
 
-        // 准备调整参数（含胶片模拟）
+        // 准备调整参数（含胶片模拟；注意：蒙版类参数一般不带入批量，避免意外覆盖）
         val finalAdjustments = if (filmId != null) {
             FilmSimulation.getById(filmId)?.let { adjustments.withFilmSimulation(it) } ?: adjustments
         } else {
-            adjustments
+            adjustments.copy(flowMaskIntensity = 0f) // L05: 批量不带蒙版
         }
 
         // 逐个处理
@@ -84,6 +88,7 @@ class BatchProcessor(private val context: Context) {
             if (!_isProcessing.value) break // 被取消
 
             updateJobStatus(job.id, BatchJobStatus.PROCESSING)
+            onProgress?.invoke(completed, newJobs.size, job.fileName)
 
             try {
                 // 1. 解码
@@ -115,10 +120,15 @@ class BatchProcessor(private val context: Context) {
             } catch (e: Exception) {
                 Log.e(TAG, "Batch job failed: ${job.fileName}", e)
                 updateJobResult(job.id, BatchJobStatus.FAILED, error = e.localizedMessage)
+                if (!continueOnError) {
+                    _isProcessing.value = false
+                    return
+                }
                 completed++
             }
 
             _totalProgress.value = completed.toFloat() / newJobs.size
+            onProgress?.invoke(completed, newJobs.size, job.fileName)
         }
 
         _isProcessing.value = false

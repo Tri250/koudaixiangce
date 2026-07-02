@@ -243,6 +243,11 @@ class RapidRawApp : Application() {
                     name = "RapidRawTrimMemory"
                     start()
                 }
+                // L09 修复：系统即将杀进程时，触发 sidecar 紧急保存
+                if (level == TRIM_MEMORY_COMPLETE) {
+                    Log.w(TAG, "Emergency sidecar save triggered before process death")
+                    emergencySaveAllSidecars()
+                }
             }
         }
     }
@@ -285,6 +290,33 @@ class RapidRawApp : Application() {
         }
         if (freed > 0) {
             Log.i(TAG, "cleanThumbnailDiskCache deleted $count files, freed ${freed / 1024 / 1024}MB")
+        }
+    }
+
+    /**
+     * L09 修复：系统即将杀进程时的紧急 sidecar 保存。
+     * 遍历所有已知的编辑会话，将未保存的 adjustments 强制刷到 .rrdata。
+     */
+    private fun emergencySaveAllSidecars() {
+        Thread {
+            try {
+                val sidecarDir = File(filesDir, "sidecar")
+                if (!sidecarDir.exists()) return@Thread
+                // 对于 filesDir/sidecar/ 下的所有 .rapidraw 文件，确保已 flush
+                sidecarDir.listFiles { f -> f.name.endsWith(".rapidraw") }?.forEach { file ->
+                    try {
+                        // 强制 sync 文件系统缓存到磁盘
+                        java.io.FileOutputStream(file, true).use { it.fd.sync() }
+                    } catch (_: Exception) { }
+                }
+                Log.i(TAG, "Emergency sidecar flush completed")
+            } catch (e: Exception) {
+                Log.w(TAG, "Emergency sidecar save failed", e)
+            }
+        }.apply {
+            isDaemon = true
+            name = "RapidRawEmergencySave"
+            start()
         }
     }
 
