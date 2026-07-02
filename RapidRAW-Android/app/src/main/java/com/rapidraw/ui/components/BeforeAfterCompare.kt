@@ -142,10 +142,11 @@ private fun LongPressCompare(
         }
 
         // Gesture detector
+        // v1.10.6: pointerInput keys 使用位图身份，避免位图替换后手势状态仍停留在旧状态。
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
+                .pointerInput(originalBitmap to editedBitmap) {
                     detectTapGestures(
                         onLongPress = {
                             isLongPressing = true
@@ -187,15 +188,7 @@ private fun SplitHorizontalCompare(
         // Original image (clipped to left side of split)
         if (originalBitmap != null && !originalBitmap.isRecycled) {
             Canvas(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, _ ->
-                            change.consume()
-                            val newSplit = (change.position.x / size.width).coerceIn(0f, 1f)
-                            splitPosition = newSplit
-                        }
-                    },
+                modifier = Modifier.fillMaxSize(),
             ) {
                 val clipWidth = size.width * splitPosition
                 val clipRect = Rect(
@@ -208,6 +201,8 @@ private fun SplitHorizontalCompare(
                 clipPath(
                     path = Path().apply { addRect(clipRect) },
                 ) {
+                    // v1.10.6: 绘制前再次校验 Bitmap 未被回收，避免异步回收后崩溃。
+                    if (originalBitmap.isRecycled) return@clipPath
                     val imageBitmap = originalBitmap.asImageBitmap()
                     val imageWidth = imageBitmap.width
                     val imageHeight = imageBitmap.height
@@ -233,10 +228,12 @@ private fun SplitHorizontalCompare(
         }
 
         // Split line
+        // v1.10.6: 将拖拽检测统一收敛到最上层 split line Canvas，避免与底层 Canvas 双检测器冲突。
+        // pointerInput key 使用位图身份：位图未变化时手势管线保持连续，位图替换后重新初始化避免持有过期引用。
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
+                .pointerInput(originalBitmap to editedBitmap) {
                     detectDragGestures { change, _ ->
                         change.consume()
                         val newSplit = (change.position.x / size.width).coerceIn(0f, 1f)
@@ -343,10 +340,11 @@ private fun ToggleCompare(
         )
 
         // Tap to toggle
+        // v1.10.6: pointerInput key 使用位图身份，避免位图替换后切换状态错误。
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
+                .pointerInput(originalBitmap to editedBitmap) {
                     detectTapGestures {
                         isShowingOriginal = !isShowingOriginal
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)

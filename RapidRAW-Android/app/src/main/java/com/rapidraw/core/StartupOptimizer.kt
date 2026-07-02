@@ -1,6 +1,9 @@
 package com.rapidraw.core
 
 import android.app.Application
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -36,6 +39,9 @@ object StartupOptimizer {
 
     private val tasks = mutableListOf<StartupTask>()
     private val executed = AtomicBoolean(false)
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var mediumRunnable: Runnable? = null
+    private var lowRunnable: Runnable? = null
 
     data class StartupTask(
         val name: String,
@@ -61,22 +67,22 @@ object StartupOptimizer {
         val grouped = tasks.groupBy { it.priority }
 
         // CRITICAL: 同步执行
-        val startTime = System.currentTimeMillis()
+        val startTime = SystemClock.elapsedRealtime()
         grouped[Priority.CRITICAL]?.forEach { task ->
-            val t0 = System.currentTimeMillis()
+            val t0 = SystemClock.elapsedRealtime()
             runCatching { task.block() }
-            Log.d(TAG, "CRITICAL [${task.name}]: ${System.currentTimeMillis() - t0}ms")
+            Log.d(TAG, "CRITICAL [${task.name}]: ${SystemClock.elapsedRealtime() - t0}ms")
         }
-        Log.i(TAG, "CRITICAL phase done: ${System.currentTimeMillis() - startTime}ms")
+        Log.i(TAG, "CRITICAL phase done: ${SystemClock.elapsedRealtime() - startTime}ms")
         tasks.clear()
 
         // HIGH: 延迟到主线程空闲
         grouped[Priority.HIGH]?.let { highTasks ->
-            android.os.Looper.getMainLooper().queue.addIdleHandler {
+            Looper.getMainLooper().queue.addIdleHandler {
                 highTasks.forEach { task ->
-                    val t0 = System.currentTimeMillis()
+                    val t0 = SystemClock.elapsedRealtime()
                     runCatching { task.block() }
-                    Log.d(TAG, "HIGH [${task.name}]: ${System.currentTimeMillis() - t0}ms")
+                    Log.d(TAG, "HIGH [${task.name}]: ${SystemClock.elapsedRealtime() - t0}ms")
                 }
                 false
             }
@@ -84,24 +90,36 @@ object StartupOptimizer {
 
         // MEDIUM: 延迟 2s
         grouped[Priority.MEDIUM]?.let { mediumTasks ->
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            mediumRunnable = Runnable {
                 mediumTasks.forEach { task ->
-                    val t0 = System.currentTimeMillis()
+                    val t0 = SystemClock.elapsedRealtime()
                     runCatching { task.block() }
-                    Log.d(TAG, "MEDIUM [${task.name}]: ${System.currentTimeMillis() - t0}ms")
+                    Log.d(TAG, "MEDIUM [${task.name}]: ${SystemClock.elapsedRealtime() - t0}ms")
                 }
-            }, 2_000L)
+            }
+            mainHandler.postDelayed(mediumRunnable!!, 2_000L)
         }
 
         // LOW: 延迟 5s
         grouped[Priority.LOW]?.let { lowTasks ->
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            lowRunnable = Runnable {
                 lowTasks.forEach { task ->
-                    val t0 = System.currentTimeMillis()
+                    val t0 = SystemClock.elapsedRealtime()
                     runCatching { task.block() }
-                    Log.d(TAG, "LOW [${task.name}]: ${System.currentTimeMillis() - t0}ms")
+                    Log.d(TAG, "LOW [${task.name}]: ${SystemClock.elapsedRealtime() - t0}ms")
                 }
-            }, 5_000L)
+            }
+            mainHandler.postDelayed(lowRunnable!!, 5_000L)
         }
+    }
+
+    /**
+     * v1.10.6: 取消未执行的延迟任务，避免 Application/Activity 销毁后仍然触发初始化回调。
+     */
+    fun shutdown() {
+        mediumRunnable?.let { mainHandler.removeCallbacks(it) }
+        lowRunnable?.let { mainHandler.removeCallbacks(it) }
+        mediumRunnable = null
+        lowRunnable = null
     }
 }

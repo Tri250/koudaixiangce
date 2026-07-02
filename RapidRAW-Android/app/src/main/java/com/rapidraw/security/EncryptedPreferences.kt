@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -29,6 +30,7 @@ import javax.crypto.spec.GCMParameterSpec
 class EncryptedPreferences private constructor(context: Context) {
 
     companion object {
+        private const val TAG = "EncryptedPreferences"
         private const val KEY_ALIAS = "rapidraw_encrypted_prefs"
         private const val KEYSTORE_TYPE = "AndroidKeyStore"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
@@ -47,7 +49,14 @@ class EncryptedPreferences private constructor(context: Context) {
 
     private val sharedPreferences: SharedPreferences =
         context.getSharedPreferences("rapidraw_secure_prefs", Context.MODE_PRIVATE)
-    private val secretKey: SecretKey by lazy { getOrCreateKey() }
+    // v1.10.6: 使用 AtomicReference 跟踪 Keystore 可用性，失败后降级为明文存储避免崩溃。
+    private val keyAvailable = java.util.concurrent.atomic.AtomicBoolean(true)
+    private val secretKey: SecretKey? by lazy {
+        runCatching { getOrCreateKey() }.onFailure {
+            Log.w(TAG, "Keystore key unavailable, falling back to plaintext", it)
+            keyAvailable.set(false)
+        }.getOrNull()
+    }
 
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(KEYSTORE_TYPE).apply { load(null) }
@@ -70,13 +79,21 @@ class EncryptedPreferences private constructor(context: Context) {
     }
 
     fun putString(key: String, value: String) {
-        val encrypted = encrypt(value)
+        val encrypted = runCatching {
+            if (keyAvailable.get()) encrypt(value) else value
+        }.getOrElse {
+            Log.w(TAG, "Encryption failed for key '$key', storing plaintext", it)
+            keyAvailable.set(false)
+            value
+        }
         sharedPreferences.edit().putString(key, encrypted).apply()
     }
 
     fun getString(key: String, defaultValue: String? = null): String? {
         val encrypted = sharedPreferences.getString(key, null) ?: return defaultValue
-        return runCatching { decrypt(encrypted) }.getOrElse { defaultValue }
+        return runCatching {
+            if (keyAvailable.get()) decrypt(encrypted) else encrypted
+        }.getOrElse { defaultValue }
     }
 
     fun putInt(key: String, value: Int) {
@@ -114,7 +131,8 @@ class EncryptedPreferences private constructor(context: Context) {
     fun contains(key: String): Boolean = sharedPreferences.contains(key)
 
     private fun encrypt(plainText: String): String {
-        val cipher = getCipher(Cipher.ENCRYPT_MODE)
+        val key = secretKey ?: throw IllegalStateException("Keystore secret key unavailable")
+        val cipher = getCipher(Cipher.ENCRYPT_MODE, key)
         val iv = cipher.iv
         val encrypted = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
         val combined = iv + encrypted
@@ -122,21 +140,23 @@ class EncryptedPreferences private constructor(context: Context) {
     }
 
     private fun decrypt(encryptedBase64: String): String {
+        val key = secretKey ?: throw IllegalStateException("Keystore secret key unavailable")
         val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
+        if (combined.size < IV_SIZE) throw IllegalArgumentException("Invalid encrypted payload")
         val iv = combined.copyOfRange(0, IV_SIZE)
         val encrypted = combined.copyOfRange(IV_SIZE, combined.size)
-        val cipher = getCipher(Cipher.DECRYPT_MODE, iv)
+        val cipher = getCipher(Cipher.DECRYPT_MODE, key, iv)
         val decrypted = cipher.doFinal(encrypted)
         return String(decrypted, Charsets.UTF_8)
     }
 
-    private fun getCipher(opmode: Int, iv: ByteArray? = null): Cipher {
+    private fun getCipher(opmode: Int, key: SecretKey, iv: ByteArray? = null): Cipher {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         if (opmode == Cipher.ENCRYPT_MODE) {
-            cipher.init(opmode, secretKey)
+            cipher.init(opmode, key)
         } else {
             val spec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
-            cipher.init(opmode, secretKey, spec)
+            cipher.init(opmode, key, spec)
         }
         return cipher
     }

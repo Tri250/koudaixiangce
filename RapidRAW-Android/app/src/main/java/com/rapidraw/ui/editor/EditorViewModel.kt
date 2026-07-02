@@ -429,84 +429,95 @@ class EditorViewModel(
     fun loadImage(imageFile: ImageFile) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch(coroutineExceptionHandler) {
-            resetEditorState()
-            _currentImage.value = imageFile
-            _isLoading.value = true
+            try {
+                resetEditorState()
+                _currentImage.value = imageFile
+                _isLoading.value = true
 
-            val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    if (imageFile.path.isBlank()) throw IllegalArgumentException("Empty image path")
-                    val uri = Uri.parse(imageFile.path)
-                    imageProcessor.loadAndDecode(appContext, uri)
-                }
-            }
-
-            result.onSuccess { processed ->
-                // 2026 hotfix: 校验 processed 中的关键位图有效性，避免 recycled 状态被误用
-                val validPreview = processed.preview.takeIf { !it.isRecycled }
-                val validOriginal = processed.original.takeIf { !it.isRecycled }
-                if (validPreview == null || validOriginal == null) {
-                    Log.e(TAG, "Decoded bitmap invalid: preview=${processed.preview}, original=${processed.original}")
-                    _isLoading.value = false
-                    _event.value = EditorEvent.Error("无法加载图片: 解码结果无效")
-                    return@onSuccess
-                }
-
-                bitmapMutex.withLock {
-                    recycleBitmapsInternal()
-                    originalBitmap = validOriginal
-                    previewBitmapCache = validPreview
-                    originalExifData = processed.exif
-                    originalOrientation = processed.orientation
-                }
-                // 原图预览用于对比模式：复制一份避免与 previewBitmapCache 共享引用
-                val originalPreview = try {
-                    validPreview.copy(validPreview.config ?: Bitmap.Config.ARGB_8888, false)
-                } catch (e: OutOfMemoryError) {
-                    Log.w(TAG, "OOM creating original preview copy, trying half-resolution fallback", e)
-                    try {
-                        Bitmap.createScaledBitmap(validPreview, validPreview.width / 2, validPreview.height / 2, true)
-                    } catch (e2: OutOfMemoryError) {
-                        Log.w(TAG, "OOM creating half-resolution original preview fallback", e2)
-                        null
-                    } catch (e2: IllegalArgumentException) {
-                        Log.w(TAG, "IllegalArgument creating half-resolution original preview fallback", e2)
-                        null
+                val result = runCatching {
+                    withContext(Dispatchers.IO) {
+                        if (imageFile.path.isBlank()) throw IllegalArgumentException("Empty image path")
+                        val uri = Uri.parse(imageFile.path)
+                        imageProcessor.loadAndDecode(appContext, uri)
                     }
-                } catch (e: IllegalArgumentException) {
-                    Log.w(TAG, "Cannot copy original preview (HARDWARE bitmap?), using scaled fallback", e)
-                    try {
-                        Bitmap.createScaledBitmap(validPreview, validPreview.width / 2, validPreview.height / 2, true)
-                    } catch (_: Throwable) { null }
                 }
-                _originalPreviewBitmap.value?.let { old ->
-                    if (!old.isRecycled && old !== previewBitmapCache && old !== originalBitmap) old.recycle()
-                }
-                _originalPreviewBitmap.value = originalPreview
-                _previewBitmap.value = validPreview
-                _isLoading.value = false
-                updateHistogramAsync(validPreview)
 
-                // 恢复 sidecar
-                val sidecarManager = SidecarManager(appContext)
-                val savedAdj = sidecarManager.loadSidecar(imageFile.path)
-                if (savedAdj != null) {
-                    _adjustments.value = savedAdj.adjustments
-                    savedAdj.filmId?.let { _selectedFilmId.value = it }
-                    // 恢复编辑历史
-                    restoreEditHistory(savedAdj.editHistory)
-                } else {
-                    smartOptimize()
+                result.onSuccess { processed ->
+                    // v1.10.6: 用户离开页面后及时终止，避免 recycled bitmap 被误用
+                    if (!isActive) {
+                        processed.preview.takeIf { !it.isRecycled }?.recycle()
+                        processed.original.takeIf { !it.isRecycled }?.recycle()
+                        return@onSuccess
+                    }
+
+                    // 2026 hotfix: 校验 processed 中的关键位图有效性，避免 recycled 状态被误用
+                    val validPreview = processed.preview.takeIf { !it.isRecycled }
+                    val validOriginal = processed.original.takeIf { !it.isRecycled }
+                    if (validPreview == null || validOriginal == null) {
+                        Log.e(TAG, "Decoded bitmap invalid: preview=${processed.preview}, original=${processed.original}")
+                        _isLoading.value = false
+                        _event.value = EditorEvent.Error("无法加载图片: 解码结果无效")
+                        return@onSuccess
+                    }
+
+                    bitmapMutex.withLock {
+                        recycleBitmapsInternal()
+                        originalBitmap = validOriginal
+                        previewBitmapCache = validPreview
+                        originalExifData = processed.exif
+                        originalOrientation = processed.orientation
+                    }
+                    // 原图预览用于对比模式：复制一份避免与 previewBitmapCache 共享引用
+                    val originalPreview = try {
+                        validPreview.copy(validPreview.config ?: Bitmap.Config.ARGB_8888, false)
+                    } catch (e: OutOfMemoryError) {
+                        Log.w(TAG, "OOM creating original preview copy, trying half-resolution fallback", e)
+                        try {
+                            Bitmap.createScaledBitmap(validPreview, validPreview.width / 2, validPreview.height / 2, true)
+                        } catch (e2: OutOfMemoryError) {
+                            Log.w(TAG, "OOM creating half-resolution original preview fallback", e2)
+                            null
+                        } catch (e2: IllegalArgumentException) {
+                            Log.w(TAG, "IllegalArgument creating half-resolution original preview fallback", e2)
+                            null
+                        }
+                    } catch (e: IllegalArgumentException) {
+                        Log.w(TAG, "Cannot copy original preview (HARDWARE bitmap?), using scaled fallback", e)
+                        try {
+                            Bitmap.createScaledBitmap(validPreview, validPreview.width / 2, validPreview.height / 2, true)
+                        } catch (_: Throwable) { null }
+                    }
+                    _originalPreviewBitmap.value?.let { old ->
+                        if (!old.isRecycled && old !== previewBitmapCache && old !== originalBitmap) old.recycle()
+                    }
+                    _originalPreviewBitmap.value = originalPreview
+                    _previewBitmap.value = validPreview
+                    _isLoading.value = false
+                    updateHistogramAsync(validPreview)
+
+                    // 恢复 sidecar
+                    val sidecarManager = SidecarManager(appContext)
+                    val savedAdj = sidecarManager.loadSidecar(imageFile.path)
+                    if (savedAdj != null) {
+                        _adjustments.value = savedAdj.adjustments
+                        savedAdj.filmId?.let { _selectedFilmId.value = it }
+                        // 恢复编辑历史
+                        restoreEditHistory(savedAdj.editHistory)
+                    } else {
+                        smartOptimize()
+                    }
+                    detectSceneAsync(validPreview)
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) {
+                        Log.d(TAG, "loadImage cancelled")
+                        return@onFailure
+                    }
+                    Log.e(TAG, "Failed to load image: ${imageFile.path}", throwable)
+                    _event.value = EditorEvent.Error("无法加载图片: ${throwable.localizedMessage ?: throwable.javaClass.simpleName}")
                 }
-                detectSceneAsync(validPreview)
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) {
-                    Log.d(TAG, "loadImage cancelled")
-                    return@onFailure
-                }
-                Log.e(TAG, "Failed to load image: ${imageFile.path}", throwable)
+            } finally {
+                // v1.10.6: 无论成功/失败/取消，都关闭 loading 状态，避免永久 loading
                 _isLoading.value = false
-                _event.value = EditorEvent.Error("无法加载图片: ${throwable.localizedMessage ?: throwable.javaClass.simpleName}")
             }
         }
     }
@@ -755,37 +766,39 @@ class EditorViewModel(
             _isSmartOptimizing.value = true
             delay(100) // 让用户感知到 loading 状态
 
-            runCatching {
-                val optimized = imageProcessor.smartOptimize(bitmap)
+            try {
+                runCatching {
+                    val optimized = imageProcessor.smartOptimize(bitmap)
 
-                val classifier = SceneClassifier()
-                val analysis = classifier.classify(bitmap)
+                    val classifier = SceneClassifier()
+                    val analysis = classifier.classify(bitmap)
 
-                val userLearning = UserPreferenceLearning(appContext)
-                val profile = userLearning.learn()
-                val personalized = userLearning.personalizedOptimize(
-                    optimized, analysis.sceneType, profile
-                )
+                    val userLearning = UserPreferenceLearning(appContext)
+                    val profile = userLearning.learn()
+                    val personalized = userLearning.personalizedOptimize(
+                        optimized, analysis.sceneType, profile
+                    )
 
-                withContext(Dispatchers.Main) {
-                    if (isCleared.get()) return@withContext
-                    val originalAdjustments = _adjustments.value
-                    pushUndo("智能优化")
-                    _adjustments.value = personalized
-                    _smartOptimizedAdjustments.value = originalAdjustments
-                    _showSmartOptimizeConfirm.value = true
-                    _isSmartOptimized.value = true
-                    _detectedScene.value = analysis.sceneType
-                    _sceneConfidence.value = analysis.confidence
-                    _isSmartOptimizing.value = false
-                    schedulePreviewUpdate()
+                    withContext(Dispatchers.Main) {
+                        if (isCleared.get()) return@withContext
+                        val originalAdjustments = _adjustments.value
+                        pushUndo("智能优化")
+                        _adjustments.value = personalized
+                        _smartOptimizedAdjustments.value = originalAdjustments
+                        _showSmartOptimizeConfirm.value = true
+                        _isSmartOptimized.value = true
+                        _detectedScene.value = analysis.sceneType
+                        _sceneConfidence.value = analysis.confidence
+                        _isSmartOptimizing.value = false
+                        schedulePreviewUpdate()
+                    }
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    Log.w(TAG, "Smart optimize failed", throwable)
                 }
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "Smart optimize failed", throwable)
-                withContext(Dispatchers.Main) {
-                    _isSmartOptimizing.value = false
-                }
+            } finally {
+                // v1.10.6: 取消/异常时也要关闭 loading 状态，避免永久 loading
+                _isSmartOptimizing.value = false
             }
         }
     }
@@ -854,31 +867,34 @@ class EditorViewModel(
             _isAiProcessing.value = true
             _aiDenoiseProgress.value = 0f
 
-            runCatching {
-                val denoiser = AiDenoiser()
-                _aiDenoiseProgress.value = 0.3f
-                val denoised = denoiser.denoise(source, preserveDetails, chromaStrength)
-                _aiDenoiseProgress.value = 0.8f
+            try {
+                runCatching {
+                    val denoiser = AiDenoiser()
+                    _aiDenoiseProgress.value = 0.3f
+                    val denoised = denoiser.denoise(source, preserveDetails, chromaStrength)
+                    _aiDenoiseProgress.value = 0.8f
 
-                bitmapMutex.withLock {
-                    // v1.5.5 hotfix: 同时更新 originalBitmap，确保 processExportQueue 导出包含 AI 修改，
-                    // 避免预览与导出不一致。
-                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
-                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
-                    val original = try { denoised.copy(denoised.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { denoised }
-                    originalBitmap = original
-                    previewBitmapCache = denoised
+                    bitmapMutex.withLock {
+                        // v1.5.5 hotfix: 同时更新 originalBitmap，确保 processExportQueue 导出包含 AI 修改，
+                        // 避免预览与导出不一致。
+                        originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                        previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                        val original = try { denoised.copy(denoised.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { denoised }
+                        originalBitmap = original
+                        previewBitmapCache = denoised
+                    }
+                    _previewBitmap.value = denoised
+                    updateHistogramAsync(denoised)
+                    _aiDenoiseProgress.value = 1f
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    Log.w(TAG, "AI denoise failed", throwable)
+                    _event.value = EditorEvent.Error("AI 去噪失败: ${throwable.localizedMessage}")
                 }
-                _previewBitmap.value = denoised
-                updateHistogramAsync(denoised)
-                _aiDenoiseProgress.value = 1f
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "AI denoise failed", throwable)
-                _event.value = EditorEvent.Error("AI 去噪失败: ${throwable.localizedMessage}")
+            } finally {
+                // v1.10.6: 确保无论成功/失败/取消，AI 处理状态都重置，避免 UI 永久 loading
+                _isAiProcessing.value = false
             }
-
-            _isAiProcessing.value = false
         }
     }
 
@@ -889,18 +905,21 @@ class EditorViewModel(
             } ?: return@launchAiJob
 
             _isAiProcessing.value = true
-            runCatching {
-                val generator = AiMaskGenerator()
-                val mask = generator.generateMask(source, maskType)
-                withContext(Dispatchers.Main) {
-                    if (!isCleared.get()) onResult(mask)
+            try {
+                runCatching {
+                    val generator = AiMaskGenerator()
+                    val mask = generator.generateMask(source, maskType)
+                    withContext(Dispatchers.Main) {
+                        if (!isCleared.get()) onResult(mask)
+                    }
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    Log.w(TAG, "AI mask generation failed", throwable)
+                    _event.value = EditorEvent.Error("AI 遮罩生成失败: ${throwable.localizedMessage}")
                 }
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "AI mask generation failed", throwable)
-                _event.value = EditorEvent.Error("AI 遮罩生成失败: ${throwable.localizedMessage}")
+            } finally {
+                _isAiProcessing.value = false
             }
-            _isAiProcessing.value = false
         }
     }
 
@@ -911,27 +930,30 @@ class EditorViewModel(
             } ?: return@launchAiJob
 
             _isAiProcessing.value = true
-            runCatching {
-                val generator = AiMaskGenerator()
-                val result = withContext(Dispatchers.Default) {
-                    generator.applyMaskToBitmap(source, mask)
+            try {
+                runCatching {
+                    val generator = AiMaskGenerator()
+                    val result = withContext(Dispatchers.Default) {
+                        generator.applyMaskToBitmap(source, mask)
+                    }
+                    bitmapMutex.withLock {
+                        // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出包含 AI 遮罩效果。
+                        originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                        previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                        val original = try { result.copy(result.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { result }
+                        originalBitmap = original
+                        previewBitmapCache = result
+                    }
+                    _previewBitmap.value = result
+                    updateHistogramAsync(result)
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    Log.w(TAG, "AI mask apply failed", throwable)
+                    _event.value = EditorEvent.Error("AI 遮罩应用失败: ${throwable.localizedMessage}")
                 }
-                bitmapMutex.withLock {
-                    // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出包含 AI 遮罩效果。
-                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
-                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
-                    val original = try { result.copy(result.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { result }
-                    originalBitmap = original
-                    previewBitmapCache = result
-                }
-                _previewBitmap.value = result
-                updateHistogramAsync(result)
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "AI mask apply failed", throwable)
-                _event.value = EditorEvent.Error("AI 遮罩应用失败: ${throwable.localizedMessage}")
+            } finally {
+                _isAiProcessing.value = false
             }
-            _isAiProcessing.value = false
         }
     }
 
@@ -942,28 +964,31 @@ class EditorViewModel(
             } ?: return@launchAiJob
 
             _isAiProcessing.value = true
-            runCatching {
-                val inpainter = AiInpainter()
-                val result = inpainter.removeObject(source, maskBitmap, iterations = 3)
-                bitmapMutex.withLock {
-                    // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出的图包含 AI 消除结果。
-                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
-                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
-                    val original = try { result.copy(result.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { result }
-                    originalBitmap = original
-                    previewBitmapCache = result
+            try {
+                runCatching {
+                    val inpainter = AiInpainter()
+                    val result = inpainter.removeObject(source, maskBitmap, iterations = 3)
+                    bitmapMutex.withLock {
+                        // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出的图包含 AI 消除结果。
+                        originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                        previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                        val original = try { result.copy(result.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { result }
+                        originalBitmap = original
+                        previewBitmapCache = result
+                    }
+                    _previewBitmap.value = result
+                    updateHistogramAsync(result)
+                    withContext(Dispatchers.Main) {
+                        if (!isCleared.get()) onResult(result)
+                    }
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    Log.w(TAG, "AI inpaint failed", throwable)
+                    _event.value = EditorEvent.Error("AI 消除失败: ${throwable.localizedMessage}")
                 }
-                _previewBitmap.value = result
-                updateHistogramAsync(result)
-                withContext(Dispatchers.Main) {
-                    if (!isCleared.get()) onResult(result)
-                }
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "AI inpaint failed", throwable)
-                _event.value = EditorEvent.Error("AI 消除失败: ${throwable.localizedMessage}")
+            } finally {
+                _isAiProcessing.value = false
             }
-            _isAiProcessing.value = false
         }
     }
 
@@ -1041,25 +1066,28 @@ class EditorViewModel(
             } ?: return@launchAiJob
 
             _isAiProcessing.value = true
-            runCatching {
-                val reconstructor = HighlightReconstructor()
-                val reconstructed = reconstructor.reconstruct(source)
-                bitmapMutex.withLock {
-                    // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出结果包含高光重建修改。
-                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
-                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
-                    val original = try { reconstructed.copy(reconstructed.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { reconstructed }
-                    originalBitmap = original
-                    previewBitmapCache = reconstructed
+            try {
+                runCatching {
+                    val reconstructor = HighlightReconstructor()
+                    val reconstructed = reconstructor.reconstruct(source)
+                    bitmapMutex.withLock {
+                        // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出结果包含高光重建修改。
+                        originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                        previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                        val original = try { reconstructed.copy(reconstructed.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { reconstructed }
+                        originalBitmap = original
+                        previewBitmapCache = reconstructed
+                    }
+                    _previewBitmap.value = reconstructed
+                    updateHistogramAsync(reconstructed)
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    Log.w(TAG, "Highlight reconstruction failed", throwable)
+                    _event.value = EditorEvent.Error("高光重建失败: ${throwable.localizedMessage}")
                 }
-                _previewBitmap.value = reconstructed
-                updateHistogramAsync(reconstructed)
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "Highlight reconstruction failed", throwable)
-                _event.value = EditorEvent.Error("高光重建失败: ${throwable.localizedMessage}")
+            } finally {
+                _isAiProcessing.value = false
             }
-            _isAiProcessing.value = false
         }
     }
 
@@ -1070,20 +1098,23 @@ class EditorViewModel(
             } ?: return@launchAiJob
 
             _isAiProcessing.value = true
-            runCatching {
-                val angle = AutoStraightener().detectStraightenAngle(source)
-                withContext(Dispatchers.Main) {
-                    if (isCleared.get()) return@withContext
-                    pushUndo("自动拉直: ${String.format("%.1f", angle)}°")
-                    _adjustments.value = _adjustments.value.copy(rotation = angle)
-                    schedulePreviewUpdate()
+            try {
+                runCatching {
+                    val angle = AutoStraightener().detectStraightenAngle(source)
+                    withContext(Dispatchers.Main) {
+                        if (isCleared.get()) return@withContext
+                        pushUndo("自动拉直: ${String.format("%.1f", angle)}°")
+                        _adjustments.value = _adjustments.value.copy(rotation = angle)
+                        schedulePreviewUpdate()
+                    }
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    Log.w(TAG, "Auto straighten failed", throwable)
+                    _event.value = EditorEvent.Error("自动拉直失败: ${throwable.localizedMessage}")
                 }
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "Auto straighten failed", throwable)
-                _event.value = EditorEvent.Error("自动拉直失败: ${throwable.localizedMessage}")
+            } finally {
+                _isAiProcessing.value = false
             }
-            _isAiProcessing.value = false
         }
     }
 
@@ -1094,28 +1125,31 @@ class EditorViewModel(
             } ?: return@launchAiJob
 
             _isAiProcessing.value = true
-            runCatching {
-                val converted = NegativeConverter.convertNegative(source)
-                bitmapMutex.withLock {
-                    // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出的图包含负片转换结果。
-                    originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
-                    previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
-                    val original = try { converted.copy(converted.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { converted }
-                    originalBitmap = original
-                    previewBitmapCache = converted
+            try {
+                runCatching {
+                    val converted = NegativeConverter.convertNegative(source)
+                    bitmapMutex.withLock {
+                        // v1.5.5 hotfix: 同步更新 originalBitmap，确保导出的图包含负片转换结果。
+                        originalBitmap?.takeIf { it !== source && it !== previewBitmapCache && !it.isRecycled }?.recycle()
+                        previewBitmapCache?.takeIf { it !== source && it !== originalBitmap && !it.isRecycled }?.recycle()
+                        val original = try { converted.copy(converted.config ?: Bitmap.Config.ARGB_8888, false) } catch (_: OutOfMemoryError) { converted }
+                        originalBitmap = original
+                        previewBitmapCache = converted
+                    }
+                    _previewBitmap.value = converted
+                    updateHistogramAsync(converted)
+                    withContext(Dispatchers.Main) {
+                        if (isCleared.get()) return@withContext
+                        pushUndo("负片转换")
+                    }
+                }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    Log.w(TAG, "Negative conversion failed", throwable)
+                    _event.value = EditorEvent.Error("负片转换失败: ${throwable.localizedMessage}")
                 }
-                _previewBitmap.value = converted
-                updateHistogramAsync(converted)
-                withContext(Dispatchers.Main) {
-                    if (isCleared.get()) return@withContext
-                    pushUndo("负片转换")
-                }
-            }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "Negative conversion failed", throwable)
-                _event.value = EditorEvent.Error("负片转换失败: ${throwable.localizedMessage}")
+            } finally {
+                _isAiProcessing.value = false
             }
-            _isAiProcessing.value = false
         }
     }
 
@@ -1123,9 +1157,14 @@ class EditorViewModel(
         aiJob?.cancel()
         aiJob = viewModelScope.launch(Dispatchers.Default + coroutineExceptionHandler) {
             if (isCleared.get()) return@launch
-            runCatching { block() }.onFailure { throwable ->
-                if (throwable is CancellationException) throw throwable
-                Log.w(TAG, "AI job failed", throwable)
+            try {
+                runCatching { block() }.onFailure { throwable ->
+                    if (throwable is CancellationException) throw throwable
+                    Log.w(TAG, "AI job failed", throwable)
+                }
+            } finally {
+                // v1.10.6: AI 任务结束（含取消/异常）后兜底重置处理状态，避免 UI 永久 loading
+                _isAiProcessing.value = false
             }
         }
     }

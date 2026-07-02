@@ -170,4 +170,10 @@ class ComfyUiViewModel(application: Application) : AndroidViewModel(application)
             _selectedWorkflow.value = _workflows.value.firstOrNull()
         }
     }
+
+    override fun onCleared() {
+        super.onCleared()
+        // v1.10.6: ViewModel 销毁时关闭 ComfyUI 连接，避免协程与 Socket 泄漏
+        client.shutdown()
+    }
 }

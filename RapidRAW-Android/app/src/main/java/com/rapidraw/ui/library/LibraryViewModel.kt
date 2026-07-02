@@ -807,6 +807,10 @@ class LibraryViewModel(
         currentThumbnails.values.forEach { bitmap ->
             if (!bitmap.isRecycled) bitmap.recycle()
         }
+        // v1.10.6: 关闭缩略图磁盘缓存，取消未完成的写入任务并释放线程池。
+        if (::thumbnailCache.isInitialized) {
+            thumbnailCache.shutdown()
+        }
     }
 
     companion object {

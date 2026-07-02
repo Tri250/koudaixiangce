@@ -9,6 +9,10 @@ import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.max
 
@@ -64,8 +68,9 @@ class ThumbnailDiskCache(
             oldValue: Bitmap,
             newValue: Bitmap?,
         ) {
-            // 如果是主动替换而非淘汰，回收旧 Bitmap
-            if (evicted && !oldValue.isRecycled) {
+            // v1.10.6: 无论是 LRU 淘汰还是主动替换/移除，只要缓存不再持有该 Bitmap 就回收。
+            // 调用方若仍需要引用，应在移除前从缓存取出并自行管理生命周期。
+            if (!oldValue.isRecycled) {
                 oldValue.recycle()
             }
         }
@@ -88,6 +93,16 @@ class ThumbnailDiskCache(
      * 防止同一路径重复预加载
      */
     private val pendingPreloads = ConcurrentHashMap<String, Boolean>()
+
+    /**
+     * v1.10.6: 跟踪已提交但未完成的写入/预加载 Future，便于 shutdown 时取消。
+     */
+    private val pendingWrites = ConcurrentHashMap.newKeySet<Future<*>>()
+
+    /**
+     * v1.10.6: 关闭标记，防止 shutdown 后继续提交任务。
+     */
+    private val isShutdown = AtomicBoolean(false)
 
     /**
      * 当前磁盘缓存使用量
@@ -191,6 +206,8 @@ class ThumbnailDiskCache(
         // 写入磁盘缓存
         val writeTask = Runnable {
             try {
+                // v1.10.6: shutdown 后跳过后续写入，避免已回收 Bitmap 被使用或文件句柄泄漏。
+                if (isShutdown.get() || bitmap.isRecycled) return@Runnable
                 val file = File(thumbnailsDir, key)
                 FileOutputStream(file).use { fos ->
                     bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, fos)
@@ -204,9 +221,9 @@ class ThumbnailDiskCache(
         }
 
         if (async) {
-            diskWriteExecutor.execute(writeTask)
+            submitWriteTask(writeTask)
         } else {
-            writeTask.run()
+            if (!isShutdown.get()) writeTask.run()
         }
     }
 
@@ -351,6 +368,8 @@ class ThumbnailDiskCache(
      * @param isRaw 是否为 RAW 文件
      */
     fun preload(path: String, lastModified: Long, isRaw: Boolean = false) {
+        if (isShutdown.get()) return
+
         // 已缓存则跳过
         val key = cacheKey(path, lastModified)
         synchronized(lock) {
@@ -361,10 +380,11 @@ class ThumbnailDiskCache(
         // 防止重复预加载
         if (pendingPreloads.putIfAbsent(path, true) != null) return
 
-        diskWriteExecutor.execute {
+        submitWriteTask {
             try {
+                if (isShutdown.get()) return@submitWriteTask
                 val file = File(path)
-                if (!file.exists()) return@execute
+                if (!file.exists()) return@submitWriteTask
 
                 val bitmap = if (isRaw) {
                     generateRawThumbnail(file)
@@ -557,11 +577,47 @@ class ThumbnailDiskCache(
     // ── 关闭 ──────────────────────────────────────────────────────
 
     /**
-     * 关闭缓存，释放资源
+     * v1.10.6: 关闭缓存，取消未完成的写入/预加载任务并释放资源。
+     * 调用后任何读写/预加载方法都会快速返回，避免 Application/Activity 销毁后仍占用线程与 Bitmap。
      */
     fun shutdown() {
+        if (!isShutdown.compareAndSet(false, true)) return
+
+        // 取消所有已提交但未执行的写入/预加载任务
+        pendingWrites.forEach { it.cancel(false) }
+        pendingWrites.clear()
+
         diskWriteExecutor.shutdown()
+        try {
+            // 等待正在执行的任务完成，避免强制中断导致文件损坏
+            if (!diskWriteExecutor.awaitTermination(2L, TimeUnit.SECONDS)) {
+                diskWriteExecutor.shutdownNow()
+            }
+        } catch (_: InterruptedException) {
+            diskWriteExecutor.shutdownNow()
+            Thread.currentThread().interrupt()
+        }
+
         clear()
+    }
+
+    // ── 内部工具 ──────────────────────────────────────────────────
+
+    /**
+     * v1.10.6: 安全提交后台写入任务，shutdown 后拒绝新任务并取消 Future。
+     */
+    private fun submitWriteTask(task: Runnable) {
+        if (isShutdown.get()) return
+        val future = try {
+            diskWriteExecutor.submit(task)
+        } catch (_: RejectedExecutionException) {
+            return
+        }
+        pendingWrites.add(future)
+        // 任务完成后从跟踪集合中移除
+        diskWriteExecutor.submit {
+            pendingWrites.remove(future)
+        }
     }
 
     // ── 内部工具 ──────────────────────────────────────────────────

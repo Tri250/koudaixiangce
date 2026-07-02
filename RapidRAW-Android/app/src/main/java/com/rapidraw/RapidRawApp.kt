@@ -91,9 +91,8 @@ class RapidRawApp : Application() {
             .schedule(StartupOptimizer.Priority.CRITICAL, "PerformanceMonitor") {
                 runCatching { PerformanceMonitor.init(this) }
             }
-            .schedule(StartupOptimizer.Priority.CRITICAL, "ImageProcessor") {
-                runCatching { ImageProcessor.init(this) }
-            }
+            // v1.10.6 hotfix: 移除 ImageProcessor.init(this) 调用。
+            // ImageProcessor 是无状态实例类，没有 companion init 方法，原调用会导致编译失败。
             .schedule(StartupOptimizer.Priority.HIGH, "Analytics") {
                 runCatching { AnalyticsManager.init(this) }
             }
@@ -346,11 +345,24 @@ class RapidRawApp : Application() {
      */
     override fun onTerminate() {
         super.onTerminate()
-        runCatching {
-            com.rapidraw.data.export.ExportQueueProcessor.shutdown()
-        }.onFailure { Log.w(TAG, "ExportQueueProcessor shutdown failed", it) }
-        runCatching {
-            DeadlockDetector.stop()
-        }.onFailure { Log.w(TAG, "DeadlockDetector stop failed", it) }
+        // v1.10.6: 集中关闭所有全局单例管理器，避免 Application 销毁后协程/连接泄漏。
+        runCatching { StartupOptimizer.shutdown() }
+            .onFailure { Log.w(TAG, "StartupOptimizer shutdown failed", it) }
+        runCatching { BillingManager.shutdown() }
+            .onFailure { Log.w(TAG, "BillingManager shutdown failed", it) }
+        runCatching { AnalyticsManager.shutdown() }
+            .onFailure { Log.w(TAG, "AnalyticsManager shutdown failed", it) }
+        runCatching { CrashReporter.shutdown() }
+            .onFailure { Log.w(TAG, "CrashReporter shutdown failed", it) }
+        runCatching { PerformanceMonitor.shutdown() }
+            .onFailure { Log.w(TAG, "PerformanceMonitor shutdown failed", it) }
+        runCatching { com.rapidraw.data.export.ExportQueueProcessor.shutdown() }
+            .onFailure { Log.w(TAG, "ExportQueueProcessor shutdown failed", it) }
+        runCatching { DeadlockDetector.stop() }
+            .onFailure { Log.w(TAG, "DeadlockDetector stop failed", it) }
+        runCatching { ANRWatchdog.stop() }
+            .onFailure { Log.w(TAG, "ANRWatchdog stop failed", it) }
+        runCatching { TetheredCaptureManager.shutdown() }
+            .onFailure { Log.w(TAG, "TetheredCaptureManager shutdown failed", it) }
     }
 }

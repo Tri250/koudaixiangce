@@ -413,7 +413,10 @@ class ImageProcessor {
 
     suspend fun loadAndDecode(context: Context, uri: Uri): DecodedImage =
         withContext(Dispatchers.IO) {
+            // v1.10.6: 大图解码耗时久，定期检查取消状态，避免用户离开页面后继续浪费资源
+            suspend fun ensureActive() { if (!isActive) throw CancellationException("loadAndDecode cancelled") }
             try {
+            ensureActive()
             val fileName = getFileName(context, uri)
             val isDng = fileName.lowercase().endsWith(".dng")
             val isRaw = isDng ||
@@ -428,9 +431,11 @@ class ImageProcessor {
                 }
 
             // Extract EXIF
+            ensureActive()
             val (exif, orientation) = readExifData(context, uri)
 
             // Decode bitmap
+            ensureActive()
             val originalBitmap: Bitmap = if (isRaw) {
                 // Try libraw-based decoder first (real RAW support for CR2/NEF/ARW/RAF/RW2/ORF/DNG)
                 val librawBitmap = try {
@@ -454,6 +459,7 @@ class ImageProcessor {
                     var sampleSize = 2
                     var attempts = 0
                     while (decoded == null && attempts < 3) {
+                        ensureActive()
                         try {
                             decoded = decodeRegularWithSampleSize(context, uri, sampleSize)
                         } catch (oom2: OutOfMemoryError) {
@@ -468,11 +474,20 @@ class ImageProcessor {
                 }
             }
 
+            // v1.10.6: 大图解码后检查取消，避免继续占用内存处理已不需要的结果
+            ensureActive()
+
             // Apply EXIF orientation
             val orientedBitmap = applyExifOrientation(originalBitmap, orientation)
 
+            // v1.10.6: EXIF 旋转后再次检查取消
+            ensureActive()
+
             // Create preview
             val previewBitmap = createPreview(orientedBitmap)
+
+            // v1.10.6: 预览生成后检查取消，避免返回无效结果
+            ensureActive()
 
             DecodedImage(
                 original = orientedBitmap,

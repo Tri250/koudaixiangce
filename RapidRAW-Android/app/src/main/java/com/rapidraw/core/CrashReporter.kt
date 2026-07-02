@@ -38,7 +38,7 @@ object CrashReporter {
     private const val SAMPLING_THRESHOLD_PER_MINUTE = 10
 
     private val initialized = AtomicBoolean(false)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var remoteEndpoint: String? = null
     private var apiKey: String? = null
@@ -101,6 +101,9 @@ object CrashReporter {
         if (!initialized.compareAndSet(false, true)) {
             Log.w(TAG, "CrashReporter already initialized")
             return
+        }
+        if (!scope.isActive) {
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         }
         appContext = context.applicationContext
         this.remoteEndpoint = remoteEndpoint
@@ -352,4 +355,16 @@ object CrashReporter {
         .replace("\n", "\\n")
         .replace("\r", "\\r")
         .replace("\t", "\\t")
+
+    /**
+     * v1.10.6: 关闭 CrashReporter，取消上报协程并释放 ApplicationContext 引用。
+     * 应在 Application.onTerminate() 中作为最佳努力调用。
+     */
+    fun shutdown() {
+        if (!initialized.compareAndSet(true, false)) return
+        scope.cancel()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        appContext = null
+        Log.i(TAG, "CrashReporter shutdown")
+    }
 }

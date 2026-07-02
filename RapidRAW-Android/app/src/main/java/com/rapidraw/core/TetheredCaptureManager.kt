@@ -241,6 +241,15 @@ class TetheredCaptureManager(private val context: Context) {
     }
 
     /**
+     * v1.10.6: 关闭联机拍摄管理器，取消所有协程并释放资源。
+     */
+    fun shutdown() {
+        disconnect()
+        scope.cancel()
+        Log.i(TAG, "TetheredCaptureManager shutdown")
+    }
+
+    /**
      * 触发拍摄。
      */
     suspend fun capture(): CaptureResult? {

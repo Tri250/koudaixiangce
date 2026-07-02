@@ -34,6 +34,7 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocketFactory
@@ -127,7 +128,8 @@ class ComfyUiClient {
     private var host: String = DEFAULT_HOST
     private var port: Int = DEFAULT_PORT
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val userDisconnected = AtomicBoolean(false)
     private var wsSocket: java.net.Socket? = null
     private var wsInputStream: InputStream? = null
     private var wsOutputStream: OutputStream? = null
@@ -166,6 +168,10 @@ class ComfyUiClient {
     suspend fun connect(): Boolean {
         if (_connectionState.value == ConnectionState.CONNECTED) return true
         _connectionState.value = ConnectionState.CONNECTING
+        userDisconnected.set(false)
+        if (!scope.isActive) {
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        }
 
         return try {
             // 先测试 REST API 连通性
@@ -199,6 +205,7 @@ class ComfyUiClient {
      * 断开连接。
      */
     fun disconnect() {
+        userDisconnected.set(true)
         readJob?.cancel()
         statusPollJob?.cancel()
         try {
@@ -215,6 +222,16 @@ class ComfyUiClient {
         wsOutputStream = null
         _connectionState.value = ConnectionState.DISCONNECTED
         Log.i(TAG, "Disconnected from ComfyUI")
+    }
+
+    /**
+     * v1.10.6: 完全关闭 ComfyUiClient，取消所有协程并关闭连接。
+     * 调用后如需重新使用，需创建新实例或重新 connect()。
+     */
+    fun shutdown() {
+        disconnect()
+        scope.cancel()
+        Log.i(TAG, "ComfyUiClient shutdown")
     }
 
     /**
@@ -697,12 +714,17 @@ class ComfyUiClient {
     }
 
     private fun handleDisconnect() {
+        if (userDisconnected.get()) {
+            Log.d(TAG, "User initiated disconnect, skip auto reconnect")
+            return
+        }
         if (_connectionState.value == ConnectionState.CONNECTED) {
             _connectionState.value = ConnectionState.DISCONNECTED
             Log.w(TAG, "WebSocket disconnected unexpectedly")
             // 尝试自动重连
             scope.launch {
                 delay(3000)
+                if (userDisconnected.get()) return@launch
                 try {
                     connect()
                 } catch (_: Exception) {}

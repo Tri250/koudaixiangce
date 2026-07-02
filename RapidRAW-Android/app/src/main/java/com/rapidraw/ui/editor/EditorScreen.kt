@@ -591,7 +591,8 @@ fun EditorScreen(
                     contentDescription = "预览",
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(Unit) {
+                        // v1.10.6: pointerInput key 使用当前预览位图，位图替换后重启手势管线避免状态错乱。
+                        .pointerInput(currentPreview) {
                             awaitEachGesture {
                                 var zoomStart = zoomLevel
                                 var panStart = panOffset
@@ -644,7 +645,8 @@ fun EditorScreen(
                                 }
                             }
                         }
-                        .pointerInput(Unit) {
+                        // v1.10.6: pointerInput key 使用当前预览位图，避免长按状态在位图替换后仍残留。
+                        .pointerInput(currentPreview) {
                             detectTapGestures(
                                 onLongPress = {
                                     isLongPressing = true

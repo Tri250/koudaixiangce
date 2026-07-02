@@ -168,7 +168,8 @@ fun AiInpaintScreen(
                     Canvas(
                         modifier = Modifier
                             .fillMaxSize()
-                            .pointerInput(Unit) {
+                            // v1.10.6: pointerInput key 使用显示位图身份，位图替换后重启手势避免状态错乱。
+                            .pointerInput(displayBitmap) {
                                 detectDragGestures(
                                     onDragStart = { },
                                     onDrag = { change, _ ->

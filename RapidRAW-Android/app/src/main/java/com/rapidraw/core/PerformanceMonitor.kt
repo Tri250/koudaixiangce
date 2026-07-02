@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.max
 
 /**
@@ -43,7 +44,8 @@ object PerformanceMonitor {
     private const val JANK_THRESHOLD_MS = 32L  // 约 30fps 以下判定为卡顿
     private const val JANK_WINDOW_FRAMES = 100
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // v1.10.6: scope 改为可变，shutdown 后再 init 能重新创建，避免使用已取消 scope。
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var jankStats: JankStats? = null
     private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
     private var powerManager: PowerManager? = null
@@ -53,9 +55,10 @@ object PerformanceMonitor {
 
     private val frameTimes = mutableListOf<Long>()
     private val jankFrames = mutableListOf<Long>()
-    private var totalFrames = 0L
-    private var totalJankFrames = 0L
-    private var maxFrameTime = 0L
+    // v1.10.6: 回调可能来自非主线程，使用 AtomicLong 保证可见性与线程安全。
+    private val totalFrames = AtomicLong(0L)
+    private val totalJankFrames = AtomicLong(0L)
+    private val maxFrameTime = AtomicLong(0L)
 
     private val _fps = MutableStateFlow(0f)
     val fps: StateFlow<Float> = _fps.asStateFlow()
@@ -87,6 +90,10 @@ object PerformanceMonitor {
             Log.w(TAG, "PerformanceMonitor already initialized")
             return
         }
+        // v1.10.6: 若之前调用过 shutdown，scope 已被 cancel，需重新创建。
+        if (!scope.isActive) {
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        }
         initJankMonitoring(application)
         initThermalMonitoring(application)
         Log.i(TAG, "PerformanceMonitor initialized")
@@ -115,9 +122,9 @@ object PerformanceMonitor {
     private fun onFrameData(frameData: FrameData, activityName: String) {
         val frameTimeNanos = frameData.frameDurationUiNanos
         val frameTimeMs = TimeUnit.NANOSECONDS.toMillis(frameTimeNanos)
-        totalFrames++
+        val frames = totalFrames.incrementAndGet()
 
-        if (frameTimeMs > maxFrameTime) maxFrameTime = frameTimeMs
+        maxFrameTime.updateAndGet { max(it, frameTimeMs) }
 
         synchronized(frameTimes) {
             frameTimes.add(frameTimeMs)
@@ -127,7 +134,7 @@ object PerformanceMonitor {
         }
 
         if (frameTimeMs > JANK_THRESHOLD_MS) {
-            totalJankFrames++
+            totalJankFrames.incrementAndGet()
             synchronized(jankFrames) {
                 jankFrames.add(frameTimeMs)
                 if (jankFrames.size > JANK_WINDOW_FRAMES) {
@@ -137,12 +144,12 @@ object PerformanceMonitor {
         }
 
         // 每 60 帧更新一次指标
-        if (totalFrames % 60 == 0L) {
+        if (frames % 60 == 0L) {
             updateMetrics()
         }
 
         // 性能回归检测：连续 100 帧中 10% 以上丢帧
-        if (totalFrames % JANK_WINDOW_FRAMES == 0L) {
+        if (frames % JANK_WINDOW_FRAMES == 0L) {
             checkPerformanceRegression()
         }
     }
@@ -225,20 +232,20 @@ object PerformanceMonitor {
 
     fun snapshot(): PerformanceReport {
         return PerformanceReport(
-            totalFrames = totalFrames,
-            totalJankFrames = totalJankFrames,
+            totalFrames = totalFrames.get(),
+            totalJankFrames = totalJankFrames.get(),
             averageFps = _fps.value,
             jankRate = _jankRate.value,
             p95FrameMs = _p95FrameMs.value,
-            maxFrameMs = maxFrameTime,
+            maxFrameMs = maxFrameTime.get(),
             thermalLevel = _thermalStatus.value,
         )
     }
 
     fun reset() {
-        totalFrames = 0
-        totalJankFrames = 0
-        maxFrameTime = 0
+        totalFrames.set(0)
+        totalJankFrames.set(0)
+        maxFrameTime.set(0)
         synchronized(frameTimes) { frameTimes.clear() }
         synchronized(jankFrames) { jankFrames.clear() }
     }

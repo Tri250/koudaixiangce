@@ -71,9 +71,11 @@ class BillingManager private constructor(
         }
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val initialized = AtomicBoolean(false)
+    private val destroyed = AtomicBoolean(false)
+    private val userDisconnected = AtomicBoolean(false)
 
     private var billingClient: BillingClient? = null
 
@@ -93,7 +95,15 @@ class BillingManager private constructor(
      * 若设备不支持（如非 Play 版本），自动降级为沙箱模式。
      */
     fun connect() {
+        if (destroyed.get()) {
+            Log.w(TAG, "BillingManager already destroyed, recreate instance to reconnect")
+            return
+        }
         if (initialized.compareAndSet(false, true)) {
+            userDisconnected.set(false)
+            if (!scope.isActive) {
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            }
             scope.launch { doConnect() }
         }
     }
@@ -134,11 +144,17 @@ class BillingManager private constructor(
                     }
 
                     override fun onBillingServiceDisconnected() {
+                        if (destroyed.get() || userDisconnected.get()) {
+                            Log.d(TAG, "Skipping billing reconnect after disconnect/destroy")
+                            return
+                        }
                         Log.w(TAG, "Billing service disconnected")
                         _isReady.value = false
                         scope.launch {
                             kotlinx.coroutines.delay(5_000)
-                            startConnection()
+                            if (!destroyed.get() && !userDisconnected.get()) {
+                                startConnection()
+                            }
                         }
                     }
                 })
@@ -336,7 +352,20 @@ class BillingManager private constructor(
     }
 
     fun disconnect() {
+        userDisconnected.set(true)
         billingClient?.endConnection()
         initialized.set(false)
+    }
+
+    /**
+     * v1.10.6: 关闭 BillingManager，取消协程并释放连接。
+     * 应在 Application.onTerminate() 或长生命周期结束时调用，防止 BillingClient 泄漏。
+     */
+    fun shutdown() {
+        if (!destroyed.compareAndSet(false, true)) return
+        disconnect()
+        scope.cancel()
+        instance = null
+        Log.i(TAG, "BillingManager shutdown")
     }
 }

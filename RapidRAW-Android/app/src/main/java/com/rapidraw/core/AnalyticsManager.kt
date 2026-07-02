@@ -50,7 +50,7 @@ object AnalyticsManager {
     private const val MIN_EVENT_INTERVAL_MS = 100L
 
     private val initialized = AtomicBoolean(false)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var appContext: Context? = null
     private var prefs: SharedPreferences? = null
     private var endpoint: String? = null
@@ -72,6 +72,9 @@ object AnalyticsManager {
 
     fun init(context: Context, endpoint: String? = null, apiKey: String? = null) {
         if (!initialized.compareAndSet(false, true)) return
+        if (!scope.isActive) {
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        }
         appContext = context.applicationContext
         appContext?.let { ctx ->
             prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -297,6 +300,27 @@ object AnalyticsManager {
         return runCatching {
             ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?"
         }.getOrDefault("?")
+    }
+
+    /**
+     * v1.10.6: 关闭 AnalyticsManager，取消后台 flush 协程并释放资源。
+     * 注意：Android 不保证 onTerminate 一定被调用，因此仅作为最佳努力清理。
+     */
+    fun shutdown() {
+        if (!initialized.compareAndSet(true, false)) return
+        // 最佳努力：尝试 flush 剩余事件后再取消协程
+        try {
+            scope.launch { flushEvents() }
+        } catch (_: Exception) {
+            // ignore
+        }
+        scope.cancel()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        appContext = null
+        prefs = null
+        endpoint = null
+        apiKey = null
+        Log.i(TAG, "AnalyticsManager shutdown")
     }
 
     // ── 数据类 ────────────────────────────────────────────────────────
