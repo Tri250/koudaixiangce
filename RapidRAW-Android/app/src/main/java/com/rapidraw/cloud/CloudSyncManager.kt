@@ -14,7 +14,9 @@ import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.util.UUID
 import javax.crypto.Cipher
+import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
@@ -42,8 +44,10 @@ class CloudSyncManager(private val context: Context) {
         private const val GCM_TAG_LENGTH = 128 // 128-bit
 
         /**
-         * 基于应用包名 + 设备指纹派生加密密钥。
-         * 2026 正式版: 避免 token 明文存储，每个安装实例密钥不同。
+         * v1.10.6 hotfix: 使用 PBKDF2WithHmacSHA256 替代 XOR 手动密钥派生。
+         * 旧代码用 XOR 混合设备指纹，熵极低且可被逆向推算。
+         * PBKDF2 提供 100,000 次迭代的盐化密钥派生，符合 OWASP 建议。
+         * 注意：若旧用户已用旧密钥加密过 token，解密时会自动兼容。
          */
         private fun deriveKey(context: Context): ByteArray {
             val seed = buildString {
@@ -53,6 +57,21 @@ class CloudSyncManager(private val context: Context) {
                 append(Build.BRAND ?: "")
                 append(Build.HARDWARE ?: "")
             }
+            // 固定盐值用于派生（不与任何用户数据关联，仅增加密钥空间）
+            val salt = "RapidRAW_2026_KS".toByteArray(StandardCharsets.UTF_8)
+            return try {
+                val spec = PBEKeySpec(seed.toCharArray(), salt, 100_000, AES_KEY_SIZE * 8)
+                SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                    .generateSecret(spec)
+                    .encoded
+            } catch (e: Exception) {
+                Log.w(TAG, "PBKDF2 key derivation failed, falling back to legacy XOR", e)
+                deriveKeyLegacy(seed)
+            }
+        }
+
+        /** 旧版 XOR 密钥派生，保留用于兼容已有加密数据 */
+        private fun deriveKeyLegacy(seed: String): ByteArray {
             val keyBytes = ByteArray(AES_KEY_SIZE)
             val seedBytes = seed.toByteArray(StandardCharsets.UTF_8)
             for (i in keyBytes.indices) {
@@ -75,18 +94,36 @@ class CloudSyncManager(private val context: Context) {
 
         private fun decryptToken(context: Context, cipherText: String): String? {
             return try {
-                val combined = Base64.decode(cipherText, Base64.NO_WRAP)
-                val iv = combined.copyOfRange(0, GCM_IV_LENGTH)
-                val encrypted = combined.copyOfRange(GCM_IV_LENGTH, combined.size)
-                val cipher = Cipher.getInstance(AES_TRANSFORMATION)
-                val keySpec = SecretKeySpec(deriveKey(context), AES_ALGORITHM)
-                val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
-                cipher.init(Cipher.DECRYPT_MODE, keySpec, gcmSpec)
-                String(cipher.doFinal(encrypted), StandardCharsets.UTF_8)
+                decryptWithKey(deriveKey(context), cipherText)
             } catch (e: Exception) {
-                Log.w(TAG, "Token decryption failed", e)
-                null
+                // v1.10.6: 兼容旧版 XOR 密钥加密的 token
+                Log.d(TAG, "PBKDF2 decryption failed, trying legacy XOR key")
+                try {
+                    decryptWithKey(deriveKeyLegacy(buildSeed(context)), cipherText)
+                } catch (e2: Exception) {
+                    Log.w(TAG, "Token decryption failed with both keys", e2)
+                    null
+                }
             }
+        }
+
+        private fun buildSeed(context: Context): String = buildString {
+            append(context.packageName)
+            append(Build.FINGERPRINT ?: "")
+            append(Build.BOARD ?: "")
+            append(Build.BRAND ?: "")
+            append(Build.HARDWARE ?: "")
+        }
+
+        private fun decryptWithKey(keyBytes: ByteArray, cipherText: String): String {
+            val combined = Base64.decode(cipherText, Base64.NO_WRAP)
+            val iv = combined.copyOfRange(0, GCM_IV_LENGTH)
+            val encrypted = combined.copyOfRange(GCM_IV_LENGTH, combined.size)
+            val cipher = Cipher.getInstance(AES_TRANSFORMATION)
+            val keySpec = SecretKeySpec(keyBytes, AES_ALGORITHM)
+            val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
+            cipher.init(Cipher.DECRYPT_MODE, keySpec, gcmSpec)
+            return String(cipher.doFinal(encrypted), StandardCharsets.UTF_8)
         }
     }
 

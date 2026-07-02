@@ -83,6 +83,15 @@ class Bm3dDenoiser {
         denoiseImpl(bitmap, params, onProgress)
     }
 
+    /**
+     * v1.10.6: 同步版本，使用 runBlocking 阻塞当前线程。
+     * 警告：此方法会阻塞调用线程，不得在主线程调用。
+     * 推荐使用 suspend 版本 denoise() 并在协程中调用。
+     */
+    @Deprecated(
+        message = "使用 suspend 版本 denoise() 替代，避免阻塞调用线程",
+        replaceWith = ReplaceWith("denoise(bitmap, params)"),
+    )
     fun denoiseSync(bitmap: Bitmap, params: Params = Params()): Bitmap {
         return runBlocking {
             denoiseImpl(bitmap, params) {}

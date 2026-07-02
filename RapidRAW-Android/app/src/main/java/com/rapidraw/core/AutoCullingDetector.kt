@@ -128,16 +128,19 @@ class AutoCullingDetector {
             qualityMap[uris[i]] = qualityScoreList[i]
         }
 
-        // 释放 Bitmap
-        bitmapCache.values.forEach { it.recycle() }
-
-        onProgress(1f)
-
-        CullingResult(
-            groups = groups,
-            blurryImages = blurryImages,
-            qualityScores = qualityMap,
-        )
+        // v1.10.6 hotfix: finally 块确保 bitmap 在任何退出路径（包括取消）下都被释放
+        try {
+            onProgress(1f)
+            CullingResult(
+                groups = groups,
+                blurryImages = blurryImages,
+                qualityScores = qualityMap,
+            )
+        } finally {
+            // 释放 Bitmap — 使用 runCatching 防止 recycle 本身抛异常
+            bitmapCache.values.forEach { runCatching { it.recycle() } }
+            bitmapCache.clear()
+        }
     }
 
     /**

@@ -11,6 +11,9 @@ import com.rapidraw.data.model.Adjustments
  *
  * 注意：当前项目已有 AdjustmentClipboard（仅复制调整参数），
  * 本类扩展支持遮罩和裁剪数据的跨图复制。
+ *
+ * v1.10.6 hotfix: 添加 @Synchronized 保护所有可变状态访问，
+ * 防止多线程并发读写 clipboard 导致的竞态条件。
  */
 object EditorClipboard {
 
@@ -24,12 +27,14 @@ object EditorClipboard {
         val copiedAt: Long = System.currentTimeMillis(),
     )
 
+    @Volatile
     private var clipboard: ClipboardContent = ClipboardContent()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     /**
      * 复制调整参数到剪贴板
      */
+    @Synchronized
     fun copyAdjustments(adjustments: Adjustments, sourceFileName: String? = null) {
         clipboard = clipboard.copy(
             adjustmentsJson = json.encodeToString(adjustments),
@@ -41,6 +46,7 @@ object EditorClipboard {
     /**
      * 复制遮罩数据
      */
+    @Synchronized
     fun copyMasks(masksData: String, sourceFileName: String? = null) {
         clipboard = clipboard.copy(
             masksJson = masksData,
@@ -52,6 +58,7 @@ object EditorClipboard {
     /**
      * 复制裁剪数据
      */
+    @Synchronized
     fun copyCrop(cropData: String, sourceFileName: String? = null) {
         clipboard = clipboard.copy(
             cropJson = cropData,
@@ -63,6 +70,7 @@ object EditorClipboard {
     /**
      * 复制全部（调整+遮罩+裁剪）
      */
+    @Synchronized
     fun copyAll(
         adjustments: Adjustments,
         masksData: String?,
@@ -81,6 +89,7 @@ object EditorClipboard {
     /**
      * 粘贴调整参数
      */
+    @Synchronized
     fun pasteAdjustments(): Adjustments? {
         val adjJson = clipboard.adjustmentsJson ?: return null
         return try {
@@ -91,16 +100,23 @@ object EditorClipboard {
         }
     }
 
+    @Synchronized
     fun pasteMasks(): String? = clipboard.masksJson
+    @Synchronized
     fun pasteCrop(): String? = clipboard.cropJson
 
+    @Synchronized
     fun hasContent(): Boolean = clipboard.adjustmentsJson != null ||
         clipboard.masksJson != null || clipboard.cropJson != null
 
+    @Synchronized
     fun hasAdjustments(): Boolean = clipboard.adjustmentsJson != null
+    @Synchronized
     fun hasMasks(): Boolean = clipboard.masksJson != null
+    @Synchronized
     fun hasCrop(): Boolean = clipboard.cropJson != null
 
+    @Synchronized
     fun getClipboardDescription(): String {
         val parts = mutableListOf<String>()
         if (hasAdjustments()) parts.add("调整参数")
@@ -109,6 +125,7 @@ object EditorClipboard {
         return if (parts.isEmpty()) "空" else parts.joinToString(" + ")
     }
 
+    @Synchronized
     fun clear() {
         clipboard = ClipboardContent()
     }

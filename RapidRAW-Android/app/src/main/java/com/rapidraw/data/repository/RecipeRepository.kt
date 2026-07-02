@@ -8,11 +8,14 @@ import com.rapidraw.data.model.Adjustments
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlin.random.Random
+import java.security.SecureRandom
 
 class RecipeRepository(context: Context) {
     private val dao = RecipeDatabase.getInstance(context).recipeDao()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    // v1.10.6 hotfix: 使用 SecureRandom 替代 kotlin.random.Random，
+    // 确保分享码具有加密级别的随机性，防止碰撞和可预测性攻击。
+    private val secureRandom = SecureRandom()
 
     suspend fun saveRecipe(recipe: Recipe): String {
         val shareCode = generateShareCode()
@@ -48,6 +51,6 @@ class RecipeRepository(context: Context) {
 
     private fun generateShareCode(): String {
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        return (1..6).map { chars[Random.nextInt(chars.length)] }.joinToString("")
+        return (1..8).map { chars[secureRandom.nextInt(chars.length)] }.joinToString("")
     }
 }

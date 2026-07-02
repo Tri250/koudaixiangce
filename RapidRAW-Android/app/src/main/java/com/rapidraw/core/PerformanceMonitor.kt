@@ -191,9 +191,9 @@ object PerformanceMonitor {
 
         try {
             val mainExecutor = ContextCompat.getMainExecutor(application)
-            powerManager!!.addThermalStatusListener(
+            powerManager?.addThermalStatusListener(
                 mainExecutor,
-                thermalListener!!
+                thermalListener
             )
             Log.i(TAG, "Thermal monitoring enabled")
         } catch (e: Exception) {
