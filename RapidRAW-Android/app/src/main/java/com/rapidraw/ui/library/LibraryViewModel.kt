@@ -18,6 +18,7 @@ import com.rapidraw.ai.NaturalLanguageSearcher
 import com.rapidraw.ai.SemanticTag
 import com.rapidraw.data.model.ColorLabel
 import com.rapidraw.data.model.ImageFile
+import com.rapidraw.security.PermissionValidator
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -202,8 +203,15 @@ class LibraryViewModel(
         _isLoading.value = true
         _error.value = null
         _selectedImagePaths.value = emptySet()
-        // v1.10.5: 保存状态到 SavedStateHandle
         saveStateToHandle()
+
+        // v2026.07: 权限感知 — 无存储权限时提前返回友好提示，避免 SecurityException（用例 3.1-3.2）
+        if (!PermissionValidator.hasStorageReadPermission(getApplication())) {
+            _isLoading.value = false
+            _error.value = "需要存储权限才能加载图片，请在设置中授权"
+            Log.w(TAG, "loadImages aborted: missing storage permission")
+            return
+        }
 
         viewModelScope.launch(Dispatchers.IO + coroutineExceptionHandler) {
             try {

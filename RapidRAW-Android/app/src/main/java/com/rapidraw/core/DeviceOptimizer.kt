@@ -3,6 +3,8 @@ package com.rapidraw.core
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
+import android.os.Environment
+import android.os.StatFs
 import java.io.File
 
 /**
@@ -231,14 +233,14 @@ object DeviceOptimizer {
     /**
      * 返回当前设备的性能等级。
      *
-     * 基于 RAM 和 CPU 核心数进行分级：
+     * 基于总 RAM 和 CPU 核心数进行分级：
      * - LOW:    < 4GB RAM, < 4 cores
      * - MID:    4-6GB RAM, 4-6 cores
      * - HIGH:   6-8GB RAM, 6-8 cores
      * - FLAGSHIP: ≥ 8GB RAM, ≥ 8 cores
      */
     fun getDeviceTier(): DeviceTier {
-        val ramMb = getAvailableMemoryMb()
+        val ramMb = getTotalMemoryMb()
         val cores = Runtime.getRuntime().availableProcessors()
 
         return when {
@@ -247,6 +249,38 @@ object DeviceOptimizer {
             ramMb >= 4096 && cores >= 4 -> DeviceTier.MID
             else -> DeviceTier.LOW
         }
+    }
+
+    /**
+     * 获取设备总物理内存（MB），用于设备分级。
+     * 读取 /proc/meminfo 的 MemTotal，与 availableProcessors 配合使用。
+     */
+    fun getTotalMemoryMb(): Long {
+        return try {
+            val memInfoPath = File("/proc/meminfo")
+            if (memInfoPath.exists()) {
+                val lines = memInfoPath.readLines()
+                val memTotal = lines.firstOrNull { it.startsWith("MemTotal:") }
+                    ?.let { Regex("MemTotal:\\s+(\\d+)\\s+kB").find(it)?.groupValues?.get(1)?.toLongOrNull() }
+                memTotal?.let { it / 1024 } ?: 6144L
+            } else {
+                6144L
+            }
+        } catch (_: Exception) {
+            6144L
+        }
+    }
+
+    /**
+     * 带 Context 的精确总内存检测。
+     */
+    fun getTotalMemoryMb(context: Context): Long {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            ?: return 6144L
+        val memInfo = ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(memInfo)
+        // totalMem 在 API 16+ 可用，返回总物理内存
+        return memInfo.totalMem / (1024 * 1024)
     }
 
     /**
@@ -324,9 +358,52 @@ object DeviceOptimizer {
             ?: Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
         val model = Build.MODEL
         val tier = getDeviceTier()
-        val ramMb = getAvailableMemoryMb()
+        val ramMb = getTotalMemoryMb()
         val cores = Runtime.getRuntime().availableProcessors()
 
         return "Manufacturer: $manufacturer, Model: $model, Tier: $tier, Memory: ${ramMb}MB, Cores: $cores"
+    }
+
+    // ── 存储空间检测 ──────────────────────────────────────────────────
+
+    /**
+     * 检查设备可用存储空间是否低于阈值。
+     * 用于低存储场景下的安装/启动保护（用例 1.2）。
+     *
+     * @param minAvailableMb 最低可用空间（MB），默认 500MB
+     * @return true 表示可用空间不足
+     */
+    fun isStorageLow(minAvailableMb: Long = 500): Boolean {
+        return try {
+            val dataDir = Environment.getDataDirectory()
+            val statFs = StatFs(dataDir.path)
+            val availableBytes = statFs.availableBytes
+            availableBytes < minAvailableMb * 1024 * 1024
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 获取设备可用存储空间（MB）。
+     */
+    fun getAvailableStorageMb(): Long {
+        return try {
+            val dataDir = Environment.getDataDirectory()
+            val statFs = StatFs(dataDir.path)
+            statFs.availableBytes / (1024 * 1024)
+        } catch (_: Exception) {
+            Long.MAX_VALUE // 无法检测时假定充足
+        }
+    }
+
+    /**
+     * 检查是否处于低内存状态（可用内存 < 20% 总内存）。
+     * 用于在低内存场景下保护解码/处理操作，避免 OOM（用例 5.4）。
+     */
+    fun isLowMemory(): Boolean {
+        val total = getTotalMemoryMb()
+        val available = getAvailableMemoryMb()
+        return total > 0 && available < total * 0.2
     }
 }

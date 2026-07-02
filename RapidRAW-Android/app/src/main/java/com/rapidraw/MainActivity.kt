@@ -390,6 +390,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // v2026.07: 防止字体缩放 recreate 循环计数器。
+    // 当用户反复调整系统字体且超过限制时，每次 recreate 都会触发新的
+    // onConfigurationChanged，可能形成无限循环。限制最多 2 次 recreate。
+    private var fontScaleRecreateCount = 0
+
     /**
      * 处理设备配置变更（屏幕旋转、折叠屏状态切换、深色模式切换等）。
      *
@@ -410,9 +415,13 @@ class MainActivity : ComponentActivity() {
         // v2026.07: configChanges 声明了 fontScale，Activity 不会重建。
         // attachBaseContext 的字体缩放限制只在创建时生效；运行时系统字体变化
         // 超出限制时通过 recreate 重新应用限制，避免超大字体下 Compose UI 溢出。
-        if (newConfig.fontScale > 1.3f) {
-            Log.w(TAG, "fontScale ${newConfig.fontScale} exceeds limit, recreating Activity")
+        // 增加循环保护：最多 recreate 2 次，防止无限循环耗尽系统资源。
+        if (newConfig.fontScale > 1.3f && fontScaleRecreateCount < 2) {
+            fontScaleRecreateCount++
+            Log.w(TAG, "fontScale ${newConfig.fontScale} exceeds limit, recreating Activity (attempt $fontScaleRecreateCount)")
             recreate()
+        } else if (newConfig.fontScale > 1.3f) {
+            Log.e(TAG, "fontScale ${newConfig.fontScale} still exceeds limit after ${fontScaleRecreateCount} recreates, giving up")
         }
     }
 

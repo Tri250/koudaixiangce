@@ -4,6 +4,8 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.app.LocaleManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
 import android.os.LocaleList
@@ -18,6 +20,7 @@ import com.rapidraw.core.BillingManager
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.CrashReporter
 import com.rapidraw.core.DeadlockDetector
+import com.rapidraw.core.DeviceOptimizer
 import com.rapidraw.core.ImageProcessor
 import com.rapidraw.core.NetworkCache
 import com.rapidraw.core.NotificationChannels
@@ -122,6 +125,16 @@ class RapidRawApp : Application() {
         // v1.10.5: 启动成功，重置崩溃计数器
         StartupRecovery.onStartupSuccess(this)
 
+        // v2026.07: 跨版本升级兼容性检查（用例 1.3）
+        // 覆盖安装/升级场景下清理旧版本缓存，避免数据不兼容导致崩溃。
+        runCatching {
+            val versionCode = packageManager.getPackageInfo(packageName, 0).let {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) it.longVersionCode
+                else @Suppress("DEPRECATION") it.versionCode.toLong()
+            }
+            StartupRecovery.checkVersionMigration(this, versionCode)
+        }.onFailure { Log.w(TAG, "Version migration check failed", it) }
+
         // Debug 构建启用 LeakCanary（release 零开销）
         enableLeakCanaryInDebug()
 
@@ -182,12 +195,51 @@ class RapidRawApp : Application() {
 
     /**
      * 记录关键设备能力信息，用于跨 OEM 兼容性诊断（ColorOS / MIUI / HyperOS / OneUI 等）。
+     * v2026.07: 增加存储空间、网络状态、低内存状态诊断（用例 1.2 / 4.1 / 5.4）。
      */
     private fun logDeviceCapabilities() {
         Log.i(TAG, "Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.BRAND})")
         Log.i(TAG, "Android: ${Build.VERSION.RELEASE} API ${Build.VERSION.SDK_INT}")
         Log.i(TAG, "ABIs: ${Build.SUPPORTED_ABIS.joinToString()}")
-        Log.i(TAG, "Available memory: ${Runtime.getRuntime().maxMemory() / 1024 / 1024}MB")
+        Log.i(TAG, "Total memory: ${DeviceOptimizer.getTotalMemoryMb()}MB")
+        Log.i(TAG, "Available memory: ${DeviceOptimizer.getAvailableMemoryMb()}MB")
+        Log.i(TAG, "Available storage: ${DeviceOptimizer.getAvailableStorageMb()}MB")
+        // 低存储 / 低内存告警
+        if (DeviceOptimizer.isStorageLow()) {
+            Log.w(TAG, "WARNING: Low storage space detected (${DeviceOptimizer.getAvailableStorageMb()}MB available)")
+        }
+        if (DeviceOptimizer.isLowMemory()) {
+            Log.w(TAG, "WARNING: Low memory detected (${DeviceOptimizer.getAvailableMemoryMb()}MB / ${DeviceOptimizer.getTotalMemoryMb()}MB)")
+        }
+        // 网络状态
+        logNetworkState()
+    }
+
+    /**
+     * 记录当前网络状态，用于诊断无网/弱网/代理场景下的启动问题（用例 4.1-4.3）。
+     */
+    private fun logNetworkState() {
+        try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+            val network = cm.activeNetwork ?: run {
+                Log.i(TAG, "Network: NONE (no active network)")
+                return
+            }
+            val caps = cm.getNetworkCapabilities(network) ?: return
+            val transport = when {
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WiFi"
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "Cellular"
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "VPN"
+                else -> "Unknown"
+            }
+            val bandwidth = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                "${caps.linkDownstreamBandwidthKbps}/${caps.linkUpstreamBandwidthKbps} kbps"
+            } else "N/A"
+            Log.i(TAG, "Network: $transport, bandwidth=$bandwidth")
+        } catch (_: Exception) {
+            Log.w(TAG, "Failed to query network state")
+        }
     }
 
     /**

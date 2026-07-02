@@ -7,11 +7,17 @@ import okhttp3.ConnectionPool
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
+import okhttp3.internal.tls.OkHostnameVerifier
 import okio.buffer
 import okio.source
 import java.io.File
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 
 /**
  * 网络缓存管理器 — v1.8.0 正式版性能优化新增。

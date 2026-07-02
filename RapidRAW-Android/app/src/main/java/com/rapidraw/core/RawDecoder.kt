@@ -19,6 +19,9 @@ object RawDecoder {
 
     private const val TAG = "RawDecoder"
 
+    /** 低内存场景下 RAW 解码的最低可用内存阈值（MB），低于此值拒绝解码以保护稳定性。 */
+    private const val LOW_MEMORY_DECODE_THRESHOLD_MB = 256L
+
     private var nativeLibraryLoaded = false
 
     init {
@@ -52,6 +55,11 @@ object RawDecoder {
     suspend fun decodeRaw(context: Context, uri: Uri): Bitmap? = withContext(Dispatchers.IO) {
         if (!nativeLibraryLoaded) {
             Log.w(TAG, "Native library not loaded, cannot decode RAW")
+            return@withContext null
+        }
+        // v2026.07: 低内存保护 — 解码 RAW 需要大量内存，低内存时拒绝解码避免 OOM（用例 5.4）
+        if (DeviceOptimizer.isLowMemory() && DeviceOptimizer.getAvailableMemoryMb() < LOW_MEMORY_DECODE_THRESHOLD_MB) {
+            Log.w(TAG, "Low memory (${DeviceOptimizer.getAvailableMemoryMb()}MB), refusing RAW decode")
             return@withContext null
         }
         val tempFile = copyUriToTempFile(context, uri) ?: return@withContext null
@@ -118,6 +126,11 @@ object RawDecoder {
     }
 
     private fun copyUriToTempFile(context: Context, uri: Uri): File? {
+        // v2026.07: 低存储空间保护 — 复制前检查可用空间，避免写入失败导致文件损坏（用例 1.2）
+        if (DeviceOptimizer.isStorageLow(minAvailableMb = 200)) {
+            Log.w(TAG, "Low storage space (${DeviceOptimizer.getAvailableStorageMb()}MB), refusing to copy RAW file")
+            return null
+        }
         val ext = getExtensionFromUri(context, uri)
         val tempFile = File.createTempFile("raw_decode_", ext, context.cacheDir)
         return try {

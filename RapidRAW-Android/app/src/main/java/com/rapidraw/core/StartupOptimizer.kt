@@ -49,6 +49,21 @@ object StartupOptimizer {
         val block: () -> Unit,
     )
 
+    /** 记录每个任务的执行结果，用于诊断 SDK 初始化失败（用例 5.2）。 */
+    data class TaskResult(
+        val name: String,
+        val priority: Priority,
+        val success: Boolean,
+        val durationMs: Long,
+        val error: String?,
+    )
+
+    /** 最近一次 execute() 的任务执行结果。 */
+    val lastResults: List<TaskResult>
+        get() = _lastResults.toList()
+
+    private val _lastResults = mutableListOf<TaskResult>()
+
     fun init(): StartupOptimizer {
         return this
     }
@@ -64,14 +79,27 @@ object StartupOptimizer {
             return
         }
 
+        _lastResults.clear()
         val grouped = tasks.groupBy { it.priority }
 
         // CRITICAL: 同步执行
         val startTime = SystemClock.elapsedRealtime()
         grouped[Priority.CRITICAL]?.forEach { task ->
             val t0 = SystemClock.elapsedRealtime()
-            runCatching { task.block() }
-            Log.d(TAG, "CRITICAL [${task.name}]: ${SystemClock.elapsedRealtime() - t0}ms")
+            val result = runCatching { task.block() }
+            val duration = SystemClock.elapsedRealtime() - t0
+            _lastResults.add(TaskResult(
+                name = task.name,
+                priority = task.priority,
+                success = result.isSuccess,
+                durationMs = duration,
+                error = result.exceptionOrNull()?.message,
+            ))
+            if (result.isSuccess) {
+                Log.d(TAG, "CRITICAL [${task.name}]: ${duration}ms")
+            } else {
+                Log.e(TAG, "CRITICAL [${task.name}] FAILED: ${result.exceptionOrNull()?.message}", result.exceptionOrNull())
+            }
         }
         Log.i(TAG, "CRITICAL phase done: ${SystemClock.elapsedRealtime() - startTime}ms")
         tasks.clear()
@@ -81,8 +109,20 @@ object StartupOptimizer {
             Looper.getMainLooper().queue.addIdleHandler {
                 highTasks.forEach { task ->
                     val t0 = SystemClock.elapsedRealtime()
-                    runCatching { task.block() }
-                    Log.d(TAG, "HIGH [${task.name}]: ${SystemClock.elapsedRealtime() - t0}ms")
+                    val result = runCatching { task.block() }
+                    val duration = SystemClock.elapsedRealtime() - t0
+                    _lastResults.add(TaskResult(
+                        name = task.name,
+                        priority = task.priority,
+                        success = result.isSuccess,
+                        durationMs = duration,
+                        error = result.exceptionOrNull()?.message,
+                    ))
+                    if (result.isSuccess) {
+                        Log.d(TAG, "HIGH [${task.name}]: ${duration}ms")
+                    } else {
+                        Log.e(TAG, "HIGH [${task.name}] FAILED: ${result.exceptionOrNull()?.message}", result.exceptionOrNull())
+                    }
                 }
                 false
             }
@@ -93,8 +133,20 @@ object StartupOptimizer {
             mediumRunnable = Runnable {
                 mediumTasks.forEach { task ->
                     val t0 = SystemClock.elapsedRealtime()
-                    runCatching { task.block() }
-                    Log.d(TAG, "MEDIUM [${task.name}]: ${SystemClock.elapsedRealtime() - t0}ms")
+                    val result = runCatching { task.block() }
+                    val duration = SystemClock.elapsedRealtime() - t0
+                    _lastResults.add(TaskResult(
+                        name = task.name,
+                        priority = task.priority,
+                        success = result.isSuccess,
+                        durationMs = duration,
+                        error = result.exceptionOrNull()?.message,
+                    ))
+                    if (result.isSuccess) {
+                        Log.d(TAG, "MEDIUM [${task.name}]: ${duration}ms")
+                    } else {
+                        Log.e(TAG, "MEDIUM [${task.name}] FAILED: ${result.exceptionOrNull()?.message}", result.exceptionOrNull())
+                    }
                 }
             }
             mainHandler.postDelayed(mediumRunnable!!, 2_000L)
@@ -105,8 +157,20 @@ object StartupOptimizer {
             lowRunnable = Runnable {
                 lowTasks.forEach { task ->
                     val t0 = SystemClock.elapsedRealtime()
-                    runCatching { task.block() }
-                    Log.d(TAG, "LOW [${task.name}]: ${SystemClock.elapsedRealtime() - t0}ms")
+                    val result = runCatching { task.block() }
+                    val duration = SystemClock.elapsedRealtime() - t0
+                    _lastResults.add(TaskResult(
+                        name = task.name,
+                        priority = task.priority,
+                        success = result.isSuccess,
+                        durationMs = duration,
+                        error = result.exceptionOrNull()?.message,
+                    ))
+                    if (result.isSuccess) {
+                        Log.d(TAG, "LOW [${task.name}]: ${duration}ms")
+                    } else {
+                        Log.e(TAG, "LOW [${task.name}] FAILED: ${result.exceptionOrNull()?.message}", result.exceptionOrNull())
+                    }
                 }
             }
             mainHandler.postDelayed(lowRunnable!!, 5_000L)

@@ -14,6 +14,7 @@ import java.io.File
  * 与 v1.10.5 之前实现的差异：
  * 1. 提取为可单元测试的对象（不再耦合 Application.onCreate）；
  * 2. 保留白名单 prefs 文件，避免误删用户关键状态（onboarding / permission_history / pending_uri）。
+ * 3. v2026.07: 新增跨版本升级兼容性检查（用例 1.3）。
  *
  * @since 2026.07
  */
@@ -24,6 +25,8 @@ object StartupRecovery {
     /** 自身计数器使用的 prefs 名称。 */
     const val PREFS_NAME = "rapidraw_startup"
     const val KEY_CRASH_COUNT = "startup_crash_count"
+    /** 存储上次启动版本号的 key，用于跨版本升级诊断。 */
+    const val KEY_LAST_VERSION = "last_version_code"
 
     /** 连续崩溃阈值：达到此值触发恢复。 */
     const val CRASH_THRESHOLD = 3
@@ -100,4 +103,33 @@ object StartupRecovery {
         val shouldRecover: Boolean,
         val count: Int,
     )
+
+    /**
+     * v2026.07: 跨版本升级兼容性检查（用例 1.3）。
+     * 检测当前版本号是否与上次启动版本不同，若不同说明发生了覆盖安装/升级。
+     * 升级场景下执行缓存清理，避免旧版本缓存数据与新版本不兼容导致崩溃。
+     *
+     * @param currentVersionCode 当前版本号（BuildConfig.VERSION_CODE 或 PackageInfo.longVersionCode）
+     */
+    fun checkVersionMigration(context: Context, currentVersionCode: Long) {
+        val prefs = SafePreferences.get(context, PREFS_NAME)
+        val lastVersion = SafePreferences.getLong(prefs, KEY_LAST_VERSION, 0L)
+        if (lastVersion != currentVersionCode) {
+            Log.i(TAG, "Version migration detected: $lastVersion → $currentVersionCode")
+            // 清理缓存文件，避免旧版本缓存不兼容
+            runCatching { clearCacheDir(context) }
+                .onFailure { Log.w(TAG, "Failed to clear cache during version migration", it) }
+            // 清理缩略图磁盘缓存（缩略图格式可能随版本变更）
+            runCatching {
+                val thumbnailsDir = File(context.cacheDir, "thumbnails")
+                if (thumbnailsDir.exists()) thumbnailsDir.deleteRecursively()
+            }.onFailure { Log.w(TAG, "Failed to clear thumbnails during version migration", it) }
+            // 清理 HTTP 缓存（API 响应格式可能随版本变更）
+            runCatching {
+                val httpCacheDir = File(context.cacheDir, "http_cache")
+                if (httpCacheDir.exists()) httpCacheDir.deleteRecursively()
+            }.onFailure { Log.w(TAG, "Failed to clear HTTP cache during version migration", it) }
+            SafePreferences.putLong(prefs, KEY_LAST_VERSION, currentVersionCode)
+        }
+    }
 }

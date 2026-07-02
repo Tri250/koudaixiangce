@@ -165,7 +165,7 @@ object OemCompatibility {
      */
     fun hasKnownBackgroundRestrictions(context: Context): Boolean {
         return when (detectOem()) {
-            OemType.XIAOMI -> !isXiaomiAutoStartEnabled(context)
+            OemType.XIAOMI -> !isXiaomiAutoStartSettingReachable(context)
             OemType.OPPO -> true  // ColorOS 默认冻结后台
             OemType.SAMSUNG -> isSamsungPowerSaveRestricting(context)
             OemType.HUAWEI -> true // EMUI 启动管理
