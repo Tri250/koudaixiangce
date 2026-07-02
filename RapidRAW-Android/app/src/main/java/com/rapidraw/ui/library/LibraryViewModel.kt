@@ -13,6 +13,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.rapidraw.core.CrashHandler
 import com.rapidraw.core.DamProjectManager
+import com.rapidraw.core.DeviceOptimizer
 import com.rapidraw.core.ThumbnailDiskCache
 import com.rapidraw.ai.NaturalLanguageSearcher
 import com.rapidraw.ai.SemanticTag
@@ -210,6 +211,14 @@ class LibraryViewModel(
             _isLoading.value = false
             _error.value = "需要存储权限才能加载图片，请在设置中授权"
             Log.w(TAG, "loadImages aborted: missing storage permission")
+            return
+        }
+
+        // v2026.07: 低存储空间感知 — 存储不足时给出友好提示（用例 1.2）
+        if (DeviceOptimizer.isStorageLow(minAvailableMb = 100)) {
+            _isLoading.value = false
+            _error.value = "设备存储空间不足，请清理后重试"
+            Log.w(TAG, "loadImages aborted: low storage (${DeviceOptimizer.getAvailableStorageMb()}MB)")
             return
         }
 

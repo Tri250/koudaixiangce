@@ -7,17 +7,11 @@ import okhttp3.ConnectionPool
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
-import okhttp3.internal.tls.OkHostnameVerifier
 import okio.buffer
 import okio.source
 import java.io.File
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
-import javax.net.ssl.HostnameVerifier
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
 
 /**
  * 网络缓存管理器 — v1.8.0 正式版性能优化新增。
@@ -161,6 +155,37 @@ object NetworkCache {
         val missCount: Long,
         val cacheSize: Long,
     )
+
+    /**
+     * 带网络状态感知的请求执行。
+     * v2026.07: 封装 OkHttp 请求，统一处理 SSL 异常、代理异常、超时等网络错误（用例 4.1-4.3）。
+     *
+     * @param request OkHttp Request
+     * @return 响应结果，网络异常时返回 null 并记录日志
+     */
+    fun safeExecute(context: Context, request: okhttp3.Request): okhttp3.Response? {
+        return try {
+            getClient(context).newCall(request).execute()
+        } catch (e: javax.net.ssl.SSLException) {
+            Log.e(TAG, "SSL error (possible proxy/VPN interception): ${e.message}")
+            null
+        } catch (e: javax.net.ssl.SSLHandshakeException) {
+            Log.e(TAG, "SSL handshake failed (possible certificate issue): ${e.message}")
+            null
+        } catch (e: java.net.SocketTimeoutException) {
+            Log.w(TAG, "Network timeout: ${e.message}")
+            null
+        } catch (e: java.net.UnknownHostException) {
+            Log.w(TAG, "Unknown host (DNS failure or no network): ${e.message}")
+            null
+        } catch (e: java.net.ConnectException) {
+            Log.w(TAG, "Connection failed (possible proxy issue): ${e.message}")
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "Network request failed: ${e.message}")
+            null
+        }
+    }
 
     /** 清除缓存 */
     fun clearCache(context: Context) {

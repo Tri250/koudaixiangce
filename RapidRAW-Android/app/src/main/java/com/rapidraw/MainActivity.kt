@@ -126,6 +126,11 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
 
+        // v2026.07: recreate 后 fontScaleRecreateCount 重置。
+        // 每次 onCreate 成功调用意味着上一次 recreate 已完成，
+        // 重置计数器允许后续配置变更再次触发 recreate（用户可能反复调整字体）。
+        fontScaleRecreateCount = 0
+
         // Edge-to-Edge: 让系统栏透明并让内容绘制到系统栏后面
         // 部分 OEM 皮肤对 edge-to-edge 支持不完整，做 try-catch 防止崩溃
         try {

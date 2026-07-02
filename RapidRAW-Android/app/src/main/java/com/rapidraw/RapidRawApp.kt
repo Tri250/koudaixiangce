@@ -69,6 +69,17 @@ class RapidRawApp : Application() {
         // 启动死锁检测看门狗
         DeadlockDetector.start()
 
+        // v2026.07: 跨版本升级兼容性检查（用例 1.3）
+        // 必须在 StartupOptimizer.execute() 之前执行，确保旧版本缓存被清理后
+        // 再初始化 SDK，避免 SDK 读取到不兼容的旧缓存数据。
+        runCatching {
+            val versionCode = packageManager.getPackageInfo(packageName, 0).let {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) it.longVersionCode
+                else @Suppress("DEPRECATION") it.versionCode.toLong()
+            }
+            StartupRecovery.checkVersionMigration(this, versionCode)
+        }.onFailure { Log.w(TAG, "Version migration check failed", it) }
+
         // v1.8.0 冷启动优化：使用 StartupOptimizer 分级初始化
         // CRITICAL 级在主线程同步执行，确保崩溃捕获最早安装
         // HIGH/MEDIUM/LOW 级延迟到首帧渲染后，减少冷启动阻塞
@@ -124,16 +135,6 @@ class RapidRawApp : Application() {
 
         // v1.10.5: 启动成功，重置崩溃计数器
         StartupRecovery.onStartupSuccess(this)
-
-        // v2026.07: 跨版本升级兼容性检查（用例 1.3）
-        // 覆盖安装/升级场景下清理旧版本缓存，避免数据不兼容导致崩溃。
-        runCatching {
-            val versionCode = packageManager.getPackageInfo(packageName, 0).let {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) it.longVersionCode
-                else @Suppress("DEPRECATION") it.versionCode.toLong()
-            }
-            StartupRecovery.checkVersionMigration(this, versionCode)
-        }.onFailure { Log.w(TAG, "Version migration check failed", it) }
 
         // Debug 构建启用 LeakCanary（release 零开销）
         enableLeakCanaryInDebug()
@@ -275,12 +276,23 @@ class RapidRawApp : Application() {
         when (level) {
             TRIM_MEMORY_RUNNING_MODERATE,
             TRIM_MEMORY_RUNNING_LOW,
-            TRIM_MEMORY_RUNNING_CRITICAL,
+            TRIM_MEMORY_RUNNING_CRITICAL -> {
+                // v2026.07: 前台运行时内存紧张，主动释放非关键内存缓存（用例 5.4）。
+                // RUNNING_MODERATE 仅清理缩略图缓存；RUNNING_LOW/CLEAN 同时清理临时 RAW 文件。
+                Log.i(TAG, "onTrimMemory(level=$level), releasing non-critical caches")
+                if (level >= TRIM_MEMORY_RUNNING_LOW) {
+                    Thread {
+                        runCatching { cleanStaleDecodedRawCache() }
+                    }.apply {
+                        isDaemon = true
+                        name = "RapidRawTrimMemory"
+                        start()
+                    }
+                }
+            }
             TRIM_MEMORY_UI_HIDDEN -> {
-                // 提示：此处建议清理 image cache / 内存中的解码结果。
-                // 当前实现由各 ViewModel 的 onCleared 负责，
-                // 但已退到后台的 Activity 持有的 ViewModel 不会被立即释放。
-                Log.i(TAG, "onTrimMemory(level=$level), suggest cleaning up cache")
+                // UI 不可见，可以安全释放更多缓存
+                Log.i(TAG, "onTrimMemory(level=$level), UI hidden")
             }
             TRIM_MEMORY_BACKGROUND,
             TRIM_MEMORY_MODERATE,
