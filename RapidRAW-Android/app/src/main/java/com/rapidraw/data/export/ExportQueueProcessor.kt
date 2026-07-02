@@ -20,7 +20,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -173,7 +172,9 @@ object ExportQueueProcessor {
             )
             ExportQueueRepository.updateJobProgress(jobId, 0.95f)
 
-            val fileSize = uri.path?.let { File(it).length() } ?: 0L
+            val fileSize = runCatching {
+                appContext.contentResolver.openFileDescriptor(uri, "r")?.use { pfd -> pfd.statSize } ?: 0L
+            }.getOrDefault(0L)
             ExportQueueRepository.updateJobStatus(
                 jobId,
                 ExportJobStatus.COMPLETED,

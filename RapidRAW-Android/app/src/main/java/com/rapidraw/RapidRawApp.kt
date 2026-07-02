@@ -353,4 +353,20 @@ class RapidRawApp : Application() {
         val currentScale = resources.configuration.fontScale
         Log.d(TAG, "Font scale: $currentScale")
     }
+
+    /**
+     * v1.10.6: 进程退出前清理资源。
+     * 关闭导出队列处理器，防止协程泄漏。
+     * 注意：Android 不保证 onTerminate 一定会被调用（进程可被直接杀死），
+     * 因此仅作为最佳努力清理，实际资源回收仍依赖各 ViewModel 的 onCleared。
+     */
+    override fun onTerminate() {
+        super.onTerminate()
+        runCatching {
+            com.rapidraw.data.export.ExportQueueProcessor.shutdown()
+        }.onFailure { Log.w(TAG, "ExportQueueProcessor shutdown failed", it) }
+        runCatching {
+            DeadlockDetector.stop()
+        }.onFailure { Log.w(TAG, "DeadlockDetector stop failed", it) }
+    }
 }
