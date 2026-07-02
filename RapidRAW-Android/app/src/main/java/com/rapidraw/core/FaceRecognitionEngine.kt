@@ -437,7 +437,8 @@ class FaceRecognitionEngine {
                                 1 to 0, 1 to 1, 0 to 1,
                                 -1 to 1, -1 to 0,
                             )
-                            for ((bit, (dx, dy)) in neighbors.withIndex()) {
+                            for ((bit, neighbor) in neighbors.withIndex()) {
+                                val (dx, dy) = neighbor
                                 val nx = (px + dx).coerceIn(0, 31)
                                 val ny = (py + dy).coerceIn(0, 31)
                                 if (grayValue(pixels[ny * 32 + nx]) >= center) {

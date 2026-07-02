@@ -1,6 +1,7 @@
 #include "native_crash_handler.h"
 
 #include <csignal>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <unistd.h>
