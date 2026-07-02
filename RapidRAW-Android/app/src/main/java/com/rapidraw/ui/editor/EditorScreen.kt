@@ -69,6 +69,8 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -82,14 +84,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -258,6 +263,7 @@ fun EditorScreen(
 
     var showHistogram by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showSavePresetDialog by remember { mutableStateOf(false) }
     var showExifSheet by remember { mutableStateOf(false) }
     var showRecipeSheet by remember { mutableStateOf(false) }
     var isLongPressing by remember { mutableStateOf(false) }
@@ -511,6 +517,15 @@ fun EditorScreen(
                         Icons.Default.AutoAwesome,
                         contentDescription = "智能优化",
                         tint = HasselbladOrange,
+                    )
+                }
+
+                // Save Preset (保存当前设置为预设)
+                IconButton(onClick = { showSavePresetDialog = true }) {
+                    Icon(
+                        Icons.Default.FavoriteBorder,
+                        contentDescription = "保存预设",
+                        tint = Color.White,
                     )
                 }
 
@@ -892,6 +907,9 @@ fun EditorScreen(
                             hasAiMaskResult = false
                         }
                     },
+                    hasClipboardContent = viewModel.hasEditorClipboardContent(),
+                    onCopyAdjustments = { viewModel.copyCurrentAdjustments() },
+                    onPasteAdjustments = { viewModel.pasteEditorClipboardAdjustments() },
                 )
             }
 
@@ -1441,6 +1459,50 @@ fun EditorScreen(
                 }
             }
         }
+    }
+
+    // ── Save Preset Dialog ───────────────────────────────────────────────
+    if (showSavePresetDialog) {
+        var presetName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showSavePresetDialog = false },
+            title = { Text("保存当前设置为预设", color = Color.White) },
+            text = {
+                OutlinedTextField(
+                    value = presetName,
+                    onValueChange = { presetName = it },
+                    singleLine = true,
+                    placeholder = { Text("输入预设名称", color = TextTertiary) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = HasselbladOrange,
+                        unfocusedBorderColor = TextTertiary,
+                        cursorColor = HasselbladOrange,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (presetName.isNotBlank()) {
+                            viewModel.saveCurrentAsPreset(presetName)
+                            showSavePresetDialog = false
+                        }
+                    },
+                    enabled = presetName.isNotBlank(),
+                ) {
+                    Text("保存", color = if (presetName.isNotBlank()) HasselbladOrange else TextTertiary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSavePresetDialog = false }) {
+                    Text("取消", color = TextSecondary)
+                }
+            },
+            containerColor = EditorSurface,
+        )
     }
 
     // ── AI Mask Bottom Sheet ───────────────────────────────────────────
@@ -3033,6 +3095,9 @@ fun PreviewFloatingToolbar(
     onClippingToggle: () -> Unit,
     isMaskMode: Boolean,
     onMaskToggle: () -> Unit,
+    hasClipboardContent: Boolean,
+    onCopyAdjustments: () -> Unit,
+    onPasteAdjustments: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -3069,6 +3134,23 @@ fun PreviewFloatingToolbar(
                 label = "遮罩",
                 isActive = isMaskMode,
                 onClick = onMaskToggle,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            // H-05: 复制/粘贴调整参数按钮
+            FloatingToolButton(
+                icon = Icons.Default.ContentCopy,
+                label = "复制参数",
+                isActive = false,
+                onClick = onCopyAdjustments,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            FloatingToolButton(
+                icon = Icons.Default.ContentPaste,
+                label = "粘贴参数",
+                isActive = hasClipboardContent,
+                onClick = {
+                    if (hasClipboardContent) onPasteAdjustments()
+                },
             )
             Spacer(modifier = Modifier.height(4.dp))
         }

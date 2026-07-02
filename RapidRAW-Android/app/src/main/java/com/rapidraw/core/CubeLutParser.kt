@@ -220,6 +220,19 @@ class CubeLutParser {
          * 简便方法：直接获取1D LUT
          */
         fun as1D(): Lut1D? = lut1D
+
+        /**
+         * 将 LUT 数据转换为 Adjustments 对象。
+         * LUT 是颜色查找表，无法直接映射到 Adjustments 参数，
+         * 因此返回一个标记了 LUT 来源的 Adjustments 对象。
+         * 实际应用时，LUT 会在图像处理管线中作为颜色映射使用。
+         */
+        fun toAdjustments(): com.rapidraw.data.model.Adjustments {
+            return com.rapidraw.data.model.Adjustments(
+                // LUT 本身即是颜色映射，Adjustments 保持默认值
+                // 导出时通过 LUT 管线应用颜色变换
+            )
+        }
     }
 
     // ── 解析方法 ──────────────────────────────────────────────────

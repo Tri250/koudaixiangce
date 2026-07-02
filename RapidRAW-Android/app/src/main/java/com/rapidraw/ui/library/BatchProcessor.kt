@@ -4,15 +4,21 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.rapidraw.R
 import com.rapidraw.core.ImageProcessor
+import com.rapidraw.core.SidecarManager
 import com.rapidraw.data.model.Adjustments
 import com.rapidraw.data.model.ExportSettings
 import com.rapidraw.data.model.FilmSimulation
+import com.rapidraw.data.model.Preset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * 批量处理器 - 支持多图应用预设/导出
@@ -41,6 +47,128 @@ class BatchProcessor(private val context: Context) {
 
     private val _totalProgress = MutableStateFlow(0f)
     val totalProgress: StateFlow<Float> = _totalProgress.asStateFlow()
+
+    // ── Notification-based progress reporting ──────────────────────
+    private var notificationBuilder: NotificationCompat.Builder? = null
+    private val notificationId = 1001
+    private val batchChannelId = "rapidraw_batch_progress"
+
+    private fun ensureNotificationChannel() {
+        val channel = android.app.NotificationChannel(
+            batchChannelId,
+            "批量处理进度",
+            android.app.NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = "显示批量导出/预设应用的进度"
+            setShowBadge(false)
+        }
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        manager.createNotificationChannel(channel)
+    }
+
+    private fun showProgressNotification(completed: Int, total: Int, currentFile: String, isComplete: Boolean = false) {
+        if (notificationBuilder == null) {
+            ensureNotificationChannel()
+            notificationBuilder = NotificationCompat.Builder(context, batchChannelId)
+                .setSmallIcon(android.R.drawable.ic_menu_gallery)
+                .setContentTitle("批量处理")
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
+        }
+        notificationBuilder!!.apply {
+            setContentText(if (isComplete) "完成 $completed/$total" else "$completed/$total — $currentFile")
+            setProgress(total, completed, false)
+            if (isComplete) {
+                setOngoing(false)
+                setContentTitle("批量处理完成")
+                setProgress(0, 0, false)
+            }
+        }
+        try {
+            NotificationManagerCompat.from(context).notify(notificationId, notificationBuilder!!.build())
+        } catch (_: SecurityException) {
+            // 通知权限未授予，静默失败
+        }
+    }
+
+    private fun cancelProgressNotification() {
+        try {
+            NotificationManagerCompat.from(context).cancel(notificationId)
+        } catch (_: SecurityException) { }
+        notificationBuilder = null
+    }
+
+    /**
+     * 批量应用预设到多张图片（仅保存 sidecar，不触发导出）。
+     * 将预设的 Adjustments 保存为 .rrdata 文件，原始 RAW 文件保持不变。
+     *
+     * @param imageUris 要处理的图片 URI 列表
+     * @param preset 要应用的预设
+     * @param sidecarManager SidecarManager 实例，用于保存 .rrdata 文件
+     * @param continueOnError 单张失败是否继续处理后续
+     * @param onProgress 进度回调，用于 UI 更新
+     */
+    suspend fun applyPresetToFiles(
+        imageUris: List<Uri>,
+        preset: Preset,
+        sidecarManager: SidecarManager,
+        continueOnError: Boolean = true,
+        onProgress: ((completed: Int, total: Int, currentFile: String) -> Unit)? = null,
+    ) {
+        if (_isProcessing.value) return
+        _isProcessing.value = true
+        _totalProgress.value = 0f
+
+        // 创建任务列表
+        val newJobs = imageUris.mapIndexed { index, uri ->
+            val fileName = getFileName(uri) ?: "image_$index"
+            BatchJob(
+                id = "preset_${System.currentTimeMillis()}_$index",
+                imageUri = uri,
+                fileName = fileName,
+                status = BatchJobStatus.PENDING,
+            )
+        }
+        _jobs.value = newJobs
+
+        var completed = 0
+        for (job in newJobs) {
+            if (!_isProcessing.value) break
+
+            updateJobStatus(job.id, BatchJobStatus.PROCESSING)
+            onProgress?.invoke(completed, newJobs.size, job.fileName)
+            showProgressNotification(completed, newJobs.size, job.fileName)
+
+            try {
+                // 将预设的 Adjustments 保存为 sidecar (.rrdata)
+                withContext(Dispatchers.IO) {
+                    sidecarManager.saveSidecar(
+                        imageUri = job.imageUri,
+                        adjustments = preset.adjustments,
+                        filmId = preset.filmId,
+                    )
+                }
+                updateJobProgress(job.id, 1.0f)
+                updateJobResult(job.id, BatchJobStatus.COMPLETED)
+                completed++
+            } catch (e: Exception) {
+                Log.e(TAG, "applyPresetToFiles failed: ${job.fileName}", e)
+                updateJobResult(job.id, BatchJobStatus.FAILED, error = e.localizedMessage)
+                if (!continueOnError) {
+                    _isProcessing.value = false
+                    cancelProgressNotification()
+                    return
+                }
+                completed++
+            }
+
+            _totalProgress.value = completed.toFloat() / newJobs.size
+            onProgress?.invoke(completed, newJobs.size, job.fileName)
+        }
+
+        showProgressNotification(completed, newJobs.size, "", isComplete = true)
+        _isProcessing.value = false
+    }
 
     /**
      * 开始批量处理任务
@@ -89,6 +217,7 @@ class BatchProcessor(private val context: Context) {
 
             updateJobStatus(job.id, BatchJobStatus.PROCESSING)
             onProgress?.invoke(completed, newJobs.size, job.fileName)
+            showProgressNotification(completed, newJobs.size, job.fileName)
 
             try {
                 // 1. 解码
@@ -131,6 +260,7 @@ class BatchProcessor(private val context: Context) {
             onProgress?.invoke(completed, newJobs.size, job.fileName)
         }
 
+        showProgressNotification(completed, newJobs.size, "", isComplete = true)
         _isProcessing.value = false
     }
 

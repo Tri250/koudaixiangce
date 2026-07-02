@@ -127,6 +127,7 @@ data class Adjustments(
     val tint: Float = 0f,
     val saturation: Float = 0f,
     val vibrance: Float = 0f,
+    val lightness: Float = 0f,              // D-04: 明度 -100..100
 
     // ── HSL (8-color mixer) ───────────────────────────────────
     val hslReds: HslChannel = HslChannel(),
@@ -389,6 +390,7 @@ data class Adjustments(
         "tint" -> copy(tint = value.coerceIn(-100f, 100f))
         "saturation" -> copy(saturation = value.coerceIn(-100f, 100f))
         "vibrance" -> copy(vibrance = value.coerceIn(-100f, 100f))
+        "lightness" -> copy(lightness = value.coerceIn(-100f, 100f))
         // HSL - Reds
         "hslReds.hue" -> copy(hslReds = hslReds.copy(hue = value.coerceIn(-100f, 100f)))
         "hslReds.saturation" -> copy(hslReds = hslReds.copy(saturation = value.coerceIn(-100f, 100f)))

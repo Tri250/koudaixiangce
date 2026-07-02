@@ -62,6 +62,48 @@ class ImageProcessor {
         internal const val MAX_RAW_PIXELS_THRESHOLD = 100_000_000L
     }
 
+    // ── L-03: 缩略图缓存管理 ──────────────────────────────────────────
+
+    // 缩略图 LRU 缓存：适用于大图缩略图预览，低内存时可释放
+    private val thumbnailCache = object : android.util.LruCache<String, Bitmap>(
+        (Runtime.getRuntime().maxMemory() / 8).toInt() // 最大使用 1/8 堆内存
+    ) {
+        override fun sizeOf(key: String, bitmap: Bitmap): Int {
+            return bitmap.allocationByteCount
+        }
+
+        override fun entryRemoved(evicted: Boolean, key: String, oldValue: Bitmap, newValue: Bitmap?) {
+            if (evicted && !oldValue.isRecycled) {
+                oldValue.recycle()
+            }
+        }
+    }
+
+    /**
+     * L-03: 清空缩略图内存缓存。
+     * 在 onTrimMemory 回调中被调用，释放所有缓存的缩略图 Bitmap。
+     * 缩略图可重新解码，优先释放以腾出内存空间供大图处理使用。
+     */
+    fun clearThumbnailCache() {
+        thumbnailCache.evictAll()
+        Log.d(TAG, "Thumbnail cache cleared")
+    }
+
+    /**
+     * 将缩略图存入缓存。
+     */
+    fun cacheThumbnail(key: String, bitmap: Bitmap) {
+        if (bitmap.isRecycled) return
+        thumbnailCache.put(key, bitmap)
+    }
+
+    /**
+     * 从缓存中获取缩略图。
+     */
+    fun getCachedThumbnail(key: String): Bitmap? {
+        return thumbnailCache.get(key)
+    }
+
     // ── Normalised Adjustments (private, proper equals/hashCode) ──────
 
     /**
@@ -110,6 +152,7 @@ class ImageProcessor {
         // Color
         val saturation: Float = 0f,
         val vibrance: Float = 0f,
+        val lightness: Float = 0f,          // D-04: 明度 -1..1
 
         // HSL 8-color panel
         val hueRed: Float = 0f,
@@ -283,6 +326,7 @@ class ImageProcessor {
                 blacks = src.blacks / 60f,                                         // -60..60 → -1..1
                 saturation = src.saturation / 100f,                                // -100..100 → -1..1
                 vibrance = src.vibrance / 100f,                                    // -100..100 → -1..1
+                lightness = src.lightness / 100f,                                   // D-04: 明度 -100..100 → -1..1
                 hueRed = src.hslReds.hue / 100f,
                 satRed = src.hslReds.saturation / 100f,
                 lumRed = src.hslReds.luminance / 100f,
@@ -1105,25 +1149,65 @@ class ImageProcessor {
             workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
         }
 
-        // Apply lens correction if enabled
+        // Apply lens correction if enabled (using LensDistortionCorrector for profile-based correction)
         if (abs(n.lensDistortion) > 1e-6f || abs(n.lensVignette) > 1e-6f || abs(n.lensTca) > 1e-6f) {
-            val lensCorrected = applyLensCorrection(workBitmap, n)
+            val lensCorrector = LensDistortionCorrector()
+            val lensProfile = LensDistortionCorrector.findProfile(
+                make = "", model = "", focalLength = n.lensFocalLength
+            )
+            var lensCorrected = workBitmap
+            if (lensProfile != null) {
+                // Apply distortion correction
+                if (abs(n.lensDistortion) > 1e-6f) {
+                    lensCorrected = lensCorrector.correctDistortion(lensCorrected, lensProfile, abs(n.lensDistortion))
+                }
+                // Apply vignette correction
+                if (abs(n.lensVignette) > 1e-6f) {
+                    lensCorrected = lensCorrector.correctVignette(lensCorrected, lensProfile, abs(n.lensVignette))
+                }
+            }
+            // Apply TCA correction (no profile needed)
+            if (abs(n.lensTca) > 1e-6f) {
+                lensCorrected = lensCorrector.correctTca(lensCorrected, abs(n.lensTca))
+            }
+            // Fallback to legacy applyLensCorrection for combined correction
+            if (lensCorrected === workBitmap) {
+                lensCorrected = applyLensCorrection(workBitmap, n)
+            }
             if (lensCorrected !== workBitmap && workBitmap !== sourceBitmap) workBitmap.recycle()
             workBitmap = lensCorrected
             workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
         }
 
-        // Apply AI denoising if requested
-        if (n.lumaNoiseReduction > 10f || n.colorNoiseReduction > 10f) {
-            val denoised = aiDenoiser.denoise(
-                workBitmap,
-                preserveDetails = 1f - (n.lumaNoiseReduction / 150f).coerceIn(0f, 1f),
-                chromaStrength = (n.colorNoiseReduction / 100f).coerceIn(0f, 1f)
-            )
-            if (denoised !== workBitmap) {
-                if (workBitmap !== sourceBitmap) workBitmap.recycle()
-                workBitmap = denoised
-                workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        // Apply denoising if requested (CPU-based DenoiseProcessor for preview, AiDenoiser for strong noise)
+        if (n.lumaNoiseReduction > 1e-6f || n.colorNoiseReduction > 1e-6f) {
+            if (n.lumaNoiseReduction > 10f || n.colorNoiseReduction > 10f) {
+                // Strong noise: use AI denoiser
+                val denoised = aiDenoiser.denoise(
+                    workBitmap,
+                    preserveDetails = 1f - (n.lumaNoiseReduction / 150f).coerceIn(0f, 1f),
+                    chromaStrength = (n.colorNoiseReduction / 100f).coerceIn(0f, 1f)
+                )
+                if (denoised !== workBitmap) {
+                    if (workBitmap !== sourceBitmap) workBitmap.recycle()
+                    workBitmap = denoised
+                    workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+                }
+            } else {
+                // Light noise: use CPU-based DenoiseProcessor (bilateral + chroma blur)
+                val denoiseProcessor = DenoiseProcessor()
+                val denoised = denoiseProcessor.process(
+                    workBitmap,
+                    DenoiseProcessor.Params(
+                        lumaDenoise = n.lumaNoiseReduction,
+                        colorDenoise = n.colorNoiseReduction
+                    )
+                )
+                if (denoised !== workBitmap) {
+                    if (workBitmap !== sourceBitmap) workBitmap.recycle()
+                    workBitmap = denoised
+                    workBitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+                }
             }
         }
 
@@ -1205,8 +1289,8 @@ class ImageProcessor {
                     b *= factor
                 }
 
-                // ── 7. Saturation/Vibrance ──
-                val satResult = applyCreativeColor(r, g, b, n.saturation, n.vibrance)
+                // ── 7. Saturation/Vibrance/Lightness (D-04) ──
+                val satResult = applyCreativeColor(r, g, b, n.saturation, n.vibrance, n.lightness)
                 r = satResult[0]; g = satResult[1]; b = satResult[2]
 
                 // ── 8. HSL 8-color panel ──
@@ -1359,73 +1443,77 @@ class ImageProcessor {
                         b = b + (filmB - b) * n.filmIntensity
                     }
 
-                    // Film grain (blended on top of base grain)
-                    if (n.filmGrainAmount > 1e-6f) {
-                        val fGrainSize = 1f + n.filmGrainSize * 4f
-                        val noise = ColorMath.gradientNoise(x * fGrainSize, y * fGrainSize)
-                        val grainOffset = (noise - 0.5f) * n.filmGrainAmount * 0.4f
-                        val luma = ColorMath.getLuma(r, g, b)
-                        var grainMod = 1f - abs(luma - 0.5f) * 1.5f
-                        grainMod = grainMod.coerceIn(0.2f, 1f)
-                        // Roughness modulates grain sharpness
-                        val roughnessMod = 0.5f + n.filmGrainRoughness * 0.5f
-                        r += grainOffset * grainMod * roughnessMod * n.filmIntensity
-                        g += grainOffset * grainMod * roughnessMod * n.filmIntensity
-                        b += grainOffset * grainMod * roughnessMod * n.filmIntensity
                     }
+            }
+
+            // ── 18b. Independent Film Grain (applied even when film simulation is off) ──
+            if (n.filmGrainAmount > 1e-6f) {
+                val fGrainSize = 1f + n.filmGrainSize * 4f
+                val noise = ColorMath.gradientNoise(x * fGrainSize, y * fGrainSize)
+                val grainOffset = (noise - 0.5f) * n.filmGrainAmount * 0.4f
+                val luma = ColorMath.getLuma(r, g, b)
+                var grainMod = 1f - abs(luma - 0.5f) * 1.5f
+                grainMod = grainMod.coerceIn(0.2f, 1f)
+                // Roughness modulates grain sharpness
+                val roughnessMod = 0.5f + n.filmGrainRoughness * 0.5f
+                // Blend with film intensity if film is active, otherwise apply at full strength
+                val grainBlend = if (n.filmId.isNotEmpty()) n.filmIntensity else 1f
+                r += grainOffset * grainMod * roughnessMod * grainBlend
+                g += grainOffset * grainMod * roughnessMod * grainBlend
+                b += grainOffset * grainMod * roughnessMod * grainBlend
+            }
+
+            // ── 19. Soft Glow / Bloom ──
+            if (bloomBuffer != null) {
+                val bloomR = bloomBuffer[idx * 3]
+                val bloomG = bloomBuffer[idx * 3 + 1]
+                val bloomB = bloomBuffer[idx * 3 + 2]
+                r = r + (bloomR - r) * n.softGlow * 0.5f
+                g = g + (bloomG - g) * n.softGlow * 0.5f
+                b = b + (bloomB - b) * n.softGlow * 0.5f
+            }
+
+            // ── 19b. 3D LUT (CPU path) ──
+            // 2026 hotfix: 使用预先提升的 useLut/lut 变量，避免内层循环中重复读取 @Volatile
+            if (useLut && n.lutIntensity > lutIntensityThreshold) {
+                val lutColor = lut?.sample(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f))
+                if (lutColor != null) {
+                    r = r + (lutColor.first - r) * n.lutIntensity
+                    g = g + (lutColor.second - g) * n.lutIntensity
+                    b = b + (lutColor.third - b) * n.lutIntensity
                 }
+            }
 
-                // ── 19. Soft Glow / Bloom ──
-                if (bloomBuffer != null) {
-                    val bloomR = bloomBuffer[idx * 3]
-                    val bloomG = bloomBuffer[idx * 3 + 1]
-                    val bloomB = bloomBuffer[idx * 3 + 2]
-                    r = r + (bloomR - r) * n.softGlow * 0.5f
-                    g = g + (bloomG - g) * n.softGlow * 0.5f
-                    b = b + (bloomB - b) * n.softGlow * 0.5f
+            // ── 20. Linear to sRGB ──
+            r = ColorMath.linearToSrgb(r)
+            g = ColorMath.linearToSrgb(g)
+            b = ColorMath.linearToSrgb(b)
+
+            // Dither
+            r = (r + ColorMath.gradientNoise(x.toFloat(), y.toFloat()) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
+            g = (g + ColorMath.gradientNoise(x.toFloat() + 100f, y.toFloat() + 100f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
+            b = (b + ColorMath.gradientNoise(x.toFloat() + 200f, y.toFloat() + 200f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
+
+            // Clamp
+            r = r.coerceIn(0f, 1f)
+            g = g.coerceIn(0f, 1f)
+            b = b.coerceIn(0f, 1f)
+
+            // Clipping preview
+            if (n.clippingPreview) {
+                if (r >= 1f || g >= 1f || b >= 1f) {
+                    r = 1f; g = 0f; b = 0f
+                } else if (r <= 0f || g <= 0f || b <= 0f) {
+                    r = 0f; g = 0f; b = 1f
                 }
+            }
 
-                // ── 19b. 3D LUT (CPU path) ──
-                // 2026 hotfix: 使用预先提升的 useLut/lut 变量，避免内层循环中重复读取 @Volatile
-                if (useLut && n.lutIntensity > lutIntensityThreshold) {
-                    val lutColor = lut?.sample(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f))
-                    if (lutColor != null) {
-                        r = r + (lutColor.first - r) * n.lutIntensity
-                        g = g + (lutColor.second - g) * n.lutIntensity
-                        b = b + (lutColor.third - b) * n.lutIntensity
-                    }
-                }
-
-                // ── 20. Linear to sRGB ──
-                r = ColorMath.linearToSrgb(r)
-                g = ColorMath.linearToSrgb(g)
-                b = ColorMath.linearToSrgb(b)
-
-                // Dither
-                r = (r + ColorMath.gradientNoise(x.toFloat(), y.toFloat()) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
-                g = (g + ColorMath.gradientNoise(x.toFloat() + 100f, y.toFloat() + 100f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
-                b = (b + ColorMath.gradientNoise(x.toFloat() + 200f, y.toFloat() + 200f) / 255f - 0.5f / 255f).coerceIn(0f, 1f)
-
-                // Clamp
-                r = r.coerceIn(0f, 1f)
-                g = g.coerceIn(0f, 1f)
-                b = b.coerceIn(0f, 1f)
-
-                // Clipping preview
-                if (n.clippingPreview) {
-                    if (r >= 1f || g >= 1f || b >= 1f) {
-                        r = 1f; g = 0f; b = 0f
-                    } else if (r <= 0f || g <= 0f || b <= 0f) {
-                        r = 0f; g = 0f; b = 1f
-                    }
-                }
-
-                // Write back
-                val ri = (r * 255f).toInt().coerceIn(0, 255)
-                val gi = (g * 255f).toInt().coerceIn(0, 255)
-                val bi = (b * 255f).toInt().coerceIn(0, 255)
-                val ai = 0xFF
-                pixels[idx] = (ai shl 24) or (ri shl 16) or (gi shl 8) or bi
+            // Write back
+            val ri = (r * 255f).toInt().coerceIn(0, 255)
+            val gi = (g * 255f).toInt().coerceIn(0, 255)
+            val bi = (b * 255f).toInt().coerceIn(0, 255)
+            val ai = 0xFF
+            pixels[idx] = (ai shl 24) or (ri shl 16) or (gi shl 8) or bi
             }
         }
 
@@ -1567,9 +1655,9 @@ class ImageProcessor {
         return floatArrayOf(outR, outG, outB)
     }
 
-    /** Creative color: saturation + vibrance with skin tone protection */
-    private fun applyCreativeColor(r: Float, g: Float, b: Float, saturation: Float, vibrance: Float): FloatArray {
-        if (abs(saturation) < 1e-6f && abs(vibrance) < 1e-6f) return floatArrayOf(r, g, b)
+    /** Creative color: saturation + vibrance with skin tone protection, plus lightness */
+    private fun applyCreativeColor(r: Float, g: Float, b: Float, saturation: Float, vibrance: Float, lightness: Float): FloatArray {
+        if (abs(saturation) < 1e-6f && abs(vibrance) < 1e-6f && abs(lightness) < 1e-6f) return floatArrayOf(r, g, b)
 
         val hsv = ColorMath.rgbToHsv(r, g, b)
         val currentSat = hsv[1]
@@ -1586,6 +1674,9 @@ class ImageProcessor {
 
         // Saturation
         hsv[1] = (hsv[1] + saturation).coerceIn(0f, 1f)
+
+        // D-04: Lightness adjustment via HSV V channel
+        hsv[2] = (hsv[2] + lightness).coerceIn(0f, 1f)
 
         return ColorMath.hsvToRgb(hsv[0], hsv[1], hsv[2])
     }

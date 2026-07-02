@@ -40,11 +40,14 @@ import com.rapidraw.ui.theme.TextPrimary
 import com.rapidraw.ui.theme.TextSecondary
 import com.rapidraw.ui.theme.TextTertiary
 import com.rapidraw.core.PresetConverter
+import com.rapidraw.core.CubeLutParser
 import com.rapidraw.data.model.Preset
+import com.rapidraw.data.model.Adjustments
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.util.Log
 
 @Composable
 fun PresetImportScreen(
@@ -105,15 +108,19 @@ fun PresetImportScreen(
             OutlinedButton(
                 onClick = {
                     filePickerLauncher.launch(
-                        arrayOf("*/*"),
+                        arrayOf(
+                            "application/octet-stream",
+                            "*/*",
+                        ),
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Text(
-                    text = if (selectedUri != null) "已选择文件" else "选择预设文件",
+                    text = if (selectedUri != null) "已选择文件" else "选择预设或LUT文件 (.cube / .xmp / .lrtemplate)",
                     color = if (selectedUri != null) HasselbladOrange else TextSecondary,
+                    fontSize = if (selectedUri == null) 13.sp else 14.sp,
                 )
             }
 
@@ -136,21 +143,48 @@ fun PresetImportScreen(
                     if (uri != null) {
                         importError = null
                         scope.launch(Dispatchers.IO) {
-                            // v1.10.6: 包裹导入操作，防止异常崩溃
-                            val result = runCatching {
-                                PresetConverter.importFile(uri, context.contentResolver)
-                            }.getOrNull()
-                            withContext(Dispatchers.Main) {
-                                if (result != null) {
-                                    val preset = Preset(
-                                        id = UUID.randomUUID().toString(),
-                                        name = result.name,
-                                        adjustments = result.adjustments,
-                                        createdAt = System.currentTimeMillis(),
-                                    )
-                                    onImportPreset(preset)
-                                } else {
-                                    importError = "无法识别该预设文件（仅支持 .xmp / .lrtemplate）"
+                            val fileName = uri.lastPathSegment ?: "unknown"
+                            val isCubeFile = fileName.endsWith(".cube", ignoreCase = true)
+
+                            if (isCubeFile) {
+                                // LUT (.cube) file import
+                                val result = runCatching {
+                                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                                        CubeLutParser.parse(stream)
+                                    }
+                                }.getOrNull()
+                                withContext(Dispatchers.Main) {
+                                    if (result != null) {
+                                        val preset = Preset(
+                                            id = UUID.randomUUID().toString(),
+                                            name = fileName.removeSuffix(".cube").removeSuffix(".CUBE"),
+                                            description = "LUT 导入: $fileName",
+                                            category = "LUT",
+                                            adjustments = result.toAdjustments(),
+                                            createdAt = System.currentTimeMillis(),
+                                        )
+                                        onImportPreset(preset)
+                                    } else {
+                                        importError = "无法解析该 .cube LUT 文件"
+                                    }
+                                }
+                            } else {
+                                // Preset file import (.xmp / .lrtemplate)
+                                val result = runCatching {
+                                    PresetConverter.importFile(uri, context.contentResolver)
+                                }.getOrNull()
+                                withContext(Dispatchers.Main) {
+                                    if (result != null) {
+                                        val preset = Preset(
+                                            id = UUID.randomUUID().toString(),
+                                            name = result.name,
+                                            adjustments = result.adjustments,
+                                            createdAt = System.currentTimeMillis(),
+                                        )
+                                        onImportPreset(preset)
+                                    } else {
+                                        importError = "无法识别该预设文件（仅支持 .cube / .xmp / .lrtemplate）"
+                                    }
                                 }
                             }
                         }

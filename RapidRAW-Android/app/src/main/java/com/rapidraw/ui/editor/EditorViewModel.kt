@@ -367,6 +367,10 @@ class EditorViewModel(
     val hdrPreviewEnabled: StateFlow<Boolean> = _hdrPreviewEnabled.asStateFlow()
 
     private val _showLutLibrarySheet = MutableStateFlow(false)
+
+    // H-05: 剪贴板调整参数，用于设置复制粘贴
+    private val _clipboardAdjustments = MutableStateFlow<Adjustments?>(null)
+    val clipboardAdjustments: StateFlow<Adjustments?> = _clipboardAdjustments.asStateFlow()
     val showLutLibrarySheet: StateFlow<Boolean> = _showLutLibrarySheet.asStateFlow()
 
     private val _showEditHistoryPanel = MutableStateFlow(false)
@@ -501,6 +505,26 @@ class EditorViewModel(
         }
     }
 
+    /**
+     * L-01: 横竖屏旋转 / 配置变更时重新创建 GPU 管线。
+     * 旋转时 GLSurfaceView 会重建，需要重新初始化 GPU pipeline。
+     * 同时通过 SavedStateHandle 保存当前编辑状态，确保旋转后恢复。
+     *
+     * @param newPipeline 新的 GPU pipeline 实例（由 UI 层重建后传入）
+     */
+    fun onConfigurationChanged(newPipeline: GpuPipeline?) {
+        // 保存当前状态到 SavedStateHandle（旋转时 Activity 可能重建）
+        saveStateToHandle()
+        // 旧 pipeline 需要释放
+        gpuPipeline?.release()
+        // 设置新 pipeline
+        gpuPipeline = newPipeline
+        // 重新上传 LUT
+        if (newPipeline != null) {
+            loadedLut?.let { newPipeline.updateLutTexture(it, _adjustments.value.lutIntensity / 100f) }
+        }
+    }
+
     fun loadImage(imageFile: ImageFile) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch(coroutineExceptionHandler) {
@@ -596,7 +620,9 @@ class EditorViewModel(
                         return@onFailure
                     }
                     Log.e(TAG, "Failed to load image: ${imageFile.path}", throwable)
-                    _event.value = EditorEvent.Error("无法加载图片: ${throwable.localizedMessage ?: throwable.javaClass.simpleName}")
+                    // C-06: 解码失败兜底 — 显示"不支持该格式"并导航回图库
+                    _event.value = EditorEvent.Error("不支持该格式: ${throwable.localizedMessage ?: throwable.javaClass.simpleName}")
+                    _currentImage.value = null
                 }
             } finally {
                 // v1.10.6: 无论成功/失败/取消，都关闭 loading 状态，避免永久 loading
@@ -903,6 +929,8 @@ class EditorViewModel(
 
     fun copyCurrentAdjustments(): Adjustments {
         val adj = _adjustments.value.copy()
+        // H-05: 更新内部剪贴板状态
+        _clipboardAdjustments.value = adj
         // 使用 EditorClipboard 扩展剪贴板（支持遮罩/裁剪跨图复制）
         val masksData = flowMaskManager?.getMaskBitmap()?.let { mask ->
             runCatching {
@@ -932,12 +960,24 @@ class EditorViewModel(
      */
     fun pasteEditorClipboardAdjustments() {
         val pastedAdjustments = EditorClipboard.pasteAdjustments() ?: return
+        _clipboardAdjustments.value = pastedAdjustments
         pushUndo("粘贴调整参数 (来源: ${EditorClipboard.getClipboardDescription()})")
         _adjustments.value = pastedAdjustments
         schedulePreviewUpdate()
     }
 
-    fun hasEditorClipboardContent(): Boolean = EditorClipboard.hasContent()
+    /**
+     * H-05: 从内部剪贴板粘贴调整参数。
+     * 使用 _clipboardAdjustments 状态，无需 EditorClipboard 全局单例。
+     */
+    fun pasteClipboardAdjustments() {
+        val pasted = _clipboardAdjustments.value ?: return
+        pushUndo("粘贴调整参数")
+        _adjustments.value = pasted
+        schedulePreviewUpdate()
+    }
+
+    fun hasEditorClipboardContent(): Boolean = EditorClipboard.hasContent() || _clipboardAdjustments.value != null
     // endregion
 
     // region AI Modules

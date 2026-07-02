@@ -497,6 +497,177 @@ class SidecarManager(private val context: Context) {
             null
         }
     }
+
+    // ──────────────────────────────────────────────
+    // H-04: Virtual Copies
+    // ──────────────────────────────────────────────
+
+    /**
+     * H-04: 创建虚拟副本。
+     * 虚拟副本是一个独立的 .rrdata 文件，包含编辑参数的快照。
+     * 副本文件与原图同目录，文件名格式为：原图名_copyId.rrdata
+     *
+     * @param imageUri 原图 URI
+     * @param copyId   虚拟副本唯一标识（如 "copy_1", "snapshot_bw" 等）
+     * @return 是否创建成功
+     */
+    fun createVirtualCopy(imageUri: String, copyId: String): Boolean {
+        return try {
+            val uri = runCatching { Uri.parse(imageUri) }.getOrNull() ?: return false
+            val sanitizedCopyId = sanitizeFileName(copyId)
+            if (sanitizedCopyId.isEmpty()) return false
+
+            // Determine the virtual copy file path
+            val virtualCopyFile: File = when (uri.scheme?.lowercase()) {
+                "file" -> {
+                    val imagePath = uri.path ?: return false
+                    val imageFile = File(imagePath)
+                    val parentDir = imageFile.parentFile ?: return false
+                    val baseName = imageFile.nameWithoutExtension
+                    File(parentDir, "${sanitizeFileName(baseName)}_$sanitizedCopyId.rrdata")
+                }
+                "content" -> {
+                    // Store virtual copies in the same fallback directory as sidecars
+                    val fileName = sanitizeFileName(uri.lastPathSegment ?: "image")
+                    val sidecarDir = File(context.filesDir, "sidecar")
+                    if (!sidecarDir.exists()) sidecarDir.mkdirs()
+                    File(sidecarDir, "${fileName}_$sanitizedCopyId.rrdata")
+                }
+                else -> return false
+            }
+
+            // Load current sidecar data to copy
+            val currentData = loadSidecar(imageUri)
+            if (currentData == null) {
+                // No existing sidecar, create a new virtual copy with empty adjustments
+                val emptyData = SidecarData(
+                    version = 2,
+                    adjustments = com.rapidraw.data.model.Adjustments(),
+                    filmId = null,
+                    timestamp = System.currentTimeMillis(),
+                )
+                val jsonStr = json.encodeToString(emptyData)
+                val byteCount = jsonStr.toByteArray(Charsets.UTF_8).size
+                if (byteCount > MAX_SIDECAR_BYTES) {
+                    Log.w(TAG, "Virtual copy JSON too large ($byteCount bytes)")
+                    return false
+                }
+                val tmpFile = File(virtualCopyFile.parentFile, virtualCopyFile.name + ".tmp")
+                FileOutputStream(tmpFile).use { it.write(jsonStr.toByteArray(Charsets.UTF_8)) }
+                if (virtualCopyFile.exists() && !virtualCopyFile.delete()) {
+                    tmpFile.delete()
+                    return false
+                }
+                if (!tmpFile.renameTo(virtualCopyFile)) {
+                    tmpFile.delete()
+                    return false
+                }
+                return true
+            }
+
+            // Create a copy of the current sidecar data with a new timestamp
+            val copyData = currentData.copy(timestamp = System.currentTimeMillis())
+            val jsonStr = json.encodeToString(copyData)
+            val byteCount = jsonStr.toByteArray(Charsets.UTF_8).size
+            if (byteCount > MAX_SIDECAR_BYTES) {
+                Log.w(TAG, "Virtual copy JSON too large ($byteCount bytes)")
+                return false
+            }
+
+            // Atomic write
+            val tmpFile = File(virtualCopyFile.parentFile, virtualCopyFile.name + ".tmp")
+            FileOutputStream(tmpFile).use { it.write(jsonStr.toByteArray(Charsets.UTF_8)) }
+            if (virtualCopyFile.exists() && !virtualCopyFile.delete()) {
+                tmpFile.delete()
+                return false
+            }
+            if (!tmpFile.renameTo(virtualCopyFile)) {
+                tmpFile.delete()
+                return false
+            }
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to create virtual copy for $imageUri (copyId=$copyId)", e)
+            false
+        }
+    }
+
+    /**
+     * H-04: 加载虚拟副本。
+     * @param imageUri 原图 URI
+     * @param copyId   虚拟副本标识
+     * @return 虚拟副本的 SidecarData，或 null
+     */
+    fun loadVirtualCopy(imageUri: String, copyId: String): SidecarData? {
+        return try {
+            val uri = runCatching { Uri.parse(imageUri) }.getOrNull() ?: return null
+            val sanitizedCopyId = sanitizeFileName(copyId)
+            if (sanitizedCopyId.isEmpty()) return null
+
+            val virtualCopyFile: File = when (uri.scheme?.lowercase()) {
+                "file" -> {
+                    val imagePath = uri.path ?: return null
+                    val imageFile = File(imagePath)
+                    val parentDir = imageFile.parentFile ?: return null
+                    val baseName = imageFile.nameWithoutExtension
+                    File(parentDir, "${sanitizeFileName(baseName)}_$sanitizedCopyId.rrdata")
+                }
+                "content" -> {
+                    val fileName = sanitizeFileName(uri.lastPathSegment ?: "image")
+                    File(context.filesDir, "sidecar/${fileName}_$sanitizedCopyId.rrdata")
+                }
+                else -> return null
+            }
+
+            if (!virtualCopyFile.exists() || !virtualCopyFile.canRead()) return null
+            if (virtualCopyFile.length() > MAX_SIDECAR_BYTES) {
+                Log.w(TAG, "Virtual copy too large (${virtualCopyFile.length()} bytes)")
+                return null
+            }
+
+            val jsonStr = virtualCopyFile.readText(Charsets.UTF_8)
+            val data = json.decodeFromString<SidecarData>(jsonStr)
+            if (data.version > 2) {
+                Log.w(TAG, "Virtual copy version ${data.version} is newer than supported")
+                return null
+            }
+            data
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load virtual copy for $imageUri (copyId=$copyId)", e)
+            null
+        }
+    }
+
+    /**
+     * H-04: 删除虚拟副本。
+     */
+    fun deleteVirtualCopy(imageUri: String, copyId: String): Boolean {
+        return try {
+            val uri = runCatching { Uri.parse(imageUri) }.getOrNull() ?: return false
+            val sanitizedCopyId = sanitizeFileName(copyId)
+            if (sanitizedCopyId.isEmpty()) return false
+
+            val virtualCopyFile: File = when (uri.scheme?.lowercase()) {
+                "file" -> {
+                    val imagePath = uri.path ?: return false
+                    val imageFile = File(imagePath)
+                    val parentDir = imageFile.parentFile ?: return false
+                    val baseName = imageFile.nameWithoutExtension
+                    File(parentDir, "${sanitizeFileName(baseName)}_$sanitizedCopyId.rrdata")
+                }
+                "content" -> {
+                    val fileName = sanitizeFileName(uri.lastPathSegment ?: "image")
+                    File(context.filesDir, "sidecar/${fileName}_$sanitizedCopyId.rrdata")
+                }
+                else -> return false
+            }
+
+            virtualCopyFile.delete()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to delete virtual copy for $imageUri (copyId=$copyId)", e)
+            false
+        }
+    }
 }
 
 @kotlinx.serialization.Serializable

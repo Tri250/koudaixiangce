@@ -229,6 +229,8 @@ class RapidRawApp : Application() {
                 // 当前实现由各 ViewModel 的 onCleared 负责，
                 // 但已退到后台的 Activity 持有的 ViewModel 不会被立即释放。
                 Log.i(TAG, "onTrimMemory(level=$level), suggest cleaning up cache")
+                // L-03: 低内存大图降级 — 释放内存中的缩略图缓存
+                releaseInMemoryThumbnailCache()
             }
             TRIM_MEMORY_BACKGROUND,
             TRIM_MEMORY_MODERATE,
@@ -243,12 +245,30 @@ class RapidRawApp : Application() {
                     name = "RapidRawTrimMemory"
                     start()
                 }
+                // L-03: 释放内存中的缩略图缓存
+                releaseInMemoryThumbnailCache()
                 // L09 修复：系统即将杀进程时，触发 sidecar 紧急保存
                 if (level == TRIM_MEMORY_COMPLETE) {
                     Log.w(TAG, "Emergency sidecar save triggered before process death")
                     emergencySaveAllSidecars()
                 }
             }
+        }
+    }
+
+    /**
+     * L-03: 释放内存中的缩略图缓存。
+     * 在低内存告警时被调用，释放 ImageProcessor 中的缩略图 LRU 缓存，
+     * 以及任何其他内存敏感的大对象缓存。
+     * 缩略图可重新解码，优先释放以腾出内存空间。
+     */
+    private fun releaseInMemoryThumbnailCache() {
+        try {
+            // 释放 ImageProcessor 中的缩略图缓存
+            imageProcessor.clearThumbnailCache()
+            Log.i(TAG, "In-memory thumbnail cache released")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to release in-memory thumbnail cache", e)
         }
     }
 
