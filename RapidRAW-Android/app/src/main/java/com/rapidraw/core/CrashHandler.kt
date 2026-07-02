@@ -199,9 +199,11 @@ object CrashHandler {
      */
     @JvmStatic
     fun crashLogDirStatic(): File {
-        // 使用反射获取 externally visible 的 crashLogDir; 此处直接构造
-        // 注意：必须与 crashLogDir(context) 返回相同路径
-        return File("/data/data/com.rapidraw/files", LOG_DIR)
+        // v2026.07: 修复硬编码包名 — dev/staging flavor 的包名不同
+        // (com.rapidraw.dev / com.rapidraw.staging)，使用 Application 单例动态获取。
+        val ctx = com.rapidraw.RapidRawApp.getInstance()
+        val baseDir = ctx?.filesDir ?: File("/data/data/com.rapidraw/files")
+        return File(baseDir, LOG_DIR)
     }
 
     /**
@@ -243,15 +245,7 @@ object CrashHandler {
 
     /**
      * 静态 PII 脱敏（供 [ANRWatchdog] 使用）。
+     * v2026.07: 复用实例方法逻辑，避免两份实现漂移。
      */
-    private fun sanitizePiiStatic(text: String): String {
-        return text
-            .replace(Regex("/storage/emulated/\\d+/[^/\n]+"), "<user_path>")
-            .replace(Regex("/data/data/[^/\n]+"), "<app_data>")
-            .replace(Regex("/Users/[^/\n]+/"), "/Users/<username>/")
-            .replace(Regex("\\b[0-9a-fA-F]{32,}\\b"), "<id>")
-            .replace(Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"), "<email>")
-            .replace(Regex("\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b"), "<ip>")
-            .replace(Regex("\\b\\d{11,}\\b"), "<number>")
-    }
+    private fun sanitizePiiStatic(text: String): String = sanitizePii(text)
 }

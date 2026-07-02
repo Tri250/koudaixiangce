@@ -224,10 +224,11 @@ object CrashReporter {
             return false // 节流
         }
         lastSendTimeMs = now
+        var conn: HttpURLConnection? = null
         return try {
             val json = entry.toJson()
             val url = URL(endpoint)
-            val conn = (url.openConnection() as HttpURLConnection).apply {
+            conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 5_000
                 readTimeout = 5_000
@@ -246,11 +247,12 @@ object CrashReporter {
                 CrashStorage.remove(context = appContext!!, entry.id)
                 _pendingReports.value = CrashStorage.pendingCount(appContext!!)
             }
-            conn.disconnect()
             success
         } catch (e: Exception) {
             Log.w(TAG, "Failed to send crash report: ${e.message}")
             false
+        } finally {
+            conn?.disconnect()
         }
     }
 

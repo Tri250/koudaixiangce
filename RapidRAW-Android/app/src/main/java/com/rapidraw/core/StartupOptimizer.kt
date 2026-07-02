@@ -72,7 +72,7 @@ object StartupOptimizer {
 
         // HIGH: 延迟到主线程空闲
         grouped[Priority.HIGH]?.let { highTasks ->
-            android.os.Looper.myQueue().addIdleHandler {
+            android.os.Looper.getMainLooper().queue.addIdleHandler {
                 highTasks.forEach { task ->
                     val t0 = System.currentTimeMillis()
                     runCatching { task.block() }

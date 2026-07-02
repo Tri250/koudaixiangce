@@ -3,21 +3,19 @@ package com.rapidraw.core
 import android.app.Application
 import android.os.PowerManager
 import android.util.Log
-import android.view.Choreographer
 import android.view.Window
+import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.metrics.performance.FrameData
 import androidx.metrics.performance.JankStats
 import androidx.metrics.performance.PerformanceMetricsState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
@@ -48,7 +46,6 @@ object PerformanceMonitor {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var jankStats: JankStats? = null
     private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
-    private var thermalListenerJob: Job? = null
     private var powerManager: PowerManager? = null
     private val isInitialized = AtomicBoolean(false)
 
@@ -193,11 +190,9 @@ object PerformanceMonitor {
         }
 
         try {
-            thermalListenerJob = scope.launch(Dispatchers.Main) {
-                // v1.10.5: 持有 Job 引用，用于 shutdown 时取消
-            }
+            val mainExecutor = ContextCompat.getMainExecutor(application)
             powerManager!!.addThermalStatusListener(
-                thermalListenerJob as java.util.concurrent.Executor,
+                mainExecutor,
                 thermalListener!!
             )
             Log.i(TAG, "Thermal monitoring enabled")
@@ -265,8 +260,6 @@ object PerformanceMonitor {
                 powerManager?.removeThermalStatusListener(listener)
             }
             thermalListener = null
-            thermalListenerJob?.cancel()
-            thermalListenerJob = null
             powerManager = null
             Log.i(TAG, "Thermal listener removed")
         } catch (e: Exception) {

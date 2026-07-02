@@ -155,14 +155,22 @@ object DeviceOptimizer {
     }
 
     private fun getAvailableMemoryMb(): Long {
-        // 无 Context 版本：无法调用 getMemoryInfo()，使用系统属性估算
-        // 注意：此方法仅用于不需要精确值的场景
+        // 无 Context 版本：读取 /proc/meminfo 的 MemAvailable（可用内存）。
+        // v2026.07: 修复原实现读取 MemTotal（总内存）导致激进缓存策略在内存紧张时误判。
         return try {
-            val memTotalPath = File("/proc/meminfo")
-            if (memTotalPath.exists()) {
-                val firstLine = memTotalPath.readLines().firstOrNull() ?: ""
-                val match = Regex("MemTotal:\\s+(\\d+)\\s+kB").find(firstLine)
-                match?.groupValues?.get(1)?.toLongOrNull()?.let { it / 1024 } ?: 6144L
+            val memInfoPath = File("/proc/meminfo")
+            if (memInfoPath.exists()) {
+                val lines = memInfoPath.readLines()
+                // 优先读取 MemAvailable（Linux 3.14+ / Android 6+ 支持）
+                val memAvailable = lines.firstOrNull { it.startsWith("MemAvailable:") }
+                    ?.let { Regex("MemAvailable:\\s+(\\d+)\\s+kB").find(it)?.groupValues?.get(1)?.toLongOrNull() }
+                if (memAvailable != null) {
+                    return memAvailable / 1024
+                }
+                // 旧内核回退到 MemFree
+                val memFree = lines.firstOrNull { it.startsWith("MemFree:") }
+                    ?.let { Regex("MemFree:\\s+(\\d+)\\s+kB").find(it)?.groupValues?.get(1)?.toLongOrNull() }
+                memFree?.let { it / 1024 } ?: 6144L
             } else {
                 6144L // 默认 6GB
             }
@@ -173,13 +181,14 @@ object DeviceOptimizer {
 
     /**
      * 带 Context 的精确内存检测。
+     * v2026.07: 修复原实现返回 totalMem（总内存），改为返回 availMem（可用内存）。
      */
     fun getAvailableMemoryMb(context: Context): Long {
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
             ?: return 6144L
         val memInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memInfo)
-        return memInfo.totalMem / (1024 * 1024)
+        return memInfo.availMem / (1024 * 1024)
     }
 
     /**
