@@ -1,7 +1,6 @@
 package com.rapidraw.ui.navigation
 
 import android.net.Uri
-import android.content.Intent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition

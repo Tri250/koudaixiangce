@@ -144,9 +144,8 @@ class AppInstallLifecycleTest {
         // 模拟连续 3 次启动失败
         repeat(StartupRecovery.CRASH_THRESHOLD) {
             val decision = StartupRecovery.onStartupBegin(ctx)
-            // 最后一次 shouldRecover = true
             if (it == StartupRecovery.CRASH_THRESHOLD - 1) {
-                // 模拟的"崩溃循环恢复"在第 3 次检查到阈值时执行
+                assertTrue("Count=$it should trigger recovery", decision.shouldRecover)
                 StartupRecovery.performRecovery(ctx)
             } else {
                 assertFalse("Count=$it below threshold", decision.shouldRecover)

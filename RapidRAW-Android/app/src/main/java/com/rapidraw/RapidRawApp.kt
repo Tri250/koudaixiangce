@@ -2,6 +2,7 @@ package com.rapidraw
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.app.LocaleManager
 import android.os.Build
 import android.os.Bundle
@@ -118,6 +119,9 @@ class RapidRawApp : Application() {
 
         // v1.10.5: 启动成功，重置崩溃计数器
         StartupRecovery.onStartupSuccess(this)
+
+        // Debug 构建启用 LeakCanary（release 零开销）
+        enableLeakCanaryInDebug()
 
         // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
         applyPerAppLanguageAsync()

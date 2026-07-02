@@ -2,6 +2,7 @@ package com.rapidraw
 
 import android.content.res.Configuration
 import android.content.Intent
+import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
