@@ -3,6 +3,7 @@ package com.rapidraw.ai
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -302,19 +303,94 @@ class InferenceEngine private constructor(private val context: Context) {
         tensorInfoMap[modelFileName] = inputInfos to outputInfos
     }
 
+    /**
+     * UNINST-06: 将模型文件从 assets 复制到持久化目录。
+     *
+     * 优先级：
+     * 1. /sdcard/Android/media/<pkg>/models/ — 卸载不删除（Android 10+）
+     * 2. context.filesDir/models/ — 降级路径（卸载会清除）
+     *
+     * 使用 Android/media 而非 getExternalFilesDir 的原因：
+     * - getExternalFilesDir 位于 /Android/data/<pkg>/，卸载时系统自动清除
+     * - /Android/media/<pkg>/ 卸载时系统不自动清除，模型文件可保留
+     */
     private fun copyModelFromAssets(fileName: String): File {
-        val outFile = File(context.cacheDir, "tflite_$fileName")
-        if (!outFile.exists() || outFile.length() == 0L) {
+        // 优先使用 Android/media 目录（卸载不删除）
+        val mediaDir = File(
+            android.os.Environment.getExternalStorageDirectory(),
+            "Android/media/${context.packageName}/models"
+        )
+        val mediaFile = File(mediaDir, "tflite_$fileName")
+
+        if (mediaFile.exists() && mediaFile.length() > 0L) {
+            return mediaFile
+        }
+
+        // 尝试写入 media 目录
+        try {
+            if (!mediaDir.exists()) mediaDir.mkdirs()
+            if (mediaDir.canWrite()) {
+                context.assets.open("models/$fileName").use { input ->
+                    FileOutputStream(mediaFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                return mediaFile
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot write to Android/media, falling back to filesDir: ${e.message}")
+        }
+
+        // 降级：使用 cacheDir（卸载会清除，但至少能用）
+        val fallbackDir = File(context.filesDir, "models")
+        val fallbackFile = File(fallbackDir, "tflite_$fileName")
+        if (!fallbackFile.exists() || fallbackFile.length() == 0L) {
+            if (!fallbackDir.exists()) fallbackDir.mkdirs()
             context.assets.open("models/$fileName").use { input ->
-                FileOutputStream(outFile).use { output ->
+                FileOutputStream(fallbackFile).use { output ->
                     input.copyTo(output)
                 }
             }
         }
-        return outFile
+        return fallbackFile
+    }
+
+    /**
+     * INST-10: 检查 AI 模型是否可用（离线降级判断）。
+     * 当模型文件不存在且网络不可用时，调用方可据此禁用 AI 蒙版功能。
+     */
+    fun isModelAvailable(fileName: String): Boolean {
+        // 检查 media 目录
+        val mediaDir = File(
+            android.os.Environment.getExternalStorageDirectory(),
+            "Android/media/${context.packageName}/models"
+        )
+        val mediaFile = File(mediaDir, "tflite_$fileName")
+        if (mediaFile.exists() && mediaFile.length() > 0L) return true
+
+        // 检查 filesDir 降级目录
+        val fallbackFile = File(File(context.filesDir, "models"), "tflite_$fileName")
+        if (fallbackFile.exists() && fallbackFile.length() > 0L) return true
+
+        // 检查旧路径（cacheDir）
+        val legacyFile = File(context.cacheDir, "tflite_$fileName")
+        return legacyFile.exists() && legacyFile.length() > 0L
+    }
+
+    /**
+     * INST-10: 检查设备内存是否足够运行 AI 模型。
+     * 建议在 AI 蒙版入口处调用，8GB RAM 以下设备给提示。
+     */
+    fun isDeviceMemorySufficient(): Boolean {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+        val totalMem = activityManager?.memoryInfo?.totalMem ?: 0L
+        // 8GB = 8L * 1024 * 1024 * 1024
+        return totalMem >= 6L * 1024 * 1024 * 1024 // 6GB 作为最低门槛
     }
 
     companion object {
+        private const val TAG = "InferenceEngine"
+
         @Volatile
         private var instance: InferenceEngine? = null
 

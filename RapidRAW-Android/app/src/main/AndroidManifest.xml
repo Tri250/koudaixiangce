@@ -50,7 +50,8 @@
         android:enableOnBackInvokedCallback="true"
         android:largeHeap="true"
         android:appCategory="image"
-        android:hasFragileUserData="false"
+        android:hasFragileUserData="true"
+        android:installLocation="auto"
         android:localeConfig="@xml/locale_config"
         tools:targetApi="36">
 
