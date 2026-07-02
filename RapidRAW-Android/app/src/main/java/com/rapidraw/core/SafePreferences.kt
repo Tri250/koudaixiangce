@@ -23,7 +23,16 @@ object SafePreferences {
      * 如果检测到 XML 损坏，自动清除并重建。
      */
     fun get(context: Context, name: String, mode: Int = Context.MODE_PRIVATE): SharedPreferences {
-        val prefs = context.getSharedPreferences(name, mode)
+        // v2026.07 安全加固：getSharedPreferences 本身可能在文件系统只读、权限异常、
+        // 或 OEM ROM 定制行为下抛出 RuntimeException。此处兜底，防止整个启动链崩溃。
+        val prefs: SharedPreferences
+        try {
+            prefs = context.getSharedPreferences(name, mode)
+        } catch (e: Exception) {
+            Log.w(TAG, "getSharedPreferences('$name') failed, returning in-memory fallback", e)
+            // 返回内存级 fallback：不持久化，但至少不会崩溃
+            return InMemoryPreferences()
+        }
         // 验证可读性：尝试读取一个不存在的 key，如果抛异常说明 XML 损坏
         try {
             prefs.contains("__safe_prefs_probe__")
@@ -47,7 +56,12 @@ object SafePreferences {
                 Log.w(TAG, "Failed to clean corrupted SharedPreferences file", e2)
             }
             // 返回全新的实例
-            return context.getSharedPreferences(name, mode)
+            try {
+                return context.getSharedPreferences(name, mode)
+            } catch (e2: Exception) {
+                Log.w(TAG, "getSharedPreferences recovery also failed, returning fallback", e2)
+                return InMemoryPreferences()
+            }
         }
         return prefs
     }
@@ -181,6 +195,113 @@ object SafePreferences {
             prefs.edit().clear().apply()
         } catch (e: Exception) {
             Log.w(TAG, "Failed to clear preferences", e)
+        }
+    }
+
+    /**
+     * 内存级 SharedPreferences 回退实现。
+     *
+     * 当文件系统只读、权限异常或 OEM ROM 定制行为导致
+     * [getSharedPreferences] 失败时，使用此实现避免启动崩溃。
+     * 数据不持久化，仅保证当前进程生命周期内可用。
+     *
+     * @since 2026.07
+     */
+    private class InMemoryPreferences : SharedPreferences {
+        private val data = mutableMapOf<String, Any?>()
+        private val listeners = mutableListOf<SharedPreferences.OnSharedPreferenceChangeListener>()
+
+        override fun getAll(): Map<String, *> = data.toMap()
+
+        override fun getString(key: String, defValue: String?): String? =
+            data[key] as? String ?: defValue
+
+        override fun getStringSet(key: String, defValues: Set<String>?): Set<String>? {
+            @Suppress("UNCHECKED_CAST")
+            return (data[key] as? Set<String>) ?: defValues
+        }
+
+        override fun getInt(key: String, defValue: Int): Int =
+            (data[key] as? Int) ?: defValue
+
+        override fun getLong(key: String, defValue: Long): Long =
+            (data[key] as? Long) ?: defValue
+
+        override fun getFloat(key: String, defValue: Float): Float =
+            (data[key] as? Float) ?: defValue
+
+        override fun getBoolean(key: String, defValue: Boolean): Boolean =
+            (data[key] as? Boolean) ?: defValue
+
+        override fun contains(key: String): Boolean = data.containsKey(key)
+
+        override fun edit(): SharedPreferences.Editor = InMemoryEditor()
+
+        override fun registerOnSharedPreferenceChangeListener(
+            listener: SharedPreferences.OnSharedPreferenceChangeListener
+        ) {
+            listeners.add(listener)
+        }
+
+        override fun unregisterOnSharedPreferenceChangeListener(
+            listener: SharedPreferences.OnSharedPreferenceChangeListener
+        ) {
+            listeners.remove(listener)
+        }
+
+        private inner class InMemoryEditor : SharedPreferences.Editor {
+            private val pending = mutableMapOf<String, Any?>()
+            private var clearAll = false
+
+            override fun putString(key: String, value: String?): SharedPreferences.Editor {
+                pending[key] = value; return this
+            }
+
+            override fun putStringSet(key: String, values: Set<String>?): SharedPreferences.Editor {
+                pending[key] = values; return this
+            }
+
+            override fun putInt(key: String, value: Int): SharedPreferences.Editor {
+                pending[key] = value; return this
+            }
+
+            override fun putLong(key: String, value: Long): SharedPreferences.Editor {
+                pending[key] = value; return this
+            }
+
+            override fun putFloat(key: String, value: Float): SharedPreferences.Editor {
+                pending[key] = value; return this
+            }
+
+            override fun putBoolean(key: String, value: Boolean): SharedPreferences.Editor {
+                pending[key] = value; return this
+            }
+
+            override fun remove(key: String): SharedPreferences.Editor {
+                pending[key] = null; return this
+            }
+
+            override fun clear(): SharedPreferences.Editor {
+                clearAll = true; return this
+            }
+
+            override fun commit(): Boolean {
+                applyChanges()
+                return true
+            }
+
+            override fun apply() {
+                applyChanges()
+            }
+
+            private fun applyChanges() {
+                if (clearAll) data.clear()
+                pending.forEach { (key, value) ->
+                    if (value == null) data.remove(key) else data[key] = value
+                }
+                pending.clear()
+                clearAll = false
+            }
         }
     }
 }

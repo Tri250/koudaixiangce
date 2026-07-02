@@ -58,20 +58,27 @@ class RapidRawApp : Application() {
 
         // v1.10.5: 启动崩溃恢复机制 — 连续崩溃计数器
         // 提取至 StartupRecovery（2026.07）以提升可测试性。
-        val decision = StartupRecovery.onStartupBegin(this)
-        if (decision.shouldRecover) {
-            StartupRecovery.performRecovery(this)
-        }
+        // v2026.07 安全加固：包裹 try-catch，防止 SharedPreferences 损坏导致 onCreate 直接崩溃
+        runCatching {
+            val decision = StartupRecovery.onStartupBegin(this)
+            if (decision.shouldRecover) {
+                StartupRecovery.performRecovery(this)
+            }
+        }.onFailure { Log.w(TAG, "StartupRecovery failed, continuing", it) }
 
-        // 启动死锁检测看门狗
-        DeadlockDetector.start()
+        // v2026.07 安全加固：包裹 try-catch，防止线程创建失败（OOM/SecurityException）导致启动崩溃
+        runCatching {
+            DeadlockDetector.start()
+        }.onFailure { Log.w(TAG, "DeadlockDetector start failed, continuing", it) }
 
         // v1.8.0 冷启动优化：使用 StartupOptimizer 分级初始化
         // CRITICAL 级在主线程同步执行，确保崩溃捕获最早安装
         // HIGH/MEDIUM/LOW 级延迟到首帧渲染后，减少冷启动阻塞
         StartupOptimizer
             .schedule(StartupOptimizer.Priority.CRITICAL, "CrashHandler") {
-                CrashHandler.install(this)
+                // v2026.07 安全加固：CrashHandler 安装失败不应导致整个 onCreate 崩溃
+                runCatching { CrashHandler.install(this) }
+                    .onFailure { Log.e(TAG, "CRITICAL: CrashHandler install failed", it) }
             }
             .schedule(StartupOptimizer.Priority.CRITICAL, "SecurityProvider") {
                 runCatching { SecurityProvider.verifyAppSignature(this) }
@@ -86,10 +93,10 @@ class RapidRawApp : Application() {
                 runCatching { ANRWatchdog.start(blockThresholdMs = 2_000L, checkIntervalMs = 1_000L) }
             }
             .schedule(StartupOptimizer.Priority.CRITICAL, "StrictMode") {
-                enableStrictModeInDebug()
+                runCatching { enableStrictModeInDebug() }
             }
             .schedule(StartupOptimizer.Priority.CRITICAL, "FontScale") {
-                applyFontScaleLimit()
+                runCatching { applyFontScaleLimit() }
             }
             .schedule(StartupOptimizer.Priority.CRITICAL, "PerformanceMonitor") {
                 runCatching { PerformanceMonitor.init(this) }
@@ -120,16 +127,28 @@ class RapidRawApp : Application() {
             .execute()
 
         // v1.10.5: 启动成功，重置崩溃计数器
-        StartupRecovery.onStartupSuccess(this)
+        // v2026.07 安全加固：防止 SharedPreferences 写入失败导致启动崩溃
+        runCatching { StartupRecovery.onStartupSuccess(this) }
+            .onFailure { Log.w(TAG, "StartupRecovery.onStartupSuccess failed", it) }
 
         // Debug 构建启用 LeakCanary（release 零开销）
-        enableLeakCanaryInDebug()
+        // v2026.07 安全加固：Reflection 调用可能失败，包裹 try-catch
+        runCatching { enableLeakCanaryInDebug() }
+            .onFailure { Log.w(TAG, "LeakCanary init failed", it) }
 
         // 2026 perf: 在 Application 阶段异步应用 per-app language，避免阻塞首 Activity 启动。
-        applyPerAppLanguage()
-        registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
+        // applyPerAppLanguage 内部已有 try-catch，但外层再包裹一次防止未预期的异常
+        runCatching { applyPerAppLanguage() }
+            .onFailure { Log.w(TAG, "applyPerAppLanguage failed", it) }
+
+        // v2026.07 安全加固：registerActivityLifecycleCallbacks 极少失败，但兜底保护
+        runCatching { registerActivityLifecycleCallbacks(activityLifecycleCallbacks) }
+            .onFailure { Log.e(TAG, "Failed to register lifecycle callbacks", it) }
+
         // v1.5.3: 主动检查关键设备能力，记录到日志便于后续诊断
-        logDeviceCapabilities()
+        // v2026.07 安全加固：Runtime.getRuntime() 等调用极少失败，但兜底保护
+        runCatching { logDeviceCapabilities() }
+            .onFailure { Log.w(TAG, "Failed to log device capabilities", it) }
     }
 
     /**
