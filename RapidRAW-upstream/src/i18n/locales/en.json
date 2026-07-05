@@ -1559,6 +1559,7 @@
       "fontDesc": "Change the application font.",
       "nativeTitlebar": "Native Titlebar",
       "nativeTitlebarDesc": "Use your system's default window titlebar instead of RapidRAW's custom one.",
+      "notoSc": "Noto Sans SC (CJK)",
       "poppins": "Poppins",
       "showImageCounts": "Show Image Counts",
       "system": "System Default",

@@ -1420,6 +1420,7 @@
       "fontDesc": "Cambia la fuente de la aplicación.",
       "nativeTitlebar": "Barra de título nativa",
       "nativeTitlebarDesc": "Usa la barra de título de ventana predeterminada de tu sistema en lugar de la personalizada de RapidRAW.",
+      "notoSc": "Noto Sans SC (CJK)",
       "poppins": "Poppins",
       "showImageCounts": "Mostrar recuentos de imágenes",
       "system": "Predeterminado del sistema",

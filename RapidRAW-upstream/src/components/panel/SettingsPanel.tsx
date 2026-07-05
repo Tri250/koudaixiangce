@@ -618,6 +618,7 @@ export default function SettingsPanel({
   const fontOptions = useMemo<OptionItem<string>[]>(
     () => [
       { value: 'poppins', label: t('settings.general.poppins') },
+      { value: 'noto-sc', label: t('settings.general.notoSc') },
       { value: 'system', label: t('settings.general.system') },
     ],
     [t],
