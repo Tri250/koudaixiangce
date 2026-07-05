@@ -159,7 +159,7 @@ fn main() {
         println!("cargo:warning=URL: {}", download_url);
 
         if let Err(e) = download_and_verify(&download_url, &dest_path, expected_hash) {
-            println!("cargo:warning=TEMP-BYPASS: Failed to download and verify ONNX Runtime library: {}", e);
+            panic!("Failed to download and verify ONNX Runtime library: {}", e);
         }
     }
 
