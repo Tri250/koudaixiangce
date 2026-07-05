@@ -456,7 +456,9 @@ export const useAppInitialization = ({
     const fontStack =
       fontFamily === 'system'
         ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
-        : "'Poppins', system-ui, sans-serif";
+        : fontFamily === 'noto-sc'
+          ? "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', 'Source Han Sans SC', 'WenQuanYi Micro Hei', system-ui, sans-serif"
+          : "'Poppins', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif";
     root.style.setProperty('--font-family', fontStack);
   }, [theme, appSettings?.fontFamily]);
 };

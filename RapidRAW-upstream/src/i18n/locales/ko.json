@@ -1420,6 +1420,7 @@
       "fontDesc": "애플리케이션 글꼴을 변경합니다.",
       "nativeTitlebar": "네이티브 제목 표시줄",
       "nativeTitlebarDesc": "RapidRAW의 사용자 지정 제목 표시줄 대신 시스템 기본 창 제목 표시줄을 사용합니다.",
+      "notoSc": "Noto Sans SC (CJK)",
       "poppins": "Poppins",
       "showImageCounts": "이미지 개수 표시",
       "system": "시스템 기본값",
