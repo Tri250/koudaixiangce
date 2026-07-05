@@ -209,6 +209,58 @@ pub async fn preview_negative_conversion(
                         drop(original_lock);
                         let settings = load_settings(app_handle.clone()).unwrap_or_default();
 
+                        if crate::android_integration::is_android_uri(&source_path_str) {
+                            let bytes = crate::android_integration::read_image_source_bytes(&source_path_str)
+                                .map_err(|e| e.to_string())?;
+                            load_base_image_from_bytes(
+                                &bytes,
+                                &source_path_str,
+                                false,
+                                &settings,
+                                None,
+                            )
+                            .map_err(|e| e.to_string())?
+                        } else {
+                            match read_file_mapped(Path::new(&source_path_str)) {
+                                Ok(mmap) => load_base_image_from_bytes(
+                                    &mmap,
+                                    &source_path_str,
+                                    false,
+                                    &settings,
+                                    None,
+                                )
+                                .map_err(|e| e.to_string())?,
+                                Err(_e) => {
+                                    let bytes = fs::read(&source_path_str)
+                                        .map_err(|io_err| io_err.to_string())?;
+                                    load_base_image_from_bytes(
+                                        &bytes,
+                                        &source_path_str,
+                                        false,
+                                        &settings,
+                                        None,
+                                    )
+                                    .map_err(|e| e.to_string())?
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    drop(original_lock);
+                    let settings = load_settings(app_handle.clone()).unwrap_or_default();
+
+                    if crate::android_integration::is_android_uri(&source_path_str) {
+                        let bytes = crate::android_integration::read_image_source_bytes(&source_path_str)
+                            .map_err(|e| e.to_string())?;
+                        load_base_image_from_bytes(
+                            &bytes,
+                            &source_path_str,
+                            false,
+                            &settings,
+                            None,
+                        )
+                        .map_err(|e| e.to_string())?
+                    } else {
                         match read_file_mapped(Path::new(&source_path_str)) {
                             Ok(mmap) => load_base_image_from_bytes(
                                 &mmap,
@@ -219,8 +271,8 @@ pub async fn preview_negative_conversion(
                             )
                             .map_err(|e| e.to_string())?,
                             Err(_e) => {
-                                let bytes = fs::read(&source_path_str)
-                                    .map_err(|io_err| io_err.to_string())?;
+                                let bytes =
+                                    fs::read(&source_path_str).map_err(|io_err| io_err.to_string())?;
                                 load_base_image_from_bytes(
                                     &bytes,
                                     &source_path_str,
@@ -230,32 +282,6 @@ pub async fn preview_negative_conversion(
                                 )
                                 .map_err(|e| e.to_string())?
                             }
-                        }
-                    }
-                } else {
-                    drop(original_lock);
-                    let settings = load_settings(app_handle.clone()).unwrap_or_default();
-
-                    match read_file_mapped(Path::new(&source_path_str)) {
-                        Ok(mmap) => load_base_image_from_bytes(
-                            &mmap,
-                            &source_path_str,
-                            false,
-                            &settings,
-                            None,
-                        )
-                        .map_err(|e| e.to_string())?,
-                        Err(_e) => {
-                            let bytes =
-                                fs::read(&source_path_str).map_err(|io_err| io_err.to_string())?;
-                            load_base_image_from_bytes(
-                                &bytes,
-                                &source_path_str,
-                                false,
-                                &settings,
-                                None,
-                            )
-                            .map_err(|e| e.to_string())?
                         }
                     }
                 }
@@ -304,11 +330,17 @@ pub async fn convert_negatives(
 
             let settings = load_settings(app_handle.clone()).unwrap_or_default();
 
-            let img = match read_file_mapped(Path::new(&real_path)) {
-                Ok(mmap) => load_base_image_from_bytes(&mmap, &real_path, false, &settings, None),
-                Err(_) => {
-                    let bytes = fs::read(&real_path).unwrap_or_default();
-                    load_base_image_from_bytes(&bytes, &real_path, false, &settings, None)
+            let img = if crate::android_integration::is_android_uri(&real_path) {
+                let bytes = crate::android_integration::read_image_source_bytes(&real_path)
+                    .map_err(|e| e.to_string())?;
+                load_base_image_from_bytes(&bytes, &real_path, false, &settings, None)
+            } else {
+                match read_file_mapped(Path::new(&real_path)) {
+                    Ok(mmap) => load_base_image_from_bytes(&mmap, &real_path, false, &settings, None),
+                    Err(_) => {
+                        let bytes = fs::read(&real_path).unwrap_or_default();
+                        load_base_image_from_bytes(&bytes, &real_path, false, &settings, None)
+                    }
                 }
             }
             .map_err(|e| e.to_string())?;
@@ -326,18 +358,49 @@ pub async fn convert_negatives(
             let processed = run_pipeline(&img, &params, Some(bounds));
 
             let p = Path::new(&real_path);
-            let parent = p.parent().unwrap_or(Path::new(""));
             let stem = p.file_stem().unwrap_or_default().to_string_lossy();
             let filename = format!("{}_Positive.tiff", stem);
-            let out_path = parent.join(&filename);
 
-            processed
-                .to_rgb16()
-                .save(&out_path)
-                .map_err(|e| format!("Failed to save {}: {}", filename, e))?;
+            // For SAF (content://) sources the parent directory is not a
+            // writable filesystem path — write to Android Downloads instead so
+            // the user can actually retrieve the converted file. On other
+            // platforms (or non-SAF sources) write next to the source as
+            // before.
+            let saved_path: String = if crate::android_integration::is_android_uri(&real_path) {
+                #[cfg(target_os = "android")]
+                {
+                    let mut buf = std::io::Cursor::new(Vec::new());
+                    processed
+                        .to_rgb16()
+                        .write_to(
+                            &mut std::io::BufWriter::new(&mut buf),
+                            image::ImageFormat::Tiff,
+                        )
+                        .map_err(|e| format!("Failed to encode {}: {}", filename, e))?;
+                    crate::android_integration::save_file_bytes_to_android_downloads(
+                        &filename,
+                        "image/tiff",
+                        &buf.into_inner(),
+                    )?;
+                    format!("Download/RapidRaw/{}", filename)
+                }
+                #[cfg(not(target_os = "android"))]
+                {
+                    let _ = filename;
+                    return Err("Negative conversion for SAF URIs is only supported on Android.".to_string());
+                }
+            } else {
+                let parent = p.parent().unwrap_or(Path::new(""));
+                let out_path = parent.join(&filename);
+                processed
+                    .to_rgb16()
+                    .save(&out_path)
+                    .map_err(|e| format!("Failed to save {}: {}", filename, e))?;
+                let _ = crate::exif_processing::write_rrexif_sidecar(&real_path, &out_path);
+                out_path.to_string_lossy().to_string()
+            };
 
-            let _ = crate::exif_processing::write_rrexif_sidecar(&real_path, &out_path);
-            results.push(out_path.to_string_lossy().to_string());
+            results.push(saved_path);
         }
 
         Ok(results)
