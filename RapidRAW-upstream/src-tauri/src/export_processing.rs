@@ -858,8 +858,12 @@ pub async fn export_images(
                                     .map_err(|e| format!("Failed to composite AI patches: {}", e))?
                             }
                             Err(_) => {
-                                let bytes =
-                                    fs::read(&source_path_str).map_err(|e| e.to_string())?;
+                                let bytes = if crate::android_integration::is_android_uri(&source_path_str) {
+                                    crate::android_integration::read_image_source_bytes(&source_path_str)
+                                        .map_err(|e| e.to_string())?
+                                } else {
+                                    fs::read(&source_path_str).map_err(|e| e.to_string())?
+                                };
                                 load_and_composite(
                                     &bytes,
                                     &source_path_str,
@@ -871,6 +875,20 @@ pub async fn export_images(
                                 .map_err(|e| format!("Failed to load fallback image: {}", e))?
                             }
                         }
+                    } else if crate::android_integration::is_android_uri(&source_path_str) {
+                        // SAF (content://) URIs: read via ContentResolver. No
+                        // mmap path is possible across the SAF boundary.
+                        let bytes = crate::android_integration::read_image_source_bytes(&source_path_str)
+                            .map_err(|e| format!("Failed to read SAF URI: {}", e))?;
+                        load_and_composite(
+                            &bytes,
+                            &source_path_str,
+                            &js_adjustments,
+                            false,
+                            &settings,
+                            None,
+                        )
+                        .map_err(|e| format!("Failed to load from bytes: {}", e))?
                     } else {
                         match read_file_mapped(Path::new(&source_path_str)) {
                             Ok(mmap) => load_and_composite(
@@ -1171,14 +1189,21 @@ pub async fn estimate_export_sizes(
 
         let file_slice: Vec<u8>;
         let mmap_guard;
-        let file_data: &[u8] = match read_file_mapped(Path::new(&source_path_str)) {
-            Ok(mmap) => {
-                mmap_guard = Some(mmap);
-                mmap_guard.as_ref().unwrap()
-            }
-            Err(_) => {
-                file_slice = fs::read(&source_path_str).map_err(|io_err| io_err.to_string())?;
-                &file_slice
+        let file_data: &[u8] = if crate::android_integration::is_android_uri(&source_path_str) {
+            // SAF (content://) URIs: read via ContentResolver. No mmap path.
+            file_slice = crate::android_integration::read_image_source_bytes(&source_path_str)
+                .map_err(|e| e.to_string())?;
+            &file_slice
+        } else {
+            match read_file_mapped(Path::new(&source_path_str)) {
+                Ok(mmap) => {
+                    mmap_guard = Some(mmap);
+                    mmap_guard.as_ref().unwrap()
+                }
+                Err(_) => {
+                    file_slice = fs::read(&source_path_str).map_err(|io_err| io_err.to_string())?;
+                    &file_slice
+                }
             }
         };
 

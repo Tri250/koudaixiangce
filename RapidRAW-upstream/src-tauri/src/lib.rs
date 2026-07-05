@@ -1213,7 +1213,13 @@ async fn generate_all_community_previews(
     for image_path in image_paths.iter() {
         let (source_path, _) = parse_virtual_path(image_path);
         let source_path_str = source_path.to_string_lossy().to_string();
-        let image_bytes = fs::read(&source_path).map_err(|e| e.to_string())?;
+        // SAF (content://) URIs must be read via the ContentResolver.
+        let image_bytes = if crate::android_integration::is_android_uri(&source_path_str) {
+            crate::android_integration::read_image_source_bytes(&source_path_str)
+                .map_err(|e| e.to_string())?
+        } else {
+            fs::read(&source_path).map_err(|e| e.to_string())?
+        };
         let original_image = crate::image_loader::load_base_image_from_bytes(
             &image_bytes,
             &source_path_str,
@@ -1576,32 +1582,48 @@ fn generate_preview_for_path(
     let is_raw = is_raw_file(&source_path_str);
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
 
-    let base_image = match read_file_mapped(&source_path) {
-        Ok(mmap) => load_and_composite(
-            &mmap,
+    let base_image = if crate::android_integration::is_android_uri(&source_path_str) {
+        // SAF (content://) URIs: read via ContentResolver. No mmap path is
+        // possible across the SAF boundary.
+        let bytes = crate::android_integration::read_image_source_bytes(&source_path_str)
+            .map_err(|e| e.to_string())?;
+        load_and_composite(
+            &bytes,
             &source_path_str,
             &js_adjustments,
             false,
             &settings,
             None,
         )
-        .map_err(|e| e.to_string())?,
-        Err(e) => {
-            log::warn!(
-                "Failed to memory-map file '{}': {}. Falling back to standard read.",
-                source_path_str,
-                e
-            );
-            let bytes = fs::read(&source_path).map_err(|io_err| io_err.to_string())?;
-            load_and_composite(
-                &bytes,
+        .map_err(|e| e.to_string())?
+    } else {
+        match read_file_mapped(&source_path) {
+            Ok(mmap) => load_and_composite(
+                &mmap,
                 &source_path_str,
                 &js_adjustments,
                 false,
                 &settings,
                 None,
             )
-            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?,
+            Err(e) => {
+                log::warn!(
+                    "Failed to memory-map file '{}': {}. Falling back to standard read.",
+                    source_path_str,
+                    e
+                );
+                let bytes = fs::read(&source_path).map_err(|io_err| io_err.to_string())?;
+                load_and_composite(
+                    &bytes,
+                    &source_path_str,
+                    &js_adjustments,
+                    false,
+                    &settings,
+                    None,
+                )
+                .map_err(|e| e.to_string())?
+            }
         }
     };
 

@@ -651,10 +651,21 @@ pub async fn ai_color_match(
     let source_path_owned = source_path.clone();
     let reference_path_owned = reference_path.clone();
     let (source_image, reference_image) = tokio::task::spawn_blocking(move || {
-        let source_bytes = std::fs::read(&source_path_owned)
-            .map_err(|e| format!("Failed to read source image: {}", e))?;
-        let reference_bytes = std::fs::read(&reference_path_owned)
-            .map_err(|e| format!("Failed to read reference image: {}", e))?;
+        // SAF (content://) URIs must be read via the ContentResolver on Android.
+        let source_bytes = if crate::android_integration::is_android_uri(&source_path_owned) {
+            crate::android_integration::read_image_source_bytes(&source_path_owned)
+                .map_err(|e| format!("Failed to read source SAF URI: {}", e))?
+        } else {
+            std::fs::read(&source_path_owned)
+                .map_err(|e| format!("Failed to read source image: {}", e))?
+        };
+        let reference_bytes = if crate::android_integration::is_android_uri(&reference_path_owned) {
+            crate::android_integration::read_image_source_bytes(&reference_path_owned)
+                .map_err(|e| format!("Failed to read reference SAF URI: {}", e))?
+        } else {
+            std::fs::read(&reference_path_owned)
+                .map_err(|e| format!("Failed to read reference image: {}", e))?
+        };
         let source_img = image::load_from_memory(&source_bytes)
             .map_err(|e| format!("Failed to decode source image: {}", e))?;
         let reference_img = image::load_from_memory(&reference_bytes)

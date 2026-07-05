@@ -848,7 +848,7 @@ fn saf_string_static_field<'local>(
 }
 
 #[cfg(target_os = "android")]
-fn list_android_saf_directory_inner(tree_uri: &str) -> Result<Vec<SafDirectoryEntry>, String> {
+pub fn list_android_saf_directory_inner(tree_uri: &str) -> Result<Vec<SafDirectoryEntry>, String> {
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -886,14 +886,104 @@ fn list_android_saf_directory_inner(tree_uri: &str) -> Result<Vec<SafDirectoryEn
         return Err("DocumentsContract.buildChildDocumentsUriUsingTree returned null.".to_string());
     }
 
+    collect_saf_children(&mut env, &resolver, &tree_uri_obj, &children_uri)
+}
+
+/// Lists the immediate children of any SAF document URI — either a tree URI
+/// (the value returned by `pick_android_directory`) or a child document URI
+/// (the `uri` field of a `SafDirectoryEntry` whose `is_directory` is true).
+///
+/// This is the entry point used by the library / folder-tree code paths so a
+/// user can both list the picked root and click into subdirectories without
+/// `fs::read_dir` (which cannot cross the SAF boundary). For a document URI we
+/// recover the originating tree URI (everything before `/document/`) so the
+/// persisted URI permission from `pick_android_directory` still applies.
+#[cfg(target_os = "android")]
+pub fn list_android_saf_uri_children(uri_str: &str) -> Result<Vec<SafDirectoryEntry>, String> {
+    let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
+        .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
+    let mut env = vm
+        .attach_current_thread()
+        .map_err(|e| format!("Failed to attach current thread to Android JVM: {}", e))?;
+
+    let resolver = get_android_content_resolver(&mut env)?;
+    let uri_obj = parse_android_uri(&mut env, uri_str)?;
+
+    // A SAF document URI looks like:
+    //   content://<authority>/tree/<tree-doc-id>/document/<doc-id>
+    // The tree prefix (everything before "/document/") carries the persisted
+    // permission and must be passed to buildChildDocumentsUriUsingTree /
+    // buildDocumentUriUsingTree. For a bare tree URI we use it directly.
+    let (tree_uri_obj, parent_doc_id_obj) = if let Some(tree_prefix) = uri_str
+        .find("/document/")
+        .map(|idx| &uri_str[..idx])
+    {
+        let tree_obj = parse_android_uri(&mut env, tree_prefix)?;
+        let doc_id = env
+            .call_static_method(
+                "android/provider/DocumentsContract",
+                "getDocumentId",
+                "(Landroid/net/Uri;)Ljava/lang/String;",
+                &[(&uri_obj).into()],
+            )
+            .and_then(|v| v.l())
+            .map_err(|e| map_android_jni_error(&mut env, e))?;
+        if doc_id.is_null() {
+            return Err("DocumentsContract.getDocumentId returned null.".to_string());
+        }
+        (tree_obj, doc_id)
+    } else {
+        let doc_id = env
+            .call_static_method(
+                "android/provider/DocumentsContract",
+                "getTreeDocumentId",
+                "(Landroid/net/Uri;)Ljava/lang/String;",
+                &[(&uri_obj).into()],
+            )
+            .and_then(|v| v.l())
+            .map_err(|e| map_android_jni_error(&mut env, e))?;
+        if doc_id.is_null() {
+            return Err("DocumentsContract.getTreeDocumentId returned null.".to_string());
+        }
+        (uri_obj, doc_id)
+    };
+
+    let children_uri = env
+        .call_static_method(
+            "android/provider/DocumentsContract",
+            "buildChildDocumentsUriUsingTree",
+            "(Landroid/net/Uri;Ljava/lang/String;)Landroid/net/Uri;",
+            &[(&tree_uri_obj).into(), (&parent_doc_id_obj).into()],
+        )
+        .and_then(|v| v.l())
+        .map_err(|e| map_android_jni_error(&mut env, e))?;
+    if children_uri.is_null() {
+        return Err("DocumentsContract.buildChildDocumentsUriUsingTree returned null.".to_string());
+    }
+
+    collect_saf_children(&mut env, &resolver, &tree_uri_obj, &children_uri)
+}
+
+/// Queries a SAF `childrenUri` and materializes the rows into
+/// `SafDirectoryEntry` values. Each child's `uri` is built with
+/// `buildDocumentUriUsingTree(treeUri, childDocId)` so it carries the tree's
+/// persisted permission and can itself be passed back to
+/// `list_android_saf_uri_children` for recursion.
+#[cfg(target_os = "android")]
+fn collect_saf_children<'local>(
+    env: &mut JNIEnv<'local>,
+    resolver: &JObject<'local>,
+    tree_uri_obj: &JObject<'local>,
+    children_uri: &JObject<'local>,
+) -> Result<Vec<SafDirectoryEntry>, String> {
     let null_obj = JObject::null();
     let cursor = env
         .call_method(
-            &resolver,
+            resolver,
             "query",
             "(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)Landroid/database/Cursor;",
             &[
-                (&children_uri).into(),
+                children_uri.into(),
                 (&null_obj).into(),
                 (&null_obj).into(),
                 (&null_obj).into(),
@@ -901,7 +991,7 @@ fn list_android_saf_directory_inner(tree_uri: &str) -> Result<Vec<SafDirectoryEn
             ],
         )
         .and_then(|v| v.l())
-        .map_err(|e| map_android_jni_error(&mut env, e))?;
+        .map_err(|e| map_android_jni_error(env, e))?;
     if cursor.is_null() {
         return Ok(Vec::new());
     }
@@ -909,61 +999,61 @@ fn list_android_saf_directory_inner(tree_uri: &str) -> Result<Vec<SafDirectoryEn
     let result = (|| -> Result<Vec<SafDirectoryEntry>, String> {
         const DOC_CLASS: &str = "android/provider/DocumentsContract$Document";
 
-        let col_doc_id = saf_string_static_field(&mut env, DOC_CLASS, "COLUMN_DOCUMENT_ID")?;
-        let col_display = saf_string_static_field(&mut env, DOC_CLASS, "COLUMN_DISPLAY_NAME")?;
-        let col_mime = saf_string_static_field(&mut env, DOC_CLASS, "COLUMN_MIME_TYPE")?;
-        let col_last = saf_string_static_field(&mut env, DOC_CLASS, "COLUMN_LAST_MODIFIED")?;
-        let col_size = saf_string_static_field(&mut env, DOC_CLASS, "COLUMN_SIZE")?;
-        let mime_dir = saf_string_static_field(&mut env, DOC_CLASS, "MIME_TYPE_DIR")?;
+        let col_doc_id = saf_string_static_field(env, DOC_CLASS, "COLUMN_DOCUMENT_ID")?;
+        let col_display = saf_string_static_field(env, DOC_CLASS, "COLUMN_DISPLAY_NAME")?;
+        let col_mime = saf_string_static_field(env, DOC_CLASS, "COLUMN_MIME_TYPE")?;
+        let col_last = saf_string_static_field(env, DOC_CLASS, "COLUMN_LAST_MODIFIED")?;
+        let col_size = saf_string_static_field(env, DOC_CLASS, "COLUMN_SIZE")?;
+        let mime_dir = saf_string_static_field(env, DOC_CLASS, "MIME_TYPE_DIR")?;
         let mime_dir_str: String = env
             .get_string(&mime_dir.into())
-            .map_err(|e| map_android_jni_error(&mut env, e))?
+            .map_err(|e| map_android_jni_error(env, e))?
             .into();
 
-        let idx_doc_id = saf_column_index(&mut env, &cursor, &col_doc_id)?;
-        let idx_display = saf_column_index(&mut env, &cursor, &col_display)?;
-        let idx_mime = saf_column_index(&mut env, &cursor, &col_mime)?;
-        let idx_last = saf_column_index(&mut env, &cursor, &col_last)?;
-        let idx_size = saf_column_index(&mut env, &cursor, &col_size)?;
+        let idx_doc_id = saf_column_index(env, &cursor, &col_doc_id)?;
+        let idx_display = saf_column_index(env, &cursor, &col_display)?;
+        let idx_mime = saf_column_index(env, &cursor, &col_mime)?;
+        let idx_last = saf_column_index(env, &cursor, &col_last)?;
+        let idx_size = saf_column_index(env, &cursor, &col_size)?;
 
         let mut entries = Vec::new();
         let moved_first = env
             .call_method(&cursor, "moveToFirst", "()Z", &[])
             .and_then(|v| v.z())
-            .map_err(|e| map_android_jni_error(&mut env, e))?;
+            .map_err(|e| map_android_jni_error(env, e))?;
         if !moved_first {
             return Ok(entries);
         }
 
         loop {
-            let name = saf_cursor_string(&mut env, &cursor, idx_display)?;
-            let mime = saf_cursor_string(&mut env, &cursor, idx_mime)?;
-            let child_doc_id = saf_cursor_string(&mut env, &cursor, idx_doc_id)?;
-            let last_modified = saf_cursor_long(&mut env, &cursor, idx_last)?;
-            let size = saf_cursor_long(&mut env, &cursor, idx_size)?;
+            let name = saf_cursor_string(env, &cursor, idx_display)?;
+            let mime = saf_cursor_string(env, &cursor, idx_mime)?;
+            let child_doc_id = saf_cursor_string(env, &cursor, idx_doc_id)?;
+            let last_modified = saf_cursor_long(env, &cursor, idx_last)?;
+            let size = saf_cursor_long(env, &cursor, idx_size)?;
 
             // DocumentsContract.buildDocumentUriUsingTree(treeUri, childDocId)
             let child_doc_id_jstring = env
                 .new_string(&child_doc_id)
-                .map_err(|e| map_android_jni_error(&mut env, e))?;
+                .map_err(|e| map_android_jni_error(env, e))?;
             let child_uri_obj = env
                 .call_static_method(
                     "android/provider/DocumentsContract",
                     "buildDocumentUriUsingTree",
                     "(Landroid/net/Uri;Ljava/lang/String;)Landroid/net/Uri;",
-                    &[(&tree_uri_obj).into(), (&child_doc_id_jstring).into()],
+                    &[tree_uri_obj.into(), (&child_doc_id_jstring).into()],
                 )
                 .and_then(|v| v.l())
-                .map_err(|e| map_android_jni_error(&mut env, e))?;
+                .map_err(|e| map_android_jni_error(env, e))?;
             let child_uri_str: String = if child_uri_obj.is_null() {
                 String::new()
             } else {
                 let s = env
                     .call_method(&child_uri_obj, "toString", "()Ljava/lang/String;", &[])
                     .and_then(|v| v.l())
-                    .map_err(|e| map_android_jni_error(&mut env, e))?;
+                    .map_err(|e| map_android_jni_error(env, e))?;
                 env.get_string(&s.into())
-                    .map_err(|e| map_android_jni_error(&mut env, e))?
+                    .map_err(|e| map_android_jni_error(env, e))?
                     .into()
             };
 
@@ -979,7 +1069,7 @@ fn list_android_saf_directory_inner(tree_uri: &str) -> Result<Vec<SafDirectoryEn
             let has_next = env
                 .call_method(&cursor, "moveToNext", "()Z", &[])
                 .and_then(|v| v.z())
-                .map_err(|e| map_android_jni_error(&mut env, e))?;
+                .map_err(|e| map_android_jni_error(env, e))?;
             if !has_next {
                 break;
             }
@@ -988,7 +1078,7 @@ fn list_android_saf_directory_inner(tree_uri: &str) -> Result<Vec<SafDirectoryEn
         Ok(entries)
     })();
 
-    close_android_closeable(&mut env, &cursor);
+    close_android_closeable(env, &cursor);
     result
 }
 
@@ -1212,4 +1302,52 @@ pub fn share_image_on_android(
         let _ = (file_path, mime_type);
         Err("Image sharing is only supported on Android.".to_string())
     }
+}
+
+// ===== Cross-platform helpers for content://-aware image I/O =====
+//
+// The desktop build serves images from regular filesystem paths. On Android,
+// images may also arrive as `content://` URIs — either from a SAF directory
+// pick (`pick_android_directory`) or from a SEND/VIEW intent-filter. The
+// helpers below let the rest of the backend read such sources without each
+// call site having to repeat the `#[cfg(target_os = "android")]` branching.
+//
+// `read_image_source_bytes` is the single entry point for reading raw image
+// bytes by path/URI. `list_saf_directory_entries` is the single entry point
+// for listing the children of a SAF tree URI. Both are no-ops/errors off
+// Android so callers can use them unconditionally.
+
+/// Reads raw bytes for an image source. On Android, transparently handles
+/// `content://` URIs via the ContentResolver; on every platform, falls back to
+/// `std::fs::read` for filesystem paths. Use this instead of `fs::read` (or as
+/// the fallback after `read_file_mapped` fails) whenever the path may originate
+/// from a SAF pick or a SEND/VIEW intent.
+pub fn read_image_source_bytes(path: &str) -> Result<Vec<u8>, String> {
+    #[cfg(target_os = "android")]
+    if is_android_content_uri(path) {
+        return read_android_content_uri(path);
+    }
+    std::fs::read(path).map_err(|e| format!("Failed to read '{}': {}", path, e))
+}
+
+/// Cross-platform wrapper around `list_android_saf_uri_children`. Lists the
+/// immediate children of a SAF tree URI or child document URI on Android;
+/// returns an error on other platforms where SAF does not exist.
+pub fn list_saf_directory_entries(uri: &str) -> Result<Vec<SafDirectoryEntry>, String> {
+    #[cfg(target_os = "android")]
+    {
+        list_android_saf_uri_children(uri)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = uri;
+        Err("SAF directory listing is only available on Android.".to_string())
+    }
+}
+
+/// Returns true when the given path is an Android SAF / MediaStore content
+/// URI. Available on every platform (always returns false off Android paths)
+/// so callers can branch without `#[cfg]` guards.
+pub fn is_android_uri(path: &str) -> bool {
+    is_android_content_uri(path)
 }

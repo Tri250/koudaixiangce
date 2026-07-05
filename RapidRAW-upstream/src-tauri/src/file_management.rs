@@ -238,7 +238,21 @@ pub async fn read_exif_for_paths(
                 let (source_path, _) = parse_virtual_path(virtual_path);
                 let source_path_str = source_path.to_string_lossy().to_string();
 
-                let map = if let Some(sidecar_exif) =
+                // SAF (content://) URIs: no on-disk sidecar possible, and
+                // mmap/fs::read can't cross the SAF boundary. Read bytes via
+                // the ContentResolver and parse EXIF directly. Sidecar checks
+                // are skipped (the external tree is read-only to us).
+                let map = if crate::android_integration::is_android_uri(&source_path_str) {
+                    match crate::android_integration::read_image_source_bytes(&source_path_str) {
+                        Ok(bytes) => {
+                            crate::exif_processing::read_exif_data(&source_path_str, &bytes)
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to read SAF URI for EXIF '{}': {}", source_path_str, e);
+                            HashMap::new()
+                        }
+                    }
+                } else if let Some(sidecar_exif) =
                     crate::exif_processing::read_rrexif_sidecar(&source_path)
                 {
                     sidecar_exif
@@ -271,6 +285,18 @@ pub async fn update_exif_fields(
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         paths.par_iter().for_each(|path| {
+            // SAF (content://) URIs live in a read-only external tree — we
+            // cannot persist EXIF sidecars next to them. Skip silently so the
+            // editor still works in-memory; persistence is reserved for the
+            // internal library root.
+            if crate::android_integration::is_android_uri(path) {
+                log::debug!(
+                    "Skipping EXIF field update for read-only SAF URI: {}",
+                    path
+                );
+                return;
+            }
+
             let original_path = Path::new(&path);
             let primary_path = crate::exif_processing::get_primary_sidecar_path(original_path);
             let temp_metadata = crate::exif_processing::load_sidecar(&primary_path);
@@ -309,8 +335,80 @@ pub async fn update_exif_fields(
     .map_err(|e| format!("Task failed: {}", e))?
 }
 
+/// Builds an `ImageFile` from a SAF entry whose mime type / name indicate a
+/// supported image. Returns `None` for non-image entries (directories,
+/// unsupported files). SAF-sourced images have no on-disk sidecar (the
+/// external tree is read-only to us), so they always load as unedited with no
+/// rating/tags — edits are persisted only for the internal library root.
+fn saf_entry_to_image_file(entry: &crate::android_integration::SafDirectoryEntry) -> Option<ImageFile> {
+    if entry.is_directory {
+        return None;
+    }
+    // Filter by extension via the entry name; SAF mime types for RAW files are
+    // not standardised across providers, so extension matching is more reliable.
+    if !is_supported_image_file(std::path::Path::new(&entry.name)) {
+        return None;
+    }
+
+    // SAF reports last-modified in milliseconds; ImageFile.modified is seconds
+    // since UNIX_EPOCH (matching the fs::metadata path below).
+    let modified_secs = (entry.last_modified.max(0) as u64) / 1000;
+
+    Some(ImageFile {
+        path: entry.uri.clone(),
+        modified: modified_secs,
+        is_edited: false,
+        tags: None,
+        exif: None,
+        rating: 0,
+        is_virtual_copy: false,
+    })
+}
+
+/// Lists supported image files directly inside a SAF tree/document URI.
+/// Returns an empty vec (not an error) if the URI has no children or none of
+/// them are images — mirroring `list_images_in_dir`'s behavior for empty dirs.
+fn list_images_in_saf_dir(uri: &str) -> Result<Vec<ImageFile>, String> {
+    let entries = crate::android_integration::list_saf_directory_entries(uri)?;
+    Ok(entries
+        .iter()
+        .filter_map(saf_entry_to_image_file)
+        .collect())
+}
+
+/// Recursively lists supported image files under a SAF tree/document URI.
+/// Subdirectories are walked via their child document URIs (which carry the
+/// tree's persisted permission). `visited` guards against symlink-like cycles
+/// that some providers expose.
+fn list_images_in_saf_dir_recursive(uri: &str, visited: &mut std::collections::HashSet<String>) -> Result<Vec<ImageFile>, String> {
+    if !visited.insert(uri.to_string()) {
+        return Ok(Vec::new());
+    }
+
+    let entries = crate::android_integration::list_saf_directory_entries(uri)?;
+    let mut images = Vec::new();
+    for entry in entries {
+        if entry.is_directory {
+            if entry.uri.is_empty() {
+                continue;
+            }
+            let sub = list_images_in_saf_dir_recursive(&entry.uri, visited)?;
+            images.extend(sub);
+        } else if let Some(img) = saf_entry_to_image_file(&entry) {
+            images.push(img);
+        }
+    }
+    Ok(images)
+}
+
 #[tauri::command]
 pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<ImageFile>, String> {
+    // SAF (content://) directories cannot be read with fs::read_dir — delegate
+    // to the Storage Access Framework via the ContentResolver.
+    if crate::android_integration::is_android_uri(&path) {
+        return list_images_in_saf_dir(&path);
+    }
+
     let settings = load_settings(app_handle).unwrap_or_default();
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
 
@@ -428,6 +526,13 @@ pub fn list_images_recursive(
     path: String,
     app_handle: AppHandle,
 ) -> Result<Vec<ImageFile>, String> {
+    // SAF (content://) directories: walk the document tree via SAF recursively
+    // (fs::read_dir cannot cross the SAF boundary).
+    if crate::android_integration::is_android_uri(&path) {
+        let mut visited = std::collections::HashSet::new();
+        return list_images_in_saf_dir_recursive(&path, &mut visited);
+    }
+
     let settings = load_settings(app_handle).unwrap_or_default();
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
 
@@ -945,11 +1050,169 @@ fn scan_dir_lazy(
     Ok((children_folders, current_dir_image_count))
 }
 
+/// SAF equivalent of `scan_dir_lazy`. Walks the children of a SAF tree/document
+/// URI via the Storage Access Framework, producing `FolderNode` entries that
+/// mirror the on-disk variant (subfolders, image counts, has_subdirs, modified).
+///
+/// The `expanded_folders` set uses SAF document URIs as keys — these are the
+/// `uri` strings carried by `SafDirectoryEntry` for directory entries. When a
+/// folder is expanded (or `prefetch_one_level` is true for the immediate
+/// children of the root), we recurse into it; otherwise we report
+/// `has_subdirs`/`image_count` based on a single SAF listing (which already
+/// knows whether each child is a directory, so `has_subdirs` is exact without
+/// a second round-trip — unlike `scan_dir_lazy` which needs `has_subdirs`).
+fn scan_saf_lazy(
+    uri: &str,
+    expanded_folders: &HashSet<String>,
+    show_image_counts: bool,
+    prefetch_one_level: bool,
+    visited: &mut std::collections::HashSet<String>,
+) -> Result<(Vec<FolderNode>, usize), String> {
+    if !visited.insert(uri.to_string()) {
+        // Cycle detected (some providers expose self-referential trees).
+        return Ok((Vec::new(), 0));
+    }
+
+    let entries = crate::android_integration::list_saf_directory_entries(uri)?;
+    let mut children_folders = Vec::new();
+    let mut current_dir_image_count = 0usize;
+
+    for entry in entries {
+        if entry.name.starts_with('.') {
+            continue;
+        }
+
+        let modified_secs = (entry.last_modified.max(0) as u64) / 1000;
+
+        if entry.is_directory {
+            if entry.uri.is_empty() {
+                continue;
+            }
+
+            let is_expanded = expanded_folders.contains(&entry.uri);
+            let should_scan = is_expanded || prefetch_one_level;
+            let next_prefetch = is_expanded;
+
+            // When `should_scan` is true, recurse to get grand-children and the
+            // recursive image count. When false, do a single SAF listing of the
+            // immediate children: it gives us the immediate image count (if
+            // requested) and whether any subdirs exist (for `has_subdirs`),
+            // without one JNI round-trip per deeper folder. Deeper descendants
+            // are not counted for collapsed SAF folders (matching `scan_dir_lazy`'s
+            // intent); a full walk would be too expensive for a tree panel.
+            let (grand_children, sub_dir_own_images, has_any_subdirs) = if should_scan {
+                let (gc, count) = scan_saf_lazy(
+                    &entry.uri,
+                    expanded_folders,
+                    show_image_counts,
+                    next_prefetch,
+                    visited,
+                )?;
+                let has_subs = gc.iter().any(|c| c.is_dir);
+                (gc, count, has_subs)
+            } else {
+                let immediate = match crate::android_integration::list_saf_directory_entries(&entry.uri) {
+                    Ok(entries) => entries,
+                    Err(_) => Vec::new(),
+                };
+                let count = if show_image_counts {
+                    immediate
+                        .iter()
+                        .filter(|e| !e.is_directory && is_supported_image_file(Path::new(&e.name)))
+                        .count()
+                } else {
+                    0
+                };
+                let has_subs = immediate
+                    .iter()
+                    .any(|e| e.is_directory && !e.name.starts_with('.'));
+                (Vec::new(), count, has_subs)
+            };
+
+            let grand_children_sum: usize = grand_children.iter().map(|c| c.image_count).sum();
+            let total_child_count = sub_dir_own_images + grand_children_sum;
+
+            children_folders.push(FolderNode {
+                name: entry.name.clone(),
+                path: entry.uri.clone(),
+                children: grand_children,
+                is_dir: true,
+                image_count: total_child_count,
+                has_subdirs: has_any_subdirs,
+                modified: modified_secs,
+                created: modified_secs,
+            });
+        } else if show_image_counts
+            && is_supported_image_file(Path::new(&entry.name))
+        {
+            current_dir_image_count += 1;
+        }
+    }
+
+    children_folders.sort_by_key(|a| a.name.to_lowercase());
+
+    Ok((children_folders, current_dir_image_count))
+}
+
+/// SAF equivalent of `get_folder_tree_sync`. Builds the root `FolderNode` for a
+/// SAF tree/document URI by delegating to `scan_saf_lazy`. The root's `name`
+/// comes from resolving the URI's display name (best-effort — falls back to the
+/// URI string when the provider doesn't expose `DISPLAY_NAME`).
+fn get_folder_tree_sync_saf(
+    uri: String,
+    expanded_folders: Vec<String>,
+    show_image_counts: bool,
+) -> Result<FolderNode, String> {
+    let expanded_set: HashSet<String> = expanded_folders.iter().cloned().collect();
+    let mut visited = std::collections::HashSet::new();
+
+    let (children, own_count) =
+        scan_saf_lazy(&uri, &expanded_set, show_image_counts, true, &mut visited)?;
+
+    let children_sum: usize = children.iter().map(|c| c.image_count).sum();
+    let has_subdirs = children.iter().any(|c| c.is_dir);
+
+    // Best-effort display name for the SAF root. SAF document URIs expose
+    // DISPLAY_NAME through the ContentResolver cursor, so
+    // `resolve_android_content_uri_name` should normally succeed. If it
+    // doesn't (provider quirk or permission gap), fall back to the URI's last
+    // path segment, then to the URI itself.
+    let name = crate::android_integration::resolve_android_content_uri_name(&uri)
+        .ok()
+        .filter(|n| !n.trim().is_empty())
+        .or_else(|| uri.rsplit('/').next().map(|s| s.to_string()))
+        .unwrap_or_else(|| uri.clone());
+
+    Ok(FolderNode {
+        name,
+        path: uri.clone(),
+        children,
+        is_dir: true,
+        image_count: own_count + children_sum,
+        has_subdirs,
+        modified: 0,
+        created: 0,
+    })
+}
+
+/// SAF equivalent of `get_folder_children`. Returns the immediate subfolders of
+/// a SAF tree/document URI without recursing.
+fn get_folder_children_saf(uri: &str, show_image_counts: bool) -> Result<Vec<FolderNode>, String> {
+    let expanded_set: HashSet<String> = HashSet::new();
+    let mut visited = std::collections::HashSet::new();
+    let (children, _) = scan_saf_lazy(uri, &expanded_set, show_image_counts, false, &mut visited)?;
+    Ok(children)
+}
+
 fn get_folder_tree_sync(
     path: String,
     expanded_folders: Vec<String>,
     show_image_counts: bool,
 ) -> Result<FolderNode, String> {
+    if crate::android_integration::is_android_uri(&path) {
+        return get_folder_tree_sync_saf(path, expanded_folders, show_image_counts);
+    }
+
     let root_path = Path::new(&path);
     if !root_path.is_dir() {
         return Err(format!("Directory does not exist: {}", path));
@@ -1011,6 +1274,10 @@ pub async fn get_folder_children(
     show_image_counts: bool,
 ) -> Result<Vec<FolderNode>, String> {
     match tauri::async_runtime::spawn_blocking(move || {
+        if crate::android_integration::is_android_uri(&path) {
+            return get_folder_children_saf(&path, show_image_counts);
+        }
+
         let root_path = Path::new(&path);
         if !root_path.is_dir() {
             return Err(format!("Directory does not exist: {}", path));
@@ -1166,24 +1433,33 @@ pub fn generate_thumbnail_data(
                 let mmap_guard;
                 let vec_guard;
 
-                let file_slice: &[u8] = match read_file_mapped(&source_path) {
-                    Ok(mmap) => {
-                        mmap_guard = Some(mmap);
-                        mmap_guard.as_ref().unwrap()
-                    }
-                    Err(e) => {
-                        if preloaded_image.is_none() {
-                            log::warn!("Fallback read for {}: {}", source_path_str, e);
+                let file_slice: &[u8] = if crate::android_integration::is_android_uri(&source_path_str) {
+                    // SAF (content://) URIs: read via ContentResolver. No mmap
+                    // path is possible across the SAF boundary.
+                    let bytes = crate::android_integration::read_image_source_bytes(&source_path_str)
+                        .map_err(|e| anyhow::anyhow!(e))?;
+                    vec_guard = Some(bytes);
+                    vec_guard.as_ref().unwrap()
+                } else {
+                    match read_file_mapped(&source_path) {
+                        Ok(mmap) => {
+                            mmap_guard = Some(mmap);
+                            mmap_guard.as_ref().unwrap()
                         }
-                        let bytes = fs::read(&source_path).map_err(|io_err| {
-                            anyhow::anyhow!(
-                                "Fallback read failed for {}: {}",
-                                source_path_str,
-                                io_err
-                            )
-                        })?;
-                        vec_guard = Some(bytes);
-                        vec_guard.as_ref().unwrap()
+                        Err(e) => {
+                            if preloaded_image.is_none() {
+                                log::warn!("Fallback read for {}: {}", source_path_str, e);
+                            }
+                            let bytes = fs::read(&source_path).map_err(|io_err| {
+                                anyhow::anyhow!(
+                                    "Fallback read failed for {}: {}",
+                                    source_path_str,
+                                    io_err
+                                )
+                            })?;
+                            vec_guard = Some(bytes);
+                            vec_guard.as_ref().unwrap()
+                        }
                     }
                 };
 
@@ -1351,6 +1627,18 @@ pub fn generate_thumbnail_data(
 
     let mut final_image = if let Some(img) = preloaded_image {
         image_loader::composite_patches_on_image(img, &adjustments)?
+    } else if crate::android_integration::is_android_uri(&source_path_str) {
+        // SAF (content://) URIs: read via ContentResolver, then composite.
+        let bytes = crate::android_integration::read_image_source_bytes(&source_path_str)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        image_loader::load_and_composite(
+            &bytes,
+            &source_path_str,
+            &adjustments,
+            true,
+            &settings,
+            None,
+        )?
     } else {
         match read_file_mapped(&source_path) {
             Ok(mmap) => image_loader::load_and_composite(
@@ -2382,7 +2670,13 @@ pub async fn apply_auto_adjustments_to_paths(
                 let (source_path, sidecar_path) = parse_virtual_path(path);
                 let source_path_str = source_path.to_string_lossy().to_string();
 
-                let file_bytes = fs::read(&source_path).map_err(|e| e.to_string())?;
+                // SAF (content://) URIs: read via ContentResolver.
+                let file_bytes = if crate::android_integration::is_android_uri(&source_path_str) {
+                    crate::android_integration::read_image_source_bytes(&source_path_str)
+                        .map_err(|e| e.to_string())?
+                } else {
+                    fs::read(&source_path).map_err(|e| e.to_string())?
+                };
                 let image = image_loader::load_base_image_from_bytes(
                     &file_bytes,
                     &source_path_str,

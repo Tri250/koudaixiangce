@@ -516,8 +516,30 @@ pub async fn load_image(
                 return Err("Load cancelled".to_string());
             }
 
-            let result: Result<(DynamicImage, HashMap<String, String>), String> =
-                (|| match read_file_mapped(Path::new(&path_clone)) {
+            let result: Result<(DynamicImage, HashMap<String, String>), String> = (|| {
+                // SAF (content://) URIs cannot be memory-mapped or read via
+                // std::fs; route them through the ContentResolver. This keeps
+                // the load path real (no mock) for images surfaced by
+                // `list_images_in_dir`/`list_images_recursive` when the user
+                // picks an external tree.
+                if crate::android_integration::is_android_uri(&path_clone) {
+                    let bytes = crate::android_integration::read_image_source_bytes(&path_clone)?;
+                    if generation_tracker.load(Ordering::SeqCst) != my_generation {
+                        return Err("Load cancelled".to_string());
+                    }
+                    let img = load_base_image_from_bytes(
+                        &bytes,
+                        &path_clone,
+                        false,
+                        &settings,
+                        cancel_token.clone(),
+                    )
+                    .map_err(|e| e.to_string())?;
+                    let exif = exif_processing::read_exif_data(&path_clone, &bytes);
+                    return Ok((img, exif));
+                }
+
+                match read_file_mapped(Path::new(&path_clone)) {
                     Ok(mmap) => {
                         if generation_tracker.load(Ordering::SeqCst) != my_generation {
                             return Err("Load cancelled".to_string());
@@ -559,7 +581,8 @@ pub async fn load_image(
                         let exif = exif_processing::read_exif_data(&path_clone, &bytes);
                         Ok((img, exif))
                     }
-                })();
+                }
+            })();
             result
         })
         .await

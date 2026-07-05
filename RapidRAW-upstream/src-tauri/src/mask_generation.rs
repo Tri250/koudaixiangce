@@ -1922,10 +1922,17 @@ pub async fn generate_skin_mask(
     let app_handle_clone = app_handle.clone();
     let source_image = tokio::task::spawn_blocking(move || -> Result<DynamicImage, String> {
         let settings = load_settings(app_handle_clone.clone()).unwrap_or_default();
-        let bytes_or_mmap = read_file_mapped(Path::new(&source_path_str))
-            .map(|mmap| mmap.to_vec())
-            .or_else(|_| std::fs::read(&source_path_str));
-        let bytes = bytes_or_mmap.map_err(|e| format!("Failed to read image file: {}", e))?;
+        // SAF (content://) URIs: read via ContentResolver; mmap/fs::read can't
+        // cross the SAF boundary.
+        let bytes = if crate::android_integration::is_android_uri(&source_path_str) {
+            crate::android_integration::read_image_source_bytes(&source_path_str)
+                .map_err(|e| format!("Failed to read SAF URI: {}", e))?
+        } else {
+            read_file_mapped(Path::new(&source_path_str))
+                .map(|mmap| mmap.to_vec())
+                .or_else(|_| std::fs::read(&source_path_str))
+                .map_err(|e| format!("Failed to read image file: {}", e))?
+        };
         load_base_image_from_bytes(&bytes, &source_path_str, false, &settings, None)
             .map_err(|e| format!("Failed to load base image: {}", e))
     })
