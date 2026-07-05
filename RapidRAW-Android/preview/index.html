@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RapidRAW Android - UI Preview</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, 'PingFang SC', 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
+  background: #0a0a0a;
+  color: #F5F5F5;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* ===== LAYOUT ===== */
+.app-layout {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  padding: 20px;
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+.sidebar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #808080;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+  padding-left: 12px;
+}
+.sidebar-btn {
+  background: transparent;
+  border: none;
+  color: #B3B3B3;
+  font-size: 14px;
+  padding: 10px 16px;
+  text-align: left;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .2s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.sidebar-btn:hover { background: #1A1A1A; color: #F5F5F5; }
+.sidebar-btn.active { background: #E8740C; color: #fff; font-weight: 600; }
+
+/* ===== PHONE MOCKUP ===== */
+.phone-frame {
+  width: 395px;
+  height: 832px;
+  background: #000;
+  border-radius: 48px;
+  border: 4px solid #333;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 0 2px #1a1a1a, 0 30px 80px rgba(0,0,0,.8), 0 0 120px rgba(232,116,12,.08);
+  flex-shrink: 0;
+}
+.phone-notch {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 28px;
+  background: #000;
+  border-radius: 20px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.phone-notch::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: #1a1a1a;
+  border-radius: 50%;
+}
+.phone-screen {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ===== STATUS BAR ===== */
+.status-bar {
+  height: 44px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 28px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #F5F5F5;
+  position: relative;
+  z-index: 90;
+}
+.status-bar-right { display: flex; gap: 6px; align-items: center; font-size: 11px; }
+
+/* ===== SCREEN CONTAINER ===== */
+.screen {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  display: none;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.screen.active { display: flex; opacity: 1; }
+
+/* ===== BOTTOM NAV BAR ===== */
+.bottom-nav {
+  display: flex;
+  height: 64px;
+  background: #0D0D0D;
+  border-top: 1px solid #1A1A1A;
+  flex-shrink: 0;
+}
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  transition: color .2s;
+  color: #808080;
+  font-size: 10px;
+  border: none;
+  background: none;
+  font-family: inherit;
+}
+.nav-item.active { color: #E8740C; }
+.nav-icon {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+/* ===== COMMON COMPONENTS ===== */
+.surface-1 { background: #0D0D0D; }
+.surface-2 { background: #1A1A1A; }
+.surface-3 { background: #262626; }
+.surface-4 { background: #333333; }
+.accent { color: #E8740C; }
+.accent-bg { background: #E8740C; }
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px;
+  gap: 12px;
+}
+.slider-label {
+  font-size: 12px;
+  color: #B3B3B3;
+  min-width: 52px;
+  text-align: right;
+}
+.slider-value {
+  font-size: 11px;
+  color: #808080;
+  min-width: 36px;
+  text-align: center;
+}
+.slider-track {
+  flex: 1;
+  height: 3px;
+  background: #333;
+  border-radius: 2px;
+  position: relative;
+}
+.slider-fill {
+  height: 100%;
+  background: #E8740C;
+  border-radius: 2px;
+  position: absolute;
+  left: 50%;
+}
+.slider-thumb {
+  width: 14px;
+  height: 14px;
+  background: #F5F5F5;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  left: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,.5);
+}
+
+.card {
+  background: #1A1A1A;
+  border-radius: 12px;
+  padding: 12px;
+}
+.card-accent {
+  background: linear-gradient(135deg, #E8740C 0%, #c45e00 100%);
+}
+
+/* ===== SCREEN 1: LIBRARY ===== */
+.lib-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+}
+.lib-header-title { font-size: 18px; font-weight: 700; }
+.lib-header-actions { display: flex; gap: 16px; color: #B3B3B3; font-size: 18px; }
+.lib-tabs {
+  display: flex;
+  padding: 0 16px;
+  gap: 20px;
+  border-bottom: 1px solid #1A1A1A;
+}
+.lib-tab {
+  font-size: 13px;
+  padding: 8px 0;
+  color: #808080;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-family: inherit;
+}
+.lib-tab.active { color: #F5F5F5; border-bottom-color: #E8740C; }
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
+  flex: 1;
+  overflow-y: auto;
+}
+.lib-thumb {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+.lib-thumb img { display:none; }
+.lib-date {
+  position: absolute;
+  bottom: 4px;
+  left: 6px;
+  font-size: 9px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.8);
+}
+.lib-raw-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 8px;
+  background: #E8740C;
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+/* ===== SCREEN 2: EDITOR ===== */
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  height: 44px;
+}
+.editor-toolbar-left, .editor-toolbar-right { display: flex; align-items: center; gap: 16px; }
+.editor-toolbar-btn {
+  background: none;
+  border: none;
+  color: #B3B3B3;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  font-family: inherit;
+}
+.editor-toolbar-btn:disabled { color: #404040; }
+.editor-canvas {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.editor-image-placeholder {
+  width: 85%;
+  aspect-ratio: 3/4;
+  border-radius: 4px;
+  position: relative;
+}
+.editor-waveform-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 80px;
+  height: 50px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.1);
+}
+.editor-bottom-tabs {
+  display: flex;
+  height: 44px;
+  background: #0D0D0D;
+  border-top: 1px solid #1A1A1A;
+  flex-shrink: 0;
+}
+.editor-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #808080;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  transition: color .2s;
+  position: relative;
+}
+.editor-tab.active { color: #E8740C; }
+.editor-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: #E8740C;
+  border-radius: 1px;
+}
+.editor-panel {
+  height: 200px;
+  background: #0D0D0D;
+  overflow-y: auto;
+  flex-shrink: 0;
+  padding-top: 8px;
+}
+
+/* ===== AI CARDS ===== */
+.ai-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.ai-card {
+  background: #1A1A1A;
+  border-radius: 10px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background .2s;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+}
+.ai-card:hover { background: #262626; }
+.ai-card.active { background: #262626; border: 1px solid #E8740C; }
+.ai-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.ai-card-label { font-size: 10px; color: #B3B3B3; text-align: center; line-height: 1.2; }
+
+/* ===== ADJUST SLIDERS ===== */
+.adjust-group-title {
+  font-size: 11px;
+  color: #808080;
+  padding: 8px 16px 4px;
+  font-weight: 600;
+}
+
+/* ===== BEAUTY PANEL ===== */
+.beauty-section {
+  padding: 8px 0;
+}
+.beauty-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #F5F5F5;
+  padding: 8px 16px 4px;
+}
+
+/* ===== PORTRAIT PANEL ===== */
+.portrait-visual {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+.portrait-face-outline {
+  width: 100px;
+  height: 130px;
+  border: 2px dashed #333;
+  border-radius: 50% 50% 45% 45%;
+  position: relative;
+}
+.portrait-point {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #E8740C;
+  border-radius: 50%;
+}
+
+/* ===== EXPORT QUEUE ===== */
+.export-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px;
+}
+.export-item {
+  background: #1A1A1A;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.export-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.export-item-name { font-size: 13px; font-weight: 500; }
+.export-item-status { font-size: 11px; color: #E8740C; }
+.export-item-detail { font-size: 11px; color: #808080; margin-bottom: 6px; }
+.export-progress {
+  height: 3px;
+  background: #333;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.export-progress-fill {
+  height: 100%;
+  background: #E8740C;
+  border-radius: 2px;
+  transition: width .3s;
+}
+.export-item-status.done { color: #4CAF50; }
+
+/* ===== WAVEFORM SCOPE ===== */
+.scope-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.scope-display {
+  width: 300px;
+  height: 200px;
+  background: #0D0D0D;
+  border-radius: 12px;
+  border: 1px solid #1A1A1A;
+  overflow: hidden;
+  position: relative;
+}
+.scope-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  background: #1A1A1A;
+  border-radius: 10px;
+  padding: 3px;
+}
+.scope-tab {
+  padding: 6px 16px;
+  font-size: 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #808080;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .2s;
+}
+.scope-tab.active { background: #E8740C; color: #fff; }
+.scope-info {
+  margin-top: 12px;
+  font-size: 11px;
+  color: #808080;
+  text-align: center;
+}
+
+/* ===== LUT MARKET ===== */
+.lut-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 8px 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+.lut-card {
+  background: #1A1A1A;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .2s;
+}
+.lut-card:active { transform: scale(.97); }
+.lut-preview {
+  height: 90px;
+  position: relative;
+}
+.lut-info {
+  padding: 8px 10px;
+}
+.lut-name { font-size: 12px; font-weight: 500; }
+.lut-author { font-size: 10px; color: #808080; margin-top: 2px; }
+.lut-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 9px;
+  background: #E8740C;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.lut-badge.free { background: #4CAF50; }
+
+/* ===== SETTINGS ===== */
+.settings-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px;
+}
+.settings-group-title {
+  font-size: 11px;
+  color: #808080;
+  padding: 12px 0 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid #1A1A1A;
+  cursor: pointer;
+}
+.settings-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings-item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+.settings-item-label { font-size: 14px; }
+.settings-item-arrow { color: #808080; font-size: 14px; }
+.settings-version {
+  text-align: center;
+  padding: 20px;
+  font-size: 11px;
+  color: #404040;
+}
+
+/* ===== TUTORIAL / ONBOARDING ===== */
+.tutorial-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 32px;
+}
+.tutorial-illustration {
+  width: 200px;
+  height: 200px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64px;
+  margin-bottom: 32px;
+  position: relative;
+  overflow: hidden;
+}
+.tutorial-title {
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.tutorial-desc {
+  font-size: 14px;
+  color: #B3B3B3;
+  text-align: center;
+  line-height: 1.6;
+  max-width: 280px;
+}
+.tutorial-dots {
+  display: flex;
+  gap: 8px;
+  margin-top: 32px;
+}
+.tutorial-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: #333;
+  transition: all .3s;
+  cursor: pointer;
+  border: none;
+}
+.tutorial-dot.active { background: #E8740C; width: 24px; }
+.tutorial-nav {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+.tutorial-btn {
+  padding: 10px 28px;
+  border-radius: 24px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .2s;
+}
+.tutorial-btn-secondary { background: #1A1A1A; color: #B3B3B3; }
+.tutorial-btn-primary { background: #E8740C; color: #fff; }
+
+/* ===== WAVEFORM CANVAS STYLES ===== */
+.waveform-canvas { width: 100%; height: 100%; }
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+/* ===== ANIMATIONS ===== */
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+.animate-pulse { animation: pulse 2s infinite; }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-title">RapidRAW 预览</div>
+    <button class="sidebar-btn active" onclick="switchScreen('library')">图库</button>
+    <button class="sidebar-btn" onclick="switchScreen('editor')">编辑器</button>
+    <button class="sidebar-btn" onclick="switchScreen('ai-panel')">AI 面板</button>
+    <button class="sidebar-btn" onclick="switchScreen('beauty')">美颜面板</button>
+    <button class="sidebar-btn" onclick="switchScreen('portrait')">人像精修</button>
+    <button class="sidebar-btn" onclick="switchScreen('export')">导出队列</button>
+    <button class="sidebar-btn" onclick="switchScreen('waveform')">波形示波器</button>
+    <button class="sidebar-btn" onclick="switchScreen('lut')">LUT 市场</button>
+    <button class="sidebar-btn" onclick="switchScreen('settings')">设置</button>
+    <button class="sidebar-btn" onclick="switchScreen('tutorial')">引导页</button>
+  </div>
+
+  <!-- PHONE MOCKUP -->
+  <div class="phone-frame">
+    <div class="phone-notch"></div>
+    <div class="phone-screen">
+
+      <!-- ========== SCREEN: LIBRARY ========== -->
+      <div class="screen active" id="screen-library">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-bar-right">
+            <span>&#9679;&#9679;&#9679;&#9679;</span>
+            <span>5G</span>
+            <span>&#128267;</span>
+          </span>
+        </div>
+        <div class="lib-header">
+          <span class="lib-header-title">RapidRAW</span>
+          <div class="lib-header-actions">
+            <span>&#128269;</span>
+            <span>&#8942;</span>
+          </div>
+        </div>
+        <div class="lib-tabs">
+          <button class="lib-tab active">全部</button>
+          <button class="lib-tab">RAW</button>
+          <button class="lib-tab">收藏</button>
+          <button class="lib-tab">最近</button>
+        </div>
+        <div class="lib-grid" id="lib-grid"></div>
+        <div class="bottom-nav">
+          <button class="nav-item active"><span class="nav-icon">&#128247;</span>图库</button>
+          <button class="nav-item"><span class="nav-icon">&#128295;</span>编辑</button>
+          <button class="nav-item"><span class="nav-icon">&#127912;</span>LUT</button>
+          <button class="nav-item"><span class="nav-icon">&#9881;</span>设置</button>
+        </div>
+      </div>
+
+      <!-- ========== SCREEN: EDITOR ========== -->
+      <div class="screen" id="screen-editor">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-bar-right">
+            <span>&#9679;&#9679;&#9679;&#9679;</span>
+            <span>5G</span>
+            <span>&#128267;</span>
+          </span>
+        </div>
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <button class="editor-toolbar-btn">&#8592;</button>
+          </div>
+          <div class="editor-toolbar-right">
+            <button class="editor-toolbar-btn" disabled>&#8630;</button>
+            <button class="editor-toolbar-btn" disabled>&#8631;</button>
+            <button class="editor-toolbar-btn" style="color:#E8740C;">&#128228;</button>
+          </div>
+        </div>
+        <div class="editor-canvas">
+          <div class="editor-image-placeholder" style="background: linear-gradient(135deg, #2a1a0a 0%, #1a0a00 40%, #0a0a1a 100%);">
+            <canvas id="editor-img-canvas" width="320" height="420" style="width:100%;height:100%;border-radius:4px;"></canvas>
+          </div>
+          <div class="editor-waveform-overlay">
+            <canvas id="mini-waveform" width="80" height="50" style="width:100%;height:100%;"></canvas>
+          </div>
+        </div>
+        <div class="editor-bottom-tabs">
+          <button class="editor-tab active" data-panel="adjust" onclick="switchEditorTab('adjust')">调节</button>
+          <button class="editor-tab" data-panel="filter" onclick="switchEditorTab('filter')">滤镜</button>
+          <button class="editor-tab" data-panel="ai" onclick="switchEditorTab('ai')">AI</button>
+          <button class="editor-tab" data-panel="compose" onclick="switchEditorTab('compose')">构图</button>
+          <button class="editor-tab" data-panel="export" onclick="switchEditorTab('export')">导出</button>
+        </div>
+        <!-- Panels -->
+        <div class="editor-panel" id="editor-panel-adjust" style="display:flex;flex-direction:column;">
+          <div class="adjust-group-title">光线</div>
+          <div class="slider-row"><span class="slider-label">曝光</span><div class="slider-track"><div class="slider-fill" style="width:20%;left:50%;"></div><div class="slider-thumb" style="left:70%;"></div></div><span class="slider-value">+0.8</span></div>
+          <div class="slider-row"><span class="slider-label">亮度</span><div class="slider-track"><div class="slider-fill" style="width:15%;left:50%;"></div><div class="slider-thumb" style="left:65%;"></div></div><span class="slider-value">+0.6</span></div>
+          <div class="slider-row"><span class="slider-label">对比度</span><div class="slider-track"><div class="slider-fill" style="width:10%;left:40%;"></div><div class="slider-thumb" style="left:50%;"></div></div><span class="slider-value">0</span></div>
+          <div class="slider-row"><span class="slider-label">高光</span><div class="slider-track"><div class="slider-fill" style="width:30%;left:20%;"></div><div class="slider-thumb" style="left:40%;"></div></div><span class="slider-value">-30</span></div>
+          <div class="slider-row"><span class="slider-label">阴影</span><div class="slider-track"><div class="slider-fill" style="width:25%;left:50%;"></div><div class="slider-thumb" style="left:75%;"></div></div><span class="slider-value">+25</span></div>
+          <div class="adjust-group-title">颜色</div>
+          <div class="slider-row"><span class="slider-label">色温</span><div class="slider-track"><div class="slider-fill" style="width:18%;left:50%;"></div><div class="slider-thumb" style="left:68%;"></div></div><span class="slider-value">+18</span></div>
+          <div class="slider-row"><span class="slider-label">色调</span><div class="slider-track"><div class="slider-fill" style="width:5%;left:45%;"></div><div class="slider-thumb" style="left:50%;"></div></div><span class="slider-value">0</span></div>
+          <div class="slider-row"><span class="slider-label">饱和度</span><div class="slider-track"><div class="slider-fill" style="width:12%;left:50%;"></div><div class="slider-thumb" style="left:62%;"></div></div><span class="slider-value">+12</span></div>
+          <div class="slider-row"><span class="slider-label">自然饱和</span><div class="slider-track"><div class="slider-fill" style="width:8%;left:50%;"></div><div class="slider-thumb" style="left:58%;"></div></div><span class="slider-value">+8</span></div>
+        </div>
+        <div class="editor-panel" id="editor-panel-filter" style="display:none;">
+          <div style="display:flex;gap:10px;padding:8px 16px;overflow-x:auto;">
+            <div style="flex-shrink:0;text-align:center;">
+              <div style="width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#E8740C,#c45e00);margin-bottom:4px;"></div>
+              <span style="font-size:10px;color:#E8740C;">原片</span>
+            </div>
+            <div style="flex-shrink:0;text-align:center;">
+              <div style="width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#8B6914,#5a4510);margin-bottom:4px;"></div>
+              <span style="font-size:10px;color:#808080;">暖阳</span>
+            </div>
+            <div style="flex-shrink:0;text-align:center;">
+              <div style="width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#2a4a6a,#1a2a3a);margin-bottom:4px;"></div>
+              <span style="font-size:10px;color:#808080;">冷调</span>
+            </div>
+            <div style="flex-shrink:0;text-align:center;">
+              <div style="width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#3a3a3a,#1a1a1a);margin-bottom:4px;"></div>
+              <span style="font-size:10px;color:#808080;">黑白</span>
+            </div>
+            <div style="flex-shrink:0;text-align:center;">
+              <div style="width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#6a3a5a,#3a1a2a);margin-bottom:4px;"></div>
+              <span style="font-size:10px;color:#808080;">暮色</span>
+            </div>
+          </div>
+        </div>
+        <div class="editor-panel" id="editor-panel-ai" style="display:none;">
+          <div class="ai-cards-grid">
+            <button class="ai-card" onclick="switchScreen('ai-panel')">
+              <div class="ai-card-icon accent-bg" style="color:#fff;">&#9889;</div>
+              <span class="ai-card-label">智能优化</span>
+            </button>
+            <button class="ai-card" onclick="switchScreen('ai-panel')">
+              <div class="ai-card-icon" style="background:#1a3a2a;color:#4CAF50;">&#128007;</div>
+              <span class="ai-card-label">AI去噪</span>
+            </button>
+            <button class="ai-card" onclick="switchScreen('ai-panel')">
+              <div class="ai-card-icon" style="background:#3a1a2a;color:#E91E63;">&#10024;</div>
+              <span class="ai-card-label">AI消除</span>
+            </button>
+            <button class="ai-card" onclick="switchScreen('ai-panel')">
+              <div class="ai-card-icon" style="background:#1a2a3a;color:#2196F3;">&#127912;</div>
+              <span class="ai-card-label">AI遮罩</span>
+            </button>
+            <button class="ai-card" onclick="switchScreen('beauty')">
+              <div class="ai-card-icon" style="background:#2a2a1a;color:#FFC107;">&#128161;</div>
+              <span class="ai-card-label">局部调整</span>
+            </button>
+            <button class="ai-card" onclick="switchScreen('beauty')">
+              <div class="ai-card-icon" style="background:#3a1a1a;color:#FF5722;">&#128150;</div>
+              <span class="ai-card-label">美颜</span>
+            </button>
+            <button class="ai-card" onclick="switchScreen('portrait')">
+              <div class="ai-card-icon" style="background:#2a1a3a;color:#9C27B0;">&#128100;</div>
+              <span class="ai-card-label">人像精修</span>
+            </button>
+          </div>
+        </div>
+        <div class="editor-panel" id="editor-panel-compose" style="display:none;">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 16px;">
+            <div style="flex:1;min-width:45%;background:#1A1A1A;border-radius:10px;padding:10px;text-align:center;">
+              <div style="font-size:20px;margin-bottom:4px;">&#9998;</div>
+              <div style="font-size:11px;color:#B3B3B3;">裁剪</div>
+            </div>
+            <div style="flex:1;min-width:45%;background:#1A1A1A;border-radius:10px;padding:10px;text-align:center;">
+              <div style="font-size:20px;margin-bottom:4px;">&#8635;</div>
+              <div style="font-size:11px;color:#B3B3B3;">旋转</div>
+            </div>
+            <div style="flex:1;min-width:45%;background:#1A1A1A;border-radius:10px;padding:10px;text-align:center;">
+              <div style="font-size:20px;margin-bottom:4px;">&#8596;</div>
+              <div style="font-size:11px;color:#B3B3B3;">翻转</div>
+            </div>
+            <div style="flex:1;min-width:45%;background:#1A1A1A;border-radius:10px;padding:10px;text-align:center;">
+              <div style="font-size:20px;margin-bottom:4px;">&#9638;</div>
+              <div style="font-size:11px;color:#B3B3B3;">透视</div>
+            </div>
+          </div>
+        </div>
+        <div class="editor-panel" id="editor-panel-export" style="display:none;">
+          <div style="padding:8px 16px;">
+            <div style="background:#1A1A1A;border-radius:10px;padding:12px;margin-bottom:8px;">
+              <div style="font-size:12px;color:#808080;margin-bottom:6px;">格式</div>
+              <div style="display:flex;gap:8px;">
+                <span style="background:#E8740C;color:#fff;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;">JPEG</span>
+                <span style="background:#262626;color:#B3B3B3;padding:4px 12px;border-radius:6px;font-size:12px;">PNG</span>
+                <span style="background:#262626;color:#B3B3B3;padding:4px 12px;border-radius:6px;font-size:12px;">TIFF</span>
+                <span style="background:#262626;color:#B3B3B3;padding:4px 12px;border-radius:6px;font-size:12px;">DNG</span>
+              </div>
+            </div>
+            <div style="background:#1A1A1A;border-radius:10px;padding:12px;margin-bottom:8px;">
+              <div style="font-size:12px;color:#808080;margin-bottom:6px;">质量</div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="flex:1;height:3px;background:#333;border-radius:2px;"><div style="width:85%;height:100%;background:#E8740C;border-radius:2px;"></div></div>
+                <span style="font-size:12px;color:#B3B3B3;">85%</span>
+              </div>
+            </div>
+            <div style="background:#1A1A1A;border-radius:10px;padding:12px;">
+              <div style="font-size:12px;color:#808080;margin-bottom:6px;">分辨率</div>
+              <div style="font-size:14px;font-weight:500;">4032 × 3024</div>
+            </div>
+            <button style="width:100%;margin-top:12px;padding:12px;background:#E8740C;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">导出</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SCREEN: AI PANEL EXPANDED ========== -->
+      <div class="screen" id="screen-ai-panel">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-bar-right">
+            <span>&#9679;&#9679;&#9679;&#9679;</span>
+            <span>5G</span>
+            <span>&#128267;</span>
+          </span>
+        </div>
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <button class="editor-toolbar-btn" onclick="switchScreen('editor')">&#8592;</button>
+          </div>
+          <div style="font-size:16px;font-weight:600;">AI 工具</div>
+          <div class="editor-toolbar-right">
+            <button class="editor-toolbar-btn" style="color:#E8740C;">&#10003;</button>
+          </div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:12px 16px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <!-- 智能优化 -->
+            <div class="card" style="border:1px solid #E8740C;padding:16px;text-align:center;">
+              <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#E8740C,#c45e00);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;">&#9889;</div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:4px;">智能优化</div>
+              <div style="font-size:11px;color:#808080;">一键智能调整参数</div>
+              <div style="margin-top:8px;"><span style="font-size:10px;background:#E8740C;color:#fff;padding:2px 8px;border-radius:4px;">推荐</span></div>
+            </div>
+            <!-- AI去噪 -->
+            <div class="card" style="padding:16px;text-align:center;">
+              <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#1a3a2a,#0d1f15);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#4CAF50;">&#128007;</div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:4px;">AI去噪</div>
+              <div style="font-size:11px;color:#808080;">深度学习降噪处理</div>
+            </div>
+            <!-- AI消除 -->
+            <div class="card" style="padding:16px;text-align:center;">
+              <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#3a1a2a,#1f0d15);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#E91E63;">&#10024;</div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:4px;">AI消除</div>
+              <div style="font-size:11px;color:#808080;">智能移除画面元素</div>
+            </div>
+            <!-- AI遮罩 -->
+            <div class="card" style="padding:16px;text-align:center;">
+              <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#1a2a3a,#0d151f);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#2196F3;">&#127912;</div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:4px;">AI遮罩</div>
+              <div style="font-size:11px;color:#808080;">智能选择编辑区域</div>
+            </div>
+            <!-- 局部调整 -->
+            <div class="card" style="padding:16px;text-align:center;">
+              <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#2a2a1a,#15150d);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#FFC107;">&#128161;</div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:4px;">局部调整</div>
+              <div style="font-size:11px;color:#808080;">笔刷局部精修</div>
+            </div>
+            <!-- 美颜 -->
+            <div class="card" style="padding:16px;text-align:center;cursor:pointer;" onclick="switchScreen('beauty')">
+              <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#3a1a1a,#1f0d0d);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#FF5722;">&#128150;</div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:4px;">美颜</div>
+              <div style="font-size:11px;color:#808080;">一键美颜 + 精细调节</div>
+              <div style="margin-top:4px;"><span style="font-size:10px;color:#E8740C;">&#8594;</span></div>
+            </div>
+            <!-- 人像精修 -->
+            <div class="card" style="padding:16px;text-align:center;cursor:pointer;grid-column:span 2;" onclick="switchScreen('portrait')">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#2a1a3a,#150d1f);display:flex;align-items:center;justify-content:center;font-size:22px;color:#9C27B0;flex-shrink:0;">&#128100;</div>
+                <div style="text-align:left;">
+                  <div style="font-size:14px;font-weight:600;margin-bottom:4px;">人像精修</div>
+                  <div style="font-size:11px;color:#808080;">瘦脸/大眼/瘦鼻/瘦身/拉腿</div>
+                </div>
+                <span style="margin-left:auto;font-size:14px;color:#E8740C;">&#8594;</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SCREEN: BEAUTY ========== -->
+      <div class="screen" id="screen-beauty">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-bar-right">
+            <span>&#9679;&#9679;&#9679;&#9679;</span>
+            <span>5G</span>
+            <span>&#128267;</span>
+          </span>
+        </div>
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <button class="editor-toolbar-btn" onclick="switchScreen('ai-panel')">&#8592;</button>
+          </div>
+          <div style="font-size:16px;font-weight:600;">美颜</div>
+          <div class="editor-toolbar-right">
+            <button class="editor-toolbar-btn" style="color:#E8740C;">&#10003;</button>
+          </div>
+        </div>
+        <!-- Preview -->
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;">
+          <div style="width:200px;height:260px;border-radius:16px;background:linear-gradient(180deg,#2a1a2a 0%,#1a0a1a 100%);position:relative;overflow:hidden;">
+            <canvas id="beauty-face-canvas" width="200" height="260" style="width:100%;height:100%;"></canvas>
+          </div>
+        </div>
+        <!-- Sliders -->
+        <div style="background:#0D0D0D;border-top:1px solid #1A1A1A;max-height:240px;overflow-y:auto;">
+          <div class="beauty-section">
+            <div class="beauty-section-title">美白</div>
+            <div class="slider-row"><span class="slider-label">美白度</span><div class="slider-track"><div class="slider-fill" style="width:20%;left:50%;"></div><div class="slider-thumb" style="left:70%;"></div></div><span class="slider-value">+40</span></div>
+            <div class="slider-row"><span class="slider-label">均匀度</span><div class="slider-track"><div class="slider-fill" style="width:12%;left:50%;"></div><div class="slider-thumb" style="left:62%;"></div></div><span class="slider-value">+24</span></div>
+            <div class="slider-row"><span class="slider-label">去暗沉</span><div class="slider-track"><div class="slider-fill" style="width:8%;left:50%;"></div><div class="slider-thumb" style="left:58%;"></div></div><span class="slider-value">+16</span></div>
+          </div>
+          <div class="beauty-section">
+            <div class="beauty-section-title">颜色替换</div>
+            <div class="slider-row"><span class="slider-label">目标色</span><div style="flex:1;height:24px;border-radius:6px;background:linear-gradient(90deg,#ff4444,#ffaa00,#44ff44,#4444ff,#ff44ff);"></div></div>
+            <div class="slider-row"><span class="slider-label">色相</span><div class="slider-track"><div class="slider-fill" style="width:15%;left:50%;"></div><div class="slider-thumb" style="left:65%;"></div></div><span class="slider-value">+30</span></div>
+            <div class="slider-row"><span class="slider-label">范围</span><div class="slider-track"><div class="slider-fill" style="width:22%;left:40%;"></div><div class="slider-thumb" style="left:62%;"></div></div><span class="slider-value">22</span></div>
+            <div class="slider-row"><span class="slider-label">柔和度</span><div class="slider-track"><div class="slider-fill" style="width:10%;left:50%;"></div><div class="slider-thumb" style="left:60%;"></div></div><span class="slider-value">20</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SCREEN: PORTRAIT ========== -->
+      <div class="screen" id="screen-portrait">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-bar-right">
+            <span>&#9679;&#9679;&#9679;&#9679;</span>
+            <span>5G</span>
+            <span>&#128267;</span>
+          </span>
+        </div>
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <button class="editor-toolbar-btn" onclick="switchScreen('ai-panel')">&#8592;</button>
+          </div>
+          <div style="font-size:16px;font-weight:600;">人像精修</div>
+          <div class="editor-toolbar-right">
+            <button class="editor-toolbar-btn" style="color:#E8740C;">&#10003;</button>
+          </div>
+        </div>
+        <!-- Body outline -->
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative;">
+          <canvas id="portrait-body-canvas" width="375" height="400" style="width:100%;height:100%;"></canvas>
+        </div>
+        <!-- Sliders -->
+        <div style="background:#0D0D0D;border-top:1px solid #1A1A1A;max-height:220px;overflow-y:auto;padding-bottom:8px;">
+          <div class="slider-row"><span class="slider-label">瘦脸</span><div class="slider-track"><div class="slider-fill" style="width:15%;left:50%;"></div><div class="slider-thumb" style="left:65%;"></div></div><span class="slider-value">+30</span></div>
+          <div class="slider-row"><span class="slider-label">大眼</span><div class="slider-track"><div class="slider-fill" style="width:20%;left:50%;"></div><div class="slider-thumb" style="left:70%;"></div></div><span class="slider-value">+40</span></div>
+          <div class="slider-row"><span class="slider-label">瘦鼻</span><div class="slider-track"><div class="slider-fill" style="width:8%;left:50%;"></div><div class="slider-thumb" style="left:58%;"></div></div><span class="slider-value">+16</span></div>
+          <div class="slider-row"><span class="slider-label">瘦身</span><div class="slider-track"><div class="slider-fill" style="width:12%;left:50%;"></div><div class="slider-thumb" style="left:62%;"></div></div><span class="slider-value">+24</span></div>
+          <div class="slider-row"><span class="slider-label">拉腿</span><div class="slider-track"><div class="slider-fill" style="width:18%;left:50%;"></div><div class="slider-thumb" style="left:68%;"></div></div><span class="slider-value">+36</span></div>
+          <div class="slider-row"><span class="slider-label">下巴</span><div class="slider-track"><div class="slider-fill" style="width:5%;left:50%;"></div><div class="slider-thumb" style="left:55%;"></div></div><span class="slider-value">+10</span></div>
+        </div>
+      </div>
+
+      <!-- ========== SCREEN: EXPORT QUEUE ========== -->
+      <div class="screen" id="screen-export">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-bar-right">
+            <span>&#9679;&#9679;&#9679;&#9679;</span>
+            <span>5G</span>
+            <span>&#128267;</span>
+          </span>
+        </div>
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <button class="editor-toolbar-btn" onclick="switchScreen('editor')">&#8592;</button>
+          </div>
+          <div style="font-size:16px;font-weight:600;">导出队列</div>
+          <div class="editor-toolbar-right"></div>
+        </div>
+        <div style="padding:8px 16px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:#B3B3B3;">3 个任务</span>
+          <span style="font-size:12px;color:#E8740C;cursor:pointer;">全部清除</span>
+        </div>
+        <div class="export-list">
+          <div class="export-item">
+            <div class="export-item-top">
+              <span class="export-item-name">IMG_20260629_001.RAW</span>
+              <span class="export-item-status">导出中...</span>
+            </div>
+            <div class="export-item-detail">JPEG · 85% · 4032×3024</div>
+            <div class="export-progress"><div class="export-progress-fill" style="width:67%;"></div></div>
+          </div>
+          <div class="export-item">
+            <div class="export-item-top">
+              <span class="export-item-name">DSC_0847.ARW</span>
+              <span class="export-item-status">等待中</span>
+            </div>
+            <div class="export-item-detail">TIFF · 无损 · 7952×5304</div>
+            <div class="export-progress"><div class="export-progress-fill" style="width:0%;"></div></div>
+          </div>
+          <div class="export-item">
+            <div class="export-item-top">
+              <span class="export-item-name">CR3_0042.CR3</span>
+              <span class="export-item-status done">已完成</span>
+            </div>
+            <div class="export-item-detail">JPEG · 92% · 6720×4480</div>
+            <div class="export-progress"><div class="export-progress-fill" style="width:100%;background:#4CAF50;"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SCREEN: WAVEFORM ========== -->
+      <div class="screen" id="screen-waveform">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-bar-right">
+            <span>&#9679;&#9679;&#9679;&#9679;</span>
+            <span>5G</span>
+            <span>&#128267;</span>
+          </span>
+        </div>
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <button class="editor-toolbar-btn" onclick="switchScreen('editor')">&#8592;</button>
+          </div>
+          <div style="font-size:16px;font-weight:600;">示波器</div>
+          <div class="editor-toolbar-right"></div>
+        </div>
+        <div class="scope-container">
+          <div class="scope-tabs">
+            <button class="scope-tab active" onclick="switchScopeTab('waveform')">波形</button>
+            <button class="scope-tab" onclick="switchScopeTab('parade')">Parade</button>
+            <button class="scope-tab" onclick="switchScopeTab('vectorscope')">矢量图</button>
+          </div>
+          <div class="scope-display">
+            <canvas id="scope-canvas" width="300" height="200" class="waveform-canvas"></canvas>
+          </div>
+          <div class="scope-info">
+            <div id="scope-label">亮度分布 · 0-255</div>
+          </div>
+          <!-- Fake image reference -->
+          <div style="margin-top:20px;width:120px;height:80px;border-radius:8px;background:linear-gradient(135deg,#2a1a0a 0%,#1a0a00 40%,#0a0a1a 100%);opacity:.6;"></div>
+        </div>
+      </div>
+
+      <!-- ========== SCREEN: LUT MARKET ========== -->
+      <div class="screen" id="screen-lut">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-bar-right">
+            <span>&#9679;&#9679;&#9679;&#9679;</span>
+            <span>5G</span>
+            <span>&#128267;</span>
+          </span>
+        </div>
+        <div class="lib-header">
+          <span class="lib-header-title">LUT 市场</span>
+          <div class="lib-header-actions">
+            <span>&#128269;</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto;">
+          <span style="background:#E8740C;color:#fff;padding:4px 12px;border-radius:16px;font-size:12px;white-space:nowrap;">全部</span>
+          <span style="background:#1A1A1A;color:#B3B3B3;padding:4px 12px;border-radius:16px;font-size:12px;white-space:nowrap;">胶片</span>
+          <span style="background:#1A1A1A;color:#B3B3B3;padding:4px 12px;border-radius:16px;font-size:12px;white-space:nowrap;">人像</span>
+          <span style="background:#1A1A1A;color:#B3B3B3;padding:4px 12px;border-radius:16px;font-size:12px;white-space:nowrap;">风景</span>
+          <span style="background:#1A1A1A;color:#B3B3B3;padding:4px 12px;border-radius:16px;font-size:12px;white-space:nowrap;">街拍</span>
+        </div>
+        <div class="lut-grid">
+          <div class="lut-card">
+            <div class="lut-preview" style="background:linear-gradient(135deg,#E8740C 0%,#8B4513 50%,#1a0a00 100%);">
+              <span class="lut-badge">HOT</span>
+            </div>
+            <div class="lut-info"><div class="lut-name">哈苏橙</div><div class="lut-author">RapidRAW 官方</div></div>
+          </div>
+          <div class="lut-card">
+            <div class="lut-preview" style="background:linear-gradient(135deg,#4a6fa5 0%,#2a3a5a 50%,#0a0a1a 100%);"></div>
+            <div class="lut-info"><div class="lut-name">富士蓝</div><div class="lut-author">ColorMaster</div></div>
+          </div>
+          <div class="lut-card">
+            <div class="lut-preview" style="background:linear-gradient(135deg,#c9a96e 0%,#8a7040 50%,#3a2a10 100%);">
+              <span class="lut-badge free">免费</span>
+            </div>
+            <div class="lut-info"><div class="lut-name">柯达金</div><div class="lut-author">FilmLab</div></div>
+          </div>
+          <div class="lut-card">
+            <div class="lut-preview" style="background:linear-gradient(135deg,#6a8a6a 0%,#3a5a3a 50%,#0a1a0a 100%);"></div>
+            <div class="lut-info"><div class="lut-name">波特拉</div><div class="lut-author">AnalogUE</div></div>
+          </div>
+          <div class="lut-card">
+            <div class="lut-preview" style="background:linear-gradient(135deg,#8a6a8a 0%,#5a3a5a 50%,#1a0a1a 100%);"></div>
+            <div class="lut-info"><div class="lut-name">电影紫</div><div class="lut-author">CineGrade</div></div>
+          </div>
+          <div class="lut-card">
+            <div class="lut-preview" style="background:linear-gradient(135deg,#3a3a3a 0%,#1a1a1a 50%,#000 100%);">
+              <span class="lut-badge free">免费</span>
+            </div>
+            <div class="lut-info"><div class="lut-name">黑白经典</div><div class="lut-author">MonoArt</div></div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <button class="nav-item"><span class="nav-icon">&#128247;</span>图库</button>
+          <button class="nav-item"><span class="nav-icon">&#128295;</span>编辑</button>
+          <button class="nav-item active"><span class="nav-icon">&#127912;</span>LUT</button>
+          <button class="nav-item"><span class="nav-icon">&#9881;</span>设置</button>
+        </div>
+      </div>
+
+      <!-- ========== SCREEN: SETTINGS ========== -->
+      <div class="screen" id="screen-settings">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-bar-right">
+            <span>&#9679;&#9679;&#9679;&#9679;</span>
+            <span>5G</span>
+            <span>&#128267;</span>
+          </span>
+        </div>
+        <div class="lib-header">
+          <span class="lib-header-title">设置</span>
+          <div></div>
+        </div>
+        <div class="settings-list">
+          <div class="settings-group-title">账户</div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#1a2a3a;color:#2196F3;">&#128100;</div>
+              <span class="settings-item-label">用户中心</span>
+            </div>
+            <span class="settings-item-arrow">&#8250;</span>
+          </div>
+          <div class="settings-group-title">内容</div>
+          <div class="settings-item" onclick="switchScreen('lut')">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#2a1a0a;color:#E8740C;">&#127912;</div>
+              <span class="settings-item-label">LUT市场</span>
+            </div>
+            <span class="settings-item-arrow">&#8250;</span>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#1a2a1a;color:#4CAF50;">&#128218;</div>
+              <span class="settings-item-label">配方社区</span>
+            </div>
+            <span class="settings-item-arrow">&#8250;</span>
+          </div>
+          <div class="settings-group-title">编辑</div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#2a1a2a;color:#9C27B0;">&#9881;</div>
+              <span class="settings-item-label">默认导出格式</span>
+            </div>
+            <span style="font-size:13px;color:#808080;">JPEG &rsaquo;</span>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#1a1a2a;color:#FF9800;">&#128247;</div>
+              <span class="settings-item-label">默认导出质量</span>
+            </div>
+            <span style="font-size:13px;color:#808080;">85% &rsaquo;</span>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#2a2a1a;color:#FFC107;">&#128295;</div>
+              <span class="settings-item-label">保留EXIF信息</span>
+            </div>
+            <div style="width:40px;height:22px;background:#E8740C;border-radius:11px;position:relative;"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;right:2px;"></div></div>
+          </div>
+          <div class="settings-group-title">法律</div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#1a1a1a;color:#B3B3B3;">&#128274;</div>
+              <span class="settings-item-label">隐私政策</span>
+            </div>
+            <span class="settings-item-arrow">&#8250;</span>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#1a1a1a;color:#B3B3B3;">&#128196;</div>
+              <span class="settings-item-label">用户协议</span>
+            </div>
+            <span class="settings-item-arrow">&#8250;</span>
+          </div>
+          <div class="settings-group-title">支持</div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#1a2a2a;color:#00BCD4;">&#128172;</div>
+              <span class="settings-item-label">意见反馈</span>
+            </div>
+            <span class="settings-item-arrow">&#8250;</span>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <div class="settings-item-icon" style="background:#2a1a1a;color:#F44336;">&#128640;</div>
+              <span class="settings-item-label">检查更新</span>
+            </div>
+            <span style="font-size:11px;color:#4CAF50;">v2.4.1 最新</span>
+          </div>
+          <div class="settings-version">RapidRAW v2.4.1 · Build 20260629</div>
+        </div>
+        <div class="bottom-nav">
+          <button class="nav-item"><span class="nav-icon">&#128247;</span>图库</button>
+          <button class="nav-item"><span class="nav-icon">&#128295;</span>编辑</button>
+          <button class="nav-item"><span class="nav-icon">&#127912;</span>LUT</button>
+          <button class="nav-item active"><span class="nav-icon">&#9881;</span>设置</button>
+        </div>
+      </div>
+
+      <!-- ========== SCREEN: TUTORIAL ========== -->
+      <div class="screen" id="screen-tutorial">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;">
+          <div class="tutorial-illustration" id="tutorial-illustration">
+            <!-- Filled by JS -->
+          </div>
+          <div class="tutorial-title" id="tutorial-title">专业RAW处理</div>
+          <div class="tutorial-desc" id="tutorial-desc">RapidRAW 让你在手机上获得桌面级的 RAW 编辑体验，支持 500+ 相机型号。</div>
+          <div class="tutorial-dots" id="tutorial-dots"></div>
+          <div class="tutorial-nav">
+            <button class="tutorial-btn tutorial-btn-secondary" id="tutorial-skip" onclick="switchScreen('library')">跳过</button>
+            <button class="tutorial-btn tutorial-btn-primary" id="tutorial-next" onclick="nextTutorialPage()">下一页</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== SCREEN SWITCHING =====
+let currentScreen = 'library';
+
+function switchScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('active');
+  });
+  const target = document.getElementById('screen-' + name);
+  if (target) {
+    target.classList.add('active');
+  }
+  // Update sidebar
+  document.querySelectorAll('.sidebar-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.textContent.trim() === getScreenLabel(name)) {
+      btn.classList.add('active');
+    }
+  });
+  currentScreen = name;
+
+  // Trigger canvas draws
+  if (name === 'editor') drawEditorImage();
+  if (name === 'waveform') drawScope();
+  if (name === 'beauty') drawBeautyFace();
+  if (name === 'portrait') drawPortraitBody();
+  if (name === 'tutorial') renderTutorialPage();
+}
+
+function getScreenLabel(name) {
+  const map = {
+    'library':'图库','editor':'编辑器','ai-panel':'AI 面板','beauty':'美颜面板',
+    'portrait':'人像精修','export':'导出队列','waveform':'波形示波器',
+    'lut':'LUT 市场','settings':'设置','tutorial':'引导页'
+  };
+  return map[name] || name;
+}
+
+// ===== EDITOR TABS =====
+function switchEditorTab(tab) {
+  document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.editor-tab[data-panel="${tab}"]`).classList.add('active');
+  ['adjust','filter','ai','compose','export'].forEach(p => {
+    const el = document.getElementById('editor-panel-' + p);
+    if (el) el.style.display = p === tab ? 'flex' : 'none';
+  });
+}
+
+// ===== SCOPE TABS =====
+let currentScopeMode = 'waveform';
+function switchScopeTab(mode) {
+  currentScopeMode = mode;
+  document.querySelectorAll('.scope-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  const labels = { waveform:'亮度分布 · 0-255', parade:'RGB Parade · 三通道', vectorscope:'色度矢量 · 色相分布' };
+  document.getElementById('scope-label').textContent = labels[mode];
+  drawScope();
+}
+
+// ===== TUTORIAL =====
+const tutorialPages = [
+  { icon:'&#128247;', bg:'linear-gradient(135deg,#E8740C,#8B4513)', title:'专业RAW处理', desc:'RapidRAW 让你在手机上获得桌面级的 RAW 编辑体验，支持 500+ 相机型号。' },
+  { icon:'&#9889;', bg:'linear-gradient(135deg,#4CAF50,#1B5E20)', title:'AI 智能编辑', desc:'AI去噪、AI消除、智能遮罩…一键完成复杂修图操作，让创作更高效。' },
+  { icon:'&#127912;', bg:'linear-gradient(135deg,#9C27B0,#4A148C)', title:'专业调色', desc:'LUT市场、配方社区、波形示波器…专业色彩管理工具，尽在掌中。' },
+  { icon:'&#128100;', bg:'linear-gradient(135deg,#2196F3,#0D47A1)', title:'人像精修', desc:'美颜、瘦脸、大眼、瘦身…AI驱动的人像精修，自然不夸张。' },
+  { icon:'&#128640;', bg:'linear-gradient(135deg,#F44336,#B71C1C)', title:'极速导出', desc:'后台批量导出，支持JPEG/PNG/TIFF/DNG，保留完整EXIF信息。' },
+];
+let tutorialPage = 0;
+
+function renderTutorialPage() {
+  const page = tutorialPages[tutorialPage];
+  const ill = document.getElementById('tutorial-illustration');
+  ill.style.background = page.bg;
+  ill.innerHTML = page.icon;
+  document.getElementById('tutorial-title').textContent = page.title;
+  document.getElementById('tutorial-desc').textContent = page.desc;
+
+  const dots = document.getElementById('tutorial-dots');
+  dots.innerHTML = '';
+  tutorialPages.forEach((_, i) => {
+    const dot = document.createElement('button');
+    dot.className = 'tutorial-dot' + (i === tutorialPage ? ' active' : '');
+    dot.onclick = () => { tutorialPage = i; renderTutorialPage(); };
+    dots.appendChild(dot);
+  });
+
+  document.getElementById('tutorial-next').textContent = tutorialPage === tutorialPages.length - 1 ? '开始' : '下一页';
+  document.getElementById('tutorial-next').onclick = tutorialPage === tutorialPages.length - 1
+    ? () => switchScreen('library')
+    : nextTutorialPage;
+}
+
+function nextTutorialPage() {
+  if (tutorialPage < tutorialPages.length - 1) {
+    tutorialPage++;
+    renderTutorialPage();
+  }
+}
+
+// ===== LIBRARY GRID =====
+function buildLibraryGrid() {
+  const grid = document.getElementById('lib-grid');
+  const colors = [
+    '#2a1a0a','#1a0a00','#0a1a2a','#1a2a0a','#2a0a1a','#0a2a1a',
+    '#3a2a1a','#1a1a2a','#2a2a1a','#0a1a1a','#2a1a2a','#1a2a2a',
+    '#3a1a0a','#0a2a2a','#2a0a0a','#0a0a2a','#1a3a0a','#3a0a2a',
+    '#2a3a1a','#1a0a3a','#3a2a0a','#0a3a2a','#2a1a3a','#1a3a2a'
+  ];
+  const dates = ['06/29','06/28','06/27','06/26','06/25','06/24','06/23','06/22','06/21','06/20','06/19','06/18','06/17','06/16','06/15','06/14','06/13','06/12','06/11','06/10','06/09','06/08','06/07','06/06'];
+  for (let i = 0; i < 24; i++) {
+    const thumb = document.createElement('div');
+    thumb.className = 'lib-thumb';
+    thumb.style.background = colors[i % colors.length];
+    const raw = i % 3 === 0;
+    thumb.innerHTML = `<span class="lib-date">${dates[i]}</span>${raw ? '<span class="lib-raw-badge">RAW</span>' : ''}`;
+    grid.appendChild(thumb);
+  }
+}
+
+// ===== CANVAS DRAWINGS =====
+function drawEditorImage() {
+  const c = document.getElementById('editor-img-canvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  // Dark landscape-like image
+  const grd = ctx.createLinearGradient(0, 0, w, h);
+  grd.addColorStop(0, '#2a1a0a');
+  grd.addColorStop(0.3, '#1a0a00');
+  grd.addColorStop(0.6, '#0a0a1a');
+  grd.addColorStop(1, '#000008');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, w, h);
+  // Add some "stars"
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * w;
+    const y = Math.random() * h * 0.5;
+    const r = Math.random() * 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.random() * 0.7})`;
+    ctx.fill();
+  }
+  // Horizon glow
+  const glow = ctx.createRadialGradient(w*0.5, h*0.55, 10, w*0.5, h*0.55, 150);
+  glow.addColorStop(0, 'rgba(232,116,12,0.3)');
+  glow.addColorStop(1, 'rgba(232,116,12,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
+  // Mountains silhouette
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.65);
+  ctx.lineTo(w * 0.15, h * 0.5);
+  ctx.lineTo(w * 0.3, h * 0.58);
+  ctx.lineTo(w * 0.5, h * 0.42);
+  ctx.lineTo(w * 0.65, h * 0.52);
+  ctx.lineTo(w * 0.8, h * 0.45);
+  ctx.lineTo(w, h * 0.55);
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fill();
+
+  // Mini waveform
+  drawMiniWaveform();
+}
+
+function drawMiniWaveform() {
+  const c = document.getElementById('mini-waveform');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, 80, 50);
+  for (let x = 0; x < 80; x++) {
+    const height = Math.random() * 35 + 5;
+    const y = 50 - height;
+    const alpha = 0.3 + Math.random() * 0.7;
+    ctx.fillStyle = `rgba(232,116,12,${alpha})`;
+    ctx.fillRect(x, y, 1, height);
+  }
+}
+
+function drawScope() {
+  const c = document.getElementById('scope-canvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  ctx.fillStyle = '#0D0D0D';
+  ctx.fillRect(0, 0, w, h);
+
+  if (currentScopeMode === 'waveform') {
+    // Luminance waveform
+    for (let x = 0; x < w; x++) {
+      const bars = 3 + Math.floor(Math.random() * 5);
+      for (let b = 0; b < bars; b++) {
+        const barH = 2 + Math.random() * 20;
+        const barY = Math.random() * (h - barH);
+        const alpha = 0.1 + Math.random() * 0.6;
+        ctx.fillStyle = `rgba(232,116,12,${alpha})`;
+        ctx.fillRect(x, barY, 1, barH);
+      }
+    }
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 0.5;
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, h * i / 4);
+      ctx.lineTo(w, h * i / 4);
+      ctx.stroke();
+    }
+  } else if (currentScopeMode === 'parade') {
+    // RGB Parade
+    const third = w / 3;
+    const channels = [
+      { color: [255, 0, 0], offset: 0 },
+      { color: [0, 255, 0], offset: third },
+      { color: [0, 0, 255], offset: third * 2 }
+    ];
+    channels.forEach(ch => {
+      for (let x = 0; x < third; x++) {
+        const bars = 2 + Math.floor(Math.random() * 4);
+        for (let b = 0; b < bars; b++) {
+          const barH = 2 + Math.random() * 18;
+          const barY = Math.random() * (h - barH);
+          const alpha = 0.1 + Math.random() * 0.5;
+          ctx.fillStyle = `rgba(${ch.color[0]},${ch.color[1]},${ch.color[2]},${alpha})`;
+          ctx.fillRect(ch.offset + x, barY, 1, barH);
+        }
+      }
+    });
+  } else {
+    // Vectorscope
+    const cx = w / 2, cy = h / 2;
+    const r = Math.min(cx, cy) - 10;
+    // Circles
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 0.5;
+    for (let i = 1; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * i / 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Cross
+    ctx.beginPath();
+    ctx.moveTo(cx - r, cy);
+    ctx.lineTo(cx + r, cy);
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx, cy + r);
+    ctx.stroke();
+    // Color dots
+    const colorPoints = [
+      { angle: 0, dist: 0.6, color: '#ff0000' },
+      { angle: 60, dist: 0.5, color: '#ffff00' },
+      { angle: 120, dist: 0.55, color: '#00ff00' },
+      { angle: 180, dist: 0.45, color: '#00ffff' },
+      { angle: 240, dist: 0.5, color: '#0000ff' },
+      { angle: 300, dist: 0.55, color: '#ff00ff' },
+    ];
+    // Scatter dots
+    for (let i = 0; i < 300; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * r * 0.85;
+      const px = cx + Math.cos(angle) * dist;
+      const py = cy + Math.sin(angle) * dist;
+      const hue = (angle * 180 / Math.PI + 360) % 360;
+      ctx.fillStyle = `hsla(${hue}, 80%, 50%, ${0.1 + Math.random() * 0.3})`;
+      ctx.fillRect(px, py, 1.5, 1.5);
+    }
+    // Primary color labels
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    colorPoints.forEach(cp => {
+      const rad = cp.angle * Math.PI / 180;
+      const px = cx + Math.cos(rad) * r * cp.dist;
+      const py = cy + Math.sin(rad) * r * cp.dist;
+      ctx.fillStyle = cp.color;
+      ctx.beginPath();
+      ctx.arc(px, py, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+}
+
+function drawBeautyFace() {
+  const c = document.getElementById('beauty-face-canvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+
+  // Background
+  const bg = ctx.createRadialGradient(w/2, h/2, 20, w/2, h/2, 140);
+  bg.addColorStop(0, '#2a1a2a');
+  bg.addColorStop(1, '#1a0a1a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  // Face oval
+  ctx.beginPath();
+  ctx.ellipse(w/2, h*0.38, 50, 65, 0, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(232,116,12,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Eyes
+  ctx.beginPath();
+  ctx.ellipse(w/2 - 20, h*0.33, 10, 6, 0, 0, Math.PI*2);
+  ctx.ellipse(w/2 + 20, h*0.33, 10, 6, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(232,116,12,0.3)';
+  ctx.fill();
+  ctx.stroke();
+
+  // Nose
+  ctx.beginPath();
+  ctx.moveTo(w/2, h*0.36);
+  ctx.lineTo(w/2 - 5, h*0.42);
+  ctx.lineTo(w/2 + 5, h*0.42);
+  ctx.strokeStyle = 'rgba(232,116,12,0.25)';
+  ctx.stroke();
+
+  // Mouth
+  ctx.beginPath();
+  ctx.ellipse(w/2, h*0.46, 14, 5, 0, 0, Math.PI);
+  ctx.strokeStyle = 'rgba(232,116,12,0.3)';
+  ctx.stroke();
+
+  // Body/shoulders
+  ctx.beginPath();
+  ctx.moveTo(w/2 - 55, h*0.55);
+  ctx.quadraticCurveTo(w/2 - 70, h*0.7, w/2 - 50, h*0.9);
+  ctx.lineTo(w/2 + 50, h*0.9);
+  ctx.quadraticCurveTo(w/2 + 70, h*0.7, w/2 + 55, h*0.55);
+  ctx.strokeStyle = 'rgba(232,116,12,0.2)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Adjustment points
+  const points = [
+    [w/2-20, h*0.33], [w/2+20, h*0.33], // eyes
+    [w/2, h*0.42], // nose
+    [w/2, h*0.46], // mouth
+    [w/2-48, h*0.36], [w/2+48, h*0.36], // cheeks
+  ];
+  points.forEach(([px, py]) => {
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, Math.PI*2);
+    ctx.fillStyle = '#E8740C';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+}
+
+function drawPortraitBody() {
+  const c = document.getElementById('portrait-body-canvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+
+  // Body outline
+  ctx.strokeStyle = 'rgba(232,116,12,0.35)';
+  ctx.lineWidth = 2;
+
+  // Head
+  ctx.beginPath();
+  ctx.ellipse(w/2, h*0.08, 22, 28, 0, 0, Math.PI*2);
+  ctx.stroke();
+
+  // Neck
+  ctx.beginPath();
+  ctx.moveTo(w/2 - 8, h*0.14);
+  ctx.lineTo(w/2 - 10, h*0.2);
+  ctx.moveTo(w/2 + 8, h*0.14);
+  ctx.lineTo(w/2 + 10, h*0.2);
+  ctx.stroke();
+
+  // Torso
+  ctx.beginPath();
+  ctx.moveTo(w/2 - 10, h*0.2);
+  ctx.quadraticCurveTo(w/2 - 50, h*0.25, w/2 - 55, h*0.45);
+  ctx.lineTo(w/2 - 45, h*0.55);
+  ctx.moveTo(w/2 + 10, h*0.2);
+  ctx.quadraticCurveTo(w/2 + 50, h*0.25, w/2 + 55, h*0.45);
+  ctx.lineTo(w/2 + 45, h*0.55);
+  ctx.stroke();
+
+  // Waist
+  ctx.beginPath();
+  ctx.moveTo(w/2 - 45, h*0.55);
+  ctx.quadraticCurveTo(w/2 - 40, h*0.6, w/2 - 48, h*0.65);
+  ctx.moveTo(w/2 + 45, h*0.55);
+  ctx.quadraticCurveTo(w/2 + 40, h*0.6, w/2 + 48, h*0.65);
+  ctx.stroke();
+
+  // Legs
+  ctx.beginPath();
+  ctx.moveTo(w/2 - 48, h*0.65);
+  ctx.lineTo(w/2 - 35, h*0.95);
+  ctx.moveTo(w/2 + 48, h*0.65);
+  ctx.lineTo(w/2 + 35, h*0.95);
+  ctx.stroke();
+
+  // Adjustment points with labels
+  const adjPoints = [
+    { x: w/2, y: h*0.08, label: '瘦脸' },
+    { x: w/2-22, y: h*0.07, label: '大眼' },
+    { x: w/2+22, y: h*0.07, label: '大眼' },
+    { x: w/2, y: h*0.13, label: '瘦鼻' },
+    { x: w/2-55, y: h*0.35, label: '瘦身' },
+    { x: w/2+55, y: h*0.35, label: '瘦身' },
+    { x: w/2-35, y: h*0.85, label: '拉腿' },
+    { x: w/2+35, y: h*0.85, label: '拉腿' },
+  ];
+
+  adjPoints.forEach(p => {
+    // Point
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+    ctx.fillStyle = '#E8740C';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Label
+    ctx.font = '9px sans-serif';
+    ctx.fillStyle = '#B3B3B3';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.label, p.x, p.y - 12);
+  });
+
+  // Dashed lines for adjustment regions
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = 'rgba(232,116,12,0.15)';
+  ctx.lineWidth = 1;
+  // Face region
+  ctx.beginPath();
+  ctx.ellipse(w/2, h*0.08, 30, 36, 0, 0, Math.PI*2);
+  ctx.stroke();
+  // Body region
+  ctx.beginPath();
+  ctx.ellipse(w/2, h*0.38, 65, 80, 0, 0, Math.PI*2);
+  ctx.stroke();
+  // Leg region
+  ctx.beginPath();
+  ctx.rect(w/2-50, h*0.65, 100, h*0.32);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ===== INIT =====
+buildLibraryGrid();
+drawEditorImage();
+renderTutorialPage();
+</script>
+</body>
+</html>
