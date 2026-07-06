@@ -175,7 +175,7 @@ fn run_pipeline(
             out_pixel[2] = b.clamp(0.0, 1.0).powf(gamma_inv);
         });
 
-    let out_img = Rgb32FImage::from_vec(width, height, out_buffer).unwrap();
+    let out_img = Rgb32FImage::from_vec(width, height, out_buffer).unwrap_or_else(|| Rgb32FImage::new(width, height));
     DynamicImage::ImageRgb32F(out_img)
 }
 
@@ -407,4 +407,84 @@ pub async fn convert_negatives(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_negative_conversion_params_default() {
+        let params = NegativeConversionParams::default();
+        assert_eq!(params.red_weight, 1.0);
+        assert_eq!(params.green_weight, 1.0);
+        assert_eq!(params.blue_weight, 1.0);
+        assert_eq!(params.exposure, 0.0);
+        assert_eq!(params.contrast, 1.0);
+    }
+
+    #[test]
+    fn test_analyze_bounds_uniform_image() {
+        // Create a uniform white image in f32 linear
+        let width = 100usize;
+        let height = 100usize;
+        let log_data = vec![1.0f32; width * height * 3]; // uniform log data
+
+        let bounds = analyze_bounds(&log_data, width, height);
+        for ch in &bounds {
+            assert!(ch.max > ch.min, "max should be greater than min for uniform data (safe_max adjustment)");
+        }
+    }
+
+    #[test]
+    fn test_analyze_bounds_empty_interior() {
+        // Very small image where margin covers everything
+        let width = 2usize;
+        let height = 2usize;
+        let log_data = vec![0.5f32; width * height * 3];
+
+        let bounds = analyze_bounds(&log_data, width, height);
+        // With 12% margin on 2px image, the interior area is 0 pixels wide,
+        // so vals will be empty => fallback bounds
+        for ch in &bounds {
+            assert_eq!(ch.min, 0.0);
+            assert_eq!(ch.max, 1.0);
+        }
+    }
+
+    #[test]
+    fn test_run_pipeline_produces_valid_image() {
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(64, 64, image::Rgb([200, 200, 200])));
+        let params = NegativeConversionParams::default();
+        let result = run_pipeline(&img, &params, None);
+        assert_eq!(result.width(), 64);
+        assert_eq!(result.height(), 64);
+    }
+
+    #[test]
+    fn test_run_pipeline_with_explicit_bounds() {
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(32, 32, image::Rgb([128, 64, 32])));
+        let params = NegativeConversionParams {
+            red_weight: 1.0,
+            green_weight: 1.0,
+            blue_weight: 1.0,
+            exposure: 0.5,
+            contrast: 1.2,
+        };
+        let bounds = [
+            ChannelBounds { min: 0.0, max: 1.0 },
+            ChannelBounds { min: 0.0, max: 1.0 },
+            ChannelBounds { min: 0.0, max: 1.0 },
+        ];
+        let result = run_pipeline(&img, &params, Some(bounds));
+        assert_eq!(result.width(), 32);
+        assert_eq!(result.height(), 32);
+    }
+
+    #[test]
+    fn test_channel_bounds_debug() {
+        let cb = ChannelBounds { min: 0.1, max: 0.9 };
+        assert_eq!(cb.min, 0.1);
+        assert_eq!(cb.max, 0.9);
+    }
 }

@@ -345,7 +345,9 @@ pub fn downscale_f32_image(image: &DynamicImage, nwidth: u32, nheight: u32) -> D
             }
         });
 
-    let out = Rgb32FImage::from_raw(new_w, new_h, out_buf).expect("buffer size mismatch");
+    let out = Rgb32FImage::from_raw(new_w, new_h, out_buf).unwrap_or_else(|| {
+        Rgb32FImage::new(new_w, new_h)
+    });
     let result = DynamicImage::ImageRgb32F(out);
 
     log::info!("downscale_f32_image took {:.2?}", start.elapsed());
@@ -385,6 +387,10 @@ fn interpolate_pixel(
     let idx_row1 = idx_row0 + stride;
     let idx_p00 = idx_row0 + x0 * 3;
 
+    // SAFETY: Bounds are guaranteed by the NaN/range checks above: x and y are in
+    // [0, width-2) and [0, height-2) respectively, so x0+1 and y0+1 are valid indices.
+    // The 3-channel stride is correct because src_raw comes from an Rgb32FImage (3 f32s
+    // per pixel). All get_unchecked ranges are within the src_raw buffer.
     unsafe {
         let p00 = src_raw.get_unchecked(idx_p00..idx_p00 + 3);
         let p10 = src_raw.get_unchecked(idx_p00 + 3..idx_p00 + 6);
@@ -514,6 +520,9 @@ fn interpolate_pixel_with_tca(
 
         let idx_p00 = idx_row0 + x0 * 3 + channel_idx;
 
+        // SAFETY: x0 is clamped to [0, src_width-2] and y0 is clamped to [0, src_height-2]
+        // above, so idx_row1 (= (y0+1)*stride) and idx_p00+3 (x0+1 pixel) are within bounds.
+        // The stride equals src_width*3, matching the Rgb32FImage layout of src_raw.
         unsafe {
             let p00 = *src_raw.get_unchecked(idx_p00);
             let p10 = *src_raw.get_unchecked(idx_p00 + 3);
@@ -798,7 +807,7 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
             }
         });
 
-    let out_img = Rgb32FImage::from_vec(width, height, out_buffer).unwrap();
+    let out_img = Rgb32FImage::from_vec(width, height, out_buffer).unwrap_or_else(|| Rgb32FImage::new(width, height));
     DynamicImage::ImageRgb32F(out_img)
 }
 
@@ -933,7 +942,7 @@ pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams
             }
         });
 
-    let out_img = Rgb32FImage::from_vec(width, height, out_buffer).unwrap();
+    let out_img = Rgb32FImage::from_vec(width, height, out_buffer).unwrap_or_else(|| Rgb32FImage::new(width, height));
     DynamicImage::ImageRgb32F(out_img)
 }
 
@@ -3250,7 +3259,7 @@ pub fn calculate_auto_adjustments(
     let original_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .ok_or("No image loaded for auto adjustments")?
         .image

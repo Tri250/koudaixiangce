@@ -252,7 +252,7 @@ pub fn get_or_init_gpu_context(
             .iter()
             .copied()
             .find(|f| !f.is_srgb())
-            .unwrap_or(swapchain_caps.formats[0]);
+            .unwrap_or_else(|| swapchain_caps.formats.first().copied().unwrap_or(wgpu::TextureFormat::Bgra8Unorm));
 
         let alpha_mode = if cfg!(target_os = "windows")
             && swapchain_caps
@@ -271,7 +271,7 @@ pub fn get_or_init_gpu_context(
         {
             wgpu::CompositeAlphaMode::PostMultiplied
         } else {
-            swapchain_caps.alpha_modes[0]
+            swapchain_caps.alpha_modes.first().copied().unwrap_or(wgpu::CompositeAlphaMode::Auto)
         };
 
         let size = window
@@ -1804,8 +1804,8 @@ fn process_and_get_dynamic_image_inner(
 
     let mut processor_lock = state.gpu_processor.lock().unwrap_or_else(|e| e.into_inner());
     if processor_lock.is_none()
-        || processor_lock.as_ref().unwrap().width < width
-        || processor_lock.as_ref().unwrap().height < height
+        || processor_lock.as_ref().map_or(true, |p| p.width < width)
+        || processor_lock.as_ref().map_or(true, |p| p.height < height)
     {
         let new_width = (width + 255) & !255;
         let new_height = (height + 255) & !255;
@@ -1825,7 +1825,7 @@ fn process_and_get_dynamic_image_inner(
         });
         reallocated = true;
     }
-    let processor_state = processor_lock.as_ref().unwrap();
+    let processor_state = processor_lock.as_ref().ok_or_else(|| "GPU processor not initialized".to_string())?;
     let processor = &processor_state.processor;
 
     if reallocated && let Some(old_state) = &old_processor {
@@ -1931,7 +1931,7 @@ fn process_and_get_dynamic_image_inner(
         });
     }
 
-    let cache = cache_lock.as_ref().unwrap();
+    let cache = cache_lock.as_ref().ok_or_else(|| "GPU image cache not initialized".to_string())?;
 
     let skip_readback = output_to_display;
 

@@ -30,7 +30,7 @@ pub fn hydrate_sub_masks(
             let keys_to_check = ["mask_data_base64", "maskDataBase64"];
             for key in keys_to_check {
                 if params.contains_key(key) {
-                    let val = params.get(key).unwrap();
+                    let val = params.get(key).unwrap_or(&serde_json::Value::Null);
                     if !val.is_null() {
                         cache.insert(id.clone(), val.clone());
                     } else {
@@ -117,4 +117,68 @@ pub fn apply_all_transformations<'a, I: IntoCowImage<'a>>(
     log::info!("apply_all_transformations took {:.2?}", total_duration);
 
     (cropped_image, unscaled_crop_offset)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hydrate_sub_masks_empty_id_skipped() {
+        let mut sub_masks = vec![serde_json::json!({
+            "id": "",
+            "maskDataBase64": "data"
+        })];
+        let mut cache = HashMap::new();
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+        assert!(cache.is_empty(), "Empty id should be skipped");
+    }
+
+    #[test]
+    fn test_hydrate_sub_masks_stores_non_null_data() {
+        let mut sub_masks = vec![serde_json::json!({
+            "id": "abc",
+            "parameters": {
+                "maskDataBase64": "base64data"
+            }
+        })];
+        let mut cache = HashMap::new();
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+        assert_eq!(cache.get("abc").unwrap(), &serde_json::json!("base64data"));
+    }
+
+    #[test]
+    fn test_hydrate_sub_masks_restores_null_data_from_cache() {
+        let mut sub_masks = vec![serde_json::json!({
+            "id": "xyz",
+            "parameters": {
+                "maskDataBase64": null
+            }
+        })];
+        let mut cache = HashMap::new();
+        cache.insert("xyz".to_string(), serde_json::json!("cached_value"));
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+        let params = sub_masks[0].get("parameters").unwrap();
+        assert_eq!(params["maskDataBase64"], serde_json::json!("cached_value"));
+    }
+
+    #[test]
+    fn test_apply_all_transformations_no_adjustments() {
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(100, 100, image::Rgb([128, 128, 128])));
+        let adjustments = serde_json::json!({});
+        let (result, offset) = apply_all_transformations(Cow::Borrowed(&img), &adjustments);
+        assert_eq!(result.width(), 100);
+        assert_eq!(result.height(), 100);
+        assert_eq!(offset, (0.0, 0.0));
+    }
+
+    #[test]
+    fn test_apply_all_transformations_with_orientation() {
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(200, 100, image::Rgb([64, 64, 64])));
+        let adjustments = serde_json::json!({"orientationSteps": 1});
+        let (result, _offset) = apply_all_transformations(Cow::Borrowed(&img), &adjustments);
+        // 90-degree rotation swaps dimensions
+        assert_eq!(result.width(), 100);
+        assert_eq!(result.height(), 200);
+    }
 }

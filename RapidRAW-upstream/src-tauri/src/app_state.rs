@@ -125,7 +125,7 @@ pub struct AppState {
     pub gpu_processor: Mutex<Option<GpuProcessorState>>,
     pub ai_state: Mutex<Option<AiState>>,
     pub ai_init_lock: TokioMutex<()>,
-    pub export_task_handle: Mutex<Option<JoinHandle<()>>>,
+    pub export_task_handle: Mutex<Option<JoinHandle<Result<(), String>>>>,
     pub hdr_result: Arc<Mutex<Option<DynamicImage>>>,
     pub panorama_result: Arc<Mutex<Option<DynamicImage>>>,
     pub denoise_result: Arc<Mutex<Option<DynamicImage>>>,

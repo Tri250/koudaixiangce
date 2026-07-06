@@ -6,6 +6,10 @@ pub struct PinchZoomDisablePlugin;
 const MACOS_WINDOW_RADIUS: f64 = 14.0;
 
 #[cfg(target_os = "macos")]
+// SAFETY: The caller must ensure `ns_view` is a valid, non-null pointer to an Objective-C
+// NSView object obtained from the Tauri webview. All msg_send! calls target well-known
+// AppKit selectors on valid objects; null checks guard the return values of `window`,
+// `contentView`, `layer`, and the webview layer before dereferencing.
 unsafe fn apply_macos_window_rounding(ns_view: *mut objc::runtime::Object) {
     use objc::{msg_send, sel, sel_impl};
 
@@ -55,11 +59,20 @@ impl<R: Runtime> Plugin<R> for PinchZoomDisablePlugin {
     fn webview_created(&mut self, webview: Webview<R>) {
         let _ = webview.with_webview(|_webview| {
             #[cfg(target_os = "macos")]
+            // SAFETY: _webview.inner() returns a valid raw pointer to the underlying
+            // NSView from the Tauri webview. The cast() converts it to the expected
+            // Objective-C object pointer type. apply_macos_window_rounding requires a
+            // valid NSView pointer, which is guaranteed by the Tauri framework here.
             unsafe {
                 apply_macos_window_rounding(_webview.inner().cast());
             }
 
             #[cfg(target_os = "linux")]
+            // SAFETY: Accessing the GTK GestureZoom data and destroying signal handlers
+            // through GObject FFI is safe because _webview.inner() provides a valid
+            // WebKitGTK webview pointer from Tauri. The "wk-view-zoom-gesture" data key
+            // is set by Tauri internally. g_signal_handlers_destroy only operates on the
+            // signal handlers associated with the provided GObject, which is valid.
             unsafe {
                 use gtk::GestureZoom;
                 use gtk::glib::ObjectExt;

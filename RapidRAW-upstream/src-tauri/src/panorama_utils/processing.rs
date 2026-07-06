@@ -50,7 +50,7 @@ pub fn find_features(img: &GrayImage, brief_pairs: &[(Point2<i32>, Point2<i32>)]
 
 fn non_maximal_suppression(corners: &[Corner], radius: f32) -> Vec<KeyPoint> {
     let mut sorted_corners = corners.to_vec();
-    sorted_corners.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+    sorted_corners.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
     let mut result = Vec::new();
     let radius_sq = radius * radius;
     let mut is_suppressed_grid = vec![false; sorted_corners.len()];
@@ -249,7 +249,7 @@ pub fn find_homography_ransac(
     }
 
     if best_inliers.len() >= MIN_INLIERS_FOR_CONNECTION {
-        Some((best_h.unwrap(), best_inliers))
+        Some((best_h?, best_inliers))
     } else {
         None
     }
@@ -293,7 +293,7 @@ pub fn compute_homography(points: &[(Point2<f64>, Point2<f64>)]) -> Option<Matri
     }
     let a = nalgebra::DMatrix::from_rows(&a_rows);
     let svd = SVD::new(a, true, true);
-    let v_t = svd.v_t.expect("SVD failed to compute V_t");
+    let v_t = svd.v_t?;
     let h_vec = v_t.row(v_t.nrows() - 1).transpose();
     Some(Matrix3::from_iterator(h_vec.iter().cloned()).transpose())
 }

@@ -533,7 +533,7 @@ pub fn generate_lut_previews(
     let loaded_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .clone()
         .ok_or("No original image loaded for LUT previews")?;
     let is_raw = loaded_image.is_raw;
@@ -578,4 +578,129 @@ pub fn load_and_parse_lut(path: String, state: State<AppState>) -> Result<LutPar
     cache.insert(path, Arc::new(lut));
 
     Ok(LutParseResult { size: lut_size })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn test_parse_cube_identity() {
+        let size = 2u32;
+        let mut cube_content = String::new();
+        cube_content.push_str(&format!("LUT_3D_SIZE {}\n", size));
+        cube_content.push_str("DOMAIN_MIN 0.0 0.0 0.0\n");
+        cube_content.push_str("DOMAIN_MAX 1.0 1.0 1.0\n");
+        // Identity-like LUT: size=2 => 8 entries (2^3)
+        for z in 0..size {
+            for y in 0..size {
+                for x in 0..size {
+                    let r = x as f32 / (size - 1) as f32;
+                    let g = y as f32 / (size - 1) as f32;
+                    let b = z as f32 / (size - 1) as f32;
+                    cube_content.push_str(&format!("{:.6} {:.6} {:.6}\n", r, g, b));
+                }
+            }
+        }
+        let lut = parse_cube(BufReader::new(Cursor::new(cube_content))).unwrap();
+        assert_eq!(lut.size, 2);
+        assert_eq!(lut.data.len(), (size * size * size * 3) as usize);
+    }
+
+    #[test]
+    fn test_parse_cube_missing_size() {
+        let content = "0.0 0.0 0.0\n";
+        let result = parse_cube(BufReader::new(Cursor::new(content)));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_cube_data_mismatch() {
+        let mut content = String::new();
+        content.push_str("LUT_3D_SIZE 3\n");
+        // Only provide 1 entry instead of 27
+        content.push_str("0.0 0.0 0.0\n");
+        let result = parse_cube(BufReader::new(Cursor::new(content)));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_3dl_valid() {
+        let mut content = String::new();
+        // 8 entries => cube root of 8 = 2 => size 2
+        for z in 0..2u32 {
+            for y in 0..2u32 {
+                for x in 0..2u32 {
+                    content.push_str(&format!("{} {} {}\n",
+                        x as f32, y as f32, z as f32));
+                }
+            }
+        }
+        let lut = parse_3dl(BufReader::new(Cursor::new(content))).unwrap();
+        assert_eq!(lut.size, 2);
+        assert_eq!(lut.data.len(), 24); // 8 entries * 3 channels
+    }
+
+    #[test]
+    fn test_parse_3dl_empty() {
+        let content = "";
+        let result = parse_3dl(BufReader::new(Cursor::new(content)));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_generate_identity_lut_image() {
+        let size = 4u32;
+        let img = generate_identity_lut_image(size);
+        assert_eq!(img.width(), size);
+        assert_eq!(img.height(), size * size);
+    }
+
+    #[test]
+    fn test_convert_image_to_cube_lut() {
+        let size = 2u32;
+        let img = generate_identity_lut_image(size);
+        let result = convert_image_to_cube_lut(&img, size);
+        assert!(result.is_ok());
+        let bytes = result.unwrap();
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.starts_with("LUT_3D_SIZE 2"));
+    }
+
+    #[test]
+    fn test_unique_lut_destination() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = unique_lut_destination(dir.path(), "mylut", "cube");
+        assert_eq!(first, dir.path().join("mylut.cube"));
+        // Create the first file
+        std::fs::File::create(&first).unwrap();
+        let second = unique_lut_destination(dir.path(), "mylut", "cube");
+        assert_eq!(second, dir.path().join("mylut (1).cube"));
+    }
+
+    #[test]
+    fn test_list_luts_in_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        // No files yet
+        let entries = list_luts_in_dir(dir.path()).unwrap();
+        assert!(entries.is_empty());
+
+        // Create some LUT files
+        std::fs::File::create(dir.path().join("test.cube")).unwrap();
+        std::fs::File::create(dir.path().join("another.3dl")).unwrap();
+        std::fs::File::create(dir.path().join("ignore.txt")).unwrap();
+
+        let entries = list_luts_in_dir(dir.path()).unwrap();
+        assert_eq!(entries.len(), 2);
+        // Should be sorted alphabetically (case-insensitive)
+        assert_eq!(entries[0].name, "another");
+        assert_eq!(entries[1].name, "test");
+    }
+
+    #[test]
+    fn test_list_luts_in_nonexistent_dir() {
+        let entries = list_luts_in_dir(Path::new("/nonexistent/path")).unwrap();
+        assert!(entries.is_empty());
+    }
 }

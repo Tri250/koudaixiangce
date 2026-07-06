@@ -19,8 +19,14 @@ pub fn initialize_android(window: &tauri::WebviewWindow) {
                 let vm_ptr = vm.get_java_vm_pointer() as *mut std::ffi::c_void;
                 let context_ptr = context.as_raw() as *mut std::ffi::c_void;
 
-                INIT_NDK_CONTEXT.call_once(|| unsafe {
-                    ndk_context::initialize_android_context(vm_ptr, context_ptr);
+                INIT_NDK_CONTEXT.call_once(|| {
+                    // SAFETY: vm_ptr and context_ptr are obtained from the JNI callback's
+                    // JNIEnv and jobject, which are guaranteed valid for the duration of the
+                    // JNI call. ndk-context requires a JavaVM pointer and a Context jobject,
+                    // both provided here. call_once ensures this runs only once.
+                    unsafe {
+                        ndk_context::initialize_android_context(vm_ptr, context_ptr);
+                    }
                     log::info!("Successfully initialized ndk-context on Android.");
                 });
             }
@@ -60,6 +66,9 @@ pub fn close_android_closeable(env: &mut JNIEnv<'_>, closeable: &JObject<'_>) {
 
 #[cfg(target_os = "android")]
 pub fn get_android_cached_lut_path(uri: &str, extension: &str) -> anyhow::Result<PathBuf> {
+    // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+    // during app startup and remains valid for the lifetime of the process. Casting the
+    // raw pointer back to JavaVM is safe because it originated from a valid JNI JavaVM.
     let vm = unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }
         .map_err(|e| anyhow::anyhow!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -67,8 +76,14 @@ pub fn get_android_cached_lut_path(uri: &str, extension: &str) -> anyhow::Result
         .map_err(|e| anyhow::anyhow!("Failed to attach current thread: {}", e))?;
 
     let context = env
-        .new_local_ref(unsafe {
-            jni::objects::JObject::from_raw(ndk_context::android_context().context().cast())
+        .new_local_ref({
+            // SAFETY: The context jobject pointer was stored by ndk_context::initialize_android_context
+            // during app startup. It is a global reference to the Android Activity context and remains
+            // valid for the lifetime of the process. Constructing a JObject from this raw pointer is
+            // safe because we immediately wrap it in a new_local_ref to manage its JNI lifecycle.
+            unsafe {
+                jni::objects::JObject::from_raw(ndk_context::android_context().context().cast())
+            }
         })
         .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
 
@@ -114,7 +129,12 @@ pub fn get_android_content_resolver<'local>(
     env: &mut JNIEnv<'local>,
 ) -> Result<JObject<'local>, String> {
     let context = env
-        .new_local_ref(unsafe { JObject::from_raw(android_context().context().cast()) })
+        .new_local_ref({
+            // SAFETY: The context jobject pointer was stored by ndk_context::initialize_android_context
+            // during app startup and is a global reference valid for the process lifetime. Wrapping
+            // it in new_local_ref ensures proper JNI reference management.
+            unsafe { JObject::from_raw(android_context().context().cast()) }
+        })
         .map_err(|e| map_android_jni_error(env, e))?;
 
     let resolver = env
@@ -164,6 +184,9 @@ pub fn parse_android_uri<'local>(
 pub fn resolve_android_content_uri_name(uri_str: &str) -> Result<String, String> {
     #[cfg(target_os = "android")]
     {
+        // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+        // during app startup and remains valid for the lifetime of the process. Reconstructing
+        // a JavaVM from this raw pointer is safe because it originated from a valid JNI JavaVM.
         let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
             .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
         let mut env = vm
@@ -271,6 +294,9 @@ pub fn resolve_android_content_uri_name(uri_str: &str) -> Result<String, String>
 
 #[cfg(target_os = "android")]
 pub fn read_android_content_uri(uri_str: &str) -> Result<Vec<u8>, String> {
+    // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+    // during app startup and remains valid for the lifetime of the process. Reconstructing
+    // a JavaVM from this raw pointer is safe because it originated from a valid JNI JavaVM.
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -412,6 +438,9 @@ pub fn save_bytes_to_android_media_store(
     collection_class: &str,
     bytes: &[u8],
 ) -> Result<(), String> {
+    // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+    // during app startup and remains valid for the lifetime of the process. Reconstructing
+    // a JavaVM from this raw pointer is safe because it originated from a valid JNI JavaVM.
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -543,6 +572,9 @@ pub fn save_file_bytes_to_android_downloads(
 
 #[cfg(target_os = "android")]
 pub fn get_android_internal_library_root() -> Result<PathBuf, String> {
+    // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+    // during app startup and remains valid for the lifetime of the process. Reconstructing
+    // a JavaVM from this raw pointer is safe because it originated from a valid JNI JavaVM.
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -550,7 +582,12 @@ pub fn get_android_internal_library_root() -> Result<PathBuf, String> {
         .map_err(|e| format!("Failed to attach current thread: {}", e))?;
 
     let context = env
-        .new_local_ref(unsafe { JObject::from_raw(android_context().context().cast()) })
+        .new_local_ref({
+            // SAFETY: The context jobject pointer was stored by ndk_context::initialize_android_context
+            // during app startup and is a global reference valid for the process lifetime. Wrapping
+            // it in new_local_ref ensures proper JNI reference management.
+            unsafe { JObject::from_raw(android_context().context().cast()) }
+        })
         .map_err(|e| map_android_jni_error(&mut env, e))?;
 
     let dirs_array_obj = env
@@ -617,6 +654,9 @@ const SAF_REQUEST_CODE: i32 = 0xA1F0;
 
 #[cfg(target_os = "android")]
 fn launch_open_document_tree_intent() -> Result<(), String> {
+    // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+    // during app startup and remains valid for the lifetime of the process. Reconstructing
+    // a JavaVM from this raw pointer is safe because it originated from a valid JNI JavaVM.
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -626,7 +666,12 @@ fn launch_open_document_tree_intent() -> Result<(), String> {
     // ndk_context is initialised with the TauriActivity in `initialize_android`,
     // so this is the Activity (which exposes startActivityForResult).
     let activity = env
-        .new_local_ref(unsafe { JObject::from_raw(android_context().context().cast()) })
+        .new_local_ref({
+            // SAFETY: The context jobject pointer was stored by ndk_context::initialize_android_context
+            // during app startup and is a global reference to the TauriActivity. It remains valid for
+            // the process lifetime. Wrapping in new_local_ref ensures proper JNI reference management.
+            unsafe { JObject::from_raw(android_context().context().cast()) }
+        })
         .map_err(|e| map_android_jni_error(&mut env, e))?;
 
     if activity.is_null() {
@@ -658,6 +703,9 @@ fn launch_open_document_tree_intent() -> Result<(), String> {
 
 #[cfg(target_os = "android")]
 fn take_persistable_uri_permission(uri_str: &str) -> Result<(), String> {
+    // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+    // during app startup and remains valid for the lifetime of the process. Reconstructing
+    // a JavaVM from this raw pointer is safe because it originated from a valid JNI JavaVM.
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -849,6 +897,9 @@ fn saf_string_static_field<'local>(
 
 #[cfg(target_os = "android")]
 pub fn list_android_saf_directory_inner(tree_uri: &str) -> Result<Vec<SafDirectoryEntry>, String> {
+    // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+    // during app startup and remains valid for the lifetime of the process. Reconstructing
+    // a JavaVM from this raw pointer is safe because it originated from a valid JNI JavaVM.
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -900,6 +951,9 @@ pub fn list_android_saf_directory_inner(tree_uri: &str) -> Result<Vec<SafDirecto
 /// persisted URI permission from `pick_android_directory` still applies.
 #[cfg(target_os = "android")]
 pub fn list_android_saf_uri_children(uri_str: &str) -> Result<Vec<SafDirectoryEntry>, String> {
+    // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+    // during app startup and remains valid for the lifetime of the process. Reconstructing
+    // a JavaVM from this raw pointer is safe because it originated from a valid JNI JavaVM.
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -1131,6 +1185,9 @@ pub fn share_image_on_android(
 ) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
+        // SAFETY: The JavaVM pointer was stored by ndk_context::initialize_android_context
+        // during app startup and remains valid for the lifetime of the process. Reconstructing
+        // a JavaVM from this raw pointer is safe because it originated from a valid JNI JavaVM.
         let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
             .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
         let mut env = vm
@@ -1138,7 +1195,12 @@ pub fn share_image_on_android(
             .map_err(|e| format!("Failed to attach current thread to Android JVM: {}", e))?;
 
         let context = env
-            .new_local_ref(unsafe { JObject::from_raw(android_context().context().cast()) })
+            .new_local_ref({
+                // SAFETY: The context jobject pointer was stored by ndk_context::initialize_android_context
+                // during app startup and is a global reference valid for the process lifetime. Wrapping
+                // it in new_local_ref ensures proper JNI reference management.
+                unsafe { JObject::from_raw(android_context().context().cast()) }
+            })
             .map_err(|e| map_android_jni_error(&mut env, e))?;
 
         // Resolve the content URI for sharing.

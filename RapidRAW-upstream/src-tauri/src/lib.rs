@@ -97,6 +97,9 @@ use tagging_utils::{candidates, hierarchy};
 
 #[cfg(target_os = "macos")]
 extern "C" fn force_exit(_signal: libc::c_int) {
+    // SAFETY: _exit bypasses cleanup but is intentionally used here to force-terminate
+    // the process during a macOS SIGABRT handler. Normal exit routines would re-enter
+    // the aborted code path, so immediate termination is required.
     unsafe {
         libc::_exit(0);
     }
@@ -104,6 +107,9 @@ extern "C" fn force_exit(_signal: libc::c_int) {
 
 #[cfg(target_os = "macos")]
 pub fn register_exit_handler() {
+    // SAFETY: Registering a signal handler for SIGABRT is safe on macOS. The handler
+    // (force_exit) is an extern "C" function with the correct signature for signal(2).
+    // This must run before any potential SIGABRT to ensure the process terminates cleanly.
     unsafe {
         libc::signal(libc::SIGABRT, force_exit as libc::sighandler_t);
     }
@@ -360,7 +366,7 @@ fn process_preview_job(
             .is_some_and(|c| c.interactive_divisor == interactive_divisor);
 
     let (final_preview_base, scale_for_gpu, unscaled_crop_offset) = if base_valid {
-        let cached = cached_preview_lock.as_ref().unwrap();
+        let cached = cached_preview_lock.as_ref().ok_or("No cached preview available")?;
         (
             Arc::clone(&cached.image),
             cached.scale,
@@ -375,7 +381,7 @@ fn process_preview_job(
     };
 
     let small_preview_base = if small_valid {
-        Arc::clone(&cached_preview_lock.as_ref().unwrap().small_image)
+        Arc::clone(&cached_preview_lock.as_ref().ok_or("No cached preview available")?.small_image)
     } else {
         let small = if interactive_divisor > 1.0 {
             let target_size = (preview_dim as f32 / interactive_divisor) as u32;
@@ -480,7 +486,7 @@ fn process_preview_job(
         state
             .analytics_worker_tx
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .map(|tx| crate::AnalyticsConfig {
                 path: loaded_image.path.clone(),
@@ -715,7 +721,7 @@ fn generate_uncropped_preview(
     let loaded_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .clone()
         .ok_or("No original image loaded")?;
 
@@ -844,7 +850,7 @@ fn generate_original_transformed_preview(
     let loaded_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .clone()
         .ok_or("No original image loaded")?;
 
@@ -902,7 +908,7 @@ async fn preview_geometry_transform(
         let maybe_cached_image = state
             .geometry_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(&visual_hash)
             .cloned();
 
@@ -1104,7 +1110,7 @@ fn generate_preset_preview(
     let loaded_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .clone()
         .ok_or("No original image loaded for preset preview")?;
     let is_raw = loaded_image.is_raw;
@@ -2046,6 +2052,12 @@ pub fn run() {
             let state = app.state::<AppState>();
             *state.lens_db.lock().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(lens_db));
 
+            // SAFETY: All set_var calls within this block modify process-local environment
+            // variables before any concurrent access occurs. set_var is unsafe since Rust 1.82
+            // due to potential data races, but this code runs synchronously during app setup,
+            // before any worker threads that might read these variables are spawned. The env
+            // vars configure the GPU backend (WGPU_BACKEND), Linux GPU workarounds, and the
+            // ONNX Runtime library path (ORT_DYLIB_PATH).
             unsafe {
                 if let Some(backend) = &settings.processing_backend
                     && backend != "auto" {
@@ -2437,6 +2449,9 @@ pub fn run() {
                     api.prevent_exit();
 
                     #[cfg(target_os = "macos")]
+                    // SAFETY: _exit is used to force-terminate the process on macOS
+                    // during ExitRequested. Normal exit would re-enter the aborted code
+                    // path; immediate termination is required.
                     unsafe { libc::_exit(0); }
 
                     #[cfg(not(target_os = "macos"))]
@@ -2444,6 +2459,9 @@ pub fn run() {
                 }
                 tauri::RunEvent::Exit => {
                     #[cfg(target_os = "macos")]
+                    // SAFETY: _exit is used to force-terminate the process on macOS
+                    // during Exit. Normal exit would re-enter the aborted code path;
+                    // immediate termination is required.
                     unsafe { libc::_exit(0); }
 
                     #[cfg(not(target_os = "macos"))]
@@ -2452,4 +2470,83 @@ pub fn run() {
                 _ => {}
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_version_matches() {
+        let pkg_version = env!("CARGO_PKG_VERSION");
+        assert_eq!(pkg_version, "1.5.9", "App version should match expected 1.5.9");
+    }
+
+    #[test]
+    fn test_image_buffer_creation() {
+        let width = 64u32;
+        let height = 64u32;
+        let img = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_pixel(width, height, Rgba([128, 128, 128, 255]));
+        assert_eq!(img.width(), width);
+        assert_eq!(img.height(), height);
+    }
+
+    #[test]
+    fn test_image_buffer_pixel_manipulation() {
+        let mut img = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_pixel(10, 10, Rgba([0, 0, 0, 255]));
+        img.put_pixel(5, 5, Rgba([255, 0, 0, 255]));
+        let pixel = img.get_pixel(5, 5);
+        assert_eq!(pixel[0], 255);
+        assert_eq!(pixel[1], 0);
+        assert_eq!(pixel[2], 0);
+        assert_eq!(pixel[3], 255);
+        // Unchanged pixel
+        let other = img.get_pixel(0, 0);
+        assert_eq!(other[0], 0);
+    }
+
+    #[test]
+    fn test_launch_args_none() {
+        let args: Vec<String> = vec![];
+        let result = parse_launch_args(&args);
+        assert!(matches!(result, LaunchRequest::None));
+    }
+
+    #[test]
+    fn test_launch_args_open_file() {
+        let args: Vec<String> = vec!["/path/to/image.raw".to_string()];
+        let result = parse_launch_args(&args);
+        assert!(matches!(result, LaunchRequest::OpenFile(p) if p == "/path/to/image.raw"));
+    }
+
+    #[test]
+    fn test_launch_args_edit_session() {
+        let args: Vec<String> = vec![
+            "--edit".to_string(),
+            "source.raw".to_string(),
+            "--output".to_string(),
+            "output.jpg".to_string(),
+        ];
+        let result = parse_launch_args(&args);
+        match result {
+            LaunchRequest::EditSession(session) => {
+                assert_eq!(session.source, "source.raw");
+                assert_eq!(session.output, "output.jpg");
+                assert_eq!(session.format, "jpg");
+                assert_eq!(session.jpeg_quality, 90);
+            }
+            _ => panic!("Expected EditSession, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_hydrate_sub_masks_caches_data() {
+        let mut sub_masks = vec![serde_json::json!({
+            "id": "mask1",
+            "maskDataBase64": "some_data"
+        })];
+        let mut cache = HashMap::new();
+        adjustment_utils::hydrate_sub_masks(&mut sub_masks, &mut cache);
+        assert!(cache.contains_key("mask1"));
+    }
 }

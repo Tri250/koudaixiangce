@@ -153,7 +153,7 @@ pub fn generate_tags_with_clip(
 
     let is_custom = custom_tags.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
     let text_inputs: Vec<String> = if is_custom {
-        custom_tags.as_ref().unwrap().clone()
+        custom_tags.as_ref().map(|t| t.clone()).unwrap_or_default()
     } else {
         TAG_CANDIDATES.iter().map(|&s| s.to_string()).collect()
     };
@@ -219,7 +219,7 @@ pub fn generate_tags_with_clip(
         }
     }
 
-    scored_tags.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    scored_tags.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     let initial_tags: Vec<String> = scored_tags
         .into_iter()
         .take(max_tags)
@@ -306,7 +306,7 @@ pub async fn start_background_indexing(
                     .state::<AppState>()
                     .indexing_task_handle
                     .lock()
-                    .unwrap() = None;
+                    .unwrap_or_else(|e| e.into_inner()) = None;
                 return;
             }
         };
@@ -405,7 +405,7 @@ pub async fn start_background_indexing(
             .state::<AppState>()
             .indexing_task_handle
             .lock()
-            .unwrap() = None;
+            .unwrap_or_else(|e| e.into_inner()) = None;
     });
 
     *state.indexing_task_handle.lock().unwrap_or_else(|e| e.into_inner()) = Some(task);

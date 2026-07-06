@@ -266,9 +266,8 @@ fn validate_color_match_response(mut value: serde_json::Value) -> Result<serde_j
     }
     let cg_obj = obj
         .get_mut("colorGrading")
-        .unwrap()
-        .as_object_mut()
-        .unwrap();
+        .and_then(|v| v.as_object_mut())
+        .ok_or_else(|| anyhow!("VLM response field colorGrading is not an object"))?;
     for tone in &["shadows", "midtones", "highlights"] {
         let tone_val = cg_obj
             .get(*tone)
@@ -279,7 +278,9 @@ fn validate_color_match_response(mut value: serde_json::Value) -> Result<serde_j
                 tone
             ));
         }
-        let tone_obj = cg_obj.get_mut(*tone).unwrap().as_object_mut().unwrap();
+        let tone_obj = cg_obj.get_mut(*tone).and_then(|v| v.as_object_mut()).ok_or_else(|| {
+            anyhow!("VLM response field colorGrading.{} is not an object", tone)
+        })?;
         for component in &["hue", "saturation", "luminance"] {
             let cv = tone_obj.get(*component).ok_or_else(|| {
                 anyhow!("VLM response missing colorGrading.{}.{}", tone, component)
@@ -402,7 +403,7 @@ pub async fn color_match_with_vlm(
     // The content may arrive either as a JSON string or, rarely, as a pre-
     // parsed object. Normalise to a string for serde_json::from_str.
     let raw_content = if content_value.is_string() {
-        content_value.as_str().unwrap().to_string()
+        content_value.as_str().unwrap_or_default().to_string()
     } else {
         content_value.to_string()
     };

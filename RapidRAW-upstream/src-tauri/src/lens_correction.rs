@@ -309,15 +309,18 @@ impl Lens {
         } else {
             distortions.sort_by(|a, b| a.focal.partial_cmp(&b.focal).unwrap_or(Ordering::Equal));
 
+            let first = distortions.first().map(|d| (d.focal, extract_dist_params(d)));
+            let last = distortions.last().map(|d| (d.focal, extract_dist_params(d)));
+
             if let Some(exact) = distortions
                 .iter()
                 .find(|d| (d.focal - focal_length).abs() < 1e-5)
             {
                 extract_dist_params(exact)
-            } else if focal_length < distortions[0].focal {
-                extract_dist_params(distortions[0])
-            } else if focal_length > distortions.last().unwrap().focal {
-                extract_dist_params(distortions.last().unwrap())
+            } else if first.as_ref().map_or(true, |(f, _)| focal_length < *f) {
+                first.map_or((0.0, 0.0, 0.0, 0), |(_, p)| p)
+            } else if last.as_ref().map_or(true, |(f, _)| focal_length > *f) {
+                last.map_or((0.0, 0.0, 0.0, 0), |(_, p)| p)
             } else {
                 let mut res = (0.0, 0.0, 0.0, 0);
                 for pair in distortions.windows(2) {
@@ -351,12 +354,15 @@ impl Lens {
         } else {
             tcas.sort_by(|a, b| a.focal.partial_cmp(&b.focal).unwrap_or(Ordering::Equal));
 
+            let tca_first = tcas.first().map(|d| (d.focal, extract_tca_params(d)));
+            let tca_last = tcas.last().map(|d| (d.focal, extract_tca_params(d)));
+
             if let Some(exact) = tcas.iter().find(|d| (d.focal - focal_length).abs() < 1e-5) {
                 extract_tca_params(exact)
-            } else if focal_length < tcas[0].focal {
-                extract_tca_params(tcas[0])
-            } else if focal_length > tcas.last().unwrap().focal {
-                extract_tca_params(tcas.last().unwrap())
+            } else if tca_first.as_ref().map_or(true, |(f, _)| focal_length < *f) {
+                tca_first.map_or((1.0, 1.0), |(_, p)| p)
+            } else if tca_last.as_ref().map_or(true, |(f, _)| focal_length > *f) {
+                tca_last.map_or((1.0, 1.0), |(_, p)| p)
             } else {
                 let mut res = (1.0, 1.0);
                 for pair in tcas.windows(2) {
@@ -416,18 +422,20 @@ impl Lens {
                 }
             };
 
-            if focal_length <= vignettings[0].focal + 0.01 {
+            let vig_first_focal = vignettings.first().map_or(f32::MIN, |v| v.focal);
+            let vig_last_focal = vignettings.last().map_or(f32::MAX, |v| v.focal);
+
+            if focal_length <= vig_first_focal + 0.01 {
                 let group: Vec<&Vignetting> = vignettings
                     .iter()
-                    .filter(|x| (x.focal - vignettings[0].focal).abs() < 0.01)
+                    .filter(|x| (x.focal - vig_first_focal).abs() < 0.01)
                     .copied()
                     .collect();
                 find_best_vig(&group)
-            } else if focal_length >= vignettings.last().unwrap().focal - 0.01 {
-                let last_focal = vignettings.last().unwrap().focal;
+            } else if focal_length >= vig_last_focal - 0.01 {
                 let group: Vec<&Vignetting> = vignettings
                     .iter()
-                    .filter(|x| (x.focal - last_focal).abs() < 0.01)
+                    .filter(|x| (x.focal - vig_last_focal).abs() < 0.01)
                     .copied()
                     .collect();
                 find_best_vig(&group)

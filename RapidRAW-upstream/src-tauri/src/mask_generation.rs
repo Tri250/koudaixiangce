@@ -277,7 +277,7 @@ fn grayscale_dilate(image: &GrayImage, k: u8) -> GrayImage {
         }
     }
 
-    GrayImage::from_raw(width, height, out).unwrap()
+    GrayImage::from_raw(width, height, out).unwrap_or_else(|| image.clone())
 }
 
 fn grayscale_erode(image: &GrayImage, k: u8) -> GrayImage {
@@ -318,7 +318,7 @@ fn grayscale_erode(image: &GrayImage, k: u8) -> GrayImage {
         }
     }
 
-    GrayImage::from_raw(width, height, out).unwrap()
+    GrayImage::from_raw(width, height, out).unwrap_or_else(|| image.clone())
 }
 
 fn apply_grow_and_feather(mask: &mut GrayImage, grow: f32, feather: f32, width: u32, height: u32) {
@@ -406,7 +406,7 @@ fn render_stroke_layer_parallel(
 ) -> GrayImage {
     let mut out_pixels = vec![0u8; (bb_w * bb_h) as usize];
     if points.is_empty() || radius <= 0.0 {
-        return GrayImage::from_raw(bb_w, bb_h, out_pixels).unwrap();
+        return GrayImage::from_raw(bb_w, bb_h, out_pixels).unwrap_or_default();
     }
 
     struct Segment {
@@ -522,12 +522,13 @@ fn render_stroke_layer_parallel(
                 }
 
                 if is_point_active {
-                    let pt = single_point.as_ref().unwrap();
+                    if let Some(pt) = single_point.as_ref() {
                     if x_i32 >= pt.2 && x_i32 <= pt.3 {
                         let dist_sq = (px - pt.0) * (px - pt.0) + (py - pt.1) * (py - pt.1);
                         if dist_sq < min_dist_sq {
                             min_dist_sq = dist_sq;
                         }
+                    }
                     }
                 }
 
@@ -544,7 +545,7 @@ fn render_stroke_layer_parallel(
             }
         });
 
-    GrayImage::from_raw(bb_w, bb_h, out_pixels).unwrap()
+    GrayImage::from_raw(bb_w, bb_h, out_pixels).unwrap_or_default()
 }
 
 fn generate_radial_bitmap(
@@ -1792,7 +1793,7 @@ pub fn generate_skin_mask_gpu(
             height: 256,
         });
     }
-    let processor_state = processor_lock.as_ref().unwrap();
+    let processor_state = processor_lock.as_ref().ok_or_else(|| "GPU processor not initialized".to_string())?;
     let processor = &processor_state.processor;
 
     // Prepare sRGB-encoded RGBA8 source texture.
@@ -1956,4 +1957,283 @@ pub async fn generate_skin_mask(
     mask.write_to(&mut buf, ImageFormat::Png)
         .map_err(|e| format!("Failed to encode skin mask as PNG: {}", e))?;
     Ok(buf.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sub_mask_mode_equality() {
+        assert_eq!(SubMaskMode::Additive, SubMaskMode::Additive);
+        assert_ne!(SubMaskMode::Additive, SubMaskMode::Subtractive);
+        assert_ne!(SubMaskMode::Subtractive, SubMaskMode::Intersect);
+    }
+
+    #[test]
+    fn test_mask_definition_requires_warped_image() {
+        let mask_with_color = MaskDefinition {
+            id: "1".into(),
+            name: "test".into(),
+            visible: true,
+            invert: false,
+            opacity: 100.0,
+            adjustments: Value::Null,
+            sub_masks: vec![SubMask {
+                id: "sm1".into(),
+                mask_type: "color".into(),
+                visible: true,
+                invert: false,
+                opacity: 100.0,
+                mode: SubMaskMode::Additive,
+                parameters: Value::Null,
+            }],
+        };
+        assert!(mask_with_color.requires_warped_image());
+
+        let mask_with_brush = MaskDefinition {
+            id: "2".into(),
+            name: "test2".into(),
+            visible: true,
+            invert: false,
+            opacity: 100.0,
+            adjustments: Value::Null,
+            sub_masks: vec![SubMask {
+                id: "sm2".into(),
+                mask_type: "brush".into(),
+                visible: true,
+                invert: false,
+                opacity: 100.0,
+                mode: SubMaskMode::Additive,
+                parameters: Value::Null,
+            }],
+        };
+        assert!(!mask_with_brush.requires_warped_image());
+    }
+
+    #[test]
+    fn test_generate_all_bitmap() {
+        let mask = generate_all_bitmap(10, 10);
+        assert_eq!(mask.dimensions(), (10, 10));
+        // All pixels should be 255
+        for pixel in mask.pixels() {
+            assert_eq!(pixel[0], 255);
+        }
+    }
+
+    #[test]
+    fn test_generate_radial_bitmap_center() {
+        let params = serde_json::json!({
+            "centerX": 50.0,
+            "centerY": 50.0,
+            "radiusX": 50.0,
+            "radiusY": 50.0,
+            "rotation": 0.0,
+            "feather": 0.5
+        });
+        let mask = generate_radial_bitmap(&params, 100, 100, 1.0, (0.0, 0.0));
+        // Center pixel should be bright
+        let center = mask.get_pixel(50, 50);
+        assert_eq!(center[0], 255);
+        // Corner pixel should be dark
+        let corner = mask.get_pixel(0, 0);
+        assert_eq!(corner[0], 0);
+    }
+
+    #[test]
+    fn test_generate_linear_bitmap() {
+        let params = serde_json::json!({
+            "startX": 0.0,
+            "startY": 50.0,
+            "endX": 100.0,
+            "endY": 50.0,
+            "range": 50.0
+        });
+        let mask = generate_linear_bitmap(&params, 100, 100, 1.0, (0.0, 0.0));
+        assert_eq!(mask.dimensions(), (100, 100));
+        // Pixel near the line center should be bright
+        let mid = mask.get_pixel(50, 50);
+        assert!(mid[0] > 200);
+    }
+
+    #[test]
+    fn test_generate_mask_bitmap_invisible_mask() {
+        let mask_def = MaskDefinition {
+            id: "1".into(),
+            name: "invisible".into(),
+            visible: false,
+            invert: false,
+            opacity: 100.0,
+            adjustments: Value::Null,
+            sub_masks: vec![],
+        };
+        let result = generate_mask_bitmap(&mask_def, 100, 100, 1.0, (0.0, 0.0), None);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_generate_mask_bitmap_empty_sub_masks() {
+        let mask_def = MaskDefinition {
+            id: "1".into(),
+            name: "empty_subs".into(),
+            visible: true,
+            invert: false,
+            opacity: 100.0,
+            adjustments: Value::Null,
+            sub_masks: vec![],
+        };
+        let result = generate_mask_bitmap(&mask_def, 100, 100, 1.0, (0.0, 0.0), None);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_generate_mask_bitmap_with_all_sub_mask() {
+        let mask_def = MaskDefinition {
+            id: "1".into(),
+            name: "all_mask".into(),
+            visible: true,
+            invert: false,
+            opacity: 100.0,
+            adjustments: Value::Null,
+            sub_masks: vec![SubMask {
+                id: "sm1".into(),
+                mask_type: "all".into(),
+                visible: true,
+                invert: false,
+                opacity: 100.0,
+                mode: SubMaskMode::Additive,
+                parameters: Value::Null,
+            }],
+        };
+        let result = generate_mask_bitmap(&mask_def, 20, 20, 1.0, (0.0, 0.0), None);
+        assert!(result.is_some());
+        let mask = result.unwrap();
+        for pixel in mask.pixels() {
+            assert_eq!(pixel[0], 255);
+        }
+    }
+
+    #[test]
+    fn test_generate_mask_bitmap_inverted() {
+        let mask_def = MaskDefinition {
+            id: "1".into(),
+            name: "inverted".into(),
+            visible: true,
+            invert: true,
+            opacity: 100.0,
+            adjustments: Value::Null,
+            sub_masks: vec![SubMask {
+                id: "sm1".into(),
+                mask_type: "all".into(),
+                visible: true,
+                invert: false,
+                opacity: 100.0,
+                mode: SubMaskMode::Additive,
+                parameters: Value::Null,
+            }],
+        };
+        let result = generate_mask_bitmap(&mask_def, 20, 20, 1.0, (0.0, 0.0), None);
+        assert!(result.is_some());
+        let mask = result.unwrap();
+        for pixel in mask.pixels() {
+            assert_eq!(pixel[0], 0); // inverted all-white => all-black
+        }
+    }
+
+    #[test]
+    fn test_generate_mask_bitmap_opacity() {
+        let mask_def = MaskDefinition {
+            id: "1".into(),
+            name: "half_opacity".into(),
+            visible: true,
+            invert: false,
+            opacity: 50.0,
+            adjustments: Value::Null,
+            sub_masks: vec![SubMask {
+                id: "sm1".into(),
+                mask_type: "all".into(),
+                visible: true,
+                invert: false,
+                opacity: 100.0,
+                mode: SubMaskMode::Additive,
+                parameters: Value::Null,
+            }],
+        };
+        let result = generate_mask_bitmap(&mask_def, 20, 20, 1.0, (0.0, 0.0), None);
+        assert!(result.is_some());
+        let mask = result.unwrap();
+        // 255 * 0.5 = 127 (rounded)
+        for pixel in mask.pixels() {
+            assert_eq!(pixel[0], 127);
+        }
+    }
+
+    #[test]
+    fn test_grayscale_dilate() {
+        let mut img = GrayImage::new(5, 5);
+        img.put_pixel(2, 2, Luma([255]));
+        let dilated = grayscale_dilate(&img, 1);
+        // Center + immediate neighbors should be nonzero after dilation
+        assert!(dilated.get_pixel(2, 2)[0] > 0);
+        assert!(dilated.get_pixel(1, 2)[0] > 0);
+        assert!(dilated.get_pixel(3, 2)[0] > 0);
+        // Corners should remain 0
+        assert_eq!(dilated.get_pixel(0, 0)[0], 0);
+    }
+
+    #[test]
+    fn test_grayscale_erode() {
+        let mut img = GrayImage::from_pixel(5, 5, Luma([255]));
+        img.put_pixel(0, 0, Luma([0]));
+        let eroded = grayscale_erode(&img, 1);
+        // Near the zero pixel, eroded values should be lower
+        assert!(eroded.get_pixel(1, 1)[0] < 255);
+    }
+
+    #[test]
+    fn test_skin_confidence_typical_skin() {
+        let params = SkinDetectionParams::default();
+        // Typical skin tone in sRGB
+        let conf = skin_confidence(0.85, 0.65, 0.50, &params);
+        assert!(conf > 0.0, "Typical skin tone should have nonzero confidence");
+    }
+
+    #[test]
+    fn test_skin_confidence_pure_green() {
+        let params = SkinDetectionParams::default();
+        let conf = skin_confidence(0.0, 1.0, 0.0, &params);
+        assert_eq!(conf, 0.0, "Pure green should not be detected as skin");
+    }
+
+    #[test]
+    fn test_generate_skin_mask_cpu() {
+        let img = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(32, 32, Rgba([200, 150, 120, 255])));
+        let mask = generate_skin_mask_cpu(&img);
+        assert_eq!(mask.dimensions(), (32, 32));
+    }
+
+    #[test]
+    fn test_smooth_box_inside() {
+        assert_eq!(smooth_box(0.5, 0.0, 1.0, 0.1), 1.0);
+    }
+
+    #[test]
+    fn test_smooth_box_outside() {
+        assert_eq!(smooth_box(2.0, 0.0, 1.0, 0.1), 0.0);
+    }
+
+    #[test]
+    fn test_smooth_box_transition() {
+        let val = smooth_box(1.05, 0.0, 1.0, 0.2);
+        assert!(val > 0.0 && val < 1.0);
+    }
+
+    #[test]
+    fn test_linear_to_srgb_channel() {
+        // Known sRGB linear -> gamma values
+        assert!((linear_to_srgb_channel(0.0) - 0.0).abs() < 0.001);
+        assert!((linear_to_srgb_channel(1.0) - 1.0).abs() < 0.001);
+        // Small linear value should use linear portion
+        assert!((linear_to_srgb_channel(0.001) - 0.001 * 12.92).abs() < 0.0001);
+    }
 }
