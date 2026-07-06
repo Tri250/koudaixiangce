@@ -211,6 +211,7 @@ function App() {
   const isPortraitViewport = viewportSize.width > 0 && viewportSize.height > viewportSize.width;
   const isCompactPortrait =
     viewportSize.width > 0 && viewportSize.width <= COMPACT_EDITOR_MAX_WIDTH && isPortraitViewport;
+  const isAndroidCompact = isAndroid && viewportSize.width > 0 && viewportSize.width <= COMPACT_EDITOR_MAX_WIDTH;
 
   const compactEditorPanelMinHeight = 220;
   const compactEditorPanelMaxHeight =
@@ -664,6 +665,7 @@ function App() {
                   isResizing={isResizing}
                   isCompactPortrait={isCompactPortrait}
                   isAndroid={isAndroid}
+                  isAndroidCompact={isAndroidCompact}
                   compactEditorPanelHeight={compactEditorPanelHeight}
                   compactEditorPanelCollapsedHeight={compactEditorPanelCollapsedHeight}
                   thumbnailAspectRatio={thumbnailAspectRatio}

@@ -67,6 +67,7 @@ const Slider = ({
   const suppressTouchChangeRef = useRef(false);
   const isWheelActivelyChangingRef = useRef(false);
   const wheelTimeoutRef = useRef<number | undefined>(undefined);
+  const [valueBounce, setValueBounce] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -235,7 +236,7 @@ const Slider = ({
 
     const startValue = displayValue;
     const endValue = value;
-    const duration = 300;
+    const duration = 200;
     let startTime: number | null = null;
 
     const easeInOut = (t: number) => t * t * (3 - 2 * t);
@@ -277,6 +278,12 @@ const Slider = ({
       inputRef.current?.select();
     }
   }, [isEditing]);
+
+  useEffect(() => {
+    setValueBounce(true);
+    const timer = setTimeout(() => setValueBounce(false), 150);
+    return () => clearTimeout(timer);
+  }, [value]);
 
   const handleReset = () => {
     const syntheticEvent = {
@@ -510,7 +517,7 @@ const Slider = ({
             />
           ) : (
             <span
-              className="text-sm text-text-primary w-full text-right select-none cursor-text"
+              className={`text-sm text-text-primary w-full text-right select-none cursor-text inline-block ${valueBounce ? 'animate-value-bounce' : ''}`}
               onClick={handleValueClick}
               onDoubleClick={handleReset}
               data-tooltip={t('ui.slider.clickToEdit')}

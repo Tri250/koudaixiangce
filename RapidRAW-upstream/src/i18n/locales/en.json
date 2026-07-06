@@ -368,6 +368,7 @@
       "editsTitle": "Edits",
       "inpaintingTitle": "Inpainting",
       "noImageSelected": "No image selected.",
+      "processing": "AI Processing...",
       "params": {
         "feather": "Feather",
         "grow": "Grow"
@@ -738,6 +739,15 @@
     },
     "presets": {
       "amount": "Amount",
+      "category": {
+        "wedding": "Wedding",
+        "portrait": "Portrait",
+        "idphoto": "ID Photo",
+        "family": "Family",
+        "landscape": "Landscape",
+        "food": "Food",
+        "street": "Street"
+      },
       "dialog": {
         "allPresetFiles": "All Preset Files",
         "exportAllTitle": "Export All Presets",
@@ -783,6 +793,25 @@
         "style": "Style",
         "tool": "Tool"
       }
+    },
+    "compare": {
+      "title": "Compare",
+      "before": "Before",
+      "after": "After"
+    },
+    "sync": {
+      "title": "Sync Effects",
+      "apply": "Apply",
+      "select": "Select Photos"
+    },
+    "panel": {
+      "basic": "Basic",
+      "color": "Color",
+      "crop": "Crop",
+      "masks": "Masks",
+      "ai": "AI",
+      "presets": "Presets",
+      "export": "Export"
     },
     "switcher": {
       "tooltips": {
@@ -853,6 +882,10 @@
     "refreshPinnedFoldersFailed": "Failed to refresh pinned folders: {{message}}"
   },
   "export": {
+    "batch": {
+      "progress": "Export Progress",
+      "count": "{current}/{total}"
+    },
     "advanced": {
       "exportMasks": "Export masks as separate files",
       "preserveFolders": "Preserve Folder Structure",
@@ -945,6 +978,14 @@
       "scale": "Scale",
       "spacing": "Spacing",
       "watermarkImage": "Watermark Image"
+    }
+  },
+  "thumbnail": {
+    "badge": {
+      "edited": "Edited",
+      "raw": "RAW",
+      "exported": "Exported",
+      "starred": "Starred"
     }
   },
   "library": {

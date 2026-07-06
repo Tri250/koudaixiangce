@@ -15,6 +15,8 @@ import {
   RotateCw,
   Expand,
   Scan,
+  Columns2,
+  RefreshCw,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -84,7 +86,7 @@ const StarRating = ({ rating, onRate, disabled, isAndroid }: StarRatingProps) =>
           <button
             className={clsx(
               'disabled:cursor-not-allowed flex items-center justify-center rounded-md transition-colors',
-              isAndroid ? 'w-11 h-11' : '',
+              isAndroid ? 'w-12 h-12' : '',
             )}
             disabled={disabled}
             key={starValue}
@@ -321,6 +323,7 @@ export default function BottomBar({
               imageList={imageList}
               imageRatings={imageRatings}
               isLoading={isLoading}
+              isAndroid={isAndroid}
               multiSelectedPaths={multiSelectedPaths}
               onClearSelection={onClearSelection}
               onContextMenu={onContextMenu}
@@ -336,7 +339,7 @@ export default function BottomBar({
       <div
         className={clsx(
           'shrink-0 flex items-center justify-between px-3',
-          isAndroid ? 'h-12' : 'h-10',
+          isAndroid ? 'h-14' : 'h-10',
           !isLibraryView && 'border-t',
           !isLibraryView && showFilmstrip && isFilmstripVisible ? 'border-surface' : 'border-transparent',
         )}
@@ -538,7 +541,7 @@ export default function BottomBar({
         ) : isAndroid ? (
           <div className="flex items-center gap-1">
             <button
-              className="w-11 h-11 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-12 h-12 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               disabled={touchActionDisabled}
               onClick={handleTouchZoomOut}
               data-tooltip={t('ui.bottomBar.tooltips.zoomOut')}
@@ -546,7 +549,7 @@ export default function BottomBar({
               <ZoomOut size={20} />
             </button>
             <button
-              className="w-11 h-11 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-12 h-12 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               disabled={touchActionDisabled}
               onClick={handleTouchZoomIn}
               data-tooltip={t('ui.bottomBar.tooltips.zoomIn')}
@@ -554,7 +557,7 @@ export default function BottomBar({
               <ZoomIn size={20} />
             </button>
             <button
-              className="w-11 h-11 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-12 h-12 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               disabled={touchActionDisabled}
               onClick={handleTouchZoomFit}
               data-tooltip={t('ui.bottomBar.tooltips.zoomFit')}
@@ -562,7 +565,7 @@ export default function BottomBar({
               <Expand size={20} />
             </button>
             <button
-              className="w-11 h-11 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-12 h-12 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               disabled={touchActionDisabled}
               onClick={handleTouchZoom100}
               data-tooltip={t('ui.bottomBar.tooltips.zoom100')}
@@ -571,7 +574,7 @@ export default function BottomBar({
             </button>
             <div className="h-6 w-px bg-surface mx-1"></div>
             <button
-              className="w-11 h-11 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-12 h-12 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               disabled={touchActionDisabled}
               onClick={handleTouchRotateLeft}
               data-tooltip={t('ui.bottomBar.tooltips.rotateLeft')}
@@ -579,18 +582,34 @@ export default function BottomBar({
               <RotateCcw size={20} />
             </button>
             <button
-              className="w-11 h-11 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-12 h-12 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               disabled={touchActionDisabled}
               onClick={handleTouchRotateRight}
               data-tooltip={t('ui.bottomBar.tooltips.rotateRight')}
             >
               <RotateCw size={20} />
             </button>
+            <div className="h-6 w-px bg-surface mx-1"></div>
+            <button
+              className="w-12 h-12 flex items-center justify-center rounded-md text-accent hover:bg-accent/10 hover:text-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={isCopyDisabled}
+              onClick={onPaste}
+              data-tooltip={t('editor.sync.title')}
+            >
+              <RefreshCw size={20} />
+            </button>
+            <button
+              className="w-12 h-12 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={touchActionDisabled}
+              data-tooltip={t('editor.compare.title')}
+            >
+              <Columns2 size={20} />
+            </button>
             {showFilmstrip && (
               <>
                 <div className="h-6 w-px bg-surface mx-1"></div>
                 <button
-                  className="w-11 h-11 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors"
+                  className="w-12 h-12 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface hover:text-text-primary transition-colors"
                   onClick={() => setIsFilmstripVisible?.(!isFilmstripVisible)}
                   data-tooltip={
                     isFilmstripVisible

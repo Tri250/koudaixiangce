@@ -180,7 +180,7 @@
       "convertNegative": "转换负片",
       "copyAdjustments": "复制调整",
       "cullImage": "选片",
-      "denoise": "降噪图像",
+      "denoise": "AI降噪图像",
       "editImage": "编辑图像",
       "exportImage": "导出图像",
       "frameImage": "添加边框",
@@ -246,8 +246,8 @@
       "deleteImage_one": "删除图像",
       "deleteImage_other": "删除 {{count}} 张图像",
       "deleteSelected": "仅删除选中项",
-      "denoise_one": "降噪图像",
-      "denoise_other": "降噪图像",
+      "denoise_one": "AI降噪图像",
+      "denoise_other": "AI降噪图像",
       "duplicateImage": "复制图像",
       "exportImage_one": "导出图像",
       "exportImage_other": "导出 {{count}} 张图像",
@@ -351,7 +351,7 @@
         "builtinLabel": "内置 AI：",
         "cloudLabel": "云端 AI：",
         "connectorConnectedDesc": "已连接到本地生成式后端。",
-        "connectorDisconnectedDesc": "仅可使用简单修复。请启动您的本地后端。",
+        "connectorDisconnectedDesc": "仅可使用简单智能补全。请启动您的本地后端。",
         "connectorLabel": "AI 连接器：",
         "loginRequiredDesc": "通过设置登录以使用云端 AI。",
         "monthlyUsage": "月度使用量",
@@ -366,8 +366,9 @@
       "dropzoneText": "拖放到此处以创建新编辑",
       "editSettingsTitle": "编辑设置",
       "editsTitle": "编辑",
-      "inpaintingTitle": "图像修复",
+      "inpaintingTitle": "智能补全",
       "noImageSelected": "未选择图像。",
+      "processing": "AI处理中...",
       "params": {
         "feather": "羽化",
         "grow": "扩展"
@@ -377,15 +378,15 @@
         "aiEdit_one": "AI 编辑 {{count}}",
         "aiEdit_other": "AI 编辑 {{count}}",
         "invertedName": "{{name}} 反转",
-        "quickErase": "快速擦除 {{count}}",
-        "quickErase_one": "快速擦除 {{count}}",
-        "quickErase_other": "快速擦除 {{count}}"
+        "quickErase": "智能擦除 {{count}}",
+        "quickErase_one": "智能擦除 {{count}}",
+        "quickErase_other": "智能擦除 {{count}}"
       },
-      "resetInpaintingTooltip": "重置图像修复",
+      "resetInpaintingTooltip": "重置智能补全",
       "settings": {
         "aiModelDownloading": "AI 模型下载中：",
-        "basicInpaintTooltipDisabled": "生成式后端不可用或未配置。需要基础图像修复。",
-        "basicInpaintTooltipEnabled": "基础图像修复更快但不具备生成式能力。取消勾选以使用生成式 AI 并输入文本提示。",
+        "basicInpaintTooltipDisabled": "生成式后端不可用或未配置。需要基础智能补全。",
+        "basicInpaintTooltipEnabled": "基础智能补全更快但不具备生成式能力。取消勾选以使用生成式 AI 并输入文本提示。",
         "componentPropertiesTitle": "{{name}} 属性",
         "downloading": "下载中：",
         "fastInpaintDesc": "基于周围像素填充选区。",
@@ -393,13 +394,13 @@
         "generating": "生成中...",
         "generativeDesc": "描述您想要在选定区域生成的内容。",
         "generativeReplaceTitle": "生成式替换",
-        "inpaintSelectionButton": "修复选区",
+        "inpaintSelectionButton": "智能补全选区",
         "invertComponent": "反转组件",
         "invertSelection": "反转选区",
         "placeholder": "例如，一片花海",
         "quickEraseDesc": "填充选区以移除对象。",
         "selectionPropertiesTitle": "选区属性",
-        "useBasicInpaint": "使用基础图像修复"
+        "useBasicInpaint": "使用基础智能补全"
       }
     },
     "crop": {
@@ -738,6 +739,15 @@
     },
     "presets": {
       "amount": "数量",
+      "category": {
+        "wedding": "婚纱照",
+        "portrait": "写真",
+        "idphoto": "证件照",
+        "family": "全家福",
+        "landscape": "风光",
+        "food": "美食",
+        "street": "街拍"
+      },
       "dialog": {
         "allPresetFiles": "所有预设文件",
         "exportAllTitle": "导出所有预设",
@@ -784,13 +794,32 @@
         "tool": "工具"
       }
     },
+    "compare": {
+      "title": "查看对比",
+      "before": "原图",
+      "after": "修图后"
+    },
+    "sync": {
+      "title": "同步效果",
+      "apply": "应用",
+      "select": "选择图片"
+    },
+    "panel": {
+      "basic": "基础",
+      "color": "色彩",
+      "crop": "构图",
+      "masks": "蒙版",
+      "ai": "AI",
+      "presets": "预设",
+      "export": "导出"
+    },
     "switcher": {
       "tooltips": {
         "adjust": "调整",
         "crop": "裁剪",
         "export": "导出",
         "info": "信息",
-        "inpaint": "修复",
+        "inpaint": "智能补全",
         "masks": "蒙版",
         "presets": "预设"
       }
@@ -839,7 +868,7 @@
     "openFolderDialogFailed": "打开文件夹选择对话框失败。",
     "openLibraryFailed": "打开图库失败。",
     "pasteAdjustmentsFailed": "粘贴调整失败：{{message}}",
-    "quickEraseFailed": "快速擦除失败：{{message}}",
+    "quickEraseFailed": "智能擦除失败：{{message}}",
     "renameAlbumFailed": "重命名失败：{{message}}",
     "renameFilesFailed": "重命名文件失败：{{message}}",
     "renameFolderFailed": "重命名文件夹失败：{{message}}",
@@ -853,6 +882,10 @@
     "refreshPinnedFoldersFailed": "刷新固定文件夹失败：{{message}}"
   },
   "export": {
+    "batch": {
+      "progress": "导出进度",
+      "count": "{current}/{total}"
+    },
     "advanced": {
       "exportMasks": "将蒙版导出为单独文件",
       "preserveFolders": "保留文件夹结构",
@@ -945,6 +978,14 @@
       "scale": "缩放",
       "spacing": "间距",
       "watermarkImage": "水印图像"
+    }
+  },
+  "thumbnail": {
+    "badge": {
+      "edited": "已编辑",
+      "raw": "RAW",
+      "exported": "已导出",
+      "starred": "已收藏"
     }
   },
   "library": {
@@ -1146,15 +1187,15 @@
       "color": "颜色",
       "depth": "深度",
       "flow": "流量",
-      "foreground": "前景",
+      "foreground": "AI前景",
       "linear": "线性",
       "luminance": "亮度",
       "others": "其他",
-      "quickErase": "快速擦除",
-      "quickEraser": "快速橡皮擦",
+      "quickErase": "智能擦除",
+      "quickEraser": "智能擦除",
       "radial": "径向",
-      "sky": "天空",
-      "subject": "主体"
+      "sky": "AI换天空",
+      "subject": "AI抠图"
     }
   },
   "menus": {
@@ -1283,15 +1324,15 @@
       "title": "选片"
     },
     "denoise": {
-      "batchProgressText": "降噪中 {{current}} / {{total}}...",
-      "btnBatchDenoise": "批量降噪并保存",
+      "batchProgressText": "AI降噪中 {{current}} / {{total}}...",
+      "btnBatchDenoise": "批量AI降噪并保存",
       "btnRetry": "重试",
       "btnSave": "保存",
       "btnStart": "开始",
       "cancel": "取消",
       "close": "关闭",
-      "denoised": "已降噪",
-      "denoisingProgress": "降噪进行中",
+      "denoised": "已AI降噪",
+      "denoisingProgress": "AI降噪进行中",
       "description": "使用 AI 驱动或传统降噪技术去除图像中的噪声。",
       "downloadingText": "下载中 {{status}}...",
       "gpuWarningTooltip": "由于依赖项限制，NIND 降噪尚不支持 GPU 加速。",
@@ -1308,8 +1349,8 @@
       "saveSuccess": "图像保存成功！",
       "speedNotice": "这可能需要几分钟，具体取决于图像大小和所选方法。",
       "strengthLabel": "强度",
-      "titleBatch": "降噪图像",
-      "titleSingle": "降噪图像"
+      "titleBatch": "AI降噪图像",
+      "titleSingle": "AI降噪图像"
     },
     "hdr": {
       "cancel": "取消",

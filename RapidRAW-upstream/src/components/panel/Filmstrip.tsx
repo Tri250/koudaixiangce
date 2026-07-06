@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { Image as ImageIcon, Star, SlidersHorizontal } from 'lucide-react';
+import { Image as ImageIcon, Star, SlidersHorizontal, Pencil } from 'lucide-react';
 import clsx from 'clsx';
+import { motion } from 'framer-motion';
 import { Grid, useGridCallbackRef } from 'react-window';
 import { useTranslation } from 'react-i18next';
 import { ImageFile, SelectedImage, ThumbnailAspectRatio } from '../ui/AppProperties';
@@ -30,6 +31,7 @@ interface ItemData {
   onImageSelect?: (path: string, event: any) => void;
   itemHeight: number;
   setRatio: (index: number, ratio: number) => void;
+  isAndroid?: boolean;
 }
 
 const FilmstripThumbnail = memo(
@@ -44,6 +46,7 @@ const FilmstripThumbnail = memo(
     itemHeight: _itemHeight,
     index,
     setRatio,
+    isAndroid = false,
   }: {
     imageFile: ImageFile;
     imageRatings: any;
@@ -55,6 +58,7 @@ const FilmstripThumbnail = memo(
     itemHeight: number;
     index: number;
     setRatio: (index: number, ratio: number) => void;
+    isAndroid?: boolean;
   }) => {
     const { t } = useTranslation();
     const thumbData = useProcessStore((s) => s.thumbnails[imageFile.path]);
@@ -234,7 +238,7 @@ const FilmstripThumbnail = memo(
                 hasEditIcon ? 'max-w-3 opacity-100 scale-100' : 'max-w-0 opacity-0 scale-75 pointer-events-none',
               )}
             >
-              <SlidersHorizontal size={12} />
+              {isAndroid ? <Pencil size={12} /> : <SlidersHorizontal size={12} />}
             </div>
 
             <div
@@ -250,18 +254,33 @@ const FilmstripThumbnail = memo(
               />
             </div>
 
-            <div
-              className={clsx(
-                'flex items-center gap-0.5 shrink-0 transition-all duration-200 ease-out overflow-hidden',
-                hasRating ? 'max-w-7 opacity-100 scale-100' : 'max-w-0 opacity-0 scale-75 pointer-events-none',
-                hasRating && (hasEditIcon || hasColorLabel) ? 'ml-1.5' : 'ml-0',
-              )}
-            >
-              <Text variant={TextVariants.small} color={TextColors.white}>
-                {rating}
-              </Text>
-              <Star size={12} className="text-white fill-white" />
-            </div>
+            {isAndroid && hasRating ? (
+              <motion.div
+                className="flex items-center gap-0.5 shrink-0"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 15, duration: 0.25 }}
+                style={{ marginLeft: hasEditIcon || hasColorLabel ? 6 : 0 }}
+              >
+                <Text variant={TextVariants.small} color={TextColors.white}>
+                  {rating}
+                </Text>
+                <Star size={12} className="text-white fill-white" />
+              </motion.div>
+            ) : (
+              <div
+                className={clsx(
+                  'flex items-center gap-0.5 shrink-0 transition-all duration-200 ease-out overflow-hidden',
+                  hasRating ? 'max-w-7 opacity-100 scale-100' : 'max-w-0 opacity-0 scale-75 pointer-events-none',
+                  hasRating && (hasEditIcon || hasColorLabel) ? 'ml-1.5' : 'ml-0',
+                )}
+              >
+                <Text variant={TextVariants.small} color={TextColors.white}>
+                  {rating}
+                </Text>
+                <Star size={12} className="text-white fill-white" />
+              </div>
+            )}
           </div>
         </div>
 
@@ -300,6 +319,7 @@ const FilmstripCell = ({
   onImageSelect,
   itemHeight,
   setRatio,
+  isAndroid,
 }: any) => {
   const imageFile = imageList[columnIndex];
   const fullWidth = style.width as number;
@@ -328,6 +348,7 @@ const FilmstripCell = ({
           itemHeight={itemHeight}
           index={columnIndex}
           setRatio={setRatio}
+          isAndroid={isAndroid}
         />
       </div>
     </div>
@@ -608,6 +629,7 @@ interface FilmStripProps {
   imageList: Array<ImageFile>;
   imageRatings: any;
   isLoading: boolean;
+  isAndroid?: boolean;
   multiSelectedPaths: Array<string>;
   onClearSelection?(): void;
   onContextMenu?(event: any, path: string): void;
@@ -622,6 +644,7 @@ export default function Filmstrip({
   imageList,
   imageRatings,
   isLoading: _isLoading,
+  isAndroid = false,
   multiSelectedPaths,
   onClearSelection,
   onContextMenu,
@@ -671,6 +694,7 @@ export default function Filmstrip({
             onRequestThumbnails,
             onImageSelect: handleImageSelect,
             clickTriggeredScroll,
+            isAndroid,
           }}
         />
       )}

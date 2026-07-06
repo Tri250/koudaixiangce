@@ -1,12 +1,14 @@
-import { type RefObject, type PointerEvent as ReactPointerEvent } from 'react';
+import { type RefObject, type PointerEvent as ReactPointerEvent, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import clsx from 'clsx';
+import { ArrowLeftRight } from 'lucide-react';
 
 import Editor from '../panel/Editor';
 import BottomBar from '../panel/BottomBar';
 import RightPanelSwitcher from '../panel/right/RightPanelSwitcher';
 import Resizer from '../ui/Resizer';
+import BottomSheet from '../ui/BottomSheet';
 import Controls from '../panel/right/ControlsPanel';
 import MetadataPanel from '../panel/right/MetadataPanel';
 import CropPanel from '../panel/right/CropPanel';
@@ -45,6 +47,7 @@ interface EditorViewProps {
   isResizing: boolean;
   isCompactPortrait: boolean;
   isAndroid: boolean;
+  isAndroidCompact: boolean;
   compactEditorPanelHeight: number;
   compactEditorPanelCollapsedHeight: number;
   thumbnailAspectRatio: ThumbnailAspectRatio;
@@ -68,6 +71,7 @@ export default function EditorView({
   isResizing,
   isCompactPortrait,
   isAndroid,
+  isAndroidCompact,
   compactEditorPanelHeight,
   compactEditorPanelCollapsedHeight,
   thumbnailAspectRatio,
@@ -242,6 +246,49 @@ export default function EditorView({
       )}
     </AnimatePresence>
   );
+
+  // Android compact: bottom panel with draggable sheet
+  if (isAndroidCompact) {
+    return (
+      <div className="flex flex-col grow h-full min-h-0 relative">
+        {/* Preview area */}
+        <div className="flex-1 min-h-0 relative">
+          {editorNode}
+          {/* Before/After comparison floating button */}
+          <button
+            className="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-bg-secondary/80 border border-surface flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors z-30"
+            onClick={() => {
+              const el = document.querySelector('.react-transform-wrapper');
+              if (el) {
+                (el as HTMLElement).style.filter =
+                  (el as HTMLElement).style.filter === 'grayscale(100%)' ? '' : 'grayscale(100%)';
+              }
+            }}
+            aria-label="Before/After"
+          >
+            <ArrowLeftRight size={18} />
+          </button>
+        </div>
+
+        {/* Bottom sheet panel */}
+        <BottomSheet isOpen={!!activeRightPanel && !isFullScreen} defaultHeight={280} minHeight={120}>
+          <div className="flex flex-col h-full">
+            {/* Horizontal tab bar */}
+            <RightPanelSwitcher
+              activePanel={activeRightPanel}
+              onPanelSelect={handleRightPanelSelect}
+              isInstantTransition={isInstantTransition}
+              layout="horizontal"
+            />
+            {/* Panel content */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {editorRightPanelContent}
+            </div>
+          </div>
+        </BottomSheet>
+      </div>
+    );
+  }
 
   return (
     <div className={clsx('flex grow h-full min-h-0', isCompactPortrait ? 'flex-col gap-2' : 'flex-row')}>
