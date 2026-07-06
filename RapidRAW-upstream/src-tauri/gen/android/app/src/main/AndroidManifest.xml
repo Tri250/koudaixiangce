@@ -72,7 +72,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="image/tiff" />
+                <data android:mimeType="image/jpeg" />
                 <data android:pathPattern=".*\\.dng" />
                 <data android:pathPattern=".*\\.pro" />
                 <data android:pathPattern=".*\\.ari" />
@@ -121,7 +121,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="image/bmp" />
+                <data android:mimeType="image/png" />
                 <data android:pathPattern=".*\\.dng" />
                 <data android:pathPattern=".*\\.pro" />
                 <data android:pathPattern=".*\\.ari" />
@@ -219,7 +219,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="image/jpeg" />
+                <data android:mimeType="image/tiff" />
                 <data android:pathPattern=".*\\.dng" />
                 <data android:pathPattern=".*\\.pro" />
                 <data android:pathPattern=".*\\.ari" />
@@ -268,7 +268,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="image/png" />
+                <data android:mimeType="image/bmp" />
                 <data android:pathPattern=".*\\.dng" />
                 <data android:pathPattern=".*\\.pro" />
                 <data android:pathPattern=".*\\.ari" />
