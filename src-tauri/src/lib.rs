@@ -1945,8 +1945,15 @@ fn frontend_ready(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(not(target_os = "android"))]
     let _ = rayon::ThreadPoolBuilder::new()
         .stack_size(8 * 1024 * 1024)
+        .build_global();
+
+    #[cfg(target_os = "android")]
+    let _ = rayon::ThreadPoolBuilder::new()
+        .stack_size(4 * 1024 * 1024)
+        .num_threads(4)
         .build_global();
 
     let mut builder = tauri::Builder::default();

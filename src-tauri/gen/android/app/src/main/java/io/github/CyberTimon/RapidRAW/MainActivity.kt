@@ -49,6 +49,15 @@ class MainActivity : TauriActivity() {
     webView.setBackgroundColor(safeMarginBackgroundColor)
     webView.fitsSystemWindows = true
 
+    // Enable hardware acceleration and GPU rendering for image editing performance
+    webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
+    val webSettings = webView.settings
+    webSettings.javaScriptEnabled = true
+    webSettings.domStorageEnabled = true
+    webSettings.databaseEnabled = true
+    webSettings.setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
+
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
       override fun handleOnBackPressed() {
         this@MainActivity.webView?.evaluateJavascript("window.__handleAndroidBack()", null)

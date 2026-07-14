@@ -15,6 +15,16 @@
     "os:allow-os-type",
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-decorations",
-    "shell:default"
+    "shell:default",
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-read-dir",
+    "fs:allow-copy-file",
+    "fs:allow-remove",
+    "fs:allow-create",
+    "fs:allow-appcache-read",
+    "fs:allow-appcache-write",
+    "fs:allow-appcache-meta"
   ]
 }

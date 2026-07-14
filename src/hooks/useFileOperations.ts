@@ -296,14 +296,12 @@ export function useFileOperations(
         const processedRaw = expandExtensions(raw);
         const allImageExtensions = [...processedNonRaw, ...processedRaw];
 
-        const typeFilters = isAndroid
-          ? []
-          : [
-              { name: 'All Supported Images', extensions: allImageExtensions },
-              { name: 'RAW Images', extensions: processedRaw },
-              { name: 'Standard Images (JPEG, PNG, etc.)', extensions: processedNonRaw },
-              { name: 'All Files', extensions: ['*'] },
-            ];
+        const typeFilters = [
+          { name: 'All Supported Images', extensions: allImageExtensions },
+          { name: 'RAW Images', extensions: processedRaw },
+          { name: 'Standard Images (JPEG, PNG, etc.)', extensions: processedNonRaw },
+          ...(isAndroid ? [] : [{ name: 'All Files', extensions: ['*'] }]),
+        ];
 
         const selected = await open({
           filters: typeFilters,
@@ -332,6 +330,12 @@ export function useFileOperations(
           const validFiles = selected.filter((originalPath, index) => {
             const resolvedName = resolvedFiles[index];
             const ext = resolvedName.split('.').pop()?.toLowerCase() || 'unknown';
+
+            // Android content URIs may not have an extension in the resolved name
+            // In that case, try to infer from the original path or allow it through
+            if (ext === 'unknown' && isAndroid && originalPath.startsWith('content://')) {
+              return true;
+            }
 
             if (!allowedExtensions.has(ext)) {
               invalidExtensions.add(`.${ext}`);
