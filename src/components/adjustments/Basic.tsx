@@ -179,25 +179,6 @@ export default function BasicAdjustments({
 
   return (
     <div>
-      {hideTonemapper ? (
-        <Slider
-          label={t('adjustments.basic.evShift')}
-          max={5}
-          min={-5}
-          onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Exposure, e.target.value)}
-          step={0.01}
-          value={adjustments.exposure}
-          onDragStateChange={onDragStateChange}
-        />
-      ) : (
-        <ToneMapperSwitch
-          selectedMapper={adjustments.toneMapper || 'agx'}
-          onMapperChange={handleToneMapperChange}
-          evShiftValue={adjustments.exposure}
-          onEvShiftChange={(value) => handleAdjustmentChange(BasicAdjustment.Exposure, value)}
-          onDragStateChange={onDragStateChange}
-        />
-      )}
       <Slider
         label={t('adjustments.basic.exposure')}
         max={5}
@@ -252,6 +233,25 @@ export default function BasicAdjustments({
         value={adjustments.blacks}
         onDragStateChange={onDragStateChange}
       />
+      {hideTonemapper ? (
+        <Slider
+          label={t('adjustments.basic.evShift')}
+          max={5}
+          min={-5}
+          onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Exposure, e.target.value)}
+          step={0.01}
+          value={adjustments.exposure}
+          onDragStateChange={onDragStateChange}
+        />
+      ) : (
+        <ToneMapperSwitch
+          selectedMapper={adjustments.toneMapper || 'agx'}
+          onMapperChange={handleToneMapperChange}
+          evShiftValue={adjustments.exposure}
+          onEvShiftChange={(value) => handleAdjustmentChange(BasicAdjustment.Exposure, value)}
+          onDragStateChange={onDragStateChange}
+        />
+      )}
     </div>
   );
 }

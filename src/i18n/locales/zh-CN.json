@@ -446,7 +446,7 @@
           "tooltip": "输入自定义宽高比"
         },
         "free": {
-          "desc": "自由裁剪",
+          "desc": "自由构图",
           "name": "自由"
         },
         "original": {
@@ -482,9 +482,9 @@
           "name": "1:1"
         }
       },
-      "resetTooltip": "重置裁剪和变换",
+      "resetTooltip": "重置构图和变换",
       "rotationHeading": "旋转",
-      "title": "裁剪与变换",
+      "title": "构图与变换",
       "tooltips": {
         "compositionOverlay": "构图叠加",
         "flipHoriz": "水平翻转图像",
@@ -696,10 +696,10 @@
     "switcher": {
       "tooltips": {
         "adjust": "调整",
-        "crop": "裁剪",
+        "crop": "构图",
         "export": "导出",
         "info": "信息",
-        "inpaint": "修复",
+        "inpaint": "AI修图",
         "masks": "蒙版",
         "presets": "预设"
       }
@@ -965,7 +965,7 @@
     },
     "splash": {
       "addFolder": "添加文件夹",
-      "brand": "RapidRAW",
+      "brand": "口袋相册",
       "continueSession": "继续会话",
       "contribute": "在 GitHub 上贡献",
       "descriptionAndroid": "一款极速、GPU 加速的 RAW 图像编辑器。打开图库以开始。",
@@ -1674,19 +1674,19 @@
       "title": "标签"
     },
     "thanks": {
-      "description": "衷心感谢以下项目，它们在 RapidRAW 的开发过程中非常重要：",
+      "description": "热爱摄影的开发者，为摄影爱好者打造专业工具。",
       "list": {
         "darktable": "为部分参考实现提供了指导。",
         "depth": "为强大的单目深度估计模型提供支持，实现了 AI 深度蒙版功能。",
         "lama": "为强大且简单的图像修复模型提供支持，实现了内容感知填充和对象移除。",
         "lensfun": "为无价的开源库和全面的数据库提供支持，实现了自动镜头校正。",
         "negpy": "为负片转换逻辑提供了灵感。",
-        "nind": "为 AI 模型提供支持，驱动了 RapidRAW 中的 AI 降噪功能。",
+        "nind": "为 AI 模型提供支持，驱动了口袋相册中的 AI 降噪功能。",
         "rawler": "为优秀的 Rust 库提供支持，构成了本项目 RAW 文件处理的基础。",
         "sam2": "为提供基础模型，用于 AI 主体检测功能。",
         "u2net": "为提供稳健的架构，用于 AI 天空和前景检测功能。",
-        "you": "感谢您使用和支持 RapidRAW。您的关注使本项目持续发展。",
-        "youLabel": "您"
+        "you": "我只是「带娃的小陈工」，一名热爱摄影的开发者。",
+        "youLabel": "开发者"
       },
       "title": "特别鸣谢"
     },
