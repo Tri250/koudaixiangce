@@ -2982,7 +2982,10 @@ pub fn show_in_finder(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "android")]
     {
-        return Err("Show in File Manager is not natively supported via CLI on Android.".into());
+        // On Android, silently succeed. The internal app library path is not
+        // easily exposed to external file managers, and throwing an error
+        // breaks the user flow.
+        return Ok(());
     }
 
     #[cfg(target_os = "ios")]
