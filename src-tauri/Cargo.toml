@@ -1,7 +1,8 @@
 [package]
 name = "RapidRAW"
+version = "1.7.0"
 description = "A blazingly-fast, non-destructive, and GPU-accelerated RAW image editor built with performance in mind."
-authors = ["Timon Käch"]
+authors = ["带娃的小陈工"]
 edition = "2024"
 rust-version = "1.96"
 
