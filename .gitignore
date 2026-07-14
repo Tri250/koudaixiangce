@@ -1,0 +1,26 @@
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+
+# Rust
+target/
+
+# Android
+*.apk
+*.aab
+local.properties
+
+# Env
+.env
+.env.local
+!.env.sh
+
+# Build output
+dist/
