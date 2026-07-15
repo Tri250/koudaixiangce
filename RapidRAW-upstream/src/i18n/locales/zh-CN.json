@@ -403,6 +403,26 @@
         "useBasicInpaint": "使用基础智能补全"
       }
     },
+    "portrait": {
+      "title": "人像",
+      "skinMask": "皮肤蒙版",
+      "generateSkinMask": "生成皮肤蒙版",
+      "skinMaskReady": "皮肤蒙版已就绪",
+      "skinMaskExisting": "检测到已有皮肤蒙版",
+      "skinMaskGenerated": "皮肤蒙版生成成功",
+      "skinMaskFailed": "皮肤蒙版生成失败：{{message}}",
+      "oneClickBeauty": "一键美颜",
+      "oneClickBeautyApplied": "一键美颜已应用",
+      "skinRefinement": "皮肤细化",
+      "smoothness": "磨皮",
+      "brightness": "亮度",
+      "contrast": "对比度",
+      "saturation": "饱和度",
+      "reset": "重置",
+      "generating": "正在生成...",
+      "skinMaskRequired": "请先生成皮肤蒙版",
+      "guide": "点击上方按钮生成皮肤蒙版，即可使用人像美化功能"
+    },
     "crop": {
       "aspectRatioHeading": "宽高比",
       "custom": {
@@ -821,7 +841,8 @@
         "info": "信息",
         "inpaint": "智能补全",
         "masks": "蒙版",
-        "presets": "预设"
+        "presets": "预设",
+        "portrait": "人像"
       }
     },
     "toolbar": {
@@ -1867,7 +1888,7 @@
       "title": "标签"
     },
     "thanks": {
-      "description": "衷心感谢以下项目，它们在 RapidRAW 的开发过程中非常重要：",
+      "description": "热爱摄影的开发者，为摄影爱好者打造专业工具\n\n我只是「带娃的小陈工」，一名热爱摄影的开发者",
       "list": {
         "darktable": "为部分参考实现提供了指导。",
         "depth": "为强大的单目深度估计模型提供支持，实现了 AI 深度蒙版功能。",

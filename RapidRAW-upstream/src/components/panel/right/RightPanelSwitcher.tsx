@@ -8,6 +8,7 @@ import {
   Paintbrush,
   SwatchBook,
   FileInput,
+  User,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +33,7 @@ const panelGroups: Array<Array<PanelOptions>> = [
   [{ id: Panel.Metadata, icon: Info, title: 'editor.switcher.tooltips.info' }],
   [
     { id: Panel.Adjustments, icon: SlidersHorizontal, title: 'editor.switcher.tooltips.adjust', androidLabel: '基础' },
+    { id: Panel.Portrait, icon: User, title: 'editor.switcher.tooltips.portrait', androidLabel: '人像' },
     { id: Panel.Crop, icon: Crop, title: 'editor.switcher.tooltips.crop', androidLabel: '构图' },
     { id: Panel.Masks, icon: Layers, title: 'editor.switcher.tooltips.masks', androidLabel: '蒙版' },
     { id: Panel.Ai, icon: Paintbrush, title: 'editor.switcher.tooltips.inpaint', androidLabel: 'AI' },
@@ -42,10 +44,10 @@ const panelGroups: Array<Array<PanelOptions>> = [
   ],
 ];
 
-// Android-specific flat tab list with color tab included
 const androidPanelTabs: Array<PanelOptions> = [
   { id: Panel.Adjustments, icon: SlidersHorizontal, title: 'editor.switcher.tooltips.adjust', androidLabel: '基础' },
   { id: Panel.Metadata, icon: Info, title: 'editor.switcher.tooltips.info', androidLabel: '色彩' },
+  { id: Panel.Portrait, icon: User, title: 'editor.switcher.tooltips.portrait', androidLabel: '人像' },
   { id: Panel.Crop, icon: Crop, title: 'editor.switcher.tooltips.crop', androidLabel: '构图' },
   { id: Panel.Masks, icon: Layers, title: 'editor.switcher.tooltips.masks', androidLabel: '蒙版' },
   { id: Panel.Ai, icon: Paintbrush, title: 'editor.switcher.tooltips.inpaint', androidLabel: 'AI' },
