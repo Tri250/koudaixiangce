@@ -268,11 +268,24 @@ fn largest_tiff_jpeg_preview(buf: &[u8]) -> Option<DynamicImage> {
 fn embedded_preview_fallback(bytes: &[u8], path: &str) -> Option<DynamicImage> {
     let img = match largest_tiff_jpeg_preview(bytes) {
         Some(img) => img,
-        None => rawler::analyze::extract_preview_pixels(
-            path,
-            &rawler::decoders::RawDecodeParams::default(),
-        )
-        .ok()?,
+        None => {
+            // rawler::analyze::extract_preview_pixels requires a filesystem path.
+            // On Android, content:// URIs are not filesystem paths and will fail.
+            // Skip this fallback for non-filesystem paths (content://, etc.).
+            #[cfg(target_os = "android")]
+            if crate::android_integration::is_android_uri(path) {
+                log::warn!(
+                    "Skipping rawler preview extraction for non-filesystem URI: {}",
+                    path
+                );
+                return None;
+            }
+            rawler::analyze::extract_preview_pixels(
+                path,
+                &rawler::decoders::RawDecodeParams::default(),
+            )
+            .ok()?
+        }
     };
 
     let orientation = ExifReader::new()

@@ -102,7 +102,23 @@ fn apply_watermark(
     base_image: &mut DynamicImage,
     watermark_settings: &WatermarkSettings,
 ) -> Result<(), String> {
-    let watermark_img = image::open(&watermark_settings.path)
+    // On Android, watermark path may be a content:// URI that image::open() cannot handle.
+    // Read bytes through the Android bridge first, then decode from memory.
+    #[cfg(target_os = "android")]
+    let watermark_img: DynamicImage = {
+        if crate::android_integration::is_android_uri(&watermark_settings.path) {
+            let bytes = crate::android_integration::read_image_source_bytes(&watermark_settings.path)
+                .map_err(|e| format!("Failed to read watermark from Android URI: {}", e))?;
+            image::load_from_memory(&bytes)
+                .map_err(|e| format!("Failed to decode watermark image: {}", e))?
+        } else {
+            image::open(&watermark_settings.path)
+                .map_err(|e| format!("Failed to open watermark image: {}", e))?
+        }
+    };
+
+    #[cfg(not(target_os = "android"))]
+    let watermark_img: DynamicImage = image::open(&watermark_settings.path)
         .map_err(|e| format!("Failed to open watermark image: {}", e))?;
 
     let (base_w, base_h) = base_image.dimensions();
@@ -271,6 +287,7 @@ fn process_image_for_export_pipeline(
     )
 }
 
+#[cfg(not(target_os = "android"))]
 fn set_timestamps_from_exif(src: &Path, dst: &Path) {
     let capture_dt = exif_processing::get_creation_date_from_path(src);
     let ft = filetime::FileTime::from_unix_time(
@@ -562,6 +579,10 @@ fn export_masks_for_image(
             )?;
 
             if export_settings.preserve_timestamps {
+                // On Android, exported files are saved via MediaStore, not filesystem paths.
+                // set_timestamps_from_exif uses filetime::set_file_times which won't work
+                // on MediaStore-managed paths. Skip this on Android.
+                #[cfg(not(target_os = "android"))]
                 set_timestamps_from_exif(Path::new(source_path_str), &mask_image_path);
             }
 
@@ -947,6 +968,9 @@ pub async fn export_images(
                     )?;
 
                     if export_settings.preserve_timestamps {
+                        // On Android, exported files are saved via MediaStore, not filesystem paths.
+                        // set_timestamps_from_exif won't work on MediaStore-managed paths.
+                        #[cfg(not(target_os = "android"))]
                         set_timestamps_from_exif(Path::new(&source_path_str), &output_path);
                     }
 

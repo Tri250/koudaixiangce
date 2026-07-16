@@ -87,19 +87,19 @@ pub fn get_android_cached_lut_path(uri: &str, extension: &str) -> anyhow::Result
         })
         .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
 
-    let dirs_array_obj = env
-        .call_method(&context, "getExternalMediaDirs", "()[Ljava/io/File;", &[])
+    // Use getExternalFilesDir(null) instead of getExternalMediaDirs().
+    // getExternalMediaDirs() is deprecated since API 30 (Android 11) and may
+    // return empty arrays under scoped storage. getExternalFilesDir(null) returns
+    // the app-specific external storage directory, which is always accessible
+    // without scoped storage permissions and is cleaned up on app uninstall.
+    let dir_file = env
+        .call_method(&context, "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;", &[(&JObject::null()).into()])
         .and_then(|v| v.l())
         .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
 
-    if dirs_array_obj.is_null() {
-        return Err(anyhow::anyhow!("External media storage not available"));
+    if dir_file.is_null() {
+        return Err(anyhow::anyhow!("External files storage not available"));
     }
-
-    let dirs_array: jni::objects::JObjectArray = dirs_array_obj.into();
-    let dir_file = env
-        .get_object_array_element(&dirs_array, 0)
-        .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
 
     let path_jstring = env
         .call_method(&dir_file, "getAbsolutePath", "()Ljava/lang/String;", &[])
@@ -590,23 +590,17 @@ pub fn get_android_internal_library_root() -> Result<PathBuf, String> {
         })
         .map_err(|e| map_android_jni_error(&mut env, e))?;
 
-    let dirs_array_obj = env
-        .call_method(&context, "getExternalMediaDirs", "()[Ljava/io/File;", &[])
+    // Use getExternalFilesDir(null) instead of getExternalMediaDirs().
+    // getExternalMediaDirs() is deprecated since API 30 (Android 11) and may
+    // return empty/null under scoped storage. getExternalFilesDir(null) returns
+    // the app-specific external directory, reliably accessible on all Android versions.
+    let dir_file = env
+        .call_method(&context, "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;", &[(&JObject::null()).into()])
         .and_then(|v| v.l())
         .map_err(|e| map_android_jni_error(&mut env, e))?;
 
-    if dirs_array_obj.is_null() {
-        return Err("External media storage not available".to_string());
-    }
-
-    let dirs_array: jni::objects::JObjectArray = dirs_array_obj.into();
-
-    let dir_file = env
-        .get_object_array_element(&dirs_array, 0)
-        .map_err(|e| map_android_jni_error(&mut env, e))?;
-
     if dir_file.is_null() {
-        return Err("Primary external media storage is null".to_string());
+        return Err("External files storage is null".to_string());
     }
 
     let path_jstring = env
