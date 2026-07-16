@@ -1,4 +1,0 @@
-[submodule "RapidRAW-upstream"]
-	path = RapidRAW-upstream
-	url = https://github.com/CyberTimon/RapidRAW.git
-	branch = main
