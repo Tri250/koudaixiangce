@@ -80,6 +80,15 @@ jobs:
             patchelf
 
       # ------------- Android Setup -------------
+      - name: Free disk space for Android build
+        if: inputs.mobile == 'android'
+        shell: bash
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          df -h
+
       - name: Set up JDK
         if: inputs.mobile == 'android'
         uses: actions/setup-java@v4
