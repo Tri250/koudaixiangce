@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Media access for "Open from gallery" / "Share to RapidRAW" (C1) -->
+    <!-- Android 13+ (API 33): granular media permissions -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Android 14+ (API 34): user-selected visual media grant -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <!-- Android 12 and below: legacy storage permission (maxSdkVersion prevents prompt on 13+) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- AndroidTV support -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.rapid_raw"
+        android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:launchMode="singleTask"
+            android:label="@string/main_activity_title"
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <!-- AndroidTV support -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+
+            <!-- Receive images shared from gallery / WeChat / file managers (C1) -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+
+            <!-- Open-with / "Open in RapidRAW" from gallery / file managers (C1) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="image/*" />
+                <!-- Common RAW extensions, since Android does not standardise RAW MIME types -->
+                <data android:pathPattern=".*\\..*raf" />
+                <data android:pathPattern=".*\\..*cr2" />
+                <data android:pathPattern=".*\\..*cr3" />
+                <data android:pathPattern=".*\\..*nef" />
+                <data android:pathPattern=".*\\..*arw" />
+                <data android:pathPattern=".*\\..*dng" />
+                <data android:pathPattern=".*\\..*rw2" />
+                <data android:pathPattern=".*\\..*orf" />
+                <data android:pathPattern=".*\\..*pef" />
+                <data android:pathPattern=".*\\..*srw" />
+                <data android:pathPattern=".*\\..*raw" />
+            </intent-filter>
+            <!-- tauri-file-associations. AUTO-GENERATED. DO NOT REMOVE. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="image/png" />
+                <data android:pathPattern=".*\\.dng" />
+                <data android:pathPattern=".*\\.pro" />
+                <data android:pathPattern=".*\\.ari" />
+                <data android:pathPattern=".*\\.crw" />
+                <data android:pathPattern=".*\\.cr2" />
+                <data android:pathPattern=".*\\.cr3" />
+                <data android:pathPattern=".*\\.bay" />
+                <data android:pathPattern=".*\\.raw" />
+                <data android:pathPattern=".*\\.erf" />
+                <data android:pathPattern=".*\\.raf" />
+                <data android:pathPattern=".*\\.3fr" />
+                <data android:pathPattern=".*\\.fff" />
+                <data android:pathPattern=".*\\.iiq" />
+                <data android:pathPattern=".*\\.kdc" />
+                <data android:pathPattern=".*\\.k25" />
+                <data android:pathPattern=".*\\.dcs" />
+                <data android:pathPattern=".*\\.dcr" />
+                <data android:pathPattern=".*\\.mos" />
+                <data android:pathPattern=".*\\.rwl" />
+                <data android:pathPattern=".*\\.mef" />
+                <data android:pathPattern=".*\\.mrw" />
+                <data android:pathPattern=".*\\.nef" />
+                <data android:pathPattern=".*\\.nrw" />
+                <data android:pathPattern=".*\\.orf" />
+                <data android:pathPattern=".*\\.rw2" />
+                <data android:pathPattern=".*\\.pef" />
+                <data android:pathPattern=".*\\.ptx" />
+                <data android:pathPattern=".*\\.srw" />
+                <data android:pathPattern=".*\\.x3f" />
+                <data android:pathPattern=".*\\.arw" />
+                <data android:pathPattern=".*\\.srf" />
+                <data android:pathPattern=".*\\.sr2" />
+                <data android:pathPattern=".*\\.jpg" />
+                <data android:pathPattern=".*\\.jpeg" />
+                <data android:pathPattern=".*\\.png" />
+                <data android:pathPattern=".*\\.gif" />
+                <data android:pathPattern=".*\\.bmp" />
+                <data android:pathPattern=".*\\.tiff" />
+                <data android:pathPattern=".*\\.tif" />
+                <data android:pathPattern=".*\\.exr" />
+                <data android:pathPattern=".*\\.qoi" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="image/jpeg" />
+                <data android:pathPattern=".*\\.dng" />
+                <data android:pathPattern=".*\\.pro" />
+                <data android:pathPattern=".*\\.ari" />
+                <data android:pathPattern=".*\\.crw" />
+                <data android:pathPattern=".*\\.cr2" />
+                <data android:pathPattern=".*\\.cr3" />
+                <data android:pathPattern=".*\\.bay" />
+                <data android:pathPattern=".*\\.raw" />
+                <data android:pathPattern=".*\\.erf" />
+                <data android:pathPattern=".*\\.raf" />
+                <data android:pathPattern=".*\\.3fr" />
+                <data android:pathPattern=".*\\.fff" />
+                <data android:pathPattern=".*\\.iiq" />
+                <data android:pathPattern=".*\\.kdc" />
+                <data android:pathPattern=".*\\.k25" />
+                <data android:pathPattern=".*\\.dcs" />
+                <data android:pathPattern=".*\\.dcr" />
+                <data android:pathPattern=".*\\.mos" />
+                <data android:pathPattern=".*\\.rwl" />
+                <data android:pathPattern=".*\\.mef" />
+                <data android:pathPattern=".*\\.mrw" />
+                <data android:pathPattern=".*\\.nef" />
+                <data android:pathPattern=".*\\.nrw" />
+                <data android:pathPattern=".*\\.orf" />
+                <data android:pathPattern=".*\\.rw2" />
+                <data android:pathPattern=".*\\.pef" />
+                <data android:pathPattern=".*\\.ptx" />
+                <data android:pathPattern=".*\\.srw" />
+                <data android:pathPattern=".*\\.x3f" />
+                <data android:pathPattern=".*\\.arw" />
+                <data android:pathPattern=".*\\.srf" />
+                <data android:pathPattern=".*\\.sr2" />
+                <data android:pathPattern=".*\\.jpg" />
+                <data android:pathPattern=".*\\.jpeg" />
+                <data android:pathPattern=".*\\.png" />
+                <data android:pathPattern=".*\\.gif" />
+                <data android:pathPattern=".*\\.bmp" />
+                <data android:pathPattern=".*\\.tiff" />
+                <data android:pathPattern=".*\\.tif" />
+                <data android:pathPattern=".*\\.exr" />
+                <data android:pathPattern=".*\\.qoi" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="image/bmp" />
+                <data android:pathPattern=".*\\.dng" />
+                <data android:pathPattern=".*\\.pro" />
+                <data android:pathPattern=".*\\.ari" />
+                <data android:pathPattern=".*\\.crw" />
+                <data android:pathPattern=".*\\.cr2" />
+                <data android:pathPattern=".*\\.cr3" />
+                <data android:pathPattern=".*\\.bay" />
+                <data android:pathPattern=".*\\.raw" />
+                <data android:pathPattern=".*\\.erf" />
+                <data android:pathPattern=".*\\.raf" />
+                <data android:pathPattern=".*\\.3fr" />
+                <data android:pathPattern=".*\\.fff" />
+                <data android:pathPattern=".*\\.iiq" />
+                <data android:pathPattern=".*\\.kdc" />
+                <data android:pathPattern=".*\\.k25" />
+                <data android:pathPattern=".*\\.dcs" />
+                <data android:pathPattern=".*\\.dcr" />
+                <data android:pathPattern=".*\\.mos" />
+                <data android:pathPattern=".*\\.rwl" />
+                <data android:pathPattern=".*\\.mef" />
+                <data android:pathPattern=".*\\.mrw" />
+                <data android:pathPattern=".*\\.nef" />
+                <data android:pathPattern=".*\\.nrw" />
+                <data android:pathPattern=".*\\.orf" />
+                <data android:pathPattern=".*\\.rw2" />
+                <data android:pathPattern=".*\\.pef" />
+                <data android:pathPattern=".*\\.ptx" />
+                <data android:pathPattern=".*\\.srw" />
+                <data android:pathPattern=".*\\.x3f" />
+                <data android:pathPattern=".*\\.arw" />
+                <data android:pathPattern=".*\\.srf" />
+                <data android:pathPattern=".*\\.sr2" />
+                <data android:pathPattern=".*\\.jpg" />
+                <data android:pathPattern=".*\\.jpeg" />
+                <data android:pathPattern=".*\\.png" />
+                <data android:pathPattern=".*\\.gif" />
+                <data android:pathPattern=".*\\.bmp" />
+                <data android:pathPattern=".*\\.tiff" />
+                <data android:pathPattern=".*\\.tif" />
+                <data android:pathPattern=".*\\.exr" />
+                <data android:pathPattern=".*\\.qoi" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="image/tiff" />
+                <data android:pathPattern=".*\\.dng" />
+                <data android:pathPattern=".*\\.pro" />
+                <data android:pathPattern=".*\\.ari" />
+                <data android:pathPattern=".*\\.crw" />
+                <data android:pathPattern=".*\\.cr2" />
+                <data android:pathPattern=".*\\.cr3" />
+                <data android:pathPattern=".*\\.bay" />
+                <data android:pathPattern=".*\\.raw" />
+                <data android:pathPattern=".*\\.erf" />
+                <data android:pathPattern=".*\\.raf" />
+                <data android:pathPattern=".*\\.3fr" />
+                <data android:pathPattern=".*\\.fff" />
+                <data android:pathPattern=".*\\.iiq" />
+                <data android:pathPattern=".*\\.kdc" />
+                <data android:pathPattern=".*\\.k25" />
+                <data android:pathPattern=".*\\.dcs" />
+                <data android:pathPattern=".*\\.dcr" />
+                <data android:pathPattern=".*\\.mos" />
+                <data android:pathPattern=".*\\.rwl" />
+                <data android:pathPattern=".*\\.mef" />
+                <data android:pathPattern=".*\\.mrw" />
+                <data android:pathPattern=".*\\.nef" />
+                <data android:pathPattern=".*\\.nrw" />
+                <data android:pathPattern=".*\\.orf" />
+                <data android:pathPattern=".*\\.rw2" />
+                <data android:pathPattern=".*\\.pef" />
+                <data android:pathPattern=".*\\.ptx" />
+                <data android:pathPattern=".*\\.srw" />
+                <data android:pathPattern=".*\\.x3f" />
+                <data android:pathPattern=".*\\.arw" />
+                <data android:pathPattern=".*\\.srf" />
+                <data android:pathPattern=".*\\.sr2" />
+                <data android:pathPattern=".*\\.jpg" />
+                <data android:pathPattern=".*\\.jpeg" />
+                <data android:pathPattern=".*\\.png" />
+                <data android:pathPattern=".*\\.gif" />
+                <data android:pathPattern=".*\\.bmp" />
+                <data android:pathPattern=".*\\.tiff" />
+                <data android:pathPattern=".*\\.tif" />
+                <data android:pathPattern=".*\\.exr" />
+                <data android:pathPattern=".*\\.qoi" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="image/gif" />
+                <data android:pathPattern=".*\\.dng" />
+                <data android:pathPattern=".*\\.pro" />
+                <data android:pathPattern=".*\\.ari" />
+                <data android:pathPattern=".*\\.crw" />
+                <data android:pathPattern=".*\\.cr2" />
+                <data android:pathPattern=".*\\.cr3" />
+                <data android:pathPattern=".*\\.bay" />
+                <data android:pathPattern=".*\\.raw" />
+                <data android:pathPattern=".*\\.erf" />
+                <data android:pathPattern=".*\\.raf" />
+                <data android:pathPattern=".*\\.3fr" />
+                <data android:pathPattern=".*\\.fff" />
+                <data android:pathPattern=".*\\.iiq" />
+                <data android:pathPattern=".*\\.kdc" />
+                <data android:pathPattern=".*\\.k25" />
+                <data android:pathPattern=".*\\.dcs" />
+                <data android:pathPattern=".*\\.dcr" />
+                <data android:pathPattern=".*\\.mos" />
+                <data android:pathPattern=".*\\.rwl" />
+                <data android:pathPattern=".*\\.mef" />
+                <data android:pathPattern=".*\\.mrw" />
+                <data android:pathPattern=".*\\.nef" />
+                <data android:pathPattern=".*\\.nrw" />
+                <data android:pathPattern=".*\\.orf" />
+                <data android:pathPattern=".*\\.rw2" />
+                <data android:pathPattern=".*\\.pef" />
+                <data android:pathPattern=".*\\.ptx" />
+                <data android:pathPattern=".*\\.srw" />
+                <data android:pathPattern=".*\\.x3f" />
+                <data android:pathPattern=".*\\.arw" />
+                <data android:pathPattern=".*\\.srf" />
+                <data android:pathPattern=".*\\.sr2" />
+                <data android:pathPattern=".*\\.jpg" />
+                <data android:pathPattern=".*\\.jpeg" />
+                <data android:pathPattern=".*\\.png" />
+                <data android:pathPattern=".*\\.gif" />
+                <data android:pathPattern=".*\\.bmp" />
+                <data android:pathPattern=".*\\.tiff" />
+                <data android:pathPattern=".*\\.tif" />
+                <data android:pathPattern=".*\\.exr" />
+                <data android:pathPattern=".*\\.qoi" />
+            </intent-filter>
+            
+            <!-- tauri-file-associations. AUTO-GENERATED. DO NOT REMOVE. -->
+        </activity>
+
+        <provider
+          android:name="androidx.core.content.FileProvider"
+          android:authorities="${applicationId}.fileprovider"
+          android:exported="false"
+          android:grantUriPermissions="true">
+          <meta-data
+            android:name="android.support.FILE_PROVIDER_PATHS"
+            android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

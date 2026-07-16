@@ -1,30 +1,83 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# ===== OS =====
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
 
-/target/
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
+# ===== IDE/Editor =====
+.vscode/
 !.vscode/extensions.json
 !.vscode/settings.json
-.idea
-.DS_Store
+.idea/
+.project
+.classpath
+.settings/
+*.sublime-*
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
+# ===== Node.js/Frontend =====
+node_modules/
+.pnpm-store/
+.next/
+.nuxt/
+.vite/
+.cache/
+.eslintcache
+*.tsbuildinfo
+dist/
+dist-ssr/
+*.local
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# ===== Rust =====
+target/
+
+# ===== Java/JVM / Android =====
+.gradle/
+*.class
+*.jar
+*.war
+*.ear
+
+# ===== Ruby =====
+.bundle/
+
+# ===== Logs/Temp =====
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ===== Test Coverage =====
+coverage/
+.nyc_output/
+htmlcov/
+.coverage
+*.lcov
+
+# ===== RapidRAW-specific =====
 # dynamic libraries downloaded by 'ort' crate at build time
 src-tauri/resources/libonnxruntime.so
 src-tauri/resources/libonnxruntime.dylib
@@ -38,3 +91,6 @@ src-tauri/libs/
 **/keystore.properties
 **/keystore.jks
 **/key.properties
+
+# ===== Internal =====
+/.work/
