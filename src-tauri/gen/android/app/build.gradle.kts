@@ -16,6 +16,7 @@ val tauriProperties = Properties().apply {
 android {
     compileSdk = 36
     namespace = "io.github.CyberTimon.RapidRAW"
+    ndkVersion = "27.0.12077973"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "io.github.CyberTimon.RapidRAW"
@@ -31,7 +32,7 @@ android {
             if (keystorePropertiesFile.exists()) {
                 val keystoreProperties = Properties()
                 keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
-                
+
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["password"] as String
                 storeFile = file(keystoreProperties["storeFile"] as String)
@@ -56,8 +57,8 @@ android {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
 
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
@@ -65,11 +66,41 @@ android {
             )
         }
     }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
     buildFeatures {
         buildConfig = true
+    }
+    packaging {
+        // extractNativeLibs=false requires .so to be uncompressed & page-aligned in the APK.
+        // AGP 8.7+ applies zipalign -P 16 automatically for 16KB-page Android 15+ devices.
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+}
+
+// Remove duplicate libonnxruntime.so from Android assets.
+// On Android, ort uses dlopen("libonnxruntime.so") which resolves to the JNI library
+// in lib/<abi>/. The copy in assets/resources/ is only used by desktop builds
+// (Windows/Linux/macOS) where ORT_DYLIB_PATH points to the resource directory.
+// Removing it here saves ~21MB per APK without affecting functionality.
+tasks.matching { it.name == "mergeReleaseAssets" || it.name == "mergeDebugAssets" }.configureEach {
+    doFirst {
+        val duplicate = file("src/main/assets/resources/libonnxruntime.so")
+        if (duplicate.exists()) {
+            duplicate.delete()
+            logger.lifecycle("Removed duplicate libonnxruntime.so from assets (already in lib/<abi>/)")
+        }
     }
 }
 
