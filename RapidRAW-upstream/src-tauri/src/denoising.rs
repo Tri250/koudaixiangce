@@ -302,7 +302,8 @@ fn denoise_image(
     ai_session: Option<Arc<Mutex<ort::session::Session>>>,
 ) -> Result<(DynamicImage, String), String> {
     let path = Path::new(&path_str);
-    if !path.exists() {
+    let is_android = crate::android_integration::is_android_uri(&path_str);
+    if !is_android && !path.exists() {
         return Err("File not found".to_string());
     }
 
@@ -311,7 +312,12 @@ fn denoise_image(
 
     let _ = app_handle.emit("denoise-progress", "Loading image...");
 
-    let file_bytes = fs::read(path).map_err(|e| e.to_string())?;
+    let file_bytes = if is_android {
+        crate::android_integration::read_image_source_bytes(&path_str)
+            .map_err(|e| e.to_string())?
+    } else {
+        fs::read(path).map_err(|e| e.to_string())?
+    };
     let mut dynamic_img =
         load_base_image_from_bytes(&file_bytes, &path_str, false, &settings, None)
             .map_err(|e| e.to_string())?;

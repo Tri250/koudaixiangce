@@ -1417,8 +1417,12 @@ async fn merge_hdr(
                 ),
             );
 
-            let file_bytes =
-                fs::read(path).map_err(|e| format!("Failed to read image {}: {}", path, e))?;
+            let file_bytes = if crate::android_integration::is_android_uri(path) {
+                crate::android_integration::read_image_source_bytes(path)
+                    .map_err(|e| format!("Failed to read Android URI {}: {}", path, e))?
+            } else {
+                fs::read(path).map_err(|e| format!("Failed to read image {}: {}", path, e))?
+            };
             let mut dynamic_image =
                 load_base_image_from_bytes(&file_bytes, path, false, &settings, None)
                     .map_err(|e| format!("Failed to load image {}: {}", path, e))?;
@@ -1532,17 +1536,34 @@ async fn save_hdr(
         )
     };
 
-    let output_path = parent_dir.join(output_filename);
+    #[cfg(target_os = "android")]
+    {
+        let mut buf = Cursor::new(Vec::new());
+        let ext = if output_filename.ends_with(".tiff") { "tiff" } else { "png" };
+        image_to_save
+            .write_to(&mut buf, ImageFormat::from_extension(ext))
+            .map_err(|e| format!("Failed to encode HDR image: {}", e))?;
+        crate::android_integration::save_image_bytes_to_android_gallery(
+            &output_filename,
+            crate::export_processing::mime_type_for_extension(ext),
+            &buf.into_inner(),
+        )?;
+        Ok(format!("Pictures/RapidRaw/{}", output_filename))
+    }
 
-    image_to_save
-        .save(&output_path)
-        .map_err(|e| format!("Failed to save hdr image: {}", e))?;
+    #[cfg(not(target_os = "android"))]
+    {
+        let output_path = parent_dir.join(output_filename);
+        image_to_save
+            .save(&output_path)
+            .map_err(|e| format!("Failed to save hdr image: {}", e))?;
 
-    let (real_path, _) = crate::file_management::parse_virtual_path(&first_path_str);
-    let _ =
-        crate::exif_processing::write_rrexif_sidecar(&real_path.to_string_lossy(), &output_path);
+        let (real_path, _) = crate::file_management::parse_virtual_path(&first_path_str);
+        let _ =
+            crate::exif_processing::write_rrexif_sidecar(&real_path.to_string_lossy(), &output_path);
 
-    Ok(output_path.to_string_lossy().to_string())
+        Ok(output_path.to_string_lossy().to_string())
+    }
 }
 
 #[tauri::command]
@@ -1567,12 +1588,24 @@ async fn save_collage(base64_data: String, first_path_str: String) -> Result<Str
         .unwrap_or("collage");
 
     let output_filename = format!("{}_Collage.png", stem);
-    let output_path = parent_dir.join(output_filename);
 
-    fs::write(&output_path, &decoded_bytes)
-        .map_err(|e| format!("Failed to save collage image: {}", e))?;
+    #[cfg(target_os = "android")]
+    {
+        crate::android_integration::save_image_bytes_to_android_gallery(
+            &output_filename,
+            "image/png",
+            &decoded_bytes,
+        )?;
+        Ok(format!("Pictures/RapidRaw/{}", output_filename))
+    }
 
-    Ok(output_path.to_string_lossy().to_string())
+    #[cfg(not(target_os = "android"))]
+    {
+        let output_path = parent_dir.join(output_filename);
+        fs::write(&output_path, &decoded_bytes)
+            .map_err(|e| format!("Failed to save collage image: {}", e))?;
+        Ok(output_path.to_string_lossy().to_string())
+    }
 }
 
 #[tauri::command]
@@ -2479,7 +2512,7 @@ mod tests {
     #[test]
     fn test_app_version_matches() {
         let pkg_version = env!("CARGO_PKG_VERSION");
-        assert_eq!(pkg_version, "1.5.9", "App version should match expected 1.5.9");
+        assert_eq!(pkg_version, "1.7.0", "App version should match expected 1.7.0");
     }
 
     #[test]

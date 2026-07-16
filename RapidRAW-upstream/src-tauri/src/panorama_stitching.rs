@@ -160,17 +160,34 @@ pub async fn save_panorama(
             )
         };
 
-    let output_path = parent_dir.join(output_filename);
+    #[cfg(target_os = "android")]
+    {
+        let mut buf = std::io::Cursor::new(Vec::new());
+        let ext = if output_filename.ends_with(".tiff") { "tiff" } else { "png" };
+        image_to_save
+            .write_to(&mut buf, image::ImageFormat::from_extension(ext))
+            .map_err(|e| format!("Failed to encode panorama image: {}", e))?;
+        crate::android_integration::save_image_bytes_to_android_gallery(
+            &output_filename,
+            crate::export_processing::mime_type_for_extension(ext),
+            &buf.into_inner(),
+        )?;
+        Ok(format!("Pictures/RapidRaw/{}", output_filename))
+    }
 
-    image_to_save
-        .save(&output_path)
-        .map_err(|e| format!("Failed to save panorama image: {}", e))?;
+    #[cfg(not(target_os = "android"))]
+    {
+        let output_path = parent_dir.join(output_filename);
+        image_to_save
+            .save(&output_path)
+            .map_err(|e| format!("Failed to save panorama image: {}", e))?;
 
-    let (real_path, _) = crate::file_management::parse_virtual_path(&first_path_str);
-    let _ =
-        crate::exif_processing::write_rrexif_sidecar(&real_path.to_string_lossy(), &output_path);
+        let (real_path, _) = crate::file_management::parse_virtual_path(&first_path_str);
+        let _ =
+            crate::exif_processing::write_rrexif_sidecar(&real_path.to_string_lossy(), &output_path);
 
-    Ok(output_path.to_string_lossy().to_string())
+        Ok(output_path.to_string_lossy().to_string())
+    }
 }
 
 fn stitch_images(image_paths: Vec<String>, app_handle: AppHandle) -> Result<DynamicImage, String> {
@@ -207,8 +224,13 @@ fn stitch_images(image_paths: Vec<String>, app_handle: AppHandle) -> Result<Dyna
             );
             println!("  - Processing '{}'", filename);
 
-            let file_bytes = fs::read(filename)
-                .map_err(|e| format!("Failed to read image {}: {}", filename, e))?;
+            let file_bytes = if crate::android_integration::is_android_uri(filename) {
+                crate::android_integration::read_image_source_bytes(filename)
+                    .map_err(|e| format!("Failed to read Android URI {}: {}", filename, e))?
+            } else {
+                fs::read(filename)
+                    .map_err(|e| format!("Failed to read image {}: {}", filename, e))?
+            };
 
             let mut dynamic_image = crate::image_loader::load_base_image_from_bytes(
                 &file_bytes,

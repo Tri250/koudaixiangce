@@ -171,7 +171,12 @@ fn get_models_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf> {
 }
 
 async fn download_model(url: &str, dest: &Path) -> Result<()> {
-    let response = reqwest::get(url).await?;
+    let effective_url = if std::env::var("HF_MIRROR").is_ok() {
+        url.replace("https://huggingface.co", "https://hf-mirror.com")
+    } else {
+        url.to_string()
+    };
+    let response = reqwest::get(&effective_url).await?;
     let mut file = fs::File::create(dest)?;
     let mut content = Cursor::new(response.bytes().await?);
     std::io::copy(&mut content, &mut file)?;
