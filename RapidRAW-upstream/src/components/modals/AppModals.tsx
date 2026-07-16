@@ -19,6 +19,8 @@ import ConfirmModal from './ConfirmModal';
 import ImportSettingsModal from './ImportSettingsModal';
 import CullingModal from './CullingModal';
 import CollageModal from './CollageModal';
+import AdjustmentTransferModal from './AdjustmentTransferModal';
+import ModelManagerModal from './ModelManagerModal';
 import { AppSettings, Invokes, AlbumItem, Album, AlbumGroup } from '../ui/AppProperties';
 import { CopyPasteSettings } from '../../utils/adjustments';
 
@@ -73,6 +75,8 @@ export default function AppModals(props: AppModalsProps) {
     denoiseModalState,
     cullingModalState,
     collageModalState,
+    adjustmentTransferModalState,
+    isModelManagerModalOpen,
     setUI,
   } = useUIStore(
     useShallow((state) => ({
@@ -95,6 +99,8 @@ export default function AppModals(props: AppModalsProps) {
       denoiseModalState: state.denoiseModalState,
       cullingModalState: state.cullingModalState,
       collageModalState: state.collageModalState,
+      adjustmentTransferModalState: state.adjustmentTransferModalState,
+      isModelManagerModalOpen: state.isModelManagerModalOpen,
       setUI: state.setUI,
     })),
   );
@@ -322,6 +328,15 @@ export default function AppModals(props: AppModalsProps) {
         onSave={props.handleSaveCollage}
         sourceImages={collageModalState.sourceImages}
         thumbnails={thumbnails}
+      />
+      <AdjustmentTransferModal
+        isOpen={adjustmentTransferModalState.isOpen}
+        onClose={() => setUI({ adjustmentTransferModalState: { isOpen: false, sourcePath: null } })}
+        sourcePath={adjustmentTransferModalState.sourcePath}
+      />
+      <ModelManagerModal
+        isOpen={isModelManagerModalOpen}
+        onClose={() => setUI({ isModelManagerModalOpen: false })}
       />
     </>
   );

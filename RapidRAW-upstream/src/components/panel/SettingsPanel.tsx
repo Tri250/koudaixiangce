@@ -18,6 +18,7 @@ import {
   Image as ImageIcon,
   Mouse,
   Touchpad,
+  HardDrive,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -45,6 +46,7 @@ import Text from '../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../types/typography';
 import { useOsPlatform } from '../../hooks/useOsPlatform';
 import { open } from '@tauri-apps/plugin-shell';
+import { useUIStore } from '../../store/useUIStore';
 
 interface ConfirmModalState {
   confirmText: string;
@@ -1013,7 +1015,7 @@ export default function SettingsPanel({
     <>
       <ConfirmModal {...confirmModalState} onClose={closeConfirmModal} />
       <div className="flex flex-col h-full w-full text-text-primary">
-        <header className="shrink-0 flex flex-wrap items-center justify-between gap-y-4 mb-8 pt-4">
+        <header className="shrink-0 flex flex-wrap items-center justify-between gap-y-3 mb-5 pt-3">
           <div className="flex items-center shrink-0">
             <Button
               className="mr-4 hover:bg-surface text-text-primary rounded-full"
@@ -1029,7 +1031,7 @@ export default function SettingsPanel({
             </Text>
           </div>
 
-          <div className="relative flex w-full min-[1200px]:w-112.5 p-2 bg-surface rounded-md">
+          <div className="relative flex w-full min-[1200px]:w-112.5 p-1.5 liquid-glass-subtle rounded-lg">
             {settingCategories.map((category) => (
               <button
                 key={category.id}
@@ -1069,13 +1071,13 @@ export default function SettingsPanel({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-10"
+                className="space-y-5"
               >
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.general.title')}
                   </Text>
-                  <div className="space-y-8">
+                  <div className="space-y-5">
                     <SettingItem label={t('settings.general.theme')} description={t('settings.general.themeDesc')}>
                       <Dropdown
                         onChange={(value: any) => onSettingsChange({ ...appSettings, theme: value })}
@@ -1089,20 +1091,20 @@ export default function SettingsPanel({
                       <Dropdown
                         onChange={(value: any) => onSettingsChange({ ...appSettings, language: value })}
                         options={[
+                          { value: 'zh-CN', label: '简体中文' },
+                          { value: 'zh-TW', label: '繁體中文' },
                           { value: 'en', label: 'English' },
+                          { value: 'ja', label: '日本語' },
+                          { value: 'ko', label: '한국어' },
                           { value: 'de', label: 'Deutsch' },
                           { value: 'es', label: 'Español' },
                           { value: 'fr', label: 'Français' },
                           { value: 'it', label: 'Italiano' },
-                          { value: 'ja', label: '日本語' },
-                          { value: 'ko', label: '한국어' },
                           { value: 'pl', label: 'Polski' },
                           { value: 'pt', label: 'Português' },
                           { value: 'ru', label: 'Русский' },
-                          { value: 'zh-CN', label: '简体中文' },
-                          { value: 'zh-TW', label: '繁體中文' },
                         ]}
-                        value={appSettings?.language || 'en'}
+                        value={appSettings?.language || 'zh-CN'}
                         triggerClassName="bg-bg-primary"
                       />
                     </SettingItem>
@@ -1219,12 +1221,12 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.adjustments.title')}
                   </Text>
-                  <Text className="mb-4">{t('settings.adjustments.description')}</Text>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <Text className="mb-3">{t('settings.adjustments.description')}</Text>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-3">
                     <Switch
                       label={t('settings.adjustments.chromaticAberration')}
                       checked={appSettings?.adjustmentVisibility?.chromaticAberration ?? false}
@@ -1280,13 +1282,13 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.lenses.title')}
                   </Text>
-                  <Text className="mb-6">{t('settings.lenses.description')}</Text>
+                  <Text className="mb-5">{t('settings.lenses.description')}</Text>
 
-                  <div className="space-y-8">
+                  <div className="space-y-5">
                     <div className="bg-bg-primary rounded-lg p-4 border border-border-color">
                       <Text variant={TextVariants.heading} className="mb-3">
                         {t('settings.lenses.addNew')}
@@ -1350,11 +1352,11 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.tagging.title')}
                   </Text>
-                  <div className="space-y-8">
+                  <div className="space-y-5">
                     <div className="space-y-4">
                       <SettingItem
                         description={t('settings.tagging.aiTaggingDesc')}
@@ -1377,7 +1379,7 @@ export default function SettingsPanel({
                             transition={{ duration: 0.3, ease: 'easeInOut' }}
                             className="overflow-hidden"
                           >
-                            <div className="pl-4 border-l-2 border-border-color ml-1 space-y-8">
+                            <div className="pl-4 border-l-2 border-border-color ml-1 space-y-5">
                               <SettingItem
                                 label={t('settings.tagging.maxAiTags')}
                                 description={t('settings.tagging.maxAiTagsDesc')}
@@ -1547,8 +1549,8 @@ export default function SettingsPanel({
                       </div>
                     </SettingItem>
 
-                    <div className="pt-8 border-t border-border-color">
-                      <div className="space-y-8">
+                    <div className="pt-6 border-t border-border-color">
+                      <div className="space-y-5">
                         <DataActionItem
                           buttonAction={handleClearAiTags}
                           buttonText={t('settings.tagging.clearAiTagsButton')}
@@ -1574,117 +1576,6 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-6">
-                    {t('settings.thanks.title')}
-                  </Text>
-                  <Text className="mb-4">{t('settings.thanks.description')}</Text>
-                  <Text as="ul" className="space-y-3 list-disc ml-5 pl-1">
-                    <li>
-                      <a
-                        href="https://github.com/dnglab/dnglab/tree/main/rawler"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        rawler
-                      </a>
-                      : {t('settings.thanks.list.rawler')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://lensfun.github.io/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        lensfun
-                      </a>
-                      : {t('settings.thanks.list.lensfun')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/marcinz606/NegPy"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        NegPy
-                      </a>
-                      : {t('settings.thanks.list.negpy')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/advimman/lama"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        LaMa
-                      </a>
-                      : {t('settings.thanks.list.lama')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/facebookresearch/sam2"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        SAM 2
-                      </a>
-                      : {t('settings.thanks.list.sam2')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/xuebinqin/U-2-Net"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        U-2-Net
-                      </a>
-                      : {t('settings.thanks.list.u2net')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/DepthAnything/Depth-Anything-V2"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        Depth Anything V2
-                      </a>
-                      : {t('settings.thanks.list.depth')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/trougnouf/nind-denoise"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        nind-denoise
-                      </a>
-                      : {t('settings.thanks.list.nind')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/darktable-org/darktable"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        darktable & co.
-                      </a>
-                      : {t('settings.thanks.list.darktable')}
-                    </li>
-                    <li>
-                      <span className="font-semibold text-accent">{t('settings.thanks.list.youLabel')}</span>:{' '}
-                      {t('settings.thanks.list.you')}
-                    </li>
-                  </Text>
-                </div>
               </motion.div>
             )}
             {activeCategory === 'processing' && (
@@ -1694,13 +1585,13 @@ export default function SettingsPanel({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-10"
+                className="space-y-5"
               >
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.processing.title')}
                   </Text>
-                  <div className="space-y-8">
+                  <div className="space-y-5">
                     <div>
                       <Text variant={TextVariants.heading} className="mb-2">
                         {t('settings.processing.previewStrategy')}
@@ -1804,6 +1695,12 @@ export default function SettingsPanel({
                       </div>
                     </div>
 
+                    <div className="pt-4 border-t border-border-color">
+                      <Text variant={TextVariants.label} color={TextColors.accent} className="mb-3 uppercase tracking-wider">
+                        {t('settings.processing.subgroupPreview')}
+                      </Text>
+                    </div>
+
                     <div className="space-y-4">
                       <SettingItem
                         label={t('settings.processing.livePreviews')}
@@ -1846,6 +1743,12 @@ export default function SettingsPanel({
                           </motion.div>
                         )}
                       </AnimatePresence>
+                    </div>
+
+                    <div className="pt-4 border-t border-border-color">
+                      <Text variant={TextVariants.label} color={TextColors.accent} className="mb-3 uppercase tracking-wider">
+                        {t('settings.processing.subgroupCache')}
+                      </Text>
                     </div>
 
                     <SettingItem
@@ -1893,6 +1796,12 @@ export default function SettingsPanel({
                         fillOrigin="min"
                       />
                     </SettingItem>
+
+                    <div className="pt-4 border-t border-border-color">
+                      <Text variant={TextVariants.label} color={TextColors.accent} className="mb-3 uppercase tracking-wider">
+                        {t('settings.processing.subgroupGpu')}
+                      </Text>
+                    </div>
 
                     <SettingItem
                       label={t('settings.processing.wgpu')}
@@ -1961,11 +1870,11 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.processing.preprocessing.title')}
                   </Text>
-                  <div className="space-y-8">
+                  <div className="space-y-5">
                     <SettingItem
                       label={t('settings.processing.preprocessing.highlightRecovery')}
                       description={t('settings.processing.preprocessing.highlightRecoveryDesc')}
@@ -2103,15 +2012,26 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.processing.ai.title')}
                   </Text>
-                  <Text className="mb-4">{t('settings.processing.ai.description')}</Text>
+                  <Text className="mb-3">{t('settings.processing.ai.description')}</Text>
 
                   <AiProviderSwitch selectedProvider={aiProvider} onProviderChange={handleProviderChange} />
 
-                  <div className="mt-8">
+                  <div className="mt-4">
+                    <Button
+                      variant="ghost"
+                      onClick={() => useUIStore.getState().setUI({ isModelManagerModalOpen: true })}
+                      className="w-full justify-start bg-bg-primary border border-border-color hover:bg-surface"
+                    >
+                      <HardDrive size={16} className="mr-2" />
+                      {t('settings.processing.modelManager.title')}
+                    </Button>
+                  </div>
+
+                  <div className="mt-5">
                     <AnimatePresence mode="wait">
                       {aiProvider === 'cpu' && (
                         <motion.div
@@ -2139,7 +2059,7 @@ export default function SettingsPanel({
                           exit={{ opacity: 0, x: -10 }}
                           transition={{ duration: 0.2 }}
                         >
-                          <div className="space-y-8">
+                          <div className="space-y-5">
                             <div>
                               <Text variant={TextVariants.heading}>{t('settings.processing.ai.connector.title')}</Text>
                               <Text className="mt-1">{t('settings.processing.ai.connector.description')}</Text>
@@ -2208,7 +2128,7 @@ export default function SettingsPanel({
                             <li>{t('settings.processing.ai.cloud.feature3')}</li>
                           </Text>
 
-                          <div className="mt-8">
+                          <div className="mt-5">
                             <Show when="signed-in">
                               <div className="p-6 bg-bg-primary rounded-xl border border-border-color shadow-inner">
                                 <CloudDashboard cloudBaseUrl={cloudBaseUrl} />
@@ -2367,11 +2287,11 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.data.title')}
                   </Text>
-                  <div className="space-y-8">
+                  <div className="space-y-5">
                     <DataActionItem
                       buttonAction={handleClearSidecars}
                       buttonText={t('settings.data.clearSidecarsButton')}
@@ -2441,13 +2361,13 @@ export default function SettingsPanel({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-10"
+                className="space-y-5"
               >
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.controls.title')}
                   </Text>
-                  <div className="space-y-8">
+                  <div className="space-y-5">
                     <div>
                       <Text variant={TextVariants.heading} className="mb-2">
                         {t('settings.controls.optimization')}
@@ -2478,11 +2398,11 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
+                <div className="p-5 liquid-glass-subtle spring-enter">
+                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.controls.keyboardTitle')}
                   </Text>
-                  <div className="space-y-8">
+                  <div className="space-y-5">
                     {' '}
                     {KEYBIND_SECTIONS.map((section) => {
                       const sectionDefs = KEYBIND_DEFINITIONS.filter((d) => d.section === section.id);

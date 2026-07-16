@@ -42,6 +42,7 @@ export enum Invokes {
   ClearAiTags = 'clear_ai_tags',
   ClearAllTags = 'clear_all_tags',
   ClearThumbnailCache = 'clear_thumbnail_cache',
+  CopyAdjustmentsBatch = 'copy_adjustments_batch',
   CopyFiles = 'copy_files',
   CreateFolder = 'create_folder',
   CreateVirtualCopy = 'create_virtual_copy',
@@ -60,6 +61,7 @@ export enum Invokes {
   GeneratePresetPreview = 'generate_preset_preview',
   GenerateThumbnailsProgressive = 'generate_thumbnails_progressive',
   GenerateUncroppedPreview = 'generate_uncropped_preview',
+  GetAdjustmentDiff = 'get_adjustment_diff',
   GetFolderTree = 'get_folder_tree',
   GetFolderChildren = 'get_folder_children',
   GetLogFilePath = 'get_log_file_path',
@@ -80,6 +82,7 @@ export enum Invokes {
   LoadPresets = 'load_presets',
   LoadSettings = 'load_settings',
   MoveFiles = 'move_files',
+  PasteAdjustmentsBatch = 'paste_adjustments_batch',
   PickAndroidDirectory = 'pick_android_directory',
   ResolveAndroidSafPick = 'resolve_android_saf_pick',
   ReadExifForPaths = 'read_exif_for_paths',
@@ -115,6 +118,16 @@ export enum Invokes {
   SaveAlbums = 'save_albums',
   AddToAlbum = 'add_to_album',
   GetAlbumImages = 'get_album_images',
+  ComputeImageEmbedding = 'compute_image_embedding',
+  ComputeTextEmbedding = 'compute_text_embedding',
+  SemanticSearch = 'semantic_search',
+  AiRateImage = 'ai_rate_image',
+  BatchComputeEmbeddings = 'batch_compute_embeddings',
+  ListAiModels = 'list_ai_models',
+  DownloadAiModel = 'download_ai_model',
+  DeleteAiModel = 'delete_ai_model',
+  DownloadAllModels = 'download_all_models',
+  GetModelsDirectory = 'get_models_directory',
 }
 
 export enum ExifOverlay {
@@ -131,6 +144,7 @@ export enum Panel {
   Masks = 'masks',
   Metadata = 'metadata',
   Presets = 'presets',
+  SemanticSearch = 'semanticSearch',
 }
 
 export enum RawStatus {

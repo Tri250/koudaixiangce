@@ -1630,6 +1630,9 @@
       "thumbnailRes": "Resolução da Miniatura",
       "thumbnailResDesc": "Determina a resolução das miniaturas da biblioteca geradas. Valores mais altos produzem imagens mais nítidas durante o carregamento.",
       "title": "Motor de Processamento",
+      "subgroupPreview": "Visualização e desempenho",
+      "subgroupGpu": "GPU e backend",
+      "subgroupCache": "Cache e simultaneidade",
       "wgpu": "Renderização Direta WGPU",
       "wgpuDescAndroid": "Ignora a codificação do navegador para visualizações ao vivo instantaneamente responsivas. (Desativado no Android: A criação de superfície WGPU nativa atualmente não é suportada junto com o webview móvel.)",
       "wgpuDescLinux": "Ignora a codificação do navegador para visualizações ao vivo instantaneamente responsivas. (Desativado no Linux: O Tauri usa GTK para webviews, o que entra em conflito com o WGPU na mesma superfície X11 e causa cintilação.)",
@@ -1665,23 +1668,6 @@
       "shortcuts": "Atalhos de Tagging",
       "shortcutsDesc": "Uma lista de etiquetas que aparecerão como atalhos no menu de contexto de marcação.",
       "title": "Etiquetas"
-    },
-    "thanks": {
-      "description": "Um enorme obrigado aos seguintes projetos que foram muito importantes no desenvolvimento do RapidRAW:",
-      "list": {
-        "darktable": "Por algumas implementações de referência que guiaram partes deste trabalho.",
-        "depth": "Pelo poderoso modelo de estimativa de profundidade monocular que permite as capacidades de mascaramento de profundidade por IA.",
-        "lama": "Pelo modelo poderoso e simples de preenchimento de imagens, que permite o preenchimento sensível ao conteúdo e a remoção de objetos.",
-        "lensfun": "Pela sua valiosa biblioteca de código aberto e banco de dados abrangente para correção automática de lente.",
-        "negpy": "Pela inspiração por trás da lógica de conversão de negativo.",
-        "nind": "Por fornecer modelos de IA que alimentam os recursos de redução de ruído por IA no RapidRAW.",
-        "rawler": "Pelo excelente crate Rust que fornece a base para o processamento de arquivos RAW neste projeto.",
-        "sam2": "Por fornecer o modelo base usado para os recursos de detecção de motivos por IA.",
-        "u2net": "Por fornecer a arquitetura robusta usada para as capacidades de detecção de céu e primeiro plano por IA.",
-        "you": "Por usar e apoiar o RapidRAW. Seu interesse mantém este projeto vivo e em evolução.",
-        "youLabel": "Você"
-      },
-      "title": "Agradecimentos Especiais"
     },
     "themes": {
       "dark": "Escuro",

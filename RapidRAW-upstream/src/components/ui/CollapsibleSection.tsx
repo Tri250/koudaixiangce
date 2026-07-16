@@ -79,9 +79,9 @@ export default function CollapsibleSection({
   };
 
   return (
-    <div className="bg-surface rounded-lg overflow-hidden shrink-0" onContextMenu={onContextMenu}>
+    <div className="liquid-glass-subtle rounded-lg overflow-hidden shrink-0" onContextMenu={onContextMenu}>
       <div
-        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-card-active transition-colors duration-200"
+        className="w-full px-4 py-3 flex items-center justify-between text-left hover:liquid-glass-hover transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]"
         onClick={onToggle}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -114,10 +114,10 @@ export default function CollapsibleSection({
           size={20}
         />
       </div>
-      <div ref={wrapperRef} className="overflow-hidden transition-all duration-300 ease-in-out">
+      <div ref={wrapperRef} className="overflow-hidden transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)]">
         <div
           className={clsx(
-            'px-4 pb-4 transition-opacity duration-300',
+            'px-4 pb-4 transition-opacity duration-250 ease-[cubic-bezier(0.22,1,0.36,1)]',
             !isContentVisible && 'opacity-30 pointer-events-none',
           )}
           ref={contentRef}

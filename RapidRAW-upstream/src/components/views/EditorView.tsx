@@ -14,6 +14,7 @@ import MetadataPanel from '../panel/right/MetadataPanel';
 import CropPanel from '../panel/right/CropPanel';
 import MasksPanel from '../panel/right/MasksPanel';
 import AIPanel from '../panel/right/AIPanel';
+import SemanticSearchPanel from '../panel/right/SemanticSearchPanel';
 import PresetsPanel from '../panel/right/PresetsPanel';
 import ExportPanel from '../panel/right/ExportPanel';
 
@@ -242,6 +243,7 @@ export default function EditorView({
             />
           )}
           {renderedRightPanel === Panel.Ai && <AIPanel />}
+          {renderedRightPanel === Panel.SemanticSearch && <SemanticSearchPanel />}
         </motion.div>
       )}
     </AnimatePresence>

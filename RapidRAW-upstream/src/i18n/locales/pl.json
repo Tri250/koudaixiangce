@@ -1692,6 +1692,9 @@
       "thumbnailRes": "Rozdzielczość miniatur",
       "thumbnailResDesc": "Decyduje o rozdzielczości generowanych miniatur w bibliotece. Wyższa wartość da ostrzejszy obraz po wczytaniu.",
       "title": "Silnik przetwarzania",
+      "subgroupPreview": "Podgląd i wydajność",
+      "subgroupGpu": "GPU i backend",
+      "subgroupCache": "Pamięć podręczna i współbieżność",
       "wgpu": "Bezpośrednie renderowanie WGPU",
       "wgpuDescAndroid": "Omija enkoder przeglądarki dla najszybszego podglądu. (Wyłączone na Androidzie: Tworzenie powierzchni WGPU obecnie nie jest obsługiwane wraz z WebView.)",
       "wgpuDescLinux": "Omija enkoder przeglądarki. (Wyłączone na Linuksie: Tauri używa GTK dla WebView, co wchodzi w konflikt z WGPU na tej samej powierzchni X11, wywołując migotanie.)",
@@ -1727,23 +1730,6 @@
       "shortcuts": "Skróty do tagowania",
       "shortcutsDesc": "Lista tagów, które będą widoczne jako szybkie skróty w menu kontekstowym tagowania.",
       "title": "Tagowanie"
-    },
-    "thanks": {
-      "description": "Ogromne podziękowania dla następujących projektów, które były niezwykle ważne przy tworzeniu RapidRAW:",
-      "list": {
-        "darktable": "Za kilka referencyjnych implementacji, które posłużyły za wskazówki.",
-        "depth": "Za zaawansowany model szacowania głębi, który włącza maskowanie oparte na głębi za pomocą AI.",
-        "lama": "Za niesamowity model do inpaintingu obrazu, umożliwiający usuwanie obiektów z uwzględnieniem kontekstu.",
-        "lensfun": "Za nieocenioną bibliotekę open-source z bogatą bazą obiektywów do automatycznej korekcji.",
-        "negpy": "Za inspirację stojącą za rozwiązaniem do inwersji negatywów.",
-        "nind": "Za dostarczenie modeli AI, które stanowią silnik odszumiający RapidRAW.",
-        "rawler": "Za świetną bibliotekę w Rust, dostarczającą fundament dla przetwarzania plików RAW w tym projekcie.",
-        "sam2": "Za dostarczenie bazowego modelu do wykrywania i wycinania obiektów za pomocą AI.",
-        "u2net": "Za świetną architekturę używaną przez nasze modele wykrywania nieba i pierwszego planu.",
-        "you": "Za to, że używasz i wspierasz RapidRAW. Twoje zainteresowanie sprawia, że ten projekt nadal ewoluuje.",
-        "youLabel": "Ty"
-      },
-      "title": "Szczególne podziękowania"
     },
     "themes": {
       "dark": "Ciemny",

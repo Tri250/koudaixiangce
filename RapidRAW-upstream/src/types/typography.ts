@@ -43,6 +43,8 @@ export interface VariantConfig {
   defaultColor: TextColor;
   defaultElement: React.ElementType;
   extraClasses?: string;
+  lineHeight?: string;
+  letterSpacing?: string;
 }
 
 export const TextVariants: Record<TextVariant, VariantConfig> = {
@@ -52,6 +54,8 @@ export const TextVariants: Record<TextVariant, VariantConfig> = {
     defaultColor: 'primary',
     defaultElement: 'h1',
     extraClasses: 'text-shadow-shiny mb-4',
+    lineHeight: 'leading-tight',
+    letterSpacing: 'tracking-tight',
   },
   display: {
     size: 'text-3xl',
@@ -59,6 +63,8 @@ export const TextVariants: Record<TextVariant, VariantConfig> = {
     defaultColor: 'primary',
     defaultElement: 'h1',
     extraClasses: 'text-shadow-shiny',
+    lineHeight: 'leading-tight',
+    letterSpacing: 'tracking-tight',
   },
   headline: {
     size: 'text-2xl',
@@ -66,6 +72,7 @@ export const TextVariants: Record<TextVariant, VariantConfig> = {
     defaultColor: 'primary',
     defaultElement: 'h1',
     extraClasses: 'text-shadow-shiny',
+    lineHeight: 'leading-tight',
   },
   title: {
     size: 'text-xl',
@@ -73,29 +80,34 @@ export const TextVariants: Record<TextVariant, VariantConfig> = {
     defaultColor: 'primary',
     defaultElement: 'h2',
     extraClasses: 'text-shadow-shiny',
+    lineHeight: 'leading-snug',
   },
   heading: {
     size: 'text-base',
     defaultWeight: 'semibold',
     defaultColor: 'primary',
     defaultElement: 'h3',
+    lineHeight: 'leading-snug',
   },
   body: {
     size: 'text-sm',
     defaultWeight: 'normal',
     defaultColor: 'secondary',
     defaultElement: 'p',
+    lineHeight: 'leading-normal',
   },
   label: {
     size: 'text-sm',
     defaultWeight: 'medium',
     defaultColor: 'secondary',
     defaultElement: 'span',
+    lineHeight: 'leading-normal',
   },
   small: {
     size: 'text-xs',
     defaultWeight: 'normal',
     defaultColor: 'secondary',
     defaultElement: 'p',
+    lineHeight: 'leading-normal',
   },
 };

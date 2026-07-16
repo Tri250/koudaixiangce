@@ -5,6 +5,7 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
+mod adjustment_transfer;
 mod adjustment_utils;
 mod ai_commands;
 mod ai_connector;
@@ -25,11 +26,13 @@ mod image_processing;
 mod lens_correction;
 mod lut_processing;
 mod mask_generation;
+mod model_manager;
 mod negative_conversion;
 mod panorama_stitching;
 mod panorama_utils;
 mod preset_converter;
 mod raw_processing;
+mod semantic_search;
 mod tagging;
 mod tagging_utils;
 mod window_customizer;
@@ -2459,6 +2462,19 @@ pub fn run() {
             lens_correction::get_lens_distortion_params,
             negative_conversion::preview_negative_conversion,
             negative_conversion::convert_negatives,
+            model_manager::list_ai_models,
+            model_manager::download_ai_model,
+            model_manager::delete_ai_model,
+            model_manager::download_all_models,
+            model_manager::get_models_directory,
+            adjustment_transfer::copy_adjustments_batch,
+            adjustment_transfer::paste_adjustments_batch,
+            adjustment_transfer::get_adjustment_diff,
+            semantic_search::compute_image_embedding,
+            semantic_search::compute_text_embedding,
+            semantic_search::semantic_search,
+            semantic_search::ai_rate_image,
+            semantic_search::batch_compute_embeddings,
         ])
         .build(tauri::generate_context!())
         .unwrap_or_else(|e| {

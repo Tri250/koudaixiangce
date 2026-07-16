@@ -540,6 +540,15 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           onClick: () => handlePasteAdjustments(finalSelection),
         },
         {
+          disabled: !isSingleSelection,
+          icon: ClipboardPaste,
+          label: t('modals.adjustmentTransfer.paste') + '...',
+          onClick: () => {
+            const { setUI } = useUIStore.getState();
+            setUI({ adjustmentTransferModalState: { isOpen: true, sourcePath: finalSelection[0] } });
+          },
+        },
+        {
           label: t('contextMenus.editor.productivity'),
           icon: Gauge,
           submenu: [

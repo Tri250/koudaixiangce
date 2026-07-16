@@ -8,6 +8,7 @@ import {
   Paintbrush,
   SwatchBook,
   FileInput,
+  Search,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +41,9 @@ const panelGroups: Array<Array<PanelOptions>> = [
     { id: Panel.Presets, icon: SwatchBook, title: 'editor.switcher.tooltips.presets', androidLabel: '预设' },
     { id: Panel.Export, icon: FileInput, title: 'editor.switcher.tooltips.export', androidLabel: '导出' },
   ],
+  [
+    { id: Panel.SemanticSearch, icon: Search, title: 'settings.semanticSearch.title', androidLabel: '语义搜索' },
+  ],
 ];
 
 // Android-specific flat tab list with color tab included
@@ -51,6 +55,7 @@ const androidPanelTabs: Array<PanelOptions> = [
   { id: Panel.Ai, icon: Paintbrush, title: 'editor.switcher.tooltips.inpaint', androidLabel: 'AI' },
   { id: Panel.Presets, icon: SwatchBook, title: 'editor.switcher.tooltips.presets', androidLabel: '预设' },
   { id: Panel.Export, icon: FileInput, title: 'editor.switcher.tooltips.export', androidLabel: '导出' },
+  { id: Panel.SemanticSearch, icon: Search, title: 'settings.semanticSearch.title', androidLabel: '语义搜索' },
 ];
 
 export default function RightPanelSwitcher({
@@ -77,24 +82,24 @@ export default function RightPanelSwitcher({
     return (
       <div
         ref={scrollRef}
-        className="flex items-center overflow-x-auto bg-bg-secondary border-t border-surface"
+        className="flex items-center overflow-x-auto liquid-glass-subtle"
         style={{ scrollbarWidth: 'none' as const }}
       >
         {androidPanelTabs.map(({ id, androidLabel }) => (
           <button
-            className={`relative flex items-center justify-center shrink-0 px-4 transition-colors duration-200 ${
-              activePanel === id ? 'text-accent' : 'text-text-secondary'
+            className={`relative flex items-center justify-center shrink-0 px-5 py-2 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg mx-0.5 ${
+              activePanel === id ? 'text-accent bg-card-active/50' : 'text-text-secondary hover:text-text-primary hover:bg-card-active/25'
             }`}
             key={id}
             onClick={() => onPanelSelect(id)}
             style={{ minHeight: '48px' }}
           >
-            <span className="text-xs font-medium whitespace-nowrap">{androidLabel}</span>
+            <span className="text-[11px] font-medium whitespace-nowrap tracking-wide">{androidLabel}</span>
             {activePanel === id && (
               <motion.div
                 layoutId="android-active-tab-indicator"
-                className="absolute bottom-0 left-2 right-2 h-0.5 bg-accent rounded-full"
-                transition={isInstantTransition ? { duration: 0 } : { type: 'spring', bounce: 0.2, duration: 0.4 }}
+                className="absolute bottom-1 left-3 right-3 h-[2px] bg-accent rounded-full shadow-[0_0_8px_rgba(0,128,108,0.4)]"
+                transition={isInstantTransition ? { duration: 0 } : { type: 'spring', bounce: 0.15, stiffness: 400, damping: 25 }}
               />
             )}
           </button>

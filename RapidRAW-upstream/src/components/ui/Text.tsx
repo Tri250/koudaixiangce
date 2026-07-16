@@ -29,6 +29,8 @@ export const Text = forwardRef<HTMLElement, TextProps>(
           TEXT_WEIGHT_KEYS[weight ?? variant.defaultWeight],
           TEXT_COLOR_KEYS[color ?? variant.defaultColor],
           variant.extraClasses,
+          variant.lineHeight,
+          variant.letterSpacing,
           className,
         )}
         {...props}

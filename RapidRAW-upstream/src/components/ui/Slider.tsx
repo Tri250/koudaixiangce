@@ -473,7 +473,7 @@ const Slider = ({
   const numericValue = isNaN(Number(value)) ? 0 : Number(value);
 
   return (
-    <div className="mb-2 group" ref={containerRef}>
+    <div className="mb-3 group" ref={containerRef}>
       <div className="flex justify-between items-center mb-1">
         <div
           className={`grid ${typeof label === 'string' ? 'cursor-pointer' : ''}`}
@@ -531,12 +531,12 @@ const Slider = ({
 
       <div className="relative w-full h-5">
         <div
-          className={`absolute top-1/2 left-0 w-full h-1.5 -translate-y-1/4 rounded-full pointer-events-none ${
+          className={`absolute top-1/2 left-0 w-full h-[5px] -translate-y-1/4 rounded-full pointer-events-none transition-colors duration-200 ${
             trackClassName || 'bg-card-active'
           }`}
         />
         <div
-          className="absolute top-1/2 h-1.5 -translate-y-1/4 rounded-full pointer-events-none bg-accent/25"
+          className="absolute top-1/2 h-[5px] -translate-y-1/4 rounded-full pointer-events-none bg-accent/30 transition-all duration-100 ease-out"
           style={{
             left: `${Math.min(fillPercentage, originPercentage)}%`,
             width: `${Math.abs(fillPercentage - originPercentage)}%`,

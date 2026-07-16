@@ -33,6 +33,11 @@ export interface CollageModalState {
   sourceImages: ImageFile[];
 }
 
+export interface AdjustmentTransferModalState {
+  isOpen: boolean;
+  sourcePath: string | null;
+}
+
 export interface PanoramaModalState {
   error: string | null;
   finalImageBase64: string | null;
@@ -122,6 +127,8 @@ interface UIState {
   denoiseModalState: DenoiseModalState;
   cullingModalState: CullingModalState;
   collageModalState: CollageModalState;
+  adjustmentTransferModalState: AdjustmentTransferModalState;
+  isModelManagerModalOpen: boolean;
 
   // Actions
   setUI: (updater: Partial<UIState> | ((state: UIState) => Partial<UIState>)) => void;
@@ -193,6 +200,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
   cullingModalState: { isOpen: false, suggestions: null, progress: null, error: null, pathsToCull: [] },
   collageModalState: { isOpen: false, sourceImages: [] },
+  adjustmentTransferModalState: { isOpen: false, sourcePath: null },
+  isModelManagerModalOpen: false,
 
   setUI: (updater) => set((state) => (typeof updater === 'function' ? updater(state) : updater)),
 

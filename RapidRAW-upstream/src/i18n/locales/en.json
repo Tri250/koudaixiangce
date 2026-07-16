@@ -1292,6 +1292,24 @@
     "createGroup": {
       "placeholder": "Enter group name..."
     },
+    "adjustmentTransfer": {
+      "title": "Adjustment Transfer",
+      "copy": "Copy Adjustments",
+      "paste": "Paste Adjustments",
+      "mode": {
+        "overwrite": "Overwrite",
+        "merge": "Merge",
+        "mergeAdditive": "Merge (Additive)"
+      },
+      "modeDesc": {
+        "overwrite": "Replace all target adjustments with source",
+        "merge": "Apply only non-default source values, keep existing target values",
+        "mergeAdditive": "Add source adjustments on top of existing target adjustments"
+      },
+      "diffTitle": "Adjustment Differences",
+      "applied": "Applied to {{count}} images",
+      "failed": "{{count}} images failed"
+    },
     "culling": {
       "actionDelete": "Move to Trash",
       "actionRateZero": "Set Rating to 1 Stars",
@@ -1752,6 +1770,27 @@
         },
         "title": "Generative AI"
       },
+      "modelManager": {
+        "title": "AI Model Manager",
+        "description": "Download and manage AI models for image processing features",
+        "downloadAll": "Download All",
+        "delete": "Delete",
+        "download": "Download",
+        "verifying": "Verifying...",
+        "downloading": "Downloading...",
+        "downloaded": "Downloaded",
+        "notDownloaded": "Not Downloaded",
+        "hashMismatch": "Hash verification failed",
+        "totalSize": "Total: {{size}}",
+        "progress": "{{percentage}}%",
+        "category": {
+          "masking": "Masking",
+          "tagging": "Tagging",
+          "denoising": "Denoising",
+          "inpainting": "Inpainting",
+          "depth": "Depth Estimation"
+        }
+      },
       "backend": "Processing Backend",
       "backendDesc": "Select the graphics API. 'Auto' is recommended. May fix crashes on some systems.",
       "backends": {
@@ -1831,6 +1870,9 @@
       "thumbnailRes": "Thumbnail Resolution",
       "thumbnailResDesc": "Determines the resolution of generated library thumbnails. Higher values produce sharper images during loading.",
       "title": "Processing Engine",
+      "subgroupPreview": "Preview & Performance",
+      "subgroupGpu": "GPU & Backend",
+      "subgroupCache": "Cache & Concurrency",
       "wgpu": "WGPU Direct Rendering",
       "wgpuDescAndroid": "Bypasses browser encoding for instantly responsive live previews. (Disabled on Android: Native WGPU surface creation is currently not supported alongside the mobile webview.)",
       "wgpuDescLinux": "Bypasses browser encoding for instantly responsive live previews. (Disabled on Linux: Tauri uses GTK for webviews, which conflicts with WGPU on the same X11 surface and causes flickering.)",
@@ -1867,23 +1909,17 @@
       "shortcutsDesc": "A list of tags that will appear as shortcuts in the tagging context menu.",
       "title": "Tagging"
     },
-    "thanks": {
-      "description": "Developers who love photography, crafting professional tools for photography enthusiasts",
-      "list": {
-        "darktable": "For some reference implementations that guided parts of this work.",
-        "depth": "For the powerful monocular depth estimation model that enables the AI depth masking capabilities.",
-        "lama": "For the powerful & simple image inpainting model, which enables content-aware fill and object removal.",
-        "lensfun": "For its invaluable open-source library and comprehensive database for automatic lens correction.",
-        "negpy": "For the inspiration behind the negative conversion logic.",
-        "nind": "For providing AI models that power the AI noise reduction capabilities in RapidRAW.",
-        "rawler": "For the excellent Rust crate that provides the foundation for RAW file processing in this project.",
-        "sam2": "For providing the foundation model used for the AI subject detection capabilities.",
-        "u2net": "For providing the robust architecture used for the AI sky and foreground detection capabilities.",
-        "you": "I'm just '带娃的小陈工', a developer who loves photography. Thank you for using and supporting.",
-        "youLabel": "You"
-      },
-      "title": "Special Thanks"
+
+    "semanticSearch": {
+      "title": "Semantic Search",
+      "description": "Search images using natural language descriptions powered by AI",
+      "computeEmbeddings": "Compute Embeddings",
+      "searchPlaceholder": "Describe what you're looking for...",
+      "rating": "AI Rating",
+      "ratingDesc": "Automatically rate image quality using AI analysis",
+      "batchProgress": "Computing embeddings: {{current}}/{{total}}"
     },
+
     "themes": {
       "dark": "Dark",
       "grey": "Grey",

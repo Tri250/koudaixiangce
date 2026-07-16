@@ -33,6 +33,10 @@ export const THEMES: Array<ThemeProps> = [
       '--app-glass-stroke': 'rgba(200, 200, 200, 0.08)', // Glass morphism border
       '--app-shadow-shiny': '0 0 24px rgba(0, 128, 108, 0.12)', // Teal glow
       '--app-text-shadow-shiny': '0 0 18px rgba(0, 128, 108, 0.35)', // Teal text glow
+      '--app-glass-bg': 'rgba(255, 255, 255, 0.06)',
+      '--app-glass-bg-hover': 'rgba(255, 255, 255, 0.1)',
+      '--app-glass-border': 'rgba(255, 255, 255, 0.12)',
+      '--app-glass-shadow': 'rgba(0, 0, 0, 0.25)',
     },
   },
   {
@@ -58,6 +62,10 @@ export const THEMES: Array<ThemeProps> = [
       '--app-glass-stroke': 'rgba(0, 0, 0, 0.06)',
       '--app-shadow-shiny': '0 0 24px rgba(0, 128, 108, 0.15)',
       '--app-text-shadow-shiny': '0 0 18px rgba(0, 128, 108, 0.2)',
+      '--app-glass-bg': 'rgba(255, 255, 255, 0.72)',
+      '--app-glass-bg-hover': 'rgba(255, 255, 255, 0.85)',
+      '--app-glass-border': 'rgba(0, 0, 0, 0.08)',
+      '--app-glass-shadow': 'rgba(0, 0, 0, 0.08)',
     },
   },
   {
@@ -83,6 +91,10 @@ export const THEMES: Array<ThemeProps> = [
       '--app-glass-stroke': 'rgba(255, 255, 255, 0.06)',
       '--app-shadow-shiny': '0 0 24px rgba(0, 128, 108, 0.1)',
       '--app-text-shadow-shiny': '0 0 18px rgba(0, 128, 108, 0.15)',
+      '--app-glass-bg': 'rgba(255, 255, 255, 0.08)',
+      '--app-glass-bg-hover': 'rgba(255, 255, 255, 0.14)',
+      '--app-glass-border': 'rgba(255, 255, 255, 0.1)',
+      '--app-glass-shadow': 'rgba(0, 0, 0, 0.2)',
     },
   },
 ];
@@ -91,12 +103,15 @@ export const DEFAULT_THEME_ID = Theme.Dark;
 
 // Font role system (16 roles, inspired by AlcedoStudio)
 export const FONT_ROLES = {
-  UiCaption: { size: '10px', weight: 500, family: 'var(--font-ui)' },
-  UiBody: { size: '12px', weight: 500, family: 'var(--font-ui)' },
-  UiBodyStrong: { size: '12px', weight: 600, family: 'var(--font-ui)' },
-  UiHeadline: { size: '16px', weight: 700, family: 'var(--font-heading)' },
-  UiOverline: { size: '9px', weight: 600, family: 'var(--font-ui)', letterSpacing: '1.6px', textTransform: 'uppercase' },
-  DataBody: { size: '12px', weight: 500, family: 'var(--font-data)' },
-  DataNumeric: { size: '13px', weight: 600, family: 'var(--font-data)' },
-  DataOverlay: { size: '11px', weight: 600, family: 'var(--font-data)' },
+  UiCaption: { size: '10px', weight: 500, family: 'var(--font-ui)', lineHeight: '1.4' },
+  UiBody: { size: '12px', weight: 500, family: 'var(--font-ui)', lineHeight: '1.5' },
+  UiBodyStrong: { size: '12px', weight: 600, family: 'var(--font-ui)', lineHeight: '1.5' },
+  UiHeadline: { size: '16px', weight: 700, family: 'var(--font-heading)', lineHeight: '1.3' },
+  UiOverline: { size: '9px', weight: 600, family: 'var(--font-ui)', letterSpacing: '1.6px', textTransform: 'uppercase', lineHeight: '1.6' },
+  DataBody: { size: '12px', weight: 500, family: 'var(--font-data)', lineHeight: '1.5' },
+  DataNumeric: { size: '13px', weight: 600, family: 'var(--font-data)', lineHeight: '1.4' },
+  DataOverlay: { size: '11px', weight: 600, family: 'var(--font-data)', lineHeight: '1.4' },
+  UiSubtitle: { size: '14px', weight: 600, family: 'var(--font-ui)', lineHeight: '1.4' },
+  UiDisplay: { size: '20px', weight: 700, family: 'var(--font-brand)', lineHeight: '1.2' },
+  UiLabelLarge: { size: '13px', weight: 500, family: 'var(--font-ui)', lineHeight: '1.5' },
 } as const;

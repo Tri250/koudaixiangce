@@ -1630,6 +1630,9 @@
       "thumbnailRes": "Miniaturbild-Auflösung",
       "thumbnailResDesc": "Bestimmt die Auflösung der generierten Bibliothek-Miniaturbilder. Höhere Werte erzeugen schärfere Bilder.",
       "title": "Verarbeitungs-Engine",
+      "subgroupPreview": "Vorschau & Leistung",
+      "subgroupGpu": "GPU & Backend",
+      "subgroupCache": "Cache & Parallelität",
       "wgpu": "WGPU Direkt-Rendering",
       "wgpuDescAndroid": "Umgeht die Browser-Kodierung für sofort reagierende Live-Vorschauen. (Auf Android deaktiviert: Native WGPU-Erstellung wird neben dem mobilen Webview nicht unterstützt.)",
       "wgpuDescLinux": "Umgeht die Browser-Kodierung für sofort reagierende Live-Vorschauen. (Auf Linux deaktiviert: Tauri nutzt GTK, was mit WGPU kollidiert.)",
@@ -1665,23 +1668,6 @@
       "shortcuts": "Tagging-Shortcuts",
       "shortcutsDesc": "Eine Liste von Tags, die als Shortcuts im Kontextmenü erscheinen.",
       "title": "Tagging"
-    },
-    "thanks": {
-      "description": "Ein großes Dankeschön an die folgenden Projekte, die für die Entwicklung von RapidRAW sehr wichtig waren:",
-      "list": {
-        "darktable": "Für Referenzimplementierungen, die Teile dieser Arbeit leiteten.",
-        "depth": "Für das Modell zur monokularen Tiefenschätzung (Tiefenmasken).",
-        "lama": "Für das leistungsstarke Bild-Inpainting-Modell.",
-        "lensfun": "Für die unschätzbare Open-Source-Bibliothek für Objektivkorrektur.",
-        "negpy": "Für die Inspiration hinter der Negativumwandlungslogik.",
-        "nind": "Für die Bereitstellung von KI-Modellen für die Rauschreduzierung.",
-        "rawler": "Für die hervorragende Rust-Crate zur RAW-Bildverarbeitung.",
-        "sam2": "Für das grundlegende Modell der KI-Motiverkennung.",
-        "u2net": "Für die Architektur zur Erkennung von Himmel und Vordergrund.",
-        "you": "Dafür, dass Sie RapidRAW nutzen. Ihr Interesse hält dieses Projekt am Leben.",
-        "youLabel": "Ihnen"
-      },
-      "title": "Besonderer Dank"
     },
     "themes": {
       "dark": "Dunkel",

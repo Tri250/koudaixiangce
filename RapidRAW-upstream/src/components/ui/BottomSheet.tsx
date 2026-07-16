@@ -51,8 +51,8 @@ export default function BottomSheet({
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="fixed bottom-0 left-0 right-0 bg-bg-secondary border-t border-surface z-50"
+          transition={{ type: 'spring', damping: 28, stiffness: 350, mass: 0.8 }}
+          className="fixed bottom-0 left-0 right-0 liquid-glass z-50"
           style={{
             height: `${height}px`,
             transition: isDragging ? 'none' : 'height 220ms cubic-bezier(0, 0, 0.2, 1)',
@@ -60,12 +60,12 @@ export default function BottomSheet({
         >
           {/* Drag handle */}
           <div
-            className="flex justify-center py-2 cursor-grab active:cursor-grabbing"
+            className="flex justify-center py-3 cursor-grab active:cursor-grabbing"
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            <div className="w-10 h-1 rounded-full bg-text-secondary/40" />
+            <div className="w-10 h-1 rounded-full bg-text-secondary/30 transition-all duration-200" />
           </div>
           <div className="overflow-y-auto" style={{ height: `${height - 24}px` }}>
             {children}

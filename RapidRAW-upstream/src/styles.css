@@ -46,6 +46,35 @@
 
   --radius-md: 8px;
   --radius-lg: 15px;
+
+  /* Liquid glass system */
+  --color-glass-bg: var(--app-glass-bg, rgba(255, 255, 255, 0.06));
+  --color-glass-bg-hover: var(--app-glass-bg-hover, rgba(255, 255, 255, 0.1));
+  --color-glass-border: var(--app-glass-border, rgba(255, 255, 255, 0.12));
+  --color-glass-shadow: var(--app-glass-shadow, rgba(0, 0, 0, 0.25));
+
+  /* Typography scale with line-height */
+  --font-size-caption: 10px;
+  --font-size-body: 12px;
+  --font-size-label: 13px;
+  --font-size-subtitle: 14px;
+  --font-size-title: 16px;
+  --font-size-headline: 20px;
+  --font-size-display: 24px;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.05em;
+
+  /* Spring animation system (pixel-cake inspired) */
+  --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --spring-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --duration-spring: 500ms;
+  --duration-enter: 200ms;
+  --duration-exit: 150ms;
 }
 
 @layer base {
@@ -124,6 +153,84 @@
   background-color: var(--app-bg-panel);
   border: 1px solid var(--app-glass-stroke);
   border-radius: var(--radius-panel);
+}
+
+@utility liquid-glass {
+  background: var(--app-glass-bg, rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border: 1px solid var(--app-glass-border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--radius-panel);
+  box-shadow:
+    0 8px 32px var(--app-glass-shadow, rgba(0, 0, 0, 0.25)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+@utility liquid-glass-subtle {
+  background: var(--app-glass-bg, rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-control);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+@utility liquid-glass-hover {
+  background: var(--app-glass-bg-hover, rgba(255, 255, 255, 0.1));
+  backdrop-filter: blur(24px) saturate(2);
+  -webkit-backdrop-filter: blur(24px) saturate(2);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+@utility glass-refraction {
+  position: relative;
+  overflow: hidden;
+}
+
+@utility glass-refraction::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  pointer-events: none;
+}
+
+@utility spring-enter {
+  animation: spring-enter 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@utility spring-exit {
+  animation: spring-exit 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility fade-slide-up {
+  animation: fade-slide-up 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility fade-slide-down {
+  animation: fade-slide-down 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility scale-enter {
+  animation: scale-enter 250ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@utility shimmer {
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@utility pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@utility text-glow-accent {
+  text-shadow: 0 0 20px var(--app-accent, rgba(0, 128, 108, 0.5));
 }
 
 @utility bg-canvas {
@@ -551,5 +658,64 @@
 
   .animate-value-bounce {
     animation: value-bounce 150ms ease-out;
+  }
+
+  @keyframes spring-enter {
+    from { opacity: 0; transform: scale(0.92) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  @keyframes spring-exit {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
+  }
+
+  @keyframes fade-slide-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fade-slide-down {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scale-enter {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 8px rgba(0, 128, 108, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(0, 128, 108, 0.4); }
+  }
+
+  @keyframes glass-ripple {
+    0% { transform: scale(0); opacity: 0.5; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  .animate-spring-enter {
+    animation: spring-enter 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .animate-spring-exit {
+    animation: spring-exit 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-fade-slide-up {
+    animation: fade-slide-up 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-scale-enter {
+    animation: scale-enter 250ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .animate-shimmer {
+    animation: shimmer 2s ease-in-out infinite;
+  }
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
   }
 }

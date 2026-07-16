@@ -1292,6 +1292,24 @@
     "createGroup": {
       "placeholder": "输入组名称..."
     },
+    "adjustmentTransfer": {
+      "title": "调整参数传输",
+      "copy": "复制调整参数",
+      "paste": "粘贴调整参数",
+      "mode": {
+        "overwrite": "覆盖",
+        "merge": "合并",
+        "mergeAdditive": "合并（叠加）"
+      },
+      "modeDesc": {
+        "overwrite": "用源图调整参数完全替换目标图参数",
+        "merge": "仅应用源图中非默认值的参数，保留目标图现有参数",
+        "mergeAdditive": "将源图调整值叠加到目标图现有值之上"
+      },
+      "diffTitle": "调整参数差异",
+      "applied": "已应用到 {{count}} 张图像",
+      "failed": "{{count}} 张图像失败"
+    },
     "culling": {
       "actionDelete": "移至回收站",
       "actionRateZero": "将评分设为 1 星",
@@ -1752,6 +1770,27 @@
         },
         "title": "生成式 AI"
       },
+      "modelManager": {
+        "title": "AI 模型管理",
+        "description": "下载和管理用于图像处理功能的 AI 模型",
+        "downloadAll": "全部下载",
+        "delete": "删除",
+        "download": "下载",
+        "verifying": "校验中...",
+        "downloading": "下载中...",
+        "downloaded": "已下载",
+        "notDownloaded": "未下载",
+        "hashMismatch": "哈希校验失败",
+        "totalSize": "总计：{{size}}",
+        "progress": "{{percentage}}%",
+        "category": {
+          "masking": "蒙版",
+          "tagging": "标签",
+          "denoising": "降噪",
+          "inpainting": "修复",
+          "depth": "深度估计"
+        }
+      },
       "backend": "处理后端",
       "backendDesc": "选择图形 API。推荐使用「自动」。在某些系统上可能解决崩溃问题。",
       "backends": {
@@ -1831,6 +1870,9 @@
       "thumbnailRes": "缩略图分辨率",
       "thumbnailResDesc": "确定生成的图库缩略图的分辨率。较高的值可在加载时产生更清晰的图像。",
       "title": "处理引擎",
+      "subgroupPreview": "预览与性能",
+      "subgroupGpu": "GPU 与后端",
+      "subgroupCache": "缓存与并发",
       "wgpu": "WGPU 直接渲染",
       "wgpuDescAndroid": "绕过浏览器编码，实现即时响应的实时预览。（在 Android 上已禁用：原生 WGPU 表面创建目前不支持与移动端 Webview 同时运行。）",
       "wgpuDescLinux": "绕过浏览器编码，实现即时响应的实时预览。（在 Linux 上已禁用：Tauri 使用 GTK 作为 Webview，与同一 X11 表面上的 WGPU 冲突并导致闪烁。）",
@@ -1867,23 +1909,17 @@
       "shortcutsDesc": "将出现在标签上下文菜单中作为快捷方式的标签列表。",
       "title": "标签"
     },
-    "thanks": {
-      "description": "热爱摄影的开发者，为摄影爱好者打造专业工具",
-      "list": {
-        "darktable": "为部分参考实现提供了指导。",
-        "depth": "为强大的单目深度估计模型提供支持，实现了 AI 深度蒙版功能。",
-        "lama": "为强大且简单的图像修复模型提供支持，实现了内容感知填充和对象移除。",
-        "lensfun": "为无价的开源库和全面的数据库提供支持，实现了自动镜头校正。",
-        "negpy": "为负片转换逻辑提供了灵感。",
-        "nind": "为 AI 模型提供支持，驱动了 RapidRAW 中的 AI 降噪功能。",
-        "rawler": "为优秀的 Rust 库提供支持，构成了本项目 RAW 文件处理的基础。",
-        "sam2": "为提供基础模型，用于 AI 主体检测功能。",
-        "u2net": "为提供稳健的架构，用于 AI 天空和前景检测功能。",
-        "you": "我只是「带娃的小陈工」，一名热爱摄影的开发者，感谢您使用和支持。",
-        "youLabel": "您"
-      },
-      "title": "特别鸣谢"
+
+    "semanticSearch": {
+      "title": "语义搜索",
+      "description": "使用自然语言描述搜索图像，由 AI 驱动",
+      "computeEmbeddings": "计算嵌入向量",
+      "searchPlaceholder": "描述您要查找的内容...",
+      "rating": "AI 评分",
+      "ratingDesc": "使用 AI 分析自动评估图像质量",
+      "batchProgress": "正在计算嵌入向量：{{current}}/{{total}}"
     },
+
     "themes": {
       "dark": "深色",
       "grey": "灰色",
