@@ -720,7 +720,7 @@ export default function SettingsPanel({
     setTempLensModel('');
     setLensModels([]);
     if (maker) {
-      invoke('get_lensfun_lenses_for_maker', { maker })
+      invoke(Invokes.GetLensfunLensesForMaker, { maker })
         .then((l: any) => setLensModels(l))
         .catch(console.error);
     }

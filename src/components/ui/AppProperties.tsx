@@ -123,6 +123,7 @@ export enum Invokes {
   GenerateManualCleanupPatch = 'generate_manual_cleanup_patch',
   GenerateAiDepthMask = 'generate_ai_depth_mask',
   PrecomputeAiSubjectMask = 'precompute_ai_subject_mask',
+  GetLensfunMakers = 'get_lensfun_makers',
 }
 
 export enum ExifOverlay {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { Invokes } from '../ui/AppProperties';
 import { listen } from '@tauri-apps/api/event';
 import { RotateCcw, ZoomIn, ZoomOut, Maximize, Save, Loader2, Eye, EyeOff, Info } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -115,7 +116,7 @@ export default function NegativeConversionModal({
     throttle(async (currentParams: NegativeParams, isInitialLoad: boolean = false) => {
       if (!selectedImagePath) return;
       try {
-        const result: string = await invoke('preview_negative_conversion', {
+        const result: string = await invoke(Invokes.PreviewNegativeConversion, {
           path: selectedImagePath,
           params: currentParams,
         });
@@ -141,7 +142,7 @@ export default function NegativeConversionModal({
       updatePreview(DEFAULT_PARAMS, true);
 
       if (selectedImagePath) {
-        invoke('generate_preview_for_path', {
+        invoke(Invokes.GeneratePreviewForPath, {
           path: selectedImagePath,
           jsAdjustments: {},
         })
@@ -177,7 +178,7 @@ export default function NegativeConversionModal({
     setIsSaving(true);
     setProgress(null);
     try {
-      const savedPaths: string[] = await invoke('convert_negatives', {
+      const savedPaths: string[] = await invoke(Invokes.ConvertNegatives, {
         paths: targetPaths,
         params,
       });
