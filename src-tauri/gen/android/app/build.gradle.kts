@@ -27,6 +27,9 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            // Default debug signing config
+        }
         create("release") {
             val keystorePropertiesFile = rootProject.file("keystore.properties")
             if (keystorePropertiesFile.exists()) {
@@ -55,7 +58,13 @@ android {
             }
         }
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            val keystorePropertiesFile = rootProject.file("keystore.properties")
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // Fallback to debug signing when keystore is not configured
+                signingConfig = signingConfigs.getByName("debug")
+            }
 
             isMinifyEnabled = false
             isShrinkResources = false
