@@ -105,6 +105,6 @@ incremental = true
 opt-level = 3
 
 [profile.release]
-codegen-units = 1
-lto = true
+codegen-units = 16
+lto = false
 strip = true

@@ -1142,6 +1142,7 @@
       "brand": "RapidRAW",
       "continueSession": "Continue Session",
       "contribute": "Contribute on GitHub",
+      "creatorLine": "Developers who love photography, crafting professional tools for photography enthusiasts",
       "descriptionAndroid": "A blazingly fast, GPU-accelerated RAW image editor. Open the library to begin.",
       "descriptionDesktop": "A blazingly fast, GPU-accelerated RAW image editor. Open a folder to begin.",
       "donate": "Donate on Ko-Fi",
@@ -1867,7 +1868,7 @@
       "title": "Tagging"
     },
     "thanks": {
-      "description": "A huge thank you to the following projects that were very important in the development of RapidRAW:",
+      "description": "Developers who love photography, crafting professional tools for photography enthusiasts",
       "list": {
         "darktable": "For some reference implementations that guided parts of this work.",
         "depth": "For the powerful monocular depth estimation model that enables the AI depth masking capabilities.",
@@ -1878,7 +1879,7 @@
         "rawler": "For the excellent Rust crate that provides the foundation for RAW file processing in this project.",
         "sam2": "For providing the foundation model used for the AI subject detection capabilities.",
         "u2net": "For providing the robust architecture used for the AI sky and foreground detection capabilities.",
-        "you": "For using and supporting RapidRAW. Your interest keeps this project alive and evolving.",
+        "you": "I'm just '带娃的小陈工', a developer who loves photography. Thank you for using and supporting.",
         "youLabel": "You"
       },
       "title": "Special Thanks"

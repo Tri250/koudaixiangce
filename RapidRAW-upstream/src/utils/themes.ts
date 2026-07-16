@@ -14,25 +14,25 @@ export const THEMES: Array<ThemeProps> = [
     splashImage: '/splash-dark.jpg',
     cssVariables: {
       // 4-layer luminance architecture (AlcedoStudio pattern)
-      '--app-bg-canvas': 'rgb(15, 15, 15)',       // Floor - outermost surface
-      '--app-bg-panel': 'rgb(26, 26, 26)',         // Primary workspaces
-      '--app-bg-base': 'rgb(36, 36, 36)',          // Interactive panels, inputs
-      '--app-bg-deep': 'rgb(46, 46, 46)',          // Floating modals / popovers
+      '--app-bg-canvas': 'rgb(8, 8, 12)',          // Floor - outermost surface
+      '--app-bg-panel': 'rgb(16, 16, 20)',         // Primary workspaces
+      '--app-bg-base': 'rgb(24, 24, 28)',          // Interactive panels, inputs
+      '--app-bg-deep': 'rgb(32, 32, 38)',          // Floating modals / popovers
       // Backward compatibility aliases
-      '--app-bg-primary': 'rgb(15, 15, 15)',
-      '--app-bg-secondary': 'rgb(26, 26, 26)',
-      '--app-surface': 'rgb(36, 36, 36)',
-      '--app-card-active': 'rgb(46, 46, 46)',
+      '--app-bg-primary': 'rgb(8, 8, 12)',
+      '--app-bg-secondary': 'rgb(16, 16, 20)',
+      '--app-surface': 'rgb(24, 24, 28)',
+      '--app-card-active': 'rgb(32, 32, 38)',
       '--app-button-text': 'rgb(0, 0, 0)',
       '--app-text-primary': 'rgb(224, 224, 224)',
       '--app-text-secondary': 'rgb(136, 136, 136)',
-      '--app-accent': 'rgb(91, 155, 213)',         // Brand blue #5B9BD5
+      '--app-accent': 'rgb(0, 128, 108)',          // Teal ink #00806C
       '--app-danger': 'rgb(138, 58, 58)',          // Wine red #8A3A3A
-      '--app-border-color': 'rgb(45, 45, 45)',
-      '--app-hover-color': 'rgb(38, 37, 37)',      // Subtle white overlay
+      '--app-border-color': 'rgb(30, 30, 36)',
+      '--app-hover-color': 'rgb(20, 20, 26)',      // Subtle white overlay
       '--app-glass-stroke': 'rgba(200, 200, 200, 0.08)', // Glass morphism border
-      '--app-shadow-shiny': '0 0 24px rgba(91, 155, 213, 0.12)', // Blue glow
-      '--app-text-shadow-shiny': '0 0 18px rgba(91, 155, 213, 0.35)', // Blue text glow
+      '--app-shadow-shiny': '0 0 24px rgba(0, 128, 108, 0.12)', // Teal glow
+      '--app-text-shadow-shiny': '0 0 18px rgba(0, 128, 108, 0.35)', // Teal text glow
     },
   },
   {
@@ -51,13 +51,13 @@ export const THEMES: Array<ThemeProps> = [
       '--app-button-text': 'rgb(255, 255, 255)',
       '--app-text-primary': 'rgb(20, 20, 20)',
       '--app-text-secondary': 'rgb(108, 108, 108)',
-      '--app-accent': 'rgb(91, 155, 213)',
+      '--app-accent': 'rgb(0, 128, 108)',
       '--app-danger': 'rgb(180, 60, 60)',
       '--app-border-color': 'rgb(224, 224, 224)',
-      '--app-hover-color': 'rgb(91, 155, 213)',
+      '--app-hover-color': 'rgb(0, 128, 108)',
       '--app-glass-stroke': 'rgba(0, 0, 0, 0.06)',
-      '--app-shadow-shiny': '0 0 24px rgba(91, 155, 213, 0.15)',
-      '--app-text-shadow-shiny': '0 0 18px rgba(91, 155, 213, 0.2)',
+      '--app-shadow-shiny': '0 0 24px rgba(0, 128, 108, 0.15)',
+      '--app-text-shadow-shiny': '0 0 18px rgba(0, 128, 108, 0.2)',
     },
   },
   {
@@ -76,13 +76,13 @@ export const THEMES: Array<ThemeProps> = [
       '--app-button-text': 'rgb(45, 45, 45)',
       '--app-text-primary': 'rgb(240, 240, 240)',
       '--app-text-secondary': 'rgb(180, 180, 180)',
-      '--app-accent': 'rgb(91, 155, 213)',
+      '--app-accent': 'rgb(0, 128, 108)',
       '--app-danger': 'rgb(160, 70, 70)',
       '--app-border-color': 'rgb(138, 138, 138)',
       '--app-hover-color': 'rgb(140, 140, 140)',
       '--app-glass-stroke': 'rgba(255, 255, 255, 0.06)',
-      '--app-shadow-shiny': '0 0 24px rgba(91, 155, 213, 0.1)',
-      '--app-text-shadow-shiny': '0 0 18px rgba(91, 155, 213, 0.15)',
+      '--app-shadow-shiny': '0 0 24px rgba(0, 128, 108, 0.1)',
+      '--app-text-shadow-shiny': '0 0 18px rgba(0, 128, 108, 0.15)',
     },
   },
 ];

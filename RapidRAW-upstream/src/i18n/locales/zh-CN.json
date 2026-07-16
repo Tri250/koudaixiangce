@@ -1139,9 +1139,10 @@
     },
     "splash": {
       "addFolder": "添加文件夹",
-      "brand": "RapidRAW",
+      "brand": "",
       "continueSession": "继续会话",
       "contribute": "在 GitHub 上贡献",
+      "creatorLine": "热爱摄影的开发者，为摄影爱好者打造专业工具",
       "descriptionAndroid": "一款极速、GPU 加速的 RAW 图像编辑器。打开图库以开始。",
       "descriptionDesktop": "一款极速、GPU 加速的 RAW 图像编辑器。打开文件夹以开始。",
       "donate": "在 Ko-Fi 上捐赠",
@@ -1867,7 +1868,7 @@
       "title": "标签"
     },
     "thanks": {
-      "description": "衷心感谢以下项目，它们在 RapidRAW 的开发过程中非常重要：",
+      "description": "热爱摄影的开发者，为摄影爱好者打造专业工具",
       "list": {
         "darktable": "为部分参考实现提供了指导。",
         "depth": "为强大的单目深度估计模型提供支持，实现了 AI 深度蒙版功能。",
@@ -1878,7 +1879,7 @@
         "rawler": "为优秀的 Rust 库提供支持，构成了本项目 RAW 文件处理的基础。",
         "sam2": "为提供基础模型，用于 AI 主体检测功能。",
         "u2net": "为提供稳健的架构，用于 AI 天空和前景检测功能。",
-        "you": "感谢您使用和支持 RapidRAW。您的关注使本项目持续发展。",
+        "you": "我只是「带娃的小陈工」，一名热爱摄影的开发者，感谢您使用和支持。",
         "youLabel": "您"
       },
       "title": "特别鸣谢"
