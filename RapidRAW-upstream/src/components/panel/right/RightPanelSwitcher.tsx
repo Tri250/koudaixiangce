@@ -74,24 +74,27 @@ export default function RightPanelSwitcher({
     }
   }, [isAndroid]);
 
-  // Android: horizontal scrollable text tabs
+  // Android: horizontal scrollable icon+text tabs
   if (isAndroid) {
     return (
       <div
         ref={scrollRef}
-        className="flex items-center overflow-x-auto bg-bg-secondary border-t border-surface"
+        className="flex items-center overflow-x-auto bg-bg-secondary border-t border-surface py-1"
         style={{ scrollbarWidth: 'none' as const }}
       >
-        {androidPanelTabs.map(({ id, androidLabel }) => (
+        {androidPanelTabs.map(({ id, icon: Icon, androidLabel }) => (
           <button
-            className={`relative flex items-center justify-center shrink-0 px-4 transition-colors duration-200 ${
-              activePanel === id ? 'text-accent' : 'text-text-secondary'
+            className={`relative flex flex-col items-center justify-center shrink-0 px-3 py-1.5 mx-0.5 rounded-lg transition-all duration-200 ${
+              activePanel === id
+                ? 'text-accent bg-accent/10'
+                : 'text-text-secondary hover:text-text-primary hover:bg-surface'
             }`}
             key={id}
             onClick={() => onPanelSelect(id)}
-            style={{ minHeight: '48px' }}
+            style={{ minWidth: '56px' }}
           >
-            <span className="text-xs font-medium whitespace-nowrap">{androidLabel}</span>
+            <Icon size={18} className="mb-0.5" />
+            <span className="text-[10px] font-medium whitespace-nowrap leading-tight">{androidLabel}</span>
             {activePanel === id && (
               <motion.div
                 layoutId="android-active-tab-indicator"

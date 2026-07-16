@@ -1867,7 +1867,7 @@
       "title": "Tagging"
     },
     "thanks": {
-      "description": "A huge thank you to the following projects that were very important in the development of RapidRAW:",
+      "description": "A developer passionate about photography, building professional tools for photography enthusiasts\n\nI'm just 「带娃的小陈工」, a developer who loves photography\n\nA huge thank you to the following projects that were very important in the development of RapidRAW:",
       "list": {
         "darktable": "For some reference implementations that guided parts of this work.",
         "depth": "For the powerful monocular depth estimation model that enables the AI depth masking capabilities.",

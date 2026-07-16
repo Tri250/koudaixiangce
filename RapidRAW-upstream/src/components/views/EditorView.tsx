@@ -26,6 +26,18 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 
 import { ImageFile, Orientation, Panel, ThumbnailAspectRatio } from '../ui/AppProperties';
 
+// Android panel tab order matching RightPanelSwitcher.androidPanelTabs
+const ANDROID_PANEL_ORDER: Panel[] = [
+  Panel.Adjustments,
+  Panel.Metadata,
+  Panel.Portrait,
+  Panel.Crop,
+  Panel.Masks,
+  Panel.Ai,
+  Panel.Presets,
+  Panel.Export,
+];
+
 const panelVariants: any = {
   animate: (direction: number) => ({
     opacity: 1,
@@ -143,6 +155,38 @@ export default function EditorView({
       appSettings: state.appSettings,
       handleSettingsChange: state.handleSettingsChange,
     })),
+  );
+
+  // Android swipe gesture: track touch start position for panel switching
+  const touchStartXRef = useRef<number>(0);
+  const touchStartYRef = useRef<number>(0);
+  const SWIPE_THRESHOLD = 60;
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+      const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+
+      // Only handle horizontal swipes (ignore vertical scrolling)
+      if (Math.abs(deltaX) < Math.abs(deltaY) || Math.abs(deltaX) < SWIPE_THRESHOLD) return;
+
+      const currentIndex = activeRightPanel ? ANDROID_PANEL_ORDER.indexOf(activeRightPanel) : -1;
+      if (deltaX > 0) {
+        // Swipe right: go to previous panel
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : ANDROID_PANEL_ORDER.length - 1;
+        handleRightPanelSelect(ANDROID_PANEL_ORDER[prevIndex]);
+      } else {
+        // Swipe left: go to next panel
+        const nextIndex = currentIndex < ANDROID_PANEL_ORDER.length - 1 ? currentIndex + 1 : 0;
+        handleRightPanelSelect(ANDROID_PANEL_ORDER[nextIndex]);
+      }
+    },
+    [activeRightPanel, handleRightPanelSelect],
   );
 
   const editorNode = (
@@ -283,7 +327,11 @@ export default function EditorView({
               layout="horizontal"
             />
             {/* Panel content */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div
+              className="flex-1 min-h-0 overflow-y-auto"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
               {editorRightPanelContent}
             </div>
           </div>

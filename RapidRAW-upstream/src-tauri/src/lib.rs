@@ -2479,7 +2479,7 @@ mod tests {
     #[test]
     fn test_app_version_matches() {
         let pkg_version = env!("CARGO_PKG_VERSION");
-        assert_eq!(pkg_version, "1.5.9", "App version should match expected 1.5.9");
+        assert_eq!(pkg_version, "1.6.3", "App version should match expected 1.6.3");
     }
 
     #[test]

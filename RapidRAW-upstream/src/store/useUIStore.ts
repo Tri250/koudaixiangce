@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import { ImageFile, LibraryViewMode, Panel, UiVisibility, CullingSuggestions } from '../components/ui/AppProperties';
 
 const RIGHT_PANEL_ORDER = [
-  Panel.Metadata,
   Panel.Adjustments,
+  Panel.Metadata,
+  Panel.Portrait,
   Panel.Crop,
   Panel.Masks,
   Panel.Ai,

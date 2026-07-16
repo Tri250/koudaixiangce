@@ -11,10 +11,7 @@
     "core:window:allow-minimize",
     "core:window:allow-close",
     "core:window:allow-toggle-maximize",
-    "process:default",
-    "os:allow-os-type",
     "core:window:allow-set-fullscreen",
-    "core:window:allow-set-decorations",
-    "shell:default"
+    "core:window:allow-set-decorations"
   ]
 }
