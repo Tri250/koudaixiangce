@@ -84,7 +84,7 @@ jobs:
         if: inputs.mobile == 'android'
         shell: bash
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo rm -rf /usr/share/dotnet /opt/ghc
           sudo rm -rf /opt/hostedtoolcache/CodeQL
           sudo apt-get clean
           df -h
@@ -107,6 +107,20 @@ jobs:
         with:
           ndk-version: r27
           link-to-sdk: true
+
+      - name: Free more disk space after SDK setup
+        if: inputs.mobile == 'android'
+        shell: bash
+        run: |
+          # Remove unused Android SDK components to reclaim space
+          sudo rm -rf /usr/local/lib/android/sdk/cmdline-tools
+          sudo rm -rf /usr/local/lib/android/sdk/platforms
+          sudo rm -rf /usr/local/lib/android/sdk/build-tools
+          sudo rm -rf /usr/local/lib/android/sdk/emulator
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/*/sources
+          # Remove old NDK versions if any
+          ls -d /usr/local/lib/android/sdk/ndk/*/ | grep -v "$(basename ${{ steps.setup-ndk.outputs.ndk-path }})" | xargs -r sudo rm -rf
+          df -h
 
       - name: Install frontend dependencies
         run: npm install
