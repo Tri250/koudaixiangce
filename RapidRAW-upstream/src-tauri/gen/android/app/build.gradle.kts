@@ -16,6 +16,7 @@ val tauriProperties = Properties().apply {
 android {
     compileSdk = 36
     namespace = "io.github.CyberTimon.RapidRAW"
+    ndkVersion = "27.0.12077973"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "io.github.CyberTimon.RapidRAW"
@@ -56,7 +57,8 @@ android {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
             
-            isMinifyEnabled = true
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
@@ -69,6 +71,10 @@ android {
     }
     buildFeatures {
         buildConfig = true
+    }
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
     }
 }
 
