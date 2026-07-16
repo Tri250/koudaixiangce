@@ -3581,7 +3581,17 @@ pub async fn import_files(
                         &source_bytes,
                     );
 
-                    let mut final_dest_folder = PathBuf::from(&destination_folder);
+                    // When the destination_folder is a SAF content:// URI, we
+                    // cannot use fs::create_dir_all / fs::write on it — those
+                    // require a local filesystem path. Redirect imports to the
+                    // app's internal library root instead, which is always a
+                    // writable local directory on Android.
+                    let mut final_dest_folder = if is_android_content_uri(&destination_folder) {
+                        crate::android_integration::get_android_internal_library_root()?
+                    } else {
+                        PathBuf::from(&destination_folder)
+                    };
+
                     if settings.organize_by_date {
                         let date_format_str = settings
                             .date_folder_format
@@ -3635,7 +3645,17 @@ pub async fn import_files(
 
                 let file_date = exif_processing::get_creation_date_from_path(&source_path);
 
+                // On Android, if the destination_folder is a SAF content:// URI,
+                // fs operations cannot work on it. Redirect to internal library root.
+                #[cfg(target_os = "android")]
+                let mut final_dest_folder = if is_android_content_uri(&destination_folder) {
+                    crate::android_integration::get_android_internal_library_root()?
+                } else {
+                    PathBuf::from(&destination_folder)
+                };
+                #[cfg(not(target_os = "android"))]
                 let mut final_dest_folder = PathBuf::from(&destination_folder);
+
                 if settings.organize_by_date {
                     let date_format_str = settings
                         .date_folder_format
