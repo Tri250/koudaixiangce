@@ -1597,6 +1597,13 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
                     while queue.is_empty() {
                         queue = manager_clone.cvar.wait(queue).unwrap();
                     }
+
+                    // Check cancellation token before processing
+                    if app_clone.state::<crate::AppState>().thumbnail_cancellation_token.load(std::sync::atomic::Ordering::SeqCst) {
+                        queue.clear();
+                        continue;
+                    }
+
                     let path = queue.pop_back().unwrap();
 
                     let mut processing = manager_clone.processing_now.lock().unwrap();
@@ -1609,14 +1616,21 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
                     path
                 };
 
+                // Check cancellation token again before expensive processing
+                if app_clone.state::<crate::AppState>().thumbnail_cancellation_token.load(std::sync::atomic::Ordering::SeqCst) {
+                    manager_clone.processing_now.lock().unwrap().remove(&path_to_process);
+                    continue;
+                }
+
                 let state = app_clone.state::<crate::AppState>();
                 let gpu_context =
                     crate::gpu_processing::get_or_init_gpu_context(&state, &app_clone).ok();
 
-                if let Ok(cache_dir) = get_thumb_cache_dir(&app_clone) {
+                let cache_dir = get_thumb_cache_dir(&app_clone);
+                if let Ok(ref cache_dir) = cache_dir {
                     let result = generate_single_thumbnail_and_cache(
                         &path_to_process,
-                        &cache_dir,
+                        cache_dir,
                         gpu_context.as_ref(),
                         None,
                         false,
@@ -1632,9 +1646,19 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
                             rating,
                             is_edited,
                         );
+                    } else {
+                        let _ = app_clone.emit(
+                            "thumbnail-generation-error",
+                            serde_json::json!({ "path": path_to_process }),
+                        );
                     }
-                    increment_thumbnail_progress(&state, &app_clone);
+                } else {
+                    let _ = app_clone.emit(
+                        "thumbnail-generation-error",
+                        serde_json::json!({ "path": path_to_process }),
+                    );
                 }
+                increment_thumbnail_progress(&state, &app_clone);
                 manager_clone
                     .processing_now
                     .lock()
@@ -1668,6 +1692,11 @@ pub fn update_thumbnail_queue(
         state.thumbnail_manager.cvar.notify_all();
         return Ok(());
     }
+
+    // Reset cancellation token when new paths are queued
+    state
+        .thumbnail_cancellation_token
+        .store(false, std::sync::atomic::Ordering::SeqCst);
 
     let mut unique_paths = Vec::new();
     let mut seen = std::collections::HashSet::new();

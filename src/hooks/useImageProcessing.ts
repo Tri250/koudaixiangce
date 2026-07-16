@@ -45,6 +45,12 @@ export function useImageProcessing(
   const activeWaveformChannelRef = useRef(activeWaveformChannel);
   activeWaveformChannelRef.current = activeWaveformChannel;
 
+  const needsInitialApplyRef = useRef(false);
+  useEffect(() => {
+    needsInitialApplyRef.current = true;
+    currentResRef.current = 0;
+  }, [selectedImage?.path]);
+
   const selectedImagePathRef = useRef<string | null>(null);
   useEffect(() => {
     selectedImagePathRef.current = selectedImage?.path ?? null;
@@ -417,13 +423,18 @@ export function useImageProcessing(
 
     if (dragIdleTimer.current) clearTimeout(dragIdleTimer.current);
 
-    const targetRes = calculateTargetRes();
+    const targetRes = calculateTargetRes() || appSettings?.editorPreviewResolution || 1920;
     const renderAdjustments = previewOverride ?? adjustments;
 
     if (isSliderDragging) {
       if (appSettings?.enableLivePreviews !== false) {
         applyAdjustments(renderAdjustments, true, targetRes);
       }
+    } else if (needsInitialApplyRef.current) {
+      needsInitialApplyRef.current = false;
+      currentResRef.current = targetRes;
+
+      applyAdjustments(renderAdjustments, false, targetRes);
     } else {
       dragIdleTimer.current = setTimeout(() => {
         currentResRef.current = targetRes;

@@ -39,6 +39,7 @@ const ThumbnailComponent = ({
   const showEditIcon = isEdited && displayEditIcon;
 
   const [showPlaceholder, setShowPlaceholder] = useState(false);
+  const [isPermanentlyFailed, setIsPermanentlyFailed] = useState(false);
   const [layers, setLayers] = useState<ImageLayer[]>([]);
 
   const [currentPath, setCurrentPath] = useState(path);
@@ -79,12 +80,19 @@ const ThumbnailComponent = ({
   useEffect(() => {
     if (data) {
       setShowPlaceholder(false);
+      setIsPermanentlyFailed(false);
       return;
     }
     const timer = setTimeout(() => {
       setShowPlaceholder(true);
     }, 500);
-    return () => clearTimeout(timer);
+    const failTimer = setTimeout(() => {
+      setIsPermanentlyFailed(true);
+    }, 10000);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(failTimer);
+    };
   }, [data]);
 
   useEffect(() => {
@@ -192,7 +200,7 @@ const ThumbnailComponent = ({
             </div>
           ) : (
             <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-surface">
-              <ImageIcon className="text-text-secondary animate-pulse" />
+              <ImageIcon className={`text-text-secondary${isPermanentlyFailed ? '' : ' animate-pulse'}`} />
             </div>
           ))}
 
@@ -437,6 +445,7 @@ const ListItemComponent = ({
   const exifOverlay = useSettingsStore((s) => s.appSettings?.exifOverlay || ExifOverlay.Off);
 
   const [showPlaceholder, setShowPlaceholder] = useState(false);
+  const [isPermanentlyFailed, setIsPermanentlyFailed] = useState(false);
   const [layers, setLayers] = useState<ImageLayer[]>([]);
 
   const [currentPath, setCurrentPath] = useState(path);
@@ -487,12 +496,19 @@ const ListItemComponent = ({
   useEffect(() => {
     if (data) {
       setShowPlaceholder(false);
+      setIsPermanentlyFailed(false);
       return;
     }
     const timer = setTimeout(() => {
       setShowPlaceholder(true);
     }, 500);
-    return () => clearTimeout(timer);
+    const failTimer = setTimeout(() => {
+      setIsPermanentlyFailed(true);
+    }, 10000);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(failTimer);
+    };
   }, [data]);
 
   useEffect(() => {
@@ -599,7 +615,7 @@ const ListItemComponent = ({
               </div>
             ) : (
               <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-                <ImageIcon size={14} className="text-text-secondary animate-pulse" />
+                <ImageIcon size={14} className={`text-text-secondary${isPermanentlyFailed ? '' : ' animate-pulse'}`} />
               </div>
             ))}
 

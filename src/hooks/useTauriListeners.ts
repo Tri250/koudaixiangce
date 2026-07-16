@@ -120,6 +120,12 @@ export function useTauriListeners({
           scheduleFlush();
         }
       }),
+      listen('thumbnail-generation-error', (event: any) => {
+        if (!isEffectActive) return;
+        const { path } = event.payload;
+        // Mark as generated even on error to prevent infinite retry loops
+        refs.current.markGenerated(path);
+      }),
       listen('image-metadata-loaded', (event: any) => {
         if (!isEffectActive) return;
         const { path, rating, is_edited, tags } = event.payload;

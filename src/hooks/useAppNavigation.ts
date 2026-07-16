@@ -132,9 +132,10 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         (useEditorStore.getState().originalSize.width !== cached.originalSize.width ||
           useEditorStore.getState().originalSize.height !== cached.originalSize.height);
 
-      if (!isCachedInBackend || hasDifferentResolution) {
-        setEditor({ hasRenderedFirstFrame: false });
-      }
+      // Always reset hasRenderedFirstFrame when switching images to prevent
+      // wgpu race condition: stale hasRenderedFirstFrame=true from previous image
+      // would hide SVG fallback before wgpu renders the new image's first frame
+      setEditor({ hasRenderedFirstFrame: false });
 
       selectedImagePathRef.current = path;
       setLibrary({ multiSelectedPaths: [path], libraryActivePath: null, selectionAnchorPath: path });
@@ -273,7 +274,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       const libraryViewMode = appSettings?.libraryViewMode;
 
       if (!preserveEditor) {
-        await invoke('cancel_thumbnail_generation');
+        await invoke(Invokes.CancelThumbnailGeneration);
         clearThumbnailQueue();
         setLibrary({ isViewLoading: true, activeAlbumId: null, libraryScrollTop: 0 });
         useLibraryStore.getState().setSearchCriteria({ tags: [], text: '', mode: 'OR' });
@@ -400,7 +401,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       const { setUI } = useUIStore.getState();
 
       if (!preserveEditor) {
-        await invoke('cancel_thumbnail_generation');
+        await invoke(Invokes.CancelThumbnailGeneration);
         clearThumbnailQueue();
         useLibraryStore.getState().setSearchCriteria({ tags: [], text: '', mode: 'OR' });
         setLibrary({ libraryScrollTop: 0 });
