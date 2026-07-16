@@ -120,8 +120,15 @@ jobs:
         run: npm install
 
       - name: Setup Android signing
-        if: inputs.mobile == 'android' && github.event_name != 'pull_request' && secrets.ANDROID_KEY_BASE64 != ''
+        if: inputs.mobile == 'android' && github.event_name != 'pull_request'
+        env:
+          HAS_KEY: ${{ secrets.ANDROID_KEY_BASE64 != '' }}
+        shell: bash
         run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "ANDROID_KEY_BASE64 secret not configured, skipping signing setup"
+            exit 0
+          fi
           cd src-tauri/gen/android
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
           echo "password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> keystore.properties
