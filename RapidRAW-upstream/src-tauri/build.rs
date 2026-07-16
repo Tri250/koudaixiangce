@@ -174,6 +174,15 @@ fn main() {
         println!("cargo:rustc-env=ORT_LIB_LOCATION={}", dest_dir.display());
         println!("cargo:rustc-env=ORT_STRATEGY=manual");
         println!("cargo:rustc-link-search=native={}", dest_dir.display());
+
+        // Force 16KB page alignment for Android 15+ (API 35) compatibility.
+        // On 16KB-page devices (Pixel 8a+, Galaxy S24+ on Android 15/16), the dynamic
+        // linker refuses to load .so files with 4KB-aligned PT_LOAD segments, causing
+        // `UnsatisfiedLinkError: dlopen failed: ... not page-aligned` and immediate
+        // app crash on launch. Using cargo:rustc-link-arg (not rustflags) ensures the
+        // flag survives even when Tauri's Gradle plugin overrides CARGO_TARGET_*_RUSTFLAGS.
+        println!("cargo:rustc-link-arg=-Wl,-z,max-page-size=16384");
+        println!("cargo:rustc-link-arg=-Wl,-z,common-page-size=16384");
     }
 
     println!("cargo:rerun-if-changed=build.rs");

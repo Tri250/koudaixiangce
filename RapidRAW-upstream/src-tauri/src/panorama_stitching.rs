@@ -165,7 +165,8 @@ pub async fn save_panorama(
         let mut buf = std::io::Cursor::new(Vec::new());
         let ext = if output_filename.ends_with(".tiff") { "tiff" } else { "png" };
         image_to_save
-            .write_to(&mut buf, image::ImageFormat::from_extension(ext))
+            .write_to(&mut buf, image::ImageFormat::from_extension(ext)
+                .ok_or_else(|| format!("Unsupported image extension: {}", ext))?)
             .map_err(|e| format!("Failed to encode panorama image: {}", e))?;
         crate::android_integration::save_image_bytes_to_android_gallery(
             &output_filename,
