@@ -3,6 +3,22 @@ name: 'Release: Build & Package App'
 on:
   release:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Build platform'
+        required: false
+        type: choice
+        default: 'all'
+        options:
+          - all
+          - android
+          - linux
+          - macos
+          - windows
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   release:

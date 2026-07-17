@@ -1291,6 +1291,48 @@ export default function SettingsPanel({
                   </div>
                 </section>
 
+                {/* 联系我 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <ExternalLinkIcon size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.contact.title')}
+                    </Text>
+                  </div>
+                  <div className="space-y-4">
+                    <Text variant={TextVariants.body} className="block text-text-secondary">
+                      {t('settings.contact.description')}
+                    </Text>
+                    <div className="flex flex-col gap-3 p-4 bg-bg-primary rounded-xl border border-border-color/60">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-[#ff2d55] bg-opacity-10 rounded-lg border border-[#ff2d55]/30">
+                          <Text variant={TextVariants.label} color={TextColors.primary} weight={TextWeights.semibold}>
+                            抖音
+                          </Text>
+                        </div>
+                        <Text variant={TextVariants.body} color={TextColors.primary} weight={TextWeights.semibold}>
+                          带娃的小陈工
+                        </Text>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-[#ff2442] bg-opacity-10 rounded-lg border border-[#ff2442]/30">
+                          <Text variant={TextVariants.label} color={TextColors.primary} weight={TextWeights.semibold}>
+                            小红书
+                          </Text>
+                        </div>
+                        <Text variant={TextVariants.body} color={TextColors.primary} weight={TextWeights.semibold}>
+                          带娃的小陈工
+                        </Text>
+                      </div>
+                    </div>
+                    <Text variant={TextVariants.small} color={TextColors.secondary} className="italic">
+                      {t('settings.contact.hint')}
+                    </Text>
+                  </div>
+                </section>
+
                 {/* 镜头管理 */}
                 <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
                   <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
