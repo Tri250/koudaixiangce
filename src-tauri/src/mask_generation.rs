@@ -1051,11 +1051,22 @@ fn generate_color_bitmap(
 
     let target_x = params.target_x.round() as i32;
     let target_y = params.target_y.round() as i32;
-    if target_x < 0 || target_y < 0 || target_x >= full_w as i32 || target_y >= full_h as i32 {
+    if target_x < 0
+        || target_y < 0
+        || target_x >= full_w as i32
+        || target_y >= full_h as i32
+    {
         return None;
     }
 
-    let ref_pixel = warped.get_pixel(target_x as u32, target_y as u32);
+    let target_x = target_x as u32;
+    let target_y = target_y as u32;
+
+    if target_x >= full_w || target_y >= full_h {
+        return None;
+    }
+
+    let ref_pixel = warped.get_pixel(target_x, target_y);
     let ref_r = ref_pixel[0] as f32;
     let ref_g = ref_pixel[1] as f32;
     let ref_b = ref_pixel[2] as f32;
@@ -1152,11 +1163,22 @@ fn generate_luminance_bitmap(
 
     let target_x = params.target_x.round() as i32;
     let target_y = params.target_y.round() as i32;
-    if target_x < 0 || target_y < 0 || target_x >= full_w as i32 || target_y >= full_h as i32 {
+    if target_x < 0
+        || target_y < 0
+        || target_x >= full_w as i32
+        || target_y >= full_h as i32
+    {
         return None;
     }
 
-    let ref_pixel = warped.get_pixel(target_x as u32, target_y as u32);
+    let target_x = target_x as u32;
+    let target_y = target_y as u32;
+
+    if target_x >= full_w || target_y >= full_h {
+        return None;
+    }
+
+    let ref_pixel = warped.get_pixel(target_x, target_y);
     let ref_luma =
         0.299 * ref_pixel[0] as f32 + 0.587 * ref_pixel[1] as f32 + 0.114 * ref_pixel[2] as f32;
 

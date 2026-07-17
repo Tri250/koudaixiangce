@@ -354,7 +354,18 @@ pub fn load_image_with_orientation(
         .with_guessed_format()
         .context("Failed to guess image format")?;
 
-    reader.no_limits();
+    #[cfg(target_os = "android")]
+    {
+        let mut limits = image::io::Limits::default();
+        limits.max_image_width = Some(32768);
+        limits.max_image_height = Some(32768);
+        limits.max_alloc = Some(512 * 1024 * 1024); // 512MB
+        reader.set_limits(limits)?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        reader.no_limits();
+    }
 
     check_cancel()?;
 

@@ -212,9 +212,60 @@ fn persist_downloaded_asset(dest: &Path, bytes: &[u8]) -> Result<()> {
 }
 
 async fn download_model(url: &str, dest: &Path) -> Result<()> {
-    let response = reqwest::get(url).await?.error_for_status()?;
-    let bytes = response.bytes().await?;
-    persist_downloaded_asset(dest, &bytes)
+    const MAX_RETRIES: u32 = 3;
+    const CONNECT_TIMEOUT_SECS: u64 = 30;
+    const READ_TIMEOUT_SECS: u64 = 120;
+
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
+        .timeout(std::time::Duration::from_secs(READ_TIMEOUT_SECS))
+        .build()?;
+
+    let mut last_error = None;
+
+    for attempt in 1..=MAX_RETRIES {
+        match client.get(url).send().await {
+            Ok(response) => {
+                let response = response.error_for_status()?;
+                match response.bytes().await {
+                    Ok(bytes) => {
+                        return persist_downloaded_asset(dest, &bytes);
+                    }
+                    Err(e) => {
+                        last_error = Some(e);
+                        log::warn!(
+                            "Download attempt {}/{} failed to read bytes for {}: {}",
+                            attempt,
+                            MAX_RETRIES,
+                            url,
+                            e
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                last_error = Some(e);
+                log::warn!(
+                    "Download attempt {}/{} failed for {}: {}",
+                    attempt,
+                    MAX_RETRIES,
+                    url,
+                    e
+                );
+            }
+        }
+
+        if attempt < MAX_RETRIES {
+            let delay = std::time::Duration::from_secs(2u64.pow(attempt - 1));
+            tokio::time::sleep(delay).await;
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "Failed to download model after {} attempts: {:?}",
+        MAX_RETRIES,
+        last_error
+    ))
 }
 
 fn verify_sha256(path: &Path, expected_hash: &str) -> Result<bool> {

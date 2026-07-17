@@ -246,10 +246,7 @@ pub fn resolve_android_content_uri_name(uri_str: &str) -> Result<String, String>
             .map_err(|e| map_android_jni_error(&mut env, e))?;
 
         if cursor.is_null() {
-            return Err(format!(
-                "ContentResolver query returned no cursor for URI: {}",
-                uri_str
-            ));
+            return fallback_uri_name(uri_str);
         }
 
         let result = (|| -> Result<String, String> {
@@ -259,10 +256,7 @@ pub fn resolve_android_content_uri_name(uri_str: &str) -> Result<String, String>
                 .map_err(|e| map_android_jni_error(&mut env, e))?;
 
             if !moved {
-                return Err(format!(
-                    "No metadata rows found for content URI: {}",
-                    uri_str
-                ));
+                return fallback_uri_name(uri_str);
             }
 
             let display_name_column = env
@@ -284,10 +278,7 @@ pub fn resolve_android_content_uri_name(uri_str: &str) -> Result<String, String>
                 .map_err(|e| map_android_jni_error(&mut env, e))?;
 
             if column_index < 0 {
-                return Err(format!(
-                    "DISPLAY_NAME column was unavailable for content URI: {}",
-                    uri_str
-                ));
+                return fallback_uri_name(uri_str);
             }
 
             let display_name_obj = env
@@ -301,10 +292,7 @@ pub fn resolve_android_content_uri_name(uri_str: &str) -> Result<String, String>
                 .map_err(|e| map_android_jni_error(&mut env, e))?;
 
             if display_name_obj.is_null() {
-                return Err(format!(
-                    "Display name was null for content URI: {}",
-                    uri_str
-                ));
+                return fallback_uri_name(uri_str);
             }
 
             let display_name_java = JString::from(display_name_obj);
@@ -312,7 +300,11 @@ pub fn resolve_android_content_uri_name(uri_str: &str) -> Result<String, String>
                 .get_string(&display_name_java)
                 .map_err(|e| map_android_jni_error(&mut env, e))?;
 
-            Ok(display_name.into())
+            let name: String = display_name.into();
+            if name.trim().is_empty() {
+                return fallback_uri_name(uri_str);
+            }
+            Ok(name)
         })();
 
         close_android_closeable(&mut env, &cursor);
@@ -322,6 +314,22 @@ pub fn resolve_android_content_uri_name(uri_str: &str) -> Result<String, String>
     {
         Ok(uri_str.to_string())
     }
+}
+
+fn fallback_uri_name(uri_str: &str) -> Result<String, String> {
+    if let Some(last_slash) = uri_str.rfind('/') {
+        let candidate = &uri_str[last_slash + 1..];
+        if !candidate.trim().is_empty() {
+            return Ok(candidate.to_string());
+        }
+    }
+    if let Some(last_colon) = uri_str.rfind(':') {
+        let candidate = &uri_str[last_colon + 1..];
+        if !candidate.trim().is_empty() {
+            return Ok(candidate.to_string());
+        }
+    }
+    Err(format!("Unable to resolve file name for content URI: {}", uri_str))
 }
 
 #[cfg(target_os = "android")]
@@ -334,6 +342,66 @@ pub fn read_android_content_uri(uri_str: &str) -> Result<Vec<u8>, String> {
 
     let resolver = get_android_content_resolver(&mut env)?;
     let uri = parse_android_uri(&mut env, uri_str)?;
+
+    // Try to get file size from ContentResolver to pre-allocate capacity
+    let mut estimated_size: Option<usize> = None;
+    {
+        let null_obj = JObject::null();
+        let size_cursor = env
+            .call_method(
+                &resolver,
+                "query",
+                "(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)Landroid/database/Cursor;",
+                &[
+                    (&uri).into(),
+                    (&null_obj).into(),
+                    (&null_obj).into(),
+                    (&null_obj).into(),
+                    (&null_obj).into(),
+                ],
+            )
+            .and_then(|value| value.l())
+            .ok();
+
+        if let Some(cursor) = size_cursor {
+            if !cursor.is_null() {
+                let _ = (|| -> Result<(), String> {
+                    let moved = env
+                        .call_method(&cursor, "moveToFirst", "()Z", &[])
+                        .and_then(|value| value.z())
+                        .map_err(|e| map_android_jni_error(&mut env, e))?;
+                    if moved {
+                        let size_column = env
+                            .get_static_field(
+                                "android/provider/OpenableColumns",
+                                "SIZE",
+                                "Ljava/lang/String;",
+                            )
+                            .and_then(|value| value.l())
+                            .ok();
+                        if let Some(col) = size_column {
+                            let idx = env
+                                .call_method(&cursor, "getColumnIndex", "(Ljava/lang/String;)I", &[(&col).into()])
+                                .and_then(|value| value.i())
+                                .unwrap_or(-1);
+                            if idx >= 0 {
+                                let size = env
+                                    .call_method(&cursor, "getLong", "(I)J", &[JValue::from(idx)])
+                                    .and_then(|value| value.j())
+                                    .unwrap_or(0);
+                                if size > 0 {
+                                    estimated_size = Some(size as usize);
+                                }
+                            }
+                        }
+                    }
+                    Ok(())
+                })();
+                close_android_closeable(&mut env, &cursor);
+            }
+        }
+    }
+
     let input_stream = env
         .call_method(
             &resolver,
@@ -352,13 +420,14 @@ pub fn read_android_content_uri(uri_str: &str) -> Result<Vec<u8>, String> {
     }
 
     let result = (|| -> Result<Vec<u8>, String> {
-        const BUFFER_SIZE: i32 = 8192;
+        const BUFFER_SIZE: i32 = 65536;
+        const MAX_SIZE: usize = 2 * 1024 * 1024 * 1024; // 2GB safety limit
 
         let java_buffer = env
             .new_byte_array(BUFFER_SIZE)
             .map_err(|e| map_android_jni_error(&mut env, e))?;
         let mut rust_buffer = vec![0i8; BUFFER_SIZE as usize];
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(estimated_size.unwrap_or(BUFFER_SIZE as usize).min(MAX_SIZE));
 
         loop {
             let read_count = env
@@ -371,10 +440,18 @@ pub fn read_android_content_uri(uri_str: &str) -> Result<Vec<u8>, String> {
             }
 
             if read_count == 0 {
-                break;
+                continue;
             }
 
             let read_len = read_count as usize;
+
+            if bytes.len() + read_len > MAX_SIZE {
+                return Err(format!(
+                    "Android content URI file exceeds maximum safe size (2GB): {}",
+                    uri_str
+                ));
+            }
+
             env.get_byte_array_region(&java_buffer, 0, &mut rust_buffer[..read_len])
                 .map_err(|e| map_android_jni_error(&mut env, e))?;
             bytes.extend(rust_buffer[..read_len].iter().map(|byte| *byte as u8));
@@ -467,6 +544,10 @@ pub fn save_bytes_to_android_media_store(
     collection_class: &str,
     bytes: &[u8],
 ) -> Result<(), String> {
+    if bytes.is_empty() {
+        return Err(format!("Cannot save empty bytes to MediaStore for {}", file_name));
+    }
+
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -531,11 +612,22 @@ pub fn save_bytes_to_android_media_store(
     }
 
     let write_result = (|| -> Result<(), String> {
-        let byte_array = env
-            .byte_array_from_slice(bytes)
-            .map_err(|e| map_android_jni_error(&mut env, e))?;
-        env.call_method(&output_stream, "write", "([B)V", &[(&byte_array).into()])
-            .map_err(|e| map_android_jni_error(&mut env, e))?;
+        // Write in chunks to avoid oversized JNI arrays and reduce memory pressure
+        const CHUNK_SIZE: usize = 512 * 1024; // 512KB chunks
+        let total = bytes.len();
+        let mut offset = 0usize;
+
+        while offset < total {
+            let end = (offset + CHUNK_SIZE).min(total);
+            let chunk = &bytes[offset..end];
+            let byte_array = env
+                .byte_array_from_slice(chunk)
+                .map_err(|e| map_android_jni_error(&mut env, e))?;
+            env.call_method(&output_stream, "write", "([B)V", &[(&byte_array).into()])
+                .map_err(|e| map_android_jni_error(&mut env, e))?;
+            offset = end;
+        }
+
         env.call_method(&output_stream, "flush", "()V", &[])
             .map_err(|e| map_android_jni_error(&mut env, e))?;
         Ok(())

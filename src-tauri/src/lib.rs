@@ -346,9 +346,27 @@ fn process_preview_job(
 
     let has_roi = roi.is_some();
     let (interactive_divisor, interactive_quality) = match live_quality {
-        "full" => (1.0_f32, 85_u8),
-        "performance" => (if has_roi { 1.8_f32 } else { 1.5_f32 }, 65_u8),
-        _ => (if has_roi { 1.4_f32 } else { 1.0_f32 }, 75_u8),
+        "full" => {
+            #[cfg(target_os = "android")]
+            let divisor = if has_roi { 1.6_f32 } else { 1.3_f32 };
+            #[cfg(not(target_os = "android"))]
+            let divisor = if has_roi { 1.4_f32 } else { 1.0_f32 };
+            (divisor, 75_u8)
+        }
+        "performance" => {
+            #[cfg(target_os = "android")]
+            let divisor = if has_roi { 2.2_f32 } else { 1.8_f32 };
+            #[cfg(not(target_os = "android"))]
+            let divisor = if has_roi { 1.8_f32 } else { 1.5_f32 };
+            (divisor, 60_u8)
+        }
+        _ => {
+            #[cfg(target_os = "android")]
+            let divisor = if has_roi { 1.8_f32 } else { 1.5_f32 };
+            #[cfg(not(target_os = "android"))]
+            let divisor = if has_roi { 1.4_f32 } else { 1.0_f32 };
+            (divisor, 68_u8)
+        }
     };
 
     let mut cached_preview_lock = state.cached_preview.lock().unwrap();
@@ -2292,6 +2310,9 @@ pub fn run() {
             load_image_generation: Arc::new(AtomicUsize::new(0)),
             full_warped_cache: Mutex::new(None),
             full_transformed_cache: Mutex::new(None),
+            #[cfg(target_os = "android")]
+            decoded_image_cache: Mutex::new(DecodedImageCache::new(2)),
+            #[cfg(not(target_os = "android"))]
             decoded_image_cache: Mutex::new(DecodedImageCache::new(5)),
             thumbnail_manager: ThumbnailManager::new(),
             metadata_manager: MetadataManager::new(),

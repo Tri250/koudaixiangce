@@ -25,6 +25,15 @@
     "fs:allow-create",
     "fs:allow-appcache-read",
     "fs:allow-appcache-write",
-    "fs:allow-appcache-meta"
+    "fs:allow-appcache-meta",
+    "fs:allow-appdata-read",
+    "fs:allow-appdata-write",
+    "fs:allow-appdata-meta",
+    "fs:allow-appconfig-read",
+    "fs:allow-appconfig-write",
+    "fs:allow-appconfig-meta",
+    "fs:allow-download-read",
+    "fs:allow-download-write",
+    "fs:allow-download-meta"
   ]
 }

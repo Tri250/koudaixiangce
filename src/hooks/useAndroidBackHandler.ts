@@ -1,8 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useUIStore } from '../store/useUIStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 
+let lastBackPressTime = 0;
+
 export function useAndroidBackHandler() {
+  const toastShownRef = useRef(false);
+
   useEffect(() => {
     const osPlatform = useSettingsStore.getState().osPlatform;
     if (osPlatform !== 'android') return;
@@ -88,6 +92,18 @@ export function useAndroidBackHandler() {
       }
       if (ui.collageModalState.isOpen) {
         ui.setUI({ collageModalState: { isOpen: false, sourceImages: [] } });
+        return;
+      }
+      if (ui.isFullScreen) {
+        ui.setUI({ isFullScreen: false });
+        return;
+      }
+      if (ui.activeRightPanel !== null) {
+        ui.setRightPanel(null);
+        return;
+      }
+      if (ui.isLibraryExportPanelVisible) {
+        ui.setUI({ isLibraryExportPanelVisible: false });
         return;
       }
 

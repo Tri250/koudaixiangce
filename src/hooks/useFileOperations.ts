@@ -350,6 +350,11 @@ export function useFileOperations(
             return;
           }
 
+          if (validFiles.length === 0) {
+            toast.error('No valid image files selected for import.');
+            return;
+          }
+
           if (isAndroid) {
             const DEFAULT_IMPORT_SETTINGS = {
               filenameTemplate: '{original_filename}',
@@ -357,7 +362,13 @@ export function useFileOperations(
               dateFolderFormat: 'YYYY/MM-DD',
               deleteAfterImport: false,
             };
-            await startImportFiles(validFiles, targetPath, DEFAULT_IMPORT_SETTINGS);
+            try {
+              await startImportFiles(validFiles, targetPath, DEFAULT_IMPORT_SETTINGS);
+              toast.success(`Importing ${validFiles.length} file(s)...`);
+            } catch (err) {
+              console.error('Android import failed:', err);
+              toast.error(`Import failed: ${err}`);
+            }
             return;
           }
 

@@ -367,6 +367,13 @@ fn save_image_with_metadata(
 
     #[cfg(target_os = "android")]
     {
+        const MAX_ANDROID_GALLERY_BYTES: usize = 512 * 1024 * 1024; // 512MB safety limit
+        if image_bytes.len() > MAX_ANDROID_GALLERY_BYTES {
+            return Err(format!(
+                "Exported image ({} MB) exceeds Android gallery safe limit (512 MB). Try reducing resolution or quality.",
+                image_bytes.len() / (1024 * 1024)
+            ));
+        }
         let file_name = output_path
             .file_name()
             .and_then(|name| name.to_str())

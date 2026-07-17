@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.OnBackPressedCallback
@@ -60,12 +61,20 @@ class MainActivity : TauriActivity() {
       if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
         permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
       }
+      if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_MEDIA_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        permissionsToRequest.add(Manifest.permission.ACCESS_MEDIA_LOCATION)
+      }
       if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
         permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
       }
     } else {
       if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
         permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_MEDIA_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+          permissionsToRequest.add(Manifest.permission.ACCESS_MEDIA_LOCATION)
+        }
       }
     }
 
@@ -83,8 +92,18 @@ class MainActivity : TauriActivity() {
   override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     if (requestCode == PERMISSION_REQUEST_CODE) {
-      // Permissions handled; app continues regardless of result.
-      // Frontend will observe file access errors if critical permissions are denied.
+      val deniedPermissions = mutableListOf<String>()
+      for (i in permissions.indices) {
+        if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+          deniedPermissions.add(permissions[i])
+        }
+      }
+      if (deniedPermissions.isNotEmpty()) {
+        webView?.evaluateJavascript(
+          "window.dispatchEvent(new CustomEvent('android-permissions-denied', { detail: ${deniedPermissions.map { '\"' + it + '\"' }.toString()} }));",
+          null
+        )
+      }
     }
   }
 
@@ -101,7 +120,19 @@ class MainActivity : TauriActivity() {
     val webSettings = webView.settings
     webSettings.javaScriptEnabled = true
     webSettings.domStorageEnabled = true
-    webSettings.setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
+    webSettings.databaseEnabled = true
+    webSettings.setRenderPriority(WebSettings.RenderPriority.HIGH)
+    webSettings.cacheMode = WebSettings.LOAD_DEFAULT
+    webSettings.setSupportMultipleWindows(false)
+
+    // Increase local storage capacity for large image metadata
+    webSettings.setAppCacheEnabled(true)
+    webSettings.setAppCacheMaxSize(256 * 1024 * 1024)
+
+    // Enable mixed content for local development if needed, but keep secure by default
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+      webSettings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+    }
 
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
       override fun handleOnBackPressed() {
@@ -111,5 +142,15 @@ class MainActivity : TauriActivity() {
         )
       }
     })
+  }
+
+  override fun onDestroy() {
+    webView?.let {
+      it.stopLoading()
+      it.loadUrl("about:blank")
+      it.destroy()
+    }
+    webView = null
+    super.onDestroy()
   }
 }

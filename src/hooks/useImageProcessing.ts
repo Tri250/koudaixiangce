@@ -328,6 +328,12 @@ export function useImageProcessing(
     let targetRes = Math.max(displaySize.width, displaySize.height) * effectiveDpr * sharpnessFactor * zoomMultiplier;
     targetRes = Math.max(targetRes, 512);
 
+    // Cap target resolution on Android to prevent excessive memory/CPU usage
+    const osPlatform = useSettingsStore.getState().osPlatform;
+    if (osPlatform === 'android') {
+      targetRes = Math.min(targetRes, 2560);
+    }
+
     if (originalSize && originalSize.width > 0 && originalSize.height > 0) {
       const origMax = Math.max(originalSize.width, originalSize.height);
       targetRes = Math.min(targetRes, origMax);
