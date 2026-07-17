@@ -122,10 +122,9 @@ export default function PortraitPanel() {
   const [selectedSubject, setSelectedSubject] = useState<SubjectType>('all');
   const [pendingValues, setPendingValues] = useState<Record<string, number | boolean>>({});
 
-  const { adjustments, setEditor } = useEditorStore(
+  const { adjustments } = useEditorStore(
     useShallow((state) => ({
       adjustments: state.adjustments,
-      setEditor: state.setEditor,
     })),
   );
   const { setAdjustments } = useEditorActions();
