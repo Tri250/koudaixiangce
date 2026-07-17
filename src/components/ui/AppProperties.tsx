@@ -124,6 +124,10 @@ export enum Panel {
   Masks = 'masks',
   Metadata = 'metadata',
   Presets = 'presets',
+  Portrait = 'portrait',
+  Liquify = 'liquify',
+  Sky = 'sky',
+  Creative = 'creative',
 }
 
 export enum RawStatus {

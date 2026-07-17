@@ -15,6 +15,14 @@ mod app_state;
 mod cache_utils;
 mod culling;
 mod denoising;
+mod portrait_detection;
+mod liquify;
+mod skin_retouching;
+mod face_reshaping;
+mod sky_replacement;
+mod ai_color_match;
+mod super_resolution;
+mod creative_tools;
 mod exif_processing;
 mod export_processing;
 mod file_management;
@@ -32,6 +40,7 @@ mod panorama_stitching;
 mod panorama_utils;
 mod preset_converter;
 mod raw_processing;
+mod retouching_commands;
 mod tagging;
 mod tagging_utils;
 mod window_customizer;
@@ -2399,6 +2408,28 @@ pub fn run() {
             lens_correction::get_lens_distortion_params,
             negative_conversion::preview_negative_conversion,
             negative_conversion::convert_negatives,
+            retouching_commands::detect_faces_in_image,
+            retouching_commands::detect_body_in_image,
+            retouching_commands::apply_liquify,
+            retouching_commands::apply_skin_smoothing,
+            retouching_commands::auto_remove_blemishes,
+            retouching_commands::apply_face_reshape,
+            retouching_commands::apply_body_reshape,
+            retouching_commands::unify_skin_color,
+            retouching_commands::replace_sky,
+            retouching_commands::ai_remove_people,
+            retouching_commands::ai_match_colors,
+            retouching_commands::apply_fill_light,
+            retouching_commands::apply_super_resolution,
+            retouching_commands::process_id_photo,
+            retouching_commands::retouch_clothing,
+            retouching_commands::apply_lens_blur,
+            retouching_commands::restore_old_photo,
+            retouching_commands::apply_seasonal_effect,
+            retouching_commands::batch_sync_preset,
+            retouching_commands::add_eye_catchlight,
+            retouching_commands::adjust_smile,
+            retouching_commands::adjust_neck_shoulder,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

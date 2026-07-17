@@ -93,6 +93,7 @@ pub struct AiState {
     pub lama_model: Option<Arc<Mutex<Session>>>,
     pub embeddings: Option<ImageEmbeddings>,
     pub depth_map: Option<CachedDepthMap>,
+    pub super_resolution_model: Option<Arc<Mutex<Session>>>,
 }
 
 fn edt_1d(f: &mut [f32], v: &mut [usize], z: &mut [f32], d: &mut [f32]) {
@@ -409,6 +410,7 @@ pub async fn get_or_init_ai_models(
             lama_model: None,
             embeddings: None,
             depth_map: None,
+            super_resolution_model: None,
         });
     }
 
@@ -469,6 +471,7 @@ pub async fn get_or_init_denoise_model(
             lama_model: None,
             embeddings: None,
             depth_map: None,
+            super_resolution_model: None,
         });
     }
 
@@ -541,6 +544,7 @@ pub async fn get_or_init_clip_models(
             lama_model: None,
             embeddings: None,
             depth_map: None,
+            super_resolution_model: None,
         });
     }
 
@@ -601,6 +605,7 @@ pub async fn get_or_init_lama_model(
             lama_model: Some(lama_model.clone()),
             embeddings: None,
             depth_map: None,
+            super_resolution_model: None,
         });
     }
 

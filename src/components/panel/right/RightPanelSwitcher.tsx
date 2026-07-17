@@ -7,6 +7,10 @@ import {
   Paintbrush,
   SwatchBook,
   FileInput,
+  User,
+  Waves,
+  CloudSun,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +36,10 @@ const panelGroups: Array<Array<PanelOptions>> = [
     { id: Panel.Crop, icon: Crop, title: 'editor.switcher.tooltips.crop' },
     { id: Panel.Masks, icon: Layers, title: 'editor.switcher.tooltips.masks' },
     { id: Panel.Ai, icon: Paintbrush, title: 'editor.switcher.tooltips.inpaint' },
+    { id: Panel.Portrait, icon: User, title: 'editor.switcher.tooltips.portrait' },
+    { id: Panel.Liquify, icon: Waves, title: 'editor.switcher.tooltips.liquify' },
+    { id: Panel.Sky, icon: CloudSun, title: 'editor.switcher.tooltips.sky' },
+    { id: Panel.Creative, icon: Sparkles, title: 'editor.switcher.tooltips.creative' },
   ],
   [
     { id: Panel.Presets, icon: SwatchBook, title: 'editor.switcher.tooltips.presets' },

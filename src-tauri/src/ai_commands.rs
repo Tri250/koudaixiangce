@@ -83,6 +83,27 @@ pub async fn generate_ai_sky_mask(
     })
 }
 
+/// Internal sky mask generation for use by other modules (e.g., sky_replacement).
+/// Returns the gray mask image directly.
+pub fn generate_sky_mask_internal(
+    image: &DynamicImage,
+    app_handle: &tauri::AppHandle,
+) -> anyhow::Result<image::GrayImage> {
+    let state = app_handle.state::<crate::app_state::AppState>();
+
+    // Try to get AI models synchronously (they may already be loaded)
+    let ai_state_lock = state.ai_state.lock().unwrap();
+    if let Some(ai_state) = ai_state_lock.as_ref() {
+        if let Some(models) = &ai_state.models {
+            return crate::ai_processing::run_sky_seg_model(image, &models.sky_seg);
+        }
+    }
+    drop(ai_state_lock);
+
+    // Models not loaded yet - return error so caller can use fallback
+    Err(anyhow::anyhow!("AI models not loaded yet"))
+}
+
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn generate_ai_depth_mask(

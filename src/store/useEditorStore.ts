@@ -72,6 +72,16 @@ interface EditorState {
   copiedMask: MaskContainer | null;
   copiedAdjustments: Adjustments | null;
 
+  // Retouching & Portrait
+  faceLandmarks: any[] | null;
+  bodyKeypoints: any[] | null;
+  liquifyStrokes: any[];
+  skinSmoothingMethod: 'neutral_gray' | 'bilateral' | 'frequency_separation';
+  skinSmoothingStrength: number;
+  skinTexturePreservation: number;
+  portraitDetectionLoading: boolean;
+  activeRetouchingTab: 'face' | 'skin' | 'body' | 'hair' | 'creative';
+
   // Actions
   setEditor: (updater: Partial<EditorState> | ((state: EditorState) => Partial<EditorState>)) => void;
   pushHistory: (newAdjustments: Adjustments) => void;
@@ -129,6 +139,15 @@ export const useEditorStore = create<EditorState>((set) => ({
   isMaskControlHovered: false,
   hasRenderedFirstFrame: false,
   patchesSentToBackend: new Set<string>(),
+
+  faceLandmarks: null,
+  bodyKeypoints: null,
+  liquifyStrokes: [],
+  skinSmoothingMethod: 'bilateral',
+  skinSmoothingStrength: 50,
+  skinTexturePreservation: 50,
+  portraitDetectionLoading: false,
+  activeRetouchingTab: 'face',
 
   setEditor: (updater) => set((state) => (typeof updater === 'function' ? updater(state) : updater)),
 
