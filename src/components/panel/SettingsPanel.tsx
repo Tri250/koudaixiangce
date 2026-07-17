@@ -206,16 +206,22 @@ const KeybindRow = ({
 };
 
 const SettingItem = ({ children, description, label }: SettingItemProps) => (
-  <div>
-    <Text variant={TextVariants.heading} className="block mb-2">
-      {label}
-    </Text>
-    {children}
-    {description && (
-      <Text variant={TextVariants.small} className="mt-2">
-        {description}
-      </Text>
-    )}
+  <div className="group py-4 first:pt-0 last:pb-0">
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-6">
+      <div className="flex-1 min-w-0">
+        <Text variant={TextVariants.heading} className="block mb-1">
+          {label}
+        </Text>
+        {description && (
+          <Text variant={TextVariants.small} color={TextColors.secondary} className="block leading-relaxed">
+            {description}
+          </Text>
+        )}
+      </div>
+      <div className="shrink-0 sm:pt-0.5">
+        {children}
+      </div>
+    </div>
   </div>
 );
 
@@ -1004,16 +1010,16 @@ export default function SettingsPanel({
             </Text>
           </div>
 
-          <div className="relative flex w-full min-[1200px]:w-112.5 p-2 bg-surface rounded-md">
+          <nav className="relative flex w-full sm:w-auto min-[1200px]:w-112.5 p-1.5 bg-bg-primary rounded-xl border border-border-color shadow-sm">
             {settingCategories.map((category) => (
               <button
                 key={category.id}
                 onClick={() => setActiveCategory(category.id)}
                 className={clsx(
-                  'relative flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+                  'relative flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 select-none',
                   {
-                    'text-text-primary hover:bg-surface': activeCategory !== category.id,
-                    'text-button-text': activeCategory === category.id,
+                    'text-text-secondary hover:text-text-primary hover:bg-surface/60': activeCategory !== category.id,
+                    'text-button-text shadow-sm': activeCategory === category.id,
                   },
                 )}
                 style={{ WebkitTapHighlightColor: 'transparent' }}
@@ -1022,17 +1028,17 @@ export default function SettingsPanel({
                   <motion.span
                     layoutId="settings-category-switch-bubble"
                     className="absolute inset-0 z-0 bg-accent"
-                    style={{ borderRadius: 6 }}
-                    transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                    style={{ borderRadius: 8 }}
+                    transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
                   />
                 )}
-                <span className="relative z-10 flex items-center">
-                  <category.icon size={16} className="mr-2 shrink-0" />
+                <span className="relative z-10 flex items-center gap-2">
+                  <category.icon size={18} className="shrink-0" />
                   <span className="truncate">{category.label}</span>
                 </span>
               </button>
             ))}
-          </div>
+          </nav>
         </header>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden pr-2 -mr-2 custom-scrollbar">
@@ -1044,104 +1050,70 @@ export default function SettingsPanel({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-10"
+                className="space-y-6"
               >
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.general.title')}
-                  </Text>
-                  <div className="space-y-8">
+                {/* 外观与语言 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <SlidersHorizontal size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.general.title')}
+                    </Text>
+                  </div>
+                  <div className="divide-y divide-border-color/40">
+                    <SettingItem label={t('settings.language')} description={t('settings.languageDesc')}>
+                      <Dropdown
+                        onChange={(value: any) => onSettingsChange({ ...appSettings, language: value })}
+                        options={[
+                          { value: 'zh-CN', label: '简体中文' },
+                          { value: 'zh-TW', label: '繁體中文' },
+                          { value: 'en', label: 'English' },
+                          { value: 'ja', label: '日本語' },
+                          { value: 'ko', label: '한국어' },
+                          { value: 'de', label: 'Deutsch' },
+                          { value: 'es', label: 'Español' },
+                          { value: 'fr', label: 'Français' },
+                          { value: 'it', label: 'Italiano' },
+                          { value: 'pl', label: 'Polski' },
+                          { value: 'pt', label: 'Português' },
+                          { value: 'ru', label: 'Русский' },
+                        ]}
+                        value={appSettings?.language || 'zh-CN'}
+                        triggerClassName="bg-bg-primary min-w-[10rem]"
+                      />
+                    </SettingItem>
                     <SettingItem label={t('settings.general.theme')} description={t('settings.general.themeDesc')}>
                       <Dropdown
                         onChange={(value: any) => onSettingsChange({ ...appSettings, theme: value })}
                         options={THEMES.map((theme: ThemeProps) => ({ value: theme.id, label: t(theme.name as any) }))}
                         value={appSettings?.theme || DEFAULT_THEME_ID}
-                        triggerClassName="bg-bg-primary"
+                        triggerClassName="bg-bg-primary min-w-[10rem]"
                       />
                     </SettingItem>
-
-                    <SettingItem label={t('settings.language')} description={t('settings.languageDesc')}>
+                    <SettingItem label={t('settings.general.font')} description={t('settings.general.fontDesc')}>
                       <Dropdown
-                        onChange={(value: any) => onSettingsChange({ ...appSettings, language: value })}
-                        options={[
-                          { value: 'en', label: 'English' },
-                          { value: 'de', label: 'Deutsch' },
-                          { value: 'es', label: 'Español' },
-                          { value: 'fr', label: 'Français' },
-                          { value: 'it', label: 'Italiano' },
-                          { value: 'ja', label: '日本語' },
-                          { value: 'ko', label: '한국어' },
-                          { value: 'pl', label: 'Polski' },
-                          { value: 'pt', label: 'Português' },
-                          { value: 'ru', label: 'Русский' },
-                          { value: 'zh-CN', label: '简体中文' },
-                          { value: 'zh-TW', label: '繁體中文' },
-                        ]}
-                        value={appSettings?.language || 'en'}
-                        triggerClassName="bg-bg-primary"
+                        onChange={(value: any) => onSettingsChange({ ...appSettings, fontFamily: value })}
+                        options={fontOptions}
+                        value={appSettings?.fontFamily || 'poppins'}
+                        triggerClassName="bg-bg-primary min-w-[10rem]"
                       />
                     </SettingItem>
+                  </div>
+                </section>
 
-                    <div className="space-y-4">
-                      <SettingItem
-                        label={t('settings.general.xmpSync')}
-                        description={t('settings.general.xmpSyncDesc')}
-                      >
-                        <Switch
-                          checked={appSettings?.enableXmpSync ?? true}
-                          id="enable-xmp-sync-toggle"
-                          label={t('settings.general.enableXmpSync')}
-                          onChange={(checked) => {
-                            const newSettings = { ...appSettings, enableXmpSync: checked };
-                            if (!checked) {
-                              newSettings.createXmpIfMissing = false;
-                            }
-                            onSettingsChange(newSettings);
-                          }}
-                        />
-                      </SettingItem>
-
-                      <AnimatePresence initial={false}>
-                        {(appSettings?.enableXmpSync ?? true) && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.3, ease: 'easeInOut' }}
-                            className="overflow-hidden"
-                          >
-                            <div className="pl-4 border-l-2 border-border-color ml-1">
-                              <SettingItem
-                                label={t('settings.general.createXmp')}
-                                description={t('settings.general.createXmpDesc')}
-                              >
-                                <Switch
-                                  checked={appSettings?.createXmpIfMissing ?? false}
-                                  id="create-xmp-missing-toggle"
-                                  label={t('settings.general.createXmpMissing')}
-                                  onChange={(checked) =>
-                                    onSettingsChange({ ...appSettings, createXmpIfMissing: checked })
-                                  }
-                                />
-                              </SettingItem>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                {/* 界面偏好 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <ImageIcon size={20} />
                     </div>
-
-                    <SettingItem
-                      label={t('settings.general.folderImageCounts')}
-                      description={t('settings.general.folderImageCountsDesc')}
-                    >
-                      <Switch
-                        checked={appSettings?.enableFolderImageCounts ?? false}
-                        id="folder-image-counts-toggle"
-                        label={t('settings.general.showImageCounts')}
-                        onChange={(checked) => onSettingsChange({ ...appSettings, enableFolderImageCounts: checked })}
-                      />
-                    </SettingItem>
-
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      界面偏好
+                    </Text>
+                  </div>
+                  <div className="divide-y divide-border-color/40">
                     <SettingItem
                       label={t('settings.general.displayEditIcon')}
                       description={t('settings.general.displayEditIconDesc')}
@@ -1153,7 +1125,6 @@ export default function SettingsPanel({
                         onChange={(checked) => onSettingsChange({ ...appSettings, displayEditIcon: checked })}
                       />
                     </SettingItem>
-
                     <SettingItem
                       label={t('settings.general.focusMode')}
                       description={t('settings.general.focusModeDesc')}
@@ -1165,16 +1136,17 @@ export default function SettingsPanel({
                         onChange={(checked) => onSettingsChange({ ...appSettings, enableFocusMode: checked })}
                       />
                     </SettingItem>
-
-                    <SettingItem label={t('settings.general.font')} description={t('settings.general.fontDesc')}>
-                      <Dropdown
-                        onChange={(value: any) => onSettingsChange({ ...appSettings, fontFamily: value })}
-                        options={fontOptions}
-                        value={appSettings?.fontFamily || 'poppins'}
-                        triggerClassName="bg-bg-primary"
+                    <SettingItem
+                      label={t('settings.general.folderImageCounts')}
+                      description={t('settings.general.folderImageCountsDesc')}
+                    >
+                      <Switch
+                        checked={appSettings?.enableFolderImageCounts ?? false}
+                        id="folder-image-counts-toggle"
+                        label={t('settings.general.showImageCounts')}
+                        onChange={(checked) => onSettingsChange({ ...appSettings, enableFolderImageCounts: checked })}
                       />
                     </SettingItem>
-
                     {osPlatform === 'linux' && (
                       <SettingItem
                         label={t('settings.general.nativeTitlebar')}
@@ -1192,14 +1164,78 @@ export default function SettingsPanel({
                       </SettingItem>
                     )}
                   </div>
-                </div>
+                </section>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.adjustments.title')}
-                  </Text>
-                  <Text className="mb-4">{t('settings.adjustments.description')}</Text>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                {/* 元数据同步 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <Bookmark size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.general.xmpSync')}
+                    </Text>
+                  </div>
+                  <div className="divide-y divide-border-color/40">
+                    <SettingItem
+                      label={t('settings.general.xmpSync')}
+                      description={t('settings.general.xmpSyncDesc')}
+                    >
+                      <Switch
+                        checked={appSettings?.enableXmpSync ?? true}
+                        id="enable-xmp-sync-toggle"
+                        label={t('settings.general.enableXmpSync')}
+                        onChange={(checked) => {
+                          const newSettings = { ...appSettings, enableXmpSync: checked };
+                          if (!checked) {
+                            newSettings.createXmpIfMissing = false;
+                          }
+                          onSettingsChange(newSettings);
+                        }}
+                      />
+                    </SettingItem>
+                    <AnimatePresence initial={false}>
+                      {(appSettings?.enableXmpSync ?? true) && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3, ease: 'easeInOut' }}
+                          className="overflow-hidden"
+                        >
+                          <div className="pl-4 border-l-2 border-accent/30 ml-1 py-4">
+                            <SettingItem
+                              label={t('settings.general.createXmp')}
+                              description={t('settings.general.createXmpDesc')}
+                            >
+                              <Switch
+                                checked={appSettings?.createXmpIfMissing ?? false}
+                                id="create-xmp-missing-toggle"
+                                label={t('settings.general.createXmpMissing')}
+                                onChange={(checked) =>
+                                  onSettingsChange({ ...appSettings, createXmpIfMissing: checked })
+                                }
+                              />
+                            </SettingItem>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </section>
+
+                {/* 调整面板 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <SlidersHorizontal size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.adjustments.title')}
+                    </Text>
+                  </div>
+                  <Text className="mb-4 text-text-secondary">{t('settings.adjustments.description')}</Text>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Switch
                       label={t('settings.adjustments.chromaticAberration')}
                       checked={appSettings?.adjustmentVisibility?.chromaticAberration ?? false}
@@ -1253,20 +1289,25 @@ export default function SettingsPanel({
                       }
                     />
                   </div>
-                </div>
+                </section>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.lenses.title')}
-                  </Text>
-                  <Text className="mb-6">{t('settings.lenses.description')}</Text>
-
-                  <div className="space-y-8">
-                    <div className="bg-bg-primary rounded-lg p-4 border border-border-color">
+                {/* 镜头管理 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <Bookmark size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.lenses.title')}
+                    </Text>
+                  </div>
+                  <Text className="mb-5 text-text-secondary">{t('settings.lenses.description')}</Text>
+                  <div className="space-y-6">
+                    <div className="bg-bg-primary rounded-xl p-4 border border-border-color/60">
                       <Text variant={TextVariants.heading} className="mb-3">
                         {t('settings.lenses.addNew')}
                       </Text>
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <Dropdown
                           options={lensMakers.map((m) => ({ label: m, value: m }))}
                           value={tempLensMaker}
@@ -1286,29 +1327,28 @@ export default function SettingsPanel({
                         </Button>
                       </div>
                     </div>
-
                     <div>
                       <Text variant={TextVariants.heading} className="mb-2">
                         {t('settings.lenses.saved')}
                       </Text>
                       {(!appSettings?.myLenses || appSettings.myLenses.length === 0) && (
-                        <Text className="italic">{t('settings.lenses.noLenses')}</Text>
+                        <Text className="italic text-text-secondary">{t('settings.lenses.noLenses')}</Text>
                       )}
-                      <div className="divide-y divide-border-color">
+                      <div className="divide-y divide-border-color/40">
                         {(appSettings?.myLenses || []).map((lens: MyLens, index: number) => (
                           <div
                             key={`${lens.maker}-${lens.model}-${index}`}
                             className="flex justify-between items-center py-3 first:pt-0 last:pb-0"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="p-2 bg-surface rounded-md text-accent">
+                              <div className="p-2 bg-bg-primary rounded-md text-accent">
                                 <Bookmark size={16} />
                               </div>
                               <div>
                                 <Text color={TextColors.primary} weight={TextWeights.medium}>
                                   {lens.model}
                                 </Text>
-                                <Text variant={TextVariants.small}>{lens.maker}</Text>
+                                <Text variant={TextVariants.small} color={TextColors.secondary}>{lens.maker}</Text>
                               </div>
                             </div>
                             <button
@@ -1323,13 +1363,19 @@ export default function SettingsPanel({
                       </div>
                     </div>
                   </div>
-                </div>
+                </section>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.tagging.title')}
-                  </Text>
-                  <div className="space-y-8">
+                {/* 智能标签 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <Bookmark size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.tagging.title')}
+                    </Text>
+                  </div>
+                  <div className="space-y-6 divide-y divide-border-color/40">
                     <div className="space-y-4">
                       <SettingItem
                         description={t('settings.tagging.aiTaggingDesc')}
@@ -1352,7 +1398,7 @@ export default function SettingsPanel({
                             transition={{ duration: 0.3, ease: 'easeInOut' }}
                             className="overflow-hidden"
                           >
-                            <div className="pl-4 border-l-2 border-border-color ml-1 space-y-8">
+                            <div className="pl-4 border-l-2 border-accent/30 ml-1 space-y-6">
                               <SettingItem
                                 label={t('settings.tagging.maxAiTags')}
                                 description={t('settings.tagging.maxAiTagsDesc')}
@@ -1449,217 +1495,105 @@ export default function SettingsPanel({
                       </AnimatePresence>
                     </div>
 
-                    <SettingItem
-                      label={t('settings.tagging.shortcuts')}
-                      description={t('settings.tagging.shortcutsDesc')}
-                    >
-                      <div>
-                        <div className="flex flex-wrap gap-2 p-2 bg-bg-primary rounded-md min-h-10 border border-border-color mb-2 items-center">
-                          <AnimatePresence>
-                            {taggingShortcuts.length > 0 ? (
-                              taggingShortcuts.map((shortcut: string) => (
-                                <motion.div
-                                  key={shortcut}
-                                  layout
-                                  variants={shortcutTagVariants}
-                                  initial={false}
-                                  animate="visible"
-                                  exit="exit"
-                                  onClick={() => handleRemoveShortcut(shortcut)}
-                                  data-tooltip={t('settings.tagging.removeShortcutTooltip', { shortcut })}
-                                  className="flex items-center gap-1 bg-surface px-2 py-1 rounded-sm group cursor-pointer"
+                    <div className="pt-6">
+                      <SettingItem
+                        label={t('settings.tagging.shortcuts')}
+                        description={t('settings.tagging.shortcutsDesc')}
+                      >
+                        <div className="w-full sm:min-w-[16rem]">
+                          <div className="flex flex-wrap gap-2 p-2 bg-bg-primary rounded-md min-h-10 border border-border-color mb-2 items-center">
+                            <AnimatePresence>
+                              {taggingShortcuts.length > 0 ? (
+                                taggingShortcuts.map((shortcut: string) => (
+                                  <motion.div
+                                    key={shortcut}
+                                    layout
+                                    variants={shortcutTagVariants}
+                                    initial={false}
+                                    animate="visible"
+                                    exit="exit"
+                                    onClick={() => handleRemoveShortcut(shortcut)}
+                                    data-tooltip={t('settings.tagging.removeShortcutTooltip', { shortcut })}
+                                    className="flex items-center gap-1 bg-surface px-2 py-1 rounded-sm group cursor-pointer"
+                                  >
+                                    <Text variant={TextVariants.label} color={TextColors.primary}>
+                                      {shortcut}
+                                    </Text>
+                                    <span className="rounded-full group-hover:bg-black/20 p-0.5 transition-colors">
+                                      <X size={14} />
+                                    </span>
+                                  </motion.div>
+                                ))
+                              ) : (
+                                <motion.span
+                                  key="no-shortcuts-placeholder"
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="text-sm text-text-secondary italic px-1 select-none"
                                 >
-                                  <Text variant={TextVariants.label} color={TextColors.primary}>
-                                    {shortcut}
-                                  </Text>
-                                  <span className="rounded-full group-hover:bg-black/20 p-0.5 transition-colors">
-                                    <X size={14} />
-                                  </span>
-                                </motion.div>
-                              ))
-                            ) : (
-                              <motion.span
-                                key="no-shortcuts-placeholder"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="text-sm text-text-secondary italic px-1 select-none"
+                                  {t('settings.tagging.noShortcuts')}
+                                </motion.span>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <Input
+                                type="text"
+                                value={newShortcut}
+                                onChange={(e) => setNewShortcut(e.target.value)}
+                                onKeyDown={handleInputKeyDown}
+                                placeholder={t('settings.tagging.addShortcutsPlaceholder')}
+                                className="pr-10"
+                                bgClassName="bg-bg-primary"
+                              />
+                              <button
+                                onClick={handleAddShortcut}
+                                className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface"
+                                data-tooltip={t('settings.tagging.addShortcutTooltip')}
                               >
-                                {t('settings.tagging.noShortcuts')}
-                              </motion.span>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="relative flex-1">
-                            <Input
-                              type="text"
-                              value={newShortcut}
-                              onChange={(e) => setNewShortcut(e.target.value)}
-                              onKeyDown={handleInputKeyDown}
-                              placeholder={t('settings.tagging.addShortcutsPlaceholder')}
-                              className="pr-10"
-                              bgClassName="bg-bg-primary"
-                            />
+                                <Plus size={18} />
+                              </button>
+                            </div>
                             <button
-                              onClick={handleAddShortcut}
-                              className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface"
-                              data-tooltip={t('settings.tagging.addShortcutTooltip')}
+                              onClick={() => onSettingsChange({ ...appSettings, taggingShortcuts: [] })}
+                              disabled={taggingShortcuts.length === 0}
+                              className="p-2 text-text-secondary hover:text-red-400 hover:bg-surface rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-text-secondary disabled:hover:bg-transparent"
+                              data-tooltip={t('settings.tagging.clearShortcutsTooltip')}
                             >
-                              <Plus size={18} />
+                              <Trash2 size={18} />
                             </button>
                           </div>
-                          <button
-                            onClick={() => onSettingsChange({ ...appSettings, taggingShortcuts: [] })}
-                            disabled={taggingShortcuts.length === 0}
-                            className="p-2 text-text-secondary hover:text-red-400 hover:bg-surface rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-text-secondary disabled:hover:bg-transparent"
-                            data-tooltip={t('settings.tagging.clearShortcutsTooltip')}
-                          >
-                            <Trash2 size={18} />
-                          </button>
                         </div>
-                      </div>
-                    </SettingItem>
+                      </SettingItem>
+                    </div>
 
-                    <div className="pt-8 border-t border-border-color">
-                      <div className="space-y-8">
-                        <DataActionItem
-                          buttonAction={handleClearAiTags}
-                          buttonText={t('settings.tagging.clearAiTagsButton')}
-                          description={t('settings.tagging.clearAiTagsDesc')}
-                          disabled={effectiveRootPaths.length === 0}
-                          icon={<Trash2 size={16} className="mr-2" />}
-                          isProcessing={isClearingAiTags}
-                          message={aiTagsClearMessage}
-                          title={t('settings.tagging.clearAiTagsTitle')}
-                        />
-                        <DataActionItem
-                          buttonAction={handleClearTags}
-                          buttonText={t('settings.tagging.clearAiTagsButton')}
-                          description={t('settings.tagging.clearAllTagsDesc')}
-                          disabled={effectiveRootPaths.length === 0}
-                          icon={<Trash2 size={16} className="mr-2" />}
-                          isProcessing={isClearingTags}
-                          message={tagsClearMessage}
-                          title={t('settings.tagging.clearAllTagsTitle')}
-                        />
-                      </div>
+                    <div className="pt-6 space-y-6">
+                      <DataActionItem
+                        buttonAction={handleClearAiTags}
+                        buttonText={t('settings.tagging.clearAiTagsButton')}
+                        description={t('settings.tagging.clearAiTagsDesc')}
+                        disabled={effectiveRootPaths.length === 0}
+                        icon={<Trash2 size={16} className="mr-2" />}
+                        isProcessing={isClearingAiTags}
+                        message={aiTagsClearMessage}
+                        title={t('settings.tagging.clearAiTagsTitle')}
+                      />
+                      <DataActionItem
+                        buttonAction={handleClearTags}
+                        buttonText={t('settings.tagging.clearAiTagsButton')}
+                        description={t('settings.tagging.clearAllTagsDesc')}
+                        disabled={effectiveRootPaths.length === 0}
+                        icon={<Trash2 size={16} className="mr-2" />}
+                        isProcessing={isClearingTags}
+                        message={tagsClearMessage}
+                        title={t('settings.tagging.clearAllTagsTitle')}
+                      />
                     </div>
                   </div>
-                </div>
-
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-6">
-                    {t('settings.thanks.title')}
-                  </Text>
-                  <Text className="mb-4">{t('settings.thanks.description')}</Text>
-                  <Text as="ul" className="space-y-3 list-disc ml-5 pl-1">
-                    <li>
-                      <a
-                        href="https://github.com/dnglab/dnglab/tree/main/rawler"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        rawler
-                      </a>
-                      : {t('settings.thanks.list.rawler')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://lensfun.github.io/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        lensfun
-                      </a>
-                      : {t('settings.thanks.list.lensfun')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/marcinz606/NegPy"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        NegPy
-                      </a>
-                      : {t('settings.thanks.list.negpy')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/advimman/lama"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        LaMa
-                      </a>
-                      : {t('settings.thanks.list.lama')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/facebookresearch/sam2"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        SAM 2
-                      </a>
-                      : {t('settings.thanks.list.sam2')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/xuebinqin/U-2-Net"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        U-2-Net
-                      </a>
-                      : {t('settings.thanks.list.u2net')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/DepthAnything/Depth-Anything-V2"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        Depth Anything V2
-                      </a>
-                      : {t('settings.thanks.list.depth')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/trougnouf/nind-denoise"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        nind-denoise
-                      </a>
-                      : {t('settings.thanks.list.nind')}
-                    </li>
-                    <li>
-                      <a
-                        href="https://github.com/darktable-org/darktable"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-accent hover:underline"
-                      >
-                        darktable & co.
-                      </a>
-                      : {t('settings.thanks.list.darktable')}
-                    </li>
-                    <li>
-                      <span className="font-semibold text-accent">{t('settings.thanks.list.youLabel')}</span>:{' '}
-                      {t('settings.thanks.list.you')}
-                    </li>
-                  </Text>
-                </div>
+                </section>
               </motion.div>
             )}
             {activeCategory === 'processing' && (
@@ -1669,23 +1603,25 @@ export default function SettingsPanel({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-10"
+                className="space-y-6"
               >
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.processing.title')}
-                  </Text>
-                  <div className="space-y-8">
-                    <div>
-                      <Text variant={TextVariants.heading} className="mb-2">
-                        {t('settings.processing.previewStrategy')}
-                      </Text>
+                {/* 预览与显示 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <ImageIcon size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.processing.previewStrategy')}
+                    </Text>
+                  </div>
+                  <div className="space-y-6 divide-y divide-border-color/40">
+                    <div className="pb-2">
                       <PreviewModeSwitch
                         mode={appSettings?.enableZoomHifi ? 'dynamic' : 'static'}
                         onModeChange={handlePreviewModeChange}
                       />
-
-                      <div className="mt-3">
+                      <div className="mt-4">
                         <AnimatePresence mode="wait">
                           {!(appSettings?.enableZoomHifi ?? true) ? (
                             <motion.div
@@ -1695,10 +1631,10 @@ export default function SettingsPanel({
                               exit={{ opacity: 0, x: -10 }}
                               transition={{ duration: 0.2 }}
                             >
-                              <Text variant={TextVariants.small} className="mb-4">
+                              <Text variant={TextVariants.small} color={TextColors.secondary} className="mb-3">
                                 {t('settings.processing.staticDesc')}
                               </Text>
-                              <div className="pl-4 border-l-2 border-border-color ml-1">
+                              <div className="pl-4 border-l-2 border-accent/30 ml-1">
                                 <SettingItem
                                   description={t('settings.processing.previewResDesc')}
                                   label={t('settings.processing.previewRes')}
@@ -1709,7 +1645,7 @@ export default function SettingsPanel({
                                     }
                                     options={resolutions}
                                     value={processingSettings.editorPreviewResolution}
-                                    triggerClassName="bg-bg-primary"
+                                    triggerClassName="bg-bg-primary min-w-[10rem]"
                                   />
                                 </SettingItem>
                               </div>
@@ -1722,10 +1658,10 @@ export default function SettingsPanel({
                               exit={{ opacity: 0, x: -10 }}
                               transition={{ duration: 0.2 }}
                             >
-                              <Text variant={TextVariants.small} className="mb-4">
+                              <Text variant={TextVariants.small} color={TextColors.secondary} className="mb-3">
                                 {t('settings.processing.dynamicDesc')}
                               </Text>
-                              <div className="pl-4 border-l-2 border-border-color ml-1 space-y-3">
+                              <div className="pl-4 border-l-2 border-accent/30 ml-1 space-y-4">
                                 <SettingItem
                                   description={t('settings.processing.staticPreviewResDesc')}
                                   label={t('settings.processing.staticPreviewRes')}
@@ -1736,10 +1672,9 @@ export default function SettingsPanel({
                                     }
                                     options={resolutions}
                                     value={processingSettings.editorPreviewResolution}
-                                    triggerClassName="bg-bg-primary"
+                                    triggerClassName="bg-bg-primary min-w-[10rem]"
                                   />
                                 </SettingItem>
-
                                 <SettingItem
                                   label={t('settings.processing.renderScale')}
                                   description={t('settings.processing.renderScaleDesc')}
@@ -1750,10 +1685,9 @@ export default function SettingsPanel({
                                     }
                                     options={zoomMultiplierOptions}
                                     value={processingSettings.highResZoomMultiplier}
-                                    triggerClassName="bg-bg-primary"
+                                    triggerClassName="bg-bg-primary min-w-[10rem]"
                                   />
                                 </SettingItem>
-
                                 <SettingItem
                                   label={t('settings.processing.highDpi')}
                                   description={
@@ -1779,7 +1713,7 @@ export default function SettingsPanel({
                       </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="pt-4 space-y-4">
                       <SettingItem
                         label={t('settings.processing.livePreviews')}
                         description={t('settings.processing.livePreviewsDesc')}
@@ -1794,7 +1728,6 @@ export default function SettingsPanel({
                           }}
                         />
                       </SettingItem>
-
                       <AnimatePresence>
                         {(appSettings?.enableLivePreviews ?? true) && (
                           <motion.div
@@ -1803,7 +1736,7 @@ export default function SettingsPanel({
                             exit={{ height: 0, opacity: 0 }}
                             transition={{ duration: 0.3, ease: 'easeInOut' }}
                           >
-                            <div className="pl-4 border-l-2 border-border-color ml-1">
+                            <div className="pl-4 border-l-2 border-accent/30 ml-1">
                               <SettingItem
                                 label={t('settings.processing.livePreviewQuality')}
                                 description={t('settings.processing.livePreviewQualityDesc')}
@@ -1814,7 +1747,7 @@ export default function SettingsPanel({
                                   }
                                   options={livePreviewQualityOptions}
                                   value={appSettings?.livePreviewQuality || 'high'}
-                                  triggerClassName="bg-bg-primary"
+                                  triggerClassName="bg-bg-primary min-w-[10rem]"
                                 />
                               </SettingItem>
                             </div>
@@ -1823,52 +1756,33 @@ export default function SettingsPanel({
                       </AnimatePresence>
                     </div>
 
-                    <SettingItem
-                      description={t('settings.processing.thumbnailResDesc')}
-                      label={t('settings.processing.thumbnailRes')}
-                    >
-                      <Dropdown
-                        onChange={(value: any) => handleProcessingSettingChange('thumbnailResolution', value)}
-                        options={thumbnailResolutions}
-                        value={processingSettings.thumbnailResolution}
-                        triggerClassName="bg-bg-primary"
-                      />
-                    </SettingItem>
+                    <div className="pt-4">
+                      <SettingItem
+                        description={t('settings.processing.thumbnailResDesc')}
+                        label={t('settings.processing.thumbnailRes')}
+                      >
+                        <Dropdown
+                          onChange={(value: any) => handleProcessingSettingChange('thumbnailResolution', value)}
+                          options={thumbnailResolutions}
+                          value={processingSettings.thumbnailResolution}
+                          triggerClassName="bg-bg-primary min-w-[10rem]"
+                        />
+                      </SettingItem>
+                    </div>
+                  </div>
+                </section>
 
-                    <SettingItem
-                      label={t('settings.processing.workerThreads')}
-                      description={t('settings.processing.workerThreadsDesc')}
-                    >
-                      <Slider
-                        label={t('settings.processing.threads')}
-                        min={2}
-                        max={10}
-                        step={1}
-                        value={processingSettings.thumbnailWorkerThreads}
-                        defaultValue={4}
-                        onChange={(e: any) =>
-                          handleProcessingSettingChange('thumbnailWorkerThreads', parseInt(e.target.value))
-                        }
-                        fillOrigin="min"
-                      />
-                    </SettingItem>
-
-                    <SettingItem
-                      label={t('settings.processing.imageCache')}
-                      description={t('settings.processing.imageCacheDesc')}
-                    >
-                      <Slider
-                        label={t('settings.processing.images')}
-                        min={2}
-                        max={10}
-                        step={1}
-                        value={processingSettings.imageCacheSize}
-                        defaultValue={5}
-                        onChange={(e: any) => handleProcessingSettingChange('imageCacheSize', parseInt(e.target.value))}
-                        fillOrigin="min"
-                      />
-                    </SettingItem>
-
+                {/* 性能引擎 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <SlidersHorizontal size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.processing.title')}
+                    </Text>
+                  </div>
+                  <div className="space-y-4 divide-y divide-border-color/40">
                     <SettingItem
                       label={t('settings.processing.wgpu')}
                       description={
@@ -1887,7 +1801,6 @@ export default function SettingsPanel({
                         onChange={(checked) => handleProcessingSettingChange('useWgpuRenderer', checked)}
                       />
                     </SettingItem>
-
                     <SettingItem
                       label={t('settings.processing.backend')}
                       description={t('settings.processing.backendDesc')}
@@ -1900,10 +1813,9 @@ export default function SettingsPanel({
                             ? processingSettings.processingBackend
                             : 'auto'
                         }
-                        triggerClassName="bg-bg-primary"
+                        triggerClassName="bg-bg-primary min-w-[10rem]"
                       />
                     </SettingItem>
-
                     {osPlatform !== 'macos' && osPlatform !== 'windows' && (
                       <SettingItem
                         label={t('settings.processing.linuxCompat')}
@@ -1917,30 +1829,67 @@ export default function SettingsPanel({
                         />
                       </SettingItem>
                     )}
-
-                    {restartRequired && (
-                      <>
-                        <Text
-                          as="div"
-                          color={TextColors.info}
-                          className="p-3 bg-blue-900/10 border border-blue-500/50 rounded-lg flex items-center gap-3"
-                        >
-                          <Info size={18} />
-                          <p>{t('settings.processing.restartRequired')}</p>
-                        </Text>
-                        <div className="flex justify-end">
-                          <Button onClick={handleSaveAndRelaunch}>{t('settings.processing.saveRelaunch')}</Button>
-                        </div>
-                      </>
-                    )}
+                    <SettingItem
+                      label={t('settings.processing.workerThreads')}
+                      description={t('settings.processing.workerThreadsDesc')}
+                    >
+                      <Slider
+                        label={t('settings.processing.threads')}
+                        min={2}
+                        max={10}
+                        step={1}
+                        value={processingSettings.thumbnailWorkerThreads}
+                        defaultValue={4}
+                        onChange={(e: any) =>
+                          handleProcessingSettingChange('thumbnailWorkerThreads', parseInt(e.target.value))
+                        }
+                        fillOrigin="min"
+                      />
+                    </SettingItem>
+                    <SettingItem
+                      label={t('settings.processing.imageCache')}
+                      description={t('settings.processing.imageCacheDesc')}
+                    >
+                      <Slider
+                        label={t('settings.processing.images')}
+                        min={2}
+                        max={10}
+                        step={1}
+                        value={processingSettings.imageCacheSize}
+                        defaultValue={5}
+                        onChange={(e: any) => handleProcessingSettingChange('imageCacheSize', parseInt(e.target.value))}
+                        fillOrigin="min"
+                      />
+                    </SettingItem>
                   </div>
-                </div>
+                  {restartRequired && (
+                    <div className="mt-6 space-y-3">
+                      <Text
+                        as="div"
+                        color={TextColors.info}
+                        className="p-3 bg-blue-900/10 border border-blue-500/50 rounded-lg flex items-center gap-3"
+                      >
+                        <Info size={18} />
+                        <p>{t('settings.processing.restartRequired')}</p>
+                      </Text>
+                      <div className="flex justify-end">
+                        <Button onClick={handleSaveAndRelaunch}>{t('settings.processing.saveRelaunch')}</Button>
+                      </div>
+                    </div>
+                  )}
+                </section>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.processing.preprocessing.title')}
-                  </Text>
-                  <div className="space-y-8">
+                {/* RAW预处理 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <SlidersHorizontal size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.processing.preprocessing.title')}
+                    </Text>
+                  </div>
+                  <div className="space-y-4 divide-y divide-border-color/40">
                     <SettingItem
                       label={t('settings.processing.preprocessing.highlightRecovery')}
                       description={t('settings.processing.preprocessing.highlightRecoveryDesc')}
@@ -1958,7 +1907,6 @@ export default function SettingsPanel({
                         fillOrigin="min"
                       />
                     </SettingItem>
-
                     <SettingItem
                       label={t('settings.processing.preprocessing.colorNr')}
                       description={t('settings.processing.preprocessing.colorNrDesc')}
@@ -1976,7 +1924,6 @@ export default function SettingsPanel({
                         fillOrigin="min"
                       />
                     </SettingItem>
-
                     <SettingItem
                       label={t('settings.processing.preprocessing.sharpening')}
                       description={t('settings.processing.preprocessing.sharpeningDesc')}
@@ -1994,7 +1941,17 @@ export default function SettingsPanel({
                         fillOrigin="min"
                       />
                     </SettingItem>
-
+                    <SettingItem
+                      label={t('settings.processing.preprocessing.linearRaw')}
+                      description={t('settings.processing.preprocessing.linearRawDesc')}
+                    >
+                      <Dropdown
+                        onChange={(value: any) => onSettingsChange({ ...appSettings, linearRawMode: value })}
+                        options={linearRawOptions}
+                        value={appSettings?.linearRawMode || 'auto'}
+                        triggerClassName="bg-bg-primary min-w-[10rem]"
+                      />
+                    </SettingItem>
                     <SettingItem
                       label={t('settings.processing.preprocessing.applyPreprocessing')}
                       description={t('settings.processing.preprocessing.applyPreprocessingDesc')}
@@ -2006,20 +1963,7 @@ export default function SettingsPanel({
                         onChange={(checked) => handleProcessingSettingChange('applyPreprocessingToNonRaws', checked)}
                       />
                     </SettingItem>
-
-                    <SettingItem
-                      label={t('settings.processing.preprocessing.linearRaw')}
-                      description={t('settings.processing.preprocessing.linearRawDesc')}
-                    >
-                      <Dropdown
-                        onChange={(value: any) => onSettingsChange({ ...appSettings, linearRawMode: value })}
-                        options={linearRawOptions}
-                        value={appSettings?.linearRawMode || 'auto'}
-                        triggerClassName="bg-bg-primary"
-                      />
-                    </SettingItem>
-
-                    <div className="space-y-4">
+                    <div className="pt-4 space-y-4">
                       <SettingItem
                         label={t('settings.processing.preprocessing.tonemapperOverride')}
                         description={t('settings.processing.preprocessing.tonemapperOverrideDesc')}
@@ -2033,7 +1977,6 @@ export default function SettingsPanel({
                           }
                         />
                       </SettingItem>
-
                       <AnimatePresence>
                         {(appSettings?.tonemapperOverrideEnabled ?? false) && (
                           <motion.div
@@ -2042,7 +1985,7 @@ export default function SettingsPanel({
                             exit={{ height: 0, opacity: 0 }}
                             transition={{ duration: 0.3, ease: 'easeInOut' }}
                           >
-                            <div className="pl-4 border-l-2 border-border-color ml-1 space-y-3">
+                            <div className="pl-4 border-l-2 border-accent/30 ml-1 space-y-4">
                               <SettingItem
                                 label={t('settings.processing.preprocessing.defaultRawTonemapper')}
                                 description={t('settings.processing.preprocessing.defaultRawTonemapperDesc')}
@@ -2053,10 +1996,9 @@ export default function SettingsPanel({
                                   }
                                   options={tonemapperOptions}
                                   value={appSettings?.defaultRawTonemapper || 'agx'}
-                                  triggerClassName="bg-bg-primary"
+                                  triggerClassName="bg-bg-primary min-w-[10rem]"
                                 />
                               </SettingItem>
-
                               <SettingItem
                                 label={t('settings.processing.preprocessing.defaultNonRawTonemapper')}
                                 description={t('settings.processing.preprocessing.defaultNonRawTonemapperDesc')}
@@ -2067,7 +2009,7 @@ export default function SettingsPanel({
                                   }
                                   options={tonemapperOptions}
                                   value={appSettings?.defaultNonRawTonemapper || 'basic'}
-                                  triggerClassName="bg-bg-primary"
+                                  triggerClassName="bg-bg-primary min-w-[10rem]"
                                 />
                               </SettingItem>
                             </div>
@@ -2076,16 +2018,20 @@ export default function SettingsPanel({
                       </AnimatePresence>
                     </div>
                   </div>
-                </div>
+                </section>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.processing.ai.title')}
-                  </Text>
-                  <Text className="mb-4">{t('settings.processing.ai.description')}</Text>
-
+                {/* AI生成式引擎 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <Bookmark size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.processing.ai.title')}
+                    </Text>
+                  </div>
+                  <Text className="mb-4 text-text-secondary">{t('settings.processing.ai.description')}</Text>
                   <AiProviderSwitch selectedProvider={aiProvider} onProviderChange={handleProviderChange} />
-
                   <div className="mt-8">
                     <AnimatePresence mode="wait">
                       {aiProvider === 'cpu' && (
@@ -2097,15 +2043,14 @@ export default function SettingsPanel({
                           transition={{ duration: 0.2 }}
                         >
                           <Text variant={TextVariants.heading}>{t('settings.processing.ai.cpu.title')}</Text>
-                          <Text className="mt-1">{t('settings.processing.ai.cpu.description')}</Text>
-                          <Text as="ul" className="mt-3 space-y-1 list-disc list-inside">
+                          <Text className="mt-1 text-text-secondary">{t('settings.processing.ai.cpu.description')}</Text>
+                          <Text as="ul" className="mt-3 space-y-1 list-disc list-inside text-text-secondary">
                             <li>{t('settings.processing.ai.cpu.feature1')}</li>
                             <li>{t('settings.processing.ai.cpu.feature2')}</li>
                             <li>{t('settings.processing.ai.cpu.feature3')}</li>
                           </Text>
                         </motion.div>
                       )}
-
                       {aiProvider === 'ai-connector' && (
                         <motion.div
                           key="ai-connector"
@@ -2117,8 +2062,8 @@ export default function SettingsPanel({
                           <div className="space-y-8">
                             <div>
                               <Text variant={TextVariants.heading}>{t('settings.processing.ai.connector.title')}</Text>
-                              <Text className="mt-1">{t('settings.processing.ai.connector.description')}</Text>
-                              <Text as="ul" className="mt-3 space-y-1 list-disc list-inside">
+                              <Text className="mt-1 text-text-secondary">{t('settings.processing.ai.connector.description')}</Text>
+                              <Text as="ul" className="mt-3 space-y-1 list-disc list-inside text-text-secondary">
                                 <li>{t('settings.processing.ai.connector.feature1')}</li>
                                 <li>{t('settings.processing.ai.connector.feature2')}</li>
                                 <li>{t('settings.processing.ai.connector.feature3')}</li>
@@ -2128,9 +2073,9 @@ export default function SettingsPanel({
                               label={t('settings.processing.ai.connector.address')}
                               description={t('settings.processing.ai.connector.addressDesc')}
                             >
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 w-full sm:w-auto">
                                 <Input
-                                  className="grow"
+                                  className="grow min-w-[10rem]"
                                   id="ai-connector-address"
                                   onBlur={() =>
                                     onSettingsChange({ ...appSettings, aiConnectorAddress: aiConnectorAddress })
@@ -2143,7 +2088,7 @@ export default function SettingsPanel({
                                   bgClassName="bg-bg-primary"
                                 />
                                 <Button
-                                  className="w-32"
+                                  className="w-28 shrink-0"
                                   disabled={testStatus.testing || !aiConnectorAddress}
                                   onClick={handleTestConnection}
                                 >
@@ -2166,7 +2111,6 @@ export default function SettingsPanel({
                           </div>
                         </motion.div>
                       )}
-
                       {aiProvider === 'cloud' && (
                         <motion.div
                           key="cloud"
@@ -2176,13 +2120,12 @@ export default function SettingsPanel({
                           transition={{ duration: 0.2 }}
                         >
                           <Text variant={TextVariants.heading}>{t('settings.processing.ai.cloud.title')}</Text>
-                          <Text className="mt-1">{t('settings.processing.ai.cloud.description')}</Text>
-                          <Text as="ul" className="mt-3 space-y-1 list-disc list-inside">
+                          <Text className="mt-1 text-text-secondary">{t('settings.processing.ai.cloud.description')}</Text>
+                          <Text as="ul" className="mt-3 space-y-1 list-disc list-inside text-text-secondary">
                             <li>{t('settings.processing.ai.cloud.feature1')}</li>
                             <li>{t('settings.processing.ai.cloud.feature2')}</li>
                             <li>{t('settings.processing.ai.cloud.feature3')}</li>
                           </Text>
-
                           <div className="mt-8">
                             <Show when="signed-in">
                               <div className="p-6 bg-bg-primary rounded-xl border border-border-color shadow-inner">
@@ -2208,28 +2151,19 @@ export default function SettingsPanel({
                                     },
                                     elements: {
                                       rootBox: '',
-
                                       cardBox: '!shadow-none !m-0 !p-0 !rounded-none',
-
                                       card: '!bg-transparent !border-none !shadow-none !py-0 !px-1 !rounded-none',
-
                                       header: '!hidden',
-
                                       formFieldLabel: '!text-base !font-semibold !text-text-primary !block !mb-2',
-
                                       formFieldAction:
                                         '!text-text-secondary hover:!text-text-primary !transition-colors !no-underline hover:!underline',
-
                                       formFieldInput:
                                         '!bg-bg-primary !border !border-border-color !text-text-primary focus:!border-accent focus:!ring-1 focus:!ring-accent !rounded-md !px-3 !py-2',
-
                                       formButtonPrimary:
                                         '!bg-accent !text-button-text hover:!bg-accent/90 !shadow-none !transition-colors !rounded-md !mt-4 !py-2',
-
                                       footer:
                                         '!bg-transparent !p-0 !mt-4 opacity-50 hover:opacity-100 transition-opacity',
                                       footerAction: '!hidden',
-
                                       identityPreview: '!bg-bg-primary !border !border-border-color !rounded-md !mb-4',
                                       identityPreviewText: '!text-text-primary !font-medium',
                                       identityPreviewEditButtonIcon:
@@ -2255,13 +2189,19 @@ export default function SettingsPanel({
                       )}
                     </AnimatePresence>
                   </div>
-                </div>
+                </section>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.data.title')}
-                  </Text>
-                  <div className="space-y-8">
+                {/* 数据与缓存 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <Trash2 size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.data.title')}
+                    </Text>
+                  </div>
+                  <div className="space-y-6">
                     <DataActionItem
                       buttonAction={handleClearSidecars}
                       buttonText={t('settings.data.clearSidecarsButton')}
@@ -2283,7 +2223,6 @@ export default function SettingsPanel({
                       message={clearMessage}
                       title={t('settings.data.clearSidecars')}
                     />
-
                     <DataActionItem
                       buttonAction={handleClearCache}
                       buttonText={t('settings.data.clearThumbnailButton')}
@@ -2293,7 +2232,6 @@ export default function SettingsPanel({
                       message={cacheClearMessage}
                       title={t('settings.data.clearThumbnail')}
                     />
-
                     <DataActionItem
                       buttonAction={async () => {
                         if (logPath && !logPathLoading && !logPathError) {
@@ -2320,7 +2258,7 @@ export default function SettingsPanel({
                       title={t('settings.data.logs')}
                     />
                   </div>
-                </div>
+                </section>
               </motion.div>
             )}
 
@@ -2331,18 +2269,24 @@ export default function SettingsPanel({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-10"
+                className="space-y-6"
               >
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.controls.title')}
-                  </Text>
-                  <div className="space-y-8">
-                    <div>
+                {/* 输入控制 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <SlidersHorizontal size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.controls.title')}
+                    </Text>
+                  </div>
+                  <div className="space-y-6 divide-y divide-border-color/40">
+                    <div className="pb-2">
                       <Text variant={TextVariants.heading} className="mb-2">
                         {t('settings.controls.optimization')}
                       </Text>
-                      <Text variant={TextVariants.small} className="mb-4">
+                      <Text variant={TextVariants.small} color={TextColors.secondary} className="mb-4">
                         {t('settings.controls.optimizationDesc')}
                       </Text>
                       <CanvasInputModeSwitch
@@ -2350,37 +2294,45 @@ export default function SettingsPanel({
                         onModeChange={(value) => onSettingsChange({ ...appSettings, canvasInputMode: value })}
                       />
                     </div>
-
-                    <SettingItem label={t('settings.controls.zoom')} description={t('settings.controls.zoomDesc')}>
-                      <Slider
-                        label={t('settings.controls.speed')}
-                        min={0.1}
-                        max={3.0}
-                        step={0.1}
-                        value={appSettings?.zoomSpeedMultiplier ?? 1.0}
-                        defaultValue={1.0}
-                        onChange={(e: any) =>
-                          onSettingsChange({ ...appSettings, zoomSpeedMultiplier: parseFloat(e.target.value) })
-                        }
-                        fillOrigin="min"
-                      />
-                    </SettingItem>
+                    <div className="pt-4">
+                      <SettingItem label={t('settings.controls.zoom')} description={t('settings.controls.zoomDesc')}>
+                        <Slider
+                          label={t('settings.controls.speed')}
+                          min={0.1}
+                          max={3.0}
+                          step={0.1}
+                          value={appSettings?.zoomSpeedMultiplier ?? 1.0}
+                          defaultValue={1.0}
+                          onChange={(e: any) =>
+                            onSettingsChange({ ...appSettings, zoomSpeedMultiplier: parseFloat(e.target.value) })
+                          }
+                          fillOrigin="min"
+                        />
+                      </SettingItem>
+                    </div>
                   </div>
-                </div>
+                </section>
 
-                <div className="p-6 bg-surface rounded-xl shadow-md">
-                  <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
-                    {t('settings.controls.keyboardTitle')}
-                  </Text>
+                {/* 键盘快捷键 */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <Keyboard size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.controls.keyboardTitle')}
+                    </Text>
+                  </div>
                   <div className="space-y-8">
-                    {' '}
                     {KEYBIND_SECTIONS.map((section) => {
                       const sectionDefs = KEYBIND_DEFINITIONS.filter((d) => d.section === section.id);
                       const userKb = appSettings?.keybinds || {};
                       return (
                         <div key={section.id}>
-                          <Text variant={TextVariants.heading}>{t(section.label as any)}</Text>
-                          <div className="divide-y divide-border-color">
+                          <Text variant={TextVariants.heading} className="mb-2">
+                            {t(section.label as any)}
+                          </Text>
+                          <div className="divide-y divide-border-color/40 rounded-xl border border-border-color/50 overflow-hidden">
                             {sectionDefs.map((def) => (
                               <KeybindRow
                                 key={def.action}
@@ -2397,13 +2349,13 @@ export default function SettingsPanel({
                         </div>
                       );
                     })}
-                    <div className="flex justify-end mt-6">
+                    <div className="flex justify-end">
                       <Button variant="ghost" onClick={() => onSettingsChange({ ...appSettings, keybinds: {} })}>
                         {t('settings.controls.resetDefaults')}
                       </Button>
                     </div>
                   </div>
-                </div>
+                </section>
               </motion.div>
             )}
           </AnimatePresence>
