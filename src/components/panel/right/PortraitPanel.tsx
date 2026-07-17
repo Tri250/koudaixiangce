@@ -100,16 +100,12 @@ export default function PortraitPanel() {
   }, []);
 
   const handleDetectFaces = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
-    await detectFaces(imagePath);
-  }, [detectFaces, selectedImage]);
+    await detectFaces();
+  }, [detectFaces]);
 
   const handleDetectBody = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
-    await detectBody(imagePath);
-  }, [detectBody, selectedImage]);
+    await detectBody();
+  }, [detectBody]);
 
   const handleReset = useCallback(() => {
     setFaceParams(DEFAULT_FACE_PARAMS);
@@ -121,71 +117,61 @@ export default function PortraitPanel() {
 
   const handleApplyFaceReshape = useCallback(async () => {
     if (faceDetections.length === 0) return;
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applyFaceReshape(imagePath, faceParams, faceDetections[0].landmarks);
+      await applyFaceReshape(faceDetections[0].landmarks, faceParams);
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, faceParams, applyFaceReshape, selectedImage]);
+  }, [faceDetections, faceParams, applyFaceReshape]);
 
   const handleApplySkinSmoothing = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applySkinSmoothing(imagePath, skinParams);
+      await applySkinSmoothing(skinParams);
     } finally {
       setIsApplying(false);
     }
-  }, [skinParams, applySkinSmoothing, selectedImage]);
+  }, [skinParams, applySkinSmoothing]);
 
   const handleAutoBlemishRemove = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
+    if (faceDetections.length === 0) return;
     setIsApplying(true);
     try {
-      await applyBlemishRemoval(imagePath);
+      await applyBlemishRemoval(faceDetections[0].landmarks);
     } finally {
       setIsApplying(false);
     }
-  }, [applyBlemishRemoval, selectedImage]);
+  }, [faceDetections, applyBlemishRemoval]);
 
   const handleSkinColorUniform = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
+    if (faceDetections.length === 0) return;
     setIsApplying(true);
     try {
-      await applySkinColorUniform(imagePath, { strength: skinColorUniformStrength });
+      await applySkinColorUniform(faceDetections[0].landmarks, skinColorUniformStrength);
     } finally {
       setIsApplying(false);
     }
-  }, [skinColorUniformStrength, applySkinColorUniform, selectedImage]);
+  }, [faceDetections, skinColorUniformStrength, applySkinColorUniform]);
 
   const handleApplyBodyReshape = useCallback(async () => {
     if (bodyDetections.length === 0) return;
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applyBodyReshape(imagePath, bodyParams, bodyDetections[0].keypoints);
+      await applyBodyReshape(bodyDetections[0].keypoints, bodyParams);
     } finally {
       setIsApplying(false);
     }
-  }, [bodyDetections, bodyParams, applyBodyReshape, selectedImage]);
+  }, [bodyDetections, bodyParams, applyBodyReshape]);
 
   const handleApplyHair = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applyHairRetouch(imagePath, hairParams as unknown as Record<string, unknown>);
+      await applyHairRetouch(hairParams);
     } finally {
       setIsApplying(false);
     }
-  }, [hairParams, applyHairRetouch, selectedImage]);
+  }, [hairParams, applyHairRetouch]);
 
   const skinMethodOptions = [
     { label: t('editor.portrait.skin.method.neutralGray'), value: 'neutral_gray' as const },

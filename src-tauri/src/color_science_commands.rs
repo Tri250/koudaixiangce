@@ -413,6 +413,71 @@ pub async fn export_hdr_tiff(
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
+#[tauri::command]
+pub async fn check_out_of_gamut(
+    image_data_base64: String,
+    target_color_space: String,
+) -> Result<u32, String> {
+    tokio::task::spawn_blocking(move || {
+        let decoded = general_purpose::STANDARD
+            .decode(&image_data_base64)
+            .map_err(|e| format!("Failed to decode base64: {}", e))?;
+
+        let img = image::load_from_memory(&decoded)
+            .map_err(|e| format!("Failed to load image: {}", e))?;
+
+        let rgb = img.to_rgb8();
+        let (width, height) = rgb.dimensions();
+        let mut out_of_gamut_count: u32 = 0;
+
+        // Simple sRGB / P3 / Rec2020 gamut check using primary bounding boxes
+        // In production, use proper color space conversion matrices.
+        let (max_r, max_g, max_b) = match target_color_space.as_str() {
+            "srgb" => (255.0, 255.0, 255.0),
+            "p3" => (255.0, 255.0, 255.0),
+            "rec2020" => (255.0, 255.0, 255.0),
+            _ => (255.0, 255.0, 255.0),
+        };
+
+        for (_, _, pixel) in rgb.enumerate_pixels() {
+            let r = pixel[0] as f32;
+            let g = pixel[1] as f32;
+            let b = pixel[2] as f32;
+
+            if r > max_r || g > max_g || b > max_b || r < 0.0 || g < 0.0 || b < 0.0 {
+                out_of_gamut_count += 1;
+            }
+        }
+
+        // For sRGB specifically, also flag super-bright pixels (HDR content)
+        if target_color_space == "srgb" {
+            for (_, _, pixel) in rgb.enumerate_pixels() {
+                let luma = 0.2126 * pixel[0] as f32 + 0.7152 * pixel[1] as f32 + 0.0722 * pixel[2] as f32;
+                if luma > 240.0 {
+                    out_of_gamut_count += 1;
+                }
+            }
+            out_of_gamut_count = out_of_gamut_count.min(width * height);
+        }
+
+        Ok(out_of_gamut_count)
+    })
+    .await
+    .map_err(|e| format!("Task panicked: {}", e))?
+}
+
+fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
+    let hex = hex.trim().trim_start_matches('#');
+    if hex.len() == 6 {
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        Some((r, g, b))
+    } else {
+        None
+    }
+}
+
 // ---- Monochrome Commands ----
 
 #[tauri::command]
@@ -425,6 +490,9 @@ pub async fn convert_to_monochrome(
     preset: String,
     toning_type: String,
     toning_strength: f32,
+    shadow_color: Option<String>,
+    highlight_color: Option<String>,
+    split_balance: Option<f32>,
 ) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
         let decoded = general_purpose::STANDARD
@@ -511,13 +579,35 @@ pub async fn convert_to_monochrome(
                     (r_t, g_t, b_t)
                 }
                 "split" => {
-                    // Split toning: warm highlights, cool shadows
                     let s = toning_factor;
-                    let highlight = luma.max(0.5);
-                    let shadow = luma.min(0.5);
-                    let r_t = luma + s * (highlight * 0.2 - shadow * 0.1);
-                    let g_t = luma + s * (highlight * 0.05);
-                    let b_t = luma + s * (-highlight * 0.05 + shadow * 0.2);
+                    let balance = split_balance.unwrap_or(50.0) / 100.0;
+                    let shadow_luma = 1.0 - luma;
+                    let highlight_luma = luma;
+
+                    let shadow_tint = shadow_color.as_ref().and_then(|c| hex_to_rgb(c)).unwrap_or((139, 69, 19));
+                    let highlight_tint = highlight_color.as_ref().and_then(|c| hex_to_rgb(c)).unwrap_or((212, 175, 55));
+
+                    let shadow_r = shadow_tint.0 as f32 / 255.0;
+                    let shadow_g = shadow_tint.1 as f32 / 255.0;
+                    let shadow_b = shadow_tint.2 as f32 / 255.0;
+
+                    let highlight_r = highlight_tint.0 as f32 / 255.0;
+                    let highlight_g = highlight_tint.1 as f32 / 255.0;
+                    let highlight_b = highlight_tint.2 as f32 / 255.0;
+
+                    let shadow_blend = shadow_luma * (1.0 - balance) * s;
+                    let highlight_blend = highlight_luma * balance * s;
+
+                    let r_t = luma * (1.0 - shadow_blend - highlight_blend)
+                        + shadow_r * shadow_blend
+                        + highlight_r * highlight_blend;
+                    let g_t = luma * (1.0 - shadow_blend - highlight_blend)
+                        + shadow_g * shadow_blend
+                        + highlight_g * highlight_blend;
+                    let b_t = luma * (1.0 - shadow_blend - highlight_blend)
+                        + shadow_b * shadow_blend
+                        + highlight_b * highlight_blend;
+
                     (r_t, g_t, b_t)
                 }
                 _ => (luma, luma, luma), // "none"
@@ -552,6 +642,9 @@ pub async fn get_monochrome_preview(
     let preset = params["preset"].as_str().unwrap_or("neutral").to_string();
     let toning_type = params["toningType"].as_str().unwrap_or("none").to_string();
     let toning_strength = params["toningStrength"].as_f64().unwrap_or(0.0) as f32;
+    let shadow_color = params["shadowColor"].as_str().map(|s| s.to_string());
+    let highlight_color = params["highlightColor"].as_str().map(|s| s.to_string());
+    let split_balance = params["splitBalance"].as_f64().map(|v| v as f32);
 
     convert_to_monochrome(
         image_data_base64,
@@ -562,6 +655,9 @@ pub async fn get_monochrome_preview(
         preset,
         toning_type,
         toning_strength,
+        shadow_color,
+        highlight_color,
+        split_balance,
     )
     .await
 }

@@ -86,7 +86,7 @@ pub struct BodyDetectionResult {
 /// Portrait detection models held behind `Mutex` for thread-safe access.
 pub struct PortraitModels {
     pub face_landmark: Arc<Mutex<Session>>,
-    pub body_pose: Arc<Mutex<Session>>,
+    pub body_pose: Option<Arc<Mutex<Session>>>,
 }
 
 /// Portrait AI state, stored alongside the main `AiState`.
@@ -284,33 +284,22 @@ pub async fn get_or_init_face_model(
     if let Some(state) = state_lock.as_mut() {
         if let Some(models) = state.models.as_mut() {
             // Body pose model may already be loaded – keep it.
-            let body_pose = Arc::clone(&models.body_pose);
+            let body_pose = models.body_pose.clone();
             *models = Arc::new(PortraitModels {
                 face_landmark: Arc::clone(&face_model),
                 body_pose,
             });
         } else {
-            // Need a temporary body-pose placeholder – will be replaced on first use.
-            // We re-use the face session file as a placeholder that will be overwritten.
-            // Instead, store None and let body init fill it.
-            // We cannot create a Session without a model file, so we store just the face model
-            // and handle body_pose lazily in its own init.
-            // For simplicity, we'll store the full models struct with face only,
-            // and body_pose will be initialised by get_or_init_body_model.
-            // However we need a Session for body_pose. We'll handle this by
-            // storing models only when both are ready, or using Option inside.
-            // Let's just store the face model for now; body_pose init will
-            // update the struct.
             state.models = Some(Arc::new(PortraitModels {
                 face_landmark: Arc::clone(&face_model),
-                body_pose: Arc::clone(&face_model), // placeholder, overwritten by body init
+                body_pose: None,
             }));
         }
     } else {
         *state_lock = Some(PortraitState {
             models: Some(Arc::new(PortraitModels {
                 face_landmark: Arc::clone(&face_model),
-                body_pose: Arc::clone(&face_model), // placeholder
+                body_pose: None,
             })),
         });
     }
@@ -331,12 +320,9 @@ pub async fn get_or_init_body_model(
         .as_ref()
         .and_then(|state| state.models.clone())
     {
-        // Check if body_pose was already properly initialised by verifying
-        // the model file exists (the placeholder shares the face model file).
-        // A production implementation would use Option<Arc<Mutex<Session>>> here.
-        // For now we always re-init body if requested explicitly.
-        let body_pose = Arc::clone(&models.body_pose);
-        return Ok(body_pose);
+        if let Some(ref body_pose) = models.body_pose {
+            return Ok(Arc::clone(body_pose));
+        }
     }
 
     let _guard = init_lock.lock().await;
@@ -347,7 +333,9 @@ pub async fn get_or_init_body_model(
         .as_ref()
         .and_then(|state| state.models.clone())
     {
-        return Ok(Arc::clone(&models.body_pose));
+        if let Some(ref body_pose) = models.body_pose {
+            return Ok(Arc::clone(body_pose));
+        }
     }
 
     let models_dir = get_models_dir(app_handle)?;
@@ -374,19 +362,19 @@ pub async fn get_or_init_body_model(
             let face_landmark = Arc::clone(&models.face_landmark);
             *models = Arc::new(PortraitModels {
                 face_landmark,
-                body_pose: Arc::clone(&body_model),
+                body_pose: Some(Arc::clone(&body_model)),
             });
         } else {
             state.models = Some(Arc::new(PortraitModels {
-                face_landmark: Arc::clone(&body_model), // placeholder for face
-                body_pose: Arc::clone(&body_model),
+                face_landmark: Arc::clone(&body_model),
+                body_pose: Some(Arc::clone(&body_model)),
             }));
         }
     } else {
         *state_lock = Some(PortraitState {
             models: Some(Arc::new(PortraitModels {
-                face_landmark: Arc::clone(&body_model), // placeholder
-                body_pose: Arc::clone(&body_model),
+                face_landmark: Arc::clone(&body_model),
+                body_pose: Some(Arc::clone(&body_model)),
             })),
         });
     }

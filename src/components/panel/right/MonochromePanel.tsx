@@ -9,6 +9,7 @@ import Button from '../../ui/Button';
 import Dropdown from '../../ui/Dropdown';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
 
 interface MonoPresetOption {
     id: string;
@@ -57,10 +58,12 @@ export default function MonochromePanel() {
     const totalWeight = useMemo(() => redWeight + greenWeight + blueWeight, [redWeight, greenWeight, blueWeight]);
 
     const handleApply = useCallback(async () => {
+        const imageDataBase64 = useEditorStore.getState().selectedImage?.original_base64 || '';
+        if (!imageDataBase64) return;
         setIsProcessing(true);
         try {
             await invoke('convert_to_monochrome', {
-                imageDataBase64: '', // Will be populated by editor store
+                imageDataBase64,
                 redWeight: redWeight / 100,
                 greenWeight: greenWeight / 100,
                 blueWeight: blueWeight / 100,

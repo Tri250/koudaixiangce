@@ -302,70 +302,194 @@ pub fn find_profile(make: &str, model: &str) -> Option<CameraProfile> {
 /// DCP files are TIFF-based containers with IFD tags specifying
 /// color matrices, tone curves, and look tables.
 pub fn parse_dcp(data: &[u8]) -> anyhow::Result<DCPProfile> {
-    // Minimal DCP parser: read TIFF structure and extract relevant tags.
-    // DCP uses TIFF IFD tags:
-    //   50721 - ColorMatrix1
-    //   50722 - ColorMatrix2
-    //   50725 - ForwardMatrix1
-    //   50778 - CalibrationIlluminant1
-    //   50779 - CalibrationIlluminant2
-    //   50936 - ProfileName
-    //   50937 - ProfileCopyright
-
     if data.len() < 8 {
         anyhow::bail!("DCP file too short");
     }
 
-    // Check TIFF byte order
-    let little_endian = match &data[0..2] {
+    let le = match &data[0..2] {
         b"II" => true,
         b"MM" => false,
         _ => anyhow::bail!("Invalid DCP: not a TIFF file"),
     };
 
-    let read_u16 = |offset: usize| -> u16 {
-        if little_endian {
-            u16::from_le_bytes([data[offset], data[offset + 1]])
-        } else {
-            u16::from_be_bytes([data[offset], data[offset + 1]])
-        }
+    let ru16 = |d: &[u8], o: usize| -> u16 {
+        if le { u16::from_le_bytes([d[o], d[o + 1]]) } else { u16::from_be_bytes([d[o], d[o + 1]]) }
+    };
+    let ru32 = |d: &[u8], o: usize| -> u32 {
+        if le { u32::from_le_bytes([d[o], d[o + 1], d[o + 2], d[o + 3]]) } else { u32::from_be_bytes([d[o], d[o + 1], d[o + 2], d[o + 3]]) }
+    };
+    let ri32 = |d: &[u8], o: usize| -> i32 {
+        if le { i32::from_le_bytes([d[o], d[o + 1], d[o + 2], d[o + 3]]) } else { i32::from_be_bytes([d[o], d[o + 1], d[o + 2], d[o + 3]]) }
+    };
+    let rf32 = |d: &[u8], o: usize| -> f32 {
+        if le { f32::from_le_bytes([d[o], d[o + 1], d[o + 2], d[o + 3]]) } else { f32::from_be_bytes([d[o], d[o + 1], d[o + 2], d[o + 3]]) }
     };
 
-    let _read_u32 = |offset: usize| -> u32 {
-        if little_endian {
-            u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
-        } else {
-            u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
-        }
-    };
-
-    // Validate TIFF magic number
-    if read_u16(2) != 42 {
+    if ru16(data, 2) != 42 {
         anyhow::bail!("Invalid DCP: bad TIFF magic");
     }
 
-    // Parse IFD entries for color matrices
-    // For a full implementation, we'd iterate all IFD entries.
-    // Here we provide a fallback default profile.
-    let default_profile = CameraProfile {
-        make: "Unknown".into(),
-        model: "Unknown DCP".into(),
-        color_matrix_1: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        color_matrix_2: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        forward_matrix_1: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        calibration_illuminant_1: 21,
-        calibration_illuminant_2: 17,
-        base_exposure_offset: 0.0,
-        baseline_exposure: 1.0,
+    let ifd0 = ru32(data, 4) as usize;
+    if ifd0 + 2 > data.len() {
+        anyhow::bail!("Invalid DCP: IFD0 out of bounds");
+    }
+
+    let mut color_matrix_1: Option<[f32; 9]> = None;
+    let mut color_matrix_2: Option<[f32; 9]> = None;
+    let mut forward_matrix_1: Option<[f32; 9]> = None;
+    let mut calibration_illuminant_1: u16 = 21;
+    let mut calibration_illuminant_2: u16 = 17;
+    let mut baseline_exposure: f32 = 1.0;
+    let mut profile_name = String::new();
+    let mut tone_curve: Vec<(f32, f32)> = Vec::new();
+    let mut look_table: Vec<f32> = Vec::new();
+
+    let n_entries = ru16(data, ifd0) as usize;
+    for i in 0..n_entries {
+        let e = ifd0 + 2 + i * 12;
+        if e + 12 > data.len() { break; }
+        let tag = ru16(data, e);
+        let ty = ru16(data, e + 2);
+        let count = ru32(data, e + 4);
+        let vo = e + 8;
+        let type_sz = match ty {
+            1 | 2 | 6 | 7 => 1usize,
+            3 | 8 => 2,
+            4 | 9 | 11 => 4,
+            5 | 10 | 12 => 8,
+            _ => 1,
+        };
+        let total = (count as usize).saturating_mul(type_sz);
+        let d_off = if total <= 4 { vo } else { ru32(data, vo) as usize };
+
+        match tag {
+            0xC621 => { // ColorMatrix1
+                if ty == 10 && count >= 9 {
+                    let mut m = [0.0f32; 9];
+                    for j in 0..9 {
+                        let off = d_off + j * 8;
+                        if off + 8 > data.len() { break; }
+                        let num = ri32(data, off);
+                        let den = ri32(data, off + 4);
+                        m[j] = if den == 0 { 0.0 } else { num as f32 / den as f32 };
+                    }
+                    color_matrix_1 = Some(m);
+                }
+            }
+            0xC622 => { // ColorMatrix2
+                if ty == 10 && count >= 9 {
+                    let mut m = [0.0f32; 9];
+                    for j in 0..9 {
+                        let off = d_off + j * 8;
+                        if off + 8 > data.len() { break; }
+                        let num = ri32(data, off);
+                        let den = ri32(data, off + 4);
+                        m[j] = if den == 0 { 0.0 } else { num as f32 / den as f32 };
+                    }
+                    color_matrix_2 = Some(m);
+                }
+            }
+            0xC625 => { // ForwardMatrix1
+                if ty == 10 && count >= 9 {
+                    let mut m = [0.0f32; 9];
+                    for j in 0..9 {
+                        let off = d_off + j * 8;
+                        if off + 8 > data.len() { break; }
+                        let num = ri32(data, off);
+                        let den = ri32(data, off + 4);
+                        m[j] = if den == 0 { 0.0 } else { num as f32 / den as f32 };
+                    }
+                    forward_matrix_1 = Some(m);
+                }
+            }
+            0xC62A => { // BaselineExposure
+                if ty == 10 && count >= 1 && d_off + 8 <= data.len() {
+                    let num = ri32(data, d_off);
+                    let den = ri32(data, d_off + 4);
+                    baseline_exposure = if den == 0 { 1.0 } else { num as f32 / den as f32 };
+                }
+            }
+            0xC65D => { // CalibrationIlluminant1
+                if ty == 3 && count >= 1 {
+                    calibration_illuminant_1 = ru16(data, d_off);
+                }
+            }
+            0xC65E => { // CalibrationIlluminant2
+                if ty == 3 && count >= 1 {
+                    calibration_illuminant_2 = ru16(data, d_off);
+                }
+            }
+            0xC714 => { // ProfileName
+                if ty == 2 {
+                    let mut bytes = vec![0u8; count as usize];
+                    for j in 0..count as usize {
+                        let off = if total <= 4 { vo + j } else { d_off + j };
+                        if off >= data.len() { break; }
+                        bytes[j] = data[off];
+                    }
+                    profile_name = String::from_utf8_lossy(&bytes).trim_end_matches('\0').to_string();
+                }
+            }
+            0xC6F8 => { // ProfileToneCurve
+                if ty == 5 {
+                    let n_pairs = count as usize / 2;
+                    for j in 0..n_pairs {
+                        let off = d_off + j * 16;
+                        if off + 16 > data.len() { break; }
+                        let in_num = ru32(data, off);
+                        let in_den = ru32(data, off + 4);
+                        let out_num = ru32(data, off + 8);
+                        let out_den = ru32(data, off + 12);
+                        let input = if in_den == 0 { 0.0 } else { in_num as f32 / in_den as f32 };
+                        let output = if out_den == 0 { 0.0 } else { out_num as f32 / out_den as f32 };
+                        tone_curve.push((input, output));
+                    }
+                }
+            }
+            0xC6FA | 0xC719 => { // ProfileLookTableData
+                if ty == 11 {
+                    let n_floats = count as usize;
+                    let mut vals = Vec::with_capacity(n_floats);
+                    for j in 0..n_floats {
+                        let off = d_off + j * 4;
+                        if off + 4 > data.len() { break; }
+                        vals.push(rf32(data, off));
+                    }
+                    look_table = vals;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let make_model = if profile_name.is_empty() {
+        "Unknown DCP".to_string()
+    } else {
+        profile_name.clone()
     };
 
-    // TODO: Parse actual IFD entries and populate matrices from TIFF tags
-    // For now, return the identity profile (pass-through)
-
     Ok(DCPProfile {
-        profile: default_profile,
-        tone_curve: vec![(0.0, 0.0), (1.0, 1.0)], // Linear tone curve
-        look_table: vec![1.0], // Identity look
+        profile: CameraProfile {
+            make: make_model.clone(),
+            model: make_model,
+            color_matrix_1: color_matrix_1.unwrap_or([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+            color_matrix_2: color_matrix_2.unwrap_or([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+            forward_matrix_1: forward_matrix_1.unwrap_or([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+            calibration_illuminant_1,
+            calibration_illuminant_2,
+            base_exposure_offset: 0.0,
+            baseline_exposure,
+        },
+        tone_curve: if tone_curve.is_empty() {
+            vec![(0.0, 0.0), (1.0, 1.0)]
+        } else {
+            tone_curve
+        },
+        look_table: if look_table.is_empty() {
+            vec![1.0]
+        } else {
+            look_table
+        },
     })
 }
 

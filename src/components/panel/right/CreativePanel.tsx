@@ -25,11 +25,24 @@ import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 
+// ── Helpers ─────────────────────────────────────────────────────────────
+
+function getImageDataBase64(): string {
+  return useEditorStore.getState().selectedImage?.original_base64 || '';
+}
+
+function hexToRgbTuple(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return [r, g, b];
+}
+
 // ── Color Match Section ──────────────────────────────────────────────
 
 function ColorMatchSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [matchMethod, setMatchMethod] = useState<'histogram' | 'linear'>('histogram');
   const [strength, setStrength] = useState(50);
   const [referencePath, setReferencePath] = useState<string | null>(null);
@@ -49,16 +62,23 @@ function ColorMatchSection() {
 
   const handleApply = useCallback(async () => {
     if (!referencePath) return;
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64) return;
+    const sourceAdjustments = useEditorStore.getState().adjustments;
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('ai_match_colors', { imagePath, referencePath, method: matchMethod, strength });
+      await invoke('ai_match_colors', {
+        sourceAdjustments,
+        referenceImagePath: referencePath,
+        matchMethod,
+        strength,
+      });
     } catch (err) {
       console.error('apply_color_match failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [referencePath, matchMethod, strength, selectedImage]);
+  }, [referencePath, matchMethod, strength]);
 
   const methodOptions = [
     { label: t('editor.creative.colorMatch.methodHistogram'), value: 'histogram' as const },
@@ -102,11 +122,30 @@ function ColorMatchSection() {
 
 function FillLightSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [direction, setDirection] = useState(0);
   const [intensity, setIntensity] = useState(50);
   const [softness, setSoftness] = useState(30);
   const [colorTemp, setColorTemp] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleApply = useCallback(async () => {
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64) return;
+    setIsProcessing(true);
+    try {
+      await invoke('apply_fill_light', {
+        imageDataBase64,
+        direction,
+        intensity,
+        softness,
+        colorTemp,
+      });
+    } catch (err) {
+      console.error('apply_fill_light failed:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [direction, intensity, softness, colorTemp]);
 
   return (
     <div className="space-y-2 pt-2">
@@ -146,6 +185,10 @@ function FillLightSection() {
         value={colorTemp}
         onChange={(e) => setColorTemp(Number(e.target.value))}
       />
+      <Button className="w-full" onClick={handleApply} disabled={isProcessing}>
+        {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Sun size={16} />}
+        <span className="ml-2">{t('editor.creative.fillLight.apply')}</span>
+      </Button>
     </div>
   );
 }
@@ -154,21 +197,25 @@ function FillLightSection() {
 
 function SuperResolutionSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [scale, setScale] = useState<'2x' | '4x'>('2x');
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleApply = useCallback(async () => {
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64) return;
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('apply_super_resolution', { imagePath, scale: scale === '2x' ? 2 : 4 });
+      await invoke('apply_super_resolution', {
+        imageDataBase64,
+        scaleFactor: scale === '2x' ? 2 : 4,
+        modelType: 'esrgan',
+      });
     } catch (err) {
       console.error('apply_super_resolution failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [scale, selectedImage]);
+  }, [scale]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -200,22 +247,27 @@ function SuperResolutionSection() {
 
 function IdPhotoSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [sizePreset, setSizePreset] = useState<'one_inch' | 'two_inch' | 'passport'>('one_inch');
   const [bgColor, setBgColor] = useState('#FFFFFF');
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleProcess = useCallback(async () => {
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64) return;
+    const backgroundColor = hexToRgbTuple(bgColor);
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('process_id_photo', { imagePath, sizePreset, bgColor });
+      await invoke('process_id_photo', {
+        imageDataBase64,
+        size: sizePreset,
+        backgroundColor,
+      });
     } catch (err) {
       console.error('process_id_photo failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [sizePreset, bgColor, selectedImage]);
+  }, [sizePreset, bgColor]);
 
   const presetOptions = [
     { label: t('editor.creative.idPhoto.oneInch'), value: 'one_inch' as const },
@@ -253,6 +305,25 @@ function ClothingSection() {
   const { t } = useTranslation();
   const [wrinkleStrength, setWrinkleStrength] = useState(50);
   const [blemishToggle, setBlemishToggle] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleApply = useCallback(async () => {
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64) return;
+    setIsProcessing(true);
+    try {
+      await invoke('retouch_clothing', {
+        imageDataBase64,
+        bodyKeypoints: [],
+        removeWrinkles: wrinkleStrength / 100,
+        removeStains: blemishToggle,
+      });
+    } catch (err) {
+      console.error('retouch_clothing failed:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [wrinkleStrength, blemishToggle]);
 
   return (
     <div className="space-y-2 pt-2">
@@ -270,6 +341,10 @@ function ClothingSection() {
         label={t('editor.creative.clothing.blemishToggle')}
         onChange={setBlemishToggle}
       />
+      <Button className="w-full" onClick={handleApply} disabled={isProcessing}>
+        {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Shirt size={16} />}
+        <span className="ml-2">{t('editor.creative.clothing.apply')}</span>
+      </Button>
     </div>
   );
 }
@@ -280,12 +355,31 @@ function LensBlurSection() {
   const { t } = useTranslation();
   const [blurType, setBlurType] = useState<'gaussian' | 'bokeh' | 'tilt_shift'>('gaussian');
   const [blurAmount, setBlurAmount] = useState(30);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const blurTypeOptions = [
     { label: t('editor.creative.lensBlur.gaussian'), value: 'gaussian' as const },
     { label: t('editor.creative.lensBlur.bokeh'), value: 'bokeh' as const },
     { label: t('editor.creative.lensBlur.tiltShift'), value: 'tilt_shift' as const },
   ];
+
+  const handleApply = useCallback(async () => {
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64) return;
+    setIsProcessing(true);
+    try {
+      await invoke('apply_lens_blur', {
+        imageDataBase64,
+        blurType,
+        focalPoint: [0.5, 0.5],
+        blurAmount: blurAmount / 100,
+      });
+    } catch (err) {
+      console.error('apply_lens_blur failed:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [blurType, blurAmount]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -303,6 +397,10 @@ function LensBlurSection() {
         onChange={(e) => setBlurAmount(Number(e.target.value))}
         fillOrigin="min"
       />
+      <Button className="w-full" onClick={handleApply} disabled={isProcessing}>
+        {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CircleDot size={16} />}
+        <span className="ml-2">{t('editor.creative.lensBlur.apply')}</span>
+      </Button>
     </div>
   );
 }
@@ -311,23 +409,28 @@ function LensBlurSection() {
 
 function OldPhotoRestoreSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [denoiseStrength, setDenoiseStrength] = useState(50);
   const [scratchRemoval, setScratchRemoval] = useState(true);
   const [colorize, setColorize] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleRestore = useCallback(async () => {
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64) return;
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('restore_old_photo', { imagePath, denoiseStrength, scratchRemoval, colorize });
+      await invoke('restore_old_photo', {
+        imageDataBase64,
+        denoiseStrength: denoiseStrength / 100,
+        scratchRemoval,
+        colorize,
+      });
     } catch (err) {
       console.error('restore_old_photo failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [denoiseStrength, scratchRemoval, colorize, selectedImage]);
+  }, [denoiseStrength, scratchRemoval, colorize]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -362,22 +465,26 @@ function OldPhotoRestoreSection() {
 
 function SeasonalEffectsSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [effectType, setEffectType] = useState<'sakura' | 'summer' | 'autumn' | 'winter'>('sakura');
   const [intensity, setIntensity] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleApply = useCallback(async () => {
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64) return;
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('apply_seasonal_effect', { imagePath, effectType, intensity });
+      await invoke('apply_seasonal_effect', {
+        imageDataBase64,
+        effectType,
+        intensity: intensity / 100,
+      });
     } catch (err) {
       console.error('apply_seasonal_effect failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [effectType, intensity, selectedImage]);
+  }, [effectType, intensity]);
 
   const effectOptions = [
     { id: 'sakura' as const, labelKey: 'editor.creative.seasonal.sakura', color: '#FFB7C5' },

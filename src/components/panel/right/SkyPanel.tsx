@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { Cloud, Sun, Loader2, RotateCcw, ImagePlus } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
@@ -28,6 +29,32 @@ const SKY_PRESETS: SkyPreset[] = [
   { id: 'aurora', nameKey: 'editor.sky.presets.aurora', color: '#00BFA5', gradientFrom: '#00E676', gradientTo: '#1A237E' },
 ];
 
+function getImageDataBase64(): string {
+  return useEditorStore.getState().selectedImage?.original_base64 || '';
+}
+
+function updateSelectedImageBase64(result: string) {
+  const state = useEditorStore.getState();
+  if (state.selectedImage) {
+    state.setEditor({
+      selectedImage: { ...state.selectedImage, original_base64: result },
+    });
+  }
+}
+
+function generatePresetBase64(preset: SkyPreset, width = 512, height = 512): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, preset.gradientFrom);
+  gradient.addColorStop(1, preset.gradientTo);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  return canvas.toDataURL('image/png');
+}
+
 export default function SkyPanel() {
   const { t } = useTranslation();
   const selectedImage = useEditorStore((s) => s.selectedImage);
@@ -38,53 +65,76 @@ export default function SkyPanel() {
   const [feather, setFeather] = useState(10);
   const [colorMatchStrength, setColorMatchStrength] = useState(50);
   const [horizonAdjust, setHorizonAdjust] = useState(0);
-  const [skyMaskGenerated, setSkyMaskGenerated] = useState(false);
+  const [maskBase64, setMaskBase64] = useState<string | null>(null);
 
   const handleDetectSky = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64) return;
     setIsDetectingSky(true);
     try {
-      await invoke('detect_sky_mask', { imagePath });
-      setSkyMaskGenerated(true);
+      const result = await invoke<string>('generate_ai_sky_mask_base64', { imageDataBase64 });
+      setMaskBase64(result);
     } catch (err) {
-      console.error('detect_sky_mask failed:', err);
+      console.error('generate_ai_sky_mask_base64 failed:', err);
     } finally {
       setIsDetectingSky(false);
     }
-  }, [selectedImage]);
+  }, []);
 
   const handleSelectSkyImage = useCallback(async () => {
     try {
-      const selected = await invoke<string>('select_sky_image');
-      if (selected) {
+      const selected = await open({
+        multiple: false,
+        filters: [
+          { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
+        ],
+      });
+      if (typeof selected === 'string') {
         setSkyImagePath(selected);
         setSelectedPreset(null);
       }
     } catch (err) {
-      console.error('select_sky_image failed:', err);
+      console.error('Failed to open sky image dialog:', err);
     }
   }, []);
 
   const handleApply = useCallback(async () => {
-    if (!skyMaskGenerated) return;
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
+    const imageDataBase64 = getImageDataBase64();
+    if (!imageDataBase64 || !maskBase64) return;
+    if (!skyImagePath && !selectedPreset) return;
+
     setIsProcessing(true);
     try {
-      await invoke('replace_sky', {
-        imagePath,
-        skyImagePath: skyImagePath || selectedPreset || '',
-        feather,
-        colorMatchStrength,
-        horizonAdjust,
+      let sky_image_base64: string | undefined;
+      let sky_image_path: string | undefined;
+
+      if (selectedPreset) {
+        const preset = SKY_PRESETS.find((p) => p.id === selectedPreset);
+        if (preset) {
+          sky_image_base64 = generatePresetBase64(preset);
+        }
+      } else if (skyImagePath) {
+        sky_image_path = skyImagePath;
+      }
+
+      const result = await invoke<string>('replace_sky_base64', {
+        imageDataBase64,
+        skyImageBase64: sky_image_base64 || null,
+        skyImagePath: sky_image_path || null,
+        maskBase64: maskBase64,
+        blendMode: 'normal',
+        feather: feather,
+        colorMatchStrength: colorMatchStrength / 100.0,
+        horizonAdjust: horizonAdjust / 100.0,
       });
+
+      updateSelectedImageBase64(result);
     } catch (err) {
-      console.error('replace_sky failed:', err);
+      console.error('replace_sky_base64 failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [skyMaskGenerated, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust, selectedImage]);
+  }, [maskBase64, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust]);
 
   return (
     <div className="flex flex-col h-full select-none overflow-hidden">
@@ -93,7 +143,7 @@ export default function SkyPanel() {
         <button
           className="p-2 rounded-full hover:bg-surface transition-colors"
           onClick={() => {
-            setSkyMaskGenerated(false);
+            setMaskBase64(null);
             setSkyImagePath(null);
             setSelectedPreset(null);
             setFeather(10);
@@ -108,12 +158,12 @@ export default function SkyPanel() {
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
         {/* Detect Sky */}
-        <Button className="w-full" onClick={handleDetectSky} disabled={isDetectingSky}>
+        <Button className="w-full" onClick={handleDetectSky} disabled={isDetectingSky || !selectedImage}>
           {isDetectingSky ? <Loader2 size={16} className="animate-spin" /> : <Cloud size={16} />}
           <span className="ml-2">{t('editor.sky.detectSky')}</span>
         </Button>
 
-        {skyMaskGenerated && (
+        {maskBase64 && (
           <Text variant={TextVariants.small} color={TextColors.success} className="text-center">
             {t('editor.sky.maskDetected')}
           </Text>
@@ -127,7 +177,7 @@ export default function SkyPanel() {
 
         {skyImagePath && (
           <Text variant={TextVariants.small} color={TextColors.primary} className="text-center truncate">
-            {skyImagePath}
+            {skyImagePath.split(/[\\/]/).pop()}
           </Text>
         )}
 
@@ -197,7 +247,7 @@ export default function SkyPanel() {
         <Button
           className="w-full"
           onClick={handleApply}
-          disabled={isProcessing || !skyMaskGenerated || (!skyImagePath && !selectedPreset)}
+          disabled={isProcessing || !maskBase64 || (!skyImagePath && !selectedPreset)}
         >
           {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Sun size={16} />}
           <span className="ml-2">{t('editor.sky.apply')}</span>

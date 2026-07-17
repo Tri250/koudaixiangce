@@ -127,8 +127,6 @@ fn analyze_image(
     hasher: &image_hasher::Hasher,
     settings: &crate::app_settings::AppSettings,
 ) -> Result<ImageAnalysisData, String> {
-    const ANALYSIS_DIM: u32 = 720; // FIXME: How should we calculate good focus if it's downscaled?!?
-
     if crate::file_management::is_cloud_placeholder(Path::new(path)) {
         return Err(format!("'{}' is stored in iCloud and not downloaded", path));
     }
@@ -139,7 +137,8 @@ fn analyze_image(
         .map_err(|e| e.to_string())?;
 
     let (width, height) = img.dimensions();
-    let thumbnail = img.thumbnail(ANALYSIS_DIM, ANALYSIS_DIM);
+    let analysis_dim = (width.max(height) / 3).clamp(512, 1024);
+    let thumbnail = img.thumbnail(analysis_dim, analysis_dim);
     let gray_thumbnail = thumbnail.to_luma8();
 
     let sharpness_metric = calculate_laplacian_variance(&gray_thumbnail);

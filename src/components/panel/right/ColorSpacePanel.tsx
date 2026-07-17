@@ -9,6 +9,7 @@ import Dropdown from '../../ui/Dropdown';
 import Switch from '../../ui/Switch';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
 
 const COLOR_SPACE_OPTIONS = [
     { label: 'sRGB', value: 'srgb' as const },
@@ -59,14 +60,17 @@ export default function ColorSpacePanel() {
 
     // Auto-detect camera profile from EXIF
     const handleAutoDetect = useCallback(async () => {
+        const selectedImage = useEditorStore.getState().selectedImage;
+        const exifMake = selectedImage?.exif?.Make || '';
+        const exifModel = selectedImage?.exif?.Model || '';
         try {
             const result = await invoke<{
                 detectedMake: string;
                 detectedModel: string;
                 suggestedProfile: CameraProfileInfo;
             }>('get_camera_profile_for_image', {
-                exifMake: '', // Will be populated by editor store
-                exifModel: '',
+                exifMake,
+                exifModel,
             });
             setDetectedCamera({ make: result.detectedMake, model: result.detectedModel });
             if (result.suggestedProfile) {
@@ -81,9 +85,7 @@ export default function ColorSpacePanel() {
     const handleImportDCP = useCallback(async () => {
         setIsImporting(true);
         try {
-            const selected = await invoke<string>('import_dcp_profile', {
-                filePath: '', // Will trigger file dialog
-            });
+            const selected = await invoke<string>('import_dcp_profile', {});
             if (selected) {
                 // Reload profiles after import
                 const profiles = await invoke<CameraProfileInfo[]>('get_camera_profiles');
@@ -98,9 +100,11 @@ export default function ColorSpacePanel() {
 
     // Soft proof
     const handleSoftProof = useCallback(async () => {
+        const imageDataBase64 = useEditorStore.getState().selectedImage?.original_base64 || '';
+        if (!imageDataBase64) return;
         try {
             const result = await invoke<{ proofImageBase64: string; outOfGamutPixels: number }>('soft_proof', {
-                imageDataBase64: '', // Will be populated by editor store
+                imageDataBase64,
                 targetColorSpace: outputColorSpace,
             });
             setOutOfGamutCount(result.outOfGamutPixels);

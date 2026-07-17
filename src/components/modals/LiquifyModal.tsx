@@ -214,8 +214,7 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
     if (liquifyStrokes.length === 0) return;
     setIsApplying(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
-      await applyLiquify(imagePath, liquifyStrokes);
+      await applyLiquify(liquifyStrokes);
       onClose();
     } finally {
       setIsApplying(false);

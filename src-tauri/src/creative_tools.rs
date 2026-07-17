@@ -373,76 +373,28 @@ impl Default for IdPhotoParams {
 /// 2. Crop to specified ID photo size ratio
 /// 3. If bg replacement: detect background, replace with solid color
 /// 4. Adjust brightness/contrast for ID photo standard
-pub fn process_id_photo_with_params(image: &DynamicImage, params: &IdPhotoParams) -> anyhow::Result<DynamicImage> {
-    let (target_w, target_h) = match params.size {
-        IdPhotoSize::OneInch => (295, 413),   // 25mm x 35mm at 300 DPI
-        IdPhotoSize::TwoInch => (413, 579),   // 35mm x 49mm at 300 DPI
-        IdPhotoSize::Passport => (354, 472),  // 30mm x 40mm at 300 DPI
-        IdPhotoSize::Custom => (params.custom_width.max(100), params.custom_height.max(100)),
-    };
-
-    let (width, height) = image.dimensions();
-    let mut result = image.clone();
-
-    // Step 1: Center the face (approximate - find brightest region as face proxy)
-    // In production, this would use face detection landmarks
-    let face_center = detect_face_center_approx(image);
-    let crop_x = (face_center.0 as i32 - target_w as i32 / 2).max(0) as u32;
-    let crop_y = (face_center.1 as i32 - target_h as i32 / 3).max(0) as u32; // Face at upper third
-
-    // Step 2: Crop to target ratio
-    let crop_w = target_w.min(width);
-    let crop_h = target_h.min(height);
-    if crop_x + crop_w <= width && crop_y + crop_h <= height {
-        let cropped = imageops::crop_imm(&result.to_rgba8(), crop_x, crop_y, crop_w, crop_h).to_image();
-        result = DynamicImage::ImageRgba8(cropped);
-    }
-
-    // Resize to exact target size
-    result = result.resize_exact(target_w, target_h, imageops::FilterType::Lanczos3);
-
-    // Step 3: Background replacement if enabled
-    if params.bg_replacement_enabled {
-        result = replace_id_photo_bg(&result, params.background_color);
-    }
-
-    // Step 4: Adjust brightness/contrast for ID photo standard
-    result = adjust_id_photo_tone(&result);
-
-    Ok(result)
+pub fn process_id_photo_with_params(
+    image: &DynamicImage,
+    params: &IdPhotoParams,
+    app_handle: &tauri::AppHandle,
+) -> anyhow::Result<DynamicImage> {
+    process_id_photo_impl(image, params, app_handle)
 }
 
-/// Approximate face center detection (brightest region heuristic).
-fn detect_face_center_approx(image: &DynamicImage) -> (u32, u32) {
-    let (width, height) = image.dimensions();
-    let gray = image.to_luma8();
-
-    // Find the brightest region in the upper 60% of the image
-    let search_h = (height as f32 * 0.6) as u32;
-    let block_size = 32u32;
-    let mut best_x = width / 2;
-    let mut best_y = height / 4;
-    let mut best_sum = 0u32;
-
-    for by in (0..search_h).step_by(block_size as usize) {
-        for bx in (0..width).step_by(block_size as usize) {
-            let mut sum = 0u32;
-            for dy in 0..block_size {
-                for dx in 0..block_size {
-                    let x = (bx + dx).min(width - 1);
-                    let y = (by + dy).min(height - 1);
-                    sum += gray.get_pixel(x, y)[0] as u32;
-                }
-            }
-            if sum > best_sum {
-                best_sum = sum;
-                best_x = bx + block_size / 2;
-                best_y = by + block_size / 2;
-            }
-        }
+/// Detect face center using the portrait detection module.
+fn detect_face_center(image: &DynamicImage, app_handle: &tauri::AppHandle) -> Option<(u32, u32)> {
+    let detection = crate::portrait_detection::detect_faces_compat(image, app_handle).ok()?;
+    let faces = detection.get("faces")?.as_array()?;
+    let first_face = faces.first()?;
+    let bbox = first_face.get("bbox")?.as_array()?;
+    if bbox.len() < 4 {
+        return None;
     }
-
-    (best_x, best_y)
+    let x1 = bbox[0].as_f64()? as u32;
+    let y1 = bbox[1].as_f64()? as u32;
+    let x2 = bbox[2].as_f64()? as u32;
+    let y2 = bbox[3].as_f64()? as u32;
+    Some(((x1 + x2) / 2, (y1 + y2) / 2))
 }
 
 /// Replace background with a solid color for ID photo.
@@ -1324,11 +1276,15 @@ pub fn process_id_photo(
         custom_width: 0,
         custom_height: 0,
     };
-    process_id_photo_impl(image, &params)
+    process_id_photo_impl(image, &params, _app_handle)
 }
 
 /// Internal ID photo implementation.
-fn process_id_photo_impl(image: &DynamicImage, params: &IdPhotoParams) -> anyhow::Result<DynamicImage> {
+fn process_id_photo_impl(
+    image: &DynamicImage,
+    params: &IdPhotoParams,
+    app_handle: &tauri::AppHandle,
+) -> anyhow::Result<DynamicImage> {
     let (target_w, target_h) = match params.size {
         IdPhotoSize::OneInch => (295, 413),
         IdPhotoSize::TwoInch => (413, 579),
@@ -1336,7 +1292,7 @@ fn process_id_photo_impl(image: &DynamicImage, params: &IdPhotoParams) -> anyhow
         IdPhotoSize::Custom => (params.custom_width.max(100), params.custom_height.max(100)),
     };
     let (width, height) = image.dimensions();
-    let face_center = detect_face_center_approx(image);
+    let face_center = detect_face_center(image, app_handle).unwrap_or((width / 2, height / 3));
     let crop_x = (face_center.0 as i32 - target_w as i32 / 2).max(0) as u32;
     let crop_y = (face_center.1 as i32 - target_h as i32 / 3).max(0) as u32;
 

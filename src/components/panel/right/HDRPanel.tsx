@@ -10,6 +10,7 @@ import Dropdown from '../../ui/Dropdown';
 import Switch from '../../ui/Switch';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
 
 const PEAK_BRIGHTNESS_OPTIONS = [
     { label: '1000 nits', value: 1000 },
@@ -49,10 +50,12 @@ export default function HDRPanel() {
 
     const handleApplyHighlightRecovery = useCallback(async () => {
         if (!hdrPreviewEnabled) return;
+        const imageDataBase64 = useEditorStore.getState().selectedImage?.original_base64 || '';
+        if (!imageDataBase64) return;
         setIsProcessing(true);
         try {
             await invoke('apply_hdr_highlight_recovery', {
-                imageDataBase64: '', // Will be populated by editor store
+                imageDataBase64,
                 mode: highlightMode,
                 recoveryAmount: recoveryAmount,
                 peakBrightnessNits: peakBrightness,
@@ -75,9 +78,11 @@ export default function HDRPanel() {
             setOutOfGamutWarning(null);
             return;
         }
+        const imageDataBase64 = useEditorStore.getState().selectedImage?.original_base64 || '';
+        if (!imageDataBase64) return;
         try {
             const count = await invoke<number>('check_out_of_gamut', {
-                imageDataBase64: '',
+                imageDataBase64,
                 targetColorSpace: outputColorSpace,
             });
             setOutOfGamutWarning(count);
@@ -92,11 +97,13 @@ export default function HDRPanel() {
     }, [hdrPreviewEnabled, outputColorSpace, handleCheckOutOfGamut]);
 
     const handleExportUltraHDR = useCallback(async () => {
+        const imageDataBase64 = useEditorStore.getState().selectedImage?.original_base64 || '';
+        if (!imageDataBase64) return;
         setIsExportingJpeg(true);
         try {
             await invoke('export_ultra_hdr_jpeg', {
-                hdrImageBase64: '',
-                sdrImageBase64: '',
+                hdrImageBase64: imageDataBase64,
+                sdrImageBase64: imageDataBase64,
                 peakBrightnessNits: peakBrightness,
                 quality: 90,
             });
@@ -108,10 +115,12 @@ export default function HDRPanel() {
     }, [peakBrightness]);
 
     const handleExportHDRTIFF = useCallback(async () => {
+        const imageDataBase64 = useEditorStore.getState().selectedImage?.original_base64 || '';
+        if (!imageDataBase64) return;
         setIsExportingTiff(true);
         try {
             await invoke('export_hdr_tiff', {
-                imageDataBase64: '',
+                imageDataBase64,
                 peakBrightnessNits: peakBrightness,
                 bitDepth: tiffBitDepth,
             });

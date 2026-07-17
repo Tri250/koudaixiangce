@@ -82,14 +82,13 @@ fn encode_image_to_base64_jpeg(img: &DynamicImage) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn detect_faces_in_image(
-    js_adjustments: serde_json::Value,
-    state: tauri::State<'_, AppState>,
+    image_data_base64: String,
     app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
+    let image = decode_base64_image(&image_data_base64)?;
 
     let result = tokio::task::spawn_blocking(move || {
-        crate::portrait_detection::detect_faces_compat(warped_image.as_ref(), &app_handle)
+        crate::portrait_detection::detect_faces_compat(&image, &app_handle)
             .map_err(|e| e.to_string())
     })
     .await
@@ -100,14 +99,13 @@ pub async fn detect_faces_in_image(
 
 #[tauri::command]
 pub async fn detect_body_in_image(
-    js_adjustments: serde_json::Value,
-    state: tauri::State<'_, AppState>,
+    image_data_base64: String,
     app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
+    let image = decode_base64_image(&image_data_base64)?;
 
     let result = tokio::task::spawn_blocking(move || {
-        crate::portrait_detection::detect_body_compat(warped_image.as_ref(), &app_handle)
+        crate::portrait_detection::detect_body_compat(&image, &app_handle)
             .map_err(|e| e.to_string())
     })
     .await
@@ -297,12 +295,15 @@ pub async fn ai_remove_people(
 #[tauri::command]
 pub async fn ai_match_colors(
     source_adjustments: serde_json::Value,
-    reference_image_base64: String,
+    reference_image_path: String,
     match_method: String,
     strength: f32,
-    state: tauri::State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
-    let reference_image = decode_base64_image(&reference_image_base64)?;
+    let reference_image = tokio::fs::read(&reference_image_path)
+        .await
+        .map_err(|e| format!("Failed to read reference image: {}", e))?;
+    let reference_image = image::load_from_memory(&reference_image)
+        .map_err(|e| format!("Failed to decode reference image: {}", e))?;
 
     let result = tokio::task::spawn_blocking(move || {
         crate::ai_color_match::match_colors(&source_adjustments, &reference_image, &match_method, strength)
@@ -469,21 +470,18 @@ pub async fn batch_sync_preset(
 ) -> Result<(), String> {
     let total = image_paths.len();
     for (idx, path) in image_paths.iter().enumerate() {
-        // Load image from path
-        let img_result = image::open(path);
-        match img_result {
-            Ok(_img) => {
-                // Successfully loaded image. Preset adjustments would be applied
-                // via the existing GPU pipeline. For batch sync, we serialize
-                // the preset adjustments to a sidecar .json file next to the image.
-                let sidecar_path = format!("{}.json", path);
-                let preset_json = serde_json::to_string_pretty(&preset_adjustments)
-                    .map_err(|e| format!("Failed to serialize preset: {}", e))?;
-                std::fs::write(&sidecar_path, &preset_json)
-                    .map_err(|e| format!("Failed to write sidecar {}: {}", sidecar_path, e))?;
+        // Apply preset adjustments via the standard metadata pipeline
+        match crate::file_management::save_metadata_and_update_thumbnail_impl(
+            path.clone(),
+            preset_adjustments.clone(),
+            app_handle.clone(),
+            &state,
+        ) {
+            Ok(()) => {
+                log::info!("batch_sync_preset: Applied preset to {}", path);
             }
             Err(e) => {
-                log::warn!("batch_sync_preset: Failed to load {}: {}", path, e);
+                log::warn!("batch_sync_preset: Failed to apply preset to {}: {}", path, e);
             }
         }
 
@@ -573,4 +571,93 @@ pub async fn apply_hair_retouch(
     .map_err(|e| format!("Task panicked: {}", e))??;
 
     encode_image_to_base64_png(&result_image)
+}
+
+// ---------------------------------------------------------------------------
+// Sky replacement base64 commands (decoupled from editor pipeline cache)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn generate_ai_sky_mask_base64(
+    image_data_base64: String,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let image = decode_base64_image(&image_data_base64)?;
+
+    let state = app_handle.state::<AppState>();
+    let models = crate::ai_processing::get_or_init_ai_models(
+        &app_handle,
+        &state.ai_state,
+        &state.ai_init_lock,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mask = tokio::task::spawn_blocking(move || {
+        crate::ai_processing::run_sky_seg_model(&image, &models.sky_seg).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task panicked: {}", e))??;
+
+    let mut buf = Cursor::new(Vec::new());
+    mask.write_to(&mut buf, ImageFormat::Png)
+        .map_err(|e| format!("Failed to encode mask: {}", e))?;
+    let b64 = general_purpose::STANDARD.encode(buf.get_ref());
+    Ok(format!("data:image/png;base64,{}", b64))
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn replace_sky_base64(
+    image_data_base64: String,
+    sky_image_base64: Option<String>,
+    sky_image_path: Option<String>,
+    mask_base64: Option<String>,
+    blend_mode: String,
+    feather: f32,
+    color_match_strength: f32,
+    horizon_adjust: f32,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let image = decode_base64_image(&image_data_base64)?;
+
+    let sky_image = if let Some(b64) = sky_image_base64 {
+        decode_base64_image(&b64)?
+    } else if let Some(path) = sky_image_path {
+        let bytes = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;
+        image::load_from_memory(&bytes).map_err(|e| e.to_string())?
+    } else {
+        return Err("No sky image provided".to_string());
+    };
+
+    let mask = if let Some(mask_b64) = mask_base64 {
+        decode_base64_image(&mask_b64)?.to_luma8()
+    } else {
+        match crate::ai_commands::generate_sky_mask_internal(&image, &app_handle) {
+            Ok(mask) => mask,
+            Err(e) => {
+                log::warn!("Failed to generate AI sky mask, using fallback: {}", e);
+                let (width, height) = image.dimensions();
+                let mut mask = image::GrayImage::new(width, height);
+                let horizon = (height as f32 * 0.4) as u32;
+                for y in 0..height {
+                    for x in 0..width {
+                        let val = if y < horizon { 255 } else { 0 };
+                        mask.put_pixel(x, y, image::Luma([val]));
+                    }
+                }
+                mask
+            }
+        }
+    };
+
+    let (width, height) = image.dimensions();
+    let refined_mask =
+        crate::sky_replacement::refine_sky_mask(&mask, 3, feather, width, height);
+    let matched_sky =
+        crate::sky_replacement::color_match_sky(&image, &sky_image, &refined_mask, color_match_strength);
+    let result =
+        crate::sky_replacement::blend_sky_composite(&image, &matched_sky, &refined_mask, &blend_mode);
+
+    encode_image_to_base64_png(&result)
 }

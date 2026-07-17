@@ -84,15 +84,13 @@ export default function LiquifyPanel() {
 
   const handleApply = useCallback(async () => {
     if (liquifyStrokes.length === 0) return;
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applyLiquify(imagePath, liquifyStrokes);
+      await applyLiquify(liquifyStrokes);
     } finally {
       setIsApplying(false);
     }
-  }, [liquifyStrokes, applyLiquify, selectedImage]);
+  }, [liquifyStrokes, applyLiquify]);
 
   return (
     <div className="flex flex-col h-full select-none overflow-hidden">

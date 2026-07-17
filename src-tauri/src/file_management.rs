@@ -2204,12 +2204,11 @@ pub fn move_files(
     Ok(())
 }
 
-#[tauri::command]
-pub fn save_metadata_and_update_thumbnail(
+pub fn save_metadata_and_update_thumbnail_impl(
     path: String,
     adjustments: Value,
     app_handle: AppHandle,
-    state: tauri::State<AppState>,
+    state: &AppState,
 ) -> Result<(), String> {
     let (source_path, sidecar_path) = parse_virtual_path(&path);
 
@@ -2249,11 +2248,11 @@ pub fn save_metadata_and_update_thumbnail(
     };
     drop(loaded_image_lock);
 
-    let gpu_context = gpu_processing::get_or_init_gpu_context(&state, &app_handle).ok();
+    let gpu_context = gpu_processing::get_or_init_gpu_context(state, &app_handle).ok();
     let app_handle_clone = app_handle.clone();
     let path_clone = path.clone();
 
-    add_to_thumbnail_queue(&state, 1, &app_handle);
+    add_to_thumbnail_queue(state, 1, &app_handle);
 
     thread::spawn(move || {
         let state = app_handle_clone.state::<AppState>();
@@ -2297,6 +2296,16 @@ pub fn save_metadata_and_update_thumbnail(
     });
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn save_metadata_and_update_thumbnail(
+    path: String,
+    adjustments: Value,
+    app_handle: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    save_metadata_and_update_thumbnail_impl(path, adjustments, app_handle, &state)
 }
 
 #[tauri::command]
