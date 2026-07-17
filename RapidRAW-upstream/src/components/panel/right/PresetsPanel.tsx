@@ -224,53 +224,49 @@ function PresetItemDisplay({
   }, [supportsMasks, supportsGeometry, t]);
 
   return (
-    <div className="flex flex-col p-2 rounded-lg bg-surface cursor-grabbing">
+    <div className="flex flex-col p-2.5 rounded-xl bg-surface/80 border border-border-color/40 cursor-grabbing hover:border-border-color/70 transition-colors">
       <div className="flex items-center gap-3">
         <div
-          className="w-16 h-12 bg-bg-tertiary rounded-md flex items-center justify-center shrink-0 relative overflow-hidden"
+          className="w-[72px] h-[52px] bg-bg-tertiary rounded-lg flex items-center justify-center shrink-0 relative overflow-hidden shadow-sm"
           data-tooltip={tooltipContent}
         >
           {isGeneratingPreviews && !previewUrl ? (
-            <Loader2 size={20} className="animate-spin text-text-secondary" />
+            <Loader2 size={18} className="animate-spin text-text-secondary" />
           ) : previewUrl ? (
             <img
               src={previewUrl}
               alt={`${preset.name} preview`}
-              className="w-full h-full object-cover rounded-md pointer-events-none"
+              className="w-full h-full object-cover rounded-lg pointer-events-none"
             />
           ) : (
-            <Loader2 size={20} className="animate-spin text-text-secondary" />
+            <Loader2 size={18} className="animate-spin text-text-secondary" />
           )}
 
           {(supportsMasks || supportsGeometry) && (
             <>
               <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-linear-to-bl from-black/30 via-black/0 to-transparent pointer-events-none z-0" />
 
-              <div className="absolute top-1 right-1 bg-primary rounded-full px-1.5 py-0.5 flex items-center gap-1.5 backdrop-blur-xs shadow-xs z-10 pointer-events-none">
-                {supportsMasks && <Layers size={11} className="text-white" />}
-                {supportsGeometry && <Crop size={11} className="text-white" />}
+              <div className="absolute top-1 right-1 bg-primary/90 rounded-full px-1.5 py-0.5 flex items-center gap-1 backdrop-blur-sm shadow-sm z-10 pointer-events-none">
+                {supportsMasks && <Layers size={10} className="text-white" />}
+                {supportsGeometry && <Crop size={10} className="text-white" />}
               </div>
             </>
           )}
         </div>
 
         <div className="grow min-w-0 flex flex-col justify-center">
-          <Text color={TextColors.primary} weight={TextWeights.medium} className="truncate">
+          <Text color={TextColors.primary} weight={TextWeights.semibold} className="truncate text-[13px]">
             {preset.name}
           </Text>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {isTool ? (
-              <Wrench size={10} className="text-text-secondary" />
-            ) : (
-              <Palette size={10} className="text-text-secondary" />
-            )}
-            <Text
-              variant={TextVariants.small}
-              color={TextColors.secondary}
-              className="text-[10px] uppercase tracking-wider"
-            >
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className={`inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] font-medium ${isTool ? 'bg-accent/10 text-accent' : 'bg-primary/10 text-primary'}`}>
+              {isTool ? (
+                <Wrench size={9} />
+              ) : (
+                <Palette size={9} />
+              )}
               {isTool ? t('editor.presets.types.tool') : t('editor.presets.types.style')}
-            </Text>
+            </span>
           </div>
         </div>
       </div>
@@ -287,6 +283,14 @@ function PresetItemDisplay({
             onPointerDown={(e: any) => e.stopPropagation()}
           >
             <div className="mt-3 px-1 pb-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Text variant={TextVariants.small} color={TextColors.secondary}>
+                  {t('editor.presets.amount')}
+                </Text>
+                <span className="text-[11px] font-semibold text-accent tabular-nums">
+                  {intensity ?? 100}%
+                </span>
+              </div>
               <Slider
                 min={0}
                 max={200}
@@ -294,7 +298,7 @@ function PresetItemDisplay({
                 value={intensity ?? 100}
                 onChange={(e: any) => onIntensityChange(Number(e.target.value))}
                 onDragStateChange={onDragStateChange}
-                label={t('editor.presets.amount')}
+                label=""
                 step={1}
               />
             </div>
@@ -1183,14 +1187,14 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
           </div>
         </div>
 
-        <div className="px-4 pt-3 pb-1 flex items-center gap-1.5 shrink-0">
+        <div className="px-4 pt-3 pb-1 flex items-center gap-1.5 shrink-0 overflow-x-auto scrollbar-hide">
           {(['all', 'style', 'tool'] as const).map((type) => (
             <button
               key={type}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3.5 py-[5px] rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
                 filterType === type
-                  ? 'bg-accent text-white'
-                  : 'bg-surface text-text-secondary hover:bg-surface-hover'
+                  ? 'bg-accent text-white shadow-sm shadow-accent/25'
+                  : 'bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary'
               }`}
               onClick={() => setFilterType(type)}
             >

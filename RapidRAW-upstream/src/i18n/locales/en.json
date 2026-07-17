@@ -821,7 +821,56 @@
         "info": "Info",
         "inpaint": "Inpaint",
         "masks": "Masks",
+        "portrait": "Portrait",
         "presets": "Presets"
+      }
+    },
+    "portrait": {
+      "title": "Portrait",
+      "subjects": {
+        "all": "All",
+        "female": "Female",
+        "male": "Male",
+        "child": "Child",
+        "senior": "Senior"
+      },
+      "skin": {
+        "title": "Skin",
+        "smoothing": "Smoothing",
+        "texture": "Texture",
+        "tone": "Tone",
+        "blemishRemoval": "Blemish Removal"
+      },
+      "face": {
+        "title": "Face",
+        "slimming": "Slimming",
+        "jawline": "Jawline",
+        "chin": "Chin",
+        "symmetry": "Symmetry"
+      },
+      "eyes": {
+        "title": "Eyes",
+        "enlargement": "Enlargement",
+        "brightening": "Brightening",
+        "darkCircles": "Dark Circles",
+        "redEye": "Red Eye"
+      },
+      "mouth": {
+        "title": "Mouth",
+        "teethWhitening": "Teeth Whitening",
+        "lipEnhancement": "Lip Enhancement",
+        "smile": "Smile"
+      },
+      "makeup": {
+        "title": "Makeup",
+        "protection": "Protection",
+        "blush": "Blush"
+      },
+      "body": {
+        "title": "Body",
+        "slimming": "Slimming",
+        "neck": "Neck",
+        "shoulders": "Shoulders"
       }
     },
     "toolbar": {
@@ -1873,6 +1922,8 @@
       "subgroupPreview": "Preview & Performance",
       "subgroupGpu": "GPU & Backend",
       "subgroupCache": "Cache & Concurrency",
+      "subgroupRawBasic": "RAW Basic Processing",
+      "subgroupRawAdvanced": "RAW Advanced Options",
       "wgpu": "WGPU Direct Rendering",
       "wgpuDescAndroid": "Bypasses browser encoding for instantly responsive live previews. (Disabled on Android: Native WGPU surface creation is currently not supported alongside the mobile webview.)",
       "wgpuDescLinux": "Bypasses browser encoding for instantly responsive live previews. (Disabled on Linux: Tauri uses GTK for webviews, which conflicts with WGPU on the same X11 surface and causes flickering.)",

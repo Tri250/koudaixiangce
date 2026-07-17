@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect } from 'react';
 import { platform } from '@tauri-apps/plugin-os';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Minus, Square, X } from 'lucide-react';
+import { Minus, Square, X, Aperture } from 'lucide-react';
 
 const RestoreDownIcon = ({ size = 14, className = '' }) => (
   <svg
@@ -114,9 +114,13 @@ export default function TitleBar() {
               />
             </div>
           )}
-          <div data-tauri-drag-region className={`flex items-center h-full ${isMac ? '' : 'px-4'}`}>
-            <img src="/app-icon.png" alt="" className="w-4 h-4 mr-2 pointer-events-none" draggable={false} />
-            <p className="text-sm font-semibold text-text-secondary pointer-events-none">RapidRAW</p>
+          <div data-tauri-drag-region className={`flex items-center h-full gap-2.5 ${isMac ? '' : 'px-4'}`}>
+            <div className="w-[22px] h-[22px] rounded-[5px] bg-accent/90 flex items-center justify-center shadow-sm pointer-events-none select-none">
+              <Aperture size={14} className="text-white" strokeWidth={2.2} />
+            </div>
+            <p className="text-[13px] font-bold text-text-primary tracking-wide pointer-events-none select-none" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+              RapidRAW
+            </p>
           </div>
         </div>
         <div data-tauri-drag-region className="flex-1 h-full" />

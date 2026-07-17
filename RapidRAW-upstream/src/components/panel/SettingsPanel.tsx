@@ -1695,10 +1695,13 @@ export default function SettingsPanel({
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-border-color">
-                      <Text variant={TextVariants.label} color={TextColors.accent} className="mb-3 uppercase tracking-wider">
-                        {t('settings.processing.subgroupPreview')}
-                      </Text>
+                    <div className="pt-5 border-t border-border-color/60">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-4 rounded-full bg-accent" />
+                        <Text variant={TextVariants.label} color={TextColors.accent} className="uppercase tracking-wider font-semibold">
+                          {t('settings.processing.subgroupPreview')}
+                        </Text>
+                      </div>
                     </div>
 
                     <div className="space-y-4">
@@ -1745,10 +1748,13 @@ export default function SettingsPanel({
                       </AnimatePresence>
                     </div>
 
-                    <div className="pt-4 border-t border-border-color">
-                      <Text variant={TextVariants.label} color={TextColors.accent} className="mb-3 uppercase tracking-wider">
-                        {t('settings.processing.subgroupCache')}
-                      </Text>
+                    <div className="pt-5 border-t border-border-color/60">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-4 rounded-full bg-accent" />
+                        <Text variant={TextVariants.label} color={TextColors.accent} className="uppercase tracking-wider font-semibold">
+                          {t('settings.processing.subgroupCache')}
+                        </Text>
+                      </div>
                     </div>
 
                     <SettingItem
@@ -1797,10 +1803,13 @@ export default function SettingsPanel({
                       />
                     </SettingItem>
 
-                    <div className="pt-4 border-t border-border-color">
-                      <Text variant={TextVariants.label} color={TextColors.accent} className="mb-3 uppercase tracking-wider">
-                        {t('settings.processing.subgroupGpu')}
-                      </Text>
+                    <div className="pt-5 border-t border-border-color/60">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-4 rounded-full bg-accent" />
+                        <Text variant={TextVariants.label} color={TextColors.accent} className="uppercase tracking-wider font-semibold">
+                          {t('settings.processing.subgroupGpu')}
+                        </Text>
+                      </div>
                     </div>
 
                     <SettingItem
@@ -1874,140 +1883,162 @@ export default function SettingsPanel({
                   <Text variant={TextVariants.title} color={TextColors.accent} className="mb-5">
                     {t('settings.processing.preprocessing.title')}
                   </Text>
-                  <div className="space-y-5">
-                    <SettingItem
-                      label={t('settings.processing.preprocessing.highlightRecovery')}
-                      description={t('settings.processing.preprocessing.highlightRecoveryDesc')}
-                    >
-                      <Slider
-                        label={t('settings.tagging.amount')}
-                        min={1}
-                        max={10}
-                        step={0.1}
-                        value={processingSettings.rawHighlightCompression}
-                        defaultValue={2.5}
-                        onChange={(e: any) =>
-                          handleProcessingSettingChange('rawHighlightCompression', parseFloat(e.target.value))
-                        }
-                        fillOrigin="min"
-                      />
-                    </SettingItem>
+                  <div className="space-y-6">
+                    {/* RAW基础处理参数 */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-4 rounded-full bg-accent" />
+                        <Text variant={TextVariants.label} color={TextColors.accent} className="uppercase tracking-wider font-semibold">
+                          {t('settings.processing.subgroupRawBasic')}
+                        </Text>
+                      </div>
+                      <div className="space-y-4">
+                        <SettingItem
+                          label={t('settings.processing.preprocessing.highlightRecovery')}
+                          description={t('settings.processing.preprocessing.highlightRecoveryDesc')}
+                        >
+                          <Slider
+                            label={t('settings.tagging.amount')}
+                            min={1}
+                            max={10}
+                            step={0.1}
+                            value={processingSettings.rawHighlightCompression}
+                            defaultValue={2.5}
+                            onChange={(e: any) =>
+                              handleProcessingSettingChange('rawHighlightCompression', parseFloat(e.target.value))
+                            }
+                            fillOrigin="min"
+                          />
+                        </SettingItem>
 
-                    <SettingItem
-                      label={t('settings.processing.preprocessing.colorNr')}
-                      description={t('settings.processing.preprocessing.colorNrDesc')}
-                    >
-                      <Slider
-                        label={t('settings.tagging.amount')}
-                        min={0}
-                        max={1.0}
-                        step={0.05}
-                        value={processingSettings.rawPreprocessingColorNr}
-                        defaultValue={0.5}
-                        onChange={(e: any) =>
-                          handleProcessingSettingChange('rawPreprocessingColorNr', parseFloat(e.target.value))
-                        }
-                        fillOrigin="min"
-                      />
-                    </SettingItem>
+                        <SettingItem
+                          label={t('settings.processing.preprocessing.colorNr')}
+                          description={t('settings.processing.preprocessing.colorNrDesc')}
+                        >
+                          <Slider
+                            label={t('settings.tagging.amount')}
+                            min={0}
+                            max={1.0}
+                            step={0.05}
+                            value={processingSettings.rawPreprocessingColorNr}
+                            defaultValue={0.5}
+                            onChange={(e: any) =>
+                              handleProcessingSettingChange('rawPreprocessingColorNr', parseFloat(e.target.value))
+                            }
+                            fillOrigin="min"
+                          />
+                        </SettingItem>
 
-                    <SettingItem
-                      label={t('settings.processing.preprocessing.sharpening')}
-                      description={t('settings.processing.preprocessing.sharpeningDesc')}
-                    >
-                      <Slider
-                        label={t('settings.tagging.amount')}
-                        min={0}
-                        max={1.0}
-                        step={0.05}
-                        value={processingSettings.rawPreprocessingSharpening}
-                        defaultValue={0.35}
-                        onChange={(e: any) =>
-                          handleProcessingSettingChange('rawPreprocessingSharpening', parseFloat(e.target.value))
-                        }
-                        fillOrigin="min"
-                      />
-                    </SettingItem>
+                        <SettingItem
+                          label={t('settings.processing.preprocessing.sharpening')}
+                          description={t('settings.processing.preprocessing.sharpeningDesc')}
+                        >
+                          <Slider
+                            label={t('settings.tagging.amount')}
+                            min={0}
+                            max={1.0}
+                            step={0.05}
+                            value={processingSettings.rawPreprocessingSharpening}
+                            defaultValue={0.35}
+                            onChange={(e: any) =>
+                              handleProcessingSettingChange('rawPreprocessingSharpening', parseFloat(e.target.value))
+                            }
+                            fillOrigin="min"
+                          />
+                        </SettingItem>
+                      </div>
+                    </div>
 
-                    <SettingItem
-                      label={t('settings.processing.preprocessing.applyPreprocessing')}
-                      description={t('settings.processing.preprocessing.applyPreprocessingDesc')}
-                    >
-                      <Switch
-                        checked={processingSettings.applyPreprocessingToNonRaws}
-                        id="preprocessing-non-raws-toggle"
-                        label={t('settings.processing.preprocessing.enablePreprocessingNonRaws')}
-                        onChange={(checked) => handleProcessingSettingChange('applyPreprocessingToNonRaws', checked)}
-                      />
-                    </SettingItem>
+                    {/* RAW高级选项 */}
+                    <div className="pt-4 border-t border-border-color/60">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-4 rounded-full bg-accent" />
+                        <Text variant={TextVariants.label} color={TextColors.accent} className="uppercase tracking-wider font-semibold">
+                          {t('settings.processing.subgroupRawAdvanced')}
+                        </Text>
+                      </div>
+                      <div className="space-y-4">
+                        <SettingItem
+                          label={t('settings.processing.preprocessing.applyPreprocessing')}
+                          description={t('settings.processing.preprocessing.applyPreprocessingDesc')}
+                        >
+                          <Switch
+                            checked={processingSettings.applyPreprocessingToNonRaws}
+                            id="preprocessing-non-raws-toggle"
+                            label={t('settings.processing.preprocessing.enablePreprocessingNonRaws')}
+                            onChange={(checked) => handleProcessingSettingChange('applyPreprocessingToNonRaws', checked)}
+                          />
+                        </SettingItem>
 
-                    <SettingItem
-                      label={t('settings.processing.preprocessing.linearRaw')}
-                      description={t('settings.processing.preprocessing.linearRawDesc')}
-                    >
-                      <Dropdown
-                        onChange={(value: any) => onSettingsChange({ ...appSettings, linearRawMode: value })}
-                        options={linearRawOptions}
-                        value={appSettings?.linearRawMode || 'auto'}
-                        triggerClassName="bg-bg-primary"
-                      />
-                    </SettingItem>
+                        <SettingItem
+                          label={t('settings.processing.preprocessing.linearRaw')}
+                          description={t('settings.processing.preprocessing.linearRawDesc')}
+                        >
+                          <Dropdown
+                            onChange={(value: any) => onSettingsChange({ ...appSettings, linearRawMode: value })}
+                            options={linearRawOptions}
+                            value={appSettings?.linearRawMode || 'auto'}
+                            triggerClassName="bg-bg-primary"
+                          />
+                        </SettingItem>
 
-                    <div className="space-y-4">
-                      <SettingItem
-                        label={t('settings.processing.preprocessing.tonemapperOverride')}
-                        description={t('settings.processing.preprocessing.tonemapperOverrideDesc')}
-                      >
-                        <Switch
-                          checked={appSettings?.tonemapperOverrideEnabled ?? false}
-                          id="tonemapper-override-toggle"
-                          label={t('settings.processing.preprocessing.enableTonemapperOverride')}
-                          onChange={(checked) =>
-                            onSettingsChange({ ...appSettings, tonemapperOverrideEnabled: checked })
-                          }
-                        />
-                      </SettingItem>
-
-                      <AnimatePresence>
-                        {(appSettings?.tonemapperOverrideEnabled ?? false) && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        <div className="space-y-4">
+                          <SettingItem
+                            label={t('settings.processing.preprocessing.tonemapperOverride')}
+                            description={t('settings.processing.preprocessing.tonemapperOverrideDesc')}
                           >
-                            <div className="pl-4 border-l-2 border-border-color ml-1 space-y-3">
-                              <SettingItem
-                                label={t('settings.processing.preprocessing.defaultRawTonemapper')}
-                                description={t('settings.processing.preprocessing.defaultRawTonemapperDesc')}
-                              >
-                                <Dropdown
-                                  onChange={(value: any) =>
-                                    onSettingsChange({ ...appSettings, defaultRawTonemapper: value })
-                                  }
-                                  options={tonemapperOptions}
-                                  value={appSettings?.defaultRawTonemapper || 'agx'}
-                                  triggerClassName="bg-bg-primary"
-                                />
-                              </SettingItem>
+                            <Switch
+                              checked={appSettings?.tonemapperOverrideEnabled ?? false}
+                              id="tonemapper-override-toggle"
+                              label={t('settings.processing.preprocessing.enableTonemapperOverride')}
+                              onChange={(checked) =>
+                                onSettingsChange({ ...appSettings, tonemapperOverrideEnabled: checked })
+                              }
+                            />
+                          </SettingItem>
 
-                              <SettingItem
-                                label={t('settings.processing.preprocessing.defaultNonRawTonemapper')}
-                                description={t('settings.processing.preprocessing.defaultNonRawTonemapperDesc')}
+                          <AnimatePresence>
+                            {(appSettings?.tonemapperOverrideEnabled ?? false) && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.3, ease: 'easeInOut' }}
                               >
-                                <Dropdown
-                                  onChange={(value: any) =>
-                                    onSettingsChange({ ...appSettings, defaultNonRawTonemapper: value })
-                                  }
-                                  options={tonemapperOptions}
-                                  value={appSettings?.defaultNonRawTonemapper || 'basic'}
-                                  triggerClassName="bg-bg-primary"
-                                />
-                              </SettingItem>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                                <div className="pl-4 border-l-2 border-border-color ml-1 space-y-3">
+                                  <SettingItem
+                                    label={t('settings.processing.preprocessing.defaultRawTonemapper')}
+                                    description={t('settings.processing.preprocessing.defaultRawTonemapperDesc')}
+                                  >
+                                    <Dropdown
+                                      onChange={(value: any) =>
+                                        onSettingsChange({ ...appSettings, defaultRawTonemapper: value })
+                                      }
+                                      options={tonemapperOptions}
+                                      value={appSettings?.defaultRawTonemapper || 'agx'}
+                                      triggerClassName="bg-bg-primary"
+                                    />
+                                  </SettingItem>
+
+                                  <SettingItem
+                                    label={t('settings.processing.preprocessing.defaultNonRawTonemapper')}
+                                    description={t('settings.processing.preprocessing.defaultNonRawTonemapperDesc')}
+                                  >
+                                    <Dropdown
+                                      onChange={(value: any) =>
+                                        onSettingsChange({ ...appSettings, defaultNonRawTonemapper: value })
+                                      }
+                                      options={tonemapperOptions}
+                                      value={appSettings?.defaultNonRawTonemapper || 'basic'}
+                                      triggerClassName="bg-bg-primary"
+                                    />
+                                  </SettingItem>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

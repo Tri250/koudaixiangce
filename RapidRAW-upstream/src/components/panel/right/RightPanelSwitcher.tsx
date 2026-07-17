@@ -9,6 +9,7 @@ import {
   SwatchBook,
   FileInput,
   Search,
+  User,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -36,6 +37,7 @@ const panelGroups: Array<Array<PanelOptions>> = [
     { id: Panel.Crop, icon: Crop, title: 'editor.switcher.tooltips.crop', androidLabel: '构图' },
     { id: Panel.Masks, icon: Layers, title: 'editor.switcher.tooltips.masks', androidLabel: '蒙版' },
     { id: Panel.Ai, icon: Paintbrush, title: 'editor.switcher.tooltips.inpaint', androidLabel: 'AI' },
+    { id: Panel.Portrait, icon: User, title: 'editor.switcher.tooltips.portrait', androidLabel: '人像' },
   ],
   [
     { id: Panel.Presets, icon: SwatchBook, title: 'editor.switcher.tooltips.presets', androidLabel: '预设' },
@@ -53,6 +55,7 @@ const androidPanelTabs: Array<PanelOptions> = [
   { id: Panel.Crop, icon: Crop, title: 'editor.switcher.tooltips.crop', androidLabel: '构图' },
   { id: Panel.Masks, icon: Layers, title: 'editor.switcher.tooltips.masks', androidLabel: '蒙版' },
   { id: Panel.Ai, icon: Paintbrush, title: 'editor.switcher.tooltips.inpaint', androidLabel: 'AI' },
+  { id: Panel.Portrait, icon: User, title: 'editor.switcher.tooltips.portrait', androidLabel: '人像' },
   { id: Panel.Presets, icon: SwatchBook, title: 'editor.switcher.tooltips.presets', androidLabel: '预设' },
   { id: Panel.Export, icon: FileInput, title: 'editor.switcher.tooltips.export', androidLabel: '导出' },
   { id: Panel.SemanticSearch, icon: Search, title: 'settings.semanticSearch.title', androidLabel: '语义搜索' },
@@ -120,10 +123,10 @@ export default function RightPanelSwitcher({
           )}
           {group.map(({ id, icon: Icon, title }) => (
             <button
-              className={`relative rounded-md transition-colors duration-200 ${isHorizontal ? 'p-1.5 shrink-0' : 'p-1.5'} ${
+              className={`relative rounded-lg transition-all duration-200 ease-out ${isHorizontal ? 'p-2 shrink-0' : 'p-2'} ${
                 activePanel === id
                   ? 'text-text-primary'
-                  : 'text-text-secondary hover:bg-surface hover:text-text-primary'
+                  : 'text-text-secondary/70 hover:bg-surface/80 hover:text-text-primary'
               }`}
               key={id}
               onClick={() => onPanelSelect(id)}
@@ -132,11 +135,11 @@ export default function RightPanelSwitcher({
               {activePanel === id && (
                 <motion.div
                   layoutId="active-panel-indicator"
-                  className="absolute inset-0.5 bg-surface rounded-sm"
+                  className="absolute inset-[3px] bg-surface rounded-md shadow-sm"
                   transition={isInstantTransition ? { duration: 0 } : { type: 'spring', bounce: 0.15, duration: 0.4 }}
                 />
               )}
-              <Icon size={18} className="relative z-10" />
+              <Icon size={20} className="relative z-10" strokeWidth={activePanel === id ? 2.2 : 1.8} />
             </button>
           ))}
         </div>

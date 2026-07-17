@@ -821,7 +821,56 @@
         "info": "信息",
         "inpaint": "智能补全",
         "masks": "蒙版",
+        "portrait": "人像美化",
         "presets": "预设"
+      }
+    },
+    "portrait": {
+      "title": "人像美化",
+      "subjects": {
+        "all": "所有人",
+        "female": "女性",
+        "male": "男性",
+        "child": "儿童",
+        "senior": "长辈"
+      },
+      "skin": {
+        "title": "皮肤调整",
+        "smoothing": "磨皮",
+        "texture": "皮肤质感",
+        "tone": "肤色调整",
+        "blemishRemoval": "祛除瑕疵"
+      },
+      "face": {
+        "title": "面部重塑",
+        "slimming": "瘦脸",
+        "jawline": "下颌线",
+        "chin": "下巴",
+        "symmetry": "面部对称"
+      },
+      "eyes": {
+        "title": "眼睛增强",
+        "enlargement": "大眼",
+        "brightening": "亮眼",
+        "darkCircles": "祛黑眼圈",
+        "redEye": "祛红眼"
+      },
+      "mouth": {
+        "title": "牙齿与嘴巴",
+        "teethWhitening": "牙齿美白",
+        "lipEnhancement": "美唇",
+        "smile": "微笑"
+      },
+      "makeup": {
+        "title": "妆容调整",
+        "protection": "妆容保护",
+        "blush": "腮红"
+      },
+      "body": {
+        "title": "全身美型",
+        "slimming": "瘦身",
+        "neck": "天鹅颈",
+        "shoulders": "直角肩"
       }
     },
     "toolbar": {
@@ -1873,6 +1922,8 @@
       "subgroupPreview": "预览与性能",
       "subgroupGpu": "GPU 与后端",
       "subgroupCache": "缓存与并发",
+      "subgroupRawBasic": "RAW 基础处理",
+      "subgroupRawAdvanced": "RAW 高级选项",
       "wgpu": "WGPU 直接渲染",
       "wgpuDescAndroid": "绕过浏览器编码，实现即时响应的实时预览。（在 Android 上已禁用：原生 WGPU 表面创建目前不支持与移动端 Webview 同时运行。）",
       "wgpuDescLinux": "绕过浏览器编码，实现即时响应的实时预览。（在 Linux 上已禁用：Tauri 使用 GTK 作为 Webview，与同一 X11 表面上的 WGPU 冲突并导致闪烁。）",

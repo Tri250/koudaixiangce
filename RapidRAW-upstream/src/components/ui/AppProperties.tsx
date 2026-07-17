@@ -143,6 +143,7 @@ export enum Panel {
   Export = 'export',
   Masks = 'masks',
   Metadata = 'metadata',
+  Portrait = 'portrait',
   Presets = 'presets',
   SemanticSearch = 'semanticSearch',
 }

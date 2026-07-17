@@ -16,6 +16,7 @@ import MasksPanel from '../panel/right/MasksPanel';
 import AIPanel from '../panel/right/AIPanel';
 import SemanticSearchPanel from '../panel/right/SemanticSearchPanel';
 import PresetsPanel from '../panel/right/PresetsPanel';
+import PortraitPanel from '../panel/right/PortraitPanel';
 import ExportPanel from '../panel/right/ExportPanel';
 
 import { useEditorStore } from '../../store/useEditorStore';
@@ -243,6 +244,7 @@ export default function EditorView({
             />
           )}
           {renderedRightPanel === Panel.Ai && <AIPanel />}
+          {renderedRightPanel === Panel.Portrait && <PortraitPanel />}
           {renderedRightPanel === Panel.SemanticSearch && <SemanticSearchPanel />}
         </motion.div>
       )}
