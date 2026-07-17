@@ -15,7 +15,7 @@ import clsx from 'clsx';
 import Slider from '../../ui/Slider';
 import Button from '../../ui/Button';
 import Text from '../../ui/Text';
-import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { TextColors, TextVariants } from '../../../types/typography';
 import { BrushType, LiquifyStroke, useRetouching } from '../../../hooks/useRetouching';
 import { useEditorStore } from '../../../store/useEditorStore';
 
@@ -84,9 +84,10 @@ export default function LiquifyPanel() {
 
   const handleApply = useCallback(async () => {
     if (liquifyStrokes.length === 0) return;
+    const imagePath = selectedImage?.path ?? '';
+    if (!imagePath) return;
     setIsApplying(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
       await applyLiquify(imagePath, liquifyStrokes);
     } finally {
       setIsApplying(false);

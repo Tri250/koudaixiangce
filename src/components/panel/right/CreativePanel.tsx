@@ -58,7 +58,7 @@ function ColorMatchSection() {
     } finally {
       setIsProcessing(false);
     }
-  }, [referencePath, matchMethod, strength]);
+  }, [referencePath, matchMethod, strength, selectedImage]);
 
   const methodOptions = [
     { label: t('editor.creative.colorMatch.methodHistogram'), value: 'histogram' as const },
@@ -168,7 +168,7 @@ function SuperResolutionSection() {
     } finally {
       setIsProcessing(false);
     }
-  }, [scale]);
+  }, [scale, selectedImage]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -200,6 +200,7 @@ function SuperResolutionSection() {
 
 function IdPhotoSection() {
   const { t } = useTranslation();
+  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [sizePreset, setSizePreset] = useState<'one_inch' | 'two_inch' | 'passport'>('one_inch');
   const [bgColor, setBgColor] = useState('#FFFFFF');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -214,7 +215,7 @@ function IdPhotoSection() {
     } finally {
       setIsProcessing(false);
     }
-  }, [sizePreset, bgColor]);
+  }, [sizePreset, bgColor, selectedImage]);
 
   const presetOptions = [
     { label: t('editor.creative.idPhoto.oneInch'), value: 'one_inch' as const },
@@ -326,7 +327,7 @@ function OldPhotoRestoreSection() {
     } finally {
       setIsProcessing(false);
     }
-  }, [denoiseStrength, scratchRemoval, colorize]);
+  }, [denoiseStrength, scratchRemoval, colorize, selectedImage]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -376,7 +377,7 @@ function SeasonalEffectsSection() {
     } finally {
       setIsProcessing(false);
     }
-  }, [effectType, intensity]);
+  }, [effectType, intensity, selectedImage]);
 
   const effectOptions = [
     { id: 'sakura' as const, labelKey: 'editor.creative.seasonal.sakura', color: '#FFB7C5' },

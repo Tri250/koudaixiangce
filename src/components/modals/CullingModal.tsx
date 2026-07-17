@@ -86,6 +86,15 @@ export default function CullingModal({
   const [action, setAction] = useState<CullAction>('reject');
   const [activeTab, setActiveTab] = useState<'similar' | 'blurry'>('similar');
 
+  const numSimilar = suggestions?.similarGroups.reduce((acc, group) => acc + group.duplicates.length, 0) || 0;
+  const numBlurry = suggestions?.blurryImages.length || 0;
+
+  useEffect(() => {
+    if (activeTab === 'similar' && numSimilar === 0 && numBlurry > 0) {
+      setActiveTab('blurry');
+    }
+  }, [activeTab, numSimilar, numBlurry]);
+
   const CULL_ACTIONS = useMemo(
     () => [
       {
@@ -160,9 +169,6 @@ export default function CullingModal({
   const handleApply = () => {
     onApply(action, Array.from(selectedRejects));
   };
-
-  const numSimilar = suggestions?.similarGroups.reduce((acc, group) => acc + group.duplicates.length, 0) || 0;
-  const numBlurry = suggestions?.blurryImages.length || 0;
 
   const renderSettings = () => (
     <>
@@ -242,7 +248,7 @@ export default function CullingModal({
         <div className="w-full bg-surface rounded-full h-2.5 mt-2">
           <div
             className="bg-accent h-2.5 rounded-full"
-            style={{ width: `${(progress.current / progress.total) * 100}%` }}
+            style={{ width: `${((progress.current || 0) / progress.total) * 100}%` }}
           />
         </div>
       )}

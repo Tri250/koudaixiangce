@@ -6,8 +6,7 @@ import clsx from 'clsx';
 import Slider from '../../ui/Slider';
 import Button from '../../ui/Button';
 import Text from '../../ui/Text';
-import Switch from '../../ui/Switch';
-import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { TextColors, TextVariants } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 
 interface SkyPreset {
@@ -39,14 +38,14 @@ export default function SkyPanel() {
   const [feather, setFeather] = useState(10);
   const [colorMatchStrength, setColorMatchStrength] = useState(50);
   const [horizonAdjust, setHorizonAdjust] = useState(0);
-  const [showPreview, setShowPreview] = useState(true);
   const [skyMaskGenerated, setSkyMaskGenerated] = useState(false);
 
   const handleDetectSky = useCallback(async () => {
+    const imagePath = selectedImage?.path ?? '';
+    if (!imagePath) return;
     setIsDetectingSky(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('replace_sky', { imagePath });
+      await invoke('detect_sky_mask', { imagePath });
       setSkyMaskGenerated(true);
     } catch (err) {
       console.error('detect_sky_mask failed:', err);
@@ -69,9 +68,10 @@ export default function SkyPanel() {
 
   const handleApply = useCallback(async () => {
     if (!skyMaskGenerated) return;
+    const imagePath = selectedImage?.path ?? '';
+    if (!imagePath) return;
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
       await invoke('replace_sky', {
         imagePath,
         skyImagePath: skyImagePath || selectedPreset || '',
@@ -191,13 +191,6 @@ export default function SkyPanel() {
           step={1}
           value={horizonAdjust}
           onChange={(e) => setHorizonAdjust(Number(e.target.value))}
-        />
-
-        {/* Preview Toggle */}
-        <Switch
-          checked={showPreview}
-          label={t('editor.sky.showPreview')}
-          onChange={setShowPreview}
         />
 
         {/* Apply */}

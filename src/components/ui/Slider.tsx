@@ -12,6 +12,7 @@ type SliderChangeEvent =
 
 interface SliderProps {
   defaultValue?: number;
+  disabled?: boolean;
   label: React.ReactNode;
   max: number;
   min: number;
@@ -34,6 +35,7 @@ const hasFineAdjustmentModifier = (event: MouseEvent | TouchEvent | React.MouseE
 
 const Slider = ({
   defaultValue = 0,
+  disabled = false,
   label,
   max,
   min,
@@ -279,6 +281,7 @@ const Slider = ({
   }, [isEditing]);
 
   const handleReset = () => {
+    if (disabled) return;
     const syntheticEvent = {
       target: {
         value: defaultValue,
@@ -288,6 +291,7 @@ const Slider = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (suppressTouchChangeRef.current) {
       return;
     }
@@ -299,6 +303,7 @@ const Slider = ({
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (Date.now() - lastUpTime.current < DOUBLE_CLICK_THRESHOLD_MS) {
       e.preventDefault();
       return;
@@ -319,6 +324,7 @@ const Slider = ({
   };
 
   const handleTouchStart = (e: React.TouchEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (e.touches.length === 0) return;
 
     const touch = e.touches[0];
@@ -390,10 +396,12 @@ const Slider = ({
   };
 
   const handleValueClick = () => {
+    if (disabled) return;
     setIsEditing(true);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const textVal = e.target.value;
     if (!/^[0-9.,\-]*$/.test(textVal)) {
       return;
@@ -428,6 +436,7 @@ const Slider = ({
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (e.key === 'Enter') {
       handleInputCommit();
       e.currentTarget.blur();
@@ -454,6 +463,7 @@ const Slider = ({
   };
 
   const handleRangeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (e.ctrlKey || e.metaKey) {
       e.currentTarget.blur();
       return;
@@ -537,10 +547,11 @@ const Slider = ({
         />
         <input
           ref={rangeInputRef}
-          className={`absolute top-1/2 left-0 w-full h-1.5 appearance-none bg-transparent cursor-pointer m-0 p-0 slider-input z-10 ${
+          className={`absolute top-1/2 left-0 w-full h-1.5 appearance-none bg-transparent m-0 p-0 slider-input z-10 ${
             isDragging ? 'slider-thumb-active' : ''
-          }`}
+          } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
           style={{ margin: 0, touchAction: isDragging ? 'none' : 'pan-y' }}
+          disabled={disabled}
           max={String(max)}
           min={String(min)}
           onChange={handleChange}

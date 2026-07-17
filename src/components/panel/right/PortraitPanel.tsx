@@ -8,7 +8,7 @@ import Switch from '../../ui/Switch';
 import Button from '../../ui/Button';
 import Dropdown from '../../ui/Dropdown';
 import Text from '../../ui/Text';
-import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { TextColors, TextVariants } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 import {
   useRetouching,
@@ -87,7 +87,6 @@ export default function PortraitPanel() {
   const [faceParams, setFaceParams] = useState<FaceReshapeParams>(DEFAULT_FACE_PARAMS);
   const [skinParams, setSkinParams] = useState<SkinSmoothingParams>(DEFAULT_SKIN_PARAMS);
   const [skinColorUniformStrength, setSkinColorUniformStrength] = useState(50);
-  const [skinTexture, setSkinTexture] = useState(0);
   const [bodyParams, setBodyParams] = useState<BodyReshapeParams>(DEFAULT_BODY_PARAMS);
   const [hairParams, setHairParams] = useState<HairParams>(DEFAULT_HAIR_PARAMS);
   const [isApplying, setIsApplying] = useState(false);
@@ -112,11 +111,20 @@ export default function PortraitPanel() {
     await detectBody(imagePath);
   }, [detectBody, selectedImage]);
 
+  const handleReset = useCallback(() => {
+    setFaceParams(DEFAULT_FACE_PARAMS);
+    setSkinParams(DEFAULT_SKIN_PARAMS);
+    setSkinColorUniformStrength(50);
+    setBodyParams(DEFAULT_BODY_PARAMS);
+    setHairParams(DEFAULT_HAIR_PARAMS);
+  }, []);
+
   const handleApplyFaceReshape = useCallback(async () => {
     if (faceDetections.length === 0) return;
+    const imagePath = selectedImage?.path ?? '';
+    if (!imagePath) return;
     setIsApplying(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
       await applyFaceReshape(imagePath, faceParams, faceDetections[0].landmarks);
     } finally {
       setIsApplying(false);
@@ -124,9 +132,10 @@ export default function PortraitPanel() {
   }, [faceDetections, faceParams, applyFaceReshape, selectedImage]);
 
   const handleApplySkinSmoothing = useCallback(async () => {
+    const imagePath = selectedImage?.path ?? '';
+    if (!imagePath) return;
     setIsApplying(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
       await applySkinSmoothing(imagePath, skinParams);
     } finally {
       setIsApplying(false);
@@ -134,9 +143,10 @@ export default function PortraitPanel() {
   }, [skinParams, applySkinSmoothing, selectedImage]);
 
   const handleAutoBlemishRemove = useCallback(async () => {
+    const imagePath = selectedImage?.path ?? '';
+    if (!imagePath) return;
     setIsApplying(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
       await applyBlemishRemoval(imagePath);
     } finally {
       setIsApplying(false);
@@ -144,9 +154,10 @@ export default function PortraitPanel() {
   }, [applyBlemishRemoval, selectedImage]);
 
   const handleSkinColorUniform = useCallback(async () => {
+    const imagePath = selectedImage?.path ?? '';
+    if (!imagePath) return;
     setIsApplying(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
       await applySkinColorUniform(imagePath, { strength: skinColorUniformStrength });
     } finally {
       setIsApplying(false);
@@ -155,9 +166,10 @@ export default function PortraitPanel() {
 
   const handleApplyBodyReshape = useCallback(async () => {
     if (bodyDetections.length === 0) return;
+    const imagePath = selectedImage?.path ?? '';
+    if (!imagePath) return;
     setIsApplying(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
       await applyBodyReshape(imagePath, bodyParams, bodyDetections[0].keypoints);
     } finally {
       setIsApplying(false);
@@ -383,16 +395,6 @@ export default function PortraitPanel() {
         <span className="ml-2">{t('editor.portrait.skin.applyColorUniform')}</span>
       </Button>
 
-      <div className="h-px bg-surface my-2" />
-
-      <Slider
-        label={t('editor.portrait.skin.skinTexture')}
-        min={-100}
-        max={100}
-        step={1}
-        value={skinTexture}
-        onChange={(e) => setSkinTexture(Number(e.target.value))}
-      />
     </div>
   );
 
@@ -540,6 +542,7 @@ export default function PortraitPanel() {
         <Text variant={TextVariants.title}>{t('editor.portrait.title')}</Text>
         <button
           className="p-2 rounded-full hover:bg-surface transition-colors"
+          onClick={handleReset}
           data-tooltip={t('editor.portrait.resetTooltip')}
         >
           <RotateCcw size={18} />

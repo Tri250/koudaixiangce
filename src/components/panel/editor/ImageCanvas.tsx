@@ -1964,6 +1964,8 @@ const ImageCanvas = memo(
         brushStageSize,
         baseTool,
         getCanvasPointer,
+        activeContainer,
+        onManualCleanup,
       ],
     );
 
@@ -1998,6 +2000,7 @@ const ImageCanvas = memo(
         }
 
         if (isAiSubjectActive && previewBoxRef.current) {
+          if (!pos) return;
           const updatedBox = { ...previewBoxRef.current, end: pos };
           previewBoxRef.current = updatedBox;
           setPreviewBox(updatedBox);
@@ -2174,7 +2177,7 @@ const ImageCanvas = memo(
         activeSubMask,
         isBrushActive,
         isManualCleanupActive,
-        onManualCleanup,
+        triggerManualCleanup,
         activeLineFlow,
         isAiSubjectActive,
         imageRenderSize,
@@ -2353,6 +2356,7 @@ const ImageCanvas = memo(
       brushImageSpaceSize,
       brushStageSize,
       baseTool,
+      isAiSubjectActive,
     ]);
 
     const handleMouseEnter = useCallback(() => {

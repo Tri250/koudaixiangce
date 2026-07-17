@@ -154,7 +154,7 @@ export default function ColorSpacePanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <Dropdown
                         options={COLOR_SPACE_OPTIONS}
@@ -170,7 +170,7 @@ export default function ColorSpacePanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <Dropdown
                         options={COLOR_SPACE_OPTIONS}
@@ -186,7 +186,7 @@ export default function ColorSpacePanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     {/* Auto-detect from EXIF */}
                     <Button

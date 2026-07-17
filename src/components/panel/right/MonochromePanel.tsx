@@ -68,13 +68,16 @@ export default function MonochromePanel() {
                 preset: selectedPreset,
                 toningType,
                 toningStrength,
+                shadowColor,
+                highlightColor,
+                splitBalance,
             });
         } catch (err) {
             console.error('convert_to_monochrome failed:', err);
         } finally {
             setIsProcessing(false);
         }
-    }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength]);
+    }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength, shadowColor, highlightColor, splitBalance]);
 
     const handlePresetSelect = useCallback((presetId: string) => {
         setSelectedPreset(presetId);
@@ -120,6 +123,9 @@ export default function MonochromePanel() {
                         setContrast(100);
                         setToningType('none');
                         setToningStrength(0);
+                        setShadowColor('#8B4513');
+                        setHighlightColor('#D4AF37');
+                        setSplitBalance(50);
                     }}
                 >
                     <RotateCcw size={18} />
@@ -134,7 +140,7 @@ export default function MonochromePanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <div className="grid grid-cols-4 gap-2">
                         {MONO_PRESETS.map((preset) => (
@@ -169,7 +175,7 @@ export default function MonochromePanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <Slider
                         label={t('editor.monochrome.redWeight')}
@@ -223,7 +229,7 @@ export default function MonochromePanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <Slider
                         label={t('editor.monochrome.contrast')}
@@ -241,7 +247,7 @@ export default function MonochromePanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <Dropdown
                         options={TONING_TYPE_OPTIONS}

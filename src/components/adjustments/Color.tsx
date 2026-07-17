@@ -445,6 +445,11 @@ export default function ColorPanel({
 
     document.documentElement.style.setProperty(`--hsl-mixer-hue-${activeColor}`, normalizedHue.toString());
     document.documentElement.style.setProperty(`--hsl-mixer-sat-${activeColor}`, `${effectiveSaturation}%`);
+
+    return () => {
+      document.documentElement.style.removeProperty(`--hsl-mixer-hue-${activeColor}`);
+      document.documentElement.style.removeProperty(`--hsl-mixer-sat-${activeColor}`);
+    };
   }, [effectiveHue, currentHsl.saturation, activeColor]);
 
   const handleAdjustmentChange = (key: ColorAdjustment, value: string) => {

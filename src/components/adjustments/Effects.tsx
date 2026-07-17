@@ -28,7 +28,7 @@ export default function EffectsPanel({
   const { t } = useTranslation();
 
   const handleAdjustmentChange = (key: string, value: string) => {
-    const numericValue = parseInt(value, 10);
+    const numericValue = parseFloat(value);
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
   };
 

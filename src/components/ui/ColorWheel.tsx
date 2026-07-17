@@ -67,6 +67,11 @@ const ColorWheel = ({
   useEffect(() => {
     document.documentElement.style.setProperty(`--cg-hue-${instanceId}`, hue.toString());
     document.documentElement.style.setProperty(`--cg-sat-${instanceId}`, `${saturation}%`);
+
+    return () => {
+      document.documentElement.style.removeProperty(`--cg-hue-${instanceId}`);
+      document.documentElement.style.removeProperty(`--cg-sat-${instanceId}`);
+    };
   }, [hue, saturation, instanceId]);
 
   useEffect(() => {

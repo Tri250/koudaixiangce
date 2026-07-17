@@ -217,6 +217,7 @@ export interface AppSettings {
   exifOverlay?: ExifOverlay;
   language?: string;
   folderTreeSort?: FolderTreeSort;
+  taggingShortcuts?: string[];
 }
 
 export interface BrushSettings {
@@ -293,6 +294,7 @@ export interface Preset {
 export interface Progress {
   completed?: number;
   current?: number;
+  stage?: string;
   total: number;
 }
 

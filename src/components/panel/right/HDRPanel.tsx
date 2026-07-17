@@ -162,7 +162,7 @@ export default function HDRPanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <Dropdown
                         options={HIGHLIGHT_MODE_OPTIONS}
@@ -195,7 +195,7 @@ export default function HDRPanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <div className="grid grid-cols-2 gap-2">
                         {PEAK_BRIGHTNESS_OPTIONS.map((option) => (
@@ -221,7 +221,7 @@ export default function HDRPanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <Dropdown
                         options={COLOR_SPACE_OPTIONS}
@@ -252,7 +252,7 @@ export default function HDRPanel() {
                     isOpen={true}
                     isContentVisible={true}
                     onToggle={() => {}}
-                    onToggleVisibility={() => {}}
+                    canToggleVisibility={false}
                 >
                     <Button
                         className="w-full bg-surface mb-2"

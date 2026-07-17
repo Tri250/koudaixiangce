@@ -294,7 +294,7 @@ export default function AIPanel() {
   const setCustomEscapeHandler = useUIStore((s) => s.setCustomEscapeHandler);
 
   const { setAdjustments } = useEditorActions();
-  const { handleGenerativeReplace, handleDeleteAiPatch, handleGenerateAiForegroundMask } = useAiMasking();
+  const { handleGenerativeReplace, handleDeleteAiPatch, handleGenerateAiForegroundMask, handleGenerateAiSkyMask } = useAiMasking();
   const appSettings = useSettingsStore((s) => s.appSettings);
   const aiProvider = appSettings?.aiProvider || 'cpu';
 
@@ -483,26 +483,26 @@ export default function AIPanel() {
     if (config && config.parameters) {
       config.parameters.forEach((param: any) => {
         if (param.defaultValue !== undefined) {
-          subMask.parameters[param.key] = param.defaultValue / (param.multiplier || 1);
+          (subMask.parameters as any)[param.key] = param.defaultValue / (param.multiplier || 1);
         }
       });
     }
 
     if (type === Mask.Linear && subMask.parameters) {
-      subMask.parameters.range = Math.min(imgW, imgH) * 0.1;
+      (subMask.parameters as any).range = Math.min(imgW, imgH) * 0.1;
     }
 
     if (type === Mask.Linear || type === Mask.Radial) {
       if (!subMask.parameters) subMask.parameters = {};
-      subMask.parameters.isInitialDraw = true;
-      subMask.parameters.startX = -10000;
-      subMask.parameters.startY = -10000;
-      subMask.parameters.endX = -10000;
-      subMask.parameters.endY = -10000;
-      subMask.parameters.centerX = -10000;
-      subMask.parameters.centerY = -10000;
-      subMask.parameters.radiusX = 0;
-      subMask.parameters.radiusY = 0;
+      (subMask.parameters as any).isInitialDraw = true;
+      (subMask.parameters as any).startX = -10000;
+      (subMask.parameters as any).startY = -10000;
+      (subMask.parameters as any).endX = -10000;
+      (subMask.parameters as any).endY = -10000;
+      (subMask.parameters as any).centerX = -10000;
+      (subMask.parameters as any).centerY = -10000;
+      (subMask.parameters as any).radiusX = 0;
+      (subMask.parameters as any).radiusY = 0;
     }
     return subMask;
   };
@@ -558,6 +558,7 @@ export default function AIPanel() {
     }
 
     if (type === Mask.AiForeground) handleGenerateAiForegroundMask(subMask.id);
+    else if (type === Mask.AiSky) handleGenerateAiSkyMask(subMask.id);
   };
 
   const handleAddSubMask = (
@@ -587,6 +588,7 @@ export default function AIPanel() {
       selectBrushToolForNewMask();
     }
     if (type === Mask.AiForeground) handleGenerateAiForegroundMask(subMask.id);
+    else if (type === Mask.AiSky) handleGenerateAiSkyMask(subMask.id);
   };
 
   const handleAddAiContextMenu = (event: React.MouseEvent, targetContainerId?: string | null) => {
@@ -594,7 +596,7 @@ export default function AIPanel() {
     event.stopPropagation();
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
 
-    const container = targetContainerId ? adjustments.aiPatches.find((m) => m.id === targetContainerId) : null;
+    const container = targetContainerId ? adjustments.aiPatches?.find((m) => m.id === targetContainerId) : null;
     const isStandalone =
       container && container.subMasks.length === 1 && [Mask.Clone, Mask.Heal].includes(container.subMasks[0].type);
 
@@ -653,7 +655,7 @@ export default function AIPanel() {
   const updatePatch = (id: string, data: any) =>
     setAdjustments((prev: Adjustments) => ({
       ...prev,
-      aiPatches: prev.aiPatches.map((p) => (p.id === id ? { ...p, ...data } : p)),
+      aiPatches: (prev.aiPatches || []).map((p) => (p.id === id ? { ...p, ...data } : p)),
     }));
 
   const updateSubMask = (id: string, data: any) =>
@@ -868,7 +870,7 @@ export default function AIPanel() {
         if (isCreationStandalone) {
           handleAddAiPatchContainer(dragData.maskType!);
         } else if (overData?.type === 'Container') {
-          const overContainer = adjustments.aiPatches.find((p) => p.id === overData.item!.id);
+          const overContainer = (adjustments.aiPatches || []).find((p) => p.id === overData.item!.id);
           const isOverStandalone =
             overContainer?.subMasks.length === 1 && [Mask.Clone, Mask.Heal].includes(overContainer.subMasks[0].type);
 
@@ -878,7 +880,7 @@ export default function AIPanel() {
             handleAddSubMask(overData.item!.id, dragData.maskType!);
           }
         } else if (overData?.type === 'SubMask') {
-          const container = adjustments.aiPatches.find((p) => p.id === overData.parentId);
+          const container = (adjustments.aiPatches || []).find((p) => p.id === overData.parentId);
           const isTargetStandalone =
             container?.subMasks.length === 1 && [Mask.Clone, Mask.Heal].includes(container.subMasks[0].type);
 
@@ -903,15 +905,16 @@ export default function AIPanel() {
       if (!overId || active.id === overId) return;
 
       setAdjustments((prev: Adjustments) => {
-        const oldIndex = prev.aiPatches.findIndex((p) => p.id === dragData.item!.id);
+        const aiPatches = prev.aiPatches || [];
+        const oldIndex = aiPatches.findIndex((p) => p.id === dragData.item!.id);
         let newIndex = -1;
 
-        if (overId === 'ai-list-root') newIndex = prev.aiPatches.length - 1;
-        else if (overData?.type === 'Container') newIndex = prev.aiPatches.findIndex((p) => p.id === overId);
-        else if (overData?.type === 'SubMask') newIndex = prev.aiPatches.findIndex((p) => p.id === overData.parentId);
+        if (overId === 'ai-list-root') newIndex = aiPatches.length - 1;
+        else if (overData?.type === 'Container') newIndex = aiPatches.findIndex((p) => p.id === overId);
+        else if (overData?.type === 'SubMask') newIndex = aiPatches.findIndex((p) => p.id === overData.parentId);
 
         if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-          const newPatches = [...prev.aiPatches];
+          const newPatches = [...aiPatches];
           const [movedItem] = newPatches.splice(oldIndex, 1);
           newPatches.splice(newIndex, 0, movedItem);
           return { ...prev, aiPatches: newPatches };
@@ -930,7 +933,7 @@ export default function AIPanel() {
       else if (overData?.type === 'SubMask') targetContainerId = overData.parentId || null;
 
       if (targetContainerId) {
-        const targetContainer = adjustments.aiPatches.find((p) => p.id === targetContainerId);
+        const targetContainer = (adjustments.aiPatches || []).find((p) => p.id === targetContainerId);
         const isTargetStandalone =
           targetContainer?.subMasks.length === 1 && [Mask.Clone, Mask.Heal].includes(targetContainer.subMasks[0].type);
 
@@ -943,7 +946,8 @@ export default function AIPanel() {
 
       if (over?.id === 'ai-list-root' || !over || !targetContainerId) {
         setAdjustments((prev: Adjustments) => {
-          const newPatches = JSON.parse(JSON.stringify(prev.aiPatches));
+          const aiPatches = prev.aiPatches || [];
+          const newPatches = JSON.parse(JSON.stringify(aiPatches));
           const sourceContainer = newPatches.find((p: AiPatch) => p.id === sourceContainerId);
           if (!sourceContainer) return prev;
           const subMaskIndex = sourceContainer.subMasks.findIndex((sm: SubMask) => sm.id === dragData.item!.id);
@@ -1493,7 +1497,7 @@ function ContainerRow({
         >
           {isStandalone ? (
             (() => {
-              const StandaloneIcon = MASK_ICON_MAP[firstSubMask.type] || Circle;
+              const StandaloneIcon = (MASK_ICON_MAP as any)[firstSubMask.type] || Circle;
               return <StandaloneIcon size={18} />;
             })()
           ) : isExpanded ? (
@@ -1662,7 +1666,7 @@ function SubMaskRow({
     setNodeRef(node);
     setDroppableRef(node);
   };
-  const MaskIcon = MASK_ICON_MAP[subMask.type] || Circle;
+  const MaskIcon = (MASK_ICON_MAP as any)[subMask.type] || Circle;
   const { showContextMenu } = useContextMenu();
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2076,7 +2080,7 @@ function SettingsPanel({
               {subMaskConfig.parameters?.map((param: any) => (
                 <Slider
                   key={param.key}
-                  label={t('editor.ai.params.' + param.key)}
+                  label={t('editor.ai.params.' + param.key as any)}
                   min={param.min}
                   max={param.max}
                   step={param.step}

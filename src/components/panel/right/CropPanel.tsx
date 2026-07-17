@@ -76,7 +76,7 @@ export default function CropPanel() {
       { name: t('editor.crop.presets.r43.name'), value: 4 / 3, tooltip: t('editor.crop.presets.r43.desc') },
       { name: t('editor.crop.presets.r32.name'), value: 3 / 2, tooltip: t('editor.crop.presets.r32.desc') },
       { name: t('editor.crop.presets.r169.name'), value: 16 / 9, tooltip: t('editor.crop.presets.r169.desc') },
-      { name: t('editor.crop.presets.goldenRatio.name'), value: BASE_RATIO, tooltip: t('editor.crop.presets.goldenRatio.desc') },
+      { name: t('editor.crop.presets.goldenRatio.name' as any), value: BASE_RATIO, tooltip: t('editor.crop.presets.goldenRatio.desc' as any) },
       { name: t('editor.crop.presets.r219.name'), value: 21 / 9, tooltip: t('editor.crop.presets.r219.desc') },
       { name: t('editor.crop.presets.r6524.name'), value: 65 / 24, tooltip: t('editor.crop.presets.r6524.desc') },
     ],
