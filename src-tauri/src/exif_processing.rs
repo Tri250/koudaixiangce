@@ -1202,3 +1202,135 @@ pub fn write_rrexif_sidecar(source_path_str: &str, target_image_path: &Path) -> 
     save_primary_metadata(target_image_path, &metadata)
         .map_err(|e| format!("Failed to write sidecar: {}", e))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- truncate_large_exif tests ---
+
+    #[test]
+    fn test_truncate_small_value() {
+        let value = "short value";
+        assert_eq!(truncate_large_exif(value), value);
+    }
+
+    #[test]
+    fn test_truncate_exactly_500_chars() {
+        let value = "a".repeat(500);
+        assert_eq!(truncate_large_exif(&value), value);
+    }
+
+    #[test]
+    fn test_truncate_large_value() {
+        let value = "a".repeat(600);
+        let result = truncate_large_exif(&value);
+        // Should be shorter than original
+        assert!(result.len() < value.len());
+        // Should contain "..." in the middle
+        assert!(result.contains("..."));
+        // Should start with and end with parts of the original
+        assert!(result.starts_with('a'));
+        assert!(result.ends_with('a'));
+    }
+
+    #[test]
+    fn test_truncate_very_large_value() {
+        let value = "x".repeat(5000);
+        let result = truncate_large_exif(&value);
+        assert!(result.len() < 500);
+        assert!(result.contains("..."));
+    }
+
+    // --- get_primary_sidecar_path tests ---
+
+    #[test]
+    fn test_get_primary_sidecar_path() {
+        let path = Path::new("/photos/image.nef");
+        let sidecar = get_primary_sidecar_path(path);
+        assert!(sidecar.to_string_lossy().ends_with(".rrdata"));
+        assert!(sidecar.to_string_lossy().contains("image.nef"));
+    }
+
+    // --- get_rrexif_path tests ---
+
+    #[test]
+    fn test_get_rrexif_path() {
+        let path = Path::new("/photos/image.nef");
+        let rrexif = get_rrexif_path(path);
+        assert!(rrexif.to_string_lossy().ends_with(".rrexif"));
+        assert!(rrexif.to_string_lossy().contains("image.nef"));
+    }
+
+    // --- clean_creation_datetime_str tests (via public functions that use it) ---
+
+    #[test]
+    fn test_normalize_creation_datetime_standard_format() {
+        // Test that the standard date format works
+        let result = normalize_creation_datetime("2024:01:15 10:30:00");
+        assert!(result.is_some());
+        let normalized = result.unwrap();
+        assert!(normalized.starts_with("2024-01-15"));
+    }
+
+    #[test]
+    fn test_normalize_creation_datetime_with_t_separator() {
+        let result = normalize_creation_datetime("2024-01-15T10:30:00");
+        assert!(result.is_some());
+        assert!(result.unwrap().contains("2024-01-15"));
+    }
+
+    #[test]
+    fn test_normalize_creation_datetime_no_space() {
+        let result = normalize_creation_datetime("nospacedate");
+        assert!(result.is_none());
+    }
+
+    // --- parse_creation_datetime tests ---
+
+    #[test]
+    fn test_parse_creation_datetime_colon_format() {
+        let result = parse_creation_datetime("2024:01:15 10:30:00");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_parse_creation_datetime_dash_format() {
+        let result = parse_creation_datetime("2024-01-15 10:30:00");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_parse_creation_datetime_empty() {
+        let result = parse_creation_datetime("");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_creation_datetime_whitespace_only() {
+        let result = parse_creation_datetime("   ");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_creation_datetime_with_quotes() {
+        let result = parse_creation_datetime("\"2024:01:15 10:30:00\"");
+        assert!(result.is_some());
+    }
+
+    // --- fmt_date_str tests ---
+
+    #[test]
+    fn test_fmt_date_str_valid() {
+        let result = fmt_date_str("2024:01:15 10:30:00".to_string());
+        assert!(!result.is_empty());
+        assert!(result.contains("2024"));
+    }
+
+    #[test]
+    fn test_fmt_date_str_invalid() {
+        let result = fmt_date_str("not a date".to_string());
+        // Should return the cleaned input as-is
+        assert!(!result.is_empty());
+    }
+}

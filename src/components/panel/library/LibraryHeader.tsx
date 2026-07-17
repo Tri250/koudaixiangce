@@ -11,7 +11,7 @@ import {
   ChevronDown,
   HelpCircle,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { useShallow } from 'zustand/react/shallow';
 import { useLibraryStore } from '../../../store/useLibraryStore';
 import {
@@ -30,11 +30,14 @@ import Button from '../../ui/Button';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 import { ADVANCED_QUERY_REGEX } from '../../../hooks/useSortedLibrary';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function DropdownMenu({ buttonContent, buttonTitle, children, contentClassName = 'w-56' }: any) {
   const [isOpen, setIsOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dropdownRef = useRef<any>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleClickOutside = (event: any) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
@@ -78,6 +81,7 @@ function DropdownMenu({ buttonContent, buttonTitle, children, contentClassName =
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function SearchInput({ indexingProgress, isIndexing }: any) {
   const { t } = useTranslation();
   const { searchCriteria, setSearchCriteria } = useLibraryStore(
@@ -98,6 +102,7 @@ export function SearchInput({ indexingProgress, isIndexing }: any) {
   }, [isSearchActive]);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function handleClickOutside(event: any) {
       if (containerRef.current && !containerRef.current.contains(event.target) && tags.length === 0 && !text) {
         setIsSearchActive(false);
@@ -311,6 +316,7 @@ export function ViewOptionsDropdown({
   rawStatusOptions,
   editedStatusOptions,
   sortOptions,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) {
   const { t } = useTranslation();
   const { filterCriteria, setFilterCriteria, sortCriteria, setSortCriteria } = useLibraryStore(
@@ -346,6 +352,7 @@ export function ViewOptionsDropdown({
     [t],
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleColorClick = (colorName: string, event: any) => {
     const { ctrlKey, metaKey, shiftKey } = event;
     const isCtrlPressed = ctrlKey || metaKey;
@@ -391,7 +398,7 @@ export function ViewOptionsDropdown({
             <Text as="div" variant={TextVariants.small} weight={TextWeights.semibold} className="px-3 py-2 uppercase">
               {t('library.header.viewOptions.thumbnailSize')}
             </Text>
-            {thumbnailSizeOptions.map((option: any) => {
+            {thumbnailSizeOptions.map((option: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
               const isSelected = thumbnailSize === option.id;
               return (
                 <button
@@ -420,7 +427,7 @@ export function ViewOptionsDropdown({
               <Text as="div" variant={TextVariants.small} weight={TextWeights.semibold} className="px-3 py-2 uppercase">
                 {t('library.header.viewOptions.thumbnailFit')}
               </Text>
-              {thumbnailAspectRatioOptions.map((option: any) => {
+              {thumbnailAspectRatioOptions.map((option: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                 const isSelected = thumbnailAspectRatio === option.id;
                 return (
                   <button
@@ -525,7 +532,9 @@ export function ViewOptionsDropdown({
               </Text>
 
               {ratingFilterOptions
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .filter((option: any) => option.value <= 0)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 .map((option: any) => {
                   const isSelected = filterCriteria.rating === option.value;
                   return (
@@ -535,7 +544,7 @@ export function ViewOptionsDropdown({
                       }`}
                       key={option.value}
                       onClick={() =>
-                        setFilterCriteria((prev: Partial<FilterCriteria>) => ({ ...prev, rating: option.value }))
+                        setFilterCriteria((prev: FilterCriteria) => ({ ...prev, rating: option.value }))
                       }
                       role="menuitem"
                     >
@@ -561,6 +570,7 @@ export function ViewOptionsDropdown({
                     {[...Array(5)].map((_, index: number) => {
                       const starValue = index + 1;
                       const isFilled = filterCriteria.rating > 0 && starValue <= filterCriteria.rating;
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       const optionLabel = ratingFilterOptions.find((o: any) => o.value === starValue)?.label;
 
                       return (
@@ -568,7 +578,7 @@ export function ViewOptionsDropdown({
                           key={starValue}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setFilterCriteria((prev: Partial<FilterCriteria>) => ({
+                            setFilterCriteria((prev: FilterCriteria) => ({
                               ...prev,
                               rating: prev.rating === starValue ? 0 : starValue,
                             }));
@@ -600,7 +610,7 @@ export function ViewOptionsDropdown({
               <Text as="div" variant={TextVariants.small} weight={TextWeights.semibold} className="px-3 py-2 uppercase">
                 {t('library.header.viewOptions.filterByFileType')}
               </Text>
-              {rawStatusOptions.map((option: any) => {
+              {rawStatusOptions.map((option: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                 const isSelected = (filterCriteria.rawStatus || RawStatus.All) === option.key;
                 return (
                   <button
@@ -609,7 +619,7 @@ export function ViewOptionsDropdown({
                     }`}
                     key={option.key}
                     onClick={() =>
-                      setFilterCriteria((prev: Partial<FilterCriteria>) => ({ ...prev, rawStatus: option.key }))
+                      setFilterCriteria((prev: FilterCriteria) => ({ ...prev, rawStatus: option.key }))
                     }
                     role="menuitem"
                   >
@@ -630,7 +640,7 @@ export function ViewOptionsDropdown({
               <Text as="div" variant={TextVariants.small} weight={TextWeights.semibold} className="px-3 py-2 uppercase">
                 {t('library.header.viewOptions.filterByEdited', 'Filter by Edit Status')}
               </Text>
-              {editedStatusOptions.map((option: any) => {
+              {editedStatusOptions.map((option: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                 const isSelected = (filterCriteria.editedStatus || EditedStatus.All) === option.key;
                 return (
                   <button
@@ -639,7 +649,7 @@ export function ViewOptionsDropdown({
                     }`}
                     key={option.key}
                     onClick={() =>
-                      setFilterCriteria((prev: Partial<FilterCriteria>) => ({ ...prev, editedStatus: option.key }))
+                      setFilterCriteria((prev: FilterCriteria) => ({ ...prev, editedStatus: option.key }))
                     }
                     role="menuitem"
                   >
@@ -676,6 +686,7 @@ export function ViewOptionsDropdown({
                   <button
                     key={color.name}
                     data-tooltip={title}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onClick={(e: any) => handleColorClick(color.name, e)}
                     className="w-6 h-6 rounded-full focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface transition-transform hover:scale-110"
                     role="menuitem"
@@ -718,7 +729,7 @@ export function ViewOptionsDropdown({
                 {sortCriteria.order === SortDirection.Ascending ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </button>
             </div>
-            {sortOptions.map((option: any) => {
+            {sortOptions.map((option: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
               const isSelected = sortCriteria.key === option.key;
               return (
                 <button

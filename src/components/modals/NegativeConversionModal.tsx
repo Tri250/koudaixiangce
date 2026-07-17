@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import { useTranslation, Trans } from '../../lib/i18n-helpers';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { RotateCcw, ZoomIn, ZoomOut, Maximize, Save, Loader2, Eye, EyeOff, Info } from 'lucide-react';
@@ -60,6 +60,7 @@ export default function NegativeConversionModal({
   const selectedImagePath = targetPaths.length > 0 ? targetPaths[0] : null;
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const unlisten = listen('negative-batch-progress', (e: any) => {
       setProgress(e.payload);
     });
@@ -145,6 +146,7 @@ export default function NegativeConversionModal({
           path: selectedImagePath,
           jsAdjustments: {},
         })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then((res: any) => {
             const blob = new Blob([new Uint8Array(res)], { type: 'image/jpeg' });
             setOriginalUrl(URL.createObjectURL(blob));

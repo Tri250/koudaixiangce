@@ -2,7 +2,7 @@ import { memo, useState, useEffect, useRef, useMemo } from 'react';
 import { Eye, EyeOff, ArrowLeft, Maximize, Loader2, Undo, Redo } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { SelectedImage } from '../../ui/AppProperties';
 import { IconAperture, IconCalendar, IconClock, IconFocalLength, IconIso, IconShutter } from './ExifIcons';
 import Text from '../../ui/Text';
@@ -22,6 +22,7 @@ interface EditorToolbarProps {
   showOriginal: boolean;
   showDateView: boolean;
   onToggleDateView(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adjustmentsHistory: any[];
   adjustmentsHistoryIndex: number;
   goToAdjustmentsHistoryIndex(index: number): void;
@@ -259,7 +260,9 @@ const EditorToolbar = memo(
             if (currMasks.length > prevMasks.length) changed.push('Added Mask');
             else if (currMasks.length < prevMasks.length) changed.push('Deleted Mask');
             else {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               currMasks.forEach((cMask: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const pMask = prevMasks.find((m: any) => m.id === cMask.id);
                 if (pMask) {
                   if (pMask.opacity !== cMask.opacity) changed.push('Mask Opacity');
@@ -284,7 +287,9 @@ const EditorToolbar = memo(
             if (currPatches.length > prevPatches.length) changed.push('Added AI Patch');
             else if (currPatches.length < prevPatches.length) changed.push('Deleted AI Patch');
             else {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               currPatches.forEach((cPatch: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const pPatch = prevPatches.find((p: any) => p.id === cPatch.id);
                 if (pPatch) {
                   if (pPatch.visible !== cPatch.visible) changed.push('AI Patch Visibility');

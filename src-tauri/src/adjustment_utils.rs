@@ -45,7 +45,7 @@ pub fn hydrate_sub_masks(
 }
 
 pub fn hydrate_adjustments(state: &tauri::State<AppState>, adjustments: &mut serde_json::Value) {
-    let mut cache = state.patch_cache.lock().unwrap();
+    let mut cache = state.patch_cache.lock().unwrap_or_else(|e| e.into_inner());
 
     if let Some(patches) = adjustments
         .get_mut("aiPatches")
@@ -117,4 +117,129 @@ pub fn apply_all_transformations<'a, I: IntoCowImage<'a>>(
     log::info!("apply_all_transformations took {:.2?}", total_duration);
 
     (cropped_image, unscaled_crop_offset)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn make_sub_mask(id: &str, key: &str, value: Option<serde_json::Value>) -> serde_json::Value {
+        let mut params = serde_json::Map::new();
+        if let Some(v) = value {
+            params.insert(key.to_string(), v);
+        } else {
+            params.insert(key.to_string(), serde_json::Value::Null);
+        }
+        json!({
+            "id": id,
+            "parameters": params
+        })
+    }
+
+    // --- hydrate_sub_masks tests ---
+
+    #[test]
+    fn test_hydrate_sub_masks_caches_data() {
+        let mut sub_masks = vec![
+            make_sub_mask("mask1", "mask_data_base64", Some(json!("base64data1"))),
+        ];
+        let mut cache = HashMap::new();
+
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+
+        assert!(cache.contains_key("mask1"));
+        assert_eq!(cache["mask1"], json!("base64data1"));
+    }
+
+    #[test]
+    fn test_hydrate_sub_masks_restores_from_cache() {
+        let mut sub_masks = vec![
+            make_sub_mask("mask1", "mask_data_base64", Some(json!("base64data1"))),
+            make_sub_mask("mask1", "mask_data_base64", None),
+        ];
+        let mut cache = HashMap::new();
+
+        // First call caches the data
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+
+        // Second sub_mask should have been restored from cache
+        let second_mask = &sub_masks[1];
+        let params = second_mask.get("parameters").unwrap();
+        assert_eq!(params["mask_data_base64"], json!("base64data1"));
+    }
+
+    #[test]
+    fn test_hydrate_sub_masks_uses_alternate_key() {
+        let mut sub_masks = vec![
+            make_sub_mask("mask2", "maskDataBase64", Some(json!("alt_data"))),
+        ];
+        let mut cache = HashMap::new();
+
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+
+        assert!(cache.contains_key("mask2"));
+        assert_eq!(cache["mask2"], json!("alt_data"));
+    }
+
+    #[test]
+    fn test_hydrate_sub_masks_skips_empty_id() {
+        let mut sub_masks = vec![
+            make_sub_mask("", "mask_data_base64", Some(json!("data"))),
+        ];
+        let mut cache = HashMap::new();
+
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+
+        // Should not cache anything for empty id
+        assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn test_hydrate_sub_masks_multiple_masks() {
+        let mut sub_masks = vec![
+            make_sub_mask("id1", "mask_data_base64", Some(json!("data1"))),
+            make_sub_mask("id2", "mask_data_base64", Some(json!("data2"))),
+            make_sub_mask("id3", "mask_data_base64", None),
+        ];
+        let mut cache = HashMap::new();
+        cache.insert("id3".to_string(), json!("cached_data3"));
+
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+
+        assert_eq!(cache.len(), 3);
+        assert_eq!(cache["id1"], json!("data1"));
+        assert_eq!(cache["id2"], json!("data2"));
+        assert_eq!(cache["id3"], json!("cached_data3"));
+
+        // id3 should have been restored
+        let params = sub_masks[2].get("parameters").unwrap();
+        assert_eq!(params["mask_data_base64"], json!("cached_data3"));
+    }
+
+    #[test]
+    fn test_hydrate_sub_masks_no_parameters_key() {
+        let mut sub_masks = vec![json!({
+            "id": "mask1"
+        })];
+        let mut cache = HashMap::new();
+
+        // Should not panic
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+    }
+
+    #[test]
+    fn test_hydrate_sub_masks_no_relevant_key_in_params() {
+        let mut params = serde_json::Map::new();
+        params.insert("otherKey".to_string(), json!("value"));
+        let mut sub_masks = vec![json!({
+            "id": "mask1",
+            "parameters": params
+        })];
+        let mut cache = HashMap::new();
+
+        // Should not panic, and should not modify anything
+        hydrate_sub_masks(&mut sub_masks, &mut cache);
+        assert!(cache.is_empty());
+    }
 }

@@ -3,7 +3,6 @@ import { Crop, PercentCrop } from 'react-image-crop';
 import { Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { invoke } from '@tauri-apps/api/core';
-import { toast } from 'react-toastify';
 import debounce from 'lodash.debounce';
 
 import { ImageDimensions, useImageRenderSize } from '../../hooks/useImageRenderSize';
@@ -13,8 +12,6 @@ import EditorToolbar from './editor/EditorToolbar';
 import ImageCanvas from './editor/ImageCanvas';
 import { Mask, SubMask } from './right/Masks';
 import { Panel, TransformState, Invokes } from '../ui/AppProperties';
-import Text from '../ui/Text';
-import { TextColors, TextVariants, TextWeights } from '../../types/typography';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -71,7 +68,9 @@ interface WgpuRenderState {
 
 interface EditorProps {
   onBackToLibrary(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu(event: any): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformWrapperRef: any;
 }
 
@@ -136,6 +135,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   const { handleGenerateAiMask, handleQuickErase, handleManualCleanup } = useAiMasking();
 
   const [crop, setCrop] = useState<Crop | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prevCropParams = useRef<any>(null);
   const lastValidCropRef = useRef<PercentCrop | null>(null);
 
@@ -161,6 +161,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   const isTransitioningRef = useRef(false);
   const [toolbarOverflowVisible, setToolbarOverflowVisible] = useState(!isFullScreen);
   const isGeneratingOverlayRef = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pendingOverlayRequestRef = useRef<any>(null);
   const animationFrameId = useRef<number | null>(null);
   const physicsFrameId = useRef<number | null>(null);
@@ -209,6 +210,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   }, [isFullScreen, selectedImage, targetZoom, setUI]);
 
   const handleDisplaySizeChange = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (size: any) => {
       setEditor({ displaySize: { width: size.width, height: size.height } });
       if (size.scale) {
@@ -222,6 +224,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
           containerWidth: size.containerWidth || 0,
           containerHeight: size.containerHeight || 0,
         };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setEditor({ baseRenderSize: newSize as any });
       }
     },
@@ -247,6 +250,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   );
 
   const updateSubMaskLocal = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (subMaskId: string, updatedData: any) => {
       setAdjustments((prev: Adjustments) => ({
         ...prev,
@@ -453,7 +457,8 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
         const dt = Math.min(time - lastTime, 32);
         lastTime = time;
 
-        let { positionX: x, positionY: y, scale } = transformStateRef.current;
+        let { positionX: x, positionY: y } = transformStateRef.current;
+        const { scale } = transformStateRef.current;
         const bounds = getTransformBounds(scale);
 
         x += vx * dt;
@@ -775,8 +780,8 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
         lastPanPos.current = { x: e.clientX, y: e.clientY };
 
         const bounds = getTransformBounds(transformStateRef.current.scale);
-        let curX = transformStateRef.current.positionX;
-        let curY = transformStateRef.current.positionY;
+        const curX = transformStateRef.current.positionX;
+        const curY = transformStateRef.current.positionY;
 
         if (curX < bounds.minX && dx < 0) dx *= 0.35;
         if (curX > bounds.maxX && dx > 0) dx *= 0.35;
@@ -803,8 +808,8 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
           const panX = midX - lastPinch.current.midX;
           const panY = midY - lastPinch.current.midY;
 
-          let newX = mouseX - (mouseX - transformStateRef.current.positionX) * ratio + panX;
-          let newY = mouseY - (mouseY - transformStateRef.current.positionY) * ratio + panY;
+          const newX = mouseX - (mouseX - transformStateRef.current.positionX) * ratio + panX;
+          const newY = mouseY - (mouseY - transformStateRef.current.positionY) * ratio + panY;
 
           const bounded = clampToBounds(newX, newY, newScale);
           applyTransform(bounded.x, bounded.y, bounded.scale);
@@ -899,7 +904,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        let zoomTarget = savedZoomState.current
+        const zoomTarget = savedZoomState.current
           ? savedZoomState.current.scale
           : Math.min(currentScale * 2, maxScaleRef.current);
         const ratio = zoomTarget / currentScale;
@@ -1015,6 +1020,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
 
       const { patchesSentToBackend } = useEditorStore.getState();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const stripSubMasks = (subMasks: any[]) => {
         if (!Array.isArray(subMasks)) return;
         subMasks.forEach((sm) => {
@@ -1027,9 +1033,11 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
 
       const strippedAdjustments = structuredClone(jsAdjustments);
       if (strippedAdjustments.masks) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         strippedAdjustments.masks.forEach((m: any) => stripSubMasks(m.subMasks));
       }
       if (strippedAdjustments.aiPatches) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         strippedAdjustments.aiPatches.forEach((p: any) => stripSubMasks(p.subMasks));
       }
 
@@ -1062,6 +1070,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   }, []);
 
   const requestMaskOverlay = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (maskDef: any, renderSize: any, currentAdjustments: any) => {
       pendingOverlayRequestRef.current = { maskDef, renderSize, jsAdjustments: currentAdjustments };
       processOverlayQueue();
@@ -1070,6 +1079,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   );
 
   const handleLiveMaskPreview = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (maskDef: any) => {
       let normalizedDef = maskDef;
       if (maskDef && !maskDef.adjustments) {
@@ -1307,11 +1317,14 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
       'lensVignetteEnabled',
     ];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const geometry: any = {};
     geometryKeys.forEach((k) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       geometry[k] = (adjustments as any)[k];
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const subMasks = activeMaskDef.subMasks?.map((sm: any) => {
       const { parameters, ...rest } = sm;
       const cleanParams = { ...parameters };
@@ -1334,7 +1347,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
     return JSON.stringify({
       id: activeMaskDef.id,
       invert: activeMaskDef.invert,
-      opacity: activeMaskDef.opacity,
+      opacity: 'opacity' in activeMaskDef ? activeMaskDef.opacity : 100,
       subMasks,
       geometry,
       renderSize: { w: imageRenderSize.width, h: imageRenderSize.height },
@@ -1371,7 +1384,6 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
     }
 
     requestMaskOverlay(maskDefForOverlay, imageRenderSize, adjustments);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     overlayTriggerHash,
     requestMaskOverlay,
@@ -1498,12 +1510,12 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
           let bestCrop = currentAdjCrop;
 
           for (let i = 0; i < 10; i++) {
-            let mid = (low + high) / 2;
-            let cx = currentAdjCrop.x + currentAdjCrop.width / 2;
-            let cy = currentAdjCrop.y + currentAdjCrop.height / 2;
-            let nw = currentAdjCrop.width * mid;
-            let nh = currentAdjCrop.height * mid;
-            let testCrop = {
+            const mid = (low + high) / 2;
+            const cx = currentAdjCrop.x + currentAdjCrop.width / 2;
+            const cy = currentAdjCrop.y + currentAdjCrop.height / 2;
+            const nw = currentAdjCrop.width * mid;
+            const nh = currentAdjCrop.height * mid;
+            const testCrop = {
               unit: 'px' as const,
               x: cx - nw / 2,
               y: cy - nh / 2,
@@ -1820,14 +1832,14 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
         const expandEdge = (edge: 'L' | 'T' | 'R' | 'B', target: number) => {
           let low = 0,
             high = 1;
-          let startVal = edge === 'L' ? currL : edge === 'T' ? currT : edge === 'R' ? currR : currB;
+          const startVal = edge === 'L' ? currL : edge === 'T' ? currT : edge === 'R' ? currR : currB;
           let bestVal = startVal;
 
           for (let i = 0; i < 15; i++) {
-            let mid = (low + high) / 2;
-            let testVal = startVal + (target - startVal) * mid;
+            const mid = (low + high) / 2;
+            const testVal = startVal + (target - startVal) * mid;
 
-            let testCrop: PercentCrop = {
+            const testCrop: PercentCrop = {
               unit: '%',
               x: edge === 'L' ? testVal : currL,
               y: edge === 'T' ? testVal : currT,
@@ -1877,6 +1889,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   );
 
   const handleCropComplete = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (_: any, pc: PercentCrop) => {
       if (!pc.width || !pc.height || !selectedImage?.width) {
         return;

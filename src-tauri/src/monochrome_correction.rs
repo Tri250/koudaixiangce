@@ -426,3 +426,265 @@ pub fn luminance_histogram(image: &DynamicImage) -> [u32; 256] {
 
     histogram
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{DynamicImage, Rgb, RgbImage};
+
+    fn make_solid_image(r: u8, g: u8, b: u8, w: u32, h: u32) -> DynamicImage {
+        let mut img = RgbImage::new(w, h);
+        for pixel in img.pixels_mut() {
+            *pixel = Rgb([r, g, b]);
+        }
+        DynamicImage::ImageRgb8(img)
+    }
+
+    // --- MonochromeParams default tests ---
+
+    #[test]
+    fn test_monochrome_params_default() {
+        let params = MonochromeParams::default();
+        assert!(matches!(params.method, MonoConversionMethod::WeightedRGB));
+        assert!((params.mix_red - 0.299).abs() < 1e-6);
+        assert!((params.mix_green - 0.587).abs() < 1e-6);
+        assert!((params.mix_blue - 0.114).abs() < 1e-6);
+        assert!(!params.apply_toning);
+    }
+
+    // --- FilterColor tests ---
+
+    #[test]
+    fn test_filter_color_red() {
+        let m = FilterColor::Red.multipliers();
+        assert_eq!(m, [1.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_filter_color_green() {
+        let m = FilterColor::Green.multipliers();
+        assert_eq!(m, [0.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn test_filter_color_blue() {
+        let m = FilterColor::Blue.multipliers();
+        assert_eq!(m, [0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn test_filter_color_orange() {
+        let m = FilterColor::Orange.multipliers();
+        assert_eq!(m, [1.0, 0.5, 0.0]);
+    }
+
+    #[test]
+    fn test_filter_color_cyan() {
+        let m = FilterColor::Cyan.multipliers();
+        assert_eq!(m, [0.0, 1.0, 1.0]);
+    }
+
+    #[test]
+    fn test_filter_color_magenta() {
+        let m = FilterColor::Magenta.multipliers();
+        assert_eq!(m, [1.0, 0.0, 1.0]);
+    }
+
+    // --- to_monochrome tests ---
+
+    #[test]
+    fn test_to_monochrome_white_image() {
+        let img = make_solid_image(255, 255, 255, 4, 4);
+        let params = MonochromeParams::default();
+        let result = to_monochrome(&img, &params);
+        let rgb = result.to_rgb8();
+        let p = rgb.get_pixel(0, 0);
+        // White should remain white (or very close)
+        assert!(p[0] > 250);
+        assert_eq!(p[0], p[1]);
+        assert_eq!(p[1], p[2]);
+    }
+
+    #[test]
+    fn test_to_monochrome_black_image() {
+        let img = make_solid_image(0, 0, 0, 4, 4);
+        let params = MonochromeParams::default();
+        let result = to_monochrome(&img, &params);
+        let rgb = result.to_rgb8();
+        let p = rgb.get_pixel(0, 0);
+        assert_eq!(p[0], 0);
+        assert_eq!(p[1], 0);
+        assert_eq!(p[2], 0);
+    }
+
+    #[test]
+    fn test_to_monochrome_grayscale_output() {
+        let img = make_solid_image(100, 150, 200, 4, 4);
+        let params = MonochromeParams::default();
+        let result = to_monochrome(&img, &params);
+        let rgb = result.to_rgb8();
+        let p = rgb.get_pixel(0, 0);
+        // All channels should be equal in monochrome
+        assert_eq!(p[0], p[1]);
+        assert_eq!(p[1], p[2]);
+    }
+
+    #[test]
+    fn test_to_monochrome_luminance_method() {
+        let img = make_solid_image(100, 150, 200, 4, 4);
+        let params = MonochromeParams {
+            method: MonoConversionMethod::Luminance,
+            ..MonochromeParams::default()
+        };
+        let result = to_monochrome(&img, &params);
+        let rgb = result.to_rgb8();
+        let p = rgb.get_pixel(0, 0);
+        assert_eq!(p[0], p[1]);
+        assert_eq!(p[1], p[2]);
+    }
+
+    #[test]
+    fn test_to_monochrome_average_method() {
+        let img = make_solid_image(30, 60, 90, 4, 4);
+        let params = MonochromeParams {
+            method: MonoConversionMethod::Average,
+            ..MonochromeParams::default()
+        };
+        let result = to_monochrome(&img, &params);
+        let rgb = result.to_rgb8();
+        let p = rgb.get_pixel(0, 0);
+        // Average of (30+60+90)/3 = 60, normalized to 255 scale: (30/255+60/255+90/255)/3 * 255 ≈ 60
+        assert_eq!(p[0], p[1]);
+        assert_eq!(p[1], p[2]);
+    }
+
+    #[test]
+    fn test_to_monochrome_with_red_filter() {
+        let img = make_solid_image(200, 50, 50, 4, 4);
+        let params_no_filter = MonochromeParams::default();
+        let params_red_filter = MonochromeParams {
+            filter_color: Some(FilterColor::Red),
+            ..MonochromeParams::default()
+        };
+        let result_no = to_monochrome(&img, &params_no_filter);
+        let result_red = to_monochrome(&img, &params_red_filter);
+        let rgb_no = result_no.to_rgb8();
+        let rgb_red = result_red.to_rgb8();
+        let p_no = rgb_no.get_pixel(0, 0);
+        let p_red = rgb_red.get_pixel(0, 0);
+        // Both should produce valid grayscale output
+        assert_eq!(p_no[0], p_no[1]);
+        assert_eq!(p_red[0], p_red[1]);
+        // Red filter should produce a brighter result on a red image
+        assert!(p_red[0] > 0);
+    }
+
+    // --- ToningParams default tests ---
+
+    #[test]
+    fn test_toning_params_default() {
+        let params = ToningParams::default();
+        assert!(matches!(params.method, ToningMethod::Sepia));
+        assert!((params.split_point - 0.5).abs() < 1e-6);
+        assert!((params.strength - 1.0).abs() < 1e-6);
+    }
+
+    // --- adjust_contrast tests ---
+
+    #[test]
+    fn test_adjust_contrast_zero() {
+        let img = make_solid_image(128, 128, 128, 4, 4);
+        let result = adjust_contrast(&img, 0.0);
+        let rgb = result.to_rgb8();
+        let p = rgb.get_pixel(0, 0);
+        // Zero contrast should not change much
+        assert!((p[0] as i32 - 128).abs() <= 2);
+    }
+
+    #[test]
+    fn test_adjust_contrast_positive() {
+        let img = make_solid_image(128, 128, 128, 4, 4);
+        let result = adjust_contrast(&img, 0.5);
+        let rgb = result.to_rgb8();
+        let p = rgb.get_pixel(0, 0);
+        // Mid-gray should still be near mid-gray
+        assert!((p[0] as i32 - 128).abs() <= 5);
+    }
+
+    #[test]
+    fn test_adjust_contrast_dimensions_preserved() {
+        let img = make_solid_image(100, 100, 100, 20, 30);
+        let result = adjust_contrast(&img, 0.5);
+        assert_eq!(result.dimensions(), (20, 30));
+    }
+
+    // --- luminance_histogram tests ---
+
+    #[test]
+    fn test_luminance_histogram_black() {
+        let img = make_solid_image(0, 0, 0, 10, 10);
+        let hist = luminance_histogram(&img);
+        assert_eq!(hist[0], 100); // All 100 pixels at luminance 0
+        for i in 1..256 {
+            assert_eq!(hist[i], 0);
+        }
+    }
+
+    #[test]
+    fn test_luminance_histogram_white() {
+        let img = make_solid_image(255, 255, 255, 10, 10);
+        let hist = luminance_histogram(&img);
+        assert_eq!(hist[255], 100); // All 100 pixels at luminance 255
+    }
+
+    #[test]
+    fn test_luminance_histogram_sum() {
+        let img = make_solid_image(128, 64, 200, 10, 10);
+        let hist = luminance_histogram(&img);
+        let total: u32 = hist.iter().sum();
+        assert_eq!(total, 100); // 10x10 = 100 pixels
+    }
+
+    // --- process_monochrome tests ---
+
+    #[test]
+    fn test_process_monochrome_basic() {
+        let img = make_solid_image(100, 150, 200, 4, 4);
+        let params = MonochromeParams::default();
+        let result = process_monochrome(&img, &params);
+        assert_eq!(result.dimensions(), (4, 4));
+    }
+
+    #[test]
+    fn test_process_monochrome_with_toning() {
+        let img = make_solid_image(100, 150, 200, 4, 4);
+        let params = MonochromeParams {
+            apply_toning: true,
+            toning_params: ToningParams {
+                method: ToningMethod::Sepia,
+                ..ToningParams::default()
+            },
+            ..MonochromeParams::default()
+        };
+        let result = process_monochrome(&img, &params);
+        assert_eq!(result.dimensions(), (4, 4));
+    }
+
+    // --- Serialization tests ---
+
+    #[test]
+    fn test_monochrome_params_serde_roundtrip() {
+        let params = MonochromeParams::default();
+        let json = serde_json::to_string(&params).unwrap();
+        let deserialized: MonochromeParams = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized.method, MonoConversionMethod::WeightedRGB));
+    }
+
+    #[test]
+    fn test_toning_method_serde_roundtrip() {
+        let method = ToningMethod::Cyanotype;
+        let json = serde_json::to_string(&method).unwrap();
+        let deserialized: ToningMethod = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, ToningMethod::Cyanotype));
+    }
+}

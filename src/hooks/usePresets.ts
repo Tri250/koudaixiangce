@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import debounce from 'lodash.debounce';
+import { toast } from 'react-toastify';
 import { Adjustments, COPYABLE_ADJUSTMENT_KEYS, ADJUSTMENT_GROUPS, INITIAL_ADJUSTMENTS } from '../utils/adjustments';
 import { Folder, Invokes, Preset } from '../components/ui/AppProperties';
 
@@ -16,6 +17,7 @@ export interface UserPreset {
   preset?: Preset;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function arrayMove(array: any, from: any, to: any) {
   const newArray = array.slice();
   const [item] = newArray.splice(from, 1);
@@ -42,9 +44,10 @@ export function usePresets(currentAdjustments: Adjustments) {
 
   const savePresetsToBackend = useCallback(
     debounce((presetsToSave: Array<UserPreset>) => {
-      invoke(Invokes.SavePresets, { presets: presetsToSave }).catch((err) =>
-        console.error('Failed to save presets:', err),
-      );
+      invoke(Invokes.SavePresets, { presets: presetsToSave }).catch((err) => {
+        console.error('Failed to save presets:', err);
+        toast.error(`Failed to save presets: ${err}`);
+      });
     }, 500),
     [],
   );
@@ -63,6 +66,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     const GEOMETRY_KEYS = ADJUSTMENT_GROUPS.geometry.flatMap((group) => group.keys);
     const MASK_KEYS = ADJUSTMENT_GROUPS.masks.flatMap((group) => group.keys);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const presetAdjustments: Record<string, any> = {};
 
     for (const key of COPYABLE_ADJUSTMENT_KEYS) {
@@ -123,6 +127,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       },
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setPresets((currentPresets: Array<any>) => {
       const updatedPresets = [...currentPresets];
       const firstPresetIndex = updatedPresets.findIndex((p: UserPreset) => p.preset);
@@ -145,6 +150,7 @@ export function usePresets(currentAdjustments: Adjustments) {
         return {
           folder: {
             ...item.folder,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             children: item.folder.children.filter((child: any) => child.id !== id),
           },
         };
@@ -167,6 +173,7 @@ export function usePresets(currentAdjustments: Adjustments) {
         return {
           folder: {
             ...item.folder,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             children: item.folder.children.map((child: any) => (child.id === id ? { ...child, name: newName } : child)),
           },
         };
@@ -202,7 +209,8 @@ export function usePresets(currentAdjustments: Adjustments) {
 
     if (!existingPreset) return null;
 
-    let newAdjustments: Record<string, any> = { ...existingPreset.adjustments };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const newAdjustments: Record<string, any> = { ...existingPreset.adjustments };
     const oldType = existingPreset.presetType || 'style';
 
     const GEOMETRY_KEYS = ADJUSTMENT_GROUPS.geometry.flatMap((group) => group.keys);
@@ -307,6 +315,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       false;
     const presetType = existingPreset.presetType || 'style';
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const presetAdjustments: Record<string, any> = {};
 
     for (const key of COPYABLE_ADJUSTMENT_KEYS) {
@@ -378,6 +387,7 @@ export function usePresets(currentAdjustments: Adjustments) {
           break;
         }
         if (item.folder) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const found = item.folder.children.find((p: any) => p.id === presetId);
           if (found) {
             presetToDuplicate = found;
@@ -404,6 +414,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       if (sourceFolderId) {
         updatedPresets = presets.map((item: UserPreset) => {
           if (item.folder?.id === sourceFolderId) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const originalIndex = item.folder.children.findIndex((p: any) => p.id === presetId);
             const newChildren = [...item.folder.children];
             newChildren.splice(originalIndex + 1, 0, newPreset);
@@ -435,6 +446,7 @@ export function usePresets(currentAdjustments: Adjustments) {
           break;
         }
         if (item.folder) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const found = item.folder.children.find((p: any) => p.id === presetId);
           if (found) {
             presetToMove = found;
@@ -453,6 +465,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       if (sourceFolderId) {
         updatedPresets = updatedPresets.map((item: UserPreset) =>
           item.folder?.id === sourceFolderId
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ? { folder: { ...item.folder, children: item.folder.children.filter((p: any) => p.id !== presetId) } }
             : item,
         );
@@ -550,6 +563,7 @@ export function usePresets(currentAdjustments: Adjustments) {
 
       newPresets.forEach((item: UserPreset) => {
         if (item.folder && item.folder.children) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           item.folder.children.sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, sortOptions));
         }
       });
@@ -557,7 +571,9 @@ export function usePresets(currentAdjustments: Adjustments) {
       const folders = newPresets.filter((item: UserPreset) => item.folder);
       const rootPresets = newPresets.filter((item: UserPreset) => item.preset);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       folders.sort((a: any, b: any) => a.folder.name.localeCompare(b.folder.name, undefined, sortOptions));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rootPresets.sort((a: any, b: any) => a.preset.name.localeCompare(b.preset.name, undefined, sortOptions));
 
       const sortedPresets = [...folders, ...rootPresets];
@@ -571,6 +587,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     async (filePath: string) => {
       setIsLoading(true);
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updatedPresetList: Array<any> = await invoke(Invokes.HandleImportPresetsFromFile, { filePath });
         setPresets(updatedPresetList);
       } catch (error) {
@@ -601,6 +618,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     [setPresets],
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const exportPresetsToFile = useCallback(async (presetsToExport: Array<any>, filePath: string) => {
     try {
       await invoke(Invokes.HandleExportPresetsToFile, { presetsToExport, filePath });

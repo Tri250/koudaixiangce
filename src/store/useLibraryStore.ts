@@ -21,7 +21,9 @@ interface LibraryState {
   rootPaths: string[];
   currentFolderPath: string | null;
   expandedFolders: Set<string>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   folderTrees: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pinnedFolderTrees: any[];
 
   // Albums

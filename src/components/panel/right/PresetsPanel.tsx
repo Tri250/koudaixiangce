@@ -10,7 +10,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { PresetListType, usePresets, UserPreset } from '../../../hooks/usePresets';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import {
@@ -48,17 +48,23 @@ import { useUIStore } from '../../../store/useUIStore';
 import { useEditorActions } from '../../../hooks/useEditorActions';
 
 interface DroppableFolderItemProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   folder: any;
   isExpanded: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu(event: any, folder: any): void;
   onToggle(id: string): void;
 }
 
 interface DraggablePresetItemProps {
   isGeneratingPreviews: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onApply(preset: any): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu(event: any, preset: any): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   preset: any;
   previewUrl: string;
   isActive?: boolean;
@@ -68,11 +74,13 @@ interface DraggablePresetItemProps {
 }
 
 interface FolderProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   folder: any;
 }
 
 interface FolderState {
   isOpen: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   folder: any;
 }
 
@@ -125,18 +133,21 @@ const evaluateCurveY = (curve: Array<{ x: number; y: number }>, targetX: number)
   return targetX;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mixAdjustments = (presetObj: any, intensity: number, initialObj: any = INITIAL_ADJUSTMENTS): any => {
   const fraction = intensity / 100;
 
   if (fraction === 1) return { ...presetObj };
   if (fraction === 0) return { ...initialObj };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: any = {};
   const keys = Object.keys(presetObj);
 
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
     const presetVal = presetObj[key];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const initialVal = initialObj[key] !== undefined ? initialObj[key] : (INITIAL_ADJUSTMENTS as any)[key];
 
     if (typeof presetVal === 'number') {
@@ -283,7 +294,9 @@ function PresetItemDisplay({
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="w-full cursor-auto overflow-hidden"
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onClick={(e: any) => e.stopPropagation()}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onPointerDown={(e: any) => e.stopPropagation()}
           >
             <div className="mt-3 px-1 pb-1">
@@ -292,6 +305,7 @@ function PresetItemDisplay({
                 max={200}
                 defaultValue={100}
                 value={intensity ?? 100}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => onIntensityChange(Number(e.target.value))}
                 onDragStateChange={onDragStateChange}
                 label={t('editor.presets.amount')}
@@ -348,6 +362,7 @@ function DraggablePresetItem({
   });
 
   const setCombinedRef = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (node: any) => {
       setDraggableNodeRef(node);
       setDroppableNodeRef(node);
@@ -366,6 +381,7 @@ function DraggablePresetItem({
   return (
     <div
       onClick={() => onApply(preset)}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onContextMenu={(e: any) => onContextMenu(e, { preset })}
       ref={setCombinedRef}
       style={style}
@@ -422,12 +438,14 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
     >
       <div
         className="flex items-center gap-2 p-2 rounded-lg bg-surface cursor-pointer"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onContextMenu={(e: any) => onContextMenu(e, { folder })}
       >
         <div className="p-1 cursor-grab" ref={setDraggableNodeRef} {...listeners} {...attributes}>
           {isExpanded ? (
             <FolderOpen
               className="text-primary"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onClick={(e: any) => {
                 e.stopPropagation();
                 onToggle(folder.id);
@@ -437,6 +455,7 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
           ) : (
             <FolderIcon
               className="text-text-secondary"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onClick={(e: any) => {
                 e.stopPropagation();
                 onToggle(folder.id);
@@ -505,6 +524,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
   const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
   const [renameFolderState, setRenameFolderState] = useState<FolderState>({ isOpen: false, folder: null });
   const [expandedFolders, setExpandedFolders] = useState(new Set<string>());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [activeItem, setActiveItem] = useState<any>(null);
   const [folderPreviewsGenerated, setFolderPreviewsGenerated] = useState<Set<string>>(new Set());
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
@@ -517,6 +537,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
   previewsRef.current = previews;
   const expandedFoldersRef = useRef(expandedFolders);
   expandedFoldersRef.current = expandedFolders;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const previewQueue = useRef<Array<any>>([]);
   const isProcessingQueue = useRef(false);
   const currentImagePathRef = useRef<string | null>(selectedImage?.path || null);
@@ -580,11 +601,13 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
 
   const allItemsMap = useMemo(() => {
     const map = new Map();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     presets.forEach((item: any) => {
       if (item.preset) {
         map.set(item.preset.id, { type: PresetListType.Preset, data: item.preset });
       } else if (item.folder) {
         map.set(item.folder.id, { type: PresetListType.Folder, data: item.folder });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         item.folder.children.forEach((p: any) => map.set(p.id, { type: PresetListType.Preset, data: p }));
       }
     });
@@ -672,6 +695,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
   const enqueuePreviews = useCallback(
     (presetsToGenerate: Array<UserPreset>, folderId: string | null = null) => {
       const newItems = presetsToGenerate
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .filter((p: any) => !previewsRef.current[p?.id])
         .map((p: UserPreset) => ({ preset: p, folderId }));
       if (newItems.length > 0) {
@@ -707,6 +731,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
       const pathAtStart = currentImagePathRef.current;
 
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fullPresetAdjustments: any = { ...INITIAL_ADJUSTMENTS, ...preset.adjustments };
         const imageData: Uint8Array = await invoke(Invokes.GeneratePresetPreview, {
           jsAdjustments: fullPresetAdjustments,
@@ -744,11 +769,13 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
         return;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const folder = presets.find((item: any) => item.folder && item.folder.id === folderId);
       if (!folder?.folder?.children?.length) {
         return;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const presetsToGenerate = folder.folder.children.filter((p: any) => !previewsRef.current[p.id]);
       if (presetsToGenerate.length > 0) {
         enqueuePreviews(presetsToGenerate, folderId);
@@ -764,6 +791,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
     }
 
     const rootPresets = presets.filter((item: UserPreset) => item.preset).map((item) => item.preset);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const presetsToGenerate: any = rootPresets.filter((p: any) => !previewsRef.current[p.id]);
 
     if (presetsToGenerate.length > 0) {
@@ -904,10 +932,12 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
     }, 300);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDragStart = (event: any) => {
     setActiveItem(allItemsMap.get(event.active.id) ?? null);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
     setActiveItem(null);
@@ -1028,6 +1058,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleContextMenu = (event: any, item: UserPreset) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1102,6 +1133,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
     showContextMenu(event.clientX, event.clientY, options);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleBackgroundContextMenu = (event: any) => {
     if (!event.currentTarget.contains(event.target)) {
       return;
@@ -1216,6 +1248,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
                       <DroppableFolderItem
                         folder={item.folder}
                         isExpanded={item.folder?.id ? expandedFolders.has(item.folder?.id) : false}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onContextMenu={(e: any) => handleContextMenu(e, item)}
                         onToggle={toggleFolder}
                       >
@@ -1231,6 +1264,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
                                 <DraggablePresetItem
                                   isGeneratingPreviews={isGeneratingPreviews}
                                   onApply={handleApplyPreset}
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                   onContextMenu={(e: any) => handleContextMenu(e, { preset })}
                                   preset={preset}
                                   previewUrl={previews[preset.id] || ''}
@@ -1262,6 +1296,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
                       <DraggablePresetItem
                         isGeneratingPreviews={isGeneratingPreviews}
                         onApply={handleApplyPreset}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onContextMenu={(e: any) => handleContextMenu(e, item)}
                         preset={item.preset}
                         previewUrl={(item.preset?.id ? previews[item.preset.id] : '') || ''}

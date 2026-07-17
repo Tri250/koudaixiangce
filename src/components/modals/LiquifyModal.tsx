@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from '../../lib/i18n-helpers';
 import {
   Move,
   Shrink,
@@ -10,15 +9,14 @@ import {
   Undo2,
   RefreshCcw,
   Loader2,
-  X,
   Check,
 } from 'lucide-react';
 import clsx from 'clsx';
-import Slider from '../../ui/Slider';
-import Button from '../../ui/Button';
-import Text from '../../ui/Text';
-import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
-import { BrushType, LiquifyStroke, useRetouching } from '../../../hooks/useRetouching';
+import Slider from '../ui/Slider';
+import Button from '../ui/Button';
+import { Text } from '../ui/Text';
+import { TextColors, TextVariants, TextWeights } from '../../types/typography';
+import { BrushType, LiquifyStroke, useRetouching } from '../../hooks/useRetouching';
 
 interface LiquifyModalProps {
   isOpen: boolean;
@@ -272,7 +270,7 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
             max={500}
             step={1}
             value={brushSize}
-            onChange={(e) => setBrushSize(Number(e.target.value))}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBrushSize(Number(e.target.value))}
             fillOrigin="min"
           />
           <Slider
@@ -281,7 +279,7 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
             max={100}
             step={1}
             value={brushPressure}
-            onChange={(e) => setBrushPressure(Number(e.target.value))}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBrushPressure(Number(e.target.value))}
             fillOrigin="min"
           />
         </div>

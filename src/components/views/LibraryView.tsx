@@ -22,19 +22,28 @@ interface LibraryViewProps {
   setThumbnailAspectRatio: (ratio: ThumbnailAspectRatio) => void;
   setLibraryViewMode: (mode: LibraryViewMode) => void;
   handleClearSelection: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleLibraryImageSingleClick: (...args: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleImageSelect: (...args: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleRate: (...args: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleThumbnailContextMenu: (...args: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleMainLibraryContextMenu: (...args: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleContinueSession: (...args: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleGoHome: (...args: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleOpenFolder: (...args: any) => void;
   handleImportClick: (path: string) => void;
   handleLibraryRefresh: () => Promise<void>;
   handleCopyAdjustments: () => void;
   handlePasteAdjustments: () => void;
   handleResetAdjustments: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   requestThumbnails: any;
 }
 

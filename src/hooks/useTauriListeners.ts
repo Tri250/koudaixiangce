@@ -9,6 +9,7 @@ import { useLibraryStore } from '../store/useLibraryStore';
 
 interface TauriListenerProps {
   refreshAllFolderTrees: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleSelectSubfolder: (path: string, isNewRoot?: boolean, preloadedImages?: any[], expandParents?: boolean) => void;
   refreshImageList: () => void;
   markGenerated: (path: string) => void;
@@ -71,25 +72,31 @@ export function useTauriListeners({
     };
 
     const listeners = [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('preview-update-uncropped', (event: any) => {
         if (isEffectActive) useEditorStore.getState().setEditor({ uncroppedAdjustedPreviewUrl: event.payload });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('histogram-update', (event: any) => {
         if (isEffectActive && event.payload.path === useEditorStore.getState().selectedImage?.path) {
           useEditorStore.getState().setEditor({ histogram: event.payload.data });
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('open-with-file', (event: any) => {
         if (isEffectActive) useProcessStore.getState().setProcess({ initialFileToOpen: event.payload as string });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('external-edit-session', (event: any) => {
         if (isEffectActive) useProcessStore.getState().setProcess({ externalEditSession: event.payload });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('waveform-update', (event: any) => {
         if (isEffectActive && event.payload.path === useEditorStore.getState().selectedImage?.path) {
           useEditorStore.getState().setEditor({ waveform: event.payload.data });
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('thumbnail-progress', (event: any) => {
         if (isEffectActive)
           useProcessStore
@@ -99,6 +106,7 @@ export function useTauriListeners({
       listen('thumbnail-generation-complete', () => {
         if (isEffectActive) useProcessStore.getState().setProcess({ thumbnailProgress: { current: 0, total: 0 } });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('thumbnail-generated', (event: any) => {
         if (!isEffectActive) return;
         const { path, thumbnailPath, rating, is_edited, data } = event.payload;
@@ -120,6 +128,7 @@ export function useTauriListeners({
           scheduleFlush();
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('image-metadata-loaded', (event: any) => {
         if (!isEffectActive) return;
         const { path, rating, is_edited, tags } = event.payload;
@@ -131,6 +140,7 @@ export function useTauriListeners({
           ),
         }));
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('ai-model-download-start', (event: any) => {
         if (isEffectActive) useProcessStore.getState().setProcess({ aiModelDownloadStatus: event.payload });
       }),
@@ -141,6 +151,7 @@ export function useTauriListeners({
         if (isEffectActive)
           useProcessStore.getState().setProcess({ isIndexing: true, indexingProgress: { current: 0, total: 0 } });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('indexing-progress', (event: any) => {
         if (isEffectActive) useProcessStore.getState().setProcess({ indexingProgress: event.payload });
       }),
@@ -153,12 +164,14 @@ export function useTauriListeners({
           }
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('batch-export-progress', (event: any) => {
         if (isEffectActive) useProcessStore.getState().setExportState({ progress: event.payload });
       }),
       listen('export-complete', () => {
         if (isEffectActive) useProcessStore.getState().setExportState({ status: Status.Success });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('export-error', (event: any) => {
         if (isEffectActive)
           useProcessStore.getState().setExportState({
@@ -166,9 +179,18 @@ export function useTauriListeners({
             errorMessage: typeof event.payload === 'string' ? event.payload : 'Unknown error',
           });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      listen('export-complete-with-errors', (event: any) => {
+        if (isEffectActive)
+          useProcessStore.getState().setExportState({
+            status: Status.Error,
+            errorMessage: `Export completed with errors: ${event.payload?.errors ?? 'unknown'} of ${event.payload?.total ?? '?'} images failed`,
+          });
+      }),
       listen('export-cancelled', () => {
         if (isEffectActive) useProcessStore.getState().setExportState({ status: Status.Cancelled });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('import-start', (event: any) => {
         if (isEffectActive)
           useProcessStore.getState().setImportState({
@@ -178,6 +200,7 @@ export function useTauriListeners({
             status: Status.Importing,
           });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('import-progress', (event: any) => {
         if (isEffectActive)
           useProcessStore.getState().setImportState({
@@ -195,6 +218,7 @@ export function useTauriListeners({
           }
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('import-error', (event: any) => {
         if (isEffectActive)
           useProcessStore.getState().setImportState({
@@ -202,12 +226,14 @@ export function useTauriListeners({
             errorMessage: typeof event.payload === 'string' ? event.payload : 'Unknown error',
           });
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('denoise-progress', (event: any) => {
         if (isEffectActive)
           useUIStore.getState().setUI((state) => ({
             denoiseModalState: { ...state.denoiseModalState, progressMessage: event.payload as string },
           }));
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('denoise-complete', (event: any) => {
         if (isEffectActive) {
           const payload = event.payload;
@@ -223,6 +249,7 @@ export function useTauriListeners({
           }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('denoise-error', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => ({
@@ -235,11 +262,13 @@ export function useTauriListeners({
           }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('wgpu-frame-ready', (event: any) => {
         if (isEffectActive && event.payload?.path === useEditorStore.getState().selectedImage?.path) {
           useEditorStore.getState().setEditor({ hasRenderedFirstFrame: true });
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('panorama-progress', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => {
@@ -248,6 +277,7 @@ export function useTauriListeners({
           });
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('panorama-complete', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => ({
@@ -261,6 +291,7 @@ export function useTauriListeners({
           }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('panorama-error', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => ({
@@ -274,6 +305,7 @@ export function useTauriListeners({
           }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('hdr-progress', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => ({
@@ -287,6 +319,7 @@ export function useTauriListeners({
           }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('hdr-complete', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => ({
@@ -300,6 +333,7 @@ export function useTauriListeners({
           }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('hdr-error', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => ({
@@ -313,6 +347,7 @@ export function useTauriListeners({
           }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('culling-start', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => ({
@@ -326,6 +361,7 @@ export function useTauriListeners({
           }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('culling-progress', (event: any) => {
         if (isEffectActive) {
           useUIStore
@@ -333,6 +369,7 @@ export function useTauriListeners({
             .setUI((state) => ({ cullingModalState: { ...state.cullingModalState, progress: event.payload } }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('culling-complete', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => ({
@@ -340,6 +377,7 @@ export function useTauriListeners({
           }));
         }
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       listen('culling-error', (event: any) => {
         if (isEffectActive) {
           useUIStore.getState().setUI((state) => ({

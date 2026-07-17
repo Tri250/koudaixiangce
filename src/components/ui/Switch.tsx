@@ -10,6 +10,7 @@ interface SwitchProps {
   disabled?: boolean;
   id?: string;
   label: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange(val: boolean): any;
   tooltip?: string;
   trackClassName?: string;
@@ -61,6 +62,7 @@ const Switch = ({
           className="sr-only"
           disabled={disabled}
           id={uniqueId}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => !disabled && onChange(e.target.checked)}
           type="checkbox"
         />

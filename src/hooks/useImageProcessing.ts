@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import debounce from 'lodash.debounce';
+import { toast } from 'react-toastify';
 import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
 import { useSettingsStore } from '../store/useSettingsStore';
@@ -11,7 +12,9 @@ import { debouncedSave } from './useEditorActions';
 import { globalImageCache } from '../utils/ImageLRUCache';
 
 export function useImageProcessing(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformWrapperRef: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prevAdjustmentsRef: React.RefObject<any>,
   renderRefs: {
     previewJobIdRef: React.RefObject<number>;
@@ -100,10 +103,10 @@ export function useImageProcessing(
       return null;
     }
 
-    let roiX = (intersectLeft - imgLeft) / baseW;
-    let roiY = (intersectTop - imgTop) / baseH;
-    let roiW = (intersectRight - intersectLeft) / baseW;
-    let roiH = (intersectBottom - intersectTop) / baseH;
+    const roiX = (intersectLeft - imgLeft) / baseW;
+    const roiY = (intersectTop - imgTop) / baseH;
+    const roiW = (intersectRight - intersectLeft) / baseW;
+    const roiH = (intersectBottom - intersectTop) / baseH;
 
     const newRoiX = roiX - paddingX;
     const newRoiY = roiY - paddingY;
@@ -129,8 +132,10 @@ export function useImageProcessing(
       const { patchesSentToBackend } = useEditorStore.getState();
       const newlySentPatches = new Set<string>();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const processSubMasks = (subMasks: any[]) => {
         if (!Array.isArray(subMasks)) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         subMasks.forEach((sm: any) => {
           if (sm.id && sm.parameters) {
             const keys = ['mask_data_base64', 'maskDataBase64'];
@@ -152,6 +157,7 @@ export function useImageProcessing(
       };
 
       if (payload.aiPatches && Array.isArray(payload.aiPatches)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         payload.aiPatches.forEach((p: any) => {
           if (p.id && p.patchData && !p.isLoading) {
             if (patchesSentToBackend.has(p.id)) {
@@ -165,6 +171,7 @@ export function useImageProcessing(
       }
 
       if (payload.masks && Array.isArray(payload.masks)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         payload.masks.forEach((container: any) => {
           if (container.subMasks) processSubMasks(container.subMasks);
         });
@@ -216,8 +223,8 @@ export function useImageProcessing(
             const url = URL.createObjectURL(blob);
 
             setEditor((state) => {
-              if (state.interactivePatch && state.interactivePatch.url)
-                setTimeout(() => URL.revokeObjectURL(state.interactivePatch.url), 100);
+              if (state.interactivePatch?.url)
+                setTimeout(() => URL.revokeObjectURL(state.interactivePatch!.url), 100);
               return {
                 interactivePatch: {
                   url,
@@ -250,8 +257,8 @@ export function useImageProcessing(
             });
 
             setEditor((state) => {
-              if (state.interactivePatch && state.interactivePatch.url) {
-                setTimeout(() => URL.revokeObjectURL(state.interactivePatch.url), 500);
+              if (state.interactivePatch?.url) {
+                setTimeout(() => URL.revokeObjectURL(state.interactivePatch!.url), 500);
               }
               return { interactivePatch: null };
             });
@@ -260,6 +267,7 @@ export function useImageProcessing(
       } catch (err) {
         if (err !== 'Superseded or worker failed') {
           console.error('Failed to apply adjustments:', err);
+          toast.error(`Failed to apply adjustments: ${err}`);
         }
         if (!dragging) {
           setEditor((state) => {
@@ -307,9 +315,10 @@ export function useImageProcessing(
   const generateUncroppedPreview = useCallback(
     (currentAdjustments: Adjustments) => {
       if (!selectedImage?.isReady) return;
-      invoke(Invokes.GenerateUncroppedPreview, { jsAdjustments: currentAdjustments }).catch((err) =>
-        console.error('Failed to generate uncropped preview:', err),
-      );
+      invoke(Invokes.GenerateUncroppedPreview, { jsAdjustments: currentAdjustments }).catch((err) => {
+        console.error('Failed to generate uncropped preview:', err);
+        toast.error(`Failed to generate uncropped preview: ${err}`);
+      });
     },
     [selectedImage?.isReady],
   );
@@ -375,6 +384,7 @@ export function useImageProcessing(
             setEditor({ transformedOriginalUrl: base64Data });
           } catch (e) {
             console.error('Failed to generate hi-fi original preview:', e);
+            toast.error(`Failed to generate original preview: ${e}`);
           }
         }
       }, 200),
@@ -403,7 +413,6 @@ export function useImageProcessing(
     return () => {
       requestHiFiZoom.cancel();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     displaySize.width,
     displaySize.height,
@@ -445,6 +454,7 @@ export function useImageProcessing(
             for (const key of Object.keys(adjustments) as Array<keyof Adjustments>) {
               if (includedKeys.includes(key as string)) {
                 if (JSON.stringify(adjustments[key]) !== JSON.stringify(prev.adjustments[key])) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   (delta as any)[key] = adjustments[key];
                 }
               }
@@ -453,6 +463,7 @@ export function useImageProcessing(
               otherPaths.forEach((p) => globalImageCache.delete(p));
               invoke(Invokes.ApplyAdjustmentsToPaths, { paths: otherPaths, adjustments: delta }).catch((err) => {
                 console.error('Failed to apply adjustments to multi-selection:', err);
+                toast.error(`Failed to sync adjustments to selected images: ${err}`);
               });
             }
           }
@@ -464,7 +475,6 @@ export function useImageProcessing(
     return () => {
       if (dragIdleTimer.current) clearTimeout(dragIdleTimer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     adjustments,
     previewOverride,
@@ -484,7 +494,7 @@ export function useImageProcessing(
 
   useEffect(() => {
     if (showOriginal && selectedImage?.isReady && displaySize.width > 0 && !isSliderDragging) {
-      let targetRes = calculateTargetRes();
+      const targetRes = calculateTargetRes();
       if (targetRes > currentOriginalResRef.current) {
         requestHiFiOriginalZoom(adjustments, targetRes);
       }
@@ -492,7 +502,6 @@ export function useImageProcessing(
     return () => {
       requestHiFiOriginalZoom.cancel();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     showOriginal,
     displaySize.width,

@@ -2,7 +2,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ImageOff, Upload, X, Trash2 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import { toast } from 'react-toastify';
@@ -297,7 +297,7 @@ export default function LUTControl({
                 step={1}
                 value={lutIntensity}
                 defaultValue={100}
-                onChange={(e) => onIntensityChange(parseInt(e.target.value, 10))}
+                onChange={(e) => onIntensityChange(parseInt(String(e.target.value), 10))}
                 onDragStateChange={onDragStateChange}
                 fillOrigin="min"
               />

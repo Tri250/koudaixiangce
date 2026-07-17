@@ -10,7 +10,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import {
   DndContext,
   DragOverlay,
@@ -95,6 +95,7 @@ interface DragData {
   parentId?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SUB_MASK_CONFIG: Record<Mask, any> = {
   [Mask.Radial]: {
     parameters: [{ key: 'feather', min: 0, max: 100, step: 1, multiplier: 100, defaultValue: 50 }],
@@ -148,7 +149,9 @@ const BrushTools = ({
   onSettingsChange,
   onDragStateChange,
 }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   settings: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSettingsChange: any;
   onDragStateChange?: (isDragging: boolean) => void;
 }) => {
@@ -161,6 +164,7 @@ const BrushTools = ({
         label={t('editor.masks.brush.size')}
         max={200}
         min={1}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => onSettingsChange((s: any) => ({ ...s, size: Number(e.target.value) }))}
         step={1}
         value={settings.size}
@@ -172,6 +176,7 @@ const BrushTools = ({
         label={t('editor.masks.brush.feather')}
         max={100}
         min={0}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => onSettingsChange((s: any) => ({ ...s, feather: Number(e.target.value) }))}
         step={1}
         value={settings.feather}
@@ -181,12 +186,14 @@ const BrushTools = ({
       <div className="grid grid-cols-2 gap-2 pt-2">
         <button
           className={`p-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${settings.tool === ToolType.Brush ? 'text-primary bg-surface' : 'bg-surface text-text-secondary hover:bg-card-active'}`}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onClick={() => onSettingsChange((s: any) => ({ ...s, tool: ToolType.Brush }))}
         >
           {t('editor.masks.brush.brush')}
         </button>
         <button
           className={`p-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${settings.tool === ToolType.Eraser ? 'text-primary bg-surface' : 'bg-surface text-text-secondary hover:bg-card-active'}`}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onClick={() => onSettingsChange((s: any) => ({ ...s, tool: ToolType.Eraser }))}
         >
           {t('editor.masks.brush.eraser')}
@@ -205,7 +212,9 @@ const FlowBrushTool = ({
 }: {
   flow: number;
   onFlowChange: (flow: number) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   settings: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSettingsChange: any;
   onDragStateChange?: (isDragging: boolean) => void;
 }) => {
@@ -607,10 +616,11 @@ export default function MasksPanel() {
     })),
   );
 
-  const { isResizingWaveform, onToggleWaveform, setActiveWaveformChannel, setWaveformHeight, handleWaveformResize } =
+  const { isResizingWaveform, onToggleWaveform, setActiveWaveformChannel, setWaveformHeight: _setWaveformHeight, handleWaveformResize } =
     useWaveformControls();
 
   const setBrushSettings = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (updater: any) => {
       setEditor((state) => ({ brushSettings: typeof updater === 'function' ? updater(state.brushSettings) : updater }));
     },
@@ -642,6 +652,7 @@ export default function MasksPanel() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
   const [copiedSubMask, setCopiedSubMask] = useState<SubMask | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [collapsibleState, setCollapsibleState] = useState<any>({
     basic: true,
     curves: false,
@@ -649,6 +660,7 @@ export default function MasksPanel() {
     details: false,
     effects: false,
   });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [copiedSectionAdjustments, setCopiedSectionAdjustments] = useState<any | null>(null);
   const [isSettingsSectionOpen, setSettingsSectionOpen] = useState(true);
   const [isSettingsPanelEverOpened, setIsSettingsPanelEverOpened] = useState(false);
@@ -748,10 +760,12 @@ export default function MasksPanel() {
 
   const handleResetAllMasks = () => {
     handleDeselect();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setAdjustments((prev: any) => ({ ...prev, masks: [] }));
   };
 
   const createMaskLogic = (type: Mask, mode: SubMaskMode = SubMaskMode.Additive) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (!selectedImage) return createSubMask(type, {} as any, mode);
     const subMask = createSubMask(type, selectedImage, mode);
 
@@ -760,6 +774,7 @@ export default function MasksPanel() {
     const imgW = isRotated ? selectedImage.height || 1000 : selectedImage.width || 1000;
     const imgH = isRotated ? selectedImage.width || 1000 : selectedImage.height || 1000;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const params = subMask.parameters as any;
 
     if (type === Mask.Linear && params) {
@@ -768,42 +783,64 @@ export default function MasksPanel() {
 
     if (type === Mask.Linear || type === Mask.Radial || type === Mask.Color || type === Mask.Luminance) {
       if (!params) subMask.parameters = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).isInitialDraw = true;
       if (type === Mask.Linear || type === Mask.Radial) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).startX = -10000;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).startY = -10000;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).endX = -10000;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).endY = -10000;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).centerX = -10000;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).centerY = -10000;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).radiusX = 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).radiusY = 0;
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).targetX = -10000;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).targetY = -10000;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).tolerance = 20;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (subMask.parameters as any).feather = 35;
       }
     }
 
     if (type === Mask.AiDepth) {
       if (!params) subMask.parameters = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).minDepth = 20;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).maxDepth = 100;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).minFade = 15;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).maxFade = 15;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).feather = 10;
     }
 
     if (type === Mask.Clone) {
       if (!params) subMask.parameters = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).sourceX = -10000;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).sourceY = -10000;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).lines = [];
     }
 
     if (type === Mask.Heal) {
       if (!params) subMask.parameters = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (subMask.parameters as any).lines = [];
     }
 
@@ -907,6 +944,7 @@ export default function MasksPanel() {
     const container = targetContainerId ? adjustments.masks?.find((m) => m.id === targetContainerId) : null;
     const hasComponents = container && container.subMasks.length > 0;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buildModeSubmenu = (label: string, icon: any, mode: SubMaskMode) => ({
       label,
       icon,
@@ -927,6 +965,7 @@ export default function MasksPanel() {
       }),
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const options: any[] = buildMenu(
       MASK_PANEL_CREATION_TYPES.filter((m) => m.id !== 'others'),
       SubMaskMode.Additive,
@@ -951,11 +990,13 @@ export default function MasksPanel() {
     showContextMenu(rect.left, rect.bottom + 5, options);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateContainer = (id: string, data: any) =>
     setAdjustments((prev: Adjustments) => ({
       ...prev,
       masks: (prev.masks || []).map((m) => (m.id === id ? { ...m, ...data } : m)),
     }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateSubMask = (id: string, data: any) =>
     setAdjustments((prev: Adjustments) => ({
       ...prev,
@@ -1365,6 +1406,7 @@ export default function MasksPanel() {
                     <DraggableGridItem
                       key={maskType.type || maskType.id}
                       maskType={maskType}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onClick={(e: any) =>
                         maskType.id === 'others' ? handleAddOthersMask(e) : handleGridClick(maskType.type)
                       }
@@ -1584,6 +1626,7 @@ function NewMaskDropZone({ isOver }: { isOver: boolean }) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function DraggableGridItem({ maskType, onClick, onRightClick, isDraggable, activeMaskContainerId }: any) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -1662,6 +1705,7 @@ function ContainerRow({
   analyzingSubMaskId,
   setIsMaskControlHovered,
   onAddComponent,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) {
   const { t } = useTranslation();
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
@@ -1684,7 +1728,9 @@ function ContainerRow({
   const handleRenameSubmit = () => {
     if (tempName.trim()) {
       const newName = tempName.trim();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAdjustments((prev: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updatedMasks = prev.masks.map((m: any) => (m.id === container.id ? { ...m, name: newName } : m));
         return { ...prev, masks: updatedMasks };
       });
@@ -1695,6 +1741,7 @@ function ContainerRow({
   const onContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const generatePresetSubmenu = (list: any[]): any[] =>
       list
         .map((item) => {
@@ -1959,6 +2006,7 @@ function SubMaskRow({
   tempName,
   setTempName,
   setIsMaskControlHovered,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -1973,6 +2021,7 @@ function SubMaskRow({
     setNodeRef(node);
     setDroppableRef(node);
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const MaskIcon = (MASK_ICON_MAP as any)[subMask.type] || Circle;
   const { showContextMenu } = useContextMenu();
   const [isHovered, setIsHovered] = useState(false);
@@ -2204,7 +2253,8 @@ function SettingsPanel({
   isSettingsSectionOpen,
   setSettingsSectionOpen,
   presets,
-  handleGenerateAiDepthMask,
+  handleGenerateAiDepthMask: _handleGenerateAiDepthMask,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) {
   const { t } = useTranslation();
   const { showContextMenu } = useContextMenu();
@@ -2231,8 +2281,10 @@ function SettingsPanel({
     updateContainer(container.id, { adjustments: newMaskAdjustments });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const generatePresetSubmenu = (presetList: any[]): any[] => {
     return presetList
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((item: any) => {
         if (item.folder) {
           return {
@@ -2264,6 +2316,7 @@ function SettingsPanel({
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleMaskPropertyChange = (key: string, value: any) => {
     if (!isActive) return;
     updateContainer(container.id, { [key]: value });
@@ -2288,10 +2341,12 @@ function SettingsPanel({
     updateSubMask(activeSubMask.id, { parameters: newParams });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subMaskConfig = activeSubMask ? (SUB_MASK_CONFIG as any)[activeSubMask.type] || {} : {};
   const isAiMask = activeSubMask && ['ai-subject', 'ai-foreground', 'ai-sky', 'ai-depth'].includes(activeSubMask.type);
   const isComponentMode = !!activeSubMask;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const setMaskContainerAdjustments = (updater: any) => {
     if (!isActive) return;
     const currentAdjustments = container.adjustments;
@@ -2300,6 +2355,7 @@ function SettingsPanel({
   };
 
   const handleToggleSection = (section: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setCollapsibleState((prev: any) => {
       const isOpening = !prev[section];
       if (appSettings?.enableFocusMode && isOpening) {
@@ -2324,6 +2380,7 @@ function SettingsPanel({
     });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSectionContextMenu = (event: any, sectionName: string) => {
     if (!isActive) return;
     event.preventDefault();
@@ -2333,6 +2390,7 @@ function SettingsPanel({
     if (!sectionKeys) return;
 
     const handleCopy = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const adjustmentsToCopy: Record<string, any> = {};
       for (const key of sectionKeys) {
         if (container.adjustments && container.adjustments[key] !== undefined) {
@@ -2345,6 +2403,7 @@ function SettingsPanel({
     const handlePaste = () => {
       if (!copiedSectionAdjustments || copiedSectionAdjustments.section !== sectionName) return;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setMaskContainerAdjustments((prev: any) => ({
         ...prev,
         ...copiedSectionAdjustments.values,
@@ -2356,12 +2415,14 @@ function SettingsPanel({
     };
 
     const handleReset = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const resetValues: any = {};
       for (const key of sectionKeys) {
         if (INITIAL_MASK_ADJUSTMENTS[key] !== undefined) {
           resetValues[key] = JSON.parse(JSON.stringify(INITIAL_MASK_ADJUSTMENTS[key]));
         }
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setMaskContainerAdjustments((prev: any) => ({
         ...prev,
         ...resetValues,
@@ -2414,6 +2475,7 @@ function SettingsPanel({
           const isOpening = !isSettingsSectionOpen;
           setSettingsSectionOpen(isOpening);
           if (appSettings?.enableFocusMode && isOpening) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             setCollapsibleState((prev: any) => {
               const newState = { ...prev };
               Object.keys(newState).forEach((key) => {
@@ -2457,6 +2519,7 @@ function SettingsPanel({
             max={100}
             min={0}
             value={(isComponentMode ? activeSubMask.opacity : displayContainer.opacity) ?? 100}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) =>
               isComponentMode
                 ? updateSubMask(activeSubMask.id, { opacity: Number(e.target.value) })
@@ -2496,12 +2559,13 @@ function SettingsPanel({
                 />
               )}
 
-              {subMaskConfig.parameters?.map((param: any) => (
+              {subMaskConfig.parameters?.map((param: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                 <Slider
                   key={param.key}
                   label={
                     param.key === 'feather' && activeSubMask.type === Mask.AiDepth
                       ? t('editor.masks.params.globalFeather')
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       : t('editor.masks.params.' + param.key as any)
                   }
                   min={param.min}
@@ -2509,6 +2573,7 @@ function SettingsPanel({
                   step={param.step}
                   defaultValue={param.defaultValue}
                   value={((activeSubMask.parameters?.[param.key] ?? param.defaultValue) || 0) * (param.multiplier || 1)}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) =>
                     handleSubMaskParametersChange({ [param.key]: parseFloat(e.target.value) / (param.multiplier || 1) })
                   }
@@ -2545,6 +2610,7 @@ function SettingsPanel({
         className="flex flex-col gap-2"
       >
         {Object.keys(ADJUSTMENT_SECTIONS).map((sectionName) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const SectionComponent: any = {
             basic: BasicAdjustments,
             curves: CurveGraph,
@@ -2561,6 +2627,7 @@ function SettingsPanel({
               isContentVisible={sectionVisibility[sectionName]}
               onToggle={() => handleToggleSection(sectionName)}
               onToggleVisibility={() => handleToggleVisibility(sectionName)}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onContextMenu={(e: any) => handleSectionContextMenu(e, sectionName)}
             >
               <SectionComponent

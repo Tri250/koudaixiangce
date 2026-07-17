@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from '
 import { Image as ImageIcon, Star, SlidersHorizontal } from 'lucide-react';
 import clsx from 'clsx';
 import { Grid, useGridCallbackRef } from 'react-window';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import { ImageFile, SelectedImage, ThumbnailAspectRatio } from '../ui/AppProperties';
 import { Color, COLOR_LABELS } from '../../utils/adjustments';
 import Text from '../ui/Text';
@@ -21,12 +21,15 @@ interface ImageLayer {
 
 interface ItemData {
   imageList: ImageFile[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   imageRatings: any;
   selectedPath: string | undefined;
   multiSelectedPaths: string[];
   thumbnailAspectRatio: ThumbnailAspectRatio;
   onRequestThumbnails?: (paths: string[]) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu?: (event: any, path: string) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onImageSelect?: (path: string, event: any) => void;
   itemHeight: number;
   setRatio: (index: number, ratio: number) => void;
@@ -46,10 +49,13 @@ const FilmstripThumbnail = memo(
     setRatio,
   }: {
     imageFile: ImageFile;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     imageRatings: any;
     isActive: boolean;
     isSelected: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onContextMenu?: (event: any, path: string) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onImageSelect?: (path: string, event: any) => void;
     thumbnailAspectRatio: ThumbnailAspectRatio;
     itemHeight: number;
@@ -166,10 +172,12 @@ const FilmstripThumbnail = memo(
           'h-full w-full rounded-md overflow-hidden cursor-pointer shrink-0 group relative transition-all duration-150 bg-surface',
           ringClass,
         )}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onClick={(e: any) => {
           e.stopPropagation();
           onImageSelect?.(path, e);
         }}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onContextMenu={(e: any) => onContextMenu?.(e, path)}
         style={{
           zIndex: isActive ? 2 : isSelected ? 1 : 'auto',
@@ -300,6 +308,7 @@ const FilmstripCell = ({
   onImageSelect,
   itemHeight,
   setRatio,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) => {
   const imageFile = imageList[columnIndex];
   const fullWidth = style.width as number;
@@ -355,6 +364,7 @@ const FilmstripList = ({
   const pendingResizeRef = useRef<number | null>(null);
   const lowestPendingIndexRef = useRef<number>(Infinity);
   const isAnimatingScroll = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scrollAnimationTimeout = useRef<any>(null);
   const pendingScrollTarget = useRef<number | null>(null);
   const hasCompletedInitialScroll = useRef(false);
@@ -556,7 +566,9 @@ const FilmstripList = ({
 
         if (pendingResizeRef.current === null) {
           pendingResizeRef.current = requestAnimationFrame(() => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (gridHandle && typeof (gridHandle as any).resetAfterColumnIndex === 'function') {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (gridHandle as any).resetAfterColumnIndex(lowestPendingIndexRef.current);
             }
             setRatioMapVersion((v) => v + 1);
@@ -606,11 +618,14 @@ const FilmstripList = ({
 
 interface FilmStripProps {
   imageList: Array<ImageFile>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   imageRatings: any;
   isLoading: boolean;
   multiSelectedPaths: Array<string>;
   onClearSelection?(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu?(event: any, path: string): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onImageSelect?(path: string, event: any): void;
   onRequestThumbnails?(paths: string[]): void;
   selectedImage?: SelectedImage;
@@ -648,6 +663,7 @@ export default function Filmstrip({
     return () => ro.disconnect();
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleImageSelect = (path: string, event: any) => {
     if (path !== selectedImage?.path) {
       clickTriggeredScroll.current = true;

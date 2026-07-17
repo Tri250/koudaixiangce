@@ -345,3 +345,129 @@ pub async fn convert_negatives(
     .await
     .map_err(|e| e.to_string())?
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- NegativeConversionParams tests ---
+
+    #[test]
+    fn test_negative_conversion_params_default() {
+        let params = NegativeConversionParams::default();
+        assert!((params.red_weight - 1.0).abs() < 1e-6);
+        assert!((params.green_weight - 1.0).abs() < 1e-6);
+        assert!((params.blue_weight - 1.0).abs() < 1e-6);
+        assert!((params.exposure - 0.0).abs() < 1e-6);
+        assert!((params.contrast - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_negative_conversion_params_serde_roundtrip() {
+        let params = NegativeConversionParams::default();
+        let json = serde_json::to_string(&params).unwrap();
+        let deserialized: NegativeConversionParams = serde_json::from_str(&json).unwrap();
+        assert!((deserialized.red_weight - 1.0).abs() < 1e-6);
+        assert!((deserialized.contrast - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_negative_conversion_params_custom() {
+        let params = NegativeConversionParams {
+            red_weight: 1.2,
+            green_weight: 0.9,
+            blue_weight: 1.1,
+            exposure: 0.5,
+            contrast: 1.5,
+        };
+        assert!((params.red_weight - 1.2).abs() < 1e-6);
+        assert!((params.green_weight - 0.9).abs() < 1e-6);
+        assert!((params.exposure - 0.5).abs() < 1e-6);
+        assert!((params.contrast - 1.5).abs() < 1e-6);
+    }
+
+    // --- ChannelBounds tests ---
+
+    #[test]
+    fn test_channel_bounds() {
+        let bounds = ChannelBounds {
+            min: 0.5,
+            max: 2.0,
+        };
+        assert!((bounds.min - 0.5).abs() < 1e-6);
+        assert!((bounds.max - 2.0).abs() < 1e-6);
+    }
+
+    // --- analyze_bounds tests ---
+
+    #[test]
+    fn test_analyze_bounds_uniform_data() {
+        // Create uniform log data where all channels are the same
+        let width = 100;
+        let height = 100;
+        let log_data = vec![1.5f32; width * height * 3];
+        let bounds = analyze_bounds(&log_data, width, height);
+
+        for ch in 0..3 {
+            // With uniform data, min and max should be close to 1.5
+            assert!((bounds[ch].min - 1.5).abs() < 0.01);
+            // max should be >= min (with safety margin)
+            assert!(bounds[ch].max >= bounds[ch].min);
+        }
+    }
+
+    #[test]
+    fn test_analyze_bounds_varying_data() {
+        let width = 100;
+        let height = 100;
+        let mut log_data = vec![0.0f32; width * height * 3];
+
+        // Fill with varying data
+        for y in 0..height {
+            for x in 0..width {
+                let idx = (y * width + x) * 3;
+                log_data[idx] = 0.5;     // R
+                log_data[idx + 1] = 1.0; // G
+                log_data[idx + 2] = 1.5; // B
+            }
+        }
+
+        let bounds = analyze_bounds(&log_data, width, height);
+
+        assert!((bounds[0].min - 0.5).abs() < 0.01);
+        assert!((bounds[1].min - 1.0).abs() < 0.01);
+        assert!((bounds[2].min - 1.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_analyze_bounds_with_nans() {
+        let width = 100;
+        let height = 100;
+        let mut log_data = vec![1.0f32; width * height * 3];
+
+        // Insert some NaN values
+        log_data[0] = f32::NAN;
+        log_data[1] = f32::NAN;
+        log_data[2] = f32::NAN;
+
+        // Should not panic
+        let bounds = analyze_bounds(&log_data, width, height);
+        // Bounds should still be reasonable (NaNs are filtered out)
+        for ch in 0..3 {
+            assert!(bounds[ch].min.is_finite());
+            assert!(bounds[ch].max.is_finite());
+        }
+    }
+
+    #[test]
+    fn test_analyze_bounds_small_image() {
+        let width = 10;
+        let height = 10;
+        let log_data = vec![1.0f32; width * height * 3];
+        let bounds = analyze_bounds(&log_data, width, height);
+        // Should work without panicking
+        for ch in 0..3 {
+            assert!(bounds[ch].max >= bounds[ch].min);
+        }
+    }
+}

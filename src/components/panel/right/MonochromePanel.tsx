@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { invoke } from '@tauri-apps/api/core';
 import { Circle, Loader2, RotateCcw, Check } from 'lucide-react';
 import clsx from 'clsx';
@@ -216,7 +216,7 @@ export default function MonochromePanel() {
                         <Text
                             variant={TextVariants.small}
                             weight={TextWeights.semibold}
-                            color={totalWeight === 100 ? TextColors.primary : 'text-yellow-500'}
+                            color={totalWeight === 100 ? TextColors.primary : TextColors.warning}
                         >
                             {totalWeight}%
                         </Text>

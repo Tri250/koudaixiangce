@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import { CheckCircle, XCircle, Loader2, Save, RefreshCw, Images } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Button from '../ui/Button';

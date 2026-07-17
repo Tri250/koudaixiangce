@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import { GLOBAL_KEYS } from './AppProperties';
 
 type SliderChangeEvent =
@@ -403,7 +403,7 @@ const Slider = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return;
     const textVal = e.target.value;
-    if (!/^[0-9.,\-]*$/.test(textVal)) {
+    if (!/^[0-9.,-]*$/.test(textVal)) {
       return;
     }
     setInputValue(textVal);

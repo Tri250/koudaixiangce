@@ -1,6 +1,6 @@
 export type TextVariant = 'displayLarge' | 'display' | 'headline' | 'title' | 'heading' | 'body' | 'label' | 'small';
 export type TextWeight = 'bold' | 'semibold' | 'medium' | 'normal';
-export type TextColor = 'primary' | 'secondary' | 'accent' | 'button' | 'info' | 'success' | 'error' | 'white';
+export type TextColor = 'primary' | 'secondary' | 'accent' | 'button' | 'info' | 'success' | 'error' | 'white' | 'warning';
 
 export const TextWeights: Record<TextWeight, TextWeight> = {
   bold: 'bold',
@@ -17,6 +17,7 @@ export const TextColors: Record<TextColor, TextColor> = {
   success: 'success',
   error: 'error',
   white: 'white',
+  warning: 'warning',
 };
 
 // Map keys to classes
@@ -35,6 +36,7 @@ export const TEXT_COLOR_KEYS: Record<TextColor, string> = {
   success: 'text-green-400',
   error: 'text-red-400',
   white: 'text-white',
+  warning: 'text-yellow-500',
 };
 
 export interface VariantConfig {

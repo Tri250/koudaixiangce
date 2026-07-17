@@ -7,6 +7,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { Invokes } from '../components/ui/AppProperties';
 import { INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments } from '../utils/adjustments';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
   const selectedImage = useEditorStore((s) => s.selectedImage);
   const adjustments = useEditorStore((s) => s.adjustments);
@@ -34,6 +35,7 @@ export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
           useEditorStore.getState().patchesSentToBackend.clear();
           await invoke('clear_session_caches').catch((e) => console.warn('Cache clear failed:', e));
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const metadata: any = await invoke(Invokes.LoadMetadata, { path: selectedImage.path });
           if (!isEffectActive) return;
 
@@ -48,11 +50,16 @@ export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
           resetHistory(initialAdjusts);
         } catch (err) {
           console.error('Failed to load metadata early:', err);
+          if (!isEffectActive) return;
+          const fallbackAdjusts = { ...INITIAL_ADJUSTMENTS };
+          setEditor({ adjustments: fallbackAdjusts });
+          resetHistory(fallbackAdjusts);
         }
       };
 
       const loadFullImageData = async () => {
         try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const loadImageResult: any = await invoke(Invokes.LoadImage, { path: selectedImage.path });
           if (!isEffectActive) return;
 

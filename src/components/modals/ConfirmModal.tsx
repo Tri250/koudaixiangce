@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Button from '../ui/Button';
-import Text from '../ui/Text';
+import { Text } from '../ui/Text';
 import { TextVariants } from '../../types/typography';
 
 interface ConfirmModalProps {
@@ -95,7 +95,7 @@ export default function ConfirmModal({
           transform transition-all duration-300 ease-out
           ${show ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 -translate-y-4'}
         `}
-        onClick={(e: any) => e.stopPropagation()}
+        onClick={(e: any) => e.stopPropagation()} // eslint-disable-line @typescript-eslint/no-explicit-any
         onKeyDown={handleKeyDown}
       >
         <Text variant={TextVariants.title} id="confirm-modal-title" className="mb-4">

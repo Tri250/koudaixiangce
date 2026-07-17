@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { RotateCcw, Copy, ClipboardPaste, Aperture, ChartArea } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import BasicAdjustments from '../../adjustments/Basic';
 import CurveGraph from '../../adjustments/Curves';
 import ColorPanel from '../../adjustments/Color';
@@ -71,6 +71,7 @@ export default function Controls() {
   );
 
   const setCopiedSectionAdjustments = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (val: any) => setEditor({ copiedSectionAdjustments: val }),
     [setEditor],
   );
@@ -86,6 +87,7 @@ export default function Controls() {
   );
 
   const setCollapsibleState = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (updater: any) =>
       setUI((state) => ({
         collapsibleSectionsState: typeof updater === 'function' ? updater(state.collapsibleSectionsState) : updater,
@@ -111,6 +113,7 @@ export default function Controls() {
       ...prev,
       ...Object.keys(ADJUSTMENT_SECTIONS)
         .flatMap((s) => ADJUSTMENT_SECTIONS[s])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .reduce((acc: any, key: string) => {
           acc[key] = INITIAL_ADJUSTMENTS[key as keyof Adjustments];
           return acc;
@@ -120,6 +123,7 @@ export default function Controls() {
   };
 
   const handleToggleSection = (section: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setCollapsibleState((prev: any) => {
       const isOpening = !prev[section];
       if (appSettings?.enableFocusMode && isOpening) {
@@ -134,6 +138,7 @@ export default function Controls() {
     });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSectionContextMenu = (event: any, sectionName: string) => {
     event.preventDefault();
     event.stopPropagation();
@@ -144,6 +149,7 @@ export default function Controls() {
     }
 
     const handleCopy = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const adjustmentsToCopy: any = {};
       for (const key of sectionKeys) {
         if (Object.prototype.hasOwnProperty.call(adjustments, key)) {
@@ -168,6 +174,7 @@ export default function Controls() {
     };
 
     const handleReset = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const resetValues: any = {};
       for (const key of sectionKeys) {
         resetValues[key] = JSON.parse(JSON.stringify(INITIAL_ADJUSTMENTS[key as keyof Adjustments]));
@@ -189,6 +196,7 @@ export default function Controls() {
       ? t('editor.adjustments.actions.pasteLabel', { section: translatedSection })
       : t('editor.adjustments.actions.pasteSettings');
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const options: any = [
       {
         label: t('editor.adjustments.actions.copySectionSettings', { section: translatedSection }),
@@ -273,6 +281,7 @@ export default function Controls() {
 
       <div className="grow overflow-y-scroll p-4 flex flex-col gap-2">
         {Object.keys(ADJUSTMENT_SECTIONS).map((sectionName: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const SectionComponent: any = {
             basic: BasicAdjustments,
             curves: CurveGraph,
@@ -289,6 +298,7 @@ export default function Controls() {
               <CollapsibleSection
                 isContentVisible={sectionVisibility[sectionName as keyof SectionVisibility]}
                 isOpen={collapsibleSectionsState[sectionName as keyof typeof collapsibleSectionsState]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onContextMenu={(e: any) => handleSectionContextMenu(e, sectionName)}
                 onToggle={() => handleToggleSection(sectionName)}
                 onToggleVisibility={() => handleToggleVisibility(sectionName)}

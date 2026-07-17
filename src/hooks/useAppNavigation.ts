@@ -16,14 +16,18 @@ import { debouncedSave, debouncedSetHistory } from './useEditorActions';
 export interface AppNavigationProps {
   clearThumbnailQueue: () => void;
   refs: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     transformWrapperRef: React.RefObject<any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     preloadedDataRef: React.RefObject<any>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cachedEditStateRef: React.RefObject<any>;
     selectedImagePathRef: React.RefObject<string | null>;
     isBackendReadyRef: React.RefObject<boolean>;
     latestRenderedJobIdRef: React.RefObject<number>;
     previewJobIdRef: React.RefObject<number>;
     currentResRef: React.RefObject<number>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     prevAdjustmentsRef: React.RefObject<any>;
   };
 }
@@ -154,7 +158,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         compactEditorPanelHeightOverride: null,
       });
 
-      if (isFrontendCached) {
+      if (isFrontendCached && cached) {
         setEditor({
           selectedImage: {
             ...cached.selectedImage,
@@ -179,12 +183,14 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         currentResRef.current = Infinity;
 
         invoke(Invokes.LoadImage, { path })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then((_result: any) => {
             if (selectedImagePathRef.current !== path) return;
             isBackendReadyRef.current = true;
             currentResRef.current = 0;
             setEditor({ originalSize: { width: _result.width, height: _result.height } });
           })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .catch((err: any) => {
             if (String(err).includes('cancelled')) return;
             console.error('Background load_image failed on cache hit:', err);
@@ -193,15 +199,17 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           });
 
         invoke(Invokes.LoadMetadata, { path })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then((metadata: any) => {
             if (selectedImagePathRef.current !== path) return;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let freshAdjustments: any;
             if (metadata.adjustments && !metadata.adjustments.is_null) {
               freshAdjustments = normalizeLoadedAdjustments(metadata.adjustments);
             } else {
               freshAdjustments = { ...INITIAL_ADJUSTMENTS };
             }
-            if (!isSliderDragging && JSON.stringify(cached.adjustments) !== JSON.stringify(freshAdjustments)) {
+            if (!isSliderDragging && cached && JSON.stringify(cached.adjustments) !== JSON.stringify(freshAdjustments)) {
               setEditor({ adjustments: freshAdjustments });
               resetHistory(freshAdjustments);
               prevAdjustmentsRef.current = { path, adjustments: freshAdjustments };
@@ -291,6 +299,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         if (isNewRoot && path) {
           newExpandedFolders = new Set([path]);
           if (appSettings) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             handleSettingsChange({ ...appSettings, lastRootPath: path } as any);
           }
         } else if (path && expandParents) {
@@ -354,6 +363,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           const paths = files.map((f: ImageFile) => f.path);
 
           if (isExifSortActive) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const exifDataMap: Record<string, any> = await invoke(Invokes.ReadExifForPaths, { paths });
             const finalImageList = files.map((image) => ({
               ...image,
@@ -363,6 +373,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           } else {
             setLibrary({ imageList: files });
             invoke(Invokes.ReadExifForPaths, { paths })
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .then((exifDataMap: any) => {
                 setLibrary((state) => ({
                   imageList: state.imageList.map((image) => ({
@@ -459,6 +470,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           setLibrary({ rootPaths: newRootPaths });
 
           if (appSettings) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             handleSettingsChange({ ...appSettings, rootFolders: newRootPaths } as any);
           }
 
@@ -547,9 +559,11 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         const activeAlbumId = folderState?.activeAlbumId;
         if (activeAlbumId) {
           try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const albumTree: any = await invoke(Invokes.GetAlbums);
             setLibrary({ albumTree });
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const findObj = (nodes: any[]): any => {
               for (const n of nodes) {
                 if (n.id === activeAlbumId) return n;

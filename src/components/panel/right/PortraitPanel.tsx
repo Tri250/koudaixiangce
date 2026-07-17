@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { User, Scissors, Palette, Sparkles, RotateCcw, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';

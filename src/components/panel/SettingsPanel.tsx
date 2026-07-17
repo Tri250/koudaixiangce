@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  Cloud,
   Cpu,
   ExternalLink as ExternalLinkIcon,
   Server,
@@ -22,7 +21,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import clsx from 'clsx';
 import { Show, SignIn, useUser, useAuth, useClerk } from '@clerk/react';
 import Button from '../ui/Button';
@@ -32,7 +31,7 @@ import Switch from '../ui/Switch';
 import Input from '../ui/Input';
 import Slider from '../ui/Slider';
 import { ThemeProps, THEMES, DEFAULT_THEME_ID } from '../../utils/themes';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import { Invokes } from '../ui/AppProperties';
 import {
   formatKeyCode,
@@ -58,8 +57,10 @@ interface ConfirmModalState {
 interface DataActionItemProps {
   buttonAction(): void;
   buttonText: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   description: any;
   disabled?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any;
   isProcessing: boolean;
   message: string;
@@ -77,15 +78,18 @@ interface KeybindRowProps {
 }
 
 interface SettingItemProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: any;
   description?: string;
   label: string;
 }
 
 interface SettingsPanelProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   appSettings: any;
   onBack(): void;
   onLibraryRefresh(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSettingsChange(settings: any): Promise<void>;
   rootPaths: string[];
 }
@@ -170,7 +174,7 @@ const KeybindRow = ({
 
   return (
     <div className="flex justify-between items-center py-2">
-      <Text variant={TextVariants.label}>{t(def.description as any)}</Text>
+      <Text variant={TextVariants.label}>{t(def.description as string)}</Text>
       <div className="flex items-center gap-1">
         {isConflicting && <span className="text-yellow-400 text-xs">⚠</span>}
         <button onClick={() => onStartRecording(def.action)} className="flex items-center gap-1 flex-wrap shrink-0">
@@ -680,6 +684,7 @@ export default function SettingsPanel({
     invoke<string[]>('get_lensfun_makers').then(setLensMakers).catch(console.error);
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleProcessingSettingChange = async (key: string, value: any) => {
     setProcessingSettings((prev) => ({ ...prev, [key]: value }));
 
@@ -727,6 +732,7 @@ export default function SettingsPanel({
     setLensModels([]);
     if (maker) {
       invoke('get_lensfun_lenses_for_maker', { maker })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .then((l: any) => setLensModels(l))
         .catch(console.error);
     }
@@ -775,6 +781,7 @@ export default function SettingsPanel({
       }
       setClearMessage(t('settings.data.statuses.sidecarSuccess', { count: totalCount }));
       onLibraryRefresh();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Failed to clear sidecars:', err);
       setClearMessage(`Error: ${err}`);
@@ -808,6 +815,7 @@ export default function SettingsPanel({
       }
       setAiTagsClearMessage(t('settings.data.statuses.aiSuccess', { count: totalCount }));
       onLibraryRefresh();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Failed to clear AI tags:', err);
       setAiTagsClearMessage(`Error: ${err}`);
@@ -841,6 +849,7 @@ export default function SettingsPanel({
       }
       setTagsClearMessage(t('settings.data.statuses.allSuccess', { count: totalCount }));
       onLibraryRefresh();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Failed to clear tags:', err);
       setTagsClearMessage(`Error: ${err}`);
@@ -863,8 +872,8 @@ export default function SettingsPanel({
     });
   };
 
-  const shortcutTagVariants = {
-    visible: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 500, damping: 30 } },
+  const shortcutTagVariants: Variants = {
+    visible: { opacity: 1, scale: 1, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
     exit: { opacity: 0, scale: 0.8, transition: { duration: 0.15 } },
   };
 
@@ -875,6 +884,7 @@ export default function SettingsPanel({
       await invoke(Invokes.ClearThumbnailCache);
       setCacheClearMessage(t('settings.data.statuses.cacheSuccess'));
       onLibraryRefresh();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Failed to clear thumbnail cache:', err);
       setCacheClearMessage(`Error: ${err}`);
@@ -1065,6 +1075,7 @@ export default function SettingsPanel({
                   <div className="divide-y divide-border-color/40">
                     <SettingItem label={t('settings.language')} description={t('settings.languageDesc')}>
                       <Dropdown
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(value: any) => onSettingsChange({ ...appSettings, language: value })}
                         options={[
                           { value: 'zh-CN', label: '简体中文' },
@@ -1086,7 +1097,9 @@ export default function SettingsPanel({
                     </SettingItem>
                     <SettingItem label={t('settings.general.theme')} description={t('settings.general.themeDesc')}>
                       <Dropdown
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(value: any) => onSettingsChange({ ...appSettings, theme: value })}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         options={THEMES.map((theme: ThemeProps) => ({ value: theme.id, label: t(theme.name as any) }))}
                         value={appSettings?.theme || DEFAULT_THEME_ID}
                         triggerClassName="bg-bg-primary min-w-[10rem]"
@@ -1094,6 +1107,7 @@ export default function SettingsPanel({
                     </SettingItem>
                     <SettingItem label={t('settings.general.font')} description={t('settings.general.fontDesc')}>
                       <Dropdown
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(value: any) => onSettingsChange({ ...appSettings, fontFamily: value })}
                         options={fontOptions}
                         value={appSettings?.fontFamily || 'poppins'}
@@ -1452,6 +1466,7 @@ export default function SettingsPanel({
                                   step={1}
                                   value={appSettings?.aiTagCount ?? 10}
                                   defaultValue={10}
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                   onChange={(e: any) =>
                                     onSettingsChange({ ...appSettings, aiTagCount: parseInt(e.target.value) })
                                   }
@@ -1682,6 +1697,7 @@ export default function SettingsPanel({
                                   label={t('settings.processing.previewRes')}
                                 >
                                   <Dropdown
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     onChange={(value: any) =>
                                       handleProcessingSettingChange('editorPreviewResolution', value)
                                     }
@@ -1709,6 +1725,7 @@ export default function SettingsPanel({
                                   label={t('settings.processing.staticPreviewRes')}
                                 >
                                   <Dropdown
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     onChange={(value: any) =>
                                       handleProcessingSettingChange('editorPreviewResolution', value)
                                     }
@@ -1722,6 +1739,7 @@ export default function SettingsPanel({
                                   description={t('settings.processing.renderScaleDesc')}
                                 >
                                   <Dropdown
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     onChange={(value: any) =>
                                       handleProcessingSettingChange('highResZoomMultiplier', value)
                                     }
@@ -1784,6 +1802,7 @@ export default function SettingsPanel({
                                 description={t('settings.processing.livePreviewQualityDesc')}
                               >
                                 <Dropdown
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                   onChange={(value: any) =>
                                     onSettingsChange({ ...appSettings, livePreviewQuality: value })
                                   }
@@ -1804,6 +1823,7 @@ export default function SettingsPanel({
                         label={t('settings.processing.thumbnailRes')}
                       >
                         <Dropdown
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
                           onChange={(value: any) => handleProcessingSettingChange('thumbnailResolution', value)}
                           options={thumbnailResolutions}
                           value={processingSettings.thumbnailResolution}
@@ -1848,6 +1868,7 @@ export default function SettingsPanel({
                       description={t('settings.processing.backendDesc')}
                     >
                       <Dropdown
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(value: any) => handleProcessingSettingChange('processingBackend', value)}
                         options={filteredBackendOptions}
                         value={
@@ -1882,6 +1903,7 @@ export default function SettingsPanel({
                         step={1}
                         value={processingSettings.thumbnailWorkerThreads}
                         defaultValue={4}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(e: any) =>
                           handleProcessingSettingChange('thumbnailWorkerThreads', parseInt(e.target.value))
                         }
@@ -1899,6 +1921,7 @@ export default function SettingsPanel({
                         step={1}
                         value={processingSettings.imageCacheSize}
                         defaultValue={5}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(e: any) => handleProcessingSettingChange('imageCacheSize', parseInt(e.target.value))}
                         fillOrigin="min"
                       />
@@ -1943,6 +1966,7 @@ export default function SettingsPanel({
                         step={0.1}
                         value={processingSettings.rawHighlightCompression}
                         defaultValue={2.5}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(e: any) =>
                           handleProcessingSettingChange('rawHighlightCompression', parseFloat(e.target.value))
                         }
@@ -1960,6 +1984,7 @@ export default function SettingsPanel({
                         step={0.05}
                         value={processingSettings.rawPreprocessingColorNr}
                         defaultValue={0.5}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(e: any) =>
                           handleProcessingSettingChange('rawPreprocessingColorNr', parseFloat(e.target.value))
                         }
@@ -1977,6 +2002,7 @@ export default function SettingsPanel({
                         step={0.05}
                         value={processingSettings.rawPreprocessingSharpening}
                         defaultValue={0.35}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(e: any) =>
                           handleProcessingSettingChange('rawPreprocessingSharpening', parseFloat(e.target.value))
                         }
@@ -1988,6 +2014,7 @@ export default function SettingsPanel({
                       description={t('settings.processing.preprocessing.linearRawDesc')}
                     >
                       <Dropdown
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(value: any) => onSettingsChange({ ...appSettings, linearRawMode: value })}
                         options={linearRawOptions}
                         value={appSettings?.linearRawMode || 'auto'}
@@ -2033,6 +2060,7 @@ export default function SettingsPanel({
                                 description={t('settings.processing.preprocessing.defaultRawTonemapperDesc')}
                               >
                                 <Dropdown
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                   onChange={(value: any) =>
                                     onSettingsChange({ ...appSettings, defaultRawTonemapper: value })
                                   }
@@ -2046,6 +2074,7 @@ export default function SettingsPanel({
                                 description={t('settings.processing.preprocessing.defaultNonRawTonemapperDesc')}
                               >
                                 <Dropdown
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                   onChange={(value: any) =>
                                     onSettingsChange({ ...appSettings, defaultNonRawTonemapper: value })
                                   }
@@ -2122,7 +2151,9 @@ export default function SettingsPanel({
                                   onBlur={() =>
                                     onSettingsChange({ ...appSettings, aiConnectorAddress: aiConnectorAddress })
                                   }
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                   onChange={(e: any) => setAiConnectorAddress(e.target.value)}
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                   onKeyDown={(e: any) => e.stopPropagation()}
                                   placeholder="127.0.0.1:8188"
                                   type="text"
@@ -2345,6 +2376,7 @@ export default function SettingsPanel({
                           step={0.1}
                           value={appSettings?.zoomSpeedMultiplier ?? 1.0}
                           defaultValue={1.0}
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
                           onChange={(e: any) =>
                             onSettingsChange({ ...appSettings, zoomSpeedMultiplier: parseFloat(e.target.value) })
                           }
@@ -2372,7 +2404,7 @@ export default function SettingsPanel({
                       return (
                         <div key={section.id}>
                           <Text variant={TextVariants.heading} className="mb-2">
-                            {t(section.label as any)}
+                            {t(section.label as string)}
                           </Text>
                           <div className="divide-y divide-border-color/40 rounded-xl border border-border-color/50 overflow-hidden">
                             {sectionDefs.map((def) => (

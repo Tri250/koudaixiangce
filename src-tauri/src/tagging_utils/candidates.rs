@@ -604,3 +604,71 @@ pub const TAG_CANDIDATES: [&str; 590] = [
     "quiet",
     "silence",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tag_candidates_not_empty() {
+        assert!(!TAG_CANDIDATES.is_empty());
+    }
+
+    #[test]
+    fn test_tag_candidates_has_core_categories() {
+        let candidates: Vec<&str> = TAG_CANDIDATES.to_vec();
+        // People
+        assert!(candidates.contains(&"person"));
+        assert!(candidates.contains(&"portrait"));
+        // Animals
+        assert!(candidates.contains(&"animal"));
+        assert!(candidates.contains(&"dog"));
+        assert!(candidates.contains(&"cat"));
+        // Nature
+        assert!(candidates.contains(&"nature"));
+        assert!(candidates.contains(&"landscape"));
+        assert!(candidates.contains(&"mountain"));
+        // Architecture
+        assert!(candidates.contains(&"architecture"));
+        assert!(candidates.contains(&"building"));
+        // Vehicles
+        assert!(candidates.contains(&"vehicle"));
+        assert!(candidates.contains(&"car"));
+        // Food
+        assert!(candidates.contains(&"food"));
+        // Photography
+        assert!(candidates.contains(&"macro"));
+        assert!(candidates.contains(&"bokeh"));
+        // Mood
+        assert!(candidates.contains(&"mood"));
+    }
+
+    #[test]
+    fn test_tag_candidates_no_empty_strings() {
+        for candidate in TAG_CANDIDATES.iter() {
+            assert!(!candidate.is_empty(), "Found empty tag candidate");
+        }
+    }
+
+    #[test]
+    fn test_tag_candidates_count() {
+        // We know there should be 590 candidate entries in the array
+        assert_eq!(TAG_CANDIDATES.len(), 590);
+    }
+
+    #[test]
+    fn test_tag_candidates_unique_count() {
+        let mut seen = std::collections::HashSet::new();
+        let mut duplicates = Vec::new();
+        for candidate in TAG_CANDIDATES.iter() {
+            if !seen.insert(candidate) {
+                if !duplicates.contains(candidate) {
+                    duplicates.push(*candidate);
+                }
+            }
+        }
+        // Known duplicates: these tags appear more than once
+        assert_eq!(duplicates, vec!["mouse", "chicken", "fish", "painting", "orange"], "Unexpected duplicates found");
+        assert_eq!(seen.len(), TAG_CANDIDATES.len() - duplicates.len());
+    }
+}

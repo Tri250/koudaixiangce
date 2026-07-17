@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Image as ImageIcon, Folder, FolderOpen, Star as StarIcon, SlidersHorizontal, CloudOff } from 'lucide-react';
 import clsx from 'clsx';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { COLOR_LABELS, Color } from '../../../utils/adjustments';
 import { ThumbnailAspectRatio, ImageFile, ExifOverlay } from '../../ui/AppProperties';
 import Text from '../../ui/Text';
@@ -31,6 +31,7 @@ const ThumbnailComponent = ({
   isEdited,
   exif,
   isCloudPlaceholder,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) => {
   const { t } = useTranslation();
   const data = useProcessStore((s) => s.thumbnails[path]);
@@ -146,10 +147,12 @@ const ThumbnailComponent = ({
   return (
     <div
       className="aspect-square bg-surface rounded-md overflow-hidden cursor-pointer group relative flex flex-col transition-all duration-150 transform-gpu [-webkit-mask-image:-webkit-radial-gradient(white,black)]"
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onClick={(e: any) => {
         e.stopPropagation();
         onImageClick(path, e);
       }}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onContextMenu={(e: any) => onContextMenu(e, path)}
       onDoubleClick={() => onImageDoubleClick(path)}
     >
@@ -431,6 +434,7 @@ const ListItemComponent = ({
   columnWidths,
   exif,
   isCloudPlaceholder,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) => {
   const { t } = useTranslation();
   const data = useProcessStore((s) => s.thumbnails[path]);
@@ -552,10 +556,12 @@ const ListItemComponent = ({
   return (
     <div
       className={`flex items-center w-full h-full border-b border-border-color/30 cursor-pointer transition-colors duration-150 ${stateClass}`}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onClick={(e: any) => {
         e.stopPropagation();
         onImageClick(path, e);
       }}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onContextMenu={(e: any) => onContextMenu(e, path)}
       onDoubleClick={() => onImageDoubleClick(path)}
     >
@@ -717,6 +723,7 @@ const RowComponent = ({
   columnWidths,
   queueThumbnailRequest,
   onToggleRecursiveFolder,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) => {
   const { t } = useTranslation();
   const row = rows[index];

@@ -516,3 +516,291 @@ pub fn mat3_inverse(m: &Matrix3x3) -> Option<Matrix3x3> {
         (m[0] * m[4] - m[1] * m[3]) * inv_det,
     ])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{DynamicImage, Rgb, RgbImage};
+
+    fn make_solid_image(r: u8, g: u8, b: u8, w: u32, h: u32) -> DynamicImage {
+        let mut img = RgbImage::new(w, h);
+        for pixel in img.pixels_mut() {
+            *pixel = Rgb([r, g, b]);
+        }
+        DynamicImage::ImageRgb8(img)
+    }
+
+    // --- builtin_profiles tests ---
+
+    #[test]
+    fn test_builtin_profiles_not_empty() {
+        let profiles = builtin_profiles();
+        assert!(!profiles.is_empty());
+    }
+
+    #[test]
+    fn test_builtin_profiles_has_canon() {
+        let profiles = builtin_profiles();
+        assert!(profiles.iter().any(|p| p.make == "Canon"));
+    }
+
+    #[test]
+    fn test_builtin_profiles_has_nikon() {
+        let profiles = builtin_profiles();
+        assert!(profiles.iter().any(|p| p.make == "Nikon"));
+    }
+
+    #[test]
+    fn test_builtin_profiles_has_sony() {
+        let profiles = builtin_profiles();
+        assert!(profiles.iter().any(|p| p.make == "Sony"));
+    }
+
+    #[test]
+    fn test_builtin_profiles_has_fujifilm() {
+        let profiles = builtin_profiles();
+        assert!(profiles.iter().any(|p| p.make == "Fujifilm"));
+    }
+
+    #[test]
+    fn test_builtin_profiles_has_apple() {
+        let profiles = builtin_profiles();
+        assert!(profiles.iter().any(|p| p.make == "Apple"));
+    }
+
+    // --- find_profile tests ---
+
+    #[test]
+    fn test_find_profile_canon_eos_r5() {
+        let profile = find_profile("Canon", "EOS R5");
+        assert!(profile.is_some());
+        let p = profile.unwrap();
+        assert_eq!(p.make, "Canon");
+        assert_eq!(p.model, "EOS R5");
+    }
+
+    #[test]
+    fn test_find_profile_case_insensitive() {
+        assert!(find_profile("canon", "eos r5").is_some());
+        assert!(find_profile("CANON", "EOS R5").is_some());
+        assert!(find_profile("Canon", "eos r5").is_some());
+    }
+
+    #[test]
+    fn test_find_profile_nikon_z9() {
+        let profile = find_profile("Nikon", "Z9");
+        assert!(profile.is_some());
+        assert_eq!(profile.unwrap().model, "Z9");
+    }
+
+    #[test]
+    fn test_find_profile_not_found() {
+        assert!(find_profile("Unknown", "Camera").is_none());
+        assert!(find_profile("Canon", "Unknown Model").is_none());
+    }
+
+    #[test]
+    fn test_find_profile_sony_a7rv() {
+        let profile = find_profile("Sony", "ILCE-7RM5");
+        assert!(profile.is_some());
+    }
+
+    // --- CameraProfile validation ---
+
+    #[test]
+    fn test_profiles_have_valid_illuminants() {
+        for profile in builtin_profiles() {
+            assert!(profile.calibration_illuminant_1 > 0, "Illuminant 1 should be set for {}", profile.model);
+            assert!(profile.calibration_illuminant_2 > 0, "Illuminant 2 should be set for {}", profile.model);
+        }
+    }
+
+    #[test]
+    fn test_profiles_have_non_identity_matrices() {
+        for profile in builtin_profiles() {
+            let is_identity = profile.color_matrix_1
+                .iter()
+                .zip([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0].iter())
+                .all(|(a, b)| (a - b).abs() < 0.01);
+            assert!(!is_identity, "Profile {} should have a non-identity color matrix", profile.model);
+        }
+    }
+
+    #[test]
+    fn test_profiles_have_valid_baseline_exposure() {
+        for profile in builtin_profiles() {
+            assert!(profile.baseline_exposure > 0.0, "Baseline exposure should be positive for {}", profile.model);
+        }
+    }
+
+    // --- mat3_multiply tests ---
+
+    #[test]
+    fn test_mat3_multiply_identity() {
+        let identity: Matrix3x3 = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let result = mat3_multiply(&identity, &identity);
+        for i in 0..9 {
+            assert!((result[i] - identity[i]).abs() < 1e-6, "Identity multiplication failed at {}", i);
+        }
+    }
+
+    #[test]
+    fn test_mat3_multiply_with_zero() {
+        let identity: Matrix3x3 = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let zero: Matrix3x3 = [0.0; 9];
+        let result = mat3_multiply(&identity, &zero);
+        assert_eq!(result, [0.0; 9]);
+    }
+
+    #[test]
+    fn test_mat3_multiply_custom() {
+        let a: Matrix3x3 = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
+        let b: Matrix3x3 = [9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0];
+        let result = mat3_multiply(&a, &b);
+        // [1*9+2*6+3*3, 1*8+2*5+3*2, 1*7+2*4+3*1] = [30, 24, 18]
+        assert!((result[0] - 30.0).abs() < 1e-4);
+        assert!((result[1] - 24.0).abs() < 1e-4);
+        assert!((result[2] - 18.0).abs() < 1e-4);
+    }
+
+    // --- mat3_inverse tests ---
+
+    #[test]
+    fn test_mat3_inverse_identity() {
+        let identity: Matrix3x3 = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let result = mat3_inverse(&identity);
+        assert!(result.is_some());
+        let inv = result.unwrap();
+        for i in 0..9 {
+            assert!((inv[i] - identity[i]).abs() < 1e-6, "Identity inverse failed at {}", i);
+        }
+    }
+
+    #[test]
+    fn test_mat3_inverse_singular() {
+        let singular: Matrix3x3 = [0.0; 9];
+        let result = mat3_inverse(&singular);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_mat3_inverse_roundtrip() {
+        let m: Matrix3x3 = [2.0, 1.0, 0.0, 0.0, 3.0, 1.0, 1.0, 0.0, 4.0];
+        let inv = mat3_inverse(&m).unwrap();
+        let product = mat3_multiply(&m, &inv);
+        let expected = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        for i in 0..9 {
+            assert!((product[i] - expected[i]).abs() < 1e-4, "Inverse roundtrip failed at {}", i);
+        }
+    }
+
+    #[test]
+    fn test_mat3_inverse_with_profile_matrix() {
+        let profiles = builtin_profiles();
+        let profile = &profiles[0];
+        let inv = mat3_inverse(&profile.color_matrix_1);
+        assert!(inv.is_some(), "Camera color matrix should be invertible");
+    }
+
+    // --- apply_profile tests ---
+
+    #[test]
+    fn test_apply_profile_dimensions_preserved() {
+        let profiles = builtin_profiles();
+        let profile = &profiles[0];
+        let img = make_solid_image(128, 128, 128, 10, 10);
+        let result = apply_profile(&img, profile);
+        assert_eq!(result.dimensions(), (10, 10));
+    }
+
+    #[test]
+    fn test_apply_profile_black_stays_black() {
+        let profiles = builtin_profiles();
+        let profile = &profiles[0];
+        let img = make_solid_image(0, 0, 0, 4, 4);
+        let result = apply_profile(&img, profile);
+        let rgb = result.to_rgb8();
+        let p = rgb.get_pixel(0, 0);
+        assert_eq!(p[0], 0);
+        assert_eq!(p[1], 0);
+        assert_eq!(p[2], 0);
+    }
+
+    // --- DCP parsing tests ---
+
+    #[test]
+    fn test_parse_dcp_too_short() {
+        let data = [0u8; 4];
+        let result = parse_dcp(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_dcp_invalid_byte_order() {
+        let mut data = vec![0u8; 128];
+        data[0] = b'X';
+        data[1] = b'Y';
+        let result = parse_dcp(&data);
+        assert!(result.is_err());
+    }
+
+    // --- ICC parsing tests ---
+
+    #[test]
+    fn test_parse_icc_too_short() {
+        let data = [0u8; 64];
+        let result = parse_icc(&data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_icc_bad_signature() {
+        let mut data = vec![0u8; 128];
+        // Set bad signature at offset 36-39
+        data[36] = b'X';
+        data[37] = b'Y';
+        data[38] = b'Z';
+        data[39] = b'W';
+        let result = parse_icc(&data);
+        assert!(result.is_err());
+    }
+
+    // --- Serialization tests ---
+
+    #[test]
+    fn test_camera_profile_serde_roundtrip() {
+        let profile = find_profile("Canon", "EOS R5").unwrap();
+        let json = serde_json::to_string(&profile).unwrap();
+        let deserialized: CameraProfile = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.make, "Canon");
+        assert_eq!(deserialized.model, "EOS R5");
+    }
+
+    #[test]
+    fn test_dcp_profile_serde_roundtrip() {
+        let profile = find_profile("Canon", "EOS R5").unwrap();
+        let dcp = DCPProfile {
+            profile,
+            tone_curve: vec![(0.0, 0.0), (1.0, 1.0)],
+            look_table: vec![1.0],
+        };
+        let json = serde_json::to_string(&dcp).unwrap();
+        let deserialized: DCPProfile = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.profile.make, "Canon");
+        assert_eq!(deserialized.tone_curve.len(), 2);
+    }
+
+    #[test]
+    fn test_icc_profile_serde_roundtrip() {
+        let profile = find_profile("Canon", "EOS R5").unwrap();
+        let icc = ICCProfile {
+            profile,
+            rendering_intent: 0,
+            white_point: [0.9505, 1.0, 1.089],
+            black_point: [0.0, 0.0, 0.0],
+        };
+        let json = serde_json::to_string(&icc).unwrap();
+        let deserialized: ICCProfile = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.rendering_intent, 0);
+    }
+}

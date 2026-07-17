@@ -38,6 +38,7 @@ export function useAiMasking() {
   const selectedImagePath = useEditorStore((s) => s.selectedImage?.path);
 
   const updateSubMask = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (subMaskId: string, updatedData: any) => {
       setAdjustments((prev: Adjustments) => ({
         ...prev,
@@ -72,6 +73,7 @@ export function useAiMasking() {
       try {
         const patchDefinitionForBackend = adjustments.aiPatches.find((p: AiPatch) => p.id === patchId);
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const newPatchDataJson: any = await invoke('generate_manual_cleanup_patch', {
           currentAdjustments: adjustments,
           patchDefinition: patchDefinitionForBackend,
@@ -87,6 +89,7 @@ export function useAiMasking() {
             p.id === patchId ? { ...p, patchData: newPatchData, isLoading: false } : p,
           ),
         }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         toast.error(`Cleanup Failed: ${err.message || String(err)}`);
         setAdjustments((prev: Partial<Adjustments>) => ({
@@ -117,6 +120,7 @@ export function useAiMasking() {
       setEditor({ isGeneratingAi: true });
 
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const newPatchDataJson: any = await invoke(Invokes.InvokeGenerativeReplaseWithMaskDef, {
           currentAdjustments: adjustments,
           patchDefinition: patchDefinition,
@@ -174,6 +178,7 @@ export function useAiMasking() {
 
       try {
         const transformAdjustments = getTransformAdjustments(adjustments);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const newMaskParams: any = await invoke(Invokes.GenerateAiSubjectMask, {
           jsAdjustments: transformAdjustments,
           endPoint: [endPoint.x, endPoint.y],
@@ -188,6 +193,7 @@ export function useAiMasking() {
         const subMaskToUpdate = adjustments.aiPatches
           ?.find((p: AiPatch) => p.id === patchId)
           ?.subMasks.find((sm: SubMask) => sm.id === subMaskId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const finalSubMaskParams: any = { ...subMaskToUpdate?.parameters, ...newMaskParams };
         const updatedAdjustmentsForBackend = {
           ...adjustments,
@@ -204,6 +210,7 @@ export function useAiMasking() {
         };
 
         const patchDefinitionForBackend = updatedAdjustmentsForBackend.aiPatches.find((p: AiPatch) => p.id === patchId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const newPatchDataJson: any = await invoke(Invokes.InvokeGenerativeReplaseWithMaskDef, {
           currentAdjustments: updatedAdjustmentsForBackend,
           patchDefinition: { ...patchDefinitionForBackend, prompt: '' },
@@ -231,6 +238,7 @@ export function useAiMasking() {
           ),
         }));
         setEditor({ activeAiPatchContainerId: null, activeAiSubMaskId: null });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         toast.error(`Quick Erase Failed: ${err.message || String(err)}`);
         setAdjustments((prev: Partial<Adjustments>) => ({
@@ -303,7 +311,7 @@ export function useAiMasking() {
       const subMask = adjustments.aiPatches
         ?.flatMap((p: AiPatch) => p.subMasks)
         .find((sm: SubMask) => sm.id === subMaskId);
-      const mergedParameters = { ...(subMask?.parameters || {}), ...newParameters };
+      const mergedParameters = { ...((subMask?.parameters ?? {}) as Record<string, unknown>), ...(newParameters as Record<string, unknown>) };
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
@@ -313,6 +321,7 @@ export function useAiMasking() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleGenerateAiDepthMask = async (subMaskId: string, parameters: any) => {
     const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
     if (!selectedImage?.path) return;
@@ -337,7 +346,7 @@ export function useAiMasking() {
       const subMask = adjustments.aiPatches
         ?.flatMap((p: AiPatch) => p.subMasks)
         .find((sm: SubMask) => sm.id === subMaskId);
-      const mergedParameters = { ...(subMask?.parameters || {}), ...newParameters };
+      const mergedParameters = { ...((subMask?.parameters ?? {}) as Record<string, unknown>), ...(newParameters as Record<string, unknown>) };
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
@@ -365,7 +374,7 @@ export function useAiMasking() {
       const subMask = adjustments.aiPatches
         ?.flatMap((p: AiPatch) => p.subMasks)
         .find((sm: SubMask) => sm.id === subMaskId);
-      const mergedParameters = { ...(subMask?.parameters || {}), ...newParameters };
+      const mergedParameters = { ...((subMask?.parameters ?? {}) as Record<string, unknown>), ...(newParameters as Record<string, unknown>) };
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
@@ -393,7 +402,7 @@ export function useAiMasking() {
       const subMask = adjustments.aiPatches
         ?.flatMap((p: AiPatch) => p.subMasks)
         .find((sm: SubMask) => sm.id === subMaskId);
-      const mergedParameters = { ...(subMask?.parameters || {}), ...newParameters };
+      const mergedParameters = { ...((subMask?.parameters ?? {}) as Record<string, unknown>), ...(newParameters as Record<string, unknown>) };
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {

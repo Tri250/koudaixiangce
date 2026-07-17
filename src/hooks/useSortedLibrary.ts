@@ -34,9 +34,10 @@ export const parseFocalLength = (val: string | undefined): number => {
   return isNaN(numVal) ? 0 : numVal;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function computeSortedLibrary(libraryState: any, settingsState: any): ImageFile[] {
   const { imageList, imageRatings, filterCriteria, searchCriteria, sortCriteria } = libraryState;
-  const { appSettings, supportedTypes } = settingsState;
+  const { appSettings: _appSettings, supportedTypes } = settingsState;
 
   const getParentDir = (filePath: string): string => {
     const separator = filePath.includes('/') ? '/' : '\\';
@@ -139,6 +140,7 @@ export function computeSortedLibrary(libraryState: any, settingsState: any): Ima
     return { type: 'normal', value: tag.toLowerCase(), raw: tag };
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const evaluateQuery = (q: any, image: ImageFile) => {
     const { field, operator, value } = q;
 
@@ -196,6 +198,7 @@ export function computeSortedLibrary(libraryState: any, settingsState: any): Ima
 
           let tagsMatch = true;
           if (parsedTags.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const evaluateTag = (parsedTag: any) => {
               if (parsedTag.type === 'normal') {
                 return lowerCaseImageTags.some((imgTag) => imgTag.includes(parsedTag.value));
@@ -204,9 +207,9 @@ export function computeSortedLibrary(libraryState: any, settingsState: any): Ima
             };
 
             if (searchMode === 'OR') {
-              tagsMatch = parsedTags.some((pt) => evaluateTag(pt));
+              tagsMatch = parsedTags.some((pt: any) => evaluateTag(pt)); // eslint-disable-line @typescript-eslint/no-explicit-any
             } else {
-              tagsMatch = parsedTags.every((pt) => evaluateTag(pt));
+              tagsMatch = parsedTags.every((pt: any) => evaluateTag(pt)); // eslint-disable-line @typescript-eslint/no-explicit-any
             }
           }
 

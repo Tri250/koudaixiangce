@@ -9,7 +9,7 @@ import { Mask, SubMask, SubMaskMode, ToolType } from '../right/Masks';
 import { AppSettings, BrushSettings, SelectedImage } from '../../ui/AppProperties';
 import { RenderSize } from '../../../hooks/useImageRenderSize';
 import { useOsPlatform } from '../../../hooks/useOsPlatform';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import type { OverlayMode } from '../right/CropPanel';
 import CompositionOverlays from './overlays/CompositionOverlays';
 
@@ -48,6 +48,7 @@ interface ImageCanvasProps {
   isRotationActive?: boolean;
   maskOverlayUrl: string | null;
   onGenerateAiMask(id: string | null, start: Coord, end: Coord): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onLiveMaskPreview?: (previewMaskDef: any) => void;
   onManualCleanup?(subMaskId: string, sourceX: number, sourceY: number): Promise<void> | void;
   onQuickErase(subMaskId: string | null, startPoint: Coord, endpoint: Coord): void;
@@ -82,6 +83,7 @@ interface MaskOverlayProps {
   imageHeight: number;
   imageWidth: number;
   onMaskInteractionEnd(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMaskInteractionStart(event?: any): void;
   isToolActive: boolean;
   isSelected: boolean;
@@ -212,8 +214,11 @@ const MaskOverlay = memo(
     offsetY,
     stageScale,
   }: MaskOverlayProps) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const shapeRef = useRef<any>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const trRef = useRef<any>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rotateStartRef = useRef<any>(null);
 
     const crop = adjustments.crop;
@@ -228,9 +233,11 @@ const MaskOverlay = memo(
     const isDragging = useRef(false);
 
     const dragStartPointer = useRef<Coord | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dragStartParams = useRef<any>(null);
 
     const getPointer = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (stage: any) => {
         const pos = stage.getPointerPosition();
         if (!pos) return null;
@@ -246,12 +253,14 @@ const MaskOverlay = memo(
       }
     }, [subMask.parameters]);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateP = useCallback((newP: any) => {
       setP(newP);
       pRef.current = newP;
     }, []);
 
     const handleMaskTouchStart = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
 
@@ -275,11 +284,13 @@ const MaskOverlay = memo(
       }
     }, [isSelected, isToolActive]);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const lockDragBoundFunc = useCallback(function (this: any) {
       return this.getAbsolutePosition();
     }, []);
 
     const handleRadialDragStart = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
         isDragging.current = true;
@@ -291,6 +302,7 @@ const MaskOverlay = memo(
     );
 
     const handleRadialDragMove = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         const pointerPos = getPointer(e.target.getStage());
         if (!pointerPos || !dragStartPointer.current || !dragStartParams.current) return;
@@ -319,6 +331,7 @@ const MaskOverlay = memo(
     }, [subMask.id, onMaskInteractionEnd, onUpdate]);
 
     const handleRadialTransformStart = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         isDragging.current = true;
         onMaskInteractionStart(e);
@@ -389,6 +402,7 @@ const MaskOverlay = memo(
     }, [scale, cropX, cropY, updateP, onMaskInteractionEnd, onUpdate, subMask.id]);
 
     const setRotateCursor = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (stage: any, pointerPos: any) => {
         const cx = (pRef.current.centerX - cropX) * scale;
         const cy = (pRef.current.centerY - cropY) * scale;
@@ -408,6 +422,7 @@ const MaskOverlay = memo(
     );
 
     const handleRotateStart = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
 
@@ -433,6 +448,7 @@ const MaskOverlay = memo(
     );
 
     const handleRotateMove = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (!rotateStartRef.current) return;
         const stage = e.target.getStage();
@@ -463,6 +479,7 @@ const MaskOverlay = memo(
     );
 
     const handleRotateEnd = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         isDragging.current = false;
         rotateStartRef.current = null;
@@ -477,6 +494,7 @@ const MaskOverlay = memo(
     );
 
     const handleRotateHoverMove = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (isToolActive || isDragging.current) return;
         const stage = e.target.getStage();
@@ -487,6 +505,7 @@ const MaskOverlay = memo(
     );
 
     const handleRotateMouseEnter = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         onMaskMouseEnter();
         if (!isToolActive && !isDragging.current) {
@@ -499,6 +518,7 @@ const MaskOverlay = memo(
     );
 
     const handleRotateMouseLeave = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         onMaskMouseLeave();
         if (!isDragging.current) {
@@ -510,6 +530,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearGroupDragStart = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
         isDragging.current = true;
@@ -522,6 +543,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearGroupDragMove = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         const pointerPos = getPointer(e.target.getStage());
         if (!pointerPos || !dragStartPointer.current || !dragStartParams.current) return;
@@ -545,6 +567,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearGroupDragEnd = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         isDragging.current = false;
         e.cancelBubble = true;
@@ -555,6 +578,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearPointDragStart = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
         isDragging.current = true;
@@ -565,6 +589,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearPointDragMove = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any, pointType: string) => {
         const stage = e.target.getStage();
         const pointerPos = getPointer(stage);
@@ -589,6 +614,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearRangeDragMove = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         const stage = e.target.getStage();
         const pointerPos = getPointer(stage);
@@ -620,6 +646,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearPointDragEnd = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         isDragging.current = false;
         e.cancelBubble = true;
@@ -830,12 +857,14 @@ const MaskOverlay = memo(
             onDragStart={handleRadialDragStart}
             onDragMove={handleRadialDragMove}
             onDragEnd={handleRadialDragEnd}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMouseEnter={(e: any) => {
               onMaskMouseEnter();
               if (!isToolActive && !isDragging.current) {
                 e.target.getStage().container().style.cursor = 'move';
               }
             }}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMouseLeave={(e: any) => {
               onMaskMouseLeave();
               if (!isDragging.current && e?.target?.getStage) {
@@ -958,10 +987,12 @@ const MaskOverlay = memo(
             onTap={handleSelect}
             onTouchEnd={handleMaskTouchEnd}
             onTouchStart={handleMaskTouchStart}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMouseEnter={(e: any) => {
               onMaskMouseEnter();
               if (!isToolActive) e.target.getStage().container().style.cursor = 'move';
             }}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onMouseLeave={(e: any) => {
               onMaskMouseLeave();
               e.target.getStage().container().style.cursor = '';
@@ -982,10 +1013,12 @@ const MaskOverlay = memo(
                 onDragEnd={handleLinearPointDragEnd}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseEnter={(e: any) => {
                   onMaskMouseEnter();
                   if (!isToolActive) e.target.getStage().container().style.cursor = 'row-resize';
                 }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseLeave={(e: any) => {
                   onMaskMouseLeave();
                   e.target.getStage().container().style.cursor = '';
@@ -1001,10 +1034,12 @@ const MaskOverlay = memo(
                 onDragEnd={handleLinearPointDragEnd}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseEnter={(e: any) => {
                   onMaskMouseEnter();
                   if (!isToolActive) e.target.getStage().container().style.cursor = 'row-resize';
                 }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseLeave={(e: any) => {
                   onMaskMouseLeave();
                   e.target.getStage().container().style.cursor = '';
@@ -1029,10 +1064,12 @@ const MaskOverlay = memo(
                 onDragEnd={handleLinearPointDragEnd}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseEnter={(e: any) => {
                   onMaskMouseEnter();
                   e.target.getStage().container().style.cursor = 'grab';
                 }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseLeave={(e: any) => {
                   onMaskMouseLeave();
                   e.target.getStage().container().style.cursor = '';
@@ -1052,10 +1089,12 @@ const MaskOverlay = memo(
                 onDragEnd={handleLinearPointDragEnd}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseEnter={(e: any) => {
                   onMaskMouseEnter();
                   e.target.getStage().container().style.cursor = 'grab';
                 }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseLeave={(e: any) => {
                   onMaskMouseLeave();
                   e.target.getStage().container().style.cursor = '';
@@ -1076,10 +1115,12 @@ const MaskOverlay = memo(
                 onTap={handleSelect}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseEnter={(e: any) => {
                   onMaskMouseEnter();
                   if (!isToolActive) e.target.getStage().container().style.cursor = 'row-resize';
                 }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseLeave={(e: any) => {
                   onMaskMouseLeave();
                   e.target.getStage().container().style.cursor = '';
@@ -1095,10 +1136,12 @@ const MaskOverlay = memo(
                 onTap={handleSelect}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseEnter={(e: any) => {
                   onMaskMouseEnter();
                   if (!isToolActive) e.target.getStage().container().style.cursor = 'row-resize';
                 }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onMouseLeave={(e: any) => {
                   onMaskMouseLeave();
                   e.target.getStage().container().style.cursor = '';
@@ -1189,10 +1232,12 @@ const ImageCanvas = memo(
     const cropImageRef = useRef<HTMLImageElement>(null);
     const [displayedMaskUrl, setDisplayedMaskUrl] = useState<string | null>(null);
     const [originalLoaded, setOriginalLoaded] = useState<boolean>(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [localInitialDrawParams, setLocalInitialDrawParams] = useState<any>(null);
     const [isMaskInteractionActive, setIsMaskInteractionActive] = useState(false);
     const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
     const isDrawing = useRef(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const drawingStageRef = useRef<any>(null);
     const dragStartPointer = useRef<Coord | null>(null);
     const lastBrushPoint = useRef<Coord | null>(null);
@@ -1202,6 +1247,7 @@ const ImageCanvas = memo(
     const activeStrokeIndex = useRef<number | null>(null);
 
     const [cursorPreview, setCursorPreview] = useState<CursorPreview>({ x: 0, y: 0, visible: false });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [straightenLine, setStraightenLine] = useState<any>(null);
     const isStraightening = useRef(false);
 
@@ -1284,6 +1330,7 @@ const ImageCanvas = memo(
     const maxSafeScale = Math.max(1, Math.min(settledScale, 4092 / maxDimension));
 
     const getCanvasPointer = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (stage: any) => {
         const pos = stage.getPointerPosition();
         if (!pos) return null;
@@ -1320,11 +1367,8 @@ const ImageCanvas = memo(
           setDisplayState((prev) => ({ base: prev.base, fade: newSrc }));
           setIsFadingIn(false);
 
-          let frame1: number;
-          let frame2: number;
-
-          frame1 = requestAnimationFrame(() => {
-            frame2 = requestAnimationFrame(() => {
+          const frame1 = requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
               setIsFadingIn(true);
             });
           });
@@ -1336,7 +1380,6 @@ const ImageCanvas = memo(
 
           return () => {
             cancelAnimationFrame(frame1);
-            cancelAnimationFrame(frame2);
             clearTimeout(timer);
           };
         } else {
@@ -1354,10 +1397,12 @@ const ImageCanvas = memo(
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Alt') {
           e.preventDefault();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (window as any).altKeyDown = true;
           setIsAltPressed(true);
         }
         if (e.key === 'Control' || e.key === 'Meta') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (window as any).ctrlKeyDown = true;
           setIsCtrlPressed(true);
         }
@@ -1365,17 +1410,21 @@ const ImageCanvas = memo(
       const handleKeyUp = (e: KeyboardEvent) => {
         if (e.key === 'Alt') {
           e.preventDefault();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (window as any).altKeyDown = false;
           setIsAltPressed(false);
         }
         if (e.key === 'Control' || e.key === 'Meta') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (window as any).ctrlKeyDown = false;
           setIsCtrlPressed(false);
         }
       };
       const handleBlur = () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).altKeyDown = false;
         setIsAltPressed(false);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).ctrlKeyDown = false;
         setIsCtrlPressed(false);
       };
@@ -1388,7 +1437,9 @@ const ImageCanvas = memo(
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
         window.removeEventListener('blur', handleBlur);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).altKeyDown = false;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).ctrlKeyDown = false;
       };
     }, []);
@@ -1579,9 +1630,11 @@ const ImageCanvas = memo(
     }, [activeContainer, activeMaskId, activeAiSubMaskId, isMasking, isAiEditing]);
 
     const cloneHealMarkers = useMemo(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const markers: any[] = [];
       if (!adjustments.aiPatches && !adjustments.masks) return markers;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const processContainers = (containers: any[], isAi: boolean) => {
         containers.forEach((container) => {
           container.subMasks.forEach((sm: SubMask) => {
@@ -1645,6 +1698,7 @@ const ImageCanvas = memo(
     }, [isCropping, uncroppedAdjustedPreviewUrl]);
 
     const handleWbClick = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (!isWbPickerActive || !finalPreviewUrl || !onWbPicked) return;
 
@@ -1735,6 +1789,7 @@ const ImageCanvas = memo(
     );
 
     const handleStart = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) {
           return;
@@ -1755,7 +1810,7 @@ const ImageCanvas = memo(
           const x = pos.x / scale + cropX;
           const y = pos.y / scale + cropY;
 
-          let newParams = { ...activeSubMask.parameters };
+          const newParams = { ...activeSubMask.parameters };
           newParams.targetX = x;
           newParams.targetY = y;
           newParams.rotation = adjustments.rotation || 0;
@@ -1808,6 +1863,7 @@ const ImageCanvas = memo(
         }
 
         if (isManualCleanupActive && activeSubMask) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const isCtrlPressedLocal = e.evt.ctrlKey || e.evt.metaKey || (window as any).ctrlKeyDown;
           if (isCtrlPressedLocal || activeSubMask.parameters?.sourceX === undefined) {
             const pos = getCanvasPointer(e.target.getStage());
@@ -1855,6 +1911,7 @@ const ImageCanvas = memo(
             return;
           }
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const isAltPressed = e.evt.altKey || (window as any).altKeyDown;
           let effectiveTool;
 
@@ -1970,6 +2027,7 @@ const ImageCanvas = memo(
     );
 
     const handleMove = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e: any) => {
         if (isWbPickerActive) {
           return;
@@ -2026,7 +2084,7 @@ const ImageCanvas = memo(
             return;
           }
 
-          let updatedParams = { ...localInitialDrawParams };
+          const updatedParams = { ...localInitialDrawParams };
 
           if (activeSubMask.type === Mask.Radial) {
             updatedParams.radiusX = Math.max(1, Math.abs(x - dragStartPointer.current.x));
@@ -2246,7 +2304,7 @@ const ImageCanvas = memo(
         const { scale } = imageRenderSize;
         const activeId = isMasking ? activeMaskId : activeAiSubMaskId;
 
-        let startPoint = { x: box.start.x / scale + cropX, y: box.start.y / scale + cropY };
+        const startPoint = { x: box.start.x / scale + cropX, y: box.start.y / scale + cropY };
         let endPoint = { x: box.end.x / scale + cropX, y: box.end.y / scale + cropY };
 
         const dx = box.end.x - box.start.x;
@@ -2394,6 +2452,7 @@ const ImageCanvas = memo(
       };
     }, [isToolActive, handleMove, handleUp]);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleStraightenMouseDown = (e: any) => {
       if (e.evt.button !== 0 && !e.evt.touches) {
         return;
@@ -2404,12 +2463,14 @@ const ImageCanvas = memo(
       setStraightenLine({ start: pos, end: pos });
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleStraightenMouseMove = (e: any) => {
       if (!isStraightening.current) {
         return;
       }
 
       const pos = e.target.getStage().getPointerPosition();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setStraightenLine((prev: any) => ({ ...prev, end: pos }));
       if (e.evt && e.evt.cancelable) e.evt.preventDefault();
     };
@@ -2611,6 +2672,7 @@ const ImageCanvas = memo(
     );
 
     const handleMaskInteractionStart = useCallback(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (e?: any) => {
         setIsMaskInteractionActive(true);
         const eventType = e?.evt?.type;

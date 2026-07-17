@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowLeft, CheckCircle2, ChevronDown, Loader2, Search, Users, Layers, Crop } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, Search, Users } from 'lucide-react';
 import { siGithub } from 'simple-icons';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import { Invokes, SupportedTypes, ImageFile } from '../ui/AppProperties';
@@ -17,6 +17,7 @@ const DEFAULT_PREVIEW_IMAGE_URL = 'https://raw.githubusercontent.com/CyberTimon/
 interface CommunityPreset {
   name: string;
   creator: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adjustments: Record<string, any>;
   includeMasks?: boolean;
   includeCropTransform?: boolean;
@@ -48,6 +49,7 @@ interface CommunityPageProps {
   currentFolderPath: string | null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const shuffleArray = (array: any[]) => {
   const newArray = [...array];
   for (let i = newArray.length - 1; i > 0; i--) {
@@ -66,7 +68,7 @@ const CommunityPage = ({ onBackToLibrary, imageList, currentFolderPath }: Commun
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [downloadStatus, setDownloadStatus] = useState<Record<string, 'idle' | 'downloading' | 'success'>>({});
-  const [allPreviewsLoaded, setAllPreviewsLoaded] = useState(false);
+  const [_allPreviewsLoaded, setAllPreviewsLoaded] = useState(false);
 
   const sortMethods = useMemo(() => [{ value: 'name', label: t('library.community.sortMethods.name') }], [t]);
 

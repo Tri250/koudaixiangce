@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
-import { open } from '@tauri-apps/plugin-shell';
 import {
   AlertTriangle,
   Check,
@@ -15,7 +14,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Button from '../ui/Button';
 import SettingsPanel from './SettingsPanel';
 import { ThemeProps, THEMES, DEFAULT_THEME_ID } from '../../utils/themes';
@@ -53,10 +52,13 @@ interface MainLibraryProps {
   libraryViewMode: LibraryViewMode;
   multiSelectedPaths: Array<string>;
   onClearSelection(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu(event: any, path: string): void;
   onContinueSession(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onEmptyAreaContextMenu(event: any): void;
   onGoHome(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onImageClick(path: string, event: any): void;
   onImageDoubleClick(path: string): void;
   onImportClick(): void;
@@ -90,9 +92,9 @@ export interface ColumnWidths {
 export default function MainLibrary(props: MainLibraryProps) {
   const { t } = useTranslation();
   const [showSettings, setShowSettings] = useState(false);
-  const [appVersion, setAppVersion] = useState('');
-  const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
-  const [latestVersion, setLatestVersion] = useState('');
+  const [_appVersion, setAppVersion] = useState('');
+  const [_isUpdateAvailable, setIsUpdateAvailable] = useState(false);
+  const [_latestVersion, setLatestVersion] = useState('');
   const [isBusyDelayed, setIsBusyDelayed] = useState(false);
   const [isProgressHovered, setIsProgressHovered] = useState(false);
 
@@ -384,8 +386,8 @@ export default function MainLibrary(props: MainLibraryProps) {
               <FolderInput size={16} />
               <span>
                 {t('library.import.progress', {
-                  current: props.importState.progress?.current,
-                  total: props.importState.progress?.total,
+                  current: props.importState.progress?.current ?? 0,
+                  total: props.importState.progress?.total ?? 0,
                 })}
               </span>
             </Text>
@@ -448,14 +450,14 @@ export default function MainLibrary(props: MainLibraryProps) {
               ? t('library.status.downloading', { status: props.aiModelDownloadStatus })
               : props.isIndexing && props.indexingProgress.total > 0
                 ? t('library.status.indexing', {
-                    current: props.indexingProgress.current,
+                    current: props.indexingProgress.current ?? 0,
                     total: props.indexingProgress.total,
                   })
                 : props.importState.status === Status.Importing &&
                     props.importState?.progress?.total &&
                     props.importState.progress.total > 0
                   ? t('library.status.importing', {
-                      current: props.importState.progress?.current,
+                      current: props.importState.progress?.current ?? 0,
                       total: props.importState.progress?.total,
                     })
                   : t('library.status.processing')}
@@ -485,7 +487,7 @@ export default function MainLibrary(props: MainLibraryProps) {
       {props.isAndroid && (
         <Button
           className="absolute bottom-18 right-8 h-12 w-12 bg-accent text-button-text shadow-lg p-0 flex items-center justify-center z-50 border border-border-color/50"
-          onClick={(e) => {
+          onClick={(e: React.MouseEvent) => {
             e.stopPropagation();
             props.onImportClick();
           }}

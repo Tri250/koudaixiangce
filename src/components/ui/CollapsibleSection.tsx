@@ -1,17 +1,21 @@
 import { useRef, useEffect, useState } from 'react';
 import { ChevronDown, Eye, EyeOff } from 'lucide-react';
 import clsx from 'clsx';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Text from './Text';
 import { TextVariants, TextWeights } from '../../types/typography';
 
 interface CollapsibleSectionProps {
   canToggleVisibility?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: any;
   isContentVisible: boolean;
   isOpen: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onToggle: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onToggleVisibility?: any;
   title: string;
 }
@@ -30,6 +34,7 @@ export default function CollapsibleSection({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [isHovering, setIsHovering] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hoverTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
@@ -73,6 +78,7 @@ export default function CollapsibleSection({
     setIsHovering(false);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleVisibilityClick = (e: any) => {
     e.stopPropagation();
     onToggleVisibility();

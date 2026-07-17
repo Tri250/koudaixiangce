@@ -87,7 +87,7 @@ export function useEditorActions() {
       const isAndroid = useSettingsStore.getState().osPlatform === 'android';
       try {
         const result: { size: number } = await invoke('load_and_parse_lut', { path });
-        let name = isAndroid && path.startsWith('content://')
+        const name = isAndroid && path.startsWith('content://')
           ? await invoke<string>('resolve_android_content_uri_name', { uriStr: path })
           : path.split(/[\\/]/).pop() || 'LUT';
         setAdjustments((prev: Adjustments) => ({
@@ -150,10 +150,12 @@ export function useEditorActions() {
     [setEditor],
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleCopyAdjustments = useCallback(async (pathOrEvent?: string | any) => {
     const pathOverride = typeof pathOrEvent === 'string' ? pathOrEvent : undefined;
     const { selectedImage, adjustments } = useEditorStore.getState();
     const { libraryActivePath, multiSelectedPaths } = useLibraryStore.getState();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let sourceAdjustments: any = null;
 
     const pathToCopyFrom =
@@ -163,6 +165,7 @@ export function useEditorActions() {
       sourceAdjustments = adjustments;
     } else if (pathToCopyFrom) {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const meta: any = await invoke(Invokes.LoadMetadata, { path: pathToCopyFrom });
         if (meta?.adjustments && !meta.adjustments.is_null) {
           sourceAdjustments = normalizeLoadedAdjustments(meta.adjustments);
@@ -177,6 +180,7 @@ export function useEditorActions() {
 
     if (!sourceAdjustments) return;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const adjustmentsToCopy: any = {};
 
     for (const key of COPYABLE_ADJUSTMENT_KEYS) {
@@ -197,23 +201,24 @@ export function useEditorActions() {
 
       if (!copiedAdjustments || !appSettings) return;
 
-      const { mode, includedAdjustments } = appSettings.copyPasteSettings;
+      const { mode, includedAdjustments } = appSettings.copyPasteSettings ?? { mode: PasteMode.Replace, includedAdjustments: [] };
       const adjustmentsToApply: Partial<Adjustments> = {};
 
       for (const key of includedAdjustments) {
         if (Object.prototype.hasOwnProperty.call(copiedAdjustments, key)) {
-          const value = copiedAdjustments[key as keyof Adjustments];
+          const adjKey = key as keyof Adjustments;
+          const value = copiedAdjustments[adjKey];
           if (mode === PasteMode.Merge) {
-            const defaultValue = INITIAL_ADJUSTMENTS[key as keyof Adjustments];
+            const defaultValue = INITIAL_ADJUSTMENTS[adjKey];
             if (JSON.stringify(value) !== JSON.stringify(defaultValue))
-              adjustmentsToApply[key as keyof Adjustments] = value;
+              (adjustmentsToApply as any)[key] = value; // eslint-disable-line @typescript-eslint/no-explicit-any
           } else {
-            adjustmentsToApply[key as keyof Adjustments] = value;
+            (adjustmentsToApply as any)[key] = value; // eslint-disable-line @typescript-eslint/no-explicit-any
           }
         }
       }
 
-      if (includedAdjustments.includes(LensAdjustment.LensMaker)) {
+      if ((includedAdjustments as string[]).includes(LensAdjustment.LensMaker)) { // eslint-disable-line @typescript-eslint/no-explicit-any
         if (!adjustmentsToApply.lensMaker) {
           adjustmentsToApply.lensDistortionParams = null;
         }
@@ -237,8 +242,10 @@ export function useEditorActions() {
       invoke(Invokes.ApplyAdjustmentsToPaths, { paths: pathsToUpdate, adjustments: adjustmentsToApply })
         .then(() => {
           if (selectedImage && pathsToUpdate.includes(selectedImage.path)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             invoke('load_metadata', { path: selectedImage.path }).then((meta: any) => {
               if (meta.adjustments) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 setAdjustments((prev: any) => ({
                   ...prev,
                   lensMaker: meta.adjustments.lensMaker,

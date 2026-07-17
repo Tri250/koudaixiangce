@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import { FILENAME_VARIABLES } from '../ui/ExportImportProperties';
 import Text from '../ui/Text';
 import { TextVariants } from '../../types/typography';
@@ -8,6 +8,7 @@ interface RenameFileModalProps {
   filesToRename: Array<string>;
   isOpen: boolean;
   onClose(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSave(template: any): void;
 }
 
@@ -57,6 +58,7 @@ export default function RenameFileModal({ filesToRename, isOpen, onClose, onSave
   }, [nameTemplate, onSave, onClose, isSingleFile]);
 
   const handleKeyDown = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (e: any) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -102,6 +104,7 @@ export default function RenameFileModal({ filesToRename, isOpen, onClose, onSave
         className={`bg-surface rounded-lg shadow-xl p-6 w-full max-w-lg transform transition-all duration-300 ease-out ${
           show ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 -translate-y-4'
         }`}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onClick={(e: any) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
@@ -119,6 +122,7 @@ export default function RenameFileModal({ filesToRename, isOpen, onClose, onSave
             <input
               autoFocus
               className="w-full bg-bg-primary border border-surface rounded-md p-2 text-sm text-text-primary focus:ring-accent focus:border-accent"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setNameTemplate(e.target.value)}
               ref={nameInputRef}
               type="text"

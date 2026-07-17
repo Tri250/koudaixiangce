@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { Adjustments, INITIAL_ADJUSTMENTS, MaskContainer, AiPatch } from '../utils/adjustments';
+import { Adjustments, INITIAL_ADJUSTMENTS, MaskContainer } from '../utils/adjustments';
 import { SelectedImage, WaveformData, BrushSettings } from '../components/ui/AppProperties';
 import { ChannelConfig } from '../components/adjustments/Curves';
-import { ImageDimensions } from '../hooks/useImageRenderSize';
+import { ImageDimensions, RenderSize } from '../hooks/useImageRenderSize';
 import { ToolType } from '../components/panel/right/Masks';
 import { OverlayMode } from '../components/panel/right/CropPanel';
 
@@ -43,7 +43,7 @@ interface EditorState {
   zoom: number;
   displaySize: ImageDimensions;
   previewSize: ImageDimensions;
-  baseRenderSize: ImageDimensions;
+  baseRenderSize: RenderSize;
   originalSize: ImageDimensions;
 
   // Tools State
@@ -68,14 +68,21 @@ interface EditorState {
   patchesSentToBackend: Set<string>;
 
   // Clipboard
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   copiedSectionAdjustments: any | null;
   copiedMask: MaskContainer | null;
   copiedAdjustments: Adjustments | null;
 
   // Retouching & Portrait
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   faceLandmarks: any[] | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   bodyKeypoints: any[] | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   liquifyStrokes: any[];
+  liquifyBrushType: string;
+  liquifyBrushSize: number;
+  liquifyBrushPressure: number;
   skinSmoothingMethod: 'neutral_gray' | 'bilateral' | 'frequency_separation';
   skinSmoothingStrength: number;
   skinTexturePreservation: number;
@@ -126,7 +133,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   zoom: 1,
   displaySize: { width: 0, height: 0 },
   previewSize: { width: 0, height: 0 },
-  baseRenderSize: { width: 0, height: 0 },
+  baseRenderSize: { width: 0, height: 0, scale: 1, offsetX: 0, offsetY: 0 },
   originalSize: { width: 0, height: 0 },
 
   isRotationActive: false,
@@ -152,6 +159,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   faceLandmarks: null,
   bodyKeypoints: null,
   liquifyStrokes: [],
+  liquifyBrushType: 'push',
+  liquifyBrushSize: 80,
+  liquifyBrushPressure: 50,
   skinSmoothingMethod: 'bilateral',
   skinSmoothingStrength: 50,
   skinTexturePreservation: 50,

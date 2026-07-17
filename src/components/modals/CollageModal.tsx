@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import {
   CheckCircle,
   XCircle,
@@ -145,6 +145,7 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
       setError(null);
       try {
         const imagePromises = sourceImages.map(async (imageFile) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const metadata: any = await invoke(Invokes.LoadMetadata, { path: imageFile.path });
           const adjustments = metadata.adjustments && !metadata.adjustments.is_null ? metadata.adjustments : {};
 
@@ -180,6 +181,7 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
           initialStates[img.path] = { offsetX: 0, offsetY: 0, scale: 1 };
         });
         setImageStates(initialStates);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         console.error('Failed to load images:', err);
         setError(err.message || 'Could not load images.');
@@ -420,6 +422,7 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
       const base64Data = offscreenCanvas.toDataURL('image/png');
       const path = await onSave(base64Data, sourceImages[0].path);
       setSavedPath(path);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err.message || 'Could not save the collage.');
     } finally {

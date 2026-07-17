@@ -15,6 +15,7 @@ export function useFileOperations(
   refreshAllFolderTrees: () => Promise<void>,
   handleImageSelect: (path: string) => void,
   handleBackToLibrary: () => void,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sortedImageList: any[],
 ) {
   const getParentDir = (filePath: string): string => {
@@ -171,6 +172,7 @@ export function useFileOperations(
           const separator = oldPath.includes('/') ? '/' : '\\';
           const newPath = parentDir ? `${parentDir}${separator}${trimmedNewName}` : trimmedNewName;
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const newAppSettings = { ...appSettings } as any;
           let settingsChanged = false;
 
@@ -256,6 +258,7 @@ export function useFileOperations(
     }
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const startImportFiles = useCallback(async (sourcePaths: string[], destinationFolder: string, settings: any) => {
     if (sourcePaths.length === 0 || !destinationFolder) return;
 
@@ -270,6 +273,7 @@ export function useFileOperations(
   }, []);
 
   const handleStartImport = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async (settings: any) => {
       const { importTargetFolder, importSourcePaths } = useUIStore.getState();
       if (!importTargetFolder) return;
@@ -365,6 +369,7 @@ export function useFileOperations(
         }
       } catch (err) {
         console.error('Failed to open file dialog for import:', err);
+        toast.error(`Failed to open file dialog: ${err}`);
       }
     },
     [startImportFiles],

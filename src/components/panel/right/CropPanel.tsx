@@ -12,7 +12,7 @@ import {
   Scan,
   X,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { Adjustments, INITIAL_ADJUSTMENTS } from '../../../utils/adjustments';
 import clsx from 'clsx';
 import { Orientation } from '../../ui/AppProperties';
@@ -76,6 +76,7 @@ export default function CropPanel() {
       { name: t('editor.crop.presets.r43.name'), value: 4 / 3, tooltip: t('editor.crop.presets.r43.desc') },
       { name: t('editor.crop.presets.r32.name'), value: 3 / 2, tooltip: t('editor.crop.presets.r32.desc') },
       { name: t('editor.crop.presets.r169.name'), value: 16 / 9, tooltip: t('editor.crop.presets.r169.desc') },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { name: t('editor.crop.presets.goldenRatio.name' as any), value: BASE_RATIO, tooltip: t('editor.crop.presets.goldenRatio.desc' as any) },
       { name: t('editor.crop.presets.r219.name'), value: 21 / 9, tooltip: t('editor.crop.presets.r219.desc') },
       { name: t('editor.crop.presets.r6524.name'), value: 65 / 24, tooltip: t('editor.crop.presets.r6524.desc') },
@@ -390,6 +391,7 @@ export default function CropPanel() {
 
   const displayRotation = localRotation !== null ? localRotation : fineRotation;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleFineRotationChange = (e: any) => {
     const newFineRotation = parseFloat(e.target.value);
     if (isRotationActive) {

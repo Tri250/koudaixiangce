@@ -6,11 +6,14 @@ import { Option as AppOption, OPTION_SEPARATOR } from '../components/ui/AppPrope
 import clsx from 'clsx';
 
 interface ContextMenuProviderProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: any;
 }
 
 interface Option extends AppOption {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customComponent?: FC<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customProps?: any;
 }
 
@@ -25,18 +28,21 @@ interface SubMenuProps {
   closeSubmenu(path: number[]): void;
   hideContextMenu(): void;
   options: Array<Option>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parentRef: any;
   parentPath: number[];
 }
 
 const ContextMenuContext = createContext('dark');
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const useContextMenu = (): any => {
   return useContext(ContextMenuContext);
 };
 
 function SubMenu({ cancelCloseSubmenu, closeSubmenu, hideContextMenu, options, parentRef, parentPath }: SubMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [style, setStyle] = useState<any>({ opacity: 0 });
   const [safeAreaPath, setSafeAreaPath] = useState<string | null>(null);
 
@@ -120,6 +126,7 @@ function SubMenu({ cancelCloseSubmenu, closeSubmenu, hideContextMenu, options, p
         className="fixed z-101"
         exit={{ opacity: 0, scale: 0.95 }}
         initial={{ opacity: 0, scale: 0.95 }}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onContextMenu={(e: any) => e.preventDefault()}
         onMouseEnter={cancelCloseSubmenu}
         onMouseLeave={() => {
@@ -138,6 +145,7 @@ function SubMenu({ cancelCloseSubmenu, closeSubmenu, hideContextMenu, options, p
           {CustomComponent && customOption ? (
             <CustomComponent {...customOption.customProps} hideContextMenu={hideContextMenu} />
           ) : (
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             options.map((option: any, index: number) => (
               <MenuItem hideContextMenu={hideContextMenu} key={index} option={option} path={[...parentPath, index]} />
             ))
@@ -153,6 +161,7 @@ function SubMenu({ cancelCloseSubmenu, closeSubmenu, hideContextMenu, options, p
 function MenuItem({ option, path, hideContextMenu }: MenuItemProps) {
   const { activeSubmenu, openSubmenu, closeSubmenu, cancelCloseSubmenu } = useContextMenu();
   const itemRef = useRef(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hoverTimeoutRef = useRef<any>(null);
   const hasInteractiveSubmenu = Boolean(option.submenu?.length === 1 && option.submenu[0].customComponent);
 
@@ -261,13 +270,14 @@ function ContextMenu() {
           exit={{ opacity: 0, scale: 0.95 }}
           initial={{ opacity: 0, scale: 0.95 }}
           key={menuId}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onContextMenu={(e: any) => e.preventDefault()}
           ref={menuRef}
           style={{ top: y, left: x }}
           transition={{ duration: 0.1, ease: 'easeOut' }}
         >
           <div className="bg-surface/95 backdrop-blur-md rounded-lg shadow-xl p-2 w-64" role="menu">
-            {options.map((option: any, index: number) => (
+            {options.map((option: any, index: number) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
               <MenuItem hideContextMenu={hideContextMenu} key={index} option={option} path={[index]} />
             ))}
           </div>
@@ -278,10 +288,13 @@ function ContextMenu() {
 }
 
 export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [menuState, setMenuState] = useState<any>({ isVisible: false, x: 0, y: 0, options: [] });
   const [activeSubmenu, setActiveSubmenu] = useState<number[] | null>(null);
   const [menuId, setMenuId] = useState<number>(0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const menuRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const submenuTimeoutRef = useRef<any>(null);
 
   const showContextMenu = useCallback((x: number, y: number, options: Array<Option>) => {
@@ -297,6 +310,7 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
   }, []);
 
   const hideContextMenu = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setMenuState((prev: any) => ({ ...prev, isVisible: false }));
     setActiveSubmenu(null);
   }, []);
@@ -323,6 +337,7 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleClickOutside = (event: any) => {
       const menuElements = document.querySelectorAll('[role="menu"]');
       let isClickInside = false;
@@ -356,6 +371,7 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
     };
   }, [menuState.isVisible, hideContextMenu]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const value: any = {
     activeSubmenu,
     cancelCloseSubmenu,

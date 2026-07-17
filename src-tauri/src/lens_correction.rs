@@ -560,10 +560,16 @@ pub fn load_lensfun_db(app_handle: &tauri::AppHandle) -> LensDatabase {
     }
     #[cfg(not(target_os = "android"))]
     {
-        let resource_path = app_handle
+        let resource_path = match app_handle
             .path()
             .resolve("lensfun_db", tauri::path::BaseDirectory::Resource)
-            .expect("failed to resolve lensfun_db directory");
+        {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("Failed to resolve lensfun_db directory: {}", e);
+                return combined_db;
+            }
+        };
 
         if !resource_path.exists() {
             log::error!("Lensfun DB directory not found at: {:?}", resource_path);

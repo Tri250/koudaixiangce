@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Pipette, Sliders } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Slider from '../ui/Slider';
 import ColorWheel from '../ui/ColorWheel';
 import { ColorAdjustment, ColorCalibration, HueSatLum, INITIAL_ADJUSTMENTS } from '../../utils/adjustments';
@@ -18,6 +18,7 @@ interface ColorProps {
 
 interface ColorPanelProps {
   adjustments: Adjustments;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setAdjustments(adjustments: Partial<Adjustments>): any;
   appSettings: AppSettings | null;
   isForMask?: boolean;
@@ -267,6 +268,7 @@ const ColorGradingPanel = ({ adjustments, setAdjustments, onDragStateChange }: C
           label={t('adjustments.color.grading.blending')}
           max={100}
           min={0}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleColorGradingSliderChange(ColorGrading.Blending, e.target.value)}
           step={1}
           value={colorGrading.blending}
@@ -277,6 +279,7 @@ const ColorGradingPanel = ({ adjustments, setAdjustments, onDragStateChange }: C
           label={t('adjustments.color.grading.balance')}
           max={100}
           min={-100}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleColorGradingSliderChange(ColorGrading.Balance, e.target.value)}
           step={1}
           value={colorGrading.balance}
@@ -345,6 +348,7 @@ const ColorCalibrationPanel = ({ adjustments, setAdjustments, onDragStateChange 
           step={1}
           defaultValue={0}
           value={colorCalibration.shadowsTint}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleShadowsChange(e.target.value)}
           onDragStateChange={onDragStateChange}
           trackClassName="tint-gradient-track"
@@ -373,6 +377,7 @@ const ColorCalibrationPanel = ({ adjustments, setAdjustments, onDragStateChange 
           step={1}
           defaultValue={0}
           value={currentValues.hue}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handlePrimaryChange('Hue', e.target.value)}
           onDragStateChange={onDragStateChange}
           trackClassName={`hue-slider-${trackSuffix}`}
@@ -384,6 +389,7 @@ const ColorCalibrationPanel = ({ adjustments, setAdjustments, onDragStateChange 
           step={1}
           defaultValue={0}
           value={currentValues.saturation}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handlePrimaryChange('Saturation', e.target.value)}
           onDragStateChange={onDragStateChange}
           trackClassName={`sat-slider-${trackSuffix}`}
@@ -501,6 +507,7 @@ export default function ColorPanel({
           label={t('adjustments.color.temperature')}
           max={50000}
           min={2000}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleAdjustmentChange(ColorAdjustment.Temperature, e.target.value)}
           step={100}
           value={adjustments.temperature || 0}
@@ -511,6 +518,7 @@ export default function ColorPanel({
           label={t('adjustments.color.tint')}
           max={100}
           min={-100}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleAdjustmentChange(ColorAdjustment.Tint, e.target.value)}
           step={1}
           value={adjustments.tint || 0}
@@ -527,6 +535,7 @@ export default function ColorPanel({
           label={t('adjustments.color.vibrance')}
           max={100}
           min={-100}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleAdjustmentChange(ColorAdjustment.Vibrance, e.target.value)}
           step={1}
           value={adjustments.vibrance || 0}
@@ -536,6 +545,7 @@ export default function ColorPanel({
           label={t('adjustments.color.saturation')}
           max={100}
           min={-100}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleAdjustmentChange(ColorAdjustment.Saturation, e.target.value)}
           step={1}
           value={adjustments.saturation || 0}
@@ -551,6 +561,7 @@ export default function ColorPanel({
           label={t('adjustments.color.hue')}
           max={180}
           min={-180}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleAdjustmentChange(ColorAdjustment.Hue, e.target.value)}
           step={1}
           value={adjustments.hue || 0}
@@ -591,6 +602,7 @@ export default function ColorPanel({
           label={t('adjustments.color.hue')}
           max={100}
           min={-100}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleHslChange(ColorAdjustment.Hue, e.target.value)}
           step={1}
           value={currentHsl.hue}
@@ -601,6 +613,7 @@ export default function ColorPanel({
           label={t('adjustments.color.saturation')}
           max={100}
           min={-100}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleHslChange(ColorAdjustment.Saturation, e.target.value)}
           step={1}
           value={currentHsl.saturation}
@@ -611,6 +624,7 @@ export default function ColorPanel({
           label={t('adjustments.color.luminance')}
           max={100}
           min={-100}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleHslChange(ColorAdjustment.Luminance, e.target.value)}
           step={1}
           value={currentHsl.luminance}

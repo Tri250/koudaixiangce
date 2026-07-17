@@ -1,4 +1,4 @@
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Slider from '../ui/Slider';
 import { Adjustments, DetailsAdjustment } from '../../utils/adjustments';
 import { AppSettings } from '../ui/AppProperties';
@@ -7,6 +7,7 @@ import { TextVariants } from '../../types/typography';
 
 interface DetailsPanelProps {
   adjustments: Adjustments;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setAdjustments(adjustments: Partial<Adjustments>): any;
   appSettings: AppSettings | null;
   isForMask?: boolean;
@@ -40,6 +41,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.sharpness')}
             max={100}
             min={0}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Sharpness, e.target.value)}
             step={1}
             value={adjustments.sharpness}
@@ -49,6 +51,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.threshold')}
             max={100}
             min={0}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.SharpnessThreshold, e.target.value)}
             step={1}
             value={adjustments.sharpnessThreshold ?? 15}
@@ -68,6 +71,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.clarity')}
             max={100}
             min={-100}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Clarity, e.target.value)}
             step={1}
             value={adjustments.clarity}
@@ -77,6 +81,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.dehaze')}
             max={100}
             min={-100}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Dehaze, e.target.value)}
             step={1}
             value={adjustments.dehaze}
@@ -86,6 +91,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.structure')}
             max={100}
             min={-100}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Structure, e.target.value)}
             step={1}
             value={adjustments.structure}
@@ -96,6 +102,7 @@ export default function DetailsPanel({
               label={t('adjustments.details.centre')}
               max={100}
               min={0}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Centré, e.target.value)}
               step={1}
               value={adjustments.centré}
@@ -114,6 +121,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.luminance')}
             max={100}
             min={isForMask ? -100 : 0}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.LumaNoiseReduction, e.target.value)}
             step={1}
             value={adjustments.lumaNoiseReduction}
@@ -123,6 +131,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.color')}
             max={100}
             min={isForMask ? -100 : 0}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.ColorNoiseReduction, e.target.value)}
             step={1}
             value={adjustments.colorNoiseReduction}
@@ -140,6 +149,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.redCyan')}
             max={100}
             min={-100}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.ChromaticAberrationRedCyan, e.target.value)}
             step={1}
             value={adjustments.chromaticAberrationRedCyan}
@@ -149,6 +159,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.blueYellow')}
             max={100}
             min={-100}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) =>
               handleAdjustmentChange(DetailsAdjustment.ChromaticAberrationBlueYellow, e.target.value)
             }

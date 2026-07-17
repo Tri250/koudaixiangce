@@ -412,3 +412,256 @@ fn mat3_inverse(m: &[f32; 9]) -> [f32; 9] {
         (m[0] * m[4] - m[1] * m[3]) * inv_det,
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- sRGB transfer function tests ---
+
+    #[test]
+    fn test_srgb_transfer_linear_to_gamma_black() {
+        assert!((srgb_transfer_linear_to_gamma(0.0) - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_srgb_transfer_linear_to_gamma_white() {
+        assert!((srgb_transfer_linear_to_gamma(1.0) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_srgb_transfer_linear_to_gamma_low_range() {
+        // Below the threshold (0.0031308), should be linear: 12.92 * x
+        let linear = 0.002;
+        let expected = 12.92 * linear;
+        assert!((srgb_transfer_linear_to_gamma(linear) - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_srgb_transfer_linear_to_gamma_high_range() {
+        // Above the threshold, should use the power function
+        let linear = 0.5;
+        let result = srgb_transfer_linear_to_gamma(linear);
+        assert!(result > 0.0 && result < 1.0);
+    }
+
+    #[test]
+    fn test_srgb_transfer_gamma_to_linear_black() {
+        assert!((srgb_transfer_gamma_to_linear(0.0) - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_srgb_transfer_gamma_to_linear_white() {
+        assert!((srgb_transfer_gamma_to_linear(1.0) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_srgb_transfer_gamma_to_linear_low_range() {
+        let gamma = 0.03;
+        let expected = gamma / 12.92;
+        assert!((srgb_transfer_gamma_to_linear(gamma) - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_srgb_roundtrip() {
+        // Converting linear -> gamma -> linear should give back the original value
+        for val in [0.0, 0.001, 0.01, 0.1, 0.25, 0.5, 0.75, 1.0] {
+            let gamma = srgb_transfer_linear_to_gamma(val);
+            let linear = srgb_transfer_gamma_to_linear(gamma);
+            assert!((linear - val).abs() < 1e-5, "Roundtrip failed for value {}", val);
+        }
+    }
+
+    // --- ColorSpace tests ---
+
+    #[test]
+    fn test_color_space_from_id() {
+        assert!(matches!(ColorSpace::from_id("srgb"), Some(ColorSpace::SRGB)));
+        assert!(matches!(ColorSpace::from_id("p3"), Some(ColorSpace::P3)));
+        assert!(matches!(ColorSpace::from_id("rec2020"), Some(ColorSpace::Rec2020)));
+        assert!(matches!(ColorSpace::from_id("prophoto"), Some(ColorSpace::ProPhoto)));
+        assert!(matches!(ColorSpace::from_id("adobergb"), Some(ColorSpace::AdobeRGB)));
+        assert!(matches!(ColorSpace::from_id("unknown"), None));
+    }
+
+    #[test]
+    fn test_color_space_default_profiles() {
+        let srgb = ColorSpace::SRGB.default_profile();
+        assert_eq!(srgb.id, "srgb");
+        assert_eq!(srgb.name, "sRGB");
+        assert!(srgb.gamma > 0.0);
+
+        let p3 = ColorSpace::P3.default_profile();
+        assert_eq!(p3.id, "p3");
+
+        let rec2020 = ColorSpace::Rec2020.default_profile();
+        assert_eq!(rec2020.id, "rec2020");
+
+        let prophoto = ColorSpace::ProPhoto.default_profile();
+        assert_eq!(prophoto.id, "prophoto");
+
+        let adobergb = ColorSpace::AdobeRGB.default_profile();
+        assert_eq!(adobergb.id, "adobergb");
+    }
+
+    #[test]
+    fn test_color_space_d65_white_point() {
+        // sRGB, P3, Rec2020, AdobeRGB all use D65
+        let d65_spaces = [
+            ColorSpace::SRGB.default_profile(),
+            ColorSpace::P3.default_profile(),
+            ColorSpace::Rec2020.default_profile(),
+            ColorSpace::AdobeRGB.default_profile(),
+        ];
+        for profile in &d65_spaces {
+            // D65 white point: x=0.3127, y=0.3290
+            assert!((profile.primaries.white[0] - 0.3127).abs() < 0.01);
+            assert!((profile.primaries.white[1] - 0.3290).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn test_color_space_prophoto_d50() {
+        let prophoto = ColorSpace::ProPhoto.default_profile();
+        // ProPhoto uses D50
+        assert!((prophoto.primaries.white[0] - 0.3457).abs() < 0.01);
+        assert!((prophoto.primaries.white[1] - 0.3585).abs() < 0.01);
+    }
+
+    // --- compute_matrices tests ---
+
+    #[test]
+    fn test_compute_matrices_srgb() {
+        let primaries = ColorSpace::SRGB.default_profile().primaries;
+        let matrices = compute_matrices(&primaries);
+        // The product of to_xyz and from_xyz should be close to identity
+        let identity = mat3_mul(&matrices.to_xyz, &matrices.from_xyz);
+        let expected = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        for i in 0..9 {
+            assert!((identity[i] - expected[i]).abs() < 1e-4, "Identity check failed at index {}", i);
+        }
+    }
+
+    #[test]
+    fn test_compute_matrices_rec2020() {
+        let primaries = ColorSpace::Rec2020.default_profile().primaries;
+        let matrices = compute_matrices(&primaries);
+        let identity = mat3_mul(&matrices.to_xyz, &matrices.from_xyz);
+        let expected = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        for i in 0..9 {
+            assert!((identity[i] - expected[i]).abs() < 1e-4, "Identity check failed at index {}", i);
+        }
+    }
+
+    // --- bradford_adaptation tests ---
+
+    #[test]
+    fn test_bradford_adaptation_same_white_point() {
+        let white: [f32; 2] = [0.3127, 0.3290];
+        let result = bradford_adaptation(&white, &white);
+        // Same white point should produce identity-like matrix
+        let expected = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        for i in 0..9 {
+            assert!((result[i] - expected[i]).abs() < 1e-3, "Identity at index {} was {}", i, result[i]);
+        }
+    }
+
+    #[test]
+    fn test_bradford_adaptation_different_white_points() {
+        let d65: [f32; 2] = [0.3127, 0.3290];
+        let d50: [f32; 2] = [0.3457, 0.3585];
+        let result = bradford_adaptation(&d65, &d50);
+        // Should produce a valid matrix (not identity)
+        assert!((result[0] - 1.0).abs() > 0.001 || (result[4] - 1.0).abs() > 0.001);
+    }
+
+    // --- Matrix math tests ---
+
+    #[test]
+    fn test_mat3_mul_identity() {
+        let identity: [f32; 9] = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let result = mat3_mul(&identity, &identity);
+        for i in 0..9 {
+            assert!((result[i] - identity[i]).abs() < 1e-6, "Identity multiplication failed");
+        }
+    }
+
+    #[test]
+    fn test_mat3_mul_vec_identity() {
+        let identity: [f32; 9] = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let v: [f32; 3] = [1.0, 2.0, 3.0];
+        let result = mat3_mul_vec(&identity, &v);
+        assert!((result[0] - 1.0).abs() < 1e-6);
+        assert!((result[1] - 2.0).abs() < 1e-6);
+        assert!((result[2] - 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_mat3_inverse_identity() {
+        let identity: [f32; 9] = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let result = mat3_inverse(&identity);
+        for i in 0..9 {
+            assert!((result[i] - identity[i]).abs() < 1e-6, "Identity inverse failed at index {}", i);
+        }
+    }
+
+    #[test]
+    fn test_mat3_inverse_singular() {
+        // Zero matrix is singular
+        let singular: [f32; 9] = [0.0; 9];
+        let result = mat3_inverse(&singular);
+        // Should return identity for singular matrix
+        let expected = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        for i in 0..9 {
+            assert!((result[i] - expected[i]).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_mat3_inverse_roundtrip() {
+        let m: [f32; 9] = [2.0, 1.0, 0.0, 0.0, 3.0, 1.0, 1.0, 0.0, 4.0];
+        let inv = mat3_inverse(&m);
+        let product = mat3_mul(&m, &inv);
+        let expected = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        for i in 0..9 {
+            assert!((product[i] - expected[i]).abs() < 1e-4, "Inverse roundtrip failed at index {}", i);
+        }
+    }
+
+    // --- ColorConsistencyEngine with actual images ---
+
+    #[test]
+    fn test_color_consistency_same_space() {
+        let profile = ColorSpace::SRGB.default_profile();
+        let engine = ColorConsistencyEngine::new(profile.clone(), profile);
+        let img = DynamicImage::ImageRgb8(RgbImage::new(10, 10));
+        let result = engine.apply_pipeline(&img);
+        assert_eq!(result.dimensions(), (10, 10));
+    }
+
+    #[test]
+    fn test_convert_color_space_same() {
+        let img = DynamicImage::ImageRgb8(RgbImage::new(5, 5));
+        let result = convert_color_space(&img, &ColorSpace::SRGB, &ColorSpace::SRGB);
+        assert_eq!(result.dimensions(), (5, 5));
+    }
+
+    // --- Serialization tests ---
+
+    #[test]
+    fn test_color_space_serde_roundtrip() {
+        let cs = ColorSpace::SRGB;
+        let json = serde_json::to_string(&cs).unwrap();
+        let deserialized: ColorSpace = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, ColorSpace::SRGB));
+    }
+
+    #[test]
+    fn test_color_profile_serde_roundtrip() {
+        let profile = ColorSpace::SRGB.default_profile();
+        let json = serde_json::to_string(&profile).unwrap();
+        let deserialized: ColorProfile = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, "srgb");
+        assert_eq!(deserialized.name, "sRGB");
+    }
+}

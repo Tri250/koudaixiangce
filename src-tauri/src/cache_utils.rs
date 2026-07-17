@@ -237,3 +237,214 @@ pub fn clear_session_caches(state: tauri::State<AppState>) {
         geometry_cache.clear();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{DynamicImage, RgbImage};
+
+    // --- Hash function tests ---
+
+    #[test]
+    fn test_calculate_geometry_hash_deterministic() {
+        let adj = serde_json::json!({
+            "orientationSteps": 1,
+            "transformDistortion": 0.5
+        });
+        let hash1 = calculate_geometry_hash(&adj);
+        let hash2 = calculate_geometry_hash(&adj);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_calculate_geometry_hash_differs_for_different_inputs() {
+        let adj1 = serde_json::json!({"orientationSteps": 1});
+        let adj2 = serde_json::json!({"orientationSteps": 2});
+        assert_ne!(calculate_geometry_hash(&adj1), calculate_geometry_hash(&adj2));
+    }
+
+    #[test]
+    fn test_calculate_geometry_hash_includes_patches() {
+        let adj1 = serde_json::json!({"aiPatches": []});
+        let adj2 = serde_json::json!({"aiPatches": [{"id": "p1"}]});
+        assert_ne!(calculate_geometry_hash(&adj1), calculate_geometry_hash(&adj2));
+    }
+
+    #[test]
+    fn test_calculate_visual_hash_includes_path() {
+        let adj = serde_json::json!({"exposure": 1.0});
+        let hash1 = calculate_visual_hash("/path1", &adj);
+        let hash2 = calculate_visual_hash("/path2", &adj);
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_calculate_visual_hash_excludes_geometry_keys() {
+        let adj1 = serde_json::json!({
+            "exposure": 1.0,
+            "transformDistortion": 0.5,
+            "rotation": 10.0
+        });
+        let adj2 = serde_json::json!({
+            "exposure": 1.0,
+            "transformDistortion": 0.9,
+            "rotation": 20.0
+        });
+        // Both should have the same visual hash since geometry keys are excluded
+        assert_eq!(calculate_visual_hash("/same", &adj1), calculate_visual_hash("/same", &adj2));
+    }
+
+    #[test]
+    fn test_calculate_transform_hash_includes_orientation() {
+        let adj1 = serde_json::json!({"orientationSteps": 0});
+        let adj2 = serde_json::json!({"orientationSteps": 3});
+        assert_ne!(calculate_transform_hash(&adj1), calculate_transform_hash(&adj2));
+    }
+
+    #[test]
+    fn test_calculate_transform_hash_includes_flip() {
+        let adj1 = serde_json::json!({"flipHorizontal": false});
+        let adj2 = serde_json::json!({"flipHorizontal": true});
+        assert_ne!(calculate_transform_hash(&adj1), calculate_transform_hash(&adj2));
+    }
+
+    #[test]
+    fn test_calculate_transform_hash_includes_crop() {
+        let adj1 = serde_json::json!({"crop": null});
+        let adj2 = serde_json::json!({"crop": {"x": 10, "y": 20, "width": 100, "height": 100}});
+        assert_ne!(calculate_transform_hash(&adj1), calculate_transform_hash(&adj2));
+    }
+
+    #[test]
+    fn test_calculate_full_job_hash_deterministic() {
+        let adj = serde_json::json!({"exposure": 1.0});
+        let hash1 = calculate_full_job_hash("/path", &adj);
+        let hash2 = calculate_full_job_hash("/path", &adj);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_calculate_full_job_hash_differs_for_different_paths() {
+        let adj = serde_json::json!({"exposure": 1.0});
+        let hash1 = calculate_full_job_hash("/path1", &adj);
+        let hash2 = calculate_full_job_hash("/path2", &adj);
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_calculate_full_job_hash_differs_for_different_adjustments() {
+        let adj1 = serde_json::json!({"exposure": 1.0});
+        let adj2 = serde_json::json!({"exposure": 2.0});
+        let hash1 = calculate_full_job_hash("/path", &adj1);
+        let hash2 = calculate_full_job_hash("/path", &adj2);
+        assert_ne!(hash1, hash2);
+    }
+
+    // --- DecodedImageCache tests ---
+
+    fn make_test_image(w: u32, h: u32) -> Arc<DynamicImage> {
+        Arc::new(DynamicImage::ImageRgb8(RgbImage::new(w, h)))
+    }
+
+    #[test]
+    fn test_decoded_image_cache_insert_and_get() {
+        let mut cache = DecodedImageCache::new(3);
+        let img = make_test_image(100, 100);
+        let exif = HashMap::new();
+
+        cache.insert("path1".to_string(), img.clone(), exif.clone());
+
+        let result = cache.get("path1");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_decoded_image_cache_miss() {
+        let mut cache = DecodedImageCache::new(3);
+        let result = cache.get("nonexistent");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_decoded_image_cache_eviction() {
+        let mut cache = DecodedImageCache::new(2);
+        let exif = HashMap::new();
+
+        cache.insert("path1".to_string(), make_test_image(10, 10), exif.clone());
+        cache.insert("path2".to_string(), make_test_image(10, 10), exif.clone());
+        cache.insert("path3".to_string(), make_test_image(10, 10), exif.clone());
+
+        // path1 should be evicted since capacity is 2
+        assert!(cache.get("path1").is_none());
+        assert!(cache.get("path2").is_some());
+        assert!(cache.get("path3").is_some());
+    }
+
+    #[test]
+    fn test_decoded_image_cache_lru_behavior() {
+        let mut cache = DecodedImageCache::new(2);
+        let exif = HashMap::new();
+
+        cache.insert("path1".to_string(), make_test_image(10, 10), exif.clone());
+        cache.insert("path2".to_string(), make_test_image(10, 10), exif.clone());
+
+        // Access path1 to move it to the end (most recently used)
+        cache.get("path1");
+
+        // Inserting path3 should evict path2 (LRU)
+        cache.insert("path3".to_string(), make_test_image(10, 10), exif.clone());
+
+        assert!(cache.get("path1").is_some(), "path1 should still be cached");
+        assert!(cache.get("path2").is_none(), "path2 should be evicted");
+        assert!(cache.get("path3").is_some(), "path3 should be cached");
+    }
+
+    #[test]
+    fn test_decoded_image_cache_update_existing() {
+        let mut cache = DecodedImageCache::new(3);
+        let exif = HashMap::new();
+
+        cache.insert("path1".to_string(), make_test_image(10, 10), exif.clone());
+        cache.insert("path1".to_string(), make_test_image(20, 20), exif.clone());
+
+        // Should not exceed capacity since it's an update
+        let result = cache.get("path1");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_decoded_image_cache_clear() {
+        let mut cache = DecodedImageCache::new(5);
+        let exif = HashMap::new();
+
+        cache.insert("path1".to_string(), make_test_image(10, 10), exif.clone());
+        cache.insert("path2".to_string(), make_test_image(10, 10), exif.clone());
+        cache.clear();
+
+        assert!(cache.get("path1").is_none());
+        assert!(cache.get("path2").is_none());
+    }
+
+    #[test]
+    fn test_decoded_image_cache_set_capacity_shrinks() {
+        let mut cache = DecodedImageCache::new(5);
+        let exif = HashMap::new();
+
+        cache.insert("path1".to_string(), make_test_image(10, 10), exif.clone());
+        cache.insert("path2".to_string(), make_test_image(10, 10), exif.clone());
+        cache.insert("path3".to_string(), make_test_image(10, 10), exif.clone());
+
+        cache.set_capacity(1);
+
+        assert!(cache.get("path1").is_none());
+        assert!(cache.get("path2").is_none());
+        assert!(cache.get("path3").is_some(), "Only the last item should remain");
+    }
+
+    // --- GEOMETRY_KEYS constant test ---
+
+    #[test]
+    fn test_geometry_keys_not_empty() {
+        assert!(!GEOMETRY_KEYS.is_empty());
+    }
+}

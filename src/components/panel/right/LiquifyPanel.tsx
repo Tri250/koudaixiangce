@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import {
   Move,
   Shrink,
   Maximize2,
+  Minimize,
   Wind,
   RotateCw,
   Undo2,
@@ -14,44 +15,32 @@ import {
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
 import Button from '../../ui/Button';
-import Text from '../../ui/Text';
+import { Text } from '../../ui/Text';
 import { TextColors, TextVariants } from '../../../types/typography';
-import { BrushType, LiquifyStroke, useRetouching } from '../../../hooks/useRetouching';
+import { BrushType, useRetouching } from '../../../hooks/useRetouching';
 import { useEditorStore } from '../../../store/useEditorStore';
 
 interface BrushTypeConfig {
   id: BrushType;
-  icon: typeof Move;
+  icon: React.ElementType;
   labelKey: string;
 }
 
 const BRUSH_TYPES: BrushTypeConfig[] = [
   { id: 'push', icon: Move, labelKey: 'editor.liquify.brushTypes.push' },
   { id: 'pull', icon: Shrink, labelKey: 'editor.liquify.brushTypes.pull' },
-  { id: 'pucker', icon: MinimizeIcon, labelKey: 'editor.liquify.brushTypes.pucker' },
+  { id: 'pucker', icon: Minimize, labelKey: 'editor.liquify.brushTypes.pucker' },
   { id: 'bloat', icon: Maximize2, labelKey: 'editor.liquify.brushTypes.bloat' },
   { id: 'twirl', icon: Wind, labelKey: 'editor.liquify.brushTypes.twirl' },
   { id: 'reconstruct', icon: RotateCw, labelKey: 'editor.liquify.brushTypes.reconstruct' },
 ];
-
-function MinimizeIcon(props: React.SVGProps<SVGSVGElement> & { size?: number }) {
-  const { size = 24, ...rest } = props;
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...rest}>
-      <polyline points="4 14 10 14 10 20" />
-      <polyline points="20 10 14 10 14 4" />
-      <line x1="14" y1="10" x2="21" y2="3" />
-      <line x1="3" y1="21" x2="10" y2="14" />
-    </svg>
-  );
-}
 
 export default function LiquifyPanel() {
   const { t } = useTranslation();
   const selectedImage = useEditorStore((s) => s.selectedImage);
   const {
     liquifyStrokes,
-    addLiquifyStroke,
+    addLiquifyStroke: _addLiquifyStroke,
     undoLiquifyStroke,
     clearLiquifyStrokes,
     applyLiquify,

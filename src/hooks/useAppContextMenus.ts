@@ -43,7 +43,7 @@ import {
   Album as AlbumIcon,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../lib/i18n-helpers';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { useEditorStore } from '../store/useEditorStore';
 import { useLibraryStore } from '../store/useLibraryStore';
@@ -65,6 +65,7 @@ export interface UseAppContextMenusProps {
   handleLibraryRefresh: () => Promise<void>;
   refreshAllFolderTrees: () => Promise<void>;
   refreshImageList: () => Promise<void>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   executeDelete: (paths: string[], options: any) => Promise<void>;
   handleTogglePinFolder: (path: string) => Promise<void>;
 }
@@ -143,11 +144,12 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               invoke(Invokes.AddToAlbum, { albumId: item.id, paths: pathsToAdd })
                 .then(() => {
                   console.log(`Added image(s) to ${item.name}`);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   invoke(Invokes.GetAlbums).then((res: any) =>
                     useLibraryStore.getState().setLibrary({ albumTree: res }),
                   );
                 })
-                .catch((err) => toast.error(t('contextMenus.toasts.failedAddToAlbum', { err })));
+                .catch((err) => toast.error(t('contextMenus.toasts.failedAddToAlbum', { err: String(err) })));
             },
           };
         }
@@ -157,6 +159,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
   );
 
   const handleEditorContextMenu = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (event: any) => {
       event.preventDefault();
       event.stopPropagation();
@@ -235,7 +238,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               icon: LayoutTemplate,
               label: t('contextMenus.editor.frameImage'),
               onClick: () => {
-                setUI({ collageModalState: { isOpen: true, sourceImages: [selectedImage] } });
+                setUI({ collageModalState: { isOpen: true, sourceImages: [selectedImage as any] } }); // eslint-disable-line @typescript-eslint/no-explicit-any
               },
             },
             { label: t('contextMenus.editor.cullImage'), icon: Users, disabled: true },
@@ -320,6 +323,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
   );
 
   const handleThumbnailContextMenu = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (event: any, path: string) => {
       event.preventDefault();
       event.stopPropagation();
@@ -428,7 +432,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           }
           await props.refreshImageList();
         } catch (err) {
-          toast.error(t('contextMenus.toasts.failedCreateVirtualCopy', { err }));
+          toast.error(t('contextMenus.toasts.failedCreateVirtualCopy', { err: String(err) }));
         }
       };
 
@@ -439,6 +443,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
         invoke(Invokes.ApplyAutoAdjustmentsToPaths, { paths: finalSelection })
           .then(async () => {
             if (selectedImage && finalSelection.includes(selectedImage.path)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const metadata: any = await invoke(Invokes.LoadMetadata, { path: selectedImage.path });
               if (metadata.adjustments && !metadata.adjustments.is_null) {
                 const normalized = normalizeLoadedAdjustments(metadata.adjustments);
@@ -447,6 +452,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               }
             }
             if (libraryActivePath && finalSelection.includes(libraryActivePath)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const metadata: any = await invoke(Invokes.LoadMetadata, { path: libraryActivePath });
               if (metadata.adjustments && !metadata.adjustments.is_null) {
                 const normalized = normalizeLoadedAdjustments(metadata.adjustments);
@@ -456,7 +462,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           })
           .catch((err) => {
             console.error('Failed to apply auto adjustments to paths:', err);
-            toast.error(t('contextMenus.toasts.failedApplyAuto', { err }));
+            toast.error(t('contextMenus.toasts.failedApplyAuto', { err: String(err) }));
           });
       };
 
@@ -495,11 +501,14 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
             const sortedTree = await invoke<AlbumItem[]>(Invokes.GetAlbums);
             setLibrary({ albumTree: sortedTree });
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const albumObj = sortedTree.reduce((acc: any, cur: any) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const find = (n: any): any =>
                 n.id === activeAlbumId
                   ? n
                   : n.type === 'group'
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     ? n.children.reduce((a: any, c: any) => a || find(c), null)
                     : null;
               return acc || find(cur);
@@ -509,7 +518,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               setLibrary({ imageList: imageList.filter((i) => albumObj.images.includes(i.path)) });
             }
           } catch (e) {
-            toast.error(t('contextMenus.toasts.failedRemoveImages', { err: e }));
+            toast.error(t('contextMenus.toasts.failedRemoveImages', { err: String(e) }));
           }
         }
       };
@@ -659,7 +668,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                   await props.refreshImageList();
                 } catch (err) {
                   console.error('Failed to duplicate file:', err);
-                  toast.error(t('contextMenus.toasts.failedDuplicate', { err }));
+                  toast.error(t('contextMenus.toasts.failedDuplicate', { err: String(err) }));
                 }
               },
             },
@@ -736,7 +745,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           label: t('contextMenus.thumbnail.showExplorer'),
           onClick: () => {
             invoke(Invokes.ShowInFinder, { path: finalSelection[0] }).catch((err) =>
-              toast.error(t('contextMenus.toasts.couldNotShowExplorer', { err })),
+              toast.error(t('contextMenus.toasts.couldNotShowExplorer', { err: String(err) })),
             );
           },
         },
@@ -778,6 +787,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
   );
 
   const handleFolderTreeContextMenu = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (event: any, path: string | null, isCurrentlyPinned?: boolean) => {
       event.preventDefault();
       event.stopPropagation();
@@ -820,6 +830,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                 isDestructive: true,
                 onClick: () => {
                   const newRoots = rootPaths.filter((r: string) => r !== targetPath);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const newFolderTrees = folderTrees.filter((t: any) => t.path !== targetPath);
 
                   const isCurrentInTarget =
@@ -827,6 +838,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                     currentFolderPath?.startsWith(targetPath + '/') ||
                     currentFolderPath?.startsWith(targetPath + '\\');
 
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const updates: any = {
                     rootPaths: newRoots,
                     folderTrees: newFolderTrees,
@@ -845,6 +857,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
 
                   const { appSettings, handleSettingsChange } = useSettingsStore.getState();
                   if (appSettings) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const newSettings = { ...appSettings, rootFolders: newRoots } as any;
                     if (newRoots.length === 0) {
                       newSettings.lastRootPath = null;
@@ -916,7 +929,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                   await invoke(Invokes.CopyFiles, { sourcePaths: copiedFilePaths, destinationFolder: targetPath });
                   if (targetPath === currentFolderPath) props.handleLibraryRefresh();
                 } catch (err) {
-                  toast.error(t('contextMenus.toasts.failedCopy', { err }));
+                  toast.error(t('contextMenus.toasts.failedCopy', { err: String(err) }));
                 }
               },
             },
@@ -930,7 +943,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                   props.refreshAllFolderTrees();
                   props.handleLibraryRefresh();
                 } catch (err) {
-                  toast.error(t('contextMenus.toasts.failedMove', { err }));
+                  toast.error(t('contextMenus.toasts.failedMove', { err: String(err) }));
                 }
               },
             },
@@ -947,7 +960,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           label: t('contextMenus.folders.showExplorer'),
           onClick: () =>
             invoke(Invokes.ShowInFinder, { path: targetPath }).catch((err) =>
-              toast.error(t('contextMenus.toasts.couldNotShowFolder', { err })),
+              toast.error(t('contextMenus.toasts.couldNotShowFolder', { err: String(err) })),
             ),
         },
         {
@@ -987,13 +1000,14 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
 
                     const { appSettings, handleSettingsChange } = useSettingsStore.getState();
                     if (appSettings) {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       handleSettingsChange({ ...appSettings, lastFolderState: null } as any);
                     }
                   }
 
                   props.refreshAllFolderTrees();
                 } catch (err) {
-                  toast.error(t('contextMenus.toasts.failedDeleteFolder', { err }));
+                  toast.error(t('contextMenus.toasts.failedDeleteFolder', { err: String(err) }));
                 }
               },
             },
@@ -1006,6 +1020,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
   );
 
   const handleAlbumTreeContextMenu = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (event: any, item: AlbumItem | null) => {
       event.preventDefault();
       event.stopPropagation();
@@ -1077,12 +1092,13 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
 
         invoke(Invokes.SaveAlbums, { tree: newTree })
           .then(() => invoke(Invokes.GetAlbums))
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then((sortedTree: any) => setLibrary({ albumTree: sortedTree }))
-          .catch((err) => toast.error(t('contextMenus.toasts.failedMoveError', { err })));
+          .catch((err) => toast.error(t('contextMenus.toasts.failedMoveError', { err: String(err) })));
       };
 
       const buildMoveSubmenu = (nodes: AlbumItem[]): Option[] => {
-        let opts: Option[] = [];
+        const opts: Option[] = [];
         nodes.forEach((n) => {
           if (n.type === 'group' && n.id !== item?.id) {
             const isCurrentParent = n.id === currentParentId;
@@ -1165,8 +1181,9 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                     if (updateIcon(newTree)) {
                       invoke(Invokes.SaveAlbums, { tree: newTree })
                         .then(() => invoke(Invokes.GetAlbums))
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         .then((sorted: any) => setLibrary({ albumTree: sorted }))
-                        .catch((err) => toast.error(t('contextMenus.toasts.failedChangeIcon', { err })));
+                        .catch((err) => toast.error(t('contextMenus.toasts.failedChangeIcon', { err: String(err) })));
                     }
                   },
                 })),
@@ -1217,8 +1234,9 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                       del(newTree);
                       invoke(Invokes.SaveAlbums, { tree: newTree })
                         .then(() => invoke(Invokes.GetAlbums))
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         .then((sorted: any) => setLibrary({ albumTree: sorted }))
-                        .catch((err) => toast.error(t('contextMenus.toasts.failedDelete', { err })));
+                        .catch((err) => toast.error(t('contextMenus.toasts.failedDelete', { err: String(err) })));
                     },
                   },
                 ],
@@ -1233,6 +1251,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
   );
 
   const handleMainLibraryContextMenu = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (event: any) => {
       event.preventDefault();
       event.stopPropagation();
@@ -1260,7 +1279,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                 setLibrary({ albumTree: updatedTree });
                 await props.refreshImageList();
               } catch (err) {
-                toast.error(t('contextMenus.toasts.failedAddToAlbum', { err }));
+                toast.error(t('contextMenus.toasts.failedAddToAlbum', { err: String(err) }));
               }
             },
           }
@@ -1279,7 +1298,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                     });
                     props.handleLibraryRefresh();
                   } catch (err) {
-                    toast.error(t('contextMenus.toasts.failedCopy', { err }));
+                    toast.error(t('contextMenus.toasts.failedCopy', { err: String(err) }));
                   }
                 },
               },
@@ -1296,7 +1315,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                     props.refreshAllFolderTrees();
                     props.handleLibraryRefresh();
                   } catch (err) {
-                    toast.error(t('contextMenus.toasts.failedMove', { err }));
+                    toast.error(t('contextMenus.toasts.failedMove', { err: String(err) }));
                   }
                 },
               },

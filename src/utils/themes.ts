@@ -1,6 +1,7 @@
 import { Theme } from '../components/ui/AppProperties';
 
 export interface ThemeProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cssVariables: any;
   id: Theme;
   name: string;

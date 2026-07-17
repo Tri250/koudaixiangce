@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RotateCcw, Copy, ClipboardPaste, Spline, Settings2 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import { ActiveChannel, Adjustments, Coord, ParametricCurveSettings } from '../../utils/adjustments';
 import { Theme, OPTION_SEPARATOR } from '../ui/AppProperties';
 import { useContextMenu } from '../../context/ContextMenuContext';
@@ -10,6 +10,7 @@ import Slider from '../ui/Slider';
 import { TextColors, TextVariants, TextWeights } from '../../types/typography';
 
 let curveClipboard: Array<Coord> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let parametricClipboard: any = null;
 
 export interface ChannelConfig {
@@ -22,13 +23,16 @@ export interface ChannelConfig {
 
 interface ColorData {
   color: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
 }
 
 interface CurveGraphProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adjustments: Adjustments | any;
   histogram: ChannelConfig | null;
   isForMask?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setAdjustments(updater: (prev: any) => any): void;
   theme: string;
   onDragStateChange?: (isDragging: boolean) => void;
@@ -111,7 +115,7 @@ function buildParametricPoints(settings: ParametricCurveSettings): Array<Coord> 
 
   const clamp = (v: number) => Math.max(0, Math.min(1, v));
 
-  let points = xs.map((x, i) => ({
+  const points = xs.map((x, i) => ({
     x: x * 255,
     y: clamp(ys[i]) * 255,
   }));
@@ -204,6 +208,7 @@ function getCurvePath(points: Array<Coord>) {
   return path;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getHistogramPath(data: Array<any>) {
   if (!data || data.length === 0) return '';
   const maxVal = Math.max(...data);
@@ -216,6 +221,7 @@ function getHistogramPath(data: Array<any>) {
   return `M0,255 L${pathData} L255,255 Z`;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getZeroHistogramPath(data: Array<any>) {
   if (!data || data.length === 0) return '';
   const pathData = data.map((_, index: number) => `${(index / 255) * 255},255`).join(' ');
@@ -305,6 +311,7 @@ export default function CurveGraph({
     if (newMode === curveMode) return;
     setCurveMode(newMode);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setAdjustments((prev: any) => {
       if (newMode === 'parametric') {
         const pC = prev.parametricCurve || DEFAULT_PARAMETRIC_CURVE;
@@ -331,6 +338,7 @@ export default function CurveGraph({
   };
 
   const updateParametricValue = (key: keyof ParametricCurveSettings, value: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setAdjustments((prev: any) => {
       const pC = prev.parametricCurve || DEFAULT_PARAMETRIC_CURVE;
       const updatedSettings = { ...pC[activeChannel], [key]: value };
@@ -372,6 +380,7 @@ export default function CurveGraph({
   }, [draggingPointIndex, draggingSplitKey, onDragStateChange]);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleMove = (e: any) => {
       if (isParametricMode && draggingSplitKey) {
         const container = splitterContainerRef.current;
@@ -436,6 +445,7 @@ export default function CurveGraph({
         localPointsRef.current = newPoints;
         setLocalPoints(newPoints);
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setAdjustments((prev: any) => ({
           ...prev,
           curves: { ...prev.curves, [activeChannelRef.current]: newPoints },
@@ -491,6 +501,7 @@ export default function CurveGraph({
 
   const { color, data: histogramData } = channelConfig[activeChannel];
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handlePointStart = (e: any, index: number) => {
     if (isParametricMode || e.button === 2) return;
     if (!e.touches) e.preventDefault();
@@ -508,9 +519,10 @@ export default function CurveGraph({
     if (index > 0 && index < activePoints.length - 1) {
       e.preventDefault();
       e.stopPropagation();
-      const newPoints = activePoints.filter((_, i) => i !== index);
+      const newPoints = activePoints.filter((_: Coord, i: number) => i !== index);
       setLocalPoints(newPoints);
       localPointsRef.current = newPoints;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAdjustments((prev: any) => ({
         ...prev,
         curves: { ...prev.curves, [activeChannel]: newPoints },
@@ -518,6 +530,7 @@ export default function CurveGraph({
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleContainerStart = (e: any) => {
     if (isParametricMode || (!e.touches && e.button !== 0) || e.target.tagName === 'circle') return;
     onDragStateChange?.(true);
@@ -535,6 +548,7 @@ export default function CurveGraph({
 
     setLocalPoints(newPoints);
     localPointsRef.current = newPoints;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setAdjustments((prev: any) => ({
       ...prev,
       curves: { ...prev.curves, [activeChannel]: newPoints },
@@ -546,6 +560,7 @@ export default function CurveGraph({
   const handleDoubleClick = () => {
     if (isParametricMode) {
       const defaultSettings = { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAdjustments((prev: any) => {
         const pC = prev.parametricCurve || DEFAULT_PARAMETRIC_CURVE;
         return {
@@ -560,6 +575,7 @@ export default function CurveGraph({
         { x: 255, y: 255 },
       ];
       setLocalPoints(defaultPoints);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAdjustments((prev: any) => ({
         ...prev,
         curves: { ...prev.curves, [activeChannel]: defaultPoints },
@@ -580,6 +596,7 @@ export default function CurveGraph({
 
       const handlePasteParametric = () => {
         if (!parametricClipboard) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setAdjustments((prev: any) => {
           const pC = prev.parametricCurve || DEFAULT_PARAMETRIC_CURVE;
           return {
@@ -591,6 +608,7 @@ export default function CurveGraph({
       };
 
       const handleResetParametric = () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setAdjustments((prev: any) => {
           const pC = prev.parametricCurve || DEFAULT_PARAMETRIC_CURVE;
           return {
@@ -607,6 +625,7 @@ export default function CurveGraph({
       const handleResetAllParametric = () => {
         setLocalParametricSettings(null);
         localParametricSettingsRef.current = null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setAdjustments((prev: any) => {
           return {
             ...prev,
@@ -666,7 +685,7 @@ export default function CurveGraph({
     }
 
     const handleCopy = () => {
-      curveClipboard = activePoints.map((p) => ({ ...p }));
+      curveClipboard = activePoints.map((p: Coord) => ({ ...p }));
     };
 
     const handlePaste = () => {
@@ -674,6 +693,7 @@ export default function CurveGraph({
       const newPoints = curveClipboard.map((p) => ({ ...p }));
       setLocalPoints(newPoints);
       localPointsRef.current = newPoints;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAdjustments((prev: any) => ({ ...prev, curves: { ...prev.curves, [activeChannel]: newPoints } }));
     };
 
@@ -682,6 +702,7 @@ export default function CurveGraph({
       const newPoints = convertParametricToPoints(parametricClipboard);
       setLocalPoints(newPoints);
       localPointsRef.current = newPoints;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAdjustments((prev: any) => ({ ...prev, curves: { ...prev.curves, [activeChannel]: newPoints } }));
     };
 
@@ -692,6 +713,7 @@ export default function CurveGraph({
       ];
       setLocalPoints(defaultPoints);
       localPointsRef.current = defaultPoints;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAdjustments((prev: any) => ({ ...prev, curves: { ...prev.curves, [activeChannel]: defaultPoints } }));
     };
 
@@ -702,6 +724,7 @@ export default function CurveGraph({
       ];
       setLocalPoints(defaultPoints);
       localPointsRef.current = defaultPoints;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAdjustments((prev: any) => ({
         ...prev,
         curves: {
@@ -805,9 +828,9 @@ export default function CurveGraph({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {Object.keys(channelConfig).map((channel: any) => {
+          {Object.keys(channelConfig).map((channel: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
             const selected = activeChannel === channel;
-            const channelLabel = t(`adjustments.curves.channels.${channel}`);
+            const channelLabel = t(`adjustments.curves.channels.${channel}`) as string;
             return (
               <button
                 key={channel}
@@ -915,7 +938,9 @@ export default function CurveGraph({
                   cy={255 - p.y}
                   fill={color}
                   key={i}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onMouseDown={(e: any) => handlePointStart(e, i)}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onTouchStart={(e: any) => handlePointStart(e, i)}
                   onContextMenu={(e: React.MouseEvent) => handlePointContextMenu(e, i)}
                   r="6"
@@ -986,6 +1011,7 @@ export default function CurveGraph({
                   step={1}
                   defaultValue={0}
                   value={activeParametricSettings.whiteLevel}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => updateParametricValue('whiteLevel', parseFloat(e.target.value))}
                   onDragStateChange={onDragStateChange}
                 />
@@ -996,6 +1022,7 @@ export default function CurveGraph({
                   step={1}
                   defaultValue={0}
                   value={activeParametricSettings.highlights}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => updateParametricValue('highlights', parseFloat(e.target.value))}
                   onDragStateChange={onDragStateChange}
                 />
@@ -1006,6 +1033,7 @@ export default function CurveGraph({
                   step={1}
                   defaultValue={0}
                   value={activeParametricSettings.lights}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => updateParametricValue('lights', parseFloat(e.target.value))}
                   onDragStateChange={onDragStateChange}
                 />
@@ -1016,6 +1044,7 @@ export default function CurveGraph({
                   step={1}
                   defaultValue={0}
                   value={activeParametricSettings.darks}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => updateParametricValue('darks', parseFloat(e.target.value))}
                   onDragStateChange={onDragStateChange}
                 />
@@ -1026,6 +1055,7 @@ export default function CurveGraph({
                   step={1}
                   defaultValue={0}
                   value={activeParametricSettings.shadows}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => updateParametricValue('shadows', parseFloat(e.target.value))}
                   onDragStateChange={onDragStateChange}
                 />
@@ -1036,6 +1066,7 @@ export default function CurveGraph({
                   step={1}
                   defaultValue={0}
                   value={activeParametricSettings.blackLevel}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => updateParametricValue('blackLevel', parseFloat(e.target.value))}
                   onDragStateChange={onDragStateChange}
                 />

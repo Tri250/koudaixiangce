@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Text from '../ui/Text';
 import { TextVariants } from '../../types/typography';
 
@@ -48,6 +48,7 @@ export default function CreateFolderModal({
   }, [name, onSave, onClose]);
 
   const handleKeyDown = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (e: any) => {
       if (e.key === 'Enter') {
         handleSave();
@@ -80,6 +81,7 @@ export default function CreateFolderModal({
           transform transition-all duration-300 ease-out
           ${show ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 -translate-y-4'}
         `}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onClick={(e: any) => e.stopPropagation()}
       >
         <Text variant={TextVariants.title} className="mb-4">
@@ -88,6 +90,7 @@ export default function CreateFolderModal({
         <input
           autoFocus
           className="w-full bg-bg-primary text-text-primary border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-accent"
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => setName(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder || t('modals.createFolder.placeholder')}

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { invoke } from '@tauri-apps/api/core';
 import { Sun, Download, Image, Loader2, AlertTriangle, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';

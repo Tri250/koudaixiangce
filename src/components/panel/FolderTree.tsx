@@ -26,7 +26,7 @@ import {
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import { invoke } from '@tauri-apps/api/core';
 import Text from '../ui/Text';
 import { TEXT_COLOR_KEYS, TextColors, TextVariants, TextWeights } from '../../types/typography';
@@ -48,13 +48,16 @@ export interface FolderTree {
 interface FolderTreeProps {
   isResizing: boolean;
   isVisible: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu(event: any, path: string | null, isPinned?: boolean): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onAlbumContextMenu(event: any, item: AlbumItem | null): void;
   onFolderSelect(folder: string): void;
   onSelectAlbum(albumId: string, albumName: string, images: string[]): void;
   onToggleFolder(folder: string): void;
   onOpenFolder(): void;
   setIsVisible(visible: boolean): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   style: any;
   isInstantTransition: boolean;
 }
@@ -63,6 +66,7 @@ interface TreeNodeProps {
   expandedFolders: Set<string>;
   isExpanded: boolean;
   node: FolderTree;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu(event: any, path: string, isPinned?: boolean): void;
   onFolderSelect(folder: string): void;
   onToggle(path: string): void;
@@ -254,6 +258,7 @@ function FolderSortMenu({
                     )}
                     onClick={() => {
                       if (sort.key !== opt.key) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange({ key: opt.key as any, order: sort.order });
                       }
                       setIsOpen(false);
@@ -302,11 +307,13 @@ function SectionHeader({ title, isOpen, onToggle }: { title: string; isOpen: boo
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getAlbumImageCount = (item: any): number => {
   if (item.type === 'album' && item.images) {
     return item.images.length;
   }
   if (item.type === 'group' && item.children) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return item.children.reduce((sum: number, child: any) => sum + getAlbumImageCount(child), 0);
   }
   return 0;
@@ -325,6 +332,7 @@ function AlbumTreeNode({
   expandedGroups: Set<string>;
   onToggle: (id: string) => void;
   onSelectAlbum: (id: string, name: string, images: string[]) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu: (e: any, item: AlbumItem) => void;
   selectedAlbumId: string | null;
   showImageCounts: boolean;
@@ -334,7 +342,7 @@ function AlbumTreeNode({
   const isSelected = item.id === selectedAlbumId;
   const imageCount = getAlbumImageCount(item);
 
-  let ItemIcon = isGroup ? (isExpanded ? FolderOpen : Folder) : AlbumIcon;
+  let ItemIcon: React.ElementType = isGroup ? (isExpanded ? FolderOpen : Folder) : AlbumIcon;
   if (item.icon && ALBUM_ICONS[item.icon]) {
     ItemIcon = ALBUM_ICONS[item.icon];
   }
@@ -450,6 +458,7 @@ function TreeNode({
   const isSelected = node.path === selectedPath;
   const isPinned = pinnedFolders.includes(node.path);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleFolderIconClick = (e: any) => {
     e.stopPropagation();
     if (hasChildren) {
@@ -467,6 +476,7 @@ function TreeNode({
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const containerVariants: any = {
     closed: { height: 0, opacity: 0, transition: { duration: 0.2, ease: 'easeInOut' } },
     open: { height: 'auto', opacity: 1, transition: { duration: 0.25, ease: 'easeInOut' } },
@@ -486,7 +496,7 @@ function TreeNode({
   };
 
   const currentFolderIconKey = folderIcons[node.path];
-  let ResolvedIcon = isExpanded ? FolderOpen : Folder;
+  let ResolvedIcon: React.ElementType = isExpanded ? FolderOpen : Folder;
   if (currentFolderIconKey && ALBUM_ICONS[currentFolderIconKey]) {
     ResolvedIcon = ALBUM_ICONS[currentFolderIconKey];
   }
@@ -500,6 +510,7 @@ function TreeNode({
           'hover:bg-card-active': !isSelected,
         })}
         onClick={handleNameClick}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onContextMenu={(e: any) => onContextMenu(e, node.path, isPinned)}
       >
         <div
@@ -567,7 +578,7 @@ function TreeNode({
           >
             <div className="py-1">
               <AnimatePresence>
-                {node?.children?.map((childNode: any, index: number) => (
+                {node?.children?.map((childNode: any, index: number) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                   <motion.div
                     animate="visible"
                     custom={{ index, total: node.children.length }}
@@ -638,6 +649,7 @@ export default function FolderTree({
   const showHeaderButtons = isHovering || isSortMenuOpen;
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     invoke(Invokes.GetAlbums).then((res: any) => useLibraryStore.getState().setLibrary({ albumTree: res }));
   }, []);
 
@@ -650,6 +662,7 @@ export default function FolderTree({
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEmptyAreaContextMenu = (e: any) => {
     if (e.target === e.currentTarget) {
       onContextMenu(e, null, false);
@@ -671,6 +684,7 @@ export default function FolderTree({
   const filteredTrees = useMemo(() => {
     let base = folderTrees;
     if (isSearching) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       base = base.map((tree: any) => filterTree(tree, trimmedQuery)).filter((t: any) => t !== null);
     }
     return sortFolderTree(base, folderTreeSort);
@@ -687,6 +701,7 @@ export default function FolderTree({
   const searchAutoExpandedFolders = useMemo(() => {
     if (!isSearching) return new Set<string>();
     const newExpanded = new Set<string>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     filteredTrees.forEach((t: any) => getAutoExpandedPaths(t, newExpanded));
     filteredPinnedTrees.forEach((pinned) => getAutoExpandedPaths(pinned, newExpanded));
     return newExpanded;
@@ -699,7 +714,8 @@ export default function FolderTree({
   const filteredAlbumTree = useMemo(() => {
     let base = albumTree;
     if (isSearching) {
-      base = base.map((item: any) => filterAlbumTree(item, trimmedQuery)).filter((t: any) => t !== null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      base = base.map((item: any) => filterAlbumTree(item, trimmedQuery)).filter((t: any): t is AlbumItem => t !== null);
     }
     return base;
   }, [albumTree, trimmedQuery, isSearching]);
@@ -707,6 +723,7 @@ export default function FolderTree({
   const searchAutoExpandedAlbumGroups = useMemo(() => {
     if (!isSearching) return new Set<string>();
     const newExpanded = new Set<string>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     filteredAlbumTree.forEach((t: any) => getAutoExpandedAlbumGroups(t, newExpanded));
     return newExpanded;
   }, [isSearching, filteredAlbumTree]);
@@ -721,7 +738,7 @@ export default function FolderTree({
       const hasBaseResults = filteredTrees && filteredTrees.length > 0;
       const hasAlbumResults = filteredAlbumTree && filteredAlbumTree.length > 0;
 
-      let newSections = [...openSections];
+      const newSections = [...openSections];
       let changed = false;
 
       if (hasPinnedResults && !newSections.includes('pinned')) {
@@ -935,7 +952,7 @@ export default function FolderTree({
                     >
                       <div className="pt-1 pb-2">
                         <AnimatePresence>
-                          {filteredAlbumTree.map((item: any) => (
+                          {filteredAlbumTree.map((item: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                             <motion.div
                               key={item.id}
                               initial={{ opacity: 0, height: 0, x: -15 }}
@@ -990,7 +1007,7 @@ export default function FolderTree({
                     >
                       <div className="pt-1">
                         <AnimatePresence>
-                          {filteredTrees.map((tree: any, index: number) => (
+                          {filteredTrees.map((tree: any, index: number) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                             <motion.div
                               key={tree.path}
                               animate="visible"

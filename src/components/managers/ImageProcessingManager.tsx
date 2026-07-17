@@ -1,7 +1,9 @@
 import { useImageProcessing } from '../../hooks/useImageProcessing';
 
 interface Props {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformWrapperRef: React.RefObject<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prevAdjustmentsRef: React.RefObject<any>;
   previewJobIdRef: React.RefObject<number>;
   latestRenderedJobIdRef: React.RefObject<number>;

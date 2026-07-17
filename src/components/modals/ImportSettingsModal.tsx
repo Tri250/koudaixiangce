@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Switch from '../ui/Switch';
 import { FILENAME_VARIABLES } from '../ui/ExportImportProperties';
 import Text from '../ui/Text';
@@ -9,6 +9,7 @@ interface ImportSettingsModalProps {
   fileCount: number;
   isOpen: boolean;
   onClose(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSave(settings: any): void;
 }
 
@@ -57,6 +58,7 @@ export default function ImportSettingsModal({ fileCount, isOpen, onClose, onSave
   }, [onSave, onClose, filenameTemplate, organizeByDate, dateFolderFormat, deleteAfterImport, fileCount]);
 
   const handleKeyDown = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (e: any) => {
       if (e.key === 'Enter') {
         handleSave();
@@ -101,6 +103,7 @@ export default function ImportSettingsModal({ fileCount, isOpen, onClose, onSave
         className={`bg-surface rounded-lg shadow-xl p-6 w-full max-w-lg transform transition-all duration-300 ease-out ${
           show ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 -translate-y-4'
         }`}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onClick={(e: any) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
@@ -116,6 +119,7 @@ export default function ImportSettingsModal({ fileCount, isOpen, onClose, onSave
             <input
               autoFocus
               className="w-full bg-bg-primary border border-surface rounded-md p-2 text-sm text-text-primary focus:ring-accent focus:border-accent"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFilenameTemplate(e.target.value)}
               ref={filenameInputRef}
               type="text"
@@ -150,6 +154,7 @@ export default function ImportSettingsModal({ fileCount, isOpen, onClose, onSave
                 </Text>
                 <input
                   className="w-full bg-bg-primary border border-surface rounded-md p-2 text-sm text-text-primary focus:ring-accent focus:border-accent"
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setDateFolderFormat(e.target.value)}
                   placeholder={t('modals.importSettings.dateFormatPlaceholder')}
                   type="text"

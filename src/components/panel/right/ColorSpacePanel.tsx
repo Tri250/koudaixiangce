@@ -1,8 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { invoke } from '@tauri-apps/api/core';
 import { Palette, Upload, Loader2, RotateCcw, AlertTriangle, Camera } from 'lucide-react';
-import clsx from 'clsx';
 import CollapsibleSection from '../../ui/CollapsibleSection';
 import Button from '../../ui/Button';
 import Dropdown from '../../ui/Dropdown';

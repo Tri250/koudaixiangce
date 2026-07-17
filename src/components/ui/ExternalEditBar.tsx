@@ -1,5 +1,5 @@
 import { Check, Loader } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 
 import Button from './Button';
 import { ExternalEditSession } from '../../store/useProcessStore';

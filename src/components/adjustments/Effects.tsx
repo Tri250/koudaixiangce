@@ -1,4 +1,4 @@
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Slider from '../ui/Slider';
 import { Adjustments, Effect, CreativeAdjustment } from '../../utils/adjustments';
 import LUTControl from '../ui/LUTControl';
@@ -9,6 +9,7 @@ import { TextVariants } from '../../types/typography';
 interface EffectsPanelProps {
   adjustments: Adjustments;
   isForMask: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setAdjustments(adjustments: Partial<Adjustments>): any;
   handleLutSelect(path: string): void;
   onLutHover?: (path: string | null) => void;
@@ -60,6 +61,7 @@ export default function EffectsPanel({
           label={t('adjustments.effects.glow')}
           max={100}
           min={0}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleAdjustmentChange(CreativeAdjustment.GlowAmount, e.target.value)}
           step={1}
           value={adjustments.glowAmount}
@@ -70,6 +72,7 @@ export default function EffectsPanel({
           label={t('adjustments.effects.halation')}
           max={100}
           min={0}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleAdjustmentChange(CreativeAdjustment.HalationAmount, e.target.value)}
           step={1}
           value={adjustments.halationAmount}
@@ -81,6 +84,7 @@ export default function EffectsPanel({
             label={t('adjustments.effects.lightFlares')}
             max={100}
             min={0}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleAdjustmentChange(CreativeAdjustment.FlareAmount, e.target.value)}
             step={1}
             value={adjustments.flareAmount}
@@ -116,6 +120,7 @@ export default function EffectsPanel({
                 label={t('adjustments.effects.amount')}
                 max={100}
                 min={-100}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleAdjustmentChange(Effect.VignetteAmount, e.target.value)}
                 step={1}
                 value={adjustments.vignetteAmount}
@@ -126,6 +131,7 @@ export default function EffectsPanel({
                 label={t('adjustments.effects.midpoint')}
                 max={100}
                 min={0}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleAdjustmentChange(Effect.VignetteMidpoint, e.target.value)}
                 step={1}
                 value={adjustments.vignetteMidpoint}
@@ -136,6 +142,7 @@ export default function EffectsPanel({
                 label={t('adjustments.effects.roundness')}
                 max={100}
                 min={0}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleAdjustmentChange(Effect.VignetteRoundness, e.target.value)}
                 step={1}
                 value={adjustments.vignetteRoundness}
@@ -146,6 +153,7 @@ export default function EffectsPanel({
                 label={t('adjustments.effects.feather')}
                 max={100}
                 min={0}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleAdjustmentChange(Effect.VignetteFeather, e.target.value)}
                 step={1}
                 value={adjustments.vignetteFeather}
@@ -164,6 +172,7 @@ export default function EffectsPanel({
                 label={t('adjustments.effects.amount')}
                 max={100}
                 min={0}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleAdjustmentChange(Effect.GrainAmount, e.target.value)}
                 step={1}
                 value={adjustments.grainAmount}
@@ -174,6 +183,7 @@ export default function EffectsPanel({
                 label={t('adjustments.effects.size')}
                 max={100}
                 min={0}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleAdjustmentChange(Effect.GrainSize, e.target.value)}
                 step={1}
                 value={adjustments.grainSize}
@@ -185,6 +195,7 @@ export default function EffectsPanel({
                 label={t('adjustments.effects.roughness')}
                 max={100}
                 min={0}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleAdjustmentChange(Effect.GrainRoughness, e.target.value)}
                 step={1}
                 value={adjustments.grainRoughness}

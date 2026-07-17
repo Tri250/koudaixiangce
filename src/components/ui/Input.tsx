@@ -6,8 +6,11 @@ interface InputProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onBlur?(e: any): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange(e: any): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onKeyDown?(e: any): void;
   placeholder?: string;
   type?: string;
@@ -23,6 +26,7 @@ interface InputProps {
  * @param {string} type - The type of the input (e.g., 'text', 'password', 'email').
  * @param {object} props - Other standard input props (value, onChange, placeholder, etc.).
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const Input = React.forwardRef(({ className, type = 'text', bgClassName, ...props }: InputProps, ref: any) => {
   return (
     <input

@@ -1,6 +1,6 @@
 import { open } from '@tauri-apps/plugin-dialog';
 import { X } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Text from './Text';
 import { TextVariants } from '../../types/typography';
 

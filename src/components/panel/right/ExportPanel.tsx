@@ -3,7 +3,7 @@ import { save, open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { FileInput, CheckCircle, XCircle, Loader, Ban, ChevronDown, ChevronRight, Settings, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import debounce from 'lodash.debounce';
 import Switch from '../../ui/Switch';
 import Button from '../../ui/Button';
@@ -34,6 +34,7 @@ interface ExportPanelProps {
   exportState: ExportState;
   multiSelectedPaths: Array<string>;
   selectedImage: SelectedImage | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setExportState(state: any): void;
   appSettings: AppSettings | null;
   onSettingsChange: (settings: AppSettings) => void;
@@ -43,6 +44,7 @@ interface ExportPanelProps {
 }
 
 interface SectionProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: any;
   title: string;
 }
@@ -158,6 +160,7 @@ function WatermarkPreview({
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formatBytes = (bytes: number, t: any, decimals = 2) => {
   if (!+bytes) return `0 ${t('export.bytes.bytes')}`;
   const k = 1024;
@@ -302,6 +305,7 @@ export default function ExportPanel({
         return;
       }
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const dims: any = await invoke('get_image_dimensions', { path: pathsToExport[0] });
         if (dims.width > 0 && dims.height > 0) setImageAspectRatio(dims.width / dims.height);
       } catch {
@@ -322,7 +326,7 @@ export default function ExportPanel({
           path: watermarkPath,
         });
         setWatermarkImageAspectRatio(dimensions.height > 0 ? dimensions.width / dimensions.height : 1);
-      } catch (error) {
+      } catch (_error) {
         setWatermarkImageAspectRatio(1);
       }
     };
@@ -361,7 +365,7 @@ export default function ExportPanel({
             currentEditAdjustments: currentAdj || null,
           });
           setEstimatedSize(size);
-        } catch (err) {
+        } catch (_err) {
           setEstimatedSize(null);
         } finally {
           setIsEstimating(false);
@@ -471,6 +475,7 @@ export default function ExportPanel({
     const lastExportPath = appSettings?.exportPresets?.find((p) => p.id === '__last_used__')?.lastExportPath;
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const selectedFormat: any = FILE_FORMATS.find((f) => f.id === fileFormat);
 
       let outputFolderOrFile = '';
@@ -883,7 +888,7 @@ export default function ExportPanel({
               <span className="flex items-center group-hover:hidden">
                 <Loader size={18} className="animate-spin mr-2" />
                 {progress.total > 1
-                  ? t('export.status.exportingProgress', { current: progress.current, total: progress.total })
+                  ? t('export.status.exportingProgress', { current: progress.current ?? 0, total: progress.total })
                   : t('export.status.exporting')}
               </span>
               <span className="hidden items-center group-hover:flex">

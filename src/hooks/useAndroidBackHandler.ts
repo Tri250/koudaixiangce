@@ -7,10 +7,12 @@ export function useAndroidBackHandler() {
     const osPlatform = useSettingsStore.getState().osPlatform;
     if (osPlatform !== 'android') return;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__handleAndroidBack = () => {
       const ui = useUIStore.getState();
 
       if (ui.confirmModalState.isOpen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ui.setUI((state: any) => ({ confirmModalState: { ...state.confirmModalState, isOpen: false } }));
         return;
       }
@@ -73,10 +75,12 @@ export function useAndroidBackHandler() {
         return;
       }
       if (ui.negativeModalState.isOpen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ui.setUI((state: any) => ({ negativeModalState: { ...state.negativeModalState, isOpen: false } }));
         return;
       }
       if (ui.denoiseModalState.isOpen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ui.setUI((state: any) => ({ denoiseModalState: { ...state.denoiseModalState, isOpen: false } }));
         return;
       }
@@ -95,6 +99,7 @@ export function useAndroidBackHandler() {
     };
 
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__handleAndroidBack;
     };
   }, []);

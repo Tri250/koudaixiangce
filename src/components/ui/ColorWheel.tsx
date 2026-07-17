@@ -5,7 +5,7 @@ import { ColorResult, HsvaColor, hsvaToHex } from '@uiw/color-convert';
 import { Sun } from 'lucide-react';
 import { HueSatLum } from '../../utils/adjustments';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 import Text from './Text';
 import { TextColors, TextVariants } from '../../types/typography';
 

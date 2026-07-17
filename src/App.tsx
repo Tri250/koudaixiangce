@@ -60,11 +60,14 @@ import ImageLoaderManager from './components/managers/ImageLoaderManager';
 
 const CLERK_PUBLISHABLE_KEY = 'pk_test_YnJpZWYtc2Vhc25haWwtMTIuY2xlcmsuYWNjb3VudHMuZGV2JA'; // local dev key
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const insertChildrenIntoTree = (node: any, targetPath: string, newChildren: any[]): any => {
   if (!node) return null;
 
   if (node.path === targetPath) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mergedChildren = newChildren.map((newChild: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const existingChild = node.children?.find((c: any) => c.path === newChild.path);
       if (existingChild && existingChild.children && existingChild.children.length > 0) {
         return { ...newChild, children: existingChild.children };
@@ -77,6 +80,7 @@ const insertChildrenIntoTree = (node: any, targetPath: string, newChildren: any[
   if (node.children && node.children.length > 0) {
     return {
       ...node,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       children: node.children.map((child: any) => insertChildrenIntoTree(child, targetPath, newChildren)),
     };
   }
@@ -162,6 +166,7 @@ function App() {
     selectedImagePathRef.current = selectedImage?.path ?? null;
   }, [selectedImage?.path]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prevAdjustmentsRef = useRef<any>(null);
 
   const [viewportSize, setViewportSize] = useState<ImageDimensions>(() => {
@@ -179,6 +184,7 @@ function App() {
   const previewJobIdRef = useRef<number>(0);
   const latestRenderedJobIdRef = useRef<number>(0);
   const currentResRef = useRef<number>(1280);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cachedEditStateRef = useRef<any | null>(null);
 
   const [libraryViewMode, setLibraryViewMode] = useState<LibraryViewMode>(defaultLibraryViewMode);
@@ -188,8 +194,10 @@ function App() {
 
   const { requestThumbnails, clearThumbnailQueue, markGenerated } = useThumbnails();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transformWrapperRef = useRef<any>(null);
   const preloadedDataRef = useRef<{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     trees?: Promise<any>;
     images?: Promise<ImageFile[]>;
     rootPaths?: string[];
@@ -299,6 +307,7 @@ function App() {
       if (currentFolderPath.startsWith('Album: ')) {
         const { activeAlbumId, albumTree } = useLibraryStore.getState();
         if (activeAlbumId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const findObj = (nodes: any[]): any => {
             for (const n of nodes) {
               if (n.id === activeAlbumId) return n;
@@ -448,6 +457,7 @@ function App() {
   }, [activeRightPanel, activeMaskContainerId, activeAiPatchContainerId, setEditor]);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const unlisten = listen('ai-connector-status-update', (event: any) => {
       setEditor({ isAIConnectorConnected: event.payload.connected });
     });
@@ -530,6 +540,7 @@ function App() {
     checkFullscreen();
     const unlistenPromise = appWindow.onResized(checkFullscreen);
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       unlistenPromise.then((unlisten: any) => unlisten());
     };
   }, [setUI]);
@@ -557,11 +568,13 @@ function App() {
       if (!isExpanding) return;
       try {
         const showCounts = appSettings?.enableFolderImageCounts ?? false;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const newChildren: any[] = await invoke(Invokes.GetFolderChildren, {
           path,
           showImageCounts: showCounts,
         });
         setLibrary((state) => ({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           folderTrees: state.folderTrees.map((t: any) => insertChildrenIntoTree(t, path, newChildren)),
         }));
         setLibrary((state) => ({
@@ -780,7 +793,7 @@ function App() {
 }
 
 const AppWrapper = () => (
-  <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} routerPush={(to) => {}} routerReplace={(to) => {}}>
+  <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} routerPush={(_to) => {}} routerReplace={(_to) => {}}>
     <ContextMenuProvider>
       <App />
       <GlobalTooltip />

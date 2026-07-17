@@ -48,6 +48,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ theme: newSettings.theme });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { searchCriteria: _searchCriteria, ...settingsToSave } = newSettings as any;
     set({ appSettings: newSettings });
 

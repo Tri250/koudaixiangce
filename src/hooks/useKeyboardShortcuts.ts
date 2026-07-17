@@ -56,9 +56,12 @@ export const useKeyboardShortcuts = ({
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const actions: Record<string, any> = {
       open_image: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !s.editor.selectedImage && s.library.libraryActivePath !== null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           handleImageSelect(s.library.libraryActivePath!);
@@ -66,6 +69,7 @@ export const useKeyboardShortcuts = ({
       },
       copy_adjustments: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleCopyAdjustments();
@@ -73,13 +77,16 @@ export const useKeyboardShortcuts = ({
       },
       paste_adjustments: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handlePasteAdjustments();
         },
       },
       copy_files: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => s.library.multiSelectedPaths.length > 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.process.setProcess({ copiedFilePaths: s.library.multiSelectedPaths });
@@ -87,6 +94,7 @@ export const useKeyboardShortcuts = ({
       },
       paste_files: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handlePasteFiles('copy');
@@ -94,6 +102,7 @@ export const useKeyboardShortcuts = ({
       },
       select_all: {
         shouldFire: () => sortedListRef.current.length > 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.library.setLibrary({ multiSelectedPaths: sortedListRef.current.map((f: ImageFile) => f.path) });
@@ -103,34 +112,42 @@ export const useKeyboardShortcuts = ({
         },
       },
       delete_selected: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !s.editor.activeMaskContainerId && !s.editor.activeAiPatchContainerId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleDeleteSelected();
         },
       },
       preview_prev: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const currentIndex = sortedListRef.current.findIndex((img) => img.path === s.editor.selectedImage!.path);
           if (currentIndex === -1) return;
-          let nextIndex = currentIndex - 1 < 0 ? sortedListRef.current.length - 1 : currentIndex - 1;
+          const nextIndex = currentIndex - 1 < 0 ? sortedListRef.current.length - 1 : currentIndex - 1;
           handleImageSelect(sortedListRef.current[nextIndex].path);
         },
       },
       preview_next: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const currentIndex = sortedListRef.current.findIndex((img) => img.path === s.editor.selectedImage!.path);
           if (currentIndex === -1) return;
-          let nextIndex = currentIndex + 1 >= sortedListRef.current.length ? 0 : currentIndex + 1;
+          const nextIndex = currentIndex + 1 >= sortedListRef.current.length ? 0 : currentIndex + 1;
           handleImageSelect(sortedListRef.current[nextIndex].path);
         },
       },
       zoom_in_step: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
@@ -142,7 +159,9 @@ export const useKeyboardShortcuts = ({
         },
       },
       zoom_out_step: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
@@ -154,7 +173,9 @@ export const useKeyboardShortcuts = ({
         },
       },
       cycle_zoom: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
@@ -185,7 +206,9 @@ export const useKeyboardShortcuts = ({
         },
       },
       zoom_in: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
@@ -197,7 +220,9 @@ export const useKeyboardShortcuts = ({
         },
       },
       zoom_out: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
@@ -209,119 +234,153 @@ export const useKeyboardShortcuts = ({
         },
       },
       zoom_fit: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleZoomChange(0, true);
         },
       },
       zoom_100: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleZoomChange(1.0);
         },
       },
       rotate_left: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleRotate(-90);
         },
       },
       rotate_right: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleRotate(90);
         },
       },
       undo: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage && s.editor.historyIndex > 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.editor.undo();
         },
       },
       redo: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage && s.editor.historyIndex < s.editor.history.length - 1,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.editor.redo();
         },
       },
       toggle_fullscreen: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleToggleFullScreen();
         },
       },
       show_original: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.editor.setEditor({ showOriginal: !s.editor.showOriginal });
         },
       },
       toggle_adjustments: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.ui.setRightPanel(Panel.Adjustments);
         },
       },
       toggle_crop_panel: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.ui.setRightPanel(Panel.Crop);
         },
       },
       toggle_masks: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.ui.setRightPanel(Panel.Masks);
         },
       },
       toggle_ai: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.ui.setRightPanel(Panel.Ai);
         },
       },
       toggle_presets: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.ui.setRightPanel(Panel.Presets);
         },
       },
       toggle_metadata: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.ui.setRightPanel(Panel.Metadata);
         },
       },
       toggle_analytics: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.editor.setEditor({ isWaveformVisible: !s.editor.isWaveformVisible });
         },
       },
       toggle_export: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           s.ui.setRightPanel(Panel.Export);
         },
       },
       toggle_library_exif: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const current = s.settings.appSettings?.exifOverlay || ExifOverlay.Off;
@@ -334,7 +393,9 @@ export const useKeyboardShortcuts = ({
         },
       },
       toggle_crop: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) => !!s.editor.selectedImage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           if (s.ui.activeRightPanel === Panel.Crop) {
@@ -347,6 +408,7 @@ export const useKeyboardShortcuts = ({
       },
       rate_0: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleRate(0);
@@ -354,6 +416,7 @@ export const useKeyboardShortcuts = ({
       },
       rate_1: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleRate(1);
@@ -361,6 +424,7 @@ export const useKeyboardShortcuts = ({
       },
       rate_2: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleRate(2);
@@ -368,6 +432,7 @@ export const useKeyboardShortcuts = ({
       },
       rate_3: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleRate(3);
@@ -375,6 +440,7 @@ export const useKeyboardShortcuts = ({
       },
       rate_4: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleRate(4);
@@ -382,6 +448,7 @@ export const useKeyboardShortcuts = ({
       },
       rate_5: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleRate(5);
@@ -389,6 +456,7 @@ export const useKeyboardShortcuts = ({
       },
       color_label_none: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleSetColorLabel(null);
@@ -396,6 +464,7 @@ export const useKeyboardShortcuts = ({
       },
       color_label_red: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleSetColorLabel('red');
@@ -403,6 +472,7 @@ export const useKeyboardShortcuts = ({
       },
       color_label_yellow: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleSetColorLabel('yellow');
@@ -410,6 +480,7 @@ export const useKeyboardShortcuts = ({
       },
       color_label_green: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleSetColorLabel('green');
@@ -417,6 +488,7 @@ export const useKeyboardShortcuts = ({
       },
       color_label_blue: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleSetColorLabel('blue');
@@ -424,14 +496,17 @@ export const useKeyboardShortcuts = ({
       },
       color_label_purple: {
         shouldFire: () => true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any) => {
           e.preventDefault();
           handleSetColorLabel('purple');
         },
       },
       brush_size_up: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) =>
           !!s.editor.selectedImage && !!s.editor.brushSettings && s.ui.activeRightPanel === Panel.Masks,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const newSize = Math.min((s.editor.brushSettings.size || 50) + 10, 200);
@@ -439,8 +514,10 @@ export const useKeyboardShortcuts = ({
         },
       },
       brush_size_down: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         shouldFire: (s: any) =>
           !!s.editor.selectedImage && !!s.editor.brushSettings && s.ui.activeRightPanel === Panel.Masks,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: any, s: any) => {
           e.preventDefault();
           const newSize = Math.max((s.editor.brushSettings.size || 50) - 10, 1);
@@ -452,6 +529,7 @@ export const useKeyboardShortcuts = ({
     const builtinShortcuts = [
       {
         match: (e: KeyboardEvent) => e.code === 'Escape',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: KeyboardEvent, s: any) => {
           e.preventDefault();
           if (s.editor.isStraightenActive) s.editor.setEditor({ isStraightenActive: false });
@@ -466,25 +544,31 @@ export const useKeyboardShortcuts = ({
         },
       },
       {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         match: (e: KeyboardEvent, s: any) => {
           const isDeleteKey = s.settings.osPlatform === 'macos' ? e.code === 'Backspace' : e.code === 'Delete';
           return isDeleteKey && (!!s.editor.activeMaskContainerId || !!s.editor.activeAiPatchContainerId);
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: KeyboardEvent, s: any) => {
           e.preventDefault();
           if (s.editor.activeMaskContainerId) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             s.editor.setEditor((state: any) => ({
               adjustments: {
                 ...state.adjustments,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 masks: state.adjustments.masks.filter((c: any) => c.id !== s.editor.activeMaskContainerId),
               },
               activeMaskContainerId: null,
               activeMaskId: null,
             }));
           } else if (s.editor.activeAiPatchContainerId) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             s.editor.setEditor((state: any) => ({
               adjustments: {
                 ...state.adjustments,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 aiPatches: state.adjustments.aiPatches.filter((c: any) => c.id !== s.editor.activeAiPatchContainerId),
               },
               activeAiPatchContainerId: null,
@@ -494,8 +578,10 @@ export const useKeyboardShortcuts = ({
         },
       },
       {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         match: (e: KeyboardEvent, s: any) =>
           !s.editor.selectedImage && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         execute: (e: KeyboardEvent, s: any) => {
           e.preventDefault();
           const isNext = e.code === 'ArrowRight' || e.code === 'ArrowDown';

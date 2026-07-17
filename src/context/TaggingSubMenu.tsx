@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { X, Plus } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { useTranslation } from '../lib/i18n-helpers';
 import { Invokes } from '../components/ui/AppProperties';
 import Text from '../components/ui/Text';
 import { TextVariants } from '../types/typography';
@@ -11,14 +11,15 @@ interface TaggingSubMenuProps {
   paths: string[];
   initialTags: { tag: string; isUser: boolean }[];
   onTagsChanged: (paths: string[], newTags: { tag: string; isUser: boolean }[]) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   appSettings: any;
   hideContextMenu: () => void;
 }
 
 const USER_TAG_PREFIX = 'user:';
 
-const tagVariants = {
-  visible: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 500, damping: 30 } },
+const tagVariants: Variants = {
+  visible: { opacity: 1, scale: 1, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
   exit: { opacity: 0, scale: 0.8, transition: { duration: 0.15 } },
 };
 

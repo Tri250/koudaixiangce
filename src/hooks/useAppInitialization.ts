@@ -18,9 +18,10 @@ import {
   ThumbnailSize,
   ThumbnailAspectRatio,
 } from '../components/ui/AppProperties';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../lib/i18n-helpers';
 
 interface UseAppInitializationProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   preloadedDataRef: React.RefObject<any>;
   thumbnailSize: ThumbnailSize;
   setThumbnailSize: (size: ThumbnailSize) => void;
@@ -30,7 +31,9 @@ interface UseAppInitializationProps {
   setLibraryViewMode: (mode: LibraryViewMode) => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getDefaultLanguage = (i18nInstance: any): string => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const browserLang = navigator.language || (navigator as any).userLanguage || 'en';
   const shortLang = browserLang.split('-')[0].toLowerCase();
   const supportedLanguages = Object.keys(i18nInstance.options.resources || {});
@@ -128,12 +131,14 @@ export const useAppInitialization = ({
 
   useEffect(() => {
     invoke(Invokes.GetSupportedFileTypes)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((types: any) => setSupportedTypes(types))
       .catch((err) => console.error('Failed to load supported file types:', err));
   }, [setSupportedTypes]);
 
   useEffect(() => {
     invoke(Invokes.LoadSettings)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(async (settings: any) => {
         if (
           !settings.copyPasteSettings ||
@@ -183,7 +188,7 @@ export const useAppInitialization = ({
               expandedFolders: settings.lastFolderState?.expandedFolders || [],
               showImageCounts: settings.enableFolderImageCounts || settings.folderTreeSort?.key === 'imageCount',
             });
-            setLibrary({ pinnedFolderTrees: trees });
+            setLibrary({ pinnedFolderTrees: trees as any[] }); // eslint-disable-line @typescript-eslint/no-explicit-any
           } catch (err) {
             console.error('Failed to load pinned folder trees:', err);
           }
@@ -223,6 +228,7 @@ export const useAppInitialization = ({
         }
 
         invoke('frontend_ready')
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then((launch: any) => {
             if (launch?.editSession) {
               useProcessStore.getState().setProcess({ externalEditSession: launch.editSession });
@@ -377,6 +383,7 @@ export const useAppInitialization = ({
             paths: pinnedFolders,
             expandedFolders: currentExpanded,
             showImageCounts: needsImageCounts,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           }).then((trees: any) => ({ type: 'pinned', trees })),
         );
       }
@@ -387,6 +394,7 @@ export const useAppInitialization = ({
             paths: rootFolders,
             expandedFolders: currentExpanded,
             showImageCounts: needsImageCounts,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           }).then((trees: any) => ({ type: 'root', trees })),
         );
       }
@@ -394,6 +402,7 @@ export const useAppInitialization = ({
       Promise.all(promises)
         .then((results) => {
           useLibraryStore.getState().setLibrary((_state) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const updates: any = { isTreeLoading: false };
             results.forEach((res) => {
               if (res.type === 'pinned') updates.pinnedFolderTrees = res.trees;
@@ -407,7 +416,6 @@ export const useAppInitialization = ({
           setLibrary({ isTreeLoading: false });
         });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appSettings?.enableFolderImageCounts, appSettings?.folderTreeSort?.key]);
 
   useEffect(() => {
@@ -419,7 +427,8 @@ export const useAppInitialization = ({
       THEMES.find((t: ThemeProps) => t.id === DEFAULT_THEME_ID);
     if (!baseTheme) return;
 
-    let finalCssVariables: any = { ...baseTheme.cssVariables };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const finalCssVariables: any = { ...baseTheme.cssVariables };
 
     Object.entries(finalCssVariables).forEach(([key, value]) => {
       root.style.setProperty(key, value as string);

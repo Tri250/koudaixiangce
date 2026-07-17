@@ -3,7 +3,7 @@ import { Star, Copy, ClipboardPaste, ChevronUp, ChevronDown, Check, FileInput, S
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../lib/i18n-helpers';
 
 import Filmstrip from './Filmstrip';
 import { GLOBAL_KEYS, ImageFile, SelectedImage, ThumbnailAspectRatio } from '../ui/AppProperties';
@@ -29,15 +29,19 @@ interface BottomBarProps {
   isResizing?: boolean;
   multiSelectedPaths?: Array<string>;
   onClearSelection?(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu?(event: any, path: string): void;
   onCopy(): void;
   onExportClick?(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onImageSelect?(path: string, event: any): void;
   onOpenCopyPasteSettings?(): void;
   onRequestThumbnails?(paths: string[]): void;
   onPaste(): void;
   onRate(rate: number): void;
   onReset?(): void;
+  _isResetDisabled?: boolean;
+  _onReset?(): void;
   onZoomChange?(zoomValue: number, fitToWindow?: boolean): void;
   rating: number;
   selectedImage?: SelectedImage;
@@ -104,7 +108,7 @@ export default function BottomBar({
   isPasted,
   isPasteDisabled,
   isRatingDisabled = false,
-  isResetDisabled = false,
+  _isResetDisabled = false,
   isResizing,
   multiSelectedPaths = [],
   onClearSelection,
@@ -116,7 +120,7 @@ export default function BottomBar({
   onRequestThumbnails,
   onPaste,
   onRate,
-  onReset,
+  _onReset,
   onZoomChange = () => {},
   rating,
   selectedImage,

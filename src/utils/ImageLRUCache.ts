@@ -2,10 +2,13 @@ import type { Adjustments } from './adjustments';
 
 export interface ImageCacheEntry {
   adjustments: Adjustments;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   histogram: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   waveform: any;
   finalPreviewUrl: string | null;
   uncroppedPreviewUrl: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   selectedImage: any;
   originalSize: { width: number; height: number };
   previewSize: { width: number; height: number };

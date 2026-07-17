@@ -2,16 +2,17 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { List, useListCallbackRef } from 'react-window';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import debounce from 'lodash.debounce';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { Row } from './LibraryItems';
 import { useLibraryStore } from '../../../store/useLibraryStore';
-import { LibraryViewMode, SortDirection, ThumbnailSize } from '../../ui/AppProperties';
+import { LibraryViewMode, SortDirection, ThumbnailSize, ImageFile } from '../../ui/AppProperties';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights, TEXT_COLOR_KEYS } from '../../../types/typography';
 import { useProcessStore } from '../../../store/useProcessStore';
 import { ExifOverlay } from '../../ui/AppProperties';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ListHeader({ widths, setWidths, containerRef, sortCriteria, onSortChange }: any) {
   const { t } = useTranslation();
   const exifOverlay = useSettingsStore((s) => s.appSettings?.exifOverlay || ExifOverlay.Off);
@@ -48,6 +49,7 @@ function ListHeader({ widths, setWidths, containerRef, sortCriteria, onSortChang
         newRight = 1;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setWidths((prev: any) => ({
         ...prev,
         [leftCol]: newLeft,
@@ -64,6 +66,7 @@ function ListHeader({ widths, setWidths, containerRef, sortCriteria, onSortChang
     document.addEventListener('mouseup', onMouseUp);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Column = ({ title, widthKey, nextKey, sortKey }: any) => {
     const isSorted = sortCriteria.key === sortKey;
     const isAsc = sortCriteria.order === SortDirection.Ascending;
@@ -128,7 +131,9 @@ function ListHeader({ widths, setWidths, containerRef, sortCriteria, onSortChang
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const groupImagesByFolder = (images: any[], baseFolderPath: string | null) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const groups: Record<string, any[]> = {};
 
   images.forEach((img) => {
@@ -155,6 +160,7 @@ const groupImagesByFolder = (images: any[], baseFolderPath: string | null) => {
   }));
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function LibraryGrid(props: any) {
   const {
     imageList,
@@ -180,6 +186,7 @@ export default function LibraryGrid(props: any) {
   const gridObserverRef = useRef<ResizeObserver | null>(null);
   const loadedThumbnailsRef = useRef(new Set<string>());
   const requestQueueRef = useRef<Set<string>>(new Set());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const requestTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
@@ -203,6 +210,7 @@ export default function LibraryGrid(props: any) {
   }, [libraryContainerRef]);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleWheel = (event: any) => {
       const container = libraryContainerRef.current;
       if (!container || !container.contains(event.target)) {
@@ -211,6 +219,7 @@ export default function LibraryGrid(props: any) {
 
       if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const currentIndex = thumbnailSizeOptions.findIndex((o: any) => o.id === thumbnailSize);
         if (currentIndex === -1) {
           return;
@@ -264,7 +273,7 @@ export default function LibraryGrid(props: any) {
   const handleToggleRecursiveFolder = useCallback((path: string) => {
     setCollapsedRecursiveFolders((prev) => {
       const next = new Set(prev);
-      next.has(path) ? next.delete(path) : next.add(path);
+      next.has(path) ? next.delete(path) : next.add(path); // eslint-disable-line @typescript-eslint/no-unused-expressions
       return next;
     });
   }, []);
@@ -279,6 +288,7 @@ export default function LibraryGrid(props: any) {
     const isListView = thumbnailSize === ThumbnailSize.List;
     const OUTER_PADDING = isListView ? 0 : 12;
     const ITEM_GAP = isListView ? 0 : 12;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const minThumbWidth = thumbnailSizeOptions.find((o: any) => o.id === thumbnailSize)?.size || 240;
 
     const availableWidth = gridSize.width - OUTER_PADDING * 2;
@@ -291,6 +301,7 @@ export default function LibraryGrid(props: any) {
     const rowHeight = isListView ? listRowHeight : itemWidth + ITEM_GAP;
     const headerHeight = 40;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows: any[] = [];
 
     if (libraryViewMode === LibraryViewMode.Recursive) {
@@ -368,7 +379,7 @@ export default function LibraryGrid(props: any) {
     prevActivePath.current = activePath;
 
     const element = listHandle.element as HTMLElement;
-    const { rows, rowHeight, headerHeight, columnCount } = gridData;
+    const { rowHeight, headerHeight, columnCount } = gridData;
 
     let targetTop = 0;
     let found = false;
@@ -392,7 +403,7 @@ export default function LibraryGrid(props: any) {
         targetTop += rowsInGroup * rowHeight;
       }
     } else {
-      const index = imageList.findIndex((img) => img.path === activePath);
+      const index = imageList.findIndex((img: ImageFile) => img.path === activePath);
       if (index !== -1) {
         const rowIndex = Math.floor(index / columnCount);
         targetTop = rowIndex * rowHeight;
@@ -477,6 +488,7 @@ export default function LibraryGrid(props: any) {
 
   const handleHeaderSort = (key: string) => {
     props.onClearSelection();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setSortCriteria((prev: any) => {
       if (prev.key === key) {
         if (prev.order === SortDirection.Ascending) {
@@ -500,6 +512,7 @@ export default function LibraryGrid(props: any) {
         {gridData.isListView && (
           <ListHeader
             widths={listColumnWidths}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             setWidths={(w: any) => setLibrary({ listColumnWidths: typeof w === 'function' ? w(listColumnWidths) : w })}
             containerRef={libraryContainerRef}
             sortCriteria={sortCriteria}
@@ -516,8 +529,8 @@ export default function LibraryGrid(props: any) {
             rowHeight={getItemSize}
             onScroll={(e: React.UIEvent<HTMLElement>) => handleScroll(e.currentTarget.scrollTop)}
             className="custom-scrollbar"
-            rowComponent={Row}
-            rowProps={memoizedRowProps}
+            rowComponent={Row as any} // eslint-disable-line @typescript-eslint/no-explicit-any
+            rowProps={memoizedRowProps as any} // eslint-disable-line @typescript-eslint/no-explicit-any
           />
         </div>
       </div>

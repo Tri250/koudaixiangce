@@ -84,7 +84,7 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
   }, []);
 
   const handleUpdateExif = useCallback(async (paths: Array<string> | undefined, updates: Record<string, string>) => {
-    const { multiSelectedPaths, imageList, setLibrary } = useLibraryStore.getState();
+    const { multiSelectedPaths, imageList: _imageList, setLibrary } = useLibraryStore.getState();
     const { selectedImage, setEditor } = useEditorStore.getState();
 
     const pathsToUpdate =
@@ -143,7 +143,9 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
   const handleMultiSelectClick = useCallback(
     (
       path: string,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       event: any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       options: { onSimpleClick(p: any): void; updateLibraryActivePath: boolean; shiftAnchor: string | null },
     ) => {
       const libraryState = useLibraryStore.getState();
@@ -190,11 +192,13 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
   );
 
   const handleLibraryImageSingleClick = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (path: string, event: any) => {
       const { selectionAnchorPath, libraryActivePath, setLibrary } = useLibraryStore.getState();
       handleMultiSelectClick(path, event, {
         shiftAnchor: selectionAnchorPath ?? libraryActivePath,
         updateLibraryActivePath: true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onSimpleClick: (p: any) =>
           setLibrary({ multiSelectedPaths: [p], libraryActivePath: p, selectionAnchorPath: p }),
       });
@@ -203,6 +207,7 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
   );
 
   const handleImageClick = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (path: string, event: any) => {
       const { selectionAnchorPath, libraryActivePath, setLibrary } = useLibraryStore.getState();
       const { selectedImage } = useEditorStore.getState();
@@ -229,6 +234,7 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
     const expandedArray = Array.from(expandedFolders);
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updates: any = {};
 
       if (rootPaths && rootPaths.length > 0) {
@@ -280,7 +286,7 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
         expandedFolders: Array.from(expandedFolders),
         showImageCounts: appSettings.enableFolderImageCounts ?? false,
       });
-      setLibrary({ pinnedFolderTrees: trees });
+      setLibrary({ pinnedFolderTrees: trees as any[] }); // eslint-disable-line @typescript-eslint/no-explicit-any
     } catch (err) {
       toast.error(`Failed to refresh pinned folders: ${err}`);
     }

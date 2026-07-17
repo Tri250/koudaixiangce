@@ -171,6 +171,7 @@ export enum ThumbnailAspectRatio {
 export interface AppSettings {
   aiConnectorAddress?: string;
   aiProvider?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   decorations?: any;
   editorPreviewResolution?: number;
   enableZoomHifi?: boolean;
@@ -180,7 +181,9 @@ export interface AppSettings {
   livePreviewQuality?: string;
   enableAiTagging?: boolean;
   filterCriteria?: FilterCriteria;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   lastFolderState?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pinnedFolders?: any;
   lastRootPath: string | null;
   libraryViewMode?: LibraryViewMode;
@@ -194,6 +197,7 @@ export interface AppSettings {
   processingBackend?: string;
   linuxGpuOptimization?: boolean;
   exportPresets?: ExportPreset[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   myLenses?: any;
   enableFolderImageCounts?: boolean;
   displayEditIcon?: boolean;
@@ -218,6 +222,8 @@ export interface AppSettings {
   language?: string;
   folderTreeSort?: FolderTreeSort;
   taggingShortcuts?: string[];
+  rootFolders?: string[];
+  fontFamily?: string;
 }
 
 export interface BrushSettings {
@@ -247,6 +253,7 @@ export interface FilterCriteria {
 }
 
 export interface Folder {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: any;
   id?: string | undefined;
   name?: string | undefined;
@@ -267,11 +274,13 @@ export interface ImageFile {
 export interface Option {
   color?: string;
   disabled?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon?: any;
   isDestructive?: boolean;
   label?: string;
   onClick?(): void;
   onRightClick?(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   submenu?: any;
   type?: string;
 }
@@ -299,10 +308,12 @@ export interface Progress {
 }
 
 export interface SelectedImage {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exif: any;
   height: number;
   isRaw: boolean;
   isReady: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: any;
   original_base64?: string;
   originalUrl: string | null;

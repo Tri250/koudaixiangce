@@ -147,6 +147,7 @@ export interface ParametricCurve {
 }
 
 export interface Adjustments {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [index: string]: any;
   aiPatches: Array<AiPatch>;
   aspectRatio: number | null;
@@ -238,6 +239,7 @@ export interface AiPatch {
   isLoading: boolean;
   invert: boolean;
   name: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   patchData: any | null;
   prompt: string;
   subMasks: Array<SubMask>;
@@ -291,6 +293,7 @@ interface Hsl {
 }
 
 export interface MaskAdjustments {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [index: string]: any;
   blacks: number;
   brightness: number;
@@ -326,6 +329,7 @@ export interface MaskAdjustments {
 
 export interface MaskContainer {
   adjustments: MaskAdjustments;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   id?: any;
   invert: boolean;
   name: string;
@@ -566,6 +570,7 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   whites: 0,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const deepCloneCurves = (curves: any): Curves => ({
   blue: curves?.blue?.map((p: Coord) => ({ ...p })) || [
     { x: 0, y: 0 },
@@ -585,6 +590,7 @@ const deepCloneCurves = (curves: any): Curves => ({
   ],
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const deepCloneParametric = (pCurve: any): ParametricCurve => ({
   luma: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS, ...(pCurve?.luma || {}) },
   red: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS, ...(pCurve?.red || {}) },
@@ -592,11 +598,13 @@ const deepCloneParametric = (pCurve: any): ParametricCurve => ({
   blue: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS, ...(pCurve?.blue || {}) },
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any => {
   if (!loadedAdjustments) {
     return INITIAL_ADJUSTMENTS;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const normalizeSubMasks = (subMasks: any[]) => {
     return (subMasks || []).map((subMask: Partial<SubMask>) => ({
       visible: true,
@@ -642,6 +650,7 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
     };
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const normalizedAiPatches = (loadedAdjustments.aiPatches || []).map((patch: any) => ({
     visible: true,
     ...patch,

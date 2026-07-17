@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -22,7 +22,7 @@ import Switch from '../../ui/Switch';
 import Button from '../../ui/Button';
 import Dropdown from '../../ui/Dropdown';
 import Text from '../../ui/Text';
-import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { TextColors, TextVariants } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 
 // ── Color Match Section ──────────────────────────────────────────────
@@ -102,7 +102,7 @@ function ColorMatchSection() {
 
 function FillLightSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
+  const _selectedImage = useEditorStore((s) => s.selectedImage);
   const [direction, setDirection] = useState(0);
   const [intensity, setIntensity] = useState(50);
   const [softness, setSoftness] = useState(30);

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Check, ChevronDown, ChevronRight, Plus, Star, Tag, X, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import clsx from 'clsx';
 import { Invokes } from '../../ui/AppProperties';
 import { COLOR_LABELS, Color } from '../../../utils/adjustments';
@@ -37,6 +37,7 @@ interface GPSData {
 
 interface MetaDataItemProps {
   label: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any;
 }
 
@@ -432,7 +433,7 @@ export default function MetadataPanel() {
                       ? t('editor.metadata.fileInfo.dimensions', {
                           width: selectedImage.width,
                           height: selectedImage.height,
-                          megapixels,
+                          megapixels: megapixels ?? '',
                         })
                       : t('editor.metadata.fileInfo.emptyDimensions')}
                   </Text>
@@ -449,7 +450,7 @@ export default function MetadataPanel() {
               </Text>
               <div className="flex flex-col gap-2">
                 <div className="grid grid-cols-2 gap-2">
-                  {cameraGridSettings.map((item: any) => {
+                  {cameraGridSettings.map((item: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                     const Icon = CAMERA_ICONS[item.key];
                     return (
                       <div

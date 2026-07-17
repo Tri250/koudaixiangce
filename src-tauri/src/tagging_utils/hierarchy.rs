@@ -191,3 +191,136 @@ pub static TAG_HIERARCHY: Lazy<HashMap<&'static str, Vec<&'static str>>> = Lazy:
 
     m
 });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tag_hierarchy_not_empty() {
+        assert!(!TAG_HIERARCHY.is_empty());
+    }
+
+    #[test]
+    fn test_tag_hierarchy_dog_is_pet_and_animal() {
+        let parents = TAG_HIERARCHY.get("dog");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"animal"));
+        assert!(parents.contains(&"pet"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_kitten_narrow() {
+        let parents = TAG_HIERARCHY.get("kitten");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"animal"));
+        assert!(parents.contains(&"pet"));
+        assert!(parents.contains(&"cat"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_boy_is_child() {
+        let parents = TAG_HIERARCHY.get("boy");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"person"));
+        assert!(parents.contains(&"people"));
+        assert!(parents.contains(&"child"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_nature_tags() {
+        let parents = TAG_HIERARCHY.get("mountain");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"nature"));
+        assert!(parents.contains(&"landscape"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_flowers() {
+        let parents = TAG_HIERARCHY.get("rose");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"nature"));
+        assert!(parents.contains(&"landscape"));
+        assert!(parents.contains(&"flower"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_architecture_tags() {
+        let parents = TAG_HIERARCHY.get("skyscraper");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"architecture"));
+        assert!(parents.contains(&"building"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_vehicle_tags() {
+        let parents = TAG_HIERARCHY.get("car");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"vehicle"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_food_tags() {
+        let parents = TAG_HIERARCHY.get("apple");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"food"));
+        assert!(parents.contains(&"fruit"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_tomato_is_fruit_and_vegetable() {
+        let parents = TAG_HIERARCHY.get("tomato");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"food"));
+        assert!(parents.contains(&"vegetable"));
+        assert!(parents.contains(&"fruit"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_monochrome_related() {
+        let parents = TAG_HIERARCHY.get("sepia");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"monochrome"));
+
+        let parents = TAG_HIERARCHY.get("black and white");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"monochrome"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_golden_hour() {
+        let parents = TAG_HIERARCHY.get("golden hour");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"lighting"));
+        assert!(parents.contains(&"sunrise"));
+        assert!(parents.contains(&"sunset"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_macro_is_closeup() {
+        let parents = TAG_HIERARCHY.get("macro");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"close-up"));
+    }
+
+    #[test]
+    fn test_tag_hierarchy_drone_shot() {
+        let parents = TAG_HIERARCHY.get("drone shot");
+        assert!(parents.is_some());
+        let parents = parents.unwrap();
+        assert!(parents.contains(&"aerial view"));
+    }
+}

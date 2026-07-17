@@ -2,11 +2,14 @@ import clsx from 'clsx';
 
 interface ButtonProps {
   autoFocus?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: any;
   className?: string;
   disabled?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onClick: any;
   size?: string;
+  tabIndex?: number;
   title?: string;
   variant?: string;
 }

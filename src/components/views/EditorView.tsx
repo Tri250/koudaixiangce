@@ -30,6 +30,7 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 
 import { ImageFile, Orientation, Panel, ThumbnailAspectRatio } from '../ui/AppProperties';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const panelVariants: any = {
   animate: (direction: number) => ({
     opacity: 1,
@@ -48,6 +49,7 @@ const panelVariants: any = {
 };
 
 interface EditorViewProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   transformWrapperRef: RefObject<any>;
   isResizing: boolean;
   isCompactPortrait: boolean;
@@ -58,15 +60,20 @@ interface EditorViewProps {
   sortedImageList: ImageFile[];
   createResizeHandler: (stateKey: string, startSize: number) => (e: ReactPointerEvent<HTMLDivElement>) => void;
   handleBackToLibrary: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleEditorContextMenu: (...args: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleThumbnailContextMenu: (...args: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleImageClick: (...args: any) => void;
   handleClearSelection: () => void;
   handleCopyAdjustments: () => void;
   handlePasteAdjustments: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleRate: (...args: any) => void;
   handleZoomChange: (zoom: number) => void;
   handleRightPanelSelect: (panelId: Panel) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   requestThumbnails: any;
 }
 
@@ -179,7 +186,7 @@ export default function EditorView({
       onRequestThumbnails={requestThumbnails}
       onZoomChange={handleZoomChange}
       rating={imageRatings[selectedImage?.path || ''] || 0}
-      selectedImage={selectedImage}
+      selectedImage={selectedImage ?? undefined}
       setIsFilmstripVisible={(value: boolean) =>
         setUI((state) => ({ uiVisibility: { ...state.uiVisibility, filmstrip: value } }))
       }

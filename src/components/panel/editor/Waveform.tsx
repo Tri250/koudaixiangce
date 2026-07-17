@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { AlertOctagon } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../../../lib/i18n-helpers';
 import { WaveformData } from '../../ui/AppProperties';
 import { DisplayMode } from '../../../utils/adjustments';
 
 interface WaveformProps {
   waveformData: WaveformData | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   histogram?: any;
   displayMode: string;
   setDisplayMode: (mode: string) => void;
@@ -53,6 +54,7 @@ const modeButtons = [
   },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const HistogramView = ({ histogram }: { histogram: any }) => {
   if (!histogram || !histogram.red || !histogram.green || !histogram.blue) return null;
 

@@ -124,13 +124,13 @@ fn enqueue_metadata(
     let state = app_handle.state::<crate::AppState>();
     let manager = &state.metadata_manager;
 
-    let mut pending = manager.pending.lock().unwrap();
+    let mut pending = manager.pending.lock().unwrap_or_else(|e| e.into_inner());
     if !pending.insert(sidecar_path.clone()) {
         return;
     }
     drop(pending);
 
-    manager.queue.lock().unwrap().push_back(PendingMetadata {
+    manager.queue.lock().unwrap_or_else(|e| e.into_inner()).push_back(PendingMetadata {
         virtual_path,
         image_path,
         sidecar_path,
@@ -154,11 +154,14 @@ pub fn start_metadata_workers(app_handle: tauri::AppHandle) {
         std::thread::spawn(move || {
             loop {
                 let item = {
-                    let mut queue = manager_clone.queue.lock().unwrap();
+                    let mut queue = manager_clone.queue.lock().unwrap_or_else(|e| e.into_inner());
                     while queue.is_empty() {
-                        queue = manager_clone.cvar.wait(queue).unwrap();
+                        queue = match manager_clone.cvar.wait(queue) {
+                            Ok(q) => q,
+                            Err(e) => e.into_inner(),
+                        };
                     }
-                    queue.pop_front().unwrap()
+                    queue.pop_front().unwrap_or_else(|| unreachable!("queue was non-empty after wait"))
                 };
 
                 let settings = load_settings(app_clone.clone()).unwrap_or_default();
@@ -182,7 +185,7 @@ pub fn start_metadata_workers(app_handle: tauri::AppHandle) {
                 manager_clone
                     .pending
                     .lock()
-                    .unwrap()
+                    .unwrap_or_else(|e| e.into_inner())
                     .remove(&item.sidecar_path);
             }
         });
@@ -1241,7 +1244,7 @@ pub fn generate_thumbnail_data(
         let crop_data: Option<Crop> = serde_json::from_value(meta.adjustments["crop"].clone()).ok();
 
         let cached_base: Option<(DynamicImage, f32)> = {
-            let cache = state.thumbnail_geometry_cache.lock().unwrap();
+            let cache = state.thumbnail_geometry_cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some((cached_hash, img, scale)) = cache.get(path_str) {
                 let mut sufficient_resolution = true;
                 if let Some(c) = &crop_data
@@ -1357,7 +1360,7 @@ pub fn generate_thumbnail_data(
 
             let total_scale = gpu_scale * raw_scale_factor;
 
-            let mut cache = state.thumbnail_geometry_cache.lock().unwrap();
+            let mut cache = state.thumbnail_geometry_cache.lock().unwrap_or_else(|e| e.into_inner());
             if cache.len() > 30 {
                 cache.clear();
             }
@@ -1422,7 +1425,7 @@ pub fn generate_thumbnail_data(
         let gpu_adjustments = get_all_adjustments_from_json(&meta.adjustments, is_raw, tm_override);
         let lut_path = meta.adjustments["lutPath"].as_str();
         let lut = lut_path.and_then(|p| {
-            let mut cache = state.lut_cache.lock().unwrap();
+            let mut cache = state.lut_cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(cached_lut) = cache.get(p) {
                 return Some(cached_lut.clone());
             }
@@ -1593,13 +1596,16 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
         std::thread::spawn(move || {
             loop {
                 let path_to_process: String = {
-                    let mut queue = manager_clone.queue.lock().unwrap();
+                    let mut queue = manager_clone.queue.lock().unwrap_or_else(|e| e.into_inner());
                     while queue.is_empty() {
-                        queue = manager_clone.cvar.wait(queue).unwrap();
+                        queue = match manager_clone.cvar.wait(queue) {
+                            Ok(q) => q,
+                            Err(e) => e.into_inner(),
+                        };
                     }
-                    let path = queue.pop_back().unwrap();
+                    let path = queue.pop_back().unwrap_or_else(|| unreachable!("queue was non-empty after wait"));
 
-                    let mut processing = manager_clone.processing_now.lock().unwrap();
+                    let mut processing = manager_clone.processing_now.lock().unwrap_or_else(|e| e.into_inner());
                     if processing.contains(&path) {
                         let state = app_clone.state::<crate::AppState>();
                         increment_thumbnail_progress(&state, &app_clone);
@@ -1638,7 +1644,7 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
                 manager_clone
                     .processing_now
                     .lock()
-                    .unwrap()
+                    .unwrap_or_else(|e| e.into_inner())
                     .remove(&path_to_process);
             }
         });
@@ -1652,11 +1658,11 @@ pub fn update_thumbnail_queue(
 ) -> Result<(), String> {
     let state = app_handle.state::<crate::AppState>();
 
-    let mut queue = state.thumbnail_manager.queue.lock().unwrap();
+    let mut queue = state.thumbnail_manager.queue.lock().unwrap_or_else(|e| e.into_inner());
 
     if paths.is_empty() {
         queue.clear();
-        let mut tracker = state.thumbnail_progress.lock().unwrap();
+        let mut tracker = state.thumbnail_progress.lock().unwrap_or_else(|e| e.into_inner());
         tracker.total = 0;
         tracker.completed = 0;
         drop(tracker);
@@ -1778,11 +1784,11 @@ pub fn resolve_lens_params_in_adjustments(
                     {
                         map.insert(
                             "lensMaker".to_string(),
-                            serde_json::to_value(&detected_maker).unwrap(),
+                            serde_json::to_value(&detected_maker).unwrap_or(serde_json::Value::Null),
                         );
                         map.insert(
                             "lensModel".to_string(),
-                            serde_json::to_value(&detected_model).unwrap(),
+                            serde_json::to_value(&detected_model).unwrap_or(serde_json::Value::Null),
                         );
                     } else {
                         map.remove("lensMaker");
@@ -1835,7 +1841,7 @@ pub fn resolve_lens_params_in_adjustments(
                     ) {
                         map.insert(
                             "lensDistortionParams".to_string(),
-                            serde_json::to_value(params).unwrap(),
+                            serde_json::to_value(params).unwrap_or(serde_json::Value::Null),
                         );
                         true
                     } else {
@@ -1984,12 +1990,12 @@ pub fn duplicate_file(
         fs::copy(&source_sidecar_path, &dest_sidecar_path).map_err(|e| e.to_string())?;
     }
 
-    let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
+    let mut source_rrexif_name = source_path.file_name().unwrap_or_default().to_os_string();
     source_rrexif_name.push(".rrexif");
     let source_rrexif = source_path.with_file_name(source_rrexif_name);
 
     if source_rrexif.exists() {
-        let mut dest_rrexif_name = dest_path.file_name().unwrap().to_os_string();
+        let mut dest_rrexif_name = dest_path.file_name().unwrap_or_default().to_os_string();
         dest_rrexif_name.push(".rrexif");
         let dest_rrexif = dest_path.with_file_name(dest_rrexif_name);
         let _ = fs::copy(&source_rrexif, &dest_rrexif);
@@ -2091,11 +2097,11 @@ pub fn copy_files(source_paths: Vec<String>, destination_folder: String) -> Resu
                 }
                 counter += 1;
             };
-            let new_filename = new_base_path.file_name().unwrap().to_string_lossy();
+            let new_filename = new_base_path.file_name().unwrap_or_default().to_string_lossy();
 
             for original_file in all_files_to_copy {
-                let original_full_filename = original_file.file_name().unwrap().to_string_lossy();
-                let source_base_filename = source_image_path.file_name().unwrap().to_string_lossy();
+                let original_full_filename = original_file.file_name().unwrap_or_default().to_string_lossy();
+                let source_base_filename = source_image_path.file_name().unwrap_or_default().to_string_lossy();
                 let new_dest_filename =
                     original_full_filename.replacen(&*source_base_filename, &new_filename, 1);
                 let final_dest_path = dest_path.join(new_dest_filename);
@@ -2165,7 +2171,7 @@ pub fn move_files(
             }
         }
 
-        let dest_image_path = dest_path.join(source_image_path.file_name().unwrap());
+        let dest_image_path = dest_path.join(source_image_path.file_name().unwrap_or_default());
         renames.insert(
             source_image_path.to_string_lossy().into_owned(),
             dest_image_path.to_string_lossy().into_owned(),
@@ -2217,7 +2223,7 @@ pub fn save_metadata_and_update_thumbnail(
 
     let mut final_adjustments = adjustments;
     {
-        let lens_db_guard = state.lens_db.lock().unwrap();
+        let lens_db_guard = state.lens_db.lock().unwrap_or_else(|e| e.into_inner());
         resolve_lens_params_in_adjustments(
             &mut final_adjustments,
             &metadata.exif,
@@ -2237,7 +2243,7 @@ pub fn save_metadata_and_update_thumbnail(
         sync_metadata_to_xmp(&source_path, &metadata, create_if_missing);
     }
 
-    let loaded_image_lock = state.original_image.lock().unwrap();
+    let loaded_image_lock = state.original_image.lock().unwrap_or_else(|e| e.into_inner());
     let preloaded_image_option = if let Some(loaded_image) = loaded_image_lock.as_ref() {
         if loaded_image.path == path {
             Some(loaded_image.image.clone())
@@ -2317,7 +2323,7 @@ pub async fn apply_adjustments_to_paths(
             .state::<AppState>()
             .lens_db
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone();
 
         paths.par_iter().for_each(|path| {
@@ -2787,7 +2793,7 @@ pub fn handle_import_legacy_presets_from_file(
         .map_err(|e| format!("Failed to read legacy preset file: {}", e))?;
 
     let xmp_content = if file_path.to_lowercase().ends_with(".lrtemplate") {
-        let re = Regex::new(r#"(?s)s.xmp = "(.*)""#).unwrap();
+        let re = Regex::new(r#"(?s)s.xmp = "(.*)""#).expect("hardcoded regex should always compile");
         if let Some(caps) = re.captures(&content) {
             caps.get(1)
                 .map(|m| m.as_str().replace(r#"\""#, r#"""#))
@@ -3346,12 +3352,12 @@ pub async fn import_files(
                     fs::copy(&source_sidecar, &dest_sidecar).map_err(|e| e.to_string())?;
                 }
 
-                let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
+                let mut source_rrexif_name = source_path.file_name().unwrap_or_default().to_os_string();
                 source_rrexif_name.push(".rrexif");
                 let source_rrexif = source_path.with_file_name(source_rrexif_name);
 
                 if source_rrexif.exists() {
-                    let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
+                    let mut dest_rrexif_name = dest_file_path.file_name().unwrap_or_default().to_os_string();
                     dest_rrexif_name.push(".rrexif");
                     let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
                     let _ = fs::copy(&source_rrexif, &dest_rrexif);
@@ -3501,8 +3507,8 @@ pub fn rename_files(
         let parent = original_path
             .parent()
             .ok_or("Could not get parent directory")?;
-        let original_filename_str = original_path.file_name().unwrap().to_string_lossy();
-        let new_filename_str = new_path.file_name().unwrap().to_string_lossy();
+        let original_filename_str = original_path.file_name().unwrap_or_default().to_string_lossy();
+        let new_filename_str = new_path.file_name().unwrap_or_default().to_string_lossy();
 
         if let Ok(entries) = fs::read_dir(parent) {
             for entry in entries.filter_map(Result::ok) {
@@ -3518,7 +3524,7 @@ pub fn rename_files(
                     let new_sidecar_path = parent.join(new_sidecar_filename);
                     sidecar_operations.insert(entry_path, new_sidecar_path);
                 } else if entry_filename == format!("{}.rrdata", original_filename_str) {
-                    let mut new_sidecar_name = new_path.file_name().unwrap().to_os_string();
+                    let mut new_sidecar_name = new_path.file_name().unwrap_or_default().to_os_string();
                     new_sidecar_name.push(".rrdata");
                     let new_sidecar_path = new_path.with_file_name(new_sidecar_name);
 
@@ -3527,12 +3533,12 @@ pub fn rename_files(
             }
         }
 
-        let mut old_rrexif_name = original_path.file_name().unwrap().to_os_string();
+        let mut old_rrexif_name = original_path.file_name().unwrap_or_default().to_os_string();
         old_rrexif_name.push(".rrexif");
         let old_rrexif = original_path.with_file_name(old_rrexif_name);
 
         if old_rrexif.exists() {
-            let mut new_rrexif_name = new_path.file_name().unwrap().to_os_string();
+            let mut new_rrexif_name = new_path.file_name().unwrap_or_default().to_os_string();
             new_rrexif_name.push(".rrexif");
             let new_rrexif = new_path.with_file_name(new_rrexif_name);
             sidecar_operations.insert(old_rrexif, new_rrexif);
@@ -3740,8 +3746,8 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
         && let Ok(mut content) = fs::read_to_string(&xmp_file)
     {
         let rating_str = metadata.rating.to_string();
-        let re_rating_attr = Regex::new(r#"xmp:Rating\s*=\s*"[^"]*""#).unwrap();
-        let re_rating_tag = Regex::new(r#"<xmp:Rating\s*>[^<]*</xmp:Rating>"#).unwrap();
+        let re_rating_attr = Regex::new(r#"xmp:Rating\s*=\s*"[^"]*""#).expect("hardcoded regex should always compile");
+        let re_rating_tag = Regex::new(r#"<xmp:Rating\s*>[^<]*</xmp:Rating>"#).expect("hardcoded regex should always compile");
 
         if re_rating_attr.is_match(&content) {
             content = re_rating_attr
@@ -3774,8 +3780,8 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
         }
 
         if let Some(lbl) = label {
-            let re_label_attr = Regex::new(r#"xmp:Label\s*=\s*"[^"]*""#).unwrap();
-            let re_label_tag = Regex::new(r#"<xmp:Label\s*>[^<]*</xmp:Label>"#).unwrap();
+            let re_label_attr = Regex::new(r#"xmp:Label\s*=\s*"[^"]*""#).expect("hardcoded regex should always compile");
+            let re_label_tag = Regex::new(r#"<xmp:Label\s*>[^<]*</xmp:Label>"#).expect("hardcoded regex should always compile");
 
             if re_label_attr.is_match(&content) {
                 content = re_label_attr
@@ -3790,14 +3796,14 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
                 content = format!("{} <xmp:Label>{}</xmp:Label>\n{}", start, lbl, end);
             }
         } else {
-            let re_label_attr = Regex::new(r#"\s*xmp:Label\s*=\s*"[^"]*""#).unwrap();
-            let re_label_tag = Regex::new(r#"\s*<xmp:Label\s*>[^<]*</xmp:Label>"#).unwrap();
+            let re_label_attr = Regex::new(r#"\s*xmp:Label\s*=\s*"[^"]*""#).expect("hardcoded regex should always compile");
+            let re_label_tag = Regex::new(r#"\s*<xmp:Label\s*>[^<]*</xmp:Label>"#).expect("hardcoded regex should always compile");
             content = re_label_attr.replace_all(&content, "").to_string();
             content = re_label_tag.replace_all(&content, "").to_string();
         }
 
         let re_subject =
-            Regex::new(r#"(?s)<dc:subject>\s*<rdf:Bag>.*?</rdf:Bag>\s*</dc:subject>"#).unwrap();
+            Regex::new(r#"(?s)<dc:subject>\s*<rdf:Bag>.*?</rdf:Bag>\s*</dc:subject>"#).expect("hardcoded regex should always compile");
         if normal_tags.is_empty() {
             content = re_subject.replace_all(&content, "").to_string();
         } else {

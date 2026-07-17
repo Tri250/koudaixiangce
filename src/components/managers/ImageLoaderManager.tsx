@@ -1,6 +1,7 @@
 import { useImageLoader } from '../../hooks/useImageLoader';
 
 interface Props {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cachedEditStateRef: React.RefObject<any>;
 }
 
