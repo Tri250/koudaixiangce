@@ -1,3 +1,4 @@
+#![rustfmt::skip]
 #[cfg(target_os = "android")]
 use jni::objects::{JObject, JString, JValue};
 #[cfg(target_os = "android")]
