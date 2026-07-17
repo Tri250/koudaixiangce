@@ -1,4 +1,4 @@
-use image::{DynamicImage, GenericImageView, GrayImage, ImageBuffer, Luma, Rgb, RgbImage, Rgba, RgbaImage};
+use image::{DynamicImage, GenericImageView, GrayImage, ImageBuffer, Luma, Rgb, RgbImage, Rgba, RgbaImage, imageops};
 use serde::{Deserialize, Serialize};
 use anyhow;
 
@@ -567,11 +567,11 @@ pub fn retouch_clothing(
     if params.remove_wrinkles_strength > 0.01 {
         // Low-pass filter (blur) to separate low frequency (color) from high frequency (texture/wrinkles)
         let sigma = 5.0 + params.remove_wrinkles_strength * 10.0;
-        let low_freq = imageproc::filter::gaussian_blur_f32(&result.to_luma8(), sigma);
+        let low_freq = imageproc::filter::gaussian_blur_f32(&DynamicImage::ImageRgba8(result.clone()).to_luma8(), sigma);
 
         for y in 0..height {
             for x in 0..width {
-                let p = result.get_pixel(x, y);
+                let p = *result.get_pixel(x, y);
                 let low = low_freq.get_pixel(x, y)[0] as f32 / 255.0;
 
                 // Reduce high-frequency component (wrinkles)
@@ -588,11 +588,11 @@ pub fn retouch_clothing(
     // Fabric smoothing
     if params.smooth_fabric > 0.01 {
         let sigma = 1.0 + params.smooth_fabric * 3.0;
-        let smoothed = imageproc::filter::gaussian_blur_f32(&result.to_luma8(), sigma);
+        let smoothed = imageproc::filter::gaussian_blur_f32(&DynamicImage::ImageRgba8(result.clone()).to_luma8(), sigma);
 
         for y in 0..height {
             for x in 0..width {
-                let p = result.get_pixel(x, y);
+                let p = *result.get_pixel(x, y);
                 let smooth = smoothed.get_pixel(x, y)[0] as f32 / 255.0;
                 let strength = params.smooth_fabric * 0.3;
 
@@ -856,7 +856,7 @@ fn apply_local_gaussian(
     height: u32,
 ) -> Rgba<u8> {
     if radius < 0.5 {
-        return image.get_pixel(cx, cy);
+        return *image.get_pixel(cx, cy);
     }
 
     let r = radius.ceil() as i32;
@@ -891,7 +891,7 @@ fn apply_local_gaussian(
 // ============================================================================
 
 /// Parameters for old photo restoration.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OldPhotoRestoreParams {
     /// Denoise strength (0.0 to 1.0)
@@ -939,7 +939,7 @@ pub fn restore_old_photo_with_params(image: &DynamicImage, params: &OldPhotoRest
     if params.denoise_strength > 0.01 {
         let sigma = params.denoise_strength * 3.0;
         let rgba = result.to_rgba8();
-        let gray = DynamicImage::ImageRgba8(rgba).to_luma8();
+        let gray = DynamicImage::ImageRgba8(rgba.clone()).to_luma8();
         let denoised_gray = imageproc::filter::gaussian_blur_f32(&gray, sigma);
 
         let (width, height) = rgba.dimensions();
@@ -1009,7 +1009,7 @@ pub fn restore_old_photo_with_params(image: &DynamicImage, params: &OldPhotoRest
 fn apply_unsharp_mask(image: &DynamicImage, sigma: f32, amount: f32) -> DynamicImage {
     let (width, height) = image.dimensions();
     let rgba = image.to_rgba8();
-    let blurred = imageproc::filter::gaussian_blur_f32(&rgba.to_luma8(), sigma);
+    let blurred = imageproc::filter::gaussian_blur_f32(&DynamicImage::ImageRgba8(rgba.clone()).to_luma8(), sigma);
 
     let mut result = RgbaImage::new(width, height);
     for y in 0..height {
@@ -1202,7 +1202,7 @@ fn apply_light_leak(image: &mut RgbaImage, strength: f32, color: [u8; 3]) {
 
             let p = image.get_pixel(x, y);
             // Screen blend with leak color
-            let blend = |base: u8, add: u8| -> u8 {
+            let blend = |base: u8, add: u8| -> f32 {
                 let b = base as f32 / 255.0;
                 let a = add as f32 / 255.0 * leak;
                 (1.0 - (1.0 - b) * (1.0 - a)).clamp(0.0, 1.0)
@@ -1316,10 +1316,10 @@ pub fn process_id_photo(
         "passport" => IdPhotoSize::Passport,
         _ => IdPhotoSize::Custom,
     };
-    let bg_color = background_color.unwrap_or([255, 255, 255]);
+    let bg_color = background_color.unwrap_or((255, 255, 255));
     let params = IdPhotoParams {
         size: photo_size,
-        background_color: bg_color,
+        background_color: [bg_color.0, bg_color.1, bg_color.2],
         bg_replacement_enabled: background_color.is_some(),
         custom_width: 0,
         custom_height: 0,

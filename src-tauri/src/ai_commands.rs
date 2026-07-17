@@ -3,7 +3,8 @@ use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 
 use base64::{Engine as _, engine::general_purpose};
-use image::{GrayImage, ImageFormat};
+use image::{DynamicImage, GrayImage, ImageFormat};
+use tauri::Manager;
 
 use crate::ai_connector;
 use crate::ai_processing::{

@@ -418,7 +418,7 @@ fn apply_warp_field(
 
     for y in 0..height {
         for x in 0..width {
-            result.put_pixel(x, y, rgba.get_pixel(x, y));
+            result.put_pixel(x, y, *rgba.get_pixel(x, y));
         }
     }
 

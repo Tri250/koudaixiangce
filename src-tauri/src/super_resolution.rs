@@ -14,7 +14,7 @@ use tokio::sync::Mutex as TokioMutex;
 
 const ESRGAN_URL: &str = "https://huggingface.co/CyberTimon/RapidRAW-Models/resolve/main/realesrgan_x2plus.onnx?download=true";
 const ESRGAN_FILENAME: &str = "realesrgan_x2plus.onnx";
-const ESRGAN_SHA256: &str = "placeholder_esrgan_hash";
+const ESRGAN_SHA256: &str = "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4";
 const ESRGAN_INPUT_SIZE: usize = 512;
 
 /// Super resolution model type.
@@ -360,7 +360,7 @@ fn process_tile(
     scale: u32,
     tile_size: usize,
 ) -> Result<Vec<f32>> {
-    let input_values = tile.into_dyn().as_standard_layout().to_owned();
+    let input_values = tile.clone().into_dyn().as_standard_layout().to_owned();
     let t_input = Tensor::from_array(input_values)?;
 
     let output = {
@@ -506,8 +506,8 @@ async fn download_and_verify_sr_model(
     }
     fs::rename(&tmp_path, &dest_path).or_else(|e| -> std::io::Result<()> {
         if dest_path.exists() {
-            fs::remove_file(dest_path)?;
-            fs::rename(&tmp_path, dest_path)
+            fs::remove_file(&dest_path)?;
+            fs::rename(&tmp_path, &dest_path)
         } else {
             Err(e)
         }

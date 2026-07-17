@@ -89,7 +89,7 @@ pub async fn detect_faces_in_image(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result = tokio::task::spawn_blocking(move || {
-        crate::portrait_detection::detect_faces(warped_image.as_ref(), &app_handle)
+        crate::portrait_detection::detect_faces_compat(warped_image.as_ref(), &app_handle)
             .map_err(|e| e.to_string())
     })
     .await
@@ -107,7 +107,7 @@ pub async fn detect_body_in_image(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result = tokio::task::spawn_blocking(move || {
-        crate::portrait_detection::detect_body(warped_image.as_ref(), &app_handle)
+        crate::portrait_detection::detect_body_compat(warped_image.as_ref(), &app_handle)
             .map_err(|e| e.to_string())
     })
     .await
@@ -125,7 +125,16 @@ pub async fn apply_liquify(
     let image = decode_base64_image(&image_data_base64)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::liquify::apply_liquify_strokes(&image, &strokes).map_err(|e| e.to_string())
+        let liquify_strokes: Vec<crate::liquify::LiquifyStrokeCommand> = strokes
+            .into_iter()
+            .map(|s| crate::liquify::LiquifyStrokeCommand {
+                brush_type: s.brush_type,
+                radius: s.radius,
+                pressure: s.pressure,
+                points: s.points,
+            })
+            .collect();
+        crate::liquify::apply_liquify_strokes(&image, &liquify_strokes).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -165,7 +174,7 @@ pub async fn auto_remove_blemishes(
     let image = decode_base64_image(&image_data_base64)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::auto_remove_blemishes(&image, &face_landmarks, sensitivity, &app_handle)
+        crate::skin_retouching::auto_remove_blemishes_compat(&image, &face_landmarks, sensitivity)
             .map_err(|e| e.to_string())
     })
     .await
@@ -459,9 +468,25 @@ pub async fn batch_sync_preset(
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     let total = image_paths.len();
-    for (idx, _path) in image_paths.iter().enumerate() {
-        // Processing will be delegated to the processing modules once implemented.
-        // For now this is a stub that emits progress events.
+    for (idx, path) in image_paths.iter().enumerate() {
+        // Load image from path
+        let img_result = image::open(path);
+        match img_result {
+            Ok(_img) => {
+                // Successfully loaded image. Preset adjustments would be applied
+                // via the existing GPU pipeline. For batch sync, we serialize
+                // the preset adjustments to a sidecar .json file next to the image.
+                let sidecar_path = format!("{}.json", path);
+                let preset_json = serde_json::to_string_pretty(&preset_adjustments)
+                    .map_err(|e| format!("Failed to serialize preset: {}", e))?;
+                std::fs::write(&sidecar_path, &preset_json)
+                    .map_err(|e| format!("Failed to write sidecar {}: {}", sidecar_path, e))?;
+            }
+            Err(e) => {
+                log::warn!("batch_sync_preset: Failed to load {}: {}", path, e);
+            }
+        }
+
         let _ = app_handle.emit(
             "batch-sync-progress",
             serde_json::json!({ "current": idx + 1, "total": total }),

@@ -217,7 +217,7 @@ pub fn bilateral_skin_smooth(
                     ]),
                 );
             } else {
-                result.put_pixel(x, y, centre);
+                result.put_pixel(x, y, *centre);
             }
         }
     }
@@ -615,6 +615,401 @@ pub fn skin_color_uniform(
 // ---------------------------------------------------------------------------
 // Skin texture enhance / reduce
 // ---------------------------------------------------------------------------
+
+// ============================================================================
+// Compatibility functions called from retouching_commands.rs
+// ============================================================================
+
+/// Skin smoothing called from the Tauri command layer.
+/// Wraps `apply_skin_smoothing` with individual parameters.
+pub fn smooth_skin(
+    image: &DynamicImage,
+    method: &str,
+    strength: f32,
+    texture_preservation: f32,
+    radius: f32,
+) -> anyhow::Result<DynamicImage> {
+    let smoothing_method = match method.to_lowercase().as_str() {
+        "bilateral" => SkinSmoothingMethod::Bilateral,
+        "frequencyseparation" | "frequency_separation" => SkinSmoothingMethod::FrequencySeparation,
+        _ => SkinSmoothingMethod::NeutralGray,
+    };
+    let params = SkinSmoothingParams {
+        method: smoothing_method,
+        strength: strength.clamp(0.0, 1.0),
+        texture_preservation: texture_preservation.clamp(0.0, 1.0),
+        radius: radius.max(1.0),
+    };
+    let result = apply_skin_smoothing(image, &params);
+    Ok(DynamicImage::ImageRgb8(result))
+}
+
+/// Unify skin color called from the Tauri command layer.
+/// Wraps `skin_color_uniform` with serde_json::Value landmarks.
+pub fn unify_skin_color(
+    image: &DynamicImage,
+    face_landmarks: &serde_json::Value,
+    strength: f32,
+) -> anyhow::Result<DynamicImage> {
+    // Parse face bounding boxes from landmarks JSON.
+    // Expected format: array of objects with "bbox" field, or array of [x0, y0, x1, y1]
+    let mut face_bboxes: Vec<(f32, f32, f32, f32)> = Vec::new();
+
+    if let Some(arr) = face_landmarks.as_array() {
+        for item in arr {
+            if let Some(obj) = item.as_object() {
+                if let Some(bbox) = obj.get("bbox") {
+                    if let Some(ba) = bbox.as_array() {
+                        if ba.len() >= 4 {
+                            let x0 = ba[0].as_f64().unwrap_or(0.0) as f32;
+                            let y0 = ba[1].as_f64().unwrap_or(0.0) as f32;
+                            let x1 = ba[2].as_f64().unwrap_or(0.0) as f32;
+                            let y1 = ba[3].as_f64().unwrap_or(0.0) as f32;
+                            face_bboxes.push((x0, y0, x1, y1));
+                        }
+                    }
+                }
+            } else if let Some(coords) = item.as_array() {
+                if coords.len() >= 4 {
+                    let x0 = coords[0].as_f64().unwrap_or(0.0) as f32;
+                    let y0 = coords[1].as_f64().unwrap_or(0.0) as f32;
+                    let x1 = coords[2].as_f64().unwrap_or(0.0) as f32;
+                    let y1 = coords[3].as_f64().unwrap_or(0.0) as f32;
+                    face_bboxes.push((x0, y0, x1, y1));
+                }
+            }
+        }
+    }
+
+    if face_bboxes.is_empty() {
+        // No face regions specified – use a single full-image region
+        let (w, h) = image.dimensions();
+        face_bboxes.push((0.0, 0.0, w as f32, h as f32));
+    }
+
+    let result = skin_color_uniform(image, &face_bboxes, strength.clamp(0.0, 1.0));
+    Ok(DynamicImage::ImageRgb8(result))
+}
+
+/// AI remove people from image using inpainting.
+///
+/// Given person regions as bounding boxes, creates a mask and fills
+/// using a simple border-average inpainting approach.
+pub fn ai_remove_people(
+    image: &DynamicImage,
+    person_regions: &[(f64, f64, f64, f64)],
+    _app_handle: &tauri::AppHandle,
+) -> anyhow::Result<DynamicImage> {
+    let (width, height) = image.dimensions();
+    let mut result = image.to_rgba8();
+
+    for &(rx, ry, rw, rh) in person_regions {
+        let x0 = (rx.max(0.0)) as u32;
+        let y0 = (ry.max(0.0)) as u32;
+        let x1 = ((rx + rw).min(width as f64)) as u32;
+        let y1 = ((ry + rh).min(height as f64)) as u32;
+
+        if x0 >= width || y0 >= height || x1 <= x0 || y1 <= y0 {
+            continue;
+        }
+
+        // Sample border colors from a 5-pixel ring around the region
+        let border = 5u32;
+        let bx0 = x0.saturating_sub(border);
+        let by0 = y0.saturating_sub(border);
+        let bx1 = (x1 + border).min(width);
+        let by1 = (y1 + border).min(height);
+
+        let mut sum_r = 0.0f32;
+        let mut sum_g = 0.0f32;
+        let mut sum_b = 0.0f32;
+        let mut count = 0u32;
+
+        for py in by0..by1 {
+            for px in bx0..bx1 {
+                // Only sample the border ring (outside the region)
+                if px >= x0 && px < x1 && py >= y0 && py < y1 {
+                    continue;
+                }
+                let p = result.get_pixel(px, py);
+                sum_r += p[0] as f32;
+                sum_g += p[1] as f32;
+                sum_b += p[2] as f32;
+                count += 1;
+            }
+        }
+
+        if count == 0 {
+            continue;
+        }
+
+        let avg_r = sum_r / count as f32;
+        let avg_g = sum_g / count as f32;
+        let avg_b = sum_b / count as f32;
+
+        // Inpaint: blend each pixel towards border average with distance weight
+        let cx = (x0 + x1) as f32 / 2.0;
+        let cy = (y0 + y1) as f32 / 2.0;
+        let max_dist = ((x1 - x0) as f32 / 2.0).max((y1 - y0) as f32 / 2.0).max(1.0);
+
+        for py in y0..y1 {
+            for px in x0..x1 {
+                let dx = px as f32 - cx;
+                let dy = py as f32 - cy;
+                let dist = (dx * dx + dy * dy).sqrt();
+                // Weight: stronger at center, weaker at boundary
+                let t = (dist / max_dist).min(1.0);
+                let weight = (1.0 - t) * 0.8;
+
+                let p = result.get_pixel(px, py);
+                let r = (p[0] as f32 * (1.0 - weight) + avg_r * weight).round() as u8;
+                let g = (p[1] as f32 * (1.0 - weight) + avg_g * weight).round() as u8;
+                let b = (p[2] as f32 * (1.0 - weight) + avg_b * weight).round() as u8;
+                result.put_pixel(px, py, Rgba([r, g, b, p[3]]));
+            }
+        }
+    }
+
+    Ok(DynamicImage::ImageRgba8(result))
+}
+
+/// Retouch clothing called from the Tauri command layer.
+///
+/// Uses frequency separation and selective smoothing on clothing regions
+/// derived from body keypoints.
+pub fn retouch_clothing(
+    image: &DynamicImage,
+    body_keypoints: &serde_json::Value,
+    remove_wrinkles: f32,
+    remove_stains: bool,
+) -> anyhow::Result<DynamicImage> {
+    let (width, height) = image.dimensions();
+    let rgb = image.to_rgb8();
+
+    // Derive a clothing mask from body keypoints.
+    // Keypoints that correspond to torso/limb regions define clothing areas.
+    let skin_mask = detect_skin_mask(image);
+    let mut clothing_mask = GrayImage::from_pixel(width, height, Luma([0u8]));
+
+    // Parse keypoints to find torso region (between shoulders and hips)
+    let mut shoulder_y = f32::MAX;
+    let mut hip_y = 0.0f32;
+    let mut body_left = f32::MAX;
+    let mut body_right = 0.0f32;
+
+    if let Some(arr) = body_keypoints.as_array() {
+        // MediaPipe keypoints: shoulders at index 5,6; hips at 11,12
+        for (i, item) in arr.iter().enumerate() {
+            let x = item.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+            let y = item.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+            if i == 5 || i == 6 {
+                shoulder_y = shoulder_y.min(y);
+                body_left = body_left.min(x);
+                body_right = body_right.max(x);
+            }
+            if i == 11 || i == 12 {
+                hip_y = hip_y.max(y);
+                body_left = body_left.min(x);
+                body_right = body_right.max(x);
+            }
+        }
+    }
+
+    // If we found body keypoints, create clothing region mask
+    if shoulder_y < f32::MAX && hip_y > 0.0 {
+        let margin_y = (hip_y - shoulder_y) * 0.1;
+        let margin_x = (body_right - body_left) * 0.1;
+        let cy0 = (shoulder_y - margin_y).max(0.0) as u32;
+        let cy1 = (hip_y + margin_y).min(height as f32) as u32;
+        let cx0 = (body_left - margin_x).max(0.0) as u32;
+        let cx1 = (body_right + margin_x).min(width as f32) as u32;
+
+        for y in cy0..cy1 {
+            for x in cx0..cx1 {
+                // Clothing = body region minus skin
+                if skin_mask.get_pixel(x, y)[0] == 0 {
+                    clothing_mask.put_pixel(x, y, Luma([255]));
+                }
+            }
+        }
+    } else {
+        // No keypoints – assume lower 60% is clothing
+        let clothing_y = (height as f32 * 0.4) as u32;
+        for y in clothing_y..height {
+            for x in 0..width {
+                if skin_mask.get_pixel(x, y)[0] == 0 {
+                    clothing_mask.put_pixel(x, y, Luma([255]));
+                }
+            }
+        }
+    }
+
+    // Apply wrinkle reduction via frequency separation on clothing regions
+    let mut result = rgb.clone();
+    if remove_wrinkles > 0.01 {
+        let sep_radius = 8.0f32;
+        let (low, high) = frequency_separation(&rgb, sep_radius);
+        // Smooth the low-frequency layer further
+        let smoothed_low = image::imageops::blur(&low, sep_radius * (1.0 + remove_wrinkles));
+        let tex_keep = 1.0 - remove_wrinkles * 0.5;
+
+        for y in 0..height {
+            for x in 0..width {
+                if clothing_mask.get_pixel(x, y)[0] > 0 {
+                    let sl = smoothed_low.get_pixel(x, y);
+                    let hi = high.get_pixel(x, y);
+                    let hf_r = (hi[0] as i16 - 128) as f32 * tex_keep;
+                    let hf_g = (hi[1] as i16 - 128) as f32 * tex_keep;
+                    let hf_b = (hi[2] as i16 - 128) as f32 * tex_keep;
+                    let r = (sl[0] as f32 + hf_r).clamp(0.0, 255.0) as u8;
+                    let g = (sl[1] as f32 + hf_g).clamp(0.0, 255.0) as u8;
+                    let b = (sl[2] as f32 + hf_b).clamp(0.0, 255.0) as u8;
+                    result.put_pixel(x, y, Rgb([r, g, b]));
+                }
+            }
+        }
+    }
+
+    // Stain removal on clothing
+    if remove_stains {
+        let gray = DynamicImage::ImageRgb8(result.clone()).to_luma8();
+        let block_size = 8u32;
+        let threshold = 30.0f32;
+        for y in (1..height - 1).step_by(block_size as usize) {
+            for x in (1..width - 1).step_by(block_size as usize) {
+                if clothing_mask.get_pixel(x, y)[0] == 0 {
+                    continue;
+                }
+                let centre = gray.get_pixel(x, y)[0] as f32;
+                let mut sum = 0.0f32;
+                let mut count = 0u32;
+                for dy in -1i32..=1 {
+                    for dx in -1i32..=1 {
+                        if dx == 0 && dy == 0 { continue; }
+                        let nx = (x as i32 + dx).clamp(0, (width - 1) as i32) as u32;
+                        let ny = (y as i32 + dy).clamp(0, (height - 1) as i32) as u32;
+                        sum += gray.get_pixel(nx, ny)[0] as f32;
+                        count += 1;
+                    }
+                }
+                let avg = sum / count as f32;
+                if (centre - avg).abs() > threshold {
+                    let p = result.get_pixel(x, y);
+                    let ratio = if centre > 0.0 { avg / centre } else { 1.0 };
+                    let ratio = ratio.clamp(0.5, 1.5);
+                    result.put_pixel(x, y, Rgb([
+                        (p[0] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                        (p[1] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                        (p[2] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                    ]));
+                }
+            }
+        }
+    }
+
+    Ok(DynamicImage::ImageRgb8(result))
+}
+
+/// Auto-remove blemishes called from the Tauri command layer.
+/// Wraps `auto_remove_blemishes` with serde_json::Value landmarks.
+pub fn auto_remove_blemishes_compat(
+    image: &DynamicImage,
+    face_landmarks: &serde_json::Value,
+    sensitivity: f32,
+) -> anyhow::Result<DynamicImage> {
+    // Parse blemish candidates from landmarks, or detect from image
+    // The original auto_remove_blemishes takes blemish_candidates: &[(u32, u32, u32)]
+    // Here we generate candidates using local contrast analysis on face region
+
+    let (width, height) = image.dimensions();
+    let gray = image.to_luma8();
+    let skin_mask = detect_skin_mask(image);
+
+    let mut candidates: Vec<(u32, u32, u32)> = Vec::new();
+
+    // Determine face region from landmarks
+    let mut fx0 = 0u32;
+    let mut fy0 = 0u32;
+    let mut fx1 = width;
+    let mut fy1 = height;
+
+    if let Some(arr) = face_landmarks.as_array() {
+        if !arr.is_empty() {
+            let mut min_x = f32::MAX;
+            let mut min_y = f32::MAX;
+            let mut max_x = f32::MIN;
+            let mut max_y = f32::MIN;
+            for item in arr {
+                if let Some(obj) = item.as_object() {
+                    let x = obj.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let y = obj.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    min_x = min_x.min(x);
+                    min_y = min_y.min(y);
+                    max_x = max_x.max(x);
+                    max_y = max_y.max(y);
+                }
+            }
+            if min_x < f32::MAX {
+                fx0 = (min_x as u32).saturating_sub(20);
+                fy0 = (min_y as u32).saturating_sub(20);
+                fx1 = ((max_x as u32) + 20).min(width);
+                fy1 = ((max_y as u32) + 20).min(height);
+            }
+        }
+    }
+
+    // Scan for blemish candidates
+    let block = 6u32;
+    let thresh = 20.0f32 * (1.0 + (1.0 - sensitivity.clamp(0.0, 1.0)) * 2.0);
+    let mut by = fy0;
+    while by + block <= fy1 {
+        let mut bx = fx0;
+        while bx + block <= fx1 {
+            let cx = bx + block / 2;
+            let cy = by + block / 2;
+            if skin_mask.get_pixel(cx.min(width - 1), cy.min(height - 1))[0] == 0 {
+                bx += block / 2;
+                continue;
+            }
+            let mut sum = 0.0f32;
+            let mut count = 0u32;
+            for dy in 0..block {
+                for dx in 0..block {
+                    let px = bx + dx;
+                    let py = by + dy;
+                    if px < width && py < height {
+                        sum += gray.get_pixel(px, py)[0] as f32;
+                        count += 1;
+                    }
+                }
+            }
+            if count == 0 { bx += block / 2; continue; }
+            let mean = sum / count as f32;
+            let centre = gray.get_pixel(cx.min(width - 1), cy.min(height - 1))[0] as f32;
+            if centre < mean - thresh * 0.5 {
+                let radius = (block / 2).clamp(2, 8);
+                candidates.push((cx.min(width - 1), cy.min(height - 1), radius));
+            }
+            bx += block / 2;
+        }
+        by += block / 2;
+    }
+
+    // Deduplicate
+    let mut deduped: Vec<(u32, u32, u32)> = Vec::new();
+    for &c in &candidates {
+        let mut dominated = false;
+        for &r in &deduped {
+            let dx = c.0 as f32 - r.0 as f32;
+            let dy = c.1 as f32 - r.1 as f32;
+            if dx * dx + dy * dy < 100.0 { dominated = true; break; }
+        }
+        if !dominated { deduped.push(c); }
+    }
+
+    let result = auto_remove_blemishes(image, &deduped);
+    Ok(DynamicImage::ImageRgba8(result))
+}
 
 /// Enhance or reduce skin texture (pore visibility).
 ///

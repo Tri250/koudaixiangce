@@ -343,7 +343,7 @@ fn adjust_mask_for_horizon(mask: &GrayImage, horizon_y: f32, adjust: f32, height
     for y in 0..height {
         for x in 0..width {
             let src_y = (y as i32 - shift).clamp(0, height as i32 - 1) as u32;
-            result.put_pixel(x, y, mask.get_pixel(x, src_y));
+            result.put_pixel(x, y, *mask.get_pixel(x, src_y));
         }
     }
 

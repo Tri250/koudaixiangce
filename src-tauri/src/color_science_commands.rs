@@ -316,7 +316,7 @@ pub async fn export_ultra_hdr_jpeg(
 
         let clamped_quality = quality.clamp(1, 100);
 
-        let jpeg_bytes = mozjpeg_rs::Encoder::new(mozjpeg_rs::Preset::Baseline)
+        let jpeg_bytes = mozjpeg_rs::Encoder::new(mozjpeg_rs::Preset::BaselineBalanced)
             .quality(clamped_quality)
             .encode_rgb(&rgb_pixels, width, height)
             .map_err(|e| format!("Failed to encode Ultra HDR JPEG: {}", e))?;

@@ -412,6 +412,63 @@ pub fn apply_liquify_stroke(grid: &mut MeshGrid, stroke: &LiquifyStroke) {
 }
 
 // ---------------------------------------------------------------------------
+// Multiple-stroke application
+// ---------------------------------------------------------------------------
+
+/// Compatibility type matching the command-layer stroke definition.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct LiquifyStrokeCommand {
+    pub brush_type: String,
+    pub radius: f32,
+    pub pressure: f32,
+    pub points: Vec<(f32, f32)>,
+}
+
+/// Apply multiple liquify strokes to an image.
+///
+/// Creates a mesh grid, converts each `LiquifyStrokeCommand` into
+/// `LiquifyStroke`/`LiquifyBrush` form, applies them sequentially,
+/// then renders the final displaced image.
+pub fn apply_liquify_strokes(
+    image: &DynamicImage,
+    strokes: &[LiquifyStrokeCommand],
+) -> anyhow::Result<DynamicImage> {
+    let (width, height) = image.dimensions();
+    let grid_spacing = 4u32;
+    let mut grid = create_mesh_grid(width, height, grid_spacing);
+
+    for cmd in strokes {
+        let brush_type = match cmd.brush_type.to_lowercase().as_str() {
+            "push" => LiquifyBrushType::Push,
+            "pull" => LiquifyBrushType::Pull,
+            "pucker" => LiquifyBrushType::Pucker,
+            "bloat" => LiquifyBrushType::Bloat,
+            "twirl" => LiquifyBrushType::Twirl,
+            "reconstruct" => LiquifyBrushType::Reconstruct,
+            _ => LiquifyBrushType::Push,
+        };
+
+        // Convert points to brushes
+        let brushes: Vec<LiquifyBrush> = cmd
+            .points
+            .iter()
+            .map(|&pos| LiquifyBrush {
+                brush_type,
+                radius: cmd.radius,
+                pressure: cmd.pressure,
+                position: pos,
+            })
+            .collect();
+
+        let stroke = LiquifyStroke { brushes };
+        apply_liquify_stroke(&mut grid, &stroke);
+    }
+
+    let result = apply_liquify_mesh(&grid, image);
+    Ok(DynamicImage::ImageRgba8(result))
+}
+
+// ---------------------------------------------------------------------------
 // Bicubic interpolation helper
 // ---------------------------------------------------------------------------
 
