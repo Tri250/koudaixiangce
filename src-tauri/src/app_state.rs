@@ -170,4 +170,5 @@ pub struct AppState {
     pub decoded_image_cache: Mutex<DecodedImageCache>,
     pub thumbnail_manager: Arc<ThumbnailManager>,
     pub metadata_manager: Arc<MetadataManager>,
+    pub camera_color_profile: Mutex<Option<String>>,
 }

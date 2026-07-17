@@ -128,6 +128,9 @@ export enum Panel {
   Liquify = 'liquify',
   Sky = 'sky',
   Creative = 'creative',
+  Hdr = 'hdr',
+  Monochrome = 'monochrome',
+  ColorSpace = 'colorSpace',
 }
 
 export enum RawStatus {

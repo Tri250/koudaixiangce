@@ -1,0 +1,263 @@
+import React, { useState, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
+import { Palette, Upload, Loader2, RotateCcw, AlertTriangle, Camera } from 'lucide-react';
+import clsx from 'clsx';
+import CollapsibleSection from '../../ui/CollapsibleSection';
+import Button from '../../ui/Button';
+import Dropdown from '../../ui/Dropdown';
+import Switch from '../../ui/Switch';
+import Text from '../../ui/Text';
+import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+
+const COLOR_SPACE_OPTIONS = [
+    { label: 'sRGB', value: 'srgb' as const },
+    { label: 'Display P3', value: 'p3' as const },
+    { label: 'Rec. 2020', value: 'rec2020' as const },
+    { label: 'ProPhoto RGB', value: 'prophoto' as const },
+    { label: 'Adobe RGB', value: 'adobergb' as const },
+];
+
+interface CameraProfileInfo {
+    name: string;
+    make: string;
+    model: string;
+}
+
+export default function ColorSpacePanel() {
+    const { t } = useTranslation();
+
+    // State
+    const [workingColorSpace, setWorkingColorSpace] = useState<string>('srgb');
+    const [outputColorSpace, setOutputColorSpace] = useState<string>('srgb');
+    const [softProofEnabled, setSoftProofEnabled] = useState(false);
+    const [gamutWarningOverlay, setGamutWarningOverlay] = useState(false);
+    const [outOfGamutCount, setOutOfGamutCount] = useState<number>(0);
+
+    // Camera profile state
+    const [detectedCamera, setDetectedCamera] = useState<{ make: string; model: string } | null>(null);
+    const [cameraProfiles, setCameraProfiles] = useState<CameraProfileInfo[]>([]);
+    const [selectedProfileName, setSelectedProfileName] = useState<string>('Adobe Standard');
+    const [isImporting, setIsImporting] = useState(false);
+    const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
+
+    // Load camera profiles on mount
+    useEffect(() => {
+        const loadProfiles = async () => {
+            setIsLoadingProfiles(true);
+            try {
+                const profiles = await invoke<CameraProfileInfo[]>('get_camera_profiles');
+                setCameraProfiles(profiles);
+            } catch (err) {
+                console.error('get_camera_profiles failed:', err);
+            } finally {
+                setIsLoadingProfiles(false);
+            }
+        };
+        loadProfiles();
+    }, []);
+
+    // Auto-detect camera profile from EXIF
+    const handleAutoDetect = useCallback(async () => {
+        try {
+            const result = await invoke<{
+                detectedMake: string;
+                detectedModel: string;
+                suggestedProfile: CameraProfileInfo;
+            }>('get_camera_profile_for_image', {
+                exifMake: '', // Will be populated by editor store
+                exifModel: '',
+            });
+            setDetectedCamera({ make: result.detectedMake, model: result.detectedModel });
+            if (result.suggestedProfile) {
+                setSelectedProfileName(result.suggestedProfile.name);
+            }
+        } catch (err) {
+            console.error('get_camera_profile_for_image failed:', err);
+        }
+    }, []);
+
+    // Import DCP profile
+    const handleImportDCP = useCallback(async () => {
+        setIsImporting(true);
+        try {
+            const selected = await invoke<string>('import_dcp_profile', {
+                filePath: '', // Will trigger file dialog
+            });
+            if (selected) {
+                // Reload profiles after import
+                const profiles = await invoke<CameraProfileInfo[]>('get_camera_profiles');
+                setCameraProfiles(profiles);
+            }
+        } catch (err) {
+            console.error('import_dcp_profile failed:', err);
+        } finally {
+            setIsImporting(false);
+        }
+    }, []);
+
+    // Soft proof
+    const handleSoftProof = useCallback(async () => {
+        if (!softProofEnabled) return;
+        try {
+            const result = await invoke<{ proofImageBase64: string; outOfGamutPixels: number }>('soft_proof', {
+                imageDataBase64: '', // Will be populated by editor store
+                targetColorSpace: outputColorSpace,
+            });
+            setOutOfGamutCount(result.outOfGamutPixels);
+        } catch (err) {
+            console.error('soft_proof failed:', err);
+        }
+    }, [softProofEnabled, outputColorSpace]);
+
+    const cameraProfileOptions = cameraProfiles.map((p) => ({
+        label: p.name,
+        value: p.name,
+    }));
+
+    return (
+        <div className="flex flex-col h-full select-none overflow-hidden">
+            {/* Header */}
+            <div className="p-4 flex justify-between items-center shrink-0 border-b border-surface">
+                <div className="flex items-center gap-2">
+                    <Palette size={18} />
+                    <Text variant={TextVariants.title}>{t('editor.colorSpace.title')}</Text>
+                </div>
+                <button
+                    className="p-2 rounded-full hover:bg-surface transition-colors"
+                    data-tooltip={t('editor.colorSpace.reset')}
+                >
+                    <RotateCcw size={18} />
+                </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+                {/* Working Color Space */}
+                <CollapsibleSection
+                    title={t('editor.colorSpace.workingColorSpace')}
+                    isOpen={true}
+                    isContentVisible={true}
+                    onToggle={() => {}}
+                    onToggleVisibility={() => {}}
+                >
+                    <Dropdown
+                        options={COLOR_SPACE_OPTIONS}
+                        value={workingColorSpace}
+                        onChange={(v) => setWorkingColorSpace(v)}
+                        placeholder={t('editor.colorSpace.selectWorkingColorSpace')}
+                    />
+                </CollapsibleSection>
+
+                {/* Output Color Space */}
+                <CollapsibleSection
+                    title={t('editor.colorSpace.outputColorSpace')}
+                    isOpen={true}
+                    isContentVisible={true}
+                    onToggle={() => {}}
+                    onToggleVisibility={() => {}}
+                >
+                    <Dropdown
+                        options={COLOR_SPACE_OPTIONS}
+                        value={outputColorSpace}
+                        onChange={(v) => setOutputColorSpace(v)}
+                        placeholder={t('editor.colorSpace.selectOutputColorSpace')}
+                    />
+                </CollapsibleSection>
+
+                {/* Camera Profile Section */}
+                <CollapsibleSection
+                    title={t('editor.colorSpace.cameraProfile')}
+                    isOpen={true}
+                    isContentVisible={true}
+                    onToggle={() => {}}
+                    onToggleVisibility={() => {}}
+                >
+                    {/* Auto-detect from EXIF */}
+                    <Button
+                        className="w-full bg-surface mb-3"
+                        onClick={handleAutoDetect}
+                    >
+                        <Camera size={16} className="mr-2" />
+                        {t('editor.colorSpace.autoDetectFromExif')}
+                    </Button>
+
+                    {detectedCamera && (
+                        <div className="mb-3 px-3 py-2 bg-card-active rounded-md">
+                            <Text variant={TextVariants.small} color={TextColors.secondary}>
+                                {t('editor.colorSpace.detectedCamera')}
+                            </Text>
+                            <Text variant={TextVariants.small} color={TextColors.primary} weight={TextWeights.semibold}>
+                                {detectedCamera.make} {detectedCamera.model}
+                            </Text>
+                        </div>
+                    )}
+
+                    {/* Manual profile selector */}
+                    {!isLoadingProfiles && cameraProfileOptions.length > 0 && (
+                        <Dropdown
+                            options={cameraProfileOptions}
+                            value={selectedProfileName}
+                            onChange={(v) => setSelectedProfileName(v)}
+                            placeholder={t('editor.colorSpace.selectCameraProfile')}
+                            className="mb-3"
+                        />
+                    )}
+
+                    {isLoadingProfiles && (
+                        <div className="flex items-center gap-2 mb-3 text-text-secondary">
+                            <Loader2 size={16} className="animate-spin" />
+                            <Text variant={TextVariants.small}>{t('editor.colorSpace.loadingProfiles')}</Text>
+                        </div>
+                    )}
+
+                    {/* Import DCP button */}
+                    <Button
+                        className="w-full bg-surface"
+                        onClick={handleImportDCP}
+                        disabled={isImporting}
+                    >
+                        {isImporting ? (
+                            <Loader2 size={16} className="animate-spin mr-2" />
+                        ) : (
+                            <Upload size={16} className="mr-2" />
+                        )}
+                        {t('editor.colorSpace.importDCP')}
+                    </Button>
+                </CollapsibleSection>
+
+                {/* Soft Proof Toggle */}
+                <Switch
+                    checked={softProofEnabled}
+                    onChange={(v) => {
+                        setSoftProofEnabled(v);
+                        if (v) handleSoftProof();
+                    }}
+                    label={t('editor.colorSpace.softProof')}
+                />
+
+                {/* Out-of-gamut warning when soft proof is enabled */}
+                {softProofEnabled && outOfGamutCount > 0 && (
+                    <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                        <AlertTriangle size={16} className="text-yellow-500 shrink-0 mt-0.5" />
+                        <div>
+                            <Text variant={TextVariants.small} color={TextColors.primary} weight={TextWeights.semibold}>
+                                {t('editor.colorSpace.outOfGamutWarning')}
+                            </Text>
+                            <Text variant={TextVariants.small} color={TextColors.secondary}>
+                                {t('editor.colorSpace.outOfGamutCount', { count: outOfGamutCount })}
+                            </Text>
+                        </div>
+                    </div>
+                )}
+
+                {/* Gamut Warning Overlay */}
+                <Switch
+                    checked={gamutWarningOverlay}
+                    onChange={setGamutWarningOverlay}
+                    label={t('editor.colorSpace.gamutWarningOverlay')}
+                />
+            </div>
+        </div>
+    );
+}

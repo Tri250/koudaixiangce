@@ -14,6 +14,9 @@ import MasksPanel from '../panel/right/MasksPanel';
 import AIPanel from '../panel/right/AIPanel';
 import PresetsPanel from '../panel/right/PresetsPanel';
 import ExportPanel from '../panel/right/ExportPanel';
+import HDRPanel from '../panel/right/HDRPanel';
+import MonochromePanel from '../panel/right/MonochromePanel';
+import ColorSpacePanel from '../panel/right/ColorSpacePanel';
 
 import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -237,6 +240,9 @@ export default function EditorView({
             />
           )}
           {renderedRightPanel === Panel.Ai && <AIPanel />}
+          {renderedRightPanel === Panel.Hdr && <HDRPanel />}
+          {renderedRightPanel === Panel.Monochrome && <MonochromePanel />}
+          {renderedRightPanel === Panel.ColorSpace && <ColorSpacePanel />}
         </motion.div>
       )}
     </AnimatePresence>

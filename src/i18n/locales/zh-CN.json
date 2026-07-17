@@ -705,7 +705,10 @@
         "masks": "蒙版",
         "portrait": "人像精修",
         "presets": "预设",
-        "sky": "换天空"
+        "sky": "换天空",
+        "hdr": "HDR",
+        "monochrome": "黑白",
+        "colorSpace": "色彩空间"
       }
     },
     "toolbar": {
@@ -722,6 +725,84 @@
         "undo": "撤销（Ctrl+Z）或历史记录（右键单击）"
       },
       "vc": "VC"
+    },
+    "hdr": {
+      "title": "HDR 高动态范围",
+      "reset": "重置 HDR 设置",
+      "previewToggle": "HDR 预览",
+      "highlightRecovery": "高光恢复",
+      "selectMode": "选择模式",
+      "recoveryAmount": "恢复量",
+      "processing": "处理中…",
+      "peakBrightness": "峰值亮度",
+      "outputColorSpace": "输出色彩空间",
+      "selectOutputColorSpace": "选择输出色彩空间",
+      "outOfGamutWarning": "超出色域警告",
+      "outOfGamutCount": "超出色域像素数：{{count}}",
+      "export": "HDR 导出",
+      "exportUltraHDR": "导出 Ultra HDR JPG",
+      "exportHDRTIFF": "导出 HDR TIFF",
+      "gamutWarningOverlay": "色域警告叠加层",
+      "modes": {
+        "recover": "恢复",
+        "clip": "裁剪",
+        "rolloff": "滚降",
+        "smart_blend": "智能混合"
+      }
+    },
+    "monochrome": {
+      "title": "黑白转换",
+      "reset": "重置黑白设置",
+      "preset": "预设",
+      "presets": {
+        "neutral": "中性",
+        "red": "红色",
+        "orange": "橙色",
+        "yellow": "黄色",
+        "green": "绿色",
+        "blue": "蓝色",
+        "infrared": "红外"
+      },
+      "channelMixer": "通道混合器",
+      "redWeight": "红色权重",
+      "greenWeight": "绿色权重",
+      "blueWeight": "蓝色权重",
+      "totalWeight": "总权重",
+      "contrast": "对比度",
+      "toning": "调色",
+      "selectToning": "选择调色类型",
+      "toningStrength": "调色强度",
+      "shadowColor": "阴影颜色",
+      "highlightColor": "高光颜色",
+      "splitBalance": "分离平衡",
+      "apply": "应用",
+      "toningTypes": {
+        "none": "无",
+        "sepia": "棕褐",
+        "selenium": "硒",
+        "copper": "铜",
+        "cyanotype": "蓝晒",
+        "gold": "金",
+        "split": "分离调色"
+      }
+    },
+    "colorSpace": {
+      "title": "色彩空间管理",
+      "reset": "重置色彩空间设置",
+      "workingColorSpace": "工作色彩空间",
+      "selectWorkingColorSpace": "选择工作色彩空间",
+      "outputColorSpace": "输出色彩空间",
+      "selectOutputColorSpace": "选择输出色彩空间",
+      "cameraProfile": "相机配置文件",
+      "autoDetectFromExif": "从 EXIF 自动检测",
+      "detectedCamera": "检测到的相机",
+      "selectCameraProfile": "选择相机配置文件",
+      "loadingProfiles": "加载配置文件…",
+      "importDCP": "导入 DCP 配置文件",
+      "softProof": "软打样",
+      "outOfGamutWarning": "超出色域警告",
+      "outOfGamutCount": "超出色域像素数：{{count}}",
+      "gamutWarningOverlay": "色域警告叠加层"
     }
   },
   "export": {

@@ -82,6 +82,15 @@ interface EditorState {
   portraitDetectionLoading: boolean;
   activeRetouchingTab: 'face' | 'skin' | 'body' | 'hair' | 'creative';
 
+  // Color Science & HDR
+  workingColorSpace: 'srgb' | 'p3' | 'rec2020' | 'prophoto' | 'adobergb';
+  outputColorSpace: 'srgb' | 'p3' | 'rec2020' | 'prophoto' | 'adobergb';
+  hdrPreviewEnabled: boolean;
+  hdrPeakBrightness: number;
+  hdrHighlightMode: 'recover' | 'clip' | 'rolloff' | 'smart_blend';
+  monochromePreset: string;
+  cameraProfileName: string | null;
+
   // Actions
   setEditor: (updater: Partial<EditorState> | ((state: EditorState) => Partial<EditorState>)) => void;
   pushHistory: (newAdjustments: Adjustments) => void;
@@ -148,6 +157,14 @@ export const useEditorStore = create<EditorState>((set) => ({
   skinTexturePreservation: 50,
   portraitDetectionLoading: false,
   activeRetouchingTab: 'face',
+
+  workingColorSpace: 'srgb',
+  outputColorSpace: 'srgb',
+  hdrPreviewEnabled: false,
+  hdrPeakBrightness: 1000,
+  hdrHighlightMode: 'recover',
+  monochromePreset: 'neutral',
+  cameraProfileName: null,
 
   setEditor: (updater) => set((state) => (typeof updater === 'function' ? updater(state) : updater)),
 

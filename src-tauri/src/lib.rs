@@ -13,6 +13,11 @@ mod android_integration;
 mod app_settings;
 mod app_state;
 mod cache_utils;
+mod color_science;
+mod hdr_processing;
+mod monochrome_correction;
+mod camera_profiles;
+mod color_science_commands;
 mod culling;
 mod denoising;
 mod portrait_detection;
@@ -2304,6 +2309,7 @@ pub fn run() {
             decoded_image_cache: Mutex::new(DecodedImageCache::new(5)),
             thumbnail_manager: ThumbnailManager::new(),
             metadata_manager: MetadataManager::new(),
+            camera_color_profile: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             apply_adjustments,
@@ -2430,6 +2436,19 @@ pub fn run() {
             retouching_commands::add_eye_catchlight,
             retouching_commands::adjust_smile,
             retouching_commands::adjust_neck_shoulder,
+            color_science_commands::get_color_profiles,
+            color_science_commands::convert_color_space,
+            color_science_commands::soft_proof,
+            color_science_commands::apply_hdr_highlight_recovery,
+            color_science_commands::generate_gain_map,
+            color_science_commands::export_ultra_hdr_jpeg,
+            color_science_commands::export_hdr_tiff,
+            color_science_commands::convert_to_monochrome,
+            color_science_commands::get_monochrome_preview,
+            color_science_commands::get_camera_profiles,
+            color_science_commands::get_camera_profile_for_image,
+            color_science_commands::import_dcp_profile,
+            color_science_commands::set_camera_color_profile,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
