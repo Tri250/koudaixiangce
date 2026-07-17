@@ -10,6 +10,7 @@ mod adjustment_utils;
 mod ai_commands;
 mod ai_connector;
 mod ai_processing;
+#[rustfmt::skip]
 mod android_integration;
 mod app_settings;
 mod app_state;
