@@ -827,6 +827,7 @@
     },
     "portrait": {
       "title": "人像美化",
+      "comingSoon": "即将推出",
       "subjects": {
         "all": "所有人",
         "female": "女性",
@@ -891,6 +892,11 @@
       },
       "vc": "VC"
     }
+  },
+  "errorBoundary": {
+    "title": "出了点问题",
+    "message": "渲染应用程序时发生意外错误。",
+    "reload": "重新加载"
   },
   "errors": {
     "aiDepthMaskFailed": "AI 深度蒙版失败：{{message}}",

@@ -1761,5 +1761,10 @@
         "vectorscope": "Vetorscópio"
       }
     }
+  },
+  "errorBoundary": {
+    "title": "Algo deu errado",
+    "message": "Ocorreu um erro inesperado ao renderizar o aplicativo.",
+    "reload": "Recarregar"
   }
 }

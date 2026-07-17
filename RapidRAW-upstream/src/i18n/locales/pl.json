@@ -1825,5 +1825,10 @@
         "vectorscope": "Wektroskop"
       }
     }
+  },
+  "errorBoundary": {
+    "title": "Coś poszło nie tak",
+    "message": "Wystąpił nieoczekiwany błąd podczas renderowania aplikacji.",
+    "reload": "Odśwież"
   }
 }

@@ -1761,5 +1761,10 @@
         "vectorscope": "Vektorskop"
       }
     }
+  },
+  "errorBoundary": {
+    "title": "Etwas ist schiefgelaufen",
+    "message": "Beim Rendern der Anwendung ist ein unerwarteter Fehler aufgetreten.",
+    "reload": "Neu laden"
   }
 }

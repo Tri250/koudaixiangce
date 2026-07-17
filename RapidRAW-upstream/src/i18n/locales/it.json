@@ -1761,5 +1761,10 @@
         "vectorscope": "Vettorscopio"
       }
     }
+  },
+  "errorBoundary": {
+    "title": "Qualcosa è andato storto",
+    "message": "Si è verificato un errore imprevisto durante il rendering dell'applicazione.",
+    "reload": "Ricarica"
   }
 }

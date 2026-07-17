@@ -1761,5 +1761,10 @@
         "vectorscope": "Vecteurscope"
       }
     }
+  },
+  "errorBoundary": {
+    "title": "Un problème est survenu",
+    "message": "Une erreur inattendue s'est produite lors du rendu de l'application.",
+    "reload": "Recharger"
   }
 }

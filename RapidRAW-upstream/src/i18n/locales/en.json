@@ -827,6 +827,7 @@
     },
     "portrait": {
       "title": "Portrait",
+      "comingSoon": "Soon",
       "subjects": {
         "all": "All",
         "female": "Female",
@@ -891,6 +892,11 @@
       },
       "vc": "VC"
     }
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "message": "An unexpected error occurred while rendering the application.",
+    "reload": "Reload"
   },
   "errors": {
     "aiDepthMaskFailed": "AI Depth Mask Failed: {{message}}",

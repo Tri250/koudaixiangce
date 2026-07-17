@@ -11,10 +11,14 @@ import {
   ChevronDown,
   Wand2,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import Switch from '../../ui/Switch';
 import Slider from '../../ui/Slider';
+import { useEditorStore } from '../../../store/useEditorStore';
+import { useEditorActions } from '../../../hooks/useEditorActions';
+import { Adjustments } from '../../../utils/adjustments';
 
 interface PortraitSection {
   id: string;
@@ -34,6 +38,17 @@ interface PortraitFeature {
   step?: number;
 }
 
+/**
+ * Maps portrait feature IDs to existing adjustment field keys.
+ * Only features listed here are connected to the backend pipeline.
+ * All other features are UI-only and show a "coming soon" indicator.
+ */
+const PORTRAIT_TO_ADJUSTMENT: Record<string, string> = {
+  skinSmoothing: 'lumaNoiseReduction',
+  skinTexture: 'clarity',
+  skinTone: 'tint',
+};
+
 const portraitSections: PortraitSection[] = [
   {
     id: 'skin',
@@ -41,8 +56,8 @@ const portraitSections: PortraitSection[] = [
     title: 'editor.portrait.skin.title',
     features: [
       { id: 'skinSmoothing', label: 'editor.portrait.skin.smoothing', type: 'slider', defaultValue: 0, min: 0, max: 100, step: 1 },
-      { id: 'skinTexture', label: 'editor.portrait.skin.texture', type: 'slider', defaultValue: 50, min: 0, max: 100, step: 1 },
-      { id: 'skinTone', label: 'editor.portrait.skin.tone', type: 'slider', defaultValue: 0, min: -50, max: 50, step: 1 },
+      { id: 'skinTexture', label: 'editor.portrait.skin.texture', type: 'slider', defaultValue: 0, min: -100, max: 100, step: 1 },
+      { id: 'skinTone', label: 'editor.portrait.skin.tone', type: 'slider', defaultValue: 0, min: -100, max: 100, step: 1 },
       { id: 'blemishRemoval', label: 'editor.portrait.skin.blemishRemoval', type: 'toggle' },
     ],
   },
@@ -99,10 +114,21 @@ const portraitSections: PortraitSection[] = [
   },
 ];
 
+type SubjectType = 'all' | 'female' | 'male' | 'child' | 'senior';
+
 export default function PortraitPanel() {
   const { t } = useTranslation();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['skin']));
-  const [featureValues, setFeatureValues] = useState<Record<string, number | boolean>>({});
+  const [selectedSubject, setSelectedSubject] = useState<SubjectType>('all');
+  const [pendingValues, setPendingValues] = useState<Record<string, number | boolean>>({});
+
+  const { adjustments, setEditor } = useEditorStore(
+    useShallow((state) => ({
+      adjustments: state.adjustments,
+      setEditor: state.setEditor,
+    })),
+  );
+  const { setAdjustments } = useEditorActions();
 
   const toggleSection = (id: string) => {
     setExpandedSections((prev) => {
@@ -116,8 +142,23 @@ export default function PortraitPanel() {
     });
   };
 
-  const handleFeatureChange = (id: string, value: number | boolean) => {
-    setFeatureValues((prev) => ({ ...prev, [id]: value }));
+  const isConnected = (featureId: string) => featureId in PORTRAIT_TO_ADJUSTMENT;
+
+  const getFeatureValue = (feature: PortraitFeature): number | boolean => {
+    const adjKey = PORTRAIT_TO_ADJUSTMENT[feature.id];
+    if (adjKey) {
+      return (adjustments as Adjustments)[adjKey] ?? feature.defaultValue ?? 0;
+    }
+    return pendingValues[feature.id] ?? feature.defaultValue ?? 0;
+  };
+
+  const handleFeatureChange = (featureId: string, value: number | boolean) => {
+    const adjKey = PORTRAIT_TO_ADJUSTMENT[featureId];
+    if (adjKey) {
+      setAdjustments({ [adjKey]: value });
+    } else {
+      setPendingValues((prev) => ({ ...prev, [featureId]: value }));
+    }
   };
 
   return (
@@ -133,11 +174,12 @@ export default function PortraitPanel() {
       {/* Subject selector */}
       <div className="px-4 pt-3 pb-1 shrink-0">
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-2">
-          {(['all', 'female', 'male', 'child', 'senior'] as const).map((type, idx) => (
+          {(['all', 'female', 'male', 'child', 'senior'] as const).map((type) => (
             <button
               key={type}
+              onClick={() => setSelectedSubject(type)}
               className={`px-3 py-[5px] rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
-                idx === 0
+                selectedSubject === type
                   ? 'bg-accent text-white shadow-sm shadow-accent/25'
                   : 'bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary'
               }`}
@@ -183,38 +225,49 @@ export default function PortraitPanel() {
                     className="overflow-hidden"
                   >
                     <div className="px-3.5 pb-3.5 pt-1 space-y-3">
-                      {section.features.map((feature) => (
-                        <div key={feature.id} className="flex flex-col gap-1.5">
-                          <div className="flex items-center justify-between">
-                            <Text variant={TextVariants.small} color={TextColors.primary} className="text-[12px]">
-                              {t(feature.label as any)}
-                            </Text>
-                            {feature.type === 'slider' && (
-                              <span className="text-[11px] font-medium text-accent tabular-nums">
-                                {featureValues[feature.id] ?? feature.defaultValue ?? 0}
-                              </span>
+                      {section.features.map((feature) => {
+                        const connected = isConnected(feature.id);
+                        const currentValue = getFeatureValue(feature);
+                        return (
+                          <div key={feature.id} className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <Text variant={TextVariants.small} color={TextColors.primary} className="text-[12px]">
+                                  {t(feature.label as any)}
+                                </Text>
+                                {!connected && (
+                                  <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[9px] font-semibold uppercase tracking-wide bg-accent/15 text-accent leading-none">
+                                    {t('editor.portrait.comingSoon')}
+                                  </span>
+                                )}
+                              </div>
+                              {feature.type === 'slider' && (
+                                <span className="text-[11px] font-medium text-accent tabular-nums">
+                                  {currentValue}
+                                </span>
+                              )}
+                            </div>
+                            {feature.type === 'toggle' ? (
+                              <Switch
+                                checked={!!currentValue}
+                                id={`portrait-${feature.id}`}
+                                label={t(feature.label as any)}
+                                onChange={(checked) => handleFeatureChange(feature.id, checked)}
+                              />
+                            ) : (
+                              <Slider
+                                min={feature.min ?? 0}
+                                max={feature.max ?? 100}
+                                step={feature.step ?? 1}
+                                defaultValue={feature.defaultValue ?? 0}
+                                value={currentValue as number}
+                                label={t(feature.label as any)}
+                                onChange={(e: any) => handleFeatureChange(feature.id, Number(e.target.value))}
+                              />
                             )}
                           </div>
-                          {feature.type === 'toggle' ? (
-                            <Switch
-                              checked={!!featureValues[feature.id]}
-                              id={`portrait-${feature.id}`}
-                              label={t(feature.label as any)}
-                              onChange={(checked) => handleFeatureChange(feature.id, checked)}
-                            />
-                          ) : (
-                            <Slider
-                              min={feature.min ?? 0}
-                              max={feature.max ?? 100}
-                              step={feature.step ?? 1}
-                              defaultValue={feature.defaultValue ?? 0}
-                              value={(featureValues[feature.id] as number) ?? feature.defaultValue ?? 0}
-                              label={t(feature.label as any)}
-                              onChange={(e: any) => handleFeatureChange(feature.id, Number(e.target.value))}
-                            />
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </motion.div>
                 )}

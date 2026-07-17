@@ -1761,5 +1761,10 @@
         "vectorscope": "向量示波器"
       }
     }
+  },
+  "errorBoundary": {
+    "title": "出了點問題",
+    "message": "渲染應用程式時發生意外錯誤。",
+    "reload": "重新載入"
   }
 }
