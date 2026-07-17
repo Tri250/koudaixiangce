@@ -93,7 +93,12 @@ pub fn get_android_cached_lut_path(uri: &str, extension: &str) -> anyhow::Result
     // the app-specific external storage directory, which is always accessible
     // without scoped storage permissions and is cleaned up on app uninstall.
     let dir_file = env
-        .call_method(&context, "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;", &[(&JObject::null()).into()])
+        .call_method(
+            &context,
+            "getExternalFilesDir",
+            "(Ljava/lang/String;)Ljava/io/File;",
+            &[(&JObject::null()).into()],
+        )
         .and_then(|v| v.l())
         .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
 
@@ -600,7 +605,12 @@ pub fn get_android_internal_library_root() -> Result<PathBuf, String> {
     // return empty/null under scoped storage. getExternalFilesDir(null) returns
     // the app-specific external directory, reliably accessible on all Android versions.
     let dir_file = env
-        .call_method(&context, "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;", &[(&JObject::null()).into()])
+        .call_method(
+            &context,
+            "getExternalFilesDir",
+            "(Ljava/lang/String;)Ljava/io/File;",
+            &[(&JObject::null()).into()],
+        )
         .and_then(|v| v.l())
         .map_err(|e| map_android_jni_error(&mut env, e))?;
 
