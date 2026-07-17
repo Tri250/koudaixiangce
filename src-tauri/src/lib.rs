@@ -699,9 +699,10 @@ async fn apply_adjustments(
         }
     }
 
-    match rx.await {
-        Ok(bytes) => Ok(Response::new(bytes)),
-        Err(_) => Err("Superseded or worker failed".to_string()),
+    match tokio::time::timeout(std::time::Duration::from_secs(30), rx).await {
+        Ok(Ok(bytes)) => Ok(Response::new(bytes)),
+        Ok(Err(_)) => Err("Superseded or worker failed".to_string()),
+        Err(_) => Err("Preview worker timed out".to_string()),
     }
 }
 

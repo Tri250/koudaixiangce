@@ -623,6 +623,7 @@ fn export_masks_for_image(
             )?;
 
             if export_settings.preserve_timestamps {
+                #[cfg(not(target_os = "android"))]
                 set_timestamps_from_exif(Path::new(source_path_str), &mask_image_path);
             }
 
@@ -966,6 +967,7 @@ pub async fn export_images(
                     )?;
 
                     if export_settings.preserve_timestamps {
+                        #[cfg(not(target_os = "android"))]
                         set_timestamps_from_exif(Path::new(&source_path_str), &output_path);
                     }
 

@@ -532,6 +532,18 @@ export function useImageProcessing(
     };
   }, [showOriginal, selectedImage?.path, adjustments, transformedOriginalUrl, calculateTargetRes, setEditor]);
 
+  useEffect(() => {
+    return () => {
+      const state = useEditorStore.getState();
+      if (state.finalPreviewUrl && state.finalPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(state.finalPreviewUrl);
+      }
+      if (state.interactivePatch?.url) {
+        URL.revokeObjectURL(state.interactivePatch.url);
+      }
+    };
+  }, []);
+
   return {
     applyAdjustments,
     executeApplyAdjustments,

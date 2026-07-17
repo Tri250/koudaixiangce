@@ -535,7 +535,7 @@ fn apply_filmic_exposure(color_in: vec3<f32>, brightness_adj: f32) -> vec3<f32> 
     let luma_abs = abs(original_luma);
     let luma_floor = floor(luma_abs / TOP_ANCHOR) * TOP_ANCHOR;
     let luma_norm = (luma_abs - luma_floor) / TOP_ANCHOR;
-    let shaped_norm = luma_norm / (luma_norm + (1.0 - luma_norm) * k);
+    let shaped_norm = luma_norm / max(luma_norm + (1.0 - luma_norm) * k, 0.00001);
     let shaped_luma_abs = luma_floor + (shaped_norm * TOP_ANCHOR);
     let new_luma = sign(original_luma) * shaped_luma_abs * scale;
     let chroma = color_in - vec3<f32>(original_luma);
