@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { Cloud, Sun, Moon, Loader2, RotateCcw, Eye, EyeOff, ImagePlus } from 'lucide-react';
+import { Cloud, Sun, Loader2, RotateCcw, ImagePlus } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
 import Button from '../../ui/Button';
@@ -53,7 +53,7 @@ export default function SkyPanel() {
     } finally {
       setIsDetectingSky(false);
     }
-  }, []);
+  }, [selectedImage]);
 
   const handleSelectSkyImage = useCallback(async () => {
     try {
@@ -84,7 +84,7 @@ export default function SkyPanel() {
     } finally {
       setIsProcessing(false);
     }
-  }, [skyMaskGenerated, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust]);
+  }, [skyMaskGenerated, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust, selectedImage]);
 
   return (
     <div className="flex flex-col h-full select-none overflow-hidden">
@@ -92,6 +92,14 @@ export default function SkyPanel() {
         <Text variant={TextVariants.title}>{t('editor.sky.title')}</Text>
         <button
           className="p-2 rounded-full hover:bg-surface transition-colors"
+          onClick={() => {
+            setSkyMaskGenerated(false);
+            setSkyImagePath(null);
+            setSelectedPreset(null);
+            setFeather(10);
+            setColorMatchStrength(50);
+            setHorizonAdjust(0);
+          }}
           data-tooltip={t('editor.sky.resetTooltip')}
         >
           <RotateCcw size={18} />
@@ -161,7 +169,7 @@ export default function SkyPanel() {
         <Slider
           label={t('editor.sky.feather')}
           min={0}
-          max={50}
+          max={100}
           step={1}
           value={feather}
           onChange={(e) => setFeather(Number(e.target.value))}

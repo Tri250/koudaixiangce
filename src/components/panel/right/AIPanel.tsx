@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -1903,10 +1903,15 @@ function SettingsPanel({
       activeSubMask.type === Mask.AiForeground ||
       activeSubMask.type === Mask.AiSky);
 
-  const handleGenerateClick = () => {
+  const handleGenerateClick = async () => {
     if (!container) return;
-    updateContainer(container.id, { prompt });
-    onGenerativeReplace(container.id, prompt, useFastInpaint);
+    if (!useFastInpaint && !prompt.trim()) return;
+    updateContainer(container.id, { prompt, isLoading: true });
+    try {
+      await onGenerativeReplace(container.id, prompt, useFastInpaint);
+    } finally {
+      updateContainer(container.id, { isLoading: false });
+    }
   };
 
   const handleToggleSection = (section: string) =>
@@ -1995,7 +2000,12 @@ function SettingsPanel({
 
             <Button
               className="w-full"
-              disabled={isGeneratingAi || displayContainer.isLoading || displayContainer.subMasks.length === 0}
+              disabled={
+                isGeneratingAi ||
+                displayContainer.isLoading ||
+                displayContainer.subMasks.length === 0 ||
+                (!useFastInpaint && !prompt.trim())
+              }
               onClick={handleGenerateClick}
             >
               {isGeneratingAi || displayContainer.isLoading ? (

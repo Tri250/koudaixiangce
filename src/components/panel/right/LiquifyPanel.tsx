@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Move,
@@ -63,9 +63,20 @@ export default function LiquifyPanel() {
   const [brushPressure, setBrushPressure] = useState(50);
   const [isApplying, setIsApplying] = useState(false);
 
+  const setEditor = useEditorStore((s) => s.setEditor);
+
+  useEffect(() => {
+    setEditor({
+      liquifyBrushType: activeBrushType,
+      liquifyBrushSize: brushSize,
+      liquifyBrushPressure: brushPressure,
+    });
+  }, [activeBrushType, brushSize, brushPressure, setEditor]);
+
   const handleResetMesh = useCallback(() => {
     resetLiquifyMesh();
-  }, [resetLiquifyMesh]);
+    clearLiquifyStrokes();
+  }, [resetLiquifyMesh, clearLiquifyStrokes]);
 
   const handleUndoStroke = useCallback(() => {
     undoLiquifyStroke();
@@ -80,7 +91,7 @@ export default function LiquifyPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [liquifyStrokes, applyLiquify]);
+  }, [liquifyStrokes, applyLiquify, selectedImage]);
 
   return (
     <div className="flex flex-col h-full select-none overflow-hidden">

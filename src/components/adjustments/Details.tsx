@@ -39,7 +39,7 @@ export default function DetailsPanel({
           <Slider
             label={t('adjustments.details.sharpness')}
             max={100}
-            min={-100}
+            min={0}
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Sharpness, e.target.value)}
             step={1}
             value={adjustments.sharpness}
@@ -47,7 +47,7 @@ export default function DetailsPanel({
           />
           <Slider
             label={t('adjustments.details.threshold')}
-            max={80}
+            max={100}
             min={0}
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.SharpnessThreshold, e.target.value)}
             step={1}
@@ -95,7 +95,7 @@ export default function DetailsPanel({
             <Slider
               label={t('adjustments.details.centre')}
               max={100}
-              min={-100}
+              min={0}
               onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Centré, e.target.value)}
               step={1}
               value={adjustments.centré}

@@ -494,10 +494,10 @@ export default function ColorPanel({
         </div>
         <Slider
           label={t('adjustments.color.temperature')}
-          max={100}
-          min={-100}
+          max={50000}
+          min={2000}
           onChange={(e: any) => handleAdjustmentChange(ColorAdjustment.Temperature, e.target.value)}
-          step={1}
+          step={100}
           value={adjustments.temperature || 0}
           trackClassName="temperature-gradient-track"
           onDragStateChange={onDragStateChange}

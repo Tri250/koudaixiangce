@@ -98,7 +98,6 @@ export default function ColorSpacePanel() {
 
     // Soft proof
     const handleSoftProof = useCallback(async () => {
-        if (!softProofEnabled) return;
         try {
             const result = await invoke<{ proofImageBase64: string; outOfGamutPixels: number }>('soft_proof', {
                 imageDataBase64: '', // Will be populated by editor store
@@ -108,7 +107,15 @@ export default function ColorSpacePanel() {
         } catch (err) {
             console.error('soft_proof failed:', err);
         }
-    }, [softProofEnabled, outputColorSpace]);
+    }, [outputColorSpace]);
+
+    useEffect(() => {
+        if (softProofEnabled) {
+            handleSoftProof();
+        } else {
+            setOutOfGamutCount(0);
+        }
+    }, [softProofEnabled, handleSoftProof]);
 
     const cameraProfileOptions = cameraProfiles.map((p) => ({
         label: p.name,
@@ -126,6 +133,14 @@ export default function ColorSpacePanel() {
                 <button
                     className="p-2 rounded-full hover:bg-surface transition-colors"
                     data-tooltip={t('editor.colorSpace.reset')}
+                    onClick={() => {
+                        setWorkingColorSpace('srgb');
+                        setOutputColorSpace('srgb');
+                        setSoftProofEnabled(false);
+                        setGamutWarningOverlay(false);
+                        setOutOfGamutCount(0);
+                        setSelectedProfileName('Adobe Standard');
+                    }}
                 >
                     <RotateCcw size={18} />
                 </button>
@@ -229,10 +244,7 @@ export default function ColorSpacePanel() {
                 {/* Soft Proof Toggle */}
                 <Switch
                     checked={softProofEnabled}
-                    onChange={(v) => {
-                        setSoftProofEnabled(v);
-                        if (v) handleSoftProof();
-                    }}
+                    onChange={setSoftProofEnabled}
                     label={t('editor.colorSpace.softProof')}
                 />
 

@@ -33,6 +33,10 @@ export function useAiMasking() {
   const setEditor = useEditorStore((state) => state.setEditor);
   const { getToken } = useAuth();
 
+  const activeMaskId = useEditorStore((s) => s.activeMaskId);
+  const activeAiSubMaskId = useEditorStore((s) => s.activeAiSubMaskId);
+  const selectedImagePath = useEditorStore((s) => s.selectedImage?.path);
+
   const updateSubMask = useCallback(
     (subMaskId: string, updatedData: any) => {
       setAdjustments((prev: Adjustments) => ({
@@ -400,7 +404,7 @@ export function useAiMasking() {
   };
 
   useEffect(() => {
-    const { activeMaskId, activeAiSubMaskId, adjustments, selectedImage } = useEditorStore.getState();
+    const { adjustments, selectedImage } = useEditorStore.getState();
     const activeSubMask =
       adjustments?.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === activeMaskId) ||
       adjustments?.aiPatches?.flatMap((p: AiPatch) => p.subMasks).find((sm: SubMask) => sm.id === activeAiSubMaskId);
@@ -412,11 +416,7 @@ export function useAiMasking() {
         path: selectedImage.path,
       }).catch((err) => console.error('Failed to precompute AI subject mask:', err));
     }
-  }, [
-    useEditorStore.getState().activeMaskId,
-    useEditorStore.getState().activeAiSubMaskId,
-    useEditorStore.getState().selectedImage?.path,
-  ]);
+  }, [activeMaskId, activeAiSubMaskId, selectedImagePath]);
 
   return {
     updateSubMask,

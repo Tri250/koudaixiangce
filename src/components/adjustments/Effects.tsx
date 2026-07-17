@@ -135,7 +135,7 @@ export default function EffectsPanel({
               <Slider
                 label={t('adjustments.effects.roundness')}
                 max={100}
-                min={-100}
+                min={0}
                 onChange={(e: any) => handleAdjustmentChange(Effect.VignetteRoundness, e.target.value)}
                 step={1}
                 value={adjustments.vignetteRoundness}

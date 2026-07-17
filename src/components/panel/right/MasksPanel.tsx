@@ -790,6 +790,19 @@ export default function MasksPanel() {
       subMask.parameters.maxFade = 15;
       subMask.parameters.feather = 10;
     }
+
+    if (type === Mask.Clone) {
+      if (!subMask.parameters) subMask.parameters = {};
+      subMask.parameters.sourceX = -10000;
+      subMask.parameters.sourceY = -10000;
+      subMask.parameters.lines = [];
+    }
+
+    if (type === Mask.Heal) {
+      if (!subMask.parameters) subMask.parameters = {};
+      subMask.parameters.lines = [];
+    }
+
     return subMask;
   };
 

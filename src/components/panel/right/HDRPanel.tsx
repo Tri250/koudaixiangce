@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { Sun, Download, Image, Loader2, AlertTriangle, RotateCcw, Eye, EyeOff } from 'lucide-react';
+import { Sun, Download, Image, Loader2, AlertTriangle, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import CollapsibleSection from '../../ui/CollapsibleSection';
 import Slider from '../../ui/Slider';
@@ -44,6 +44,7 @@ export default function HDRPanel() {
     const [outOfGamutWarning, setOutOfGamutWarning] = useState<number | null>(null);
     const [isExportingJpeg, setIsExportingJpeg] = useState(false);
     const [isExportingTiff, setIsExportingTiff] = useState(false);
+    const [gamutWarningOverlay, setGamutWarningOverlay] = useState(false);
     const [tiffBitDepth, setTiffBitDepth] = useState<16 | 32>(16);
 
     const handleApplyHighlightRecovery = useCallback(async () => {
@@ -62,6 +63,33 @@ export default function HDRPanel() {
             setIsProcessing(false);
         }
     }, [hdrPreviewEnabled, highlightMode, recoveryAmount, peakBrightness]);
+
+    useEffect(() => {
+        if (hdrPreviewEnabled) {
+            handleApplyHighlightRecovery();
+        }
+    }, [hdrPreviewEnabled, highlightMode, recoveryAmount, peakBrightness, handleApplyHighlightRecovery]);
+
+    const handleCheckOutOfGamut = useCallback(async () => {
+        if (!hdrPreviewEnabled) {
+            setOutOfGamutWarning(null);
+            return;
+        }
+        try {
+            const count = await invoke<number>('check_out_of_gamut', {
+                imageDataBase64: '',
+                targetColorSpace: outputColorSpace,
+            });
+            setOutOfGamutWarning(count);
+        } catch (err) {
+            console.error('check_out_of_gamut failed:', err);
+            setOutOfGamutWarning(null);
+        }
+    }, [hdrPreviewEnabled, outputColorSpace]);
+
+    useEffect(() => {
+        handleCheckOutOfGamut();
+    }, [hdrPreviewEnabled, outputColorSpace, handleCheckOutOfGamut]);
 
     const handleExportUltraHDR = useCallback(async () => {
         setIsExportingJpeg(true);
@@ -105,6 +133,15 @@ export default function HDRPanel() {
                 <button
                     className="p-2 rounded-full hover:bg-surface transition-colors"
                     data-tooltip={t('editor.hdr.reset')}
+                    onClick={() => {
+                        setHdrPreviewEnabled(false);
+                        setHighlightMode('recover');
+                        setRecoveryAmount(50);
+                        setPeakBrightness(1000);
+                        setOutputColorSpace('srgb');
+                        setOutOfGamutWarning(null);
+                        setTiffBitDepth(16);
+                    }}
                 >
                     <RotateCcw size={18} />
                 </button>
@@ -268,8 +305,8 @@ export default function HDRPanel() {
 
                 {/* Gamut Warning Overlay Toggle */}
                 <Switch
-                    checked={false}
-                    onChange={() => {}}
+                    checked={gamutWarningOverlay}
+                    onChange={setGamutWarningOverlay}
                     label={t('editor.hdr.gamutWarningOverlay')}
                 />
             </div>

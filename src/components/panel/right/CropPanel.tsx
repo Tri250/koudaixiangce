@@ -58,6 +58,7 @@ export default function CropPanel() {
   const [isRotationActive, setIsRotationActive] = useState(false);
   const [preferPortrait, setPreferPortrait] = useState(false);
   const [isEditingCustom, setIsEditingCustom] = useState(false);
+  const [customRatioError, setCustomRatioError] = useState(false);
 
   const [localRotation, setLocalRotation] = useState<number | null>(null);
   const localRotationRef = useRef<number | null>(null);
@@ -75,6 +76,7 @@ export default function CropPanel() {
       { name: t('editor.crop.presets.r43.name'), value: 4 / 3, tooltip: t('editor.crop.presets.r43.desc') },
       { name: t('editor.crop.presets.r32.name'), value: 3 / 2, tooltip: t('editor.crop.presets.r32.desc') },
       { name: t('editor.crop.presets.r169.name'), value: 16 / 9, tooltip: t('editor.crop.presets.r169.desc') },
+      { name: t('editor.crop.presets.goldenRatio.name'), value: BASE_RATIO, tooltip: t('editor.crop.presets.goldenRatio.desc') },
       { name: t('editor.crop.presets.r219.name'), value: 21 / 9, tooltip: t('editor.crop.presets.r219.desc') },
       { name: t('editor.crop.presets.r6524.name'), value: 65 / 24, tooltip: t('editor.crop.presets.r6524.desc') },
     ],
@@ -260,6 +262,7 @@ export default function CropPanel() {
 
   const handleCustomInputFocus = () => {
     setIsEditingCustom(true);
+    setCustomRatioError(false);
   };
 
   const handleApplyCustomRatio = () => {
@@ -268,11 +271,14 @@ export default function CropPanel() {
     const numH = parseFloat(customH);
 
     if (numW > 0 && numH > 0) {
+      setCustomRatioError(false);
       const newAspectRatio = numW / numH;
       lastSyncedRatio.current = newAspectRatio;
       if (!adjustments?.aspectRatio || Math.abs(adjustments.aspectRatio - newAspectRatio) > RATIO_TOLERANCE) {
         setAdjustments((prev: Adjustments) => ({ ...prev, aspectRatio: newAspectRatio }));
       }
+    } else {
+      setCustomRatioError(true);
     }
   };
 
@@ -543,7 +549,7 @@ export default function CropPanel() {
                 >
                   <div className="flex items-center justify-center gap-2">
                     <input
-                      className="w-full bg-bg-primary text-center rounded-md p-1 border border-surface focus:border-accent focus:ring-accent text-text-secondary focus:text-text-primary"
+                      className="w-full bg-bg-primary text-center rounded-md p-1 border focus:ring-accent text-text-secondary focus:text-text-primary"
                       min="0"
                       name="customW"
                       onBlur={handleApplyCustomRatio}
@@ -554,10 +560,11 @@ export default function CropPanel() {
                       data-tooltip={t('editor.crop.custom.wTooltip')}
                       type="number"
                       value={customW}
+                      style={{ borderColor: customRatioError ? 'var(--color-red, #ef4444)' : undefined }}
                     />
                     <X size={16} className={`shrink-0 ${TEXT_COLOR_KEYS[TextColors.secondary]}`} />
                     <input
-                      className="w-full bg-bg-primary text-center rounded-md p-1 border border-surface focus:border-accent focus:ring-accent text-text-secondary focus:text-text-primary"
+                      className="w-full bg-bg-primary text-center rounded-md p-1 border focus:ring-accent text-text-secondary focus:text-text-primary"
                       min="0"
                       name="customH"
                       onBlur={handleApplyCustomRatio}
@@ -568,6 +575,7 @@ export default function CropPanel() {
                       data-tooltip={t('editor.crop.custom.hTooltip')}
                       type="number"
                       value={customH}
+                      style={{ borderColor: customRatioError ? 'var(--color-red, #ef4444)' : undefined }}
                     />
                   </div>
                 </div>

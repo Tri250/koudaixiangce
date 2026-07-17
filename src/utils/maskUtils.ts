@@ -46,6 +46,10 @@ export const createSubMask = (
       return { ...common, parameters: { maskDataBase64: null, grow: 0, feather: 0 } };
     case Mask.QuickEraser:
       return { ...common, parameters: { maskDataBase64: null, grow: 50, feather: 50 } };
+    case Mask.Clone:
+      return { ...common, parameters: { sourceX: 0, sourceY: 0, lines: [] } };
+    case Mask.Heal:
+      return { ...common, parameters: { lines: [] } };
     default:
       return { ...common, parameters: {} };
   }

@@ -122,6 +122,8 @@ const parseDistance = (exif: any): number | null => {
 };
 
 const SLIDER_DIVISOR = 100.0;
+const DISTORTION_EPSILON = 1e-6;
+const TCA_EPSILON = 1e-5;
 
 export default function LensCorrectionModal({
   isOpen,
@@ -159,9 +161,9 @@ export default function LensCorrectionModal({
     if (!params.lensDistortionParams) return { distortion: false, tca: false, vignetting: false };
     const p = params.lensDistortionParams;
     return {
-      distortion: Math.abs(p.k1) > 1e-6 || Math.abs(p.k2) > 1e-6 || Math.abs(p.k3) > 1e-6,
-      tca: Math.abs(p.tca_vr - 1.0) > 1e-5 || Math.abs(p.tca_vb - 1.0) > 1e-5,
-      vignetting: Math.abs(p.vig_k1) > 1e-6 || Math.abs(p.vig_k2) > 1e-6 || Math.abs(p.vig_k3) > 1e-6,
+      distortion: Math.abs(p.k1) > DISTORTION_EPSILON || Math.abs(p.k2) > DISTORTION_EPSILON || Math.abs(p.k3) > DISTORTION_EPSILON,
+      tca: Math.abs(p.tca_vr - 1.0) > TCA_EPSILON || Math.abs(p.tca_vb - 1.0) > TCA_EPSILON,
+      vignetting: Math.abs(p.vig_k1) > DISTORTION_EPSILON || Math.abs(p.vig_k2) > DISTORTION_EPSILON || Math.abs(p.vig_k3) > DISTORTION_EPSILON,
     };
   }, [params.lensDistortionParams]);
 

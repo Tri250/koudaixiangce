@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { User, Eye, Smile, Scissors, Palette, Sparkles, RotateCcw, Loader2 } from 'lucide-react';
+import { User, Scissors, Palette, Sparkles, RotateCcw, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
 import CollapsibleSection from '../../ui/CollapsibleSection';
@@ -104,13 +104,13 @@ export default function PortraitPanel() {
     const imagePath = selectedImage?.path ?? '';
     if (!imagePath) return;
     await detectFaces(imagePath);
-  }, [detectFaces]);
+  }, [detectFaces, selectedImage]);
 
   const handleDetectBody = useCallback(async () => {
     const imagePath = selectedImage?.path ?? '';
     if (!imagePath) return;
     await detectBody(imagePath);
-  }, [detectBody]);
+  }, [detectBody, selectedImage]);
 
   const handleApplyFaceReshape = useCallback(async () => {
     if (faceDetections.length === 0) return;
@@ -121,7 +121,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, faceParams, applyFaceReshape]);
+  }, [faceDetections, faceParams, applyFaceReshape, selectedImage]);
 
   const handleApplySkinSmoothing = useCallback(async () => {
     setIsApplying(true);
@@ -131,7 +131,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [skinParams, applySkinSmoothing]);
+  }, [skinParams, applySkinSmoothing, selectedImage]);
 
   const handleAutoBlemishRemove = useCallback(async () => {
     setIsApplying(true);
@@ -141,7 +141,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [applyBlemishRemoval]);
+  }, [applyBlemishRemoval, selectedImage]);
 
   const handleSkinColorUniform = useCallback(async () => {
     setIsApplying(true);
@@ -151,7 +151,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [skinColorUniformStrength, applySkinColorUniform]);
+  }, [skinColorUniformStrength, applySkinColorUniform, selectedImage]);
 
   const handleApplyBodyReshape = useCallback(async () => {
     if (bodyDetections.length === 0) return;
@@ -162,17 +162,18 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [bodyDetections, bodyParams, applyBodyReshape]);
+  }, [bodyDetections, bodyParams, applyBodyReshape, selectedImage]);
 
   const handleApplyHair = useCallback(async () => {
+    const imagePath = selectedImage?.path ?? '';
+    if (!imagePath) return;
     setIsApplying(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
       await applyHairRetouch(imagePath, hairParams as unknown as Record<string, unknown>);
     } finally {
       setIsApplying(false);
     }
-  }, [hairParams, applyHairRetouch]);
+  }, [hairParams, applyHairRetouch, selectedImage]);
 
   const skinMethodOptions = [
     { label: t('editor.portrait.skin.method.neutralGray'), value: 'neutral_gray' as const },

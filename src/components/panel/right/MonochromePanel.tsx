@@ -99,7 +99,7 @@ export default function MonochromePanel() {
                 setRedWeight(0); setGreenWeight(0); setBlueWeight(100);
                 break;
             case 'infrared':
-                setRedWeight(0); setGreenWeight(0); setBlueWeight(100);
+                setRedWeight(100); setGreenWeight(0); setBlueWeight(-50);
                 break;
         }
     }, []);
@@ -115,6 +115,12 @@ export default function MonochromePanel() {
                 <button
                     className="p-2 rounded-full hover:bg-surface transition-colors"
                     data-tooltip={t('editor.monochrome.reset')}
+                    onClick={() => {
+                        handlePresetSelect('neutral');
+                        setContrast(100);
+                        setToningType('none');
+                        setToningStrength(0);
+                    }}
                 >
                     <RotateCcw size={18} />
                 </button>
