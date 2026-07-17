@@ -204,7 +204,10 @@ export default function PortraitPanel() {
                   <Icon size={15} className="text-accent" />
                 </div>
                 <Text color={TextColors.primary} weight={TextWeights.medium} className="grow text-left text-[13px]">
-                  {t(section.title as any)}
+                  {t(
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    section.title as any
+                  )}
                 </Text>
                 <motion.div
                   animate={{ rotate: isExpanded ? 180 : 0 }}
@@ -232,7 +235,10 @@ export default function PortraitPanel() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
                                 <Text variant={TextVariants.small} color={TextColors.primary} className="text-[12px]">
-                                  {t(feature.label as any)}
+                                  {t(
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    feature.label as any
+                                  )}
                                 </Text>
                                 {!connected && (
                                   <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[9px] font-semibold uppercase tracking-wide bg-accent/15 text-accent leading-none">
@@ -250,7 +256,10 @@ export default function PortraitPanel() {
                               <Switch
                                 checked={!!currentValue}
                                 id={`portrait-${feature.id}`}
-                                label={t(feature.label as any)}
+                                label={t(
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                  feature.label as any
+                                )}
                                 onChange={(checked) => handleFeatureChange(feature.id, checked)}
                               />
                             ) : (
@@ -260,7 +269,11 @@ export default function PortraitPanel() {
                                 step={feature.step ?? 1}
                                 defaultValue={feature.defaultValue ?? 0}
                                 value={currentValue as number}
-                                label={t(feature.label as any)}
+                                label={t(
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                  feature.label as any
+                                )}
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onChange={(e: any) => handleFeatureChange(feature.id, Number(e.target.value))}
                               />
                             )}

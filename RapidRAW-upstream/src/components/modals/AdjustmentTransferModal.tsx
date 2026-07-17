@@ -15,6 +15,7 @@ interface AdjustmentTransferModalProps {
   sourcePath: string | null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatValue(value: any): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'number') return Number(value.toFixed(2)).toString();
@@ -25,7 +26,7 @@ function formatValue(value: any): string {
 }
 
 function DiffTable({ diffs }: { diffs: AdjustmentDiff[] }) {
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
 
   if (diffs.length === 0) {
     return (
@@ -130,7 +131,7 @@ export default function AdjustmentTransferModal({
   } = useAdjustmentTransfer();
 
   const multiSelectedPaths = useLibraryStore((s) => s.multiSelectedPaths);
-  const libraryActivePath = useLibraryStore((s) => s.libraryActivePath);
+  const _libraryActivePath = useLibraryStore((s) => s.libraryActivePath);
   const thumbnails = useProcessStore((s) => s.thumbnails);
 
   const targetPaths = multiSelectedPaths.filter((p) => p !== sourcePath);

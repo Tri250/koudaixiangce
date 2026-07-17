@@ -103,18 +103,21 @@ const DEFAULT_PARAMS: LensParams = {
   lensDistortionParams: null,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const parseFocalLength = (exif: any): number | null => {
   if (!exif || !exif.FocalLength) return null;
   const val = parseFloat(exif.FocalLength);
   return isNaN(val) ? null : val;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const parseAperture = (exif: any): number | null => {
   if (!exif || !exif.FNumber) return null;
   const val = parseFloat(exif.FNumber);
   return isNaN(val) ? null : val;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const parseDistance = (exif: any): number | null => {
   if (!exif || !exif.SubjectDistance) return null;
   const val = parseFloat(exif.SubjectDistance);
@@ -235,6 +238,7 @@ export default function LensCorrectionModal({
 
   const fetchDistortionParams = async (maker: string, model: string) => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const distParams: any = await invoke('get_lens_distortion_params', {
         maker,
         model,
@@ -299,6 +303,7 @@ export default function LensCorrectionModal({
       setIsMounted(true);
       const timer = setTimeout(() => setShow(true), 10);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       invoke('load_settings').then((settings: any) => {
         if (settings?.myLenses) {
           setMyLenses(settings.myLenses);
@@ -324,11 +329,13 @@ export default function LensCorrectionModal({
       updatePreview(initParams);
 
       invoke('get_lensfun_makers')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .then((m: any) => setMakers(m))
         .catch(console.error);
 
       if (initParams.lensMaker) {
         invoke('get_lensfun_lenses_for_maker', { maker: initParams.lensMaker })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then((l: any) => setLenses(l))
           .catch(console.error);
       }
@@ -357,6 +364,7 @@ export default function LensCorrectionModal({
     setDetectionStatus('idle');
 
     invoke('get_lensfun_lenses_for_maker', { maker })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((l: any) => setLenses(l))
       .catch(console.error);
 
@@ -387,6 +395,7 @@ export default function LensCorrectionModal({
     setDetectionStatus('idle');
 
     invoke('get_lensfun_lenses_for_maker', { maker: selected.maker })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((l: any) => setLenses(l))
       .catch(console.error);
 
@@ -430,6 +439,7 @@ export default function LensCorrectionModal({
         const [detectedMaker, detectedModel] = result;
 
         invoke('get_lensfun_lenses_for_maker', { maker: detectedMaker })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .then((l: any) => setLenses(l))
           .catch(console.error);
 
@@ -525,6 +535,7 @@ export default function LensCorrectionModal({
         params: fullParams,
         jsAdjustments: currentAdjustments,
         showLines: false,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       }).then((result: any) => setPreviewUrl(result));
     } else {
       updatePreview(params);
@@ -550,7 +561,7 @@ export default function LensCorrectionModal({
     }));
   }, [myLenses, t]);
 
-  const autoDetectButtonContent = () => {
+  const _autoDetectButtonContent = () => {
     switch (detectionStatus) {
       case 'detecting':
         return (
