@@ -48,9 +48,11 @@ interface BottomBarProps {
   isResizing?: boolean;
   multiSelectedPaths?: Array<string>;
   onClearSelection?(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onContextMenu?(event: any, path: string): void;
   onCopy(): void;
   onExportClick?(): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onImageSelect?(path: string, event: any): void;
   onOpenCopyPasteSettings?(): void;
   onRequestThumbnails?(paths: string[]): void;
@@ -128,7 +130,7 @@ export default function BottomBar({
   isPasted,
   isPasteDisabled,
   isRatingDisabled = false,
-  isResetDisabled = false,
+  _isResetDisabled = false,
   isResizing,
   multiSelectedPaths = [],
   onClearSelection,
@@ -140,7 +142,7 @@ export default function BottomBar({
   onRequestThumbnails,
   onPaste,
   onRate,
-  onReset,
+  _onReset,
   onZoomChange = () => {},
   rating,
   selectedImage,

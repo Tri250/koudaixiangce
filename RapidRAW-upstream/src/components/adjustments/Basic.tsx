@@ -7,9 +7,11 @@ import { useTranslation } from 'react-i18next';
 
 interface BasicAdjustmentsProps {
   adjustments: Adjustments;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setAdjustments(adjustments: Partial<Adjustments>): any;
   isForMask?: boolean;
   onDragStateChange?: (isDragging: boolean) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   appSettings?: any;
 }
 
@@ -142,6 +144,7 @@ const ToneMapperSwitch = ({
             label={t('adjustments.basic.evShift')}
             max={5}
             min={-5}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => onEvShiftChange(parseFloat(e.target.value))}
             step={0.01}
             value={evShiftValue}
@@ -163,6 +166,7 @@ export default function BasicAdjustments({
 }: BasicAdjustmentsProps) {
   const { t } = useTranslation();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleAdjustmentChange = (key: BasicAdjustment, value: any) => {
     const numericValue = parseFloat(value);
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
@@ -184,6 +188,7 @@ export default function BasicAdjustments({
           label={t('adjustments.basic.evShift')}
           max={5}
           min={-5}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Exposure, e.target.value)}
           step={0.01}
           value={adjustments.exposure}
@@ -202,6 +207,7 @@ export default function BasicAdjustments({
         label={t('adjustments.basic.exposure')}
         max={5}
         min={-5}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Brightness, e.target.value)}
         step={0.01}
         value={adjustments.brightness}
@@ -211,6 +217,7 @@ export default function BasicAdjustments({
         label={t('adjustments.basic.contrast')}
         max={100}
         min={-100}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Contrast, e.target.value)}
         step={1}
         value={adjustments.contrast}
@@ -220,6 +227,7 @@ export default function BasicAdjustments({
         label={t('adjustments.basic.highlights')}
         max={100}
         min={-100}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Highlights, e.target.value)}
         step={1}
         value={adjustments.highlights}
@@ -229,6 +237,7 @@ export default function BasicAdjustments({
         label={t('adjustments.basic.shadows')}
         max={100}
         min={-100}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Shadows, e.target.value)}
         step={1}
         value={adjustments.shadows}
@@ -238,6 +247,7 @@ export default function BasicAdjustments({
         label={t('adjustments.basic.whites')}
         max={100}
         min={-100}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Whites, e.target.value)}
         step={1}
         value={adjustments.whites}
@@ -247,6 +257,7 @@ export default function BasicAdjustments({
         label={t('adjustments.basic.blacks')}
         max={100}
         min={-100}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Blacks, e.target.value)}
         step={1}
         value={adjustments.blacks}
