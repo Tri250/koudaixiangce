@@ -31,8 +31,17 @@ export function useSemanticSearch() {
   const [embeddings, setEmbeddings] = useState<Map<string, number[]>>(new Map());
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const queryRef = useRef(query);
-  queryRef.current = query;
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+    };
+  }, []);
 
   // Listen for batch progress events
   useEffect(() => {
@@ -56,12 +65,16 @@ export function useSemanticSearch() {
         imagePaths,
         topK: topK ?? 20,
       });
+      if (!isMountedRef.current) return;
       setResults(searchResults);
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error('Semantic search failed:', err);
       setResults([]);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -78,19 +91,24 @@ export function useSemanticSearch() {
     setRatingLoading(true);
     try {
       const rating = await invoke<AiRatingResult>(Invokes.AiRateImage, { path });
+      if (!isMountedRef.current) return null;
       setCurrentRating(rating);
       return rating;
     } catch (err) {
+      if (!isMountedRef.current) return null;
       console.error('AI rating failed:', err);
       return null;
     } finally {
-      setRatingLoading(false);
+      if (isMountedRef.current) {
+        setRatingLoading(false);
+      }
     }
   }, []);
 
   const computeImageEmbedding = useCallback(async (path: string) => {
     try {
       const embedding = await invoke<number[]>(Invokes.ComputeImageEmbedding, { path });
+      if (!isMountedRef.current) return null;
       setEmbeddings((prev) => {
         const next = new Map(prev);
         next.set(path, embedding);
@@ -98,6 +116,7 @@ export function useSemanticSearch() {
       });
       return embedding;
     } catch (err) {
+      if (!isMountedRef.current) return null;
       console.error('Compute image embedding failed:', err);
       return null;
     }
@@ -108,6 +127,7 @@ export function useSemanticSearch() {
       const embedding = await invoke<number[]>(Invokes.ComputeTextEmbedding, { query: textQuery });
       return embedding;
     } catch (err) {
+      if (!isMountedRef.current) return null;
       console.error('Compute text embedding failed:', err);
       return null;
     }
@@ -121,13 +141,17 @@ export function useSemanticSearch() {
       const result = await invoke<Record<string, number[]>>(Invokes.BatchComputeEmbeddings, {
         imagePaths,
       });
+      if (!isMountedRef.current) return;
       const newMap = new Map(Object.entries(result));
       setEmbeddings(newMap);
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.error('Batch compute embeddings failed:', err);
     } finally {
-      setBatchLoading(false);
-      setBatchProgress(null);
+      if (isMountedRef.current) {
+        setBatchLoading(false);
+        setBatchProgress(null);
+      }
     }
   }, []);
 

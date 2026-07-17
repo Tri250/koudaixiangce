@@ -499,10 +499,11 @@ pub async fn batch_compute_embeddings(
                     }
 
                     match result {
-                        Ok(emb) => (path.clone(), emb),
-                        Err(_) => (path.clone(), Vec::new()),
+                        Ok(emb) => Some((path.clone(), emb)),
+                        Err(_) => None,
                     }
                 })
+                .flatten()
                 .collect();
             Ok(cache)
         })

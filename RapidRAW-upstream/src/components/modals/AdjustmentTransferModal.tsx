@@ -138,10 +138,9 @@ export default function AdjustmentTransferModal({
   useEffect(() => {
     if (isOpen && sourcePath) {
       setIsMounted(true);
-      setShow(true);
       copyAdjustments(sourcePath);
-      const timer = setTimeout(() => setShow(true), 10);
-      return () => clearTimeout(timer);
+      const raf = requestAnimationFrame(() => setShow(true));
+      return () => cancelAnimationFrame(raf);
     } else if (!isOpen) {
       setShow(false);
       const timer = setTimeout(() => {
@@ -151,7 +150,7 @@ export default function AdjustmentTransferModal({
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, sourcePath]);
+  }, [isOpen, sourcePath, copyAdjustments, reset]);
 
   const handlePreview = useCallback(async () => {
     if (targetPaths.length === 0) return;

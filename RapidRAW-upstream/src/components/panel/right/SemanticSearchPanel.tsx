@@ -120,6 +120,7 @@ export default function SemanticSearchPanel() {
     setQuery,
     results,
     loading,
+    ratingLoading,
     batchLoading,
     batchProgress,
     debouncedSearch,
@@ -226,7 +227,7 @@ export default function SemanticSearchPanel() {
                     key={result.path}
                     result={result}
                     onRate={rateImage}
-                    ratingLoading={false}
+                    ratingLoading={ratingLoading}
                   />
                 ))}
               </motion.div>
@@ -245,7 +246,7 @@ export default function SemanticSearchPanel() {
                 >
                   {imagePaths.length === 0
                     ? t('editor.ai.noImageSelected')
-                    : t('settings.semanticSearch.title')}
+                    : t('library.noResults')}
                 </Text>
               </motion.div>
             ) : null}

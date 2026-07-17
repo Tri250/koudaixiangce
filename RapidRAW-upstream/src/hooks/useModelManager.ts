@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Invokes } from '../components/ui/AppProperties';
@@ -29,23 +29,30 @@ export function useModelManager() {
   const [downloadProgress, setDownloadProgress] = useState<Map<string, DownloadProgress>>(new Map());
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [modelsDirectory, setModelsDirectory] = useState<string>('');
+  const isMountedRef = useRef(true);
 
   const fetchModels = useCallback(async () => {
     try {
       const result = await invoke<ModelInfo[]>(Invokes.ListAiModels);
+      if (!isMountedRef.current) return;
       setModels(result);
     } catch (e) {
+      if (!isMountedRef.current) return;
       console.error('Failed to list AI models:', e);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   const fetchModelsDirectory = useCallback(async () => {
     try {
       const dir = await invoke<string>(Invokes.GetModelsDirectory);
+      if (!isMountedRef.current) return;
       setModelsDirectory(dir);
     } catch (e) {
+      if (!isMountedRef.current) return;
       console.error('Failed to get models directory:', e);
     }
   }, []);
@@ -60,22 +67,28 @@ export function useModelManager() {
     try {
       await invoke(Invokes.DownloadAiModel, { modelId });
     } catch (e: any) {
+      if (!isMountedRef.current) return;
       setErrors((prev) => new Map(prev).set(modelId, String(e)));
     } finally {
-      setDownloadingModelIds((prev) => {
-        const next = new Set(prev);
-        next.delete(modelId);
-        return next;
-      });
-      await fetchModels();
+      if (isMountedRef.current) {
+        setDownloadingModelIds((prev) => {
+          const next = new Set(prev);
+          next.delete(modelId);
+          return next;
+        });
+        await fetchModels();
+      }
     }
   }, [fetchModels]);
 
   const deleteModel = useCallback(async (modelId: string) => {
     try {
       await invoke(Invokes.DeleteAiModel, { modelId });
-      await fetchModels();
+      if (isMountedRef.current) {
+        await fetchModels();
+      }
     } catch (e: any) {
+      if (!isMountedRef.current) return;
       setErrors((prev) => new Map(prev).set(modelId, String(e)));
     }
   }, [fetchModels]);
@@ -84,11 +97,21 @@ export function useModelManager() {
     try {
       await invoke(Invokes.DownloadAllModels);
     } catch (e: any) {
+      if (!isMountedRef.current) return;
       console.error('Failed to download all models:', e);
     } finally {
-      await fetchModels();
+      if (isMountedRef.current) {
+        await fetchModels();
+      }
     }
   }, [fetchModels]);
+
+  // Track mount state to avoid state updates after unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Listen for download progress events
   useEffect(() => {

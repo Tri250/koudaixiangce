@@ -299,7 +299,7 @@ pub fn downscale_f32_image(image: &DynamicImage, nwidth: u32, nheight: u32) -> D
         }
     }
 
-    let mut out_buf = vec![0.0f32; (new_w * new_h * 3) as usize];
+    let mut out_buf = vec![0.0f32; (new_w as usize * new_h as usize * 3)];
 
     out_buf
         .par_chunks_exact_mut(new_w as usize * 3)
@@ -364,7 +364,9 @@ fn interpolate_pixel(
     y: f32,
     pixel_out: &mut [f32],
 ) {
-    if x.is_nan()
+    if src_width == 0
+        || src_height == 0
+        || x.is_nan()
         || y.is_nan()
         || x < 0.0
         || y < 0.0
@@ -416,6 +418,9 @@ fn build_transform_matrices(
     width: f32,
     height: f32,
 ) -> (NaMatrix3<f32>, f32, f32, f64) {
+    if width <= 0.0 || height <= 0.0 {
+        return (NaMatrix3::identity(), 0.0, 0.0, 0.0);
+    }
     let cx = width / 2.0;
     let cy = height / 2.0;
     let ref_dim = 2000.0;
@@ -492,7 +497,7 @@ fn interpolate_pixel_with_tca(
     let by = cy + (base_y - cy) * vb;
 
     let sample_channel = |target_x: f32, target_y: f32, channel_idx: usize| -> f32 {
-        if target_x.is_nan() || target_y.is_nan() {
+        if src_width < 2 || src_height < 2 || target_x.is_nan() || target_y.is_nan() {
             return 0.0;
         }
 
@@ -564,6 +569,9 @@ fn solve_generic_distortion_inv(r_target: f64, k_scaled: f64) -> f64 {
 }
 
 fn compute_lens_auto_crop_scale(params: &GeometryParams, width: f32, height: f32) -> f64 {
+    if width <= 0.0 || height <= 0.0 {
+        return 1.0;
+    }
     let cx = (width / 2.0) as f64;
     let cy = (height / 2.0) as f64;
     let half_diagonal = (cx * cx + cy * cy).sqrt();
@@ -654,7 +662,10 @@ fn compute_lens_auto_crop_scale(params: &GeometryParams, width: f32, height: f32
 pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> DynamicImage {
     let src_img = image.to_rgb32f();
     let (width, height) = src_img.dimensions();
-    let mut out_buffer = vec![0.0f32; (width * height * 3) as usize];
+    if width == 0 || height == 0 {
+        return image.clone();
+    }
+    let mut out_buffer = vec![0.0f32; width as usize * height as usize * 3];
 
     let (forward_transform, cx, cy, half_diagonal) =
         build_transform_matrices(&params, width as f32, height as f32);
@@ -814,7 +825,10 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
 pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams) -> DynamicImage {
     let src_img = warped_image.to_rgb32f();
     let (width, height) = src_img.dimensions();
-    let mut out_buffer = vec![0.0f32; (width * height * 3) as usize];
+    if width == 0 || height == 0 {
+        return warped_image.clone();
+    }
+    let mut out_buffer = vec![0.0f32; width as usize * height as usize * 3];
 
     let (forward_transform, cx, cy, half_diagonal) =
         build_transform_matrices(&params, width as f32, height as f32);

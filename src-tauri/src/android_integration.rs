@@ -94,6 +94,26 @@ pub fn close_android_closeable(env: &mut JNIEnv<'_>, closeable: &JObject<'_>) {
 }
 
 #[cfg(target_os = "android")]
+pub fn get_android_sdk_version() -> i32 {
+    let vm = match unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) } {
+        Ok(vm) => vm,
+        Err(_) => return 0,
+    };
+    let mut env = match vm.attach_current_thread() {
+        Ok(env) => env,
+        Err(_) => return 0,
+    };
+
+    env.get_static_field(
+        "android/os/Build$VERSION",
+        "SDK_INT",
+        "I",
+    )
+    .and_then(|v| v.i())
+    .unwrap_or(0)
+}
+
+#[cfg(target_os = "android")]
 pub fn get_android_cached_lut_path(uri: &str, extension: &str) -> anyhow::Result<PathBuf> {
     let vm = unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }
         .map_err(|e| anyhow::anyhow!("Failed to access Android JVM: {}", e))?;
@@ -351,7 +371,7 @@ pub fn read_android_content_uri(uri_str: &str) -> Result<Vec<u8>, String> {
             }
 
             if read_count == 0 {
-                continue;
+                break;
             }
 
             let read_len = read_count as usize;
@@ -457,10 +477,15 @@ pub fn save_bytes_to_android_media_store(
         .new_object("android/content/ContentValues", "()V", &[])
         .map_err(|e| map_android_jni_error(&mut env, e))?;
 
+    let sdk_version = get_android_sdk_version();
+    let supports_pending = sdk_version >= 29;
+
     put_android_content_value_string(&mut env, &content_values, "_display_name", file_name)?;
     put_android_content_value_string(&mut env, &content_values, "mime_type", mime_type)?;
     put_android_content_value_string(&mut env, &content_values, "relative_path", relative_path)?;
-    put_android_content_value_int(&mut env, &content_values, "is_pending", 1)?;
+    if supports_pending {
+        put_android_content_value_int(&mut env, &content_values, "is_pending", 1)?;
+    }
 
     let collection_uri = env
         .get_static_field(
@@ -523,25 +548,27 @@ pub fn save_bytes_to_android_media_store(
         return Err(err);
     }
 
-    let finalized_values = env
-        .new_object("android/content/ContentValues", "()V", &[])
-        .map_err(|e| map_android_jni_error(&mut env, e))?;
-    put_android_content_value_int(&mut env, &finalized_values, "is_pending", 0)?;
+    if supports_pending {
+        let finalized_values = env
+            .new_object("android/content/ContentValues", "()V", &[])
+            .map_err(|e| map_android_jni_error(&mut env, e))?;
+        put_android_content_value_int(&mut env, &finalized_values, "is_pending", 0)?;
 
-    let null_string = JObject::null();
-    let null_args = JObject::null();
-    env.call_method(
-        &resolver,
-        "update",
-        "(Landroid/net/Uri;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I",
-        &[
-            (&item_uri).into(),
-            (&finalized_values).into(),
-            (&null_string).into(),
-            (&null_args).into(),
-        ],
-    )
-    .map_err(|e| map_android_jni_error(&mut env, e))?;
+        let null_string = JObject::null();
+        let null_args = JObject::null();
+        env.call_method(
+            &resolver,
+            "update",
+            "(Landroid/net/Uri;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I",
+            &[
+                (&item_uri).into(),
+                (&finalized_values).into(),
+                (&null_string).into(),
+                (&null_args).into(),
+            ],
+        )
+        .map_err(|e| map_android_jni_error(&mut env, e))?;
+    }
 
     Ok(())
 }
@@ -567,11 +594,17 @@ pub fn save_file_bytes_to_android_downloads(
     mime_type: &str,
     bytes: &[u8],
 ) -> Result<(), String> {
+    let sdk_version = get_android_sdk_version();
+    let collection_class = if sdk_version >= 29 {
+        "android/provider/MediaStore$Downloads"
+    } else {
+        "android/provider/MediaStore$Files"
+    };
     save_bytes_to_android_media_store(
         file_name,
         mime_type,
         "Download/RapidRaw",
-        "android/provider/MediaStore$Downloads",
+        collection_class,
         bytes,
     )
 }

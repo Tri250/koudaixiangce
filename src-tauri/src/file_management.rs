@@ -3238,7 +3238,12 @@ pub async fn import_files(
                 if is_android_content_uri(source_path_str) {
                     let resolved_name = resolve_android_content_uri_name(source_path_str)?;
                     let source_bytes = read_android_content_uri(source_path_str)?;
-                    let source_name_path = Path::new(&resolved_name);
+                    // Sanitize resolved name: some content providers return paths with separators
+                    let safe_name = Path::new(&resolved_name)
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(&resolved_name);
+                    let source_name_path = Path::new(safe_name);
                     let file_date = exif_processing::get_creation_date_from_bytes(
                         &resolved_name,
                         &source_bytes,

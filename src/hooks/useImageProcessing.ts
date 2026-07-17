@@ -64,7 +64,9 @@ export function useImageProcessing(
 
   const calculateROI = useCallback(() => {
     if (!transformWrapperRef.current) return null;
-    const state = transformWrapperRef.current.instance.transformState;
+    const instance = transformWrapperRef.current.instance;
+    if (!instance) return null;
+    const state = instance.transformState;
     if (!state) return null;
 
     if (!baseRenderSize) return null;

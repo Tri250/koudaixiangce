@@ -245,9 +245,10 @@ pub async fn download_ai_model(
         },
     );
 
-    // Stream the response body with progress tracking
-    let mut dest_file = fs::File::create(&dest_path)
-        .map_err(|e| format!("Failed to create file: {}", e))?;
+    // Atomic download: write to temp file first, then rename on success
+    let temp_path = dest_path.with_extension("tmp");
+    let mut dest_file = fs::File::create(&temp_path)
+        .map_err(|e| format!("Failed to create temp file: {}", e))?;
 
     let mut downloaded: u64 = 0;
     let mut stream = response.bytes_stream();
@@ -282,7 +283,7 @@ pub async fn download_ai_model(
         .flush()
         .map_err(|e| format!("Flush error: {}", e))?;
 
-    // Verify SHA256 after download
+    // Verify SHA256 after download (on temp file)
     if !model.sha256.is_empty() {
         let _ = app_handle.emit(
             "model-download-progress",
@@ -294,14 +295,18 @@ pub async fn download_ai_model(
             },
         );
 
-        if !verify_sha256(&dest_path, &model.sha256).map_err(|e| e.to_string())? {
-            let _ = fs::remove_file(&dest_path);
+        if !verify_sha256(&temp_path, &model.sha256).map_err(|e| e.to_string())? {
+            let _ = fs::remove_file(&temp_path);
             return Err(format!(
                 "Hash verification failed for model '{}'",
                 model_id
             ));
         }
     }
+
+    // Atomic rename: only expose the complete verified file
+    fs::rename(&temp_path, &dest_path)
+        .map_err(|e| format!("Failed to finalize model file: {}", e))?;
 
     Ok(())
 }

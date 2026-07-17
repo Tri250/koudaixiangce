@@ -200,6 +200,9 @@ fn calculate_resize_target(
     };
 
     let value = resize_opts.value;
+    if current_w == 0 || current_h == 0 || value == 0 {
+        return (current_w, current_h);
+    }
     if fix_width {
         let h = (value as f32 * (current_h as f32 / current_w as f32)).round() as u32;
         (value, h)
@@ -812,7 +815,21 @@ pub async fn export_images(
                     new_stem = format!("{}_VC{:02}", new_stem, appearance_count - 1);
                 }
 
-                let new_filename = format!("{}.{}", new_stem, output_format);
+                let sanitized_stem: String = new_stem
+                    .chars()
+                    .filter(|c| !matches!(c, '/' | '\\' | '\0'))
+                    .collect();
+                if sanitized_stem.is_empty() || sanitized_stem.len() > 200 {
+                    return Err(format!("Invalid export filename stem: {}", new_stem));
+                }
+                if output_format.is_empty()
+                    || output_format.contains('/')
+                    || output_format.contains('\\')
+                    || output_format.contains('\0')
+                {
+                    return Err(format!("Invalid export format: {}", output_format));
+                }
+                let new_filename = format!("{}.{}", sanitized_stem, output_format);
                 let output_path = if is_explicit_file_path && total_paths == 1 {
                     output_folder_path
                 } else if export_settings.preserve_folders {

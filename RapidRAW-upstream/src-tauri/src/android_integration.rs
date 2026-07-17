@@ -524,7 +524,7 @@ pub fn save_bytes_to_android_media_store(
 
     let null_string = JObject::null();
     let null_args = JObject::null();
-    env.call_method(
+    let update_result = env.call_method(
         &resolver,
         "update",
         "(Landroid/net/Uri;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I",
@@ -535,7 +535,12 @@ pub fn save_bytes_to_android_media_store(
             (&null_args).into(),
         ],
     )
-    .map_err(|e| map_android_jni_error(&mut env, e))?;
+    .map_err(|e| map_android_jni_error(&mut env, e));
+
+    if let Err(err) = update_result {
+        delete_android_media_store_item(&mut env, &resolver, &item_uri);
+        return Err(err);
+    }
 
     Ok(())
 }
@@ -739,6 +744,9 @@ pub async fn pick_android_directory() -> Result<String, String> {
             let mut guard = SAF_PICK_RESOLVER
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
+            if guard.is_some() {
+                return Err("Another SAF picker is already pending.".to_string());
+            }
             *guard = Some(tx);
         }
 
@@ -826,6 +834,9 @@ fn saf_column_index<'local>(
     cursor: &JObject<'local>,
     column: &JObject<'local>,
 ) -> Result<i32, String> {
+    if column.is_null() {
+        return Err("SAF column name is null".to_string());
+    }
     env.call_method(
         cursor,
         "getColumnIndex",
@@ -884,9 +895,17 @@ fn saf_string_static_field<'local>(
     class: &str,
     field: &str,
 ) -> Result<JObject<'local>, String> {
-    env.get_static_field(class, field, "Ljava/lang/String;")
+    let obj = env
+        .get_static_field(class, field, "Ljava/lang/String;")
         .and_then(|v| v.l())
-        .map_err(|e| map_android_jni_error(env, e))
+        .map_err(|e| map_android_jni_error(env, e))?;
+    if obj.is_null() {
+        return Err(format!(
+            "SAF static field {}.{} is null",
+            class, field
+        ));
+    }
+    Ok(obj)
 }
 
 #[cfg(target_os = "android")]
@@ -1024,6 +1043,9 @@ fn collect_saf_children<'local>(
     tree_uri_obj: &JObject<'local>,
     children_uri: &JObject<'local>,
 ) -> Result<Vec<SafDirectoryEntry>, String> {
+    if tree_uri_obj.is_null() {
+        return Err("SAF tree URI is null".to_string());
+    }
     let null_obj = JObject::null();
     let cursor = env
         .call_method(
@@ -1080,6 +1102,17 @@ fn collect_saf_children<'local>(
             let last_modified = saf_cursor_long(env, &cursor, idx_last)?;
             let size = saf_cursor_long(env, &cursor, idx_size)?;
 
+            if child_doc_id.is_empty() {
+                let has_next = env
+                    .call_method(&cursor, "moveToNext", "()Z", &[])
+                    .and_then(|v| v.z())
+                    .map_err(|e| map_android_jni_error(env, e))?;
+                if !has_next {
+                    break;
+                }
+                continue;
+            }
+
             // DocumentsContract.buildDocumentUriUsingTree(treeUri, childDocId)
             let child_doc_id_jstring = env
                 .new_string(&child_doc_id)
@@ -1094,15 +1127,33 @@ fn collect_saf_children<'local>(
                 .and_then(|v| v.l())
                 .map_err(|e| map_android_jni_error(env, e))?;
             let child_uri_str: String = if child_uri_obj.is_null() {
+                env.delete_local_ref(child_doc_id_jstring).ok();
                 String::new()
             } else {
                 let s = env
                     .call_method(&child_uri_obj, "toString", "()Ljava/lang/String;", &[])
                     .and_then(|v| v.l())
                     .map_err(|e| map_android_jni_error(env, e))?;
-                env.get_string(&s.into())
+                if s.is_null() {
+                    env.delete_local_ref(child_doc_id_jstring).ok();
+                    env.delete_local_ref(child_uri_obj).ok();
+                    let has_next = env
+                        .call_method(&cursor, "moveToNext", "()Z", &[])
+                        .and_then(|v| v.z())
+                        .map_err(|e| map_android_jni_error(env, e))?;
+                    if !has_next {
+                        break;
+                    }
+                    continue;
+                }
+                let uri = env
+                    .get_string(&s)
                     .map_err(|e| map_android_jni_error(env, e))?
-                    .into()
+                    .into();
+                env.delete_local_ref(s).ok();
+                env.delete_local_ref(child_doc_id_jstring).ok();
+                env.delete_local_ref(child_uri_obj).ok();
+                uri
             };
 
             entries.push(SafDirectoryEntry {

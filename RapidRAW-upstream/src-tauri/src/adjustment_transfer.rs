@@ -318,17 +318,27 @@ fn apply_transfer(source: &Value, target: &Value, mode: &TransferMode) -> Value 
                                 default_val
                             };
 
+                            // Guard against NaN/Inf in source values
+                            if !src_num.is_finite() || !tgt_num.is_finite() || !default_val.is_finite() {
+                                // Skip invalid numeric values, keep target unchanged
+                                continue;
+                            }
+
                             let delta = src_num - default_val;
                             let new_val = tgt_num + delta;
 
-                            // Clamp
+                            // Clamp with validated range (ensure min <= max)
                             let clamped = if let Some(&(min, max)) = ranges.get(key.as_str()) {
-                                new_val.clamp(min, max)
+                                let (real_min, real_max) = if min <= max { (min, max) } else { (max, min) };
+                                new_val.clamp(real_min, real_max)
                             } else {
                                 new_val
                             };
 
-                            result_map.insert(key.clone(), serde_json::json!(clamped));
+                            // Final guard: only insert finite values
+                            if clamped.is_finite() {
+                                result_map.insert(key.clone(), serde_json::json!(clamped));
+                            }
                         } else if overwrite_set.contains(&key.as_str()) {
                             // For non-numeric (crop, masks, etc.) use overwrite
                             let is_default = if let Some(default_val) = defaults.get(key.as_str()) {

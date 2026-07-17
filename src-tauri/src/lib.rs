@@ -660,6 +660,7 @@ fn start_preview_worker(app_handle: tauri::AppHandle) {
                 }
                 Err(e) => {
                     log::error!("Preview worker error: {}", e);
+                    let _ = responder.send(Vec::new());
                 }
             }
         }

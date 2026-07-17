@@ -1380,6 +1380,18 @@ pub fn generate_thumbnail_data(
 ) -> anyhow::Result<DynamicImage> {
     let (source_path, sidecar_path) = parse_virtual_path(path_str);
     let source_path_str = source_path.to_string_lossy().to_string();
+
+    if path_str.contains('\0')
+        || source_path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(anyhow::anyhow!(
+            "Invalid thumbnail path: {}",
+            path_str
+        ));
+    }
+
     let is_raw = is_raw_file(&source_path_str);
 
     let metadata: Option<ImageMetadata> = fs::read_to_string(sidecar_path)
@@ -1694,6 +1706,9 @@ pub fn generate_thumbnail_data(
 
 fn encode_thumbnail(image: &DynamicImage, target_width: u32) -> Result<Vec<u8>> {
     let thumbnail = crate::image_processing::downscale_f32_image(image, target_width, target_width);
+    if thumbnail.width() == 0 || thumbnail.height() == 0 {
+        return Err(anyhow::anyhow!("Thumbnail has zero dimensions"));
+    }
     let mut buf = Cursor::new(Vec::new());
     let mut encoder = JpegEncoder::new_with_quality(&mut buf, 75);
     encoder.encode_image(&thumbnail.to_rgb8())?;
