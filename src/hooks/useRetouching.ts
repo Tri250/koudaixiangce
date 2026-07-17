@@ -167,7 +167,7 @@ export function useRetouching() {
 
   const applyBlemishRemoval = useCallback(async (imagePath: string): Promise<string | null> => {
     try {
-      const result = await invoke<string>('apply_blemish_removal', { imagePath });
+      const result = await invoke<string>('auto_remove_blemishes', { imagePath });
       return result;
     } catch (err) {
       console.error('applyBlemishRemoval failed:', err);
@@ -180,7 +180,7 @@ export function useRetouching() {
   const applySkinColorUniform = useCallback(
     async (imagePath: string, params: SkinColorUniformParams): Promise<string | null> => {
       try {
-        const result = await invoke<string>('apply_skin_color_uniform', { imagePath, params });
+        const result = await invoke<string>('unify_skin_color', { imagePath, params });
         return result;
       } catch (err) {
         console.error('applySkinColorUniform failed:', err);
@@ -240,6 +240,19 @@ export function useRetouching() {
     setLiquifyStrokes([]);
   }, []);
 
+  const applyHairRetouch = useCallback(
+    async (imagePath: string, params: Record<string, unknown>): Promise<string | null> => {
+      try {
+        const result = await invoke<string>('apply_hair_retouch', { imagePath, params });
+        return result;
+      } catch (err) {
+        console.error('applyHairRetouch failed:', err);
+        return null;
+      }
+    },
+    [],
+  );
+
   return {
     // Face
     faceDetections,
@@ -263,6 +276,9 @@ export function useRetouching() {
 
     // Body reshape
     applyBodyReshape,
+
+    // Hair
+    applyHairRetouch,
 
     // Liquify
     liquifyStrokes,

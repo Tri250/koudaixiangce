@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
 import {
   Move,
   Shrink,
@@ -18,6 +17,7 @@ import Button from '../../ui/Button';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { BrushType, LiquifyStroke, useRetouching } from '../../../hooks/useRetouching';
+import { useEditorStore } from '../../../store/useEditorStore';
 
 interface BrushTypeConfig {
   id: BrushType;
@@ -48,6 +48,7 @@ function MinimizeIcon(props: React.SVGProps<SVGSVGElement> & { size?: number }) 
 
 export default function LiquifyPanel() {
   const { t } = useTranslation();
+  const selectedImage = useEditorStore((s) => s.selectedImage);
   const {
     liquifyStrokes,
     addLiquifyStroke,
@@ -74,7 +75,7 @@ export default function LiquifyPanel() {
     if (liquifyStrokes.length === 0) return;
     setIsApplying(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await applyLiquify(imagePath, liquifyStrokes);
     } finally {
       setIsApplying(false);

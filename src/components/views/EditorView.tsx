@@ -17,6 +17,10 @@ import ExportPanel from '../panel/right/ExportPanel';
 import HDRPanel from '../panel/right/HDRPanel';
 import MonochromePanel from '../panel/right/MonochromePanel';
 import ColorSpacePanel from '../panel/right/ColorSpacePanel';
+import PortraitPanel from '../panel/right/PortraitPanel';
+import LiquifyPanel from '../panel/right/LiquifyPanel';
+import SkyPanel from '../panel/right/SkyPanel';
+import CreativePanel from '../panel/right/CreativePanel';
 
 import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -240,6 +244,10 @@ export default function EditorView({
             />
           )}
           {renderedRightPanel === Panel.Ai && <AIPanel />}
+          {renderedRightPanel === Panel.Portrait && <PortraitPanel />}
+          {renderedRightPanel === Panel.Liquify && <LiquifyPanel />}
+          {renderedRightPanel === Panel.Sky && <SkyPanel />}
+          {renderedRightPanel === Panel.Creative && <CreativePanel />}
           {renderedRightPanel === Panel.Hdr && <HDRPanel />}
           {renderedRightPanel === Panel.Monochrome && <MonochromePanel />}
           {renderedRightPanel === Panel.ColorSpace && <ColorSpacePanel />}

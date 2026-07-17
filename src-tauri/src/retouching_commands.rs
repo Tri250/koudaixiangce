@@ -556,3 +556,21 @@ pub async fn adjust_neck_shoulder(
 
     encode_image_to_base64_png(&result_image)
 }
+
+#[tauri::command]
+pub async fn apply_hair_retouch(
+    image_data_base64: String,
+    params: serde_json::Value,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let image = decode_base64_image(&image_data_base64)?;
+
+    let result_image = tokio::task::spawn_blocking(move || {
+        crate::hair_retouching::apply_hair_retouch(&image, &params)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task panicked: {}", e))??;
+
+    encode_image_to_base64_png(&result_image)
+}

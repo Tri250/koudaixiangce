@@ -25,6 +25,7 @@ mod liquify;
 mod skin_retouching;
 mod face_reshaping;
 mod sky_replacement;
+mod hair_retouching;
 mod ai_color_match;
 mod super_resolution;
 mod creative_tools;
@@ -2436,6 +2437,7 @@ pub fn run() {
             retouching_commands::add_eye_catchlight,
             retouching_commands::adjust_smile,
             retouching_commands::adjust_neck_shoulder,
+            retouching_commands::apply_hair_retouch,
             color_science_commands::get_color_profiles,
             color_science_commands::convert_color_space,
             color_science_commands::soft_proof,

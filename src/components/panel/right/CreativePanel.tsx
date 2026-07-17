@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   Palette,
   Sun,
@@ -22,11 +23,13 @@ import Button from '../../ui/Button';
 import Dropdown from '../../ui/Dropdown';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
 
 // ── Color Match Section ──────────────────────────────────────────────
 
 function ColorMatchSection() {
   const { t } = useTranslation();
+  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [matchMethod, setMatchMethod] = useState<'histogram' | 'linear'>('histogram');
   const [strength, setStrength] = useState(50);
   const [referencePath, setReferencePath] = useState<string | null>(null);
@@ -34,8 +37,11 @@ function ColorMatchSection() {
 
   const handleSelectReference = useCallback(async () => {
     try {
-      const selected = await invoke<string>('select_reference_image');
-      if (selected) setReferencePath(selected);
+      const selected = await openDialog({
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'tiff', 'bmp'] }],
+        multiple: false,
+      });
+      if (selected && typeof selected === 'string') setReferencePath(selected);
     } catch (err) {
       console.error('select_reference_image failed:', err);
     }
@@ -45,8 +51,8 @@ function ColorMatchSection() {
     if (!referencePath) return;
     setIsProcessing(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
-      await invoke('apply_color_match', { imagePath, referencePath, method: matchMethod, strength });
+      const imagePath = selectedImage?.path ?? '';
+      await invoke('ai_match_colors', { imagePath, referencePath, method: matchMethod, strength });
     } catch (err) {
       console.error('apply_color_match failed:', err);
     } finally {
@@ -96,6 +102,7 @@ function ColorMatchSection() {
 
 function FillLightSection() {
   const { t } = useTranslation();
+  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [direction, setDirection] = useState(0);
   const [intensity, setIntensity] = useState(50);
   const [softness, setSoftness] = useState(30);
@@ -147,13 +154,14 @@ function FillLightSection() {
 
 function SuperResolutionSection() {
   const { t } = useTranslation();
+  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [scale, setScale] = useState<'2x' | '4x'>('2x');
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleApply = useCallback(async () => {
     setIsProcessing(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await invoke('apply_super_resolution', { imagePath, scale: scale === '2x' ? 2 : 4 });
     } catch (err) {
       console.error('apply_super_resolution failed:', err);
@@ -199,7 +207,7 @@ function IdPhotoSection() {
   const handleProcess = useCallback(async () => {
     setIsProcessing(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await invoke('process_id_photo', { imagePath, sizePreset, bgColor });
     } catch (err) {
       console.error('process_id_photo failed:', err);
@@ -302,6 +310,7 @@ function LensBlurSection() {
 
 function OldPhotoRestoreSection() {
   const { t } = useTranslation();
+  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [denoiseStrength, setDenoiseStrength] = useState(50);
   const [scratchRemoval, setScratchRemoval] = useState(true);
   const [colorize, setColorize] = useState(false);
@@ -310,7 +319,7 @@ function OldPhotoRestoreSection() {
   const handleRestore = useCallback(async () => {
     setIsProcessing(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await invoke('restore_old_photo', { imagePath, denoiseStrength, scratchRemoval, colorize });
     } catch (err) {
       console.error('restore_old_photo failed:', err);
@@ -352,6 +361,7 @@ function OldPhotoRestoreSection() {
 
 function SeasonalEffectsSection() {
   const { t } = useTranslation();
+  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [effectType, setEffectType] = useState<'sakura' | 'summer' | 'autumn' | 'winter'>('sakura');
   const [intensity, setIntensity] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -359,7 +369,7 @@ function SeasonalEffectsSection() {
   const handleApply = useCallback(async () => {
     setIsProcessing(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await invoke('apply_seasonal_effect', { imagePath, effectType, intensity });
     } catch (err) {
       console.error('apply_seasonal_effect failed:', err);

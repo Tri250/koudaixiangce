@@ -8,6 +8,7 @@ import Button from '../../ui/Button';
 import Text from '../../ui/Text';
 import Switch from '../../ui/Switch';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
 
 interface SkyPreset {
   id: string;
@@ -30,6 +31,7 @@ const SKY_PRESETS: SkyPreset[] = [
 
 export default function SkyPanel() {
   const { t } = useTranslation();
+  const selectedImage = useEditorStore((s) => s.selectedImage);
   const [isDetectingSky, setIsDetectingSky] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
@@ -43,8 +45,8 @@ export default function SkyPanel() {
   const handleDetectSky = useCallback(async () => {
     setIsDetectingSky(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
-      await invoke('detect_sky_mask', { imagePath });
+      const imagePath = selectedImage?.path ?? '';
+      await invoke('replace_sky', { imagePath });
       setSkyMaskGenerated(true);
     } catch (err) {
       console.error('detect_sky_mask failed:', err);
@@ -69,7 +71,7 @@ export default function SkyPanel() {
     if (!skyMaskGenerated) return;
     setIsProcessing(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await invoke('replace_sky', {
         imagePath,
         skyImagePath: skyImagePath || selectedPreset || '',

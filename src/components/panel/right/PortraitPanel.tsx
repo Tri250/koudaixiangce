@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
 import { User, Eye, Smile, Scissors, Palette, Sparkles, RotateCcw, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
@@ -10,6 +9,7 @@ import Button from '../../ui/Button';
 import Dropdown from '../../ui/Dropdown';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
 import {
   useRetouching,
   FaceReshapeParams,
@@ -67,6 +67,7 @@ const DEFAULT_HAIR_PARAMS: HairParams = {
 
 export default function PortraitPanel() {
   const { t } = useTranslation();
+  const selectedImage = useEditorStore((s) => s.selectedImage);
   const {
     faceDetections,
     isDetectingFaces,
@@ -79,6 +80,7 @@ export default function PortraitPanel() {
     applyBlemishRemoval,
     applySkinColorUniform,
     applyBodyReshape,
+    applyHairRetouch,
   } = useRetouching();
 
   const [activeTab, setActiveTab] = useState<PortraitTab>('face');
@@ -99,13 +101,13 @@ export default function PortraitPanel() {
   }, []);
 
   const handleDetectFaces = useCallback(async () => {
-    const imagePath = ''; // TODO: get from editor store
+    const imagePath = selectedImage?.path ?? '';
     if (!imagePath) return;
     await detectFaces(imagePath);
   }, [detectFaces]);
 
   const handleDetectBody = useCallback(async () => {
-    const imagePath = ''; // TODO: get from editor store
+    const imagePath = selectedImage?.path ?? '';
     if (!imagePath) return;
     await detectBody(imagePath);
   }, [detectBody]);
@@ -114,7 +116,7 @@ export default function PortraitPanel() {
     if (faceDetections.length === 0) return;
     setIsApplying(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await applyFaceReshape(imagePath, faceParams, faceDetections[0].landmarks);
     } finally {
       setIsApplying(false);
@@ -124,7 +126,7 @@ export default function PortraitPanel() {
   const handleApplySkinSmoothing = useCallback(async () => {
     setIsApplying(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await applySkinSmoothing(imagePath, skinParams);
     } finally {
       setIsApplying(false);
@@ -134,7 +136,7 @@ export default function PortraitPanel() {
   const handleAutoBlemishRemove = useCallback(async () => {
     setIsApplying(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await applyBlemishRemoval(imagePath);
     } finally {
       setIsApplying(false);
@@ -144,7 +146,7 @@ export default function PortraitPanel() {
   const handleSkinColorUniform = useCallback(async () => {
     setIsApplying(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await applySkinColorUniform(imagePath, { strength: skinColorUniformStrength });
     } finally {
       setIsApplying(false);
@@ -155,7 +157,7 @@ export default function PortraitPanel() {
     if (bodyDetections.length === 0) return;
     setIsApplying(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
+      const imagePath = selectedImage?.path ?? '';
       await applyBodyReshape(imagePath, bodyParams, bodyDetections[0].keypoints);
     } finally {
       setIsApplying(false);
@@ -165,12 +167,12 @@ export default function PortraitPanel() {
   const handleApplyHair = useCallback(async () => {
     setIsApplying(true);
     try {
-      const imagePath = ''; // TODO: get from editor store
-      await invoke('apply_hair_retouch', { imagePath, params: hairParams });
+      const imagePath = selectedImage?.path ?? '';
+      await applyHairRetouch(imagePath, hairParams as unknown as Record<string, unknown>);
     } finally {
       setIsApplying(false);
     }
-  }, [hairParams]);
+  }, [hairParams, applyHairRetouch]);
 
   const skinMethodOptions = [
     { label: t('editor.portrait.skin.method.neutralGray'), value: 'neutral_gray' as const },
