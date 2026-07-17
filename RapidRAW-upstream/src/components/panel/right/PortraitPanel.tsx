@@ -1,0 +1,25 @@
+import { useState, useCallback } fromimport { useState, useCallback } from 'react';
+import { RotateCcw } fromimport { useState, useCallback } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import Collimport { useState, useCallback } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import CollapsibleSection from '../../ui/CollapsibleSection';
+import Slider from '../../ui/Slider';
+import Textimport { useState, useCallback } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import CollapsibleSection from '../../ui/CollapsibleSection';
+import Slider from '../../ui/Slider';
+import Text from '../../ui/Text';
+import { TextVariants } from '../../../types/typography';
+importimport { useState, useCallback } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import CollapsibleSection from '../../ui/CollapsibleSection';
+import Slider from '../../ui/Slider';
+import Text from '../../ui/Text';
+import { TextVariants } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
+import { useUIStore } from '../../../

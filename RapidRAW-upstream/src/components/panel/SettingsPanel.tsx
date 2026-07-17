@@ -1054,7 +1054,7 @@ export default function SettingsPanel({
                   />
                 )}
                 <span className="relative z-10 flex items-center">
-                  <category.icon size={16} className="mr-2 shrink-0" />
+                  <category.icon size={14} className="mr-2 shrink-0" />
                   <span className="truncate">{category.label}</span>
                 </span>
               </button>

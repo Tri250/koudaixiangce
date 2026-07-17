@@ -120,7 +120,7 @@ export default function RightPanelSwitcher({
           )}
           {group.map(({ id, icon: Icon, title }) => (
             <button
-              className={`relative rounded-md transition-colors duration-200 ${isHorizontal ? 'p-2 shrink-0' : 'p-2'} ${
+              className={`relative rounded-md transition-colors duration-200 ${isHorizontal ? 'p-1.5 shrink-0' : 'p-1.5'} ${
                 activePanel === id
                   ? 'text-text-primary'
                   : 'text-text-secondary hover:bg-surface hover:text-text-primary'
@@ -132,11 +132,11 @@ export default function RightPanelSwitcher({
               {activePanel === id && (
                 <motion.div
                   layoutId="active-panel-indicator"
-                  className="absolute inset-0 bg-surface rounded-md"
-                  transition={isInstantTransition ? { duration: 0 } : { type: 'spring', bounce: 0.2, duration: 0.4 }}
+                  className="absolute inset-0.5 bg-surface rounded-sm"
+                  transition={isInstantTransition ? { duration: 0 } : { type: 'spring', bounce: 0.15, duration: 0.4 }}
                 />
               )}
-              <Icon size={20} className="relative z-10" />
+              <Icon size={18} className="relative z-10" />
             </button>
           ))}
         </div>

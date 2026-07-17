@@ -115,6 +115,7 @@ export default function TitleBar() {
             </div>
           )}
           <div data-tauri-drag-region className={`flex items-center h-full ${isMac ? '' : 'px-4'}`}>
+            <img src="/app-icon.png" alt="" className="w-4 h-4 mr-2 pointer-events-none" draggable={false} />
             <p className="text-sm font-semibold text-text-secondary pointer-events-none">RapidRAW</p>
           </div>
         </div>

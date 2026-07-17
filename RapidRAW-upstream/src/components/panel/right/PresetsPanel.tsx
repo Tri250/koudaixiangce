@@ -227,7 +227,7 @@ function PresetItemDisplay({
     <div className="flex flex-col p-2 rounded-lg bg-surface cursor-grabbing">
       <div className="flex items-center gap-3">
         <div
-          className="w-20 h-14 bg-bg-tertiary rounded-md flex items-center justify-center shrink-0 relative overflow-hidden"
+          className="w-16 h-12 bg-bg-tertiary rounded-md flex items-center justify-center shrink-0 relative overflow-hidden"
           data-tooltip={tooltipContent}
         >
           {isGeneratingPreviews && !previewUrl ? (
@@ -260,9 +260,9 @@ function PresetItemDisplay({
           </Text>
           <div className="flex items-center gap-1.5 mt-0.5">
             {isTool ? (
-              <Wrench size={12} className="text-text-secondary" />
+              <Wrench size={10} className="text-text-secondary" />
             ) : (
-              <Palette size={12} className="text-text-secondary" />
+              <Palette size={10} className="text-text-secondary" />
             )}
             <Text
               variant={TextVariants.small}
@@ -309,7 +309,7 @@ function FolderItemDisplay({ folder }: FolderProps) {
   return (
     <div className="flex items-center gap-2 p-2 rounded-lg bg-surface cursor-grabbing w-full">
       <div className="p-1">
-        <FolderIcon size={18} />
+        <FolderIcon size={16} />
       </div>
       <Text color={TextColors.primary} weight={TextWeights.medium} className="grow truncate select-none">
         {folder.name}
@@ -432,7 +432,7 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
                 e.stopPropagation();
                 onToggle(folder.id);
               }}
-              size={18}
+              size={16}
             />
           ) : (
             <FolderIcon
@@ -441,7 +441,7 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
                 e.stopPropagation();
                 onToggle(folder.id);
               }}
-              size={18}
+              size={16}
             />
           )}
         </div>
@@ -480,6 +480,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
   const activePanel = useUIStore((s) => s.activeRightPanel);
   const setEditor = useEditorStore((s) => s.setEditor);
   const { setAdjustments } = useEditorActions();
+  const [filterType, setFilterType] = useState<'all' | 'style' | 'tool'>('all');
 
   const {
     addFolder,
@@ -1129,8 +1130,18 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
     showContextMenu(event.clientX, event.clientY, options);
   };
 
-  const folders = useMemo(() => presets.filter((item: UserPreset) => item.folder), [presets]);
-  const rootPresets = useMemo(() => presets.filter((item: UserPreset) => item.preset), [presets]);
+  const folders = useMemo(() => {
+    const allFolders = presets.filter((item: UserPreset) => item.folder);
+    if (filterType === 'all') return allFolders;
+    return allFolders.filter((item: UserPreset) =>
+      item.folder?.children?.some((p: Preset) => p.presetType === filterType),
+    );
+  }, [presets, filterType]);
+  const rootPresets = useMemo(() => {
+    const allRootPresets = presets.filter((item: UserPreset) => item.preset);
+    if (filterType === 'all') return allRootPresets;
+    return allRootPresets.filter((item: UserPreset) => item.preset?.presetType === filterType);
+  }, [presets, filterType]);
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -1170,6 +1181,22 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
               <Plus size={18} />
             </button>
           </div>
+        </div>
+
+        <div className="px-4 pt-3 pb-1 flex items-center gap-1.5 shrink-0">
+          {(['all', 'style', 'tool'] as const).map((type) => (
+            <button
+              key={type}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                filterType === type
+                  ? 'bg-accent text-white'
+                  : 'bg-surface text-text-secondary hover:bg-surface-hover'
+              }`}
+              onClick={() => setFilterType(type)}
+            >
+              {t(`editor.presets.filters.${type}`)}
+            </button>
+          ))}
         </div>
 
         <div
@@ -1222,6 +1249,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
                         <AnimatePresence>
                           {item.folder?.children
                             .filter((preset: Preset) => preset.id !== deletingItemId)
+                            .filter((preset: Preset) => filterType === 'all' || preset.presetType === filterType)
                             .map((preset: Preset) => (
                               <motion.div
                                 exit={{ opacity: 0, x: -15, transition: { duration: 0.2 } }}
