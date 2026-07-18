@@ -726,6 +726,157 @@
       },
       "vc": "VC"
     },
+    "portrait": {
+      "title": "人像精修",
+      "resetTooltip": "重置人像精修",
+      "tabs": {
+        "face": "面部",
+        "skin": "皮肤",
+        "body": "美型",
+        "hair": "头发"
+      },
+      "face": {
+        "detectFace": "检测人脸",
+        "detecting": "检测中...",
+        "detectedCount": "检测到 {{count}} 张人脸",
+        "faceSlimming": "瘦脸",
+        "eyeEnlarging": "放大眼睛",
+        "noseSlimming": "瘦鼻",
+        "lipAdjustment": "嘴型",
+        "jaw": "下颌",
+        "forehead": "额头",
+        "chin": "下巴",
+        "eyebrow": "眉毛",
+        "advancedTitle": "高级选项",
+        "eyeCatchlightIntensity": "眼神光强度",
+        "eyeCatchlightPosition": "眼神光位置",
+        "smileManagement": "笑容管理",
+        "apply": "应用面部重塑"
+      },
+      "skin": {
+        "smoothingMethod": "磨皮方法",
+        "method": {
+          "neutralGray": "中性灰",
+          "bilateral": "双边滤波",
+          "frequencySeparation": "频率分离"
+        },
+        "strength": "强度",
+        "texturePreservation": "纹理保留",
+        "radius": "半径",
+        "applySmoothing": "应用磨皮",
+        "autoBlemishRemove": "一键祛瑕",
+        "colorUniformStrength": "肤色统一强度",
+        "applyColorUniform": "应用肤色统一"
+      },
+      "body": {
+        "detectBody": "检测身体",
+        "detecting": "检测中...",
+        "detectedCount": "检测到 {{count}} 个身体",
+        "upperLeg": "大腿",
+        "lowerLeg": "小腿",
+        "arm": "手臂",
+        "waist": "腰部",
+        "shoulder": "直角肩",
+        "neck": "天鹅颈",
+        "hip": "臀部",
+        "apply": "应用美型"
+      },
+      "hair": {
+        "removeFlyaway": "祛碎发",
+        "flyawayStrength": "碎发去除强度",
+        "colorUniformStrength": "发色统一强度",
+        "smoothStrength": "头发柔顺强度",
+        "apply": "应用头发精修"
+      }
+    },
+    "liquify": {
+      "title": "液化",
+      "modalTitle": "液化",
+      "resetMeshTooltip": "重置网格",
+      "brushType": "画笔类型",
+      "brushTypes": {
+        "push": "推",
+        "pull": "拉",
+        "pucker": "收缩",
+        "bloat": "膨胀",
+        "twirl": "旋转",
+        "reconstruct": "重建"
+      },
+      "brushSize": "画笔大小",
+      "brushPressure": "压力",
+      "strokeCount": "{{count}} 笔画",
+      "undoStroke": "撤销笔画",
+      "resetMesh": "重置网格",
+      "cancel": "取消",
+      "apply": "应用"
+    },
+    "creative": {
+      "title": "创意工具",
+      "resetTooltip": "重置创意工具",
+      "colorMatch": {
+        "title": "AI 追色",
+        "selectReference": "选择参考图",
+        "methodHistogram": "直方图",
+        "methodLinear": "线性",
+        "strength": "强度",
+        "apply": "应用追色"
+      },
+      "fillLight": {
+        "title": "AI 补光",
+        "direction": "方向",
+        "intensity": "强度",
+        "softness": "柔和度",
+        "colorTemp": "色温",
+        "apply": "应用补光"
+      },
+      "superResolution": {
+        "title": "AI 超清",
+        "apply": "应用超清"
+      },
+      "idPhoto": {
+        "title": "证件照",
+        "oneInch": "一寸",
+        "twoInch": "二寸",
+        "passport": "护照",
+        "bgColor": "背景颜色",
+        "process": "生成证件照"
+      },
+      "clothing": {
+        "title": "衣物精修",
+        "wrinkleStrength": "祛褶皱强度",
+        "blemishToggle": "祛污渍",
+        "apply": "应用衣物精修"
+      },
+      "lensBlur": {
+        "title": "镜头虚化",
+        "gaussian": "高斯",
+        "bokeh": "焦外",
+        "tiltShift": "移轴",
+        "blurAmount": "虚化程度",
+        "apply": "应用镜头虚化"
+      },
+      "oldPhoto": {
+        "title": "老照片修复",
+        "denoiseStrength": "降噪强度",
+        "scratchRemoval": "祛划痕",
+        "colorize": "上色",
+        "restore": "修复"
+      },
+      "seasonal": {
+        "title": "季节场景",
+        "sakura": "樱花",
+        "summer": "夏日",
+        "autumn": "秋叶",
+        "winter": "冬雪",
+        "intensity": "强度",
+        "apply": "应用季节场景"
+      },
+      "peopleRemoval": {
+        "title": "路人消除",
+        "description": "自动检测并移除背景中的人物。",
+        "apply": "消除路人"
+      }
+    },
     "hdr": {
       "title": "HDR 高动态范围",
       "reset": "重置 HDR 设置",
@@ -802,7 +953,8 @@
       "softProof": "软打样",
       "outOfGamutWarning": "超出色域警告",
       "outOfGamutCount": "超出色域像素数：{{count}}",
-      "gamutWarningOverlay": "色域警告叠加层"
+      "gamutWarningOverlay": "色域警告叠加层",
+      "convert": "转换色彩空间"
     }
   },
   "export": {

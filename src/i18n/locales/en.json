@@ -718,6 +718,236 @@
         "undo": "Undo (Ctrl+Z) or History (Right-click)"
       },
       "vc": "VC"
+    },
+    "portrait": {
+      "title": "Portrait",
+      "resetTooltip": "Reset Portrait",
+      "tabs": {
+        "face": "Face",
+        "skin": "Skin",
+        "body": "Body",
+        "hair": "Hair"
+      },
+      "face": {
+        "detectFace": "Detect Faces",
+        "detecting": "Detecting faces...",
+        "detectedCount": "{{count}} face(s) detected",
+        "faceSlimming": "Face Slimming",
+        "eyeEnlarging": "Eye Enlarging",
+        "noseSlimming": "Nose Slimming",
+        "lipAdjustment": "Lip Adjustment",
+        "jaw": "Jaw",
+        "forehead": "Forehead",
+        "chin": "Chin",
+        "eyebrow": "Eyebrow",
+        "advancedTitle": "Advanced",
+        "eyeCatchlightIntensity": "Eye Catchlight Intensity",
+        "eyeCatchlightPosition": "Eye Catchlight Position",
+        "smileManagement": "Smile Management",
+        "apply": "Apply Face Reshape"
+      },
+      "skin": {
+        "smoothingMethod": "Smoothing Method",
+        "method": {
+          "neutralGray": "Neutral Gray",
+          "bilateral": "Bilateral",
+          "frequencySeparation": "Frequency Separation"
+        },
+        "strength": "Strength",
+        "texturePreservation": "Texture Preservation",
+        "radius": "Radius",
+        "applySmoothing": "Apply Skin Smoothing",
+        "autoBlemishRemove": "Auto Blemish Removal",
+        "colorUniformStrength": "Skin Color Uniform Strength",
+        "applyColorUniform": "Apply Skin Color Uniform"
+      },
+      "body": {
+        "detectBody": "Detect Body",
+        "detecting": "Detecting body...",
+        "detectedCount": "{{count}} body(ies) detected",
+        "upperLeg": "Upper Leg",
+        "lowerLeg": "Lower Leg",
+        "arm": "Arm",
+        "waist": "Waist",
+        "shoulder": "Shoulder",
+        "neck": "Neck",
+        "hip": "Hip",
+        "apply": "Apply Body Reshape"
+      },
+      "hair": {
+        "removeFlyaway": "Remove Flyaway Hair",
+        "flyawayStrength": "Flyaway Removal Strength",
+        "colorUniformStrength": "Hair Color Uniform Strength",
+        "smoothStrength": "Hair Smooth Strength",
+        "apply": "Apply Hair Retouch"
+      }
+    },
+    "liquify": {
+      "title": "Liquify",
+      "modalTitle": "Liquify",
+      "resetMeshTooltip": "Reset Mesh",
+      "brushType": "Brush Type",
+      "brushTypes": {
+        "push": "Push",
+        "pull": "Pull",
+        "pucker": "Pucker",
+        "bloat": "Bloat",
+        "twirl": "Twirl",
+        "reconstruct": "Reconstruct"
+      },
+      "brushSize": "Brush Size",
+      "brushPressure": "Brush Pressure",
+      "strokeCount": "{{count}} stroke(s)",
+      "undoStroke": "Undo Stroke",
+      "resetMesh": "Reset Mesh",
+      "cancel": "Cancel",
+      "apply": "Apply"
+    },
+    "creative": {
+      "title": "Creative Tools",
+      "resetTooltip": "Reset Creative",
+      "colorMatch": {
+        "title": "Color Match",
+        "selectReference": "Select Reference Image",
+        "methodHistogram": "Histogram",
+        "methodLinear": "Linear",
+        "strength": "Strength",
+        "apply": "Apply Color Match"
+      },
+      "fillLight": {
+        "title": "Fill Light",
+        "direction": "Direction",
+        "intensity": "Intensity",
+        "softness": "Softness",
+        "colorTemp": "Color Temperature",
+        "apply": "Apply Fill Light"
+      },
+      "superResolution": {
+        "title": "Super Resolution",
+        "apply": "Apply Super Resolution"
+      },
+      "idPhoto": {
+        "title": "ID Photo",
+        "oneInch": "1 Inch",
+        "twoInch": "2 Inch",
+        "passport": "Passport",
+        "bgColor": "Background Color",
+        "process": "Process ID Photo"
+      },
+      "clothing": {
+        "title": "Clothing Retouch",
+        "wrinkleStrength": "Wrinkle Removal Strength",
+        "blemishToggle": "Remove Stains",
+        "apply": "Apply Clothing Retouch"
+      },
+      "lensBlur": {
+        "title": "Lens Blur",
+        "gaussian": "Gaussian",
+        "bokeh": "Bokeh",
+        "tiltShift": "Tilt-Shift",
+        "blurAmount": "Blur Amount",
+        "apply": "Apply Lens Blur"
+      },
+      "oldPhoto": {
+        "title": "Old Photo Restore",
+        "denoiseStrength": "Denoise Strength",
+        "scratchRemoval": "Scratch Removal",
+        "colorize": "Colorize",
+        "restore": "Restore"
+      },
+      "seasonal": {
+        "title": "Seasonal Effects",
+        "sakura": "Sakura",
+        "summer": "Summer",
+        "autumn": "Autumn",
+        "winter": "Winter",
+        "intensity": "Intensity",
+        "apply": "Apply Seasonal Effect"
+      },
+      "peopleRemoval": {
+        "title": "People Removal",
+        "description": "Automatically detect and remove people from the background.",
+        "apply": "Remove People"
+      }
+    },
+    "hdr": {
+      "title": "HDR",
+      "reset": "Reset HDR Settings",
+      "previewToggle": "HDR Preview",
+      "highlightRecovery": "Highlight Recovery",
+      "selectMode": "Select Mode",
+      "recoveryAmount": "Recovery Amount",
+      "processing": "Processing...",
+      "peakBrightness": "Peak Brightness",
+      "outputColorSpace": "Output Color Space",
+      "selectOutputColorSpace": "Select Output Color Space",
+      "outOfGamutWarning": "Out of Gamut Warning",
+      "outOfGamutCount": "Out of gamut pixels: {{count}}",
+      "export": "HDR Export",
+      "exportUltraHDR": "Export Ultra HDR JPG",
+      "exportHDRTIFF": "Export HDR TIFF",
+      "gamutWarningOverlay": "Gamut Warning Overlay",
+      "modes": {
+        "recover": "Recover",
+        "clip": "Clip",
+        "rolloff": "Roll-off",
+        "smart_blend": "Smart Blend"
+      }
+    },
+    "monochrome": {
+      "title": "Monochrome",
+      "reset": "Reset Monochrome Settings",
+      "preset": "Preset",
+      "presets": {
+        "neutral": "Neutral",
+        "red": "Red",
+        "orange": "Orange",
+        "yellow": "Yellow",
+        "green": "Green",
+        "blue": "Blue",
+        "infrared": "Infrared"
+      },
+      "channelMixer": "Channel Mixer",
+      "redWeight": "Red Weight",
+      "greenWeight": "Green Weight",
+      "blueWeight": "Blue Weight",
+      "totalWeight": "Total Weight",
+      "contrast": "Contrast",
+      "toning": "Toning",
+      "selectToning": "Select Toning Type",
+      "toningStrength": "Toning Strength",
+      "shadowColor": "Shadow Color",
+      "highlightColor": "Highlight Color",
+      "splitBalance": "Split Balance",
+      "apply": "Apply",
+      "toningTypes": {
+        "none": "None",
+        "sepia": "Sepia",
+        "selenium": "Selenium",
+        "copper": "Copper",
+        "cyanotype": "Cyanotype",
+        "gold": "Gold",
+        "split": "Split Toning"
+      }
+    },
+    "colorSpace": {
+      "title": "Color Space Management",
+      "reset": "Reset Color Space Settings",
+      "workingColorSpace": "Working Color Space",
+      "selectWorkingColorSpace": "Select Working Color Space",
+      "outputColorSpace": "Output Color Space",
+      "selectOutputColorSpace": "Select Output Color Space",
+      "cameraProfile": "Camera Profile",
+      "autoDetectFromExif": "Auto Detect from EXIF",
+      "detectedCamera": "Detected Camera",
+      "selectCameraProfile": "Select Camera Profile",
+      "loadingProfiles": "Loading profiles...",
+      "importDCP": "Import DCP Profile",
+      "softProof": "Soft Proof",
+      "outOfGamutWarning": "Out of Gamut Warning",
+      "outOfGamutCount": "Out of gamut pixels: {{count}}",
+      "gamutWarningOverlay": "Gamut Warning Overlay",
+      "convert": "Convert Color Space"
     }
   },
   "export": {
