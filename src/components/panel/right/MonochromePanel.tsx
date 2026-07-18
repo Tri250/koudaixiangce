@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { toast } from 'react-toastify';
 import { Circle, Loader2, RotateCcw, Check } from 'lucide-react';
 import clsx from 'clsx';
 import CollapsibleSection from '../../ui/CollapsibleSection';
@@ -99,13 +100,15 @@ export default function MonochromePanel() {
             });
             if (result) {
                 setEditor({ retouchingResultUrl: result });
+                toast.success(t('editor.monochrome.apply'));
             }
         } catch (err) {
             console.error('convert_to_monochrome failed:', err);
+            toast.error(`${t('editor.monochrome.apply')} failed: ${err}`);
         } finally {
             setIsProcessing(false);
         }
-    }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength, shadowColor, highlightColor, splitBalance, adjustments, setEditor]);
+    }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength, shadowColor, highlightColor, splitBalance, adjustments, setEditor, t]);
 
     const handlePresetSelect = useCallback((presetId: string) => {
         setSelectedPreset(presetId);

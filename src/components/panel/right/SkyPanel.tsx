@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { Cloud, Sun, Loader2, RotateCcw, ImagePlus } from 'lucide-react';
+import { Cloud, Sun, Loader2, RotateCcw, ImagePlus, AlertCircle, CheckCircle } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
 import Button from '../../ui/Button';
@@ -96,10 +96,21 @@ export default function SkyPanel() {
   const [colorMatchStrength, setColorMatchStrength] = useState(50);
   const [horizonAdjust, setHorizonAdjust] = useState(0);
   const [skyMaskGenerated, setSkyMaskGenerated] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<'success' | 'error'>('success');
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showStatus = useCallback((message: string, type: 'success' | 'error') => {
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    setStatusMessage(message);
+    setStatusType(type);
+    statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 4000);
+  }, []);
 
   const handleDetectSky = useCallback(async () => {
     if (!selectedImage?.path) return;
     setIsDetectingSky(true);
+    setStatusMessage(null);
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
       await invoke(Invokes.GenerateAiSkyMask, {
@@ -110,12 +121,15 @@ export default function SkyPanel() {
         rotation: adjustments.rotation,
       });
       setSkyMaskGenerated(true);
+      showStatus(t('editor.sky.detectSuccess'), 'success');
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('generate_ai_sky_mask failed:', err);
+      showStatus(t('editor.sky.detectFailed') + (msg ? `: ${msg}` : ''), 'error');
     } finally {
       setIsDetectingSky(false);
     }
-  }, [selectedImage, adjustments]);
+  }, [selectedImage, adjustments, showStatus, t]);
 
   const handleSelectSkyImage = useCallback(async () => {
     try {
@@ -138,10 +152,17 @@ export default function SkyPanel() {
   }, [t]);
 
   const handleApply = useCallback(async () => {
-    if (!skyMaskGenerated) return;
+    if (!skyMaskGenerated) {
+      showStatus(t('editor.sky.detectFirst'), 'error');
+      return;
+    }
     if (!selectedImage?.path) return;
-    if (!skyImagePath && !selectedPreset) return;
+    if (!skyImagePath && !selectedPreset) {
+      showStatus(t('editor.sky.selectSkyFirst'), 'error');
+      return;
+    }
     setIsProcessing(true);
+    setStatusMessage(null);
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
       let skyImageBase64: string;
@@ -163,13 +184,18 @@ export default function SkyPanel() {
       });
       if (result?.image) {
         setEditor({ retouchingResultUrl: result.image });
+        showStatus(t('editor.sky.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.sky.applyFailed'), 'error');
       }
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('replace_sky failed:', err);
+      showStatus(t('editor.sky.applyFailed') + (msg ? `: ${msg}` : ''), 'error');
     } finally {
       setIsProcessing(false);
     }
-  }, [skyMaskGenerated, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust, selectedImage, adjustments, setEditor]);
+  }, [skyMaskGenerated, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust, selectedImage, adjustments, setEditor, showStatus, t]);
 
   return (
     <div className="flex flex-col h-full select-none overflow-hidden">
@@ -184,6 +210,7 @@ export default function SkyPanel() {
             setFeather(10);
             setColorMatchStrength(50);
             setHorizonAdjust(0);
+            setStatusMessage(null);
             setEditor({ retouchingResultUrl: null });
           }}
           data-tooltip={t('editor.sky.resetTooltip')}
@@ -196,7 +223,7 @@ export default function SkyPanel() {
         {/* Detect Sky */}
         <Button className="w-full" onClick={handleDetectSky} disabled={isDetectingSky}>
           {isDetectingSky ? <Loader2 size={16} className="animate-spin" /> : <Cloud size={16} />}
-          <span className="ml-2">{t('editor.sky.detectSky')}</span>
+          <span className="ml-2">{isDetectingSky ? t('editor.sky.detecting') : t('editor.sky.detectSky')}</span>
         </Button>
 
         {skyMaskGenerated && (
@@ -222,7 +249,7 @@ export default function SkyPanel() {
           <Text variant={TextVariants.label} className="mb-2 block">
             {t('editor.sky.presetsTitle')}
           </Text>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {SKY_PRESETS.map((preset) => (
               <button
                 key={preset.id}
@@ -286,9 +313,24 @@ export default function SkyPanel() {
           disabled={isProcessing || !skyMaskGenerated || (!skyImagePath && !selectedPreset)}
         >
           {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Sun size={16} />}
-          <span className="ml-2">{t('editor.sky.apply')}</span>
+          <span className="ml-2">{isProcessing ? t('editor.sky.processing') : t('editor.sky.apply')}</span>
         </Button>
       </div>
+
+      {/* Status message */}
+      {statusMessage && (
+        <div
+          className={clsx(
+            'shrink-0 flex items-center gap-2 px-4 py-2 text-sm border-t',
+            statusType === 'error'
+              ? 'bg-red-500/10 text-red-400 border-red-500/20'
+              : 'bg-green-500/10 text-green-400 border-green-500/20',
+          )}
+        >
+          {statusType === 'error' ? <AlertCircle size={14} className="shrink-0" /> : <CheckCircle size={14} className="shrink-0" />}
+          <span className="truncate">{statusMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

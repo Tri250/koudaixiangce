@@ -311,9 +311,9 @@ export default function EditorView({
                   'h-full overflow-hidden',
                   !isResizing && !isInstantTransition && 'transition-all duration-300 ease-in-out',
                 )}
-                style={{ width: activeRightPanel ? `${rightPanelWidth}px` : '0px' }}
+                style={{ width: activeRightPanel ? `${Math.max(rightPanelWidth, 320)}px` : '0px', minWidth: activeRightPanel ? '320px' : '0px' }}
               >
-                <div style={{ width: `${rightPanelWidth}px` }} className="h-full">
+                <div style={{ width: `${Math.max(rightPanelWidth, 320)}px`, minWidth: '320px' }} className="h-full">
                   {editorRightPanelContent}
                 </div>
               </div>

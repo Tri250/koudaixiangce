@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { toast } from 'react-toastify';
 import {
   Palette,
   Sun,
@@ -118,13 +119,15 @@ function ColorMatchSection() {
             saturation: (adjustments.saturation ?? 0) + (result.saturation ?? 0) * 100,
           },
         });
+        toast.success(t('editor.creative.colorMatch.apply'));
       }
     } catch (err) {
       console.error('apply_color_match failed:', err);
+      toast.error(`${t('editor.creative.colorMatch.apply')} failed: ${err}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [referencePath, matchMethod, strength, adjustments, setEditor]);
+  }, [referencePath, matchMethod, strength, adjustments, setEditor, t]);
 
   const methodOptions = [
     { label: t('editor.creative.colorMatch.methodHistogram'), value: 'histogram' as const },
@@ -189,13 +192,15 @@ function FillLightSection() {
       });
       if (result) {
         setEditor({ retouchingResultUrl: result });
+        toast.success(t('editor.creative.fillLight.apply'));
       }
     } catch (err) {
       console.error('apply_fill_light failed:', err);
+      toast.error(`${t('editor.creative.fillLight.apply')} failed: ${err}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [adjustments, direction, intensity, softness, colorTemp, setEditor]);
+  }, [adjustments, direction, intensity, softness, colorTemp, setEditor, t]);
 
   return (
     <div className="space-y-2 pt-2">
@@ -261,13 +266,15 @@ function SuperResolutionSection() {
       const result = await invoke<string>('apply_super_resolution', { jsAdjustments, scaleFactor, modelType });
       if (result) {
         setEditor({ retouchingResultUrl: result });
+        toast.success(t('editor.creative.superResolution.apply'));
       }
     } catch (err) {
       console.error('apply_super_resolution failed:', err);
+      toast.error(`${t('editor.creative.superResolution.apply')} failed: ${err}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [scale, modelType, adjustments, setEditor]);
+  }, [scale, modelType, adjustments, setEditor, t]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -321,13 +328,15 @@ function IdPhotoSection() {
       const result = await invoke<string>('process_id_photo', { jsAdjustments, size: sizePreset, backgroundColor });
       if (result) {
         setEditor({ retouchingResultUrl: result });
+        toast.success(t('editor.creative.idPhoto.process'));
       }
     } catch (err) {
       console.error('process_id_photo failed:', err);
+      toast.error(`${t('editor.creative.idPhoto.process')} failed: ${err}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [sizePreset, bgColor, adjustments, setEditor]);
+  }, [sizePreset, bgColor, adjustments, setEditor, t]);
 
   const presetOptions = [
     { label: t('editor.creative.idPhoto.oneInch'), value: 'one_inch' as const },
@@ -381,13 +390,15 @@ function ClothingSection() {
       });
       if (result) {
         setEditor({ retouchingResultUrl: result });
+        toast.success(t('editor.creative.clothing.apply'));
       }
     } catch (err) {
       console.error('retouch_clothing failed:', err);
+      toast.error(`${t('editor.creative.clothing.apply')} failed: ${err}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [wrinkleStrength, blemishToggle, adjustments, setEditor]);
+  }, [wrinkleStrength, blemishToggle, adjustments, setEditor, t]);
 
   return (
     <div className="space-y-2 pt-2">
@@ -442,13 +453,15 @@ function LensBlurSection() {
       });
       if (result) {
         setEditor({ retouchingResultUrl: result });
+        toast.success(t('editor.creative.lensBlur.apply'));
       }
     } catch (err) {
       console.error('apply_lens_blur failed:', err);
+      toast.error(`${t('editor.creative.lensBlur.apply')} failed: ${err}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [blurType, blurAmount, adjustments, setEditor]);
+  }, [blurType, blurAmount, adjustments, setEditor, t]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -492,13 +505,15 @@ function OldPhotoRestoreSection() {
       const result = await invoke<string>('restore_old_photo', { jsAdjustments, denoiseStrength, scratchRemoval, colorize });
       if (result) {
         setEditor({ retouchingResultUrl: result });
+        toast.success(t('editor.creative.oldPhoto.restore'));
       }
     } catch (err) {
       console.error('restore_old_photo failed:', err);
+      toast.error(`${t('editor.creative.oldPhoto.restore')} failed: ${err}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [denoiseStrength, scratchRemoval, colorize, adjustments, setEditor]);
+  }, [denoiseStrength, scratchRemoval, colorize, adjustments, setEditor, t]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -546,13 +561,15 @@ function SeasonalEffectsSection() {
       const result = await invoke<string>('apply_seasonal_effect', { jsAdjustments, effectType, intensity });
       if (result) {
         setEditor({ retouchingResultUrl: result });
+        toast.success(t('editor.creative.seasonal.apply'));
       }
     } catch (err) {
       console.error('apply_seasonal_effect failed:', err);
+      toast.error(`${t('editor.creative.seasonal.apply')} failed: ${err}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [effectType, intensity, adjustments, setEditor]);
+  }, [effectType, intensity, adjustments, setEditor, t]);
 
   const effectOptions = [
     { id: 'sakura' as const, labelKey: 'editor.creative.seasonal.sakura', color: '#FFB7C5' },
@@ -612,13 +629,15 @@ function PeopleRemovalSection() {
       const result = await invoke<string>('ai_remove_people', { jsAdjustments, personRegions: [] });
       if (result) {
         setEditor({ retouchingResultUrl: result });
+        toast.success(t('editor.creative.peopleRemoval.apply'));
       }
     } catch (err) {
       console.error('ai_remove_people failed:', err);
+      toast.error(`${t('editor.creative.peopleRemoval.apply')} failed: ${err}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [adjustments, setEditor]);
+  }, [adjustments, setEditor, t]);
 
   return (
     <div className="space-y-3 pt-2">

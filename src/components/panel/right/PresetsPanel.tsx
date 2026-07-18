@@ -237,13 +237,13 @@ function PresetItemDisplay({
       <div
         className={`group relative flex flex-col rounded-xl overflow-hidden bg-surface border transition-all duration-200 cursor-grabbing ${
           isActive
-            ? 'border-accent shadow-md shadow-accent/15 ring-1 ring-accent/40'
+            ? 'border-accent shadow-lg shadow-accent/20 ring-2 ring-accent/50'
             : 'border-border-color/40 hover:border-border-color/80 hover:shadow-sm'
         }`}
       >
         {/* Preview thumbnail (large, top) */}
         <div
-          className="relative w-full aspect-[4/3] bg-bg-tertiary overflow-hidden"
+          className="relative w-full aspect-[3/2] bg-bg-tertiary overflow-hidden"
           data-tooltip={tooltipContent}
         >
           {isGeneratingPreviews && !previewUrl ? (
@@ -286,6 +286,9 @@ function PresetItemDisplay({
           {isActive && (
             <div className="absolute inset-0 bg-accent/10 pointer-events-none" />
           )}
+
+          {/* Bottom gradient overlay */}
+          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
         </div>
 
         {/* Footer: name + (optional) intensity */}
@@ -582,7 +585,7 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
         {isExpanded && hasChildren && (
           <motion.div
             animate={{ height: 'auto', opacity: 1 }}
-            className="ml-5 pl-4 border-l-[1.5px] border-border-color/50 space-y-2 overflow-hidden pt-2"
+            className="ml-5 pl-4 border-l-[1.5px] border-accent/30 space-y-2 overflow-hidden pt-2"
             exit={{ height: 0, opacity: 0 }}
             initial={{ height: 0, opacity: 0 }}
           >
@@ -1273,6 +1276,27 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
   const folders = useMemo(() => presets.filter((item: UserPreset) => item.folder), [presets]);
   const rootPresets = useMemo(() => presets.filter((item: UserPreset) => item.preset), [presets]);
 
+  // Count presets by type for filter badges
+  const presetCounts = useMemo(() => {
+    let all = 0;
+    let style = 0;
+    let tool = 0;
+    presets.forEach((item: UserPreset) => {
+      if (item.preset) {
+        all++;
+        if (item.preset.presetType === 'style') style++;
+        else if (item.preset.presetType === 'tool') tool++;
+      } else if (item.folder) {
+        item.folder.children.forEach((p: Preset) => {
+          all++;
+          if (p.presetType === 'style') style++;
+          else if (p.presetType === 'tool') tool++;
+        });
+      }
+    });
+    return { all, style, tool };
+  }, [presets]);
+
   // Filter helpers
   const filterPreset = useCallback(
     (preset: Preset) => {
@@ -1363,14 +1387,14 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
               {(['all', 'style', 'tool'] as const).map((type) => (
                 <button
                   key={type}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
                     filterType === type
                       ? 'bg-accent text-white shadow-sm shadow-accent/25'
                       : 'bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                   }`}
                   onClick={() => setFilterType(type)}
                 >
-                  {t(`editor.presets.filters.${type}`)}
+                  {t(`editor.presets.filters.${type}`)} ({presetCounts[type]})
                 </button>
               ))}
             </div>
@@ -1475,7 +1499,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
                           onToggle={toggleFolder}
                         >
                           <AnimatePresence>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                               {filteredChildren.map((preset: Preset, ci: number) => (
                                 renderPresetItem(preset, ci)
                               ))}
@@ -1487,7 +1511,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
                   })}
               </AnimatePresence>
               <AnimatePresence>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {rootPresets
                     .filter((item: UserPreset) => item.preset?.id !== deletingItemId && filterPreset(item.preset as Preset))
                     .map((item: UserPreset, index: number) => (

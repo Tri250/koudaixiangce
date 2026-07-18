@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { User, Scissors, Palette, Sparkles, RotateCcw, Loader2 } from 'lucide-react';
+import { User, Scissors, Palette, Sparkles, RotateCcw, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
 import CollapsibleSection from '../../ui/CollapsibleSection';
@@ -96,6 +96,21 @@ export default function PortraitPanel() {
   const [neckAdjust, setNeckAdjust] = useState(0);
   const [shoulderAdjustValue, setShoulderAdjustValue] = useState(0);
   const [isApplying, setIsApplying] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<'success' | 'error'>('success');
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showStatus = useCallback((message: string, type: 'success' | 'error') => {
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    setStatusMessage(message);
+    setStatusType(type);
+    statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 4000);
+  }, []);
+
+  // Clear status when switching tabs
+  useEffect(() => {
+    setStatusMessage(null);
+  }, [activeTab]);
 
   const updateFaceParam = useCallback((key: keyof FaceReshapeParams, value: number) => {
     setFaceParams((prev) => ({ ...prev, [key]: value }));
@@ -122,95 +137,174 @@ export default function PortraitPanel() {
     setBodyParams(DEFAULT_BODY_PARAMS);
     setHairParams(DEFAULT_HAIR_PARAMS);
     setEditor({ retouchingResultUrl: null });
+    setStatusMessage(null);
   }, [setEditor]);
 
   const handleApplyFaceReshape = useCallback(async () => {
-    if (faceDetections.length === 0) return;
+    if (faceDetections.length === 0) {
+      showStatus(t('editor.portrait.face.detectFirst'), 'error');
+      return;
+    }
     setIsApplying(true);
     try {
-      await applyFaceReshape(faceDetections[0].landmarks, faceParams);
+      const result = await applyFaceReshape(faceDetections[0].landmarks, faceParams);
+      if (result) {
+        showStatus(t('editor.portrait.face.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.portrait.face.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.portrait.face.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, faceParams, applyFaceReshape]);
+  }, [faceDetections, faceParams, applyFaceReshape, showStatus, t]);
 
   const handleApplySkinSmoothing = useCallback(async () => {
     setIsApplying(true);
     try {
-      await applySkinSmoothing(skinParams.method, skinParams.strength, skinParams.texturePreservation, skinParams.radius);
+      const result = await applySkinSmoothing(skinParams.method, skinParams.strength, skinParams.texturePreservation, skinParams.radius);
+      if (result) {
+        showStatus(t('editor.portrait.skin.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.portrait.skin.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.portrait.skin.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [skinParams, applySkinSmoothing]);
+  }, [skinParams, applySkinSmoothing, showStatus, t]);
 
   const handleAutoBlemishRemove = useCallback(async () => {
     setIsApplying(true);
     try {
       const allLandmarks = faceDetections.map((d) => d.landmarks);
-      await applyBlemishRemoval(allLandmarks, 0.5);
+      const result = await applyBlemishRemoval(allLandmarks, 0.5);
+      if (result) {
+        showStatus(t('editor.portrait.skin.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.portrait.skin.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.portrait.skin.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [applyBlemishRemoval, faceDetections]);
+  }, [applyBlemishRemoval, faceDetections, showStatus, t]);
 
   const handleSkinColorUniform = useCallback(async () => {
     setIsApplying(true);
     try {
       const allLandmarks = faceDetections.map((d) => d.landmarks);
-      await applySkinColorUniform(allLandmarks, skinColorUniformStrength);
+      const result = await applySkinColorUniform(allLandmarks, skinColorUniformStrength);
+      if (result) {
+        showStatus(t('editor.portrait.skin.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.portrait.skin.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.portrait.skin.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [skinColorUniformStrength, applySkinColorUniform, faceDetections]);
+  }, [skinColorUniformStrength, applySkinColorUniform, faceDetections, showStatus, t]);
 
   const handleApplyBodyReshape = useCallback(async () => {
-    if (bodyDetections.length === 0) return;
+    if (bodyDetections.length === 0) {
+      showStatus(t('editor.portrait.body.detectFirst'), 'error');
+      return;
+    }
     setIsApplying(true);
     try {
-      await applyBodyReshape(bodyDetections[0].keypoints, bodyParams);
+      const result = await applyBodyReshape(bodyDetections[0].keypoints, bodyParams);
+      if (result) {
+        showStatus(t('editor.portrait.body.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.portrait.body.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.portrait.body.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [bodyDetections, bodyParams, applyBodyReshape]);
+  }, [bodyDetections, bodyParams, applyBodyReshape, showStatus, t]);
 
   const handleApplyHair = useCallback(async () => {
     setIsApplying(true);
     try {
-      await applyHairRetouch(hairParams as unknown as Record<string, unknown>);
+      const result = await applyHairRetouch(hairParams as unknown as Record<string, unknown>);
+      if (result) {
+        showStatus(t('editor.portrait.hair.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.portrait.hair.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.portrait.hair.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [hairParams, applyHairRetouch]);
+  }, [hairParams, applyHairRetouch, showStatus, t]);
 
   const handleApplyCatchlight = useCallback(async () => {
-    if (faceDetections.length === 0) return;
+    if (faceDetections.length === 0) {
+      showStatus(t('editor.portrait.face.detectFirst'), 'error');
+      return;
+    }
     setIsApplying(true);
     try {
-      await addEyeCatchlight(faceDetections[0].landmarks, catchlightIntensity, catchlightPosition);
+      const result = await addEyeCatchlight(faceDetections[0].landmarks, catchlightIntensity, catchlightPosition);
+      if (result) {
+        showStatus(t('editor.portrait.face.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.portrait.face.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.portrait.face.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, catchlightIntensity, catchlightPosition, addEyeCatchlight]);
+  }, [faceDetections, catchlightIntensity, catchlightPosition, addEyeCatchlight, showStatus, t]);
 
   const handleApplySmile = useCallback(async () => {
-    if (faceDetections.length === 0) return;
+    if (faceDetections.length === 0) {
+      showStatus(t('editor.portrait.face.detectFirst'), 'error');
+      return;
+    }
     setIsApplying(true);
     try {
-      await adjustSmile(faceDetections[0].landmarks, smileAmount);
+      const result = await adjustSmile(faceDetections[0].landmarks, smileAmount);
+      if (result) {
+        showStatus(t('editor.portrait.face.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.portrait.face.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.portrait.face.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, smileAmount, adjustSmile]);
+  }, [faceDetections, smileAmount, adjustSmile, showStatus, t]);
 
   const handleApplyNeckShoulder = useCallback(async () => {
-    if (bodyDetections.length === 0) return;
+    if (bodyDetections.length === 0) {
+      showStatus(t('editor.portrait.body.detectFirst'), 'error');
+      return;
+    }
     setIsApplying(true);
     try {
-      await adjustNeckShoulder(bodyDetections[0].keypoints, neckAdjust, shoulderAdjustValue);
+      const result = await adjustNeckShoulder(bodyDetections[0].keypoints, neckAdjust, shoulderAdjustValue);
+      if (result) {
+        showStatus(t('editor.portrait.body.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.portrait.body.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.portrait.body.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [bodyDetections, neckAdjust, shoulderAdjustValue, adjustNeckShoulder]);
+  }, [bodyDetections, neckAdjust, shoulderAdjustValue, adjustNeckShoulder, showStatus, t]);
 
   const skinMethodOptions = [
     { label: t('editor.portrait.skin.method.neutralGray'), value: 'neutral_gray' as const },
@@ -645,6 +739,21 @@ export default function PortraitPanel() {
         {activeTab === 'body' && renderBodyTab()}
         {activeTab === 'hair' && renderHairTab()}
       </div>
+
+      {/* Status message */}
+      {statusMessage && (
+        <div
+          className={clsx(
+            'shrink-0 flex items-center gap-2 px-4 py-2 text-sm border-t',
+            statusType === 'error'
+              ? 'bg-red-500/10 text-red-400 border-red-500/20'
+              : 'bg-green-500/10 text-green-400 border-green-500/20',
+          )}
+        >
+          {statusType === 'error' ? <AlertCircle size={14} className="shrink-0" /> : <CheckCircle size={14} className="shrink-0" />}
+          <span className="truncate">{statusMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -71,7 +71,7 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
   useEffect(() => {
     if (isOpen) {
       setIsMounted(true);
-      clearLiquifyStrokes();
+      // Don't clear strokes on open — they may already exist from prior drawing
       const timer = setTimeout(() => setShow(true), 10);
       return () => clearTimeout(timer);
     } else {
@@ -79,7 +79,7 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
       const timer = setTimeout(() => setIsMounted(false), 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, clearLiquifyStrokes]);
+  }, [isOpen]);
 
   // Scale image to fit container
   const [scale, setScale] = useState(1);
@@ -218,8 +218,11 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
     setIsApplying(true);
     try {
       // applyLiquify now handles jsAdjustments internally via useRetouching hook
-      await applyLiquify(liquifyStrokes);
-      onClose();
+      const result = await applyLiquify(liquifyStrokes);
+      if (result) {
+        onClose();
+      }
+      // If result is null, the operation failed — keep the modal open
     } finally {
       setIsApplying(false);
     }

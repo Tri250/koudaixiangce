@@ -111,8 +111,9 @@ export function useRetouching() {
   const [isDetectingBody, setIsDetectingBody] = useState(false);
   const [bodyDetectionError, setBodyDetectionError] = useState<string | null>(null);
 
-  // Liquify state
-  const [liquifyStrokes, setLiquifyStrokes] = useState<LiquifyStroke[]>([]);
+  // Liquify state — stored in the shared editor store so that
+  // LiquifyPanel and LiquifyModal share the same stroke array.
+  const liquifyStrokes = useEditorStore((s) => s.liquifyStrokes) as LiquifyStroke[];
 
   // Get current adjustments from editor store
   const adjustments = useEditorStore((s) => s.adjustments);
@@ -264,16 +265,16 @@ export function useRetouching() {
   // ── Liquify ─────────────────────────────────────────────────────────
 
   const addLiquifyStroke = useCallback((stroke: LiquifyStroke) => {
-    setLiquifyStrokes((prev) => [...prev, stroke]);
-  }, []);
+    setEditor((prev) => ({ liquifyStrokes: [...prev.liquifyStrokes, stroke] }));
+  }, [setEditor]);
 
   const undoLiquifyStroke = useCallback(() => {
-    setLiquifyStrokes((prev) => prev.slice(0, -1));
-  }, []);
+    setEditor((prev) => ({ liquifyStrokes: prev.liquifyStrokes.slice(0, -1) }));
+  }, [setEditor]);
 
   const clearLiquifyStrokes = useCallback(() => {
-    setLiquifyStrokes([]);
-  }, []);
+    setEditor({ liquifyStrokes: [] });
+  }, [setEditor]);
 
   const applyLiquify = useCallback(
     async (strokes: LiquifyStroke[]): Promise<string | null> => {
@@ -298,8 +299,8 @@ export function useRetouching() {
   );
 
   const resetLiquifyMesh = useCallback(() => {
-    setLiquifyStrokes([]);
-  }, []);
+    setEditor({ liquifyStrokes: [] });
+  }, [setEditor]);
 
   const applyHairRetouch = useCallback(
     async (params: Record<string, unknown>): Promise<string | null> => {

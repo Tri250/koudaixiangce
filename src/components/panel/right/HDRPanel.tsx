@@ -1,6 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
+import { toast } from 'react-toastify';
+import debounce from 'lodash.debounce';
 import { Sun, Download, Image, Loader2, AlertTriangle, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import CollapsibleSection from '../../ui/CollapsibleSection';
@@ -71,6 +74,9 @@ export default function HDRPanel() {
     const [gamutWarningOverlay, setGamutWarningOverlay] = useState(false);
     const [tiffBitDepth, setTiffBitDepth] = useState<16 | 32>(16);
 
+    // Abort controller ref for cancelling in-flight requests
+    const abortRef = useRef<AbortController | null>(null);
+
     const handleApplyHighlightRecovery = useCallback(async () => {
         if (!hdrPreviewEnabled) {
             setEditor({ retouchingResultUrl: null });
@@ -90,15 +96,26 @@ export default function HDRPanel() {
             }
         } catch (err) {
             console.error('apply_hdr_highlight_recovery failed:', err);
+            toast.error(`${t('editor.hdr.highlightRecovery')} failed: ${err}`);
         } finally {
             setIsProcessing(false);
         }
-    }, [hdrPreviewEnabled, highlightMode, recoveryAmount, peakBrightness, adjustments, setEditor]);
+    }, [hdrPreviewEnabled, highlightMode, recoveryAmount, peakBrightness, adjustments, setEditor, t]);
+
+    // Debounced auto-apply: only trigger after user stops changing parameters for 500ms
+    const debouncedApplyRef = useRef(
+        debounce((applyFn: () => void) => {
+            applyFn();
+        }, 500)
+    );
 
     useEffect(() => {
         if (hdrPreviewEnabled) {
-            handleApplyHighlightRecovery();
+            debouncedApplyRef.current(handleApplyHighlightRecovery);
         }
+        return () => {
+            debouncedApplyRef.current.cancel();
+        };
     }, [hdrPreviewEnabled, highlightMode, recoveryAmount, peakBrightness, handleApplyHighlightRecovery]);
 
     const handleCheckOutOfGamut = useCallback(async () => {
@@ -119,42 +136,76 @@ export default function HDRPanel() {
         }
     }, [hdrPreviewEnabled, outputColorSpace, adjustments]);
 
+    // Debounced gamut check
+    const debouncedGamutRef = useRef(
+        debounce((checkFn: () => void) => {
+            checkFn();
+        }, 800)
+    );
+
     useEffect(() => {
-        handleCheckOutOfGamut();
+        debouncedGamutRef.current(handleCheckOutOfGamut);
+        return () => {
+            debouncedGamutRef.current.cancel();
+        };
     }, [hdrPreviewEnabled, outputColorSpace, handleCheckOutOfGamut]);
 
     const handleExportUltraHDR = useCallback(async () => {
         setIsExportingJpeg(true);
         try {
+            const outputPath = await save({
+                title: t('editor.hdr.exportUltraHDR'),
+                defaultPath: 'hdr_output.jpg',
+                filters: [{ name: 'JPEG', extensions: ['jpg', 'jpeg'] }],
+            });
+            if (!outputPath) {
+                setIsExportingJpeg(false);
+                return;
+            }
             const jsAdjustments = getTransformAdjustments(adjustments);
             await invoke('export_ultra_hdr_jpeg', {
                 jsAdjustments,
+                outputPath,
                 sdrImageBase64: '',
                 peakBrightnessNits: peakBrightness,
                 quality: 90,
             });
+            toast.success(t('editor.hdr.exportUltraHDR'));
         } catch (err) {
             console.error('export_ultra_hdr_jpeg failed:', err);
+            toast.error(`${t('editor.hdr.exportUltraHDR')} failed: ${err}`);
         } finally {
             setIsExportingJpeg(false);
         }
-    }, [peakBrightness, adjustments]);
+    }, [peakBrightness, adjustments, t]);
 
     const handleExportHDRTIFF = useCallback(async () => {
         setIsExportingTiff(true);
         try {
+            const outputPath = await save({
+                title: t('editor.hdr.exportHDRTIFF'),
+                defaultPath: 'hdr_output.tiff',
+                filters: [{ name: 'TIFF', extensions: ['tiff', 'tif'] }],
+            });
+            if (!outputPath) {
+                setIsExportingTiff(false);
+                return;
+            }
             const jsAdjustments = getTransformAdjustments(adjustments);
             await invoke('export_hdr_tiff', {
                 jsAdjustments,
+                outputPath,
                 peakBrightnessNits: peakBrightness,
                 bitDepth: tiffBitDepth,
             });
+            toast.success(t('editor.hdr.exportHDRTIFF'));
         } catch (err) {
             console.error('export_hdr_tiff failed:', err);
+            toast.error(`${t('editor.hdr.exportHDRTIFF')} failed: ${err}`);
         } finally {
             setIsExportingTiff(false);
         }
-    }, [peakBrightness, tiffBitDepth, adjustments]);
+    }, [peakBrightness, tiffBitDepth, adjustments, t]);
 
     return (
         <div className="flex flex-col h-full select-none overflow-hidden">
