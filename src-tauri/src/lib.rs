@@ -902,6 +902,108 @@ fn generate_original_transformed_preview(
 }
 
 #[tauri::command]
+fn generate_fullscreen_preview(
+    js_adjustments: serde_json::Value,
+    state: tauri::State<AppState>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let context = get_or_init_gpu_context(&state, &app_handle)?;
+    let mut adjustments_clone = js_adjustments.clone();
+    hydrate_adjustments(&state, &mut adjustments_clone);
+
+    let loaded_image = state
+        .original_image
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("No original image loaded")?;
+
+    let settings = load_settings(app_handle.clone()).unwrap_or_default();
+    // Use a higher resolution for fullscreen preview (4K target)
+    let preview_dim = settings.editor_preview_resolution.unwrap_or(1920).max(3840);
+
+    let has_patches = adjustments_clone
+        .get("aiPatches")
+        .and_then(|v| v.as_array())
+        .is_some_and(|a| !a.is_empty());
+    let patched_image = if has_patches {
+        Cow::Owned(
+            composite_patches_on_image(&loaded_image.image, &adjustments_clone).unwrap_or_else(
+                |e| {
+                    eprintln!("Failed to composite patches for fullscreen preview: {}", e);
+                    loaded_image.image.as_ref().clone()
+                },
+            ),
+        )
+    } else {
+        Cow::Borrowed(loaded_image.image.as_ref())
+    };
+
+    let warped_image = apply_geometry_warp(patched_image, &adjustments_clone);
+    let orientation_steps = adjustments_clone["orientationSteps"].as_u64().unwrap_or(0) as u8;
+    let coarse_rotated_image = apply_coarse_rotation(warped_image, orientation_steps);
+
+    let flip_horizontal = adjustments_clone["flipHorizontal"].as_bool().unwrap_or(false);
+    let flip_vertical = adjustments_clone["flipVertical"].as_bool().unwrap_or(false);
+    let flipped_image = apply_flip(coarse_rotated_image, flip_horizontal, flip_vertical).into_owned();
+
+    let (rotated_w, rotated_h) = flipped_image.dimensions();
+    let (processing_base, scale_for_gpu) = if rotated_w > preview_dim || rotated_h > preview_dim {
+        let base = downscale_f32_image(&flipped_image, preview_dim, preview_dim);
+        let scale = if rotated_w > 0 { base.width() as f32 / rotated_w as f32 } else { 1.0 };
+        (base, scale)
+    } else {
+        (flipped_image.clone(), 1.0)
+    };
+
+    let (preview_width, preview_height) = processing_base.dimensions();
+
+    let mask_definitions: Vec<MaskDefinition> = adjustments_clone
+        .get("masks")
+        .and_then(|m| serde_json::from_value(m.clone()).ok())
+        .unwrap_or_default();
+
+    let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+        .iter()
+        .filter_map(|def| {
+            get_cached_or_generate_mask(&state, def, preview_width, preview_height, scale_for_gpu, (0.0, 0.0), &adjustments_clone)
+        })
+        .collect();
+
+    let tm_override = resolve_tonemapper_override_from_handle(&app_handle, loaded_image.is_raw);
+    let fullscreen_adjustments = get_all_adjustments_from_json(&adjustments_clone, loaded_image.is_raw, tm_override);
+    let lut_path = adjustments_clone["lutPath"].as_str();
+    let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
+
+    let unique_hash = calculate_full_job_hash(&loaded_image.path, &adjustments_clone);
+
+    let processed_image = process_and_get_dynamic_image(
+        &context,
+        &state,
+        &processing_base,
+        unique_hash,
+        RenderRequest {
+            adjustments: fullscreen_adjustments,
+            mask_bitmaps: &mask_bitmaps,
+            lut,
+            roi: None,
+        },
+        "generate_fullscreen_preview",
+    )
+    .map_err(|e| format!("Fullscreen preview processing failed: {}", e))?;
+
+    let (width, height) = processed_image.dimensions();
+    let rgb_pixels = processed_image.to_rgb8().into_vec();
+    let bytes = Encoder::new(Preset::BaselineFastest)
+        .quality(92)
+        .encode_rgb(&rgb_pixels, width, height)
+        .map_err(|e| format!("Failed to encode fullscreen preview: {}", e))?;
+
+    let base64_str = general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:image/jpeg;base64,{}", base64_str))
+}
+
+#[tauri::command]
 async fn preview_geometry_transform(
     params: GeometryParams,
     js_adjustments: serde_json::Value,
@@ -2321,6 +2423,7 @@ pub fn run() {
             generate_original_transformed_preview,
             generate_preset_preview,
             generate_uncropped_preview,
+            generate_fullscreen_preview,
             preview_geometry_transform,
             get_log_file_path,
             frontend_log,
