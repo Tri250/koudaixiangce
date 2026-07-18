@@ -41,7 +41,7 @@ jobs:
             --title "${{ github.ref_name }}" \
             --generate-notes \
             --draft=false
-          RELEASE_ID=$(gh release view "${{ github.ref_name }}" --json id -q '.id')
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} --jq '.id')
           echo "release-id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
           echo "Created release ${{ github.ref_name }} (ID: $RELEASE_ID)"
         env:
