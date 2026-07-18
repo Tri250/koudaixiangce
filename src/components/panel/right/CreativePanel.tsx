@@ -14,6 +14,7 @@ import {
   Loader2,
   RotateCcw,
   Sparkles,
+  UserMinus,
 } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
@@ -422,6 +423,36 @@ function SeasonalEffectsSection() {
   );
 }
 
+// ── People Removal Section ───────────────────────────────────────────
+
+function PeopleRemovalSection() {
+  const { t } = useTranslation();
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleApply = useCallback(async () => {
+    setIsProcessing(true);
+    try {
+      await invoke('ai_remove_people', { imageDataBase64: '', personRegions: [] });
+    } catch (err) {
+      console.error('ai_remove_people failed:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, []);
+
+  return (
+    <div className="space-y-3 pt-2">
+      <Text variant={TextVariants.small} color={TextColors.secondary}>
+        {t('editor.creative.peopleRemoval.description')}
+      </Text>
+      <Button className="w-full" onClick={handleApply} disabled={isProcessing}>
+        {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <UserMinus size={16} />}
+        <span className="ml-2">{t('editor.creative.peopleRemoval.apply')}</span>
+      </Button>
+    </div>
+  );
+}
+
 // ── Collapsible section state ────────────────────────────────────────
 
 const SECTION_KEYS = [
@@ -433,6 +464,7 @@ const SECTION_KEYS = [
   'lensBlur',
   'oldPhoto',
   'seasonal',
+  'peopleRemoval',
 ] as const;
 
 type SectionKey = typeof SECTION_KEYS[number];
@@ -446,6 +478,7 @@ const SECTION_CONFIG: { key: SectionKey; icon: typeof Palette; titleKey: string 
   { key: 'lensBlur', icon: CircleDot, titleKey: 'editor.creative.lensBlur.title' },
   { key: 'oldPhoto', icon: Recycle, titleKey: 'editor.creative.oldPhoto.title' },
   { key: 'seasonal', icon: Flower2, titleKey: 'editor.creative.seasonal.title' },
+  { key: 'peopleRemoval', icon: UserMinus, titleKey: 'editor.creative.peopleRemoval.title' },
 ];
 
 const SECTION_COMPONENTS: Record<SectionKey, React.FC> = {
@@ -457,6 +490,7 @@ const SECTION_COMPONENTS: Record<SectionKey, React.FC> = {
   lensBlur: LensBlurSection,
   oldPhoto: OldPhotoRestoreSection,
   seasonal: SeasonalEffectsSection,
+  peopleRemoval: PeopleRemovalSection,
 };
 
 // ── Main Panel ───────────────────────────────────────────────────────

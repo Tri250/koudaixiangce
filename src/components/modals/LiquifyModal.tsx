@@ -159,9 +159,10 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
     [scale, offset],
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       e.preventDefault();
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       isDrawingRef.current = true;
       const point = getCanvasPoint(e.clientX, e.clientY);
       if (point) {
@@ -171,8 +172,8 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
     [getCanvasPoint],
   );
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
       if (!isDrawingRef.current) return;
       const point = getCanvasPoint(e.clientX, e.clientY);
       if (point) {
@@ -195,7 +196,7 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
     [getCanvasPoint, activeBrushType],
   );
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
     if (currentStrokePointsRef.current.length > 0) {
@@ -209,6 +210,8 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
     }
     currentStrokePointsRef.current = [];
   }, [activeBrushType, brushSize, brushPressure, addLiquifyStroke]);
+
+  const handlePointerCancel = handlePointerUp;
 
   const handleApply = useCallback(async () => {
     if (liquifyStrokes.length === 0) return;
@@ -307,11 +310,11 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
       {/* Canvas area */}
       <div
         ref={containerRef}
-        className="flex-1 relative bg-bg-tertiary overflow-hidden cursor-crosshair"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        className="flex-1 relative bg-bg-tertiary overflow-hidden cursor-crosshair touch-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       >
         <div
           style={{

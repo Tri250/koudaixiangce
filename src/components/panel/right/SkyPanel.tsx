@@ -1,6 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { Cloud, Sun, Loader2, RotateCcw, ImagePlus } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
@@ -8,6 +10,40 @@ import Button from '../../ui/Button';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
+import { Invokes } from '../../ui/AppProperties';
+import { Adjustments } from '../../../utils/adjustments';
+
+const getTransformAdjustments = (adj: Adjustments) => ({
+  transformDistortion: adj.transformDistortion,
+  transformVertical: adj.transformVertical,
+  transformHorizontal: adj.transformHorizontal,
+  transformRotate: adj.transformRotate,
+  transformAspect: adj.transformAspect,
+  transformScale: adj.transformScale,
+  transformXOffset: adj.transformXOffset,
+  transformYOffset: adj.transformYOffset,
+  lensDistortionAmount: adj.lensDistortionAmount,
+  lensVignetteAmount: adj.lensVignetteAmount,
+  lensTcaAmount: adj.lensTcaAmount,
+  lensDistortionParams: adj.lensDistortionParams,
+  lensMaker: adj.lensMaker,
+  lensModel: adj.lensModel,
+  lensDistortionEnabled: adj.lensDistortionEnabled,
+  lensTcaEnabled: adj.lensTcaEnabled,
+  lensVignetteEnabled: adj.lensVignetteEnabled,
+});
+
+async function readFileAsBase64DataUrl(filePath: string): Promise<string> {
+  const assetUrl = convertFileSrc(filePath);
+  const response = await fetch(assetUrl);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
 
 interface SkyPreset {
   id: string;
@@ -31,6 +67,7 @@ const SKY_PRESETS: SkyPreset[] = [
 export default function SkyPanel() {
   const { t } = useTranslation();
   const selectedImage = useEditorStore((s) => s.selectedImage);
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [isDetectingSky, setIsDetectingSky] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
@@ -41,40 +78,61 @@ export default function SkyPanel() {
   const [skyMaskGenerated, setSkyMaskGenerated] = useState(false);
 
   const handleDetectSky = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
+    if (!selectedImage?.path) return;
     setIsDetectingSky(true);
     try {
-      await invoke('detect_sky_mask', { imagePath });
+      const transformAdjustments = getTransformAdjustments(adjustments);
+      await invoke(Invokes.GenerateAiSkyMask, {
+        jsAdjustments: transformAdjustments,
+        flipHorizontal: adjustments.flipHorizontal,
+        flipVertical: adjustments.flipVertical,
+        orientationSteps: adjustments.orientationSteps,
+        rotation: adjustments.rotation,
+      });
       setSkyMaskGenerated(true);
     } catch (err) {
-      console.error('detect_sky_mask failed:', err);
+      console.error('generate_ai_sky_mask failed:', err);
     } finally {
       setIsDetectingSky(false);
     }
-  }, [selectedImage]);
+  }, [selectedImage, adjustments]);
 
   const handleSelectSkyImage = useCallback(async () => {
     try {
-      const selected = await invoke<string>('select_sky_image');
-      if (selected) {
+      const selected = await openDialog({
+        multiple: false,
+        filters: [
+          {
+            name: t('editor.sky.imageFilterLabel', 'Images'),
+            extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'],
+          },
+        ],
+      });
+      if (typeof selected === 'string') {
         setSkyImagePath(selected);
         setSelectedPreset(null);
       }
     } catch (err) {
-      console.error('select_sky_image failed:', err);
+      console.error('Sky image selection failed:', err);
     }
-  }, []);
+  }, [t]);
 
   const handleApply = useCallback(async () => {
     if (!skyMaskGenerated) return;
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
+    if (!selectedImage?.path) return;
+    if (!skyImagePath && !selectedPreset) return;
     setIsProcessing(true);
     try {
+      const transformAdjustments = getTransformAdjustments(adjustments);
+      let skyImageBase64: string;
+      if (skyImagePath) {
+        skyImageBase64 = await readFileAsBase64DataUrl(skyImagePath);
+      } else {
+        throw new Error('No sky image selected');
+      }
       await invoke('replace_sky', {
-        imagePath,
-        skyImagePath: skyImagePath || selectedPreset || '',
+        jsAdjustments: transformAdjustments,
+        skyImageBase64,
         feather,
         colorMatchStrength,
         horizonAdjust,
@@ -84,7 +142,7 @@ export default function SkyPanel() {
     } finally {
       setIsProcessing(false);
     }
-  }, [skyMaskGenerated, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust, selectedImage]);
+  }, [skyMaskGenerated, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust, selectedImage, adjustments]);
 
   return (
     <div className="flex flex-col h-full select-none overflow-hidden">

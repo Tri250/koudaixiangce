@@ -76,7 +76,7 @@ export default function EffectsPanel({
           onDragStateChange={onDragStateChange}
         />
 
-        {!isForMask && (
+        {!isForMask && appSettings?.useWgpuRenderer !== false && (
           <Slider
             label={t('adjustments.effects.lightFlares')}
             max={100}

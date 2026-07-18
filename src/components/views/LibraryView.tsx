@@ -117,7 +117,7 @@ export default function LibraryView({
   return (
     <div className="flex flex-row grow h-full min-h-0">
       <div className="flex-1 flex flex-col min-w-0 gap-2">
-        {activeView === 'community' ? (
+        {activeView === 'community' && !isAndroid ? (
           <CommunityPage
             onBackToLibrary={() => setUI({ activeView: 'library' })}
             supportedTypes={supportedTypes}

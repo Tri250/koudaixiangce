@@ -58,7 +58,7 @@ import { OPTION_SEPARATOR } from '../../ui/AppProperties';
 import { createSubMask } from '../../../utils/maskUtils';
 import Text from '../../ui/Text';
 import { TEXT_COLOR_KEYS, TextColors, TextVariants, TextWeights } from '../../../types/typography';
-import { useUser, useAuth } from '@clerk/react';
+import { useClerkUser, useClerkAuth } from '../../../hooks/useClerkFallback';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useEditorStore } from '../../../store/useEditorStore';
 import { useProcessStore } from '../../../store/useProcessStore';
@@ -298,8 +298,8 @@ export default function AIPanel() {
   const appSettings = useSettingsStore((s) => s.appSettings);
   const aiProvider = appSettings?.aiProvider || 'cpu';
 
-  const { user, isSignedIn } = useUser();
-  const { getToken } = useAuth();
+  const { user, isSignedIn } = useClerkUser();
+  const { getToken } = useClerkAuth();
   const isPro = user?.publicMetadata?.plan === 'pro';
   const [cloudUsage, setCloudUsage] = useState<{ requests: number; limit: number; month: string } | null>(null);
 

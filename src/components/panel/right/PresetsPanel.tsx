@@ -93,6 +93,7 @@ interface PresetItemDisplayProps {
 
 interface PresetsPanelProps {
   onNavigateToCommunity(): void;
+  isAndroid?: boolean;
 }
 
 const itemVariants = {
@@ -473,7 +474,7 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
   );
 }
 
-export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProps) {
+export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: PresetsPanelProps) {
   const { t } = useTranslation();
   const selectedImage = useEditorStore((s) => s.selectedImage);
   const adjustments = useEditorStore((s) => s.adjustments);
@@ -1138,13 +1139,15 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
         <div className="p-4 flex justify-between items-center shrink-0 border-b border-surface">
           <Text variant={TextVariants.title}>{t('editor.presets.title')}</Text>
           <div className="flex items-center gap-1">
-            <button
-              className="p-2 rounded-full hover:bg-surface transition-colors"
-              onClick={onNavigateToCommunity}
-              data-tooltip={t('editor.presets.tooltips.explore')}
-            >
-              <Users size={18} />
-            </button>
+            {!isAndroid && (
+              <button
+                className="p-2 rounded-full hover:bg-surface transition-colors"
+                onClick={onNavigateToCommunity}
+                data-tooltip={t('editor.presets.tooltips.explore')}
+              >
+                <Users size={18} />
+              </button>
+            )}
             <button
               className="p-2 rounded-full hover:bg-surface transition-colors"
               disabled={isLoading}
@@ -1193,10 +1196,12 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
           {!isLoading && presets.length === 0 ? (
             <div className="text-center text-text-secondary flex flex-col items-center gap-4 pt-4">
               <Text className="max-w-xs">{t('editor.presets.status.empty')}</Text>
-              <Button variant="secondary" onClick={onNavigateToCommunity}>
-                <Users size={16} className="mr-2" />
-                {t('editor.presets.status.getCommunity')}
-              </Button>
+              {!isAndroid && (
+                <Button variant="secondary" onClick={onNavigateToCommunity}>
+                  <Users size={16} className="mr-2" />
+                  {t('editor.presets.status.getCommunity')}
+                </Button>
+              )}
             </div>
           ) : (
             <>

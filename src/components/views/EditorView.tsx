@@ -230,6 +230,7 @@ export default function EditorView({
                 handleBackToLibrary();
                 setUI({ activeView: 'community' });
               }}
+              isAndroid={isAndroid}
             />
           )}
           {renderedRightPanel === Panel.Export && (

@@ -24,7 +24,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { Show, SignIn, useUser, useAuth, useClerk } from '@clerk/react';
+import { useClerkUser, useClerkAuth, useClerkInstance, ClerkShowFallback, ClerkSignInFallback } from '../../hooks/useClerkFallback';
 import Button from '../ui/Button';
 import ConfirmModal from '../modals/ConfirmModal';
 import Dropdown, { OptionItem } from '../ui/Dropdown';
@@ -309,9 +309,9 @@ const AiProviderSwitch = ({ selectedProvider, onProviderChange }: AiProviderSwit
 };
 
 const CloudDashboard = () => {
-  const { user } = useUser();
-  const { getToken } = useAuth();
-  const { signOut } = useClerk();
+  const { user } = useClerkUser();
+  const { getToken } = useClerkAuth();
+  const { signOut } = useClerkInstance();
   const [usage, setUsage] = useState<{ requests: number; limit: number; month: string } | null>(null);
   const { t } = useTranslation();
 
@@ -502,7 +502,7 @@ export default function SettingsPanel({
   onSettingsChange,
   rootPaths,
 }: SettingsPanelProps) {
-  const { user: _user } = useUser();
+  const { user: _user } = useClerkUser();
   const { t } = useTranslation();
   const [isClearing, setIsClearing] = useState(false);
   const [clearMessage, setClearMessage] = useState('');
@@ -2169,14 +2169,14 @@ export default function SettingsPanel({
                             <li>{t('settings.processing.ai.cloud.feature3')}</li>
                           </Text>
                           <div className="mt-8">
-                            <Show when="signed-in">
+                            <ClerkShowFallback when="signed-in">
                               <div className="p-6 bg-bg-primary rounded-xl border border-border-color shadow-inner">
                                 <CloudDashboard />
                               </div>
-                            </Show>
-                            <Show when="signed-out">
+                            </ClerkShowFallback>
+                            <ClerkShowFallback when="signed-out">
                               <div className="w-full max-w-md">
-                                <SignIn
+                                <ClerkSignInFallback
                                   routing="hash"
                                   fallbackRedirectUrl="/"
                                   forceRedirectUrl="/"
@@ -2225,7 +2225,7 @@ export default function SettingsPanel({
                                   </Text>
                                 </div>
                               </div>
-                            </Show>
+                            </ClerkShowFallback>
                           </div>
                         </motion.div>
                       )}
