@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Move,
@@ -10,6 +10,8 @@ import {
   RefreshCcw,
   Loader2,
   Circle,
+  AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
@@ -62,6 +64,16 @@ export default function LiquifyPanel() {
   const [brushSize, setBrushSize] = useState(80);
   const [brushPressure, setBrushPressure] = useState(50);
   const [isApplying, setIsApplying] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<'success' | 'error'>('success');
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showStatus = useCallback((message: string, type: 'success' | 'error') => {
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    setStatusMessage(message);
+    setStatusType(type);
+    statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 4000);
+  }, []);
 
   useEffect(() => {
     setEditor({
@@ -82,14 +94,24 @@ export default function LiquifyPanel() {
   }, [undoLiquifyStroke]);
 
   const handleApply = useCallback(async () => {
-    if (liquifyStrokes.length === 0) return;
+    if (liquifyStrokes.length === 0) {
+      showStatus(t('editor.liquify.noStrokes'), 'error');
+      return;
+    }
     setIsApplying(true);
     try {
-      await applyLiquify(liquifyStrokes);
+      const result = await applyLiquify(liquifyStrokes);
+      if (result) {
+        showStatus(t('editor.liquify.applySuccess'), 'success');
+      } else {
+        showStatus(t('editor.liquify.applyFailed'), 'error');
+      }
+    } catch (err) {
+      showStatus(t('editor.liquify.applyFailed'), 'error');
     } finally {
       setIsApplying(false);
     }
-  }, [liquifyStrokes, applyLiquify]);
+  }, [liquifyStrokes, applyLiquify, showStatus, t]);
 
   return (
     <div className="flex flex-col h-full select-none overflow-hidden">
@@ -185,6 +207,21 @@ export default function LiquifyPanel() {
           </Button>
         </div>
       </div>
+
+      {/* Status message */}
+      {statusMessage && (
+        <div
+          className={clsx(
+            'shrink-0 flex items-center gap-2 px-4 py-2 text-sm border-t',
+            statusType === 'error'
+              ? 'bg-red-500/10 text-red-400 border-red-500/20'
+              : 'bg-green-500/10 text-green-400 border-green-500/20',
+          )}
+        >
+          {statusType === 'error' ? <AlertCircle size={14} className="shrink-0" /> : <CheckCircle size={14} className="shrink-0" />}
+          <span className="truncate">{statusMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

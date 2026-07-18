@@ -483,7 +483,7 @@ function App() {
       if (stateKey === 'left') {
         setUI({ leftPanelWidth: Math.round(Math.max(220, Math.min(startSize + (moveEvent.clientX - startX), 550))) });
       } else if (stateKey === 'right') {
-        setUI({ rightPanelWidth: Math.round(Math.max(300, Math.min(startSize - (moveEvent.clientX - startX), 650))) });
+        setUI({ rightPanelWidth: Math.round(Math.max(320, Math.min(startSize - (moveEvent.clientX - startX), 650))) });
       } else if (stateKey === 'bottom') {
         setUI({
           bottomPanelHeight: Math.round(Math.max(100, Math.min(startSize - (moveEvent.clientY - startY), 400))),

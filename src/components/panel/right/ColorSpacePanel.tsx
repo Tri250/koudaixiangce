@@ -1,6 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { toast } from 'react-toastify';
+import debounce from 'lodash.debounce';
 import { Palette, Upload, Loader2, RotateCcw, AlertTriangle, Camera } from 'lucide-react';
 import clsx from 'clsx';
 import CollapsibleSection from '../../ui/CollapsibleSection';
@@ -75,12 +78,13 @@ export default function ColorSpacePanel() {
                 setCameraProfiles(profiles);
             } catch (err) {
                 console.error('get_camera_profiles failed:', err);
+                toast.error(`${t('editor.colorSpace.cameraProfile')} failed: ${err}`);
             } finally {
                 setIsLoadingProfiles(false);
             }
         };
         loadProfiles();
-    }, []);
+    }, [t]);
 
     // Auto-detect camera profile from EXIF
     const handleAutoDetect = useCallback(async () => {
@@ -100,39 +104,52 @@ export default function ColorSpacePanel() {
             if (result.suggestedProfile) {
                 setSelectedProfileName(result.suggestedProfile.name);
             }
+            toast.success(t('editor.colorSpace.autoDetectFromExif'));
         } catch (err) {
             console.error('get_camera_profile_for_image failed:', err);
+            toast.error(`${t('editor.colorSpace.autoDetectFromExif')} failed: ${err}`);
         }
-    }, [selectedImage]);
+    }, [selectedImage, t]);
 
     // Set camera color profile
     const handleSetProfile = useCallback(async (profileName: string) => {
         try {
             setSelectedProfileName(profileName);
             await invoke('set_camera_color_profile', { profileName });
+            toast.success(t('editor.colorSpace.cameraProfile'));
         } catch (err) {
             console.error('set_camera_color_profile failed:', err);
+            toast.error(`${t('editor.colorSpace.cameraProfile')} failed: ${err}`);
         }
-    }, []);
+    }, [t]);
 
     // Import DCP profile
     const handleImportDCP = useCallback(async () => {
         setIsImporting(true);
         try {
-            const selected = await invoke<string>('import_dcp_profile', {
-                filePath: '', // Will trigger file dialog
+            const selected = await openDialog({
+                title: t('editor.colorSpace.importDCP'),
+                filters: [{ name: 'DCP Profile', extensions: ['dcp', 'icc'] }],
+                multiple: false,
             });
-            if (selected) {
-                // Reload profiles after import
-                const profiles = await invoke<CameraProfileInfo[]>('get_camera_profiles');
-                setCameraProfiles(profiles);
+            if (!selected || typeof selected !== 'string') {
+                setIsImporting(false);
+                return;
             }
+            await invoke('import_dcp_profile', {
+                filePath: selected,
+            });
+            toast.success(t('editor.colorSpace.importDCP'));
+            // Reload profiles after import
+            const profiles = await invoke<CameraProfileInfo[]>('get_camera_profiles');
+            setCameraProfiles(profiles);
         } catch (err) {
             console.error('import_dcp_profile failed:', err);
+            toast.error(`${t('editor.colorSpace.importDCP')} failed: ${err}`);
         } finally {
             setIsImporting(false);
         }
-    }, []);
+    }, [t]);
 
     // Convert color space
     const handleConvertColorSpace = useCallback(async () => {
@@ -145,11 +162,13 @@ export default function ColorSpacePanel() {
             });
             if (result) {
                 setEditor({ retouchingResultUrl: result });
+                toast.success(t('editor.colorSpace.convert'));
             }
         } catch (err) {
             console.error('convert_color_space failed:', err);
+            toast.error(`${t('editor.colorSpace.convert')} failed: ${err}`);
         }
-    }, [workingColorSpace, outputColorSpace, adjustments, setEditor]);
+    }, [workingColorSpace, outputColorSpace, adjustments, setEditor, t]);
 
     // Soft proof
     const handleSoftProof = useCallback(async () => {
@@ -165,16 +184,28 @@ export default function ColorSpacePanel() {
             }
         } catch (err) {
             console.error('soft_proof failed:', err);
+            toast.error(`${t('editor.colorSpace.softProof')} failed: ${err}`);
         }
-    }, [outputColorSpace, adjustments, setEditor]);
+    }, [outputColorSpace, adjustments, setEditor, t]);
+
+    // Debounced soft proof to prevent rapid re-processing on parameter changes
+    const debouncedSoftProofRef = useRef(
+        debounce((proofFn: () => void) => {
+            proofFn();
+        }, 500)
+    );
 
     useEffect(() => {
         if (softProofEnabled) {
-            handleSoftProof();
+            debouncedSoftProofRef.current(handleSoftProof);
         } else {
+            debouncedSoftProofRef.current.cancel();
             setOutOfGamutCount(0);
             setEditor({ retouchingResultUrl: null });
         }
+        return () => {
+            debouncedSoftProofRef.current.cancel();
+        };
     }, [softProofEnabled, handleSoftProof, setEditor]);
 
     const cameraProfileOptions = cameraProfiles.map((p) => ({

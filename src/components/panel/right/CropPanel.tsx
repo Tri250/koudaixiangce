@@ -503,7 +503,7 @@ export default function CropPanel() {
                 {PRESETS.map((preset: CropPreset) => (
                   <motion.div
                     className={clsx(
-                      'px-2 py-1.5 rounded-md transition-colors text-center cursor-pointer',
+                      'px-2 py-1.5 rounded-md transition-colors text-center cursor-pointer text-xs',
                       isPresetActive(preset) ? 'bg-accent' : 'bg-surface hover:bg-card-active',
                     )}
                     key={preset.name}
@@ -519,7 +519,7 @@ export default function CropPanel() {
               <div>
                 <motion.div
                   className={clsx(
-                    'w-full px-2 py-1.5 rounded-md transition-colors cursor-pointer text-center',
+                    'w-full px-2 py-1.5 rounded-md transition-colors cursor-pointer text-center text-xs',
                     isCustomActive ? 'bg-accent' : 'bg-surface hover:bg-card-active',
                   )}
                   onClick={() => {
@@ -549,7 +549,7 @@ export default function CropPanel() {
                 >
                   <div className="flex items-center justify-center gap-2">
                     <input
-                      className="w-full bg-bg-primary text-center rounded-md p-1 border focus:ring-accent text-text-secondary focus:text-text-primary"
+                      className="w-full bg-bg-primary text-center text-xs rounded-md p-1 border focus:ring-accent text-text-secondary focus:text-text-primary"
                       min="0"
                       name="customW"
                       onBlur={handleApplyCustomRatio}
@@ -564,7 +564,7 @@ export default function CropPanel() {
                     />
                     <X size={16} className={`shrink-0 ${TEXT_COLOR_KEYS[TextColors.secondary]}`} />
                     <input
-                      className="w-full bg-bg-primary text-center rounded-md p-1 border focus:ring-accent text-text-secondary focus:text-text-primary"
+                      className="w-full bg-bg-primary text-center text-xs rounded-md p-1 border focus:ring-accent text-text-secondary focus:text-text-primary"
                       min="0"
                       name="customH"
                       onBlur={handleApplyCustomRatio}
