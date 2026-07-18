@@ -3,635 +3,774 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RapidRAW 口袋相册 v1.7.4 - 版本介绍</title>
+<title>RapidRAW 口袋相册 v1.7.4 — 版本介绍</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  
+
   :root {
-    --primary: #6366f1;
-    --primary-dark: #4f46e5;
-    --secondary: #ec4899;
-    --accent: #14b8a6;
-    --bg-dark: #0f172a;
-    --bg-card: #1e293b;
-    --bg-card-hover: #334155;
-    --text-primary: #f1f5f9;
-    --text-secondary: #94a3b8;
-    --border: #334155;
-    --success: #10b981;
-    --warning: #f59e0b;
+    --bg: #000000;
+    --bg-elevated: #0a0a0a;
+    --bg-card: #111111;
+    --bg-card-hover: #181818;
+    --border: #1f1f1f;
+    --border-light: #2a2a2a;
+    --text-primary: #f5f5f5;
+    --text-secondary: #a3a3a3;
+    --text-muted: #525252;
+    --accent: #e5e5e5;
+    --line: #ffffff;
   }
 
+  html { scroll-behavior: smooth; }
+
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-    background: var(--bg-dark);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
     color: var(--text-primary);
-    line-height: 1.6;
+    line-height: 1.65;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0.01em;
   }
 
   .container {
-    max-width: 1200px;
+    max-width: 1100px;
     margin: 0 auto;
-    padding: 0 24px;
+    padding: 0 32px;
   }
 
-  /* Hero Section */
-  .hero {
-    position: relative;
-    padding: 80px 0 60px;
-    text-align: center;
-    overflow: hidden;
-  }
-
-  .hero::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 800px;
-    height: 800px;
-    background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .hero-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 20px;
-    background: rgba(99,102,241,0.15);
-    border: 1px solid rgba(99,102,241,0.3);
-    border-radius: 999px;
-    color: #a5b4fc;
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 24px;
-  }
-
-  .hero-badge .dot {
-    width: 8px;
-    height: 8px;
-    background: var(--success);
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.2); }
-  }
-
-  .hero h1 {
-    font-size: 56px;
-    font-weight: 800;
-    background: linear-gradient(135deg, #fff 0%, #a5b4fc 50%, #f9a8d4 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 16px;
-    letter-spacing: -0.02em;
-  }
-
-  .hero .subtitle {
-    font-size: 20px;
-    color: var(--text-secondary);
-    margin-bottom: 12px;
-  }
-
-  .hero .version-tagline {
-    font-size: 16px;
-    color: #64748b;
-    margin-bottom: 32px;
-  }
-
-  .hero-stats {
-    display: flex;
-    justify-content: center;
-    gap: 48px;
-    flex-wrap: wrap;
-    margin-top: 40px 0;
-  }
-
-  .stat-item {
-    text-align: center;
-  }
-
-  .stat-number {
-    font-size: 36px;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .stat-label {
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin-top: 4px;
-  }
-
-  .btn-group {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin-top: 32px;
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 14px 28px;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    border: none;
-  }
-
-  .btn-primary {
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: white;
-    box-shadow: 0 4px 20px rgba(99,102,241,0.4);
-  }
-
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 30px rgba(99,102,241,0.5);
-  }
-
-  .btn-secondary {
-    background: var(--bg-card);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
-  }
-
-  .btn-secondary:hover {
-    background: var(--bg-card-hover);
-    border-color: var(--primary);
-  }
-
-  /* Section Styles */
-  .section {
-    padding: 60px 0;
-  }
-
-  .section-header {
-    text-align: center;
-    margin-bottom: 48px;
-  }
-
-  .section-tag {
-    display: inline-block;
-    padding: 6px 16px;
-    background: rgba(20,184,166,0.15);
-    color: #5eead4;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 500;
-    margin-bottom: 16px;
-  }
-
-  .section-title {
-    font-size: 36px;
-    font-weight: 700;
-    margin-bottom: 12px;
-  }
-
-  .section-desc {
-    font-size: 16px;
-    color: var(--text-secondary);
-    max-width: 600px;
-    margin: 0 auto;
-  }
-
-  /* Feature Cards */
-  .feature-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-  }
-
-  .feature-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
-    transition: all 0.3s ease;
-  }
-
-  .feature-card:hover {
-    transform: translateY(-4px);
-    border-color: var(--primary);
-    box-shadow: 0 10px 40px rgba(99,102,241,0.15);
-  }
-
-  .feature-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    margin-bottom: 16px;
-  }
-
-  .feature-card h3 {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-
-  .feature-card p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin-bottom: 16px;
-  }
-
-  .feature-list {
-    list-style: none;
-  }
-
-  .feature-list li {
-    font-size: 13px;
-    color: var(--text-secondary);
-    padding: 4px 0;
-    padding-left: 20px;
-    position: relative;
-  }
-
-  .feature-list li::before {
-    content: '✓';
-    position: absolute;
+  /* Top nav */
+  .topnav {
+    position: fixed;
+    top: 0;
     left: 0;
-    color: var(--success);
-    font-weight: 600;
+    right: 0;
+    z-index: 100;
+    padding: 20px 32px;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .topnav .brand {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+  }
+  .topnav .brand .accent { color: var(--text-muted); }
+  .topnav nav { display: flex; gap: 28px; }
+  .topnav nav a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transition: color 0.3s ease;
+  }
+  .topnav nav a:hover { color: var(--text-primary); }
+
+  /* Hero */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    padding: 120px 0 60px;
   }
 
-  /* Module Category */
-  .module-category {
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+
+  .hero-text .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 32px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .hero-text .eyebrow .dot {
+    width: 6px;
+    height: 6px;
+    background: #f5f5f5;
+    border-radius: 50%;
+    animation: pulse 2.4s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .hero-text h1 {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 64px;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 24px;
+    color: #ffffff;
+  }
+  .hero-text h1 em {
+    font-style: italic;
+    color: var(--text-muted);
+    font-weight: 300;
+  }
+
+  .hero-text .lead {
+    font-size: 15px;
+    color: var(--text-secondary);
+    max-width: 440px;
+    line-height: 1.8;
     margin-bottom: 40px;
   }
 
-  .category-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
+  .hero-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    border-top: 1px solid var(--border);
+    padding-top: 32px;
+  }
+  .hero-meta .meta-item .label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .hero-meta .meta-item .value {
+    font-family: 'Georgia', serif;
+    font-size: 28px;
+    color: #ffffff;
+    font-weight: 400;
   }
 
-  .category-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+  .hero-visual {
+    aspect-ratio: 3/4;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-visual::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: 
+      radial-gradient(circle at 30% 20%, rgba(255,255,255,0.04) 0%, transparent 50%),
+      radial-gradient(circle at 70% 80%, rgba(255,255,255,0.03) 0%, transparent 50%);
+  }
+  .hero-visual::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .hero-visual .corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-color: rgba(255,255,255,0.4);
+  }
+  .hero-visual .corner.tl { top: 16px; left: 16px; border-top: 1px solid; border-left: 1px solid; }
+  .hero-visual .corner.tr { top: 16px; right: 16px; border-top: 1px solid; border-right: 1px solid; }
+  .hero-visual .corner.bl { bottom: 16px; left: 16px; border-bottom: 1px solid; border-left: 1px solid; }
+  .hero-visual .corner.br { bottom: 16px; right: 16px; border-bottom: 1px solid; border-right: 1px solid; }
+
+  .hero-visual .center-mark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  .hero-visual .center-mark .frame {
+    width: 80px;
+    height: 80px;
+    border: 1px solid rgba(255,255,255,0.2);
+    margin: 0 auto 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    position: relative;
+  }
+  .hero-visual .center-mark .frame::before,
+  .hero-visual .center-mark .frame::after {
+    content: '';
+    position: absolute;
+    background: rgba(255,255,255,0.3);
+  }
+  .hero-visual .center-mark .frame::before {
+    width: 16px; height: 1px; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  }
+  .hero-visual .center-mark .frame::after {
+    width: 1px; height: 16px; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  }
+  .hero-visual .center-mark .text {
+    font-family: 'Georgia', serif;
+    font-size: 13px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
   }
 
-  .category-title {
+  /* Section */
+  .section {
+    padding: 100px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .section-header {
+    margin-bottom: 64px;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 48px;
+    align-items: end;
+  }
+  .section-num {
+    font-family: 'Georgia', serif;
+    font-size: 14px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    border-top: 1px solid var(--border-light);
+    padding-top: 12px;
+  }
+  .section-title-block .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+  .section-title-block h2 {
+    font-family: 'Georgia', serif;
+    font-size: 42px;
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    margin-bottom: 16px;
+    color: #ffffff;
+  }
+  .section-title-block h2 em {
+    font-style: italic;
+    color: var(--text-secondary);
+  }
+  .section-title-block .desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    max-width: 560px;
+    line-height: 1.8;
+  }
+
+  /* Feature grid */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+  .feature-card {
+    background: var(--bg);
+    padding: 40px 32px;
+    transition: background 0.4s ease;
+    position: relative;
+  }
+  .feature-card:hover {
+    background: var(--bg-card);
+  }
+  .feature-card .index {
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    letter-spacing: 0.1em;
+  }
+  .feature-card .icon {
     font-size: 22px;
-    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 20px;
+    font-weight: 300;
   }
-
-  .category-count {
+  .feature-card h3 {
+    font-family: 'Georgia', serif;
+    font-size: 22px;
+    font-weight: 400;
+    margin-bottom: 12px;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+  }
+  .feature-card p {
     font-size: 13px;
     color: var(--text-secondary);
-    background: var(--bg-card);
-    padding: 4px 12px;
-    border-radius: 999px;
+    margin-bottom: 24px;
+    line-height: 1.75;
   }
-
-  .submodule-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 12px;
+  .feature-list {
+    list-style: none;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
   }
-
-  .submodule-item {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
-    font-size: 14px;
-    transition: all 0.2s ease;
+  .feature-list li {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 5px 0;
+    letter-spacing: 0.02em;
     display: flex;
     align-items: center;
     gap: 10px;
   }
-
-  .submodule-item:hover {
-    background: var(--bg-card-hover);
-    border-color: var(--primary);
+  .feature-list li::before {
+    content: '';
+    width: 4px;
+    height: 1px;
+    background: var(--text-muted);
   }
 
-  .submodule-item .icon {
-    font-size: 16px;
-    opacity: 0.8;
-  }
-
-  /* Guide Section */
-  .guide-steps {
+  /* Module section */
+  .modules-wrap {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 24px;
+    gap: 80px;
   }
 
-  .guide-step {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px;
-    position: relative;
+  .module-category {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 64px;
   }
 
-  .step-number {
-    position: absolute;
-    top: -12px;
-    left: 24px;
-    width: 32px;
-    height: 32px;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 14px;
+  .module-side {
+    position: sticky;
+    top: 100px;
+    align-self: start;
   }
-
-  .guide-step h3 {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 12px;
-    margin-top: 8px;
+  .module-side .num {
+    font-family: 'Georgia', serif;
+    font-size: 56px;
+    font-weight: 400;
+    color: var(--text-muted);
+    line-height: 1;
+    margin-bottom: 20px;
   }
-
-  .guide-step p {
-    font-size: 14px;
-    color: var(--text-secondary);
+  .module-side .cat-label {
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  .module-side h3 {
+    font-family: 'Georgia', serif;
+    font-size: 28px;
+    font-weight: 400;
     margin-bottom: 16px;
+    color: #ffffff;
   }
-
-  .guide-step ul {
-    list-style: none;
-  }
-
-  .guide-step li {
+  .module-side .desc {
     font-size: 13px;
     color: var(--text-secondary);
-    padding: 6px 0;
-    padding-left: 20px;
-    position: relative;
+    line-height: 1.8;
+    margin-bottom: 20px;
+  }
+  .module-side .count {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--text-secondary);
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    width: 100%;
   }
 
-  .guide-step li::before {
-    content: '→';
-    position: absolute;
-    left: 0;
-    color: var(--primary);
-  }
-
-  /* Changelog */
-  .changelog {
-    background: var(--bg-card);
+  .submodule-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 32px;
   }
-
-  .changelog-item {
-    padding: 20px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .changelog-item:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-
-  .changelog-item:first-child {
-    padding-top: 0;
-  }
-
-  .changelog-header {
+  .submodule-item {
+    background: var(--bg);
+    padding: 20px 24px;
+    transition: background 0.3s ease;
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 12px;
+    min-height: 64px;
   }
-
-  .changelog-tag {
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 600;
+  .submodule-item:hover {
+    background: var(--bg-card);
   }
-
-  .tag-new { background: rgba(16,185,129,0.15); color: #34d399; }
-  .tag-fix { background: rgba(245,158,11,0.15); color: #fbbf24; }
-  .tag-improve { background: rgba(99,102,241,0.15); color: #a5b4fc; }
-
-  .changelog-item h4 {
-    font-size: 15px;
-    font-weight: 600;
-  }
-
-  .changelog-item p {
+  .submodule-item .icon {
     font-size: 14px;
+    color: var(--text-muted);
+    width: 20px;
+    text-align: center;
+    transition: color 0.3s ease;
+  }
+  .submodule-item:hover .icon {
+    color: #ffffff;
+  }
+  .submodule-item .name {
+    font-size: 13px;
     color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    transition: color 0.3s ease;
+  }
+  .submodule-item:hover .name {
+    color: #ffffff;
+  }
+
+  /* Guide */
+  .guide-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+  .guide-step {
+    background: var(--bg);
+    padding: 48px 36px;
+    transition: background 0.4s ease;
+    position: relative;
+  }
+  .guide-step:hover {
+    background: var(--bg-card);
+  }
+  .guide-step .step-label {
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .guide-step h3 {
+    font-family: 'Georgia', serif;
+    font-size: 24px;
+    font-weight: 400;
+    margin-bottom: 16px;
+    color: #ffffff;
+  }
+  .guide-step p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.8;
+  }
+  .guide-step ul {
+    list-style: none;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+  }
+  .guide-step li {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 6px 0;
+    padding-left: 16px;
+    position: relative;
+    line-height: 1.7;
+  }
+  .guide-step li::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: var(--text-muted);
+  }
+
+  /* Changelog */
+  .changelog-list {
+    display: grid;
+    gap: 0;
+  }
+  .changelog-item {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 48px;
+    padding: 32px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+  .changelog-item:first-child { padding-top: 0; }
+  .changelog-item:last-child { border-bottom: none; }
+  .changelog-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .changelog-tag {
+    display: inline-block;
+    width: fit-content;
+    padding: 3px 10px;
+    border: 1px solid var(--border-light);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .changelog-tag.new { color: #ffffff; border-color: #ffffff; }
+  .changelog-tag.fix { color: var(--text-secondary); }
+  .changelog-tag.improve { color: var(--text-secondary); }
+  .changelog-item h4 {
+    font-family: 'Georgia', serif;
+    font-size: 20px;
+    font-weight: 400;
+    margin-bottom: 10px;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+  }
+  .changelog-item p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.8;
   }
 
   /* Footer */
   .footer {
-    text-align: center;
-    padding: 40px 0;
+    padding: 80px 0 48px;
     border-top: 1px solid var(--border);
-    margin-top: 40px;
+    text-align: center;
   }
-
+  .footer .brand-mark {
+    font-family: 'Georgia', serif;
+    font-size: 20px;
+    color: #ffffff;
+    margin-bottom: 16px;
+    letter-spacing: 0.05em;
+  }
+  .footer .brand-mark em { color: var(--text-muted); font-style: italic; }
   .footer p {
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .footer .links {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 20px;
+  }
+  .footer .links a {
     color: var(--text-secondary);
-    font-size: 14px;
-  }
-
-  .footer a {
-    color: var(--primary);
     text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    transition: color 0.3s ease;
   }
+  .footer .links a:hover { color: #ffffff; }
 
   /* Tabs */
   .tabs {
     display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin-bottom: 32px;
-    flex-wrap: wrap;
+    gap: 0;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border);
   }
-
   .tab-btn {
-    padding: 10px 20px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text-secondary);
-    font-size: 14px;
-    font-weight: 500;
+    padding: 16px 24px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: color 0.3s ease;
+    position: relative;
+    font-family: inherit;
   }
-
-  .tab-btn:hover {
-    background: var(--bg-card-hover);
-    color: var(--text-primary);
-  }
-
+  .tab-btn:hover { color: var(--text-secondary); }
   .tab-btn.active {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: white;
+    color: #ffffff;
   }
-
-  .tab-content {
-    display: none;
+  .tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #ffffff;
   }
-
+  .tab-content { display: none; }
   .tab-content.active {
     display: block;
-    animation: fadeIn 0.3s ease;
+    animation: fadeIn 0.4s ease;
   }
-
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* Platform badges */
   .platforms {
     display: flex;
-    justify-content: center;
-    gap: 12px;
-    margin-top: 20px;
-    flex-wrap: wrap;
-  }
-
-  .platform-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    background: var(--bg-card);
+    gap: 0;
+    margin-top: 32px;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 13px;
+  }
+  .platform-badge {
+    flex: 1;
+    padding: 14px;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
     color: var(--text-secondary);
+    border-right: 1px solid var(--border);
+    transition: color 0.3s ease, background 0.3s ease;
+  }
+  .platform-badge:last-child { border-right: none; }
+  .platform-badge:hover {
+    color: #ffffff;
+    background: var(--bg-card);
   }
 
-  .platform-badge .icon {
-    font-size: 16px;
-  }
-
-  @media (max-width: 768px) {
-    .hero h1 { font-size: 36px; }
-    .hero .subtitle { font-size: 16px; }
-    .section-title { font-size: 28px; }
-    .hero-stats { gap: 24px; }
-    .stat-number { font-size: 28px; }
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+    .hero-text h1 { font-size: 42px; }
+    .section-header { grid-template-columns: 1fr; gap: 16px; }
+    .section-title-block h2 { font-size: 30px; }
     .feature-grid { grid-template-columns: 1fr; }
+    .module-category { grid-template-columns: 1fr; gap: 32px; }
+    .module-side { position: static; }
     .submodule-grid { grid-template-columns: repeat(2, 1fr); }
+    .guide-grid { grid-template-columns: 1fr; }
+    .changelog-item { grid-template-columns: 1fr; gap: 12px; }
+    .topnav nav { display: none; }
+    .hero-meta { grid-template-columns: 1fr; }
+    .platforms { flex-wrap: wrap; }
+    .platform-badge { flex: 1 1 50%; }
   }
 </style>
 </head>
 <body>
 
-<!-- Hero Section -->
+<!-- Top Navigation -->
+<div class="topnav">
+  <div class="brand">RapidRAW <span class="accent">· v1.7.4</span></div>
+  <nav>
+    <a href="#features">核心</a>
+    <a href="#modules">模块</a>
+    <a href="#guide">指南</a>
+    <a href="#changelog">更新</a>
+  </nav>
+</div>
+
+<!-- Hero -->
 <section class="hero">
   <div class="container">
-    <div class="hero-badge">
-      <span class="dot"></span>
-      v1.7.4 正式发布 · 2026年7月
+    <div class="hero-grid">
+      <div class="hero-text">
+        <div class="eyebrow">
+          <span class="dot"></span>
+          Release v1.7.4 · 2026.07
+        </div>
+        <h1>RapidRAW<br><em>口袋相册</em></h1>
+        <p class="lead">为摄影师打造的轻量级专业 RAW 编辑器。32 位浮点 GPU 管线，非破坏性工作流，端侧 AI 推理——不足 20MB 的安装包，承载完整的修图体验。</p>
+        <div class="hero-meta">
+          <div class="meta-item">
+            <div class="label">功能模块</div>
+            <div class="value">57+</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">AI 模型</div>
+            <div class="value">11</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">支持语言</div>
+            <div class="value">12</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">构建平台</div>
+            <div class="value">10</div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+        <div class="center-mark">
+          <div class="frame"></div>
+          <div class="text">v1.7.4</div>
+        </div>
+      </div>
     </div>
-    <h1>RapidRAW 口袋相册</h1>
-    <p class="subtitle">极速 · 非破坏性 · GPU加速的RAW图像编辑器</p>
-    <p class="version-tagline">一款为摄影师打造的轻量级专业修图工具，不足20MB的安装包，带来极致流畅的编辑体验</p>
-    
-    <div class="hero-stats">
-      <div class="stat-item">
-        <div class="stat-number">57+</div>
-        <div class="stat-label">功能模块</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-number">10</div>
-        <div class="stat-label">支持平台</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-number">11</div>
-        <div class="stat-label">AI模型</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-number">12</div>
-        <div class="stat-label">语言支持</div>
-      </div>
-    </div>
-
     <div class="platforms">
-      <span class="platform-badge"><span class="icon">🪟</span> Windows</span>
-      <span class="platform-badge"><span class="icon">🍎</span> macOS</span>
-      <span class="platform-badge"><span class="icon">🐧</span> Linux</span>
-      <span class="platform-badge"><span class="icon">🤖</span> Android</span>
-      <span class="platform-badge"><span class="icon">📱</span> iOS (即将推出)</span>
+      <div class="platform-badge">Windows</div>
+      <div class="platform-badge">macOS</div>
+      <div class="platform-badge">Linux</div>
+      <div class="platform-badge">Android</div>
+      <div class="platform-badge">iOS · 即将推出</div>
     </div>
   </div>
 </section>
 
 <!-- Core Features -->
-<section class="section">
+<section class="section" id="features">
   <div class="container">
     <div class="section-header">
-      <span class="section-tag">核心能力</span>
-      <h2 class="section-title">专业级修图引擎</h2>
-      <p class="section-desc">基于 Rust + WGSL 打造的全32位GPU图像处理管线，带来即时反馈的流畅编辑体验</p>
+      <div class="section-num">— 01</div>
+      <div class="section-title-block">
+        <div class="eyebrow">Core Engine</div>
+        <h2>专业级 <em>修图引擎</em></h2>
+        <p class="desc">Rust + WGSL 构建的全 32 位浮点图像处理管线，配合 WGPU 跨平台渲染，带来即时反馈的流畅编辑体验。每一次拖动滑块，都是 GPU 上的实时计算。</p>
+      </div>
     </div>
 
     <div class="feature-grid">
       <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(99,102,241,0.15);">⚡</div>
+        <div class="index">01 / 06</div>
+        <div class="icon">◈</div>
         <h3>GPU 加速渲染</h3>
-        <p>全32位浮点图像处理管线，使用WGSL着色器，实时预览所有调整</p>
+        <p>全 32 位浮点处理管线，WGSL 着色器实时预览所有调整，无延迟反馈。</p>
         <ul class="feature-list">
           <li>WGPU 跨平台渲染</li>
-          <li>即时反馈无延迟</li>
           <li>高分辨率实时预览</li>
           <li>多图层蒙版支持</li>
+          <li>ROI 区域渲染优化</li>
         </ul>
       </div>
 
       <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(236,72,153,0.15);">🎨</div>
-        <h3>非破坏性编辑</h3>
-        <p>所有编辑存储在 .rrdata 附属文件中，原始图像永远不会被修改</p>
+        <div class="index">02 / 06</div>
+        <div class="icon">◇</div>
+        <h3>非破坏性工作流</h3>
+        <p>所有编辑存储在 .rrdata 附属文件中，原始图像永远不被修改，随时回溯。</p>
         <ul class="feature-list">
-          <li>完整撤销/重做历史</li>
+          <li>完整撤销 / 重做历史</li>
           <li>虚拟副本功能</li>
-          <li>调整参数可回溯</li>
+          <li>参数完全可逆</li>
           <li>批量复制粘贴</li>
         </ul>
       </div>
 
       <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(20,184,166,0.15);">📷</div>
-        <h3>全格式RAW支持</h3>
-        <p>基于 rawler 引擎，支持绝大多数相机品牌的RAW格式文件</p>
+        <div class="index">03 / 06</div>
+        <div class="icon">◆</div>
+        <h3>全格式 RAW 支持</h3>
+        <p>基于 rawler 引擎，覆盖绝大多数相机品牌的 RAW 格式与常见图像格式。</p>
         <ul class="feature-list">
           <li>Canon / Nikon / Sony</li>
           <li>Fuji X-Trans 传感器</li>
@@ -641,38 +780,41 @@
       </div>
 
       <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(245,158,11,0.15);">🤖</div>
-        <h3>端侧AI能力</h3>
-        <p>11个ONNX模型本地运行，无需联网，保护隐私</p>
+        <div class="index">04 / 06</div>
+        <div class="icon">▲</div>
+        <h3>端侧 AI 能力</h3>
+        <p>11 个 ONNX 模型本地运行，无需联网，隐私数据永不离开设备。</p>
         <ul class="feature-list">
-          <li>AI主体/天空/前景检测</li>
-          <li>AI人像精修</li>
-          <li>AI降噪 (NIND)</li>
-          <li>AI语义搜索</li>
+          <li>主体 / 天空 / 前景检测</li>
+          <li>人像精修与面部重塑</li>
+          <li>AI 降噪 (NIND)</li>
+          <li>语义搜索与自动标签</li>
         </ul>
       </div>
 
       <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(16,185,129,0.15);">🖼️</div>
+        <div class="index">05 / 06</div>
+        <div class="icon">○</div>
         <h3>高级蒙版系统</h3>
-        <p>图层式蒙版工作流，AI与传统蒙版完美结合</p>
+        <p>图层式蒙版工作流，AI 检测与传统蒙版完美结合，精准控制每一处调整。</p>
         <ul class="feature-list">
-          <li>画笔/线性/径向蒙版</li>
-          <li>颜色/亮度/深度蒙版</li>
-          <li>AI主体/天空/前景</li>
-          <li>蒙版加减交叉运算</li>
+          <li>画笔 / 线性 / 径向蒙版</li>
+          <li>颜色 / 亮度 / 深度蒙版</li>
+          <li>AI 主体 / 天空 / 前景</li>
+          <li>加减交叉运算</li>
         </ul>
       </div>
 
       <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(139,92,246,0.15);">🔧</div>
+        <div class="index">06 / 06</div>
+        <div class="icon">●</div>
         <h3>专业色彩管理</h3>
-        <p>完整的色彩空间管理，支持软打样和相机配置文件</p>
+        <p>完整色彩空间管理，支持软打样、相机配置文件与色域警告。</p>
         <ul class="feature-list">
           <li>多色彩空间转换</li>
           <li>软打样预览</li>
-          <li>DCP相机配置文件</li>
-          <li>色域警告</li>
+          <li>DCP 相机配置文件</li>
+          <li>色域警告叠加</li>
         </ul>
       </div>
     </div>
@@ -680,466 +822,553 @@
 </section>
 
 <!-- Full Module List -->
-<section class="section" style="background: rgba(30,41,59,0.3);">
+<section class="section" id="modules">
   <div class="container">
     <div class="section-header">
-      <span class="section-tag">功能清单</span>
-      <h2 class="section-title">图片编辑功能模块大全</h2>
-      <p class="section-desc">57个子功能模块，覆盖从基础调整到AI创意的完整修图 workflow</p>
+      <div class="section-num">— 02</div>
+      <div class="section-title-block">
+        <div class="eyebrow">Module Catalog</div>
+        <h2>图片编辑 <em>功能模块清单</em></h2>
+        <p class="desc">57 个子功能模块，覆盖从基础调整到 AI 创意的完整修图工作流。每一项功能都经过端到端操作链路自检，确保完整可用。</p>
+      </div>
     </div>
 
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('all')">全部模块</button>
-      <button class="tab-btn" onclick="switchTab('basic')">基础调整</button>
-      <button class="tab-btn" onclick="switchTab('portrait')">人像精修</button>
-      <button class="tab-btn" onclick="switchTab('creative')">创意工具</button>
-      <button class="tab-btn" onclick="switchTab('advanced')">高级功能</button>
+      <button class="tab-btn active" onclick="switchTab(event, 'all')">全部模块</button>
+      <button class="tab-btn" onclick="switchTab(event, 'basic')">基础调整</button>
+      <button class="tab-btn" onclick="switchTab(event, 'portrait')">人像精修</button>
+      <button class="tab-btn" onclick="switchTab(event, 'creative')">创意工具</button>
+      <button class="tab-btn" onclick="switchTab(event, 'advanced')">高级功能</button>
     </div>
 
-    <!-- All Modules Tab -->
+    <!-- All -->
     <div id="tab-all" class="tab-content active">
-      <div class="module-category">
-        <div class="category-header">
-          <div class="category-icon" style="background: rgba(99,102,241,0.15);">🎛️</div>
-          <h3 class="category-title">基础调整</h3>
-          <span class="category-count">5 大模块 · 28 子功能</span>
+      <div class="modules-wrap">
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">01</div>
+            <div class="cat-label">Adjustments</div>
+            <h3>基础调整</h3>
+            <p class="desc">从曝光到色彩，从曲线到细节，覆盖修图工作流的核心调整需求。</p>
+            <div class="count">5 大模块 · 28 子功能</div>
+          </div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">曝光</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">对比度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">高光</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">阴影</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">白色</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">黑色</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色调映射</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色温</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色调</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">鲜艳度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">饱和度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">颜色混合器</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">颜色校准</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">颜色分级</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">参数曲线</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">点曲线</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">锐化</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">清晰度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">结构</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">去雾</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">降噪</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色差校正</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">LUT</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">发光</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">光晕</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">光线耀斑</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">颗粒</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">暗角</span></div>
+          </div>
         </div>
-        <div class="submodule-grid">
-          <div class="submodule-item"><span class="icon">☀️</span>曝光</div>
-          <div class="submodule-item"><span class="icon">🌓</span>对比度</div>
-          <div class="submodule-item"><span class="icon">🔆</span>高光</div>
-          <div class="submodule-item"><span class="icon">🌑</span>阴影</div>
-          <div class="submodule-item"><span class="icon">⚪</span>白色</div>
-          <div class="submodule-item"><span class="icon">⚫</span>黑色</div>
-          <div class="submodule-item"><span class="icon">🎞️</span>色调映射</div>
-          <div class="submodule-item"><span class="icon">🌡️</span>色温</div>
-          <div class="submodule-item"><span class="icon">🎨</span>色调</div>
-          <div class="submodule-item"><span class="icon">🌈</span>鲜艳度</div>
-          <div class="submodule-item"><span class="icon">🎭</span>饱和度</div>
-          <div class="submodule-item"><span class="icon">🎯</span>颜色混合器</div>
-          <div class="submodule-item"><span class="icon">⚙️</span>颜色校准</div>
-          <div class="submodule-item"><span class="icon">🔵</span>颜色分级</div>
-          <div class="submodule-item"><span class="icon">📈</span>参数曲线</div>
-          <div class="submodule-item"><span class="icon">📉</span>点曲线</div>
-          <div class="submodule-item"><span class="icon">✨</span>锐化</div>
-          <div class="submodule-item"><span class="icon">🏗️</span>清晰度</div>
-          <div class="submodule-item"><span class="icon">🧱</span>结构</div>
-          <div class="submodule-item"><span class="icon">🌫️</span>去雾</div>
-          <div class="submodule-item"><span class="icon">🔇</span>降噪</div>
-          <div class="submodule-item"><span class="icon">🌈</span>色差校正</div>
-          <div class="submodule-item"><span class="icon">🎬</span>LUT</div>
-          <div class="submodule-item"><span class="icon">💫</span>发光</div>
-          <div class="submodule-item"><span class="icon">🌗</span>光晕</div>
-          <div class="submodule-item"><span class="icon">💡</span>耀斑</div>
-          <div class="submodule-item"><span class="icon">🌾</span>颗粒</div>
-          <div class="submodule-item"><span class="icon">🕶️</span>暗角</div>
-        </div>
-      </div>
 
-      <div class="module-category">
-        <div class="category-header">
-          <div class="category-icon" style="background: rgba(236,72,153,0.15);">👤</div>
-          <h3 class="category-title">人像精修</h3>
-          <span class="category-count">4 大模块 · 22 子功能</span>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">02</div>
+            <div class="cat-label">Portrait</div>
+            <h3>人像精修</h3>
+            <p class="desc">AI 驱动的人像美化工作流，从面部重塑到形体美型，22 项精细调整。</p>
+            <div class="count">4 大模块 · 22 子功能</div>
+          </div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">瘦脸</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">放大眼睛</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">瘦鼻</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">嘴型调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">下颌调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">额头调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">下巴调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">眉毛调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">眼神光强度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">眼神光位置</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">笑容管理</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">磨皮 · 中性灰</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">磨皮 · 双边滤波</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">磨皮 · 频率分离</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">一键祛瑕</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">肤色统一</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">大腿</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">小腿</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">手臂</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">腰部</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">直角肩</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">天鹅颈</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">臀部</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">祛碎发</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">发色统一</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">头发柔顺</span></div>
+          </div>
         </div>
-        <div class="submodule-grid">
-          <div class="submodule-item"><span class="icon">😀</span>瘦脸</div>
-          <div class="submodule-item"><span class="icon">👁️</span>放大眼睛</div>
-          <div class="submodule-item"><span class="icon">👃</span>瘦鼻</div>
-          <div class="submodule-item"><span class="icon">👄</span>嘴型调整</div>
-          <div class="submodule-item"><span class="icon">🦴</span>下颌调整</div>
-          <div class="submodule-item"><span class="icon">🧠</span>额头调整</div>
-          <div class="submodule-item"><span class="icon">👎</span>下巴调整</div>
-          <div class="submodule-item"><span class="icon">🦸</span>眉毛调整</div>
-          <div class="submodule-item"><span class="icon">✨</span>眼神光</div>
-          <div class="submodule-item"><span class="icon">😊</span>笑容管理</div>
-          <div class="submodule-item"><span class="icon">🧴</span>磨皮(中性灰)</div>
-          <div class="submodule-item"><span class="icon">🧴</span>磨皮(双边滤波)</div>
-          <div class="submodule-item"><span class="icon">🧴</span>磨皮(频率分离)</div>
-          <div class="submodule-item"><span class="icon">🧹</span>一键祛瑕</div>
-          <div class="submodule-item"><span class="icon">🎨</span>肤色统一</div>
-          <div class="submodule-item"><span class="icon">🦵</span>大腿</div>
-          <div class="submodule-item"><span class="icon">🦵</span>小腿</div>
-          <div class="submodule-item"><span class="icon">💪</span>手臂</div>
-          <div class="submodule-item"><span class="icon">🦵</span>腰部</div>
-          <div class="submodule-item"><span class="icon">🦵</span>直角肩</div>
-          <div class="submodule-item"><span class="icon">🦒</span>天鹅颈</div>
-          <div class="submodule-item"><span class="icon">🍑</span>臀部</div>
-        </div>
-      </div>
 
-      <div class="module-category">
-        <div class="category-header">
-          <div class="category-icon" style="background: rgba(20,184,166,0.15);">✨</div>
-          <h3 class="category-title">创意工具</h3>
-          <span class="category-count">9 大模块 · 27 子功能</span>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">03</div>
+            <div class="cat-label">Creative</div>
+            <h3>创意工具</h3>
+            <p class="desc">AI 赋能的创意功能集合，从追色补光到超清虚化，拓展影像表达边界。</p>
+            <div class="count">9 大模块 · 27 子功能</div>
+          </div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">AI 追色</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">AI 补光</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">AI 超清</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">证件照</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">衣物精修</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">镜头虚化</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">老照片修复</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">季节场景</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">路人消除</span></div>
+          </div>
         </div>
-        <div class="submodule-grid">
-          <div class="submodule-item"><span class="icon">🎨</span>AI追色</div>
-          <div class="submodule-item"><span class="icon">💡</span>AI补光</div>
-          <div class="submodule-item"><span class="icon">🔍</span>AI超清</div>
-          <div class="submodule-item"><span class="icon">📷</span>证件照</div>
-          <div class="submodule-item"><span class="icon">👕</span>衣物精修</div>
-          <div class="submodule-item"><span class="icon">💨</span>镜头虚化</div>
-          <div class="submodule-item"><span class="icon">📜</span>老照片修复</div>
-          <div class="submodule-item"><span class="icon">🌸</span>季节场景</div>
-          <div class="submodule-item"><span class="icon">🚶</span>路人消除</div>
-          <div class="submodule-item"><span class="icon">💇</span>祛碎发</div>
-          <div class="submodule-item"><span class="icon">🎨</span>发色统一</div>
-          <div class="submodule-item"><span class="icon">✨</span>头发柔顺</div>
-        </div>
-      </div>
 
-      <div class="module-category">
-        <div class="category-header">
-          <div class="category-icon" style="background: rgba(245,158,11,0.15);">🔧</div>
-          <h3 class="category-title">高级功能</h3>
-          <span class="category-count">8 大模块 · 完整支持</span>
-        </div>
-        <div class="submodule-grid">
-          <div class="submodule-item"><span class="icon">✂️</span>裁剪与变换</div>
-          <div class="submodule-item"><span class="icon">🌊</span>液化</div>
-          <div class="submodule-item"><span class="icon">🎭</span>蒙版系统</div>
-          <div class="submodule-item"><span class="icon">🌅</span>HDR高动态</div>
-          <div class="submodule-item"><span class="icon">⚫</span>黑白转换</div>
-          <div class="submodule-item"><span class="icon">🌈</span>色彩空间</div>
-          <div class="submodule-item"><span class="icon">🖼️</span>预设系统</div>
-          <div class="submodule-item"><span class="icon">📤</span>导出</div>
-          <div class="submodule-item"><span class="icon">🔬</span>镜头校正</div>
-          <div class="submodule-item"><span class="icon">🌄</span>全景拼接</div>
-          <div class="submodule-item"><span class="icon">🖼️</span>拼贴制作</div>
-          <div class="submodule-item"><span class="icon">🎞️</span>负片转换</div>
-          <div class="submodule-item"><span class="icon">🔇</span>AI降噪</div>
-          <div class="submodule-item"><span class="icon">🔍</span>图像筛选</div>
-          <div class="submodule-item"><span class="icon">🏷️</span>AI标签</div>
-          <div class="submodule-item"><span class="icon">🔄</span>批量处理</div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">04</div>
+            <div class="cat-label">Advanced</div>
+            <h3>高级功能</h3>
+            <p class="desc">面向专业摄影师的高级工具集，HDR、色彩空间、液化、蒙版系统一应俱全。</p>
+            <div class="count">8 大模块 · 完整支持</div>
+          </div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">裁剪与变换</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">液化</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">蒙版系统</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">HDR 高动态</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">黑白转换</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色彩空间</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">预设系统</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">导出</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">镜头校正</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">全景拼接</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">拼贴制作</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">负片转换</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">AI 降噪</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">图像筛选</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">AI 标签</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">批量处理</span></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Basic Tab -->
+    <!-- Basic -->
     <div id="tab-basic" class="tab-content">
-      <div class="module-category">
-        <div class="category-header">
-          <div class="category-icon" style="background: rgba(99,102,241,0.15);">🎛️</div>
-          <h3 class="category-title">基础调整模块</h3>
-          <span class="category-count">5 大模块 · 28 子功能</span>
-        </div>
-        <div class="feature-grid">
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(99,102,241,0.15);">☀️</div>
+      <div class="modules-wrap">
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">01</div>
+            <div class="cat-label">Basic Tone</div>
             <h3>基础色调</h3>
-            <p>核心曝光与色调控制</p>
-            <ul class="feature-list">
-              <li>曝光补偿</li>
-              <li>对比度</li>
-              <li>高光/阴影</li>
-              <li>白色/黑色</li>
-              <li>色调映射 (AgX/基础)</li>
-              <li>EV偏移</li>
-            </ul>
+            <p class="desc">核心曝光与色调控制，构建画面的光影基础。</p>
+            <div class="count">6 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(236,72,153,0.15);">🎨</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">曝光补偿</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">对比度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">高光</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">阴影</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">白色 / 黑色</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色调映射 AgX</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">02</div>
+            <div class="cat-label">Color</div>
             <h3>色彩调整</h3>
-            <p>完整的色彩控制工具</p>
-            <ul class="feature-list">
-              <li>色温/色调</li>
-              <li>鲜艳度/饱和度</li>
-              <li>颜色混合器 (HSL)</li>
-              <li>颜色校准</li>
-              <li>颜色分级轮</li>
-              <li>白平衡选取器</li>
-            </ul>
+            <p class="desc">完整的色彩控制工具，从白平衡到颜色分级。</p>
+            <div class="count">6 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(20,184,166,0.15);">📈</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色温 / 色调</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">鲜艳度 / 饱和度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">颜色混合器 HSL</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">颜色校准</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">颜色分级轮</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">白平衡选取器</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">03</div>
+            <div class="cat-label">Curves</div>
             <h3>曲线工具</h3>
-            <p>精确的色调曲线控制</p>
-            <ul class="feature-list">
-              <li>参数曲线</li>
-              <li>点曲线</li>
-              <li>亮度/RGB通道</li>
-              <li>红/绿/蓝单通道</li>
-              <li>曲线复制粘贴</li>
-            </ul>
+            <p class="desc">精确的色调曲线控制，支持参数与点曲线两种模式。</p>
+            <div class="count">5 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(245,158,11,0.15);">✨</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">参数曲线</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">点曲线</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">亮度 / RGB 通道</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">红 / 绿 / 蓝单通道</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">曲线复制粘贴</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">04</div>
+            <div class="cat-label">Detail</div>
             <h3>细节增强</h3>
-            <p>锐化与质感提升</p>
-            <ul class="feature-list">
-              <li>锐化</li>
-              <li>清晰度</li>
-              <li>结构</li>
-              <li>去雾</li>
-              <li>降噪 (亮度/颜色)</li>
-              <li>色差校正</li>
-            </ul>
+            <p class="desc">锐化与质感提升，还原镜头应有的清晰度。</p>
+            <div class="count">6 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(16,185,129,0.15);">🎬</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">锐化</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">清晰度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">结构</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">去雾</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">降噪 · 亮度 / 颜色</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色差校正</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">05</div>
+            <div class="cat-label">Effects</div>
             <h3>创意效果</h3>
-            <p>胶片感与特殊效果</p>
-            <ul class="feature-list">
-              <li>LUT 支持</li>
-              <li>发光效果</li>
-              <li>光晕效果</li>
-              <li>光线耀斑</li>
-              <li>胶片颗粒</li>
-              <li>暗角</li>
-            </ul>
+            <p class="desc">胶片感与特殊效果，为画面注入个性氛围。</p>
+            <div class="count">6 子功能</div>
+          </div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">LUT 支持</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">发光效果</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">光晕效果</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">光线耀斑</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">胶片颗粒</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">暗角</span></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Portrait Tab -->
+    <!-- Portrait -->
     <div id="tab-portrait" class="tab-content">
-      <div class="module-category">
-        <div class="category-header">
-          <div class="category-icon" style="background: rgba(236,72,153,0.15);">👤</div>
-          <h3 class="category-title">人像精修模块</h3>
-          <span class="category-count">4 大模块 · 22 子功能</span>
-        </div>
-        <div class="feature-grid">
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(236,72,153,0.15);">😀</div>
+      <div class="modules-wrap">
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">01</div>
+            <div class="cat-label">Face</div>
             <h3>面部重塑</h3>
-            <p>AI驱动的人脸编辑</p>
-            <ul class="feature-list">
-              <li>瘦脸</li>
-              <li>放大眼睛</li>
-              <li>瘦鼻</li>
-              <li>嘴型调整</li>
-              <li>下颌/额头/下巴</li>
-              <li>眉毛调整</li>
-              <li>眼神光强度/位置</li>
-              <li>笑容管理</li>
-            </ul>
+            <p class="desc">AI 驱动的人脸编辑，自然不失真。</p>
+            <div class="count">11 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(20,184,166,0.15);">🧴</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">瘦脸</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">放大眼睛</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">瘦鼻</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">嘴型调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">下颌调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">额头调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">下巴调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">眉毛调整</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">眼神光强度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">眼神光位置</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">笑容管理</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">02</div>
+            <div class="cat-label">Skin</div>
             <h3>皮肤精修</h3>
-            <p>专业磨皮与美肤</p>
-            <ul class="feature-list">
-              <li>中性灰磨皮</li>
-              <li>双边滤波磨皮</li>
-              <li>频率分离磨皮</li>
-              <li>一键祛瑕</li>
-              <li>肤色统一</li>
-              <li>纹理保留控制</li>
-            </ul>
+            <p class="desc">专业磨皮算法，保留纹理的同时平滑肤质。</p>
+            <div class="count">6 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(245,158,11,0.15);">💃</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">中性灰磨皮</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">双边滤波磨皮</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">频率分离磨皮</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">一键祛瑕</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">肤色统一</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">纹理保留控制</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">03</div>
+            <div class="cat-label">Body</div>
             <h3>形体美型</h3>
-            <p>身材比例调整</p>
-            <ul class="feature-list">
-              <li>大腿/小腿</li>
-              <li>手臂</li>
-              <li>腰部</li>
-              <li>直角肩</li>
-              <li>天鹅颈</li>
-              <li>臀部</li>
-            </ul>
+            <p class="desc">身材比例调整，打造理想身形。</p>
+            <div class="count">6 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(139,92,246,0.15);">💇</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">大腿</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">小腿</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">手臂</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">腰部</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">直角肩</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">天鹅颈 / 臀部</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">04</div>
+            <div class="cat-label">Hair</div>
             <h3>头发精修</h3>
-            <p>发丝细节处理</p>
-            <ul class="feature-list">
-              <li>祛碎发</li>
-              <li>发色统一</li>
-              <li>头发柔顺</li>
-            </ul>
+            <p class="desc">发丝细节处理，呈现完美发型。</p>
+            <div class="count">3 子功能</div>
+          </div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">祛碎发</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">发色统一</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">头发柔顺</span></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Creative Tab -->
+    <!-- Creative -->
     <div id="tab-creative" class="tab-content">
-      <div class="module-category">
-        <div class="category-header">
-          <div class="category-icon" style="background: rgba(20,184,166,0.15);">✨</div>
-          <h3 class="category-title">创意工具模块</h3>
-          <span class="category-count">9 大模块 · 创意无限</span>
-        </div>
-        <div class="feature-grid">
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(99,102,241,0.15);">🎨</div>
+      <div class="modules-wrap">
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">01</div>
+            <div class="cat-label">Color Match</div>
             <h3>AI 追色</h3>
-            <p>一键匹配参考图色调</p>
-            <ul class="feature-list">
-              <li>直方图匹配</li>
-              <li>线性匹配</li>
-              <li>强度调节</li>
-            </ul>
+            <p class="desc">一键匹配参考图色调，快速建立色彩风格。</p>
+            <div class="count">3 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(236,72,153,0.15);">💡</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">直方图匹配</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">线性匹配</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">强度调节</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">02</div>
+            <div class="cat-label">Fill Light</div>
             <h3>AI 补光</h3>
-            <p>智能添加光源效果</p>
-            <ul class="feature-list">
-              <li>光源方向</li>
-              <li>光照强度</li>
-              <li>柔和度</li>
-              <li>色温调节</li>
-            </ul>
+            <p class="desc">智能添加光源，重塑画面光影结构。</p>
+            <div class="count">4 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(20,184,166,0.15);">🔍</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">光源方向</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">光照强度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">柔和度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色温调节</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">03</div>
+            <div class="cat-label">Super Resolution</div>
             <h3>AI 超清</h3>
-            <p>超分辨率图像增强</p>
-            <ul class="feature-list">
-              <li>2x/4x 放大</li>
-              <li>细节重建</li>
-            </ul>
+            <p class="desc">超分辨率图像增强，重建丢失的细节。</p>
+            <div class="count">2 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(245,158,11,0.15);">📷</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">2x / 4x 放大</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">细节重建</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">04</div>
+            <div class="cat-label">ID Photo</div>
             <h3>证件照</h3>
-            <p>一键生成证件照</p>
-            <ul class="feature-list">
-              <li>一寸/二寸/护照</li>
-              <li>背景颜色选择</li>
-            </ul>
+            <p class="desc">一键生成标准证件照，支持多种规格。</p>
+            <div class="count">3 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(16,185,129,0.15);">👕</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">一寸 / 二寸 / 护照</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">背景颜色选择</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">自动裁剪</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">05</div>
+            <div class="cat-label">Clothing</div>
             <h3>衣物精修</h3>
-            <p>服装细节优化</p>
-            <ul class="feature-list">
-              <li>祛褶皱</li>
-              <li>祛污渍</li>
-            </ul>
+            <p class="desc">服装细节优化，去除褶皱与污渍。</p>
+            <div class="count">2 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(139,92,246,0.15);">💨</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">祛褶皱</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">祛污渍</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">06</div>
+            <div class="cat-label">Lens Blur</div>
             <h3>镜头虚化</h3>
-            <p>模拟大光圈虚化效果</p>
-            <ul class="feature-list">
-              <li>高斯虚化</li>
-              <li>焦外虚化 (Bokeh)</li>
-              <li>移轴效果</li>
-            </ul>
+            <p class="desc">模拟大光圈虚化效果，突出主体。</p>
+            <div class="count">3 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(239,68,68,0.15);">📜</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">高斯虚化</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">焦外虚化 Bokeh</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">移轴效果</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">07</div>
+            <div class="cat-label">Old Photo</div>
             <h3>老照片修复</h3>
-            <p>修复老旧照片</p>
-            <ul class="feature-list">
-              <li>降噪</li>
-              <li>祛划痕</li>
-              <li>上色</li>
-            </ul>
+            <p class="desc">修复老旧照片，还原清晰画质。</p>
+            <div class="count">3 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(34,197,94,0.15);">🌸</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">降噪</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">祛划痕</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">上色</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">08</div>
+            <div class="cat-label">Seasonal</div>
             <h3>季节场景</h3>
-            <p>四季氛围特效</p>
-            <ul class="feature-list">
-              <li>樱花</li>
-              <li>夏日</li>
-              <li>秋叶</li>
-              <li>冬雪</li>
-            </ul>
+            <p class="desc">四季氛围特效，营造时令意境。</p>
+            <div class="count">4 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(251,146,60,0.15);">🚶</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">樱花</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">夏日</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">秋叶</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">冬雪</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">09</div>
+            <div class="cat-label">People Removal</div>
             <h3>路人消除</h3>
-            <p>自动移除背景人物</p>
-            <ul class="feature-list">
-              <li>AI检测</li>
-              <li>智能填充</li>
-            </ul>
+            <p class="desc">自动检测并移除背景人物。</p>
+            <div class="count">2 子功能</div>
+          </div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">AI 检测</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">智能填充</span></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Advanced Tab -->
+    <!-- Advanced -->
     <div id="tab-advanced" class="tab-content">
-      <div class="module-category">
-        <div class="category-header">
-          <div class="category-icon" style="background: rgba(245,158,11,0.15);">🔧</div>
-          <h3 class="category-title">高级功能模块</h3>
-          <span class="category-count">8 大模块 · 专业级工作流</span>
-        </div>
-        <div class="feature-grid">
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(99,102,241,0.15);">✂️</div>
+      <div class="modules-wrap">
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">01</div>
+            <div class="cat-label">Crop & Transform</div>
             <h3>裁剪与变换</h3>
-            <p>构图与几何校正</p>
-            <ul class="feature-list">
-              <li>自由裁剪</li>
-              <li>多种宽高比预设</li>
-              <li>旋转/翻转</li>
-              <li>透视校正</li>
-              <li>拉直工具</li>
-              <li>构图叠加辅助线</li>
-            </ul>
+            <p class="desc">构图与几何校正，多种辅助线支持。</p>
+            <div class="count">6 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(236,72,153,0.15);">🌊</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">自由裁剪</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">宽高比预设</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">旋转 / 翻转</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">透视校正</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">拉直工具</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">构图叠加线</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">02</div>
+            <div class="cat-label">Liquify</div>
             <h3>液化工具</h3>
-            <p>自由变形重塑</p>
-            <ul class="feature-list">
-              <li>推/拉画笔</li>
-              <li>收缩/膨胀</li>
-              <li>旋转</li>
-              <li>重建</li>
-              <li>画笔大小/压力</li>
-            </ul>
+            <p class="desc">自由变形重塑，6 种画笔模式。</p>
+            <div class="count">6 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(20,184,166,0.15);">🎭</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">推 / 拉画笔</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">收缩 / 膨胀</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">旋转</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">重建</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">画笔大小 / 压力</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">撤销笔画</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">03</div>
+            <div class="cat-label">Masks</div>
             <h3>蒙版系统</h3>
-            <p>图层式蒙版工作流</p>
-            <ul class="feature-list">
-              <li>画笔/线性/径向蒙版</li>
-              <li>颜色/亮度/深度蒙版</li>
-              <li>AI主体/天空/前景</li>
-              <li>流线蒙版</li>
-              <li>蒙版运算 (加/减/交)</li>
-              <li>克隆/修复画笔</li>
-            </ul>
+            <p class="desc">图层式蒙版工作流，AI 与传统蒙版结合。</p>
+            <div class="count">6 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(245,158,11,0.15);">🌅</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">画笔 / 线性 / 径向</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">颜色 / 亮度 / 深度</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">AI 主体 / 天空 / 前景</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">流线蒙版</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">蒙版运算</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">克隆 / 修复画笔</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">04</div>
+            <div class="cat-label">HDR</div>
             <h3>HDR 高动态</h3>
-            <p>多帧HDR合成</p>
-            <ul class="feature-list">
-              <li>包围曝光合成</li>
-              <li>高光恢复</li>
-              <li>去鬼影</li>
-              <li>Ultra HDR导出</li>
-              <li>色域警告</li>
-            </ul>
+            <p class="desc">多帧 HDR 合成，高光恢复与去鬼影。</p>
+            <div class="count">5 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(16,185,129,0.15);">⚫</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">包围曝光合成</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">高光恢复</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">去鬼影</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">Ultra HDR 导出</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色域警告</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">05</div>
+            <div class="cat-label">Monochrome</div>
             <h3>黑白转换</h3>
-            <p>专业黑白调色</p>
-            <ul class="feature-list">
-              <li>通道混合器</li>
-              <li>多种滤镜预设</li>
-              <li>分离调色</li>
-              <li>棕褐/硒/铜/蓝晒/金</li>
-            </ul>
+            <p class="desc">专业黑白调色，通道混合与分离调色。</p>
+            <div class="count">4 子功能</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(139,92,246,0.15);">🌈</div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">通道混合器</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">滤镜预设</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">分离调色</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">棕褐 / 硒 / 铜 / 蓝晒 / 金</span></div>
+          </div>
+        </div>
+        <div class="module-category">
+          <div class="module-side">
+            <div class="num">06</div>
+            <div class="cat-label">Color Space</div>
             <h3>色彩空间</h3>
-            <p>专业色彩管理</p>
-            <ul class="feature-list">
-              <li>工作色彩空间</li>
-              <li>输出色彩空间</li>
-              <li>相机配置文件 (DCP)</li>
-              <li>软打样</li>
-              <li>色域警告</li>
-            </ul>
+            <p class="desc">专业色彩管理，软打样与配置文件。</p>
+            <div class="count">5 子功能</div>
+          </div>
+          <div class="submodule-grid">
+            <div class="submodule-item"><span class="icon">○</span><span class="name">工作色彩空间</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">输出色彩空间</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">DCP 相机配置文件</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">软打样</span></div>
+            <div class="submodule-item"><span class="icon">○</span><span class="name">色域警告</span></div>
           </div>
         </div>
       </div>
@@ -1148,32 +1377,35 @@
 </section>
 
 <!-- Operation Guide -->
-<section class="section">
+<section class="section" id="guide">
   <div class="container">
     <div class="section-header">
-      <span class="section-tag">操作指南</span>
-      <h2 class="section-title">快速上手教程</h2>
-      <p class="section-desc">从导入到导出，5步完成专业级修图工作流</p>
+      <div class="section-num">— 03</div>
+      <div class="section-title-block">
+        <div class="eyebrow">Operation Guide</div>
+        <h2>操作指南 <em>与工作流</em></h2>
+        <p class="desc">从导入到导出，完整的修图工作流。每一步都经过精心设计，让摄影师专注于创作本身。</p>
+      </div>
     </div>
 
-    <div class="guide-steps">
+    <div class="guide-grid">
       <div class="guide-step">
-        <div class="step-number">1</div>
+        <div class="step-label">Step 01</div>
         <h3>导入图像</h3>
-        <p>开始您的修图之旅</p>
+        <p>开启修图之旅的第一步。</p>
         <ul>
           <li>点击「打开文件夹」导入照片库</li>
           <li>支持文件夹递归浏览</li>
-          <li>RAW/JPEG/PNG/WebP 等多格式</li>
-          <li>Android 端点击「打开图库」选择相册</li>
+          <li>RAW / JPEG / PNG / WebP 等多格式</li>
+          <li>Android 端点击「打开图库」</li>
           <li>虚拟副本功能无损复制编辑</li>
         </ul>
       </div>
 
       <div class="guide-step">
-        <div class="step-number">2</div>
+        <div class="step-label">Step 02</div>
         <h3>基础调整</h3>
-        <p>打造完美的色调基础</p>
+        <p>打造完美的色调基础。</p>
         <ul>
           <li>使用「自动调整」快速获得基础效果</li>
           <li>调整曝光、对比度、高光、阴影</li>
@@ -1184,22 +1416,22 @@
       </div>
 
       <div class="guide-step">
-        <div class="step-number">3</div>
+        <div class="step-label">Step 03</div>
         <h3>局部精修</h3>
-        <p>蒙版与AI让调整更精准</p>
+        <p>蒙版与 AI 让调整更精准。</p>
         <ul>
-          <li>使用 AI 蒙版一键选择主体/天空</li>
+          <li>使用 AI 蒙版一键选择主体 / 天空</li>
           <li>画笔蒙版精细绘制调整区域</li>
-          <li>线性/径向渐变蒙版</li>
+          <li>线性 / 径向渐变蒙版</li>
           <li>蒙版加减交叉组合运算</li>
           <li>每个蒙版独立调整参数</li>
         </ul>
       </div>
 
       <div class="guide-step">
-        <div class="step-number">4</div>
+        <div class="step-label">Step 04</div>
         <h3>人像精修</h3>
-        <p>AI赋能的人像美化</p>
+        <p>AI 赋能的人像美化。</p>
         <ul>
           <li>点击「检测人脸」自动识别</li>
           <li>瘦脸、大眼、瘦鼻一键调整</li>
@@ -1210,11 +1442,11 @@
       </div>
 
       <div class="guide-step">
-        <div class="step-number">5</div>
+        <div class="step-label">Step 05</div>
         <h3>导出分享</h3>
-        <p>输出高质量作品</p>
+        <p>输出高质量作品。</p>
         <ul>
-          <li>支持 JPEG/PNG/TIFF/WebP/AVIF</li>
+          <li>支持 JPEG / PNG / TIFF / WebP / AVIF</li>
           <li>批量导出提高效率</li>
           <li>添加水印保护版权</li>
           <li>可选择是否保留元数据</li>
@@ -1223,11 +1455,11 @@
       </div>
 
       <div class="guide-step">
-        <div class="step-number">💡</div>
+        <div class="step-label">Tips</div>
         <h3>快捷技巧</h3>
-        <p>提升效率的小技巧</p>
+        <p>提升效率的小技巧。</p>
         <ul>
-          <li>按 B 键对比原图/效果图</li>
+          <li>按 B 键对比原图 / 效果图</li>
           <li>Ctrl+Z 撤销，Ctrl+Y 重做</li>
           <li>右键缩略图复制粘贴调整</li>
           <li>保存预设快速复用风格</li>
@@ -1239,69 +1471,86 @@
 </section>
 
 <!-- Changelog -->
-<section class="section" style="background: rgba(30,41,59,0.3);">
+<section class="section" id="changelog">
   <div class="container">
     <div class="section-header">
-      <span class="section-tag">更新日志</span>
-      <h2 class="section-title">v1.7.4 更新亮点</h2>
-      <p class="section-desc">本次更新带来了多项功能优化与稳定性提升</p>
+      <div class="section-num">— 04</div>
+      <div class="section-title-block">
+        <div class="eyebrow">Changelog</div>
+        <h2>v1.7.4 <em>更新亮点</em></h2>
+        <p class="desc">本次更新带来多项功能升级与稳定性提升，全面完善操作链路完整性。</p>
+      </div>
     </div>
 
-    <div class="changelog">
+    <div class="changelog-list">
       <div class="changelog-item">
-        <div class="changelog-header">
-          <span class="changelog-tag tag-new">新增</span>
+        <div class="changelog-meta">
+          <span class="changelog-tag new">New</span>
+        </div>
+        <div>
           <h4>人像精修模块全面升级</h4>
+          <p>新增面部重塑（瘦脸、大眼、瘦鼻、嘴型、下颌、额头、下巴、眉毛）、眼神光、笑容管理、三种磨皮算法、肤色统一、美型（大腿、小腿、手臂、腰部、直角肩、天鹅颈、臀部）、头发精修（祛碎发、发色统一、头发柔顺）等 22 项人像功能。</p>
         </div>
-        <p>新增面部重塑（瘦脸、大眼、瘦鼻、嘴型、下颌、额头、下巴、眉毛）、眼神光、笑容管理、三种磨皮算法、肤色统一、美型（大腿、小腿、手臂、腰部、直角肩、天鹅颈、臀部）、头发精修（祛碎发、发色统一、头发柔顺）等22项人像功能。</p>
       </div>
 
       <div class="changelog-item">
-        <div class="changelog-header">
-          <span class="changelog-tag tag-new">新增</span>
+        <div class="changelog-meta">
+          <span class="changelog-tag new">New</span>
+        </div>
+        <div>
           <h4>创意工具模块</h4>
+          <p>新增 AI 追色、AI 补光、AI 超清、证件照生成、衣物精修、镜头虚化、老照片修复、季节场景、路人消除等 9 大创意功能模块。</p>
         </div>
-        <p>新增AI追色、AI补光、AI超清、证件照生成、衣物精修、镜头虚化、老照片修复、季节场景、路人消除等9大创意功能模块。</p>
       </div>
 
       <div class="changelog-item">
-        <div class="changelog-header">
-          <span class="changelog-tag tag-improve">优化</span>
+        <div class="changelog-meta">
+          <span class="changelog-tag improve">Improve</span>
+        </div>
+        <div>
           <h4>液化工具全新上线</h4>
+          <p>新增独立液化面板，支持推、拉、收缩、膨胀、旋转、重建 6 种画笔模式，支持撤销笔画和重置网格。</p>
         </div>
-        <p>新增独立液化面板，支持推、拉、收缩、膨胀、旋转、重建6种画笔模式，支持撤销笔画和重置网格。</p>
       </div>
 
       <div class="changelog-item">
-        <div class="changelog-header">
-          <span class="changelog-tag tag-improve">优化</span>
+        <div class="changelog-meta">
+          <span class="changelog-tag improve">Improve</span>
+        </div>
+        <div>
           <h4>HDR 与色彩空间管理</h4>
+          <p>新增 HDR 高动态范围面板，支持高光恢复、Ultra HDR 导出、色域警告。新增色彩空间管理面板，支持工作 / 输出色彩空间切换、DCP 相机配置文件、软打样功能。</p>
         </div>
-        <p>新增HDR高动态范围面板，支持高光恢复、Ultra HDR导出、色域警告。新增色彩空间管理面板，支持工作/输出色彩空间切换、DCP相机配置文件、软打样功能。</p>
       </div>
 
       <div class="changelog-item">
-        <div class="changelog-header">
-          <span class="changelog-tag tag-improve">优化</span>
+        <div class="changelog-meta">
+          <span class="changelog-tag improve">Improve</span>
+        </div>
+        <div>
           <h4>黑白转换模块</h4>
+          <p>新增独立黑白转换面板，支持通道混合器、多种滤镜预设、分离调色（棕褐 / 硒 / 铜 / 蓝晒 / 金）。</p>
         </div>
-        <p>新增独立黑白转换面板，支持通道混合器、多种滤镜预设、分离调色（棕褐/硒/铜/蓝晒/金）。</p>
       </div>
 
       <div class="changelog-item">
-        <div class="changelog-header">
-          <span class="changelog-tag tag-fix">修复</span>
+        <div class="changelog-meta">
+          <span class="changelog-tag fix">Fix</span>
+        </div>
+        <div>
           <h4>Android 端适配优化</h4>
+          <p>修复 Android 自适应图标、修复操作链路完整性、优化 57 个子功能模块的端到端调用、修复液化弹窗渲染问题、补全所有翻译键。</p>
         </div>
-        <p>修复Android自适应图标、修复操作链路完整性、优化57个子功能模块的端到端调用、修复液化弹窗渲染问题、补全所有翻译键。</p>
       </div>
 
       <div class="changelog-item">
-        <div class="changelog-header">
-          <span class="changelog-tag tag-fix">修复</span>
-          <h4>操作链路完整性修复</h4>
+        <div class="changelog-meta">
+          <span class="changelog-tag fix">Fix</span>
         </div>
-        <p>全面修复57个子功能模块的前端→后端操作链路，统一使用js_adjustments模式，确保所有功能完整可用、操作链路完整闭环。</p>
+        <div>
+          <h4>操作链路完整性修复</h4>
+          <p>全面修复 57 个子功能模块的前端到后端操作链路，统一使用 js_adjustments 模式，确保所有功能完整可用、操作链路完整闭环。</p>
+        </div>
       </div>
     </div>
   </div>
@@ -1310,25 +1559,23 @@
 <!-- Footer -->
 <footer class="footer">
   <div class="container">
-    <p>RapidRAW 口袋相册 v1.7.4 · 基于 AGPL-3.0 开源协议</p>
-    <p style="margin-top: 8px;">
+    <div class="brand-mark">RapidRAW <em>口袋相册</em></div>
+    <p>v1.7.4 · 基于 AGPL-3.0 开源协议</p>
+    <p>为摄影师打造的轻量级专业 RAW 编辑器</p>
+    <div class="links">
       <a href="https://github.com/CyberTimon/RapidRAW/releases" target="_blank">GitHub Releases</a>
-      ·
       <a href="https://www.getrapidraw.com/docs/" target="_blank">官方文档</a>
-    </p>
+      <a href="https://github.com/CyberTimon/RapidRAW" target="_blank">源代码</a>
+    </div>
   </div>
 </footer>
 
 <script>
-function switchTab(tabName) {
-  document.querySelectorAll('.tab-content').forEach(el => {
-    el.classList.remove('active');
-  });
-  document.querySelectorAll('.tab-btn').forEach(el => {
-    el.classList.remove('active');
-  });
+function switchTab(e, tabName) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tabName).classList.add('active');
-  event.target.classList.add('active');
+  e.target.classList.add('active');
 }
 </script>
 
