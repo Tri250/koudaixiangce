@@ -32,6 +32,9 @@ import {
   Wrench,
   Palette,
   Settings2,
+  Search,
+  LayoutGrid,
+  List as ListIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfigurePresetModal from '../../modals/ConfigurePresetModal';
@@ -65,6 +68,7 @@ interface DraggablePresetItemProps {
   intensity?: number;
   onIntensityChange?: (val: number) => void;
   onDragStateChange?: (isDragging: boolean) => void;
+  viewMode?: 'grid' | 'list';
 }
 
 interface FolderProps {
@@ -89,6 +93,7 @@ interface PresetItemDisplayProps {
   intensity?: number;
   onIntensityChange?: (val: number) => void;
   onDragStateChange?: (isDragging: boolean) => void;
+  viewMode?: 'grid' | 'list';
 }
 
 interface PresetsPanelProps {
@@ -207,6 +212,7 @@ function PresetItemDisplay({
   intensity,
   onIntensityChange,
   onDragStateChange,
+  viewMode = 'grid',
 }: PresetItemDisplayProps) {
   const { t } = useTranslation();
   const geometryKeys = ADJUSTMENT_GROUPS.geometry.flatMap((g) => g.keys);
@@ -224,54 +230,158 @@ function PresetItemDisplay({
     return t('editor.presets.supports.label', { features: features.join(' + ') });
   }, [supportsMasks, supportsGeometry, t]);
 
-  return (
-    <div className="flex flex-col p-2 rounded-lg bg-surface cursor-grabbing">
-      <div className="flex items-center gap-3">
+  // Grid view: vertical card with large preview thumbnail on top.
+  // List view: original horizontal layout (preview + text side by side).
+  if (viewMode === 'grid') {
+    return (
+      <div
+        className={`group relative flex flex-col rounded-xl overflow-hidden bg-surface border transition-all duration-200 cursor-grabbing ${
+          isActive
+            ? 'border-accent shadow-md shadow-accent/15 ring-1 ring-accent/40'
+            : 'border-border-color/40 hover:border-border-color/80 hover:shadow-sm'
+        }`}
+      >
+        {/* Preview thumbnail (large, top) */}
         <div
-          className="w-20 h-14 bg-bg-tertiary rounded-md flex items-center justify-center shrink-0 relative overflow-hidden"
+          className="relative w-full aspect-[4/3] bg-bg-tertiary overflow-hidden"
           data-tooltip={tooltipContent}
         >
           {isGeneratingPreviews && !previewUrl ? (
-            <Loader2 size={20} className="animate-spin text-text-secondary" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 size={22} className="animate-spin text-text-secondary" />
+            </div>
           ) : previewUrl ? (
             <img
               src={previewUrl}
               alt={`${preset.name} preview`}
-              className="w-full h-full object-cover rounded-md pointer-events-none"
+              className="w-full h-full object-cover pointer-events-none transition-transform duration-300 group-hover:scale-[1.04]"
             />
           ) : (
-            <Loader2 size={20} className="animate-spin text-text-secondary" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 size={22} className="animate-spin text-text-secondary" />
+            </div>
+          )}
+
+          {/* Top-right feature badges */}
+          {(supportsMasks || supportsGeometry) && (
+            <div className="absolute top-1.5 right-1.5 bg-black/55 backdrop-blur-md rounded-full px-1.5 py-0.5 flex items-center gap-1 shadow-sm z-10 pointer-events-none">
+              {supportsMasks && <Layers size={11} className="text-white" />}
+              {supportsGeometry && <Crop size={11} className="text-white" />}
+            </div>
+          )}
+
+          {/* Top-left type badge */}
+          <div
+            className={`absolute top-1.5 left-1.5 backdrop-blur-md rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm z-10 pointer-events-none ${
+              isTool ? 'bg-accent/85' : 'bg-primary/85'
+            }`}
+          >
+            {isTool ? <Wrench size={9} className="text-white" /> : <Palette size={9} className="text-white" />}
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-white">
+              {isTool ? t('editor.presets.types.tool') : t('editor.presets.types.style')}
+            </span>
+          </div>
+
+          {/* Active overlay */}
+          {isActive && (
+            <div className="absolute inset-0 bg-accent/10 pointer-events-none" />
+          )}
+        </div>
+
+        {/* Footer: name + (optional) intensity */}
+        <div className="px-2.5 py-2 flex flex-col gap-1">
+          <Text
+            color={TextColors.primary}
+            weight={TextWeights.semibold}
+            className="truncate text-[12.5px] leading-tight"
+            title={preset.name}
+          >
+            {preset.name}
+          </Text>
+
+          <AnimatePresence initial={false}>
+            {isActive && onIntensityChange && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                className="w-full cursor-auto overflow-hidden"
+                onClick={(e: any) => e.stopPropagation()}
+                onPointerDown={(e: any) => e.stopPropagation()}
+              >
+                <div className="pt-1.5 pb-0.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <Text variant={TextVariants.small} color={TextColors.secondary}>
+                      {t('editor.presets.amount')}
+                    </Text>
+                    <span className="text-[10px] font-semibold text-accent tabular-nums">
+                      {intensity ?? 100}%
+                    </span>
+                  </div>
+                  <Slider
+                    min={0}
+                    max={200}
+                    defaultValue={100}
+                    value={intensity ?? 100}
+                    onChange={(e: any) => onIntensityChange(Number(e.target.value))}
+                    onDragStateChange={onDragStateChange}
+                    label=""
+                    step={1}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    );
+  }
+
+  // List view (original compact layout)
+  return (
+    <div className="flex flex-col p-2.5 rounded-xl bg-surface border border-border-color/40 cursor-grabbing hover:border-border-color/70 transition-colors">
+      <div className="flex items-center gap-3">
+        <div
+          className="w-[72px] h-[52px] bg-bg-tertiary rounded-lg flex items-center justify-center shrink-0 relative overflow-hidden shadow-sm"
+          data-tooltip={tooltipContent}
+        >
+          {isGeneratingPreviews && !previewUrl ? (
+            <Loader2 size={18} className="animate-spin text-text-secondary" />
+          ) : previewUrl ? (
+            <img
+              src={previewUrl}
+              alt={`${preset.name} preview`}
+              className="w-full h-full object-cover rounded-lg pointer-events-none"
+            />
+          ) : (
+            <Loader2 size={18} className="animate-spin text-text-secondary" />
           )}
 
           {(supportsMasks || supportsGeometry) && (
             <>
               <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-linear-to-bl from-black/30 via-black/0 to-transparent pointer-events-none z-0" />
-
-              <div className="absolute top-1 right-1 bg-primary rounded-full px-1.5 py-0.5 flex items-center gap-1.5 backdrop-blur-xs shadow-xs z-10 pointer-events-none">
-                {supportsMasks && <Layers size={11} className="text-white" />}
-                {supportsGeometry && <Crop size={11} className="text-white" />}
+              <div className="absolute top-1 right-1 bg-primary/90 rounded-full px-1.5 py-0.5 flex items-center gap-1 backdrop-blur-sm shadow-sm z-10 pointer-events-none">
+                {supportsMasks && <Layers size={10} className="text-white" />}
+                {supportsGeometry && <Crop size={10} className="text-white" />}
               </div>
             </>
           )}
         </div>
 
         <div className="grow min-w-0 flex flex-col justify-center">
-          <Text color={TextColors.primary} weight={TextWeights.medium} className="truncate">
+          <Text color={TextColors.primary} weight={TextWeights.semibold} className="truncate text-[13px]">
             {preset.name}
           </Text>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {isTool ? (
-              <Wrench size={12} className="text-text-secondary" />
-            ) : (
-              <Palette size={12} className="text-text-secondary" />
-            )}
-            <Text
-              variant={TextVariants.small}
-              color={TextColors.secondary}
-              className="text-[10px] uppercase tracking-wider"
+          <div className="flex items-center gap-1.5 mt-1">
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] font-medium ${
+                isTool ? 'bg-accent/10 text-accent' : 'bg-primary/10 text-primary'
+              }`}
             >
+              {isTool ? <Wrench size={9} /> : <Palette size={9} />}
               {isTool ? t('editor.presets.types.tool') : t('editor.presets.types.style')}
-            </Text>
+            </span>
           </div>
         </div>
       </div>
@@ -288,6 +398,14 @@ function PresetItemDisplay({
             onPointerDown={(e: any) => e.stopPropagation()}
           >
             <div className="mt-3 px-1 pb-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Text variant={TextVariants.small} color={TextColors.secondary}>
+                  {t('editor.presets.amount')}
+                </Text>
+                <span className="text-[11px] font-semibold text-accent tabular-nums">
+                  {intensity ?? 100}%
+                </span>
+              </div>
               <Slider
                 min={0}
                 max={200}
@@ -295,7 +413,7 @@ function PresetItemDisplay({
                 value={intensity ?? 100}
                 onChange={(e: any) => onIntensityChange(Number(e.target.value))}
                 onDragStateChange={onDragStateChange}
-                label={t('editor.presets.amount')}
+                label=""
                 step={1}
               />
             </div>
@@ -332,6 +450,7 @@ function DraggablePresetItem({
   intensity,
   onIntensityChange,
   onDragStateChange,
+  viewMode = 'grid',
 }: DraggablePresetItemProps) {
   const {
     attributes,
@@ -357,7 +476,7 @@ function DraggablePresetItem({
   );
 
   const style = {
-    borderRadius: '10px',
+    borderRadius: '12px',
     opacity: isDragging ? 0.4 : 1,
     outline: isOver ? '2px solid var(--color-primary)' : '2px solid transparent',
     outlineOffset: '-2px',
@@ -374,7 +493,7 @@ function DraggablePresetItem({
       <motion.div
         {...listeners}
         {...attributes}
-        className="cursor-grab"
+        className="cursor-grab h-full"
         whileTap={{ scale: isActive ? 1 : 0.98 }}
         transition={{ type: 'spring', stiffness: 400, damping: 17 }}
       >
@@ -386,6 +505,7 @@ function DraggablePresetItem({
           intensity={intensity}
           onIntensityChange={onIntensityChange}
           onDragStateChange={onDragStateChange}
+          viewMode={viewMode}
         />
       </motion.div>
     </div>
@@ -481,6 +601,11 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
   const activePanel = useUIStore((s) => s.activeRightPanel);
   const setEditor = useEditorStore((s) => s.setEditor);
   const { setAdjustments } = useEditorActions();
+
+  // New UI state: filter type, search query, view mode (grid vs list)
+  const [filterType, setFilterType] = useState<'all' | 'style' | 'tool'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const {
     addFolder,
