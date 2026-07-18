@@ -469,29 +469,54 @@ pub async fn batch_sync_preset(
 ) -> Result<(), String> {
     let total = image_paths.len();
     for (idx, path) in image_paths.iter().enumerate() {
-        // Load image from path
-        let img_result = image::open(path);
-        match img_result {
-            Ok(_img) => {
-                // Successfully loaded image. Preset adjustments would be applied
-                // via the existing GPU pipeline. For batch sync, we serialize
-                // the preset adjustments to a sidecar .json file next to the image.
-                let sidecar_path = format!("{}.json", path);
-                let preset_json = serde_json::to_string_pretty(&preset_adjustments)
-                    .map_err(|e| format!("Failed to serialize preset: {}", e))?;
-                std::fs::write(&sidecar_path, &preset_json)
-                    .map_err(|e| format!("Failed to write sidecar {}: {}", sidecar_path, e))?;
-            }
-            Err(e) => {
-                log::warn!("batch_sync_preset: Failed to load {}: {}", path, e);
-            }
+        let (_source_path, sidecar_path) = crate::file_management::parse_virtual_path(path);
+
+        // Load existing sidecar metadata and merge preset adjustments into it
+        let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
+        let mut final_adjustments = preset_adjustments.clone();
+
+        // Resolve lens params for the new adjustments
+        {
+            let lens_db_guard = state.lens_db.lock().unwrap();
+            crate::file_management::resolve_lens_params_in_adjustments(
+                &mut final_adjustments,
+                &metadata.exif,
+                lens_db_guard.as_deref(),
+            );
         }
+
+        // Merge: existing adjustments as base, overlay preset adjustments on top
+        if let Some(existing) = metadata.adjustments.as_object() {
+            if let Some(preset_obj) = final_adjustments.as_object() {
+                let mut merged = existing.clone();
+                for (key, value) in preset_obj {
+                    merged.insert(key.clone(), value.clone());
+                }
+                metadata.adjustments = serde_json::Value::Object(merged);
+            }
+        } else {
+            metadata.adjustments = final_adjustments;
+        }
+
+        // Write the sidecar in the standard .rrdata format
+        let json_string = serde_json::to_string_pretty(&metadata).map_err(|e| e.to_string())?;
+        std::fs::write(&sidecar_path, json_string).map_err(|e| {
+            format!(
+                "Failed to write sidecar {}: {}",
+                sidecar_path.display(),
+                e
+            )
+        })?;
 
         let _ = app_handle.emit(
             "batch-sync-progress",
             serde_json::json!({ "current": idx + 1, "total": total }),
         );
     }
+
+    // Regenerate thumbnails for all affected images
+    crate::file_management::add_to_thumbnail_queue(&state, total, &app_handle);
+
     Ok(())
 }
 

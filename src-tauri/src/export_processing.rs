@@ -101,6 +101,15 @@ fn apply_watermark(
     base_image: &mut DynamicImage,
     watermark_settings: &WatermarkSettings,
 ) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    let watermark_img = if crate::android_integration::is_android_content_uri(&watermark_settings.path) {
+        let bytes = crate::android_integration::read_android_content_uri(&watermark_settings.path)?;
+        image::load_from_memory(&bytes).map_err(|e| format!("Failed to decode watermark image: {}", e))?
+    } else {
+        image::open(&watermark_settings.path).map_err(|e| format!("Failed to open watermark image: {}", e))?
+    };
+
+    #[cfg(not(target_os = "android"))]
     let watermark_img = image::open(&watermark_settings.path)
         .map_err(|e| format!("Failed to open watermark image: {}", e))?;
 
@@ -718,6 +727,9 @@ pub async fn export_images(
         return Err("An export is already in progress.".to_string());
     }
 
+    // Clear the list of exported output paths from any previous export
+    state.exported_output_paths.lock().unwrap().clear();
+
     let context = get_or_init_gpu_context(&state, &app_handle)?;
     let context = Arc::new(context);
     let progress_counter = Arc::new(AtomicUsize::new(0));
@@ -966,6 +978,14 @@ pub async fn export_images(
                         &export_settings,
                     )?;
 
+                    // Track successfully exported output path for cancellation cleanup
+                    app_handle_clone
+                        .state::<AppState>()
+                        .exported_output_paths
+                        .lock()
+                        .unwrap()
+                        .push(output_path.clone());
+
                     if export_settings.preserve_timestamps {
                         #[cfg(not(target_os = "android"))]
                         set_timestamps_from_exif(Path::new(&source_path_str), &output_path);
@@ -1055,7 +1075,19 @@ pub fn cancel_export(state: tauri::State<AppState>) -> Result<(), String> {
     match state.export_task_handle.lock().unwrap().take() {
         Some(handle) => {
             handle.abort();
-            println!("Export task cancellation requested.");
+            log::info!("Export task cancellation requested.");
+
+            // Clean up partially exported files
+            let partial_paths = state.exported_output_paths.lock().unwrap().drain(..).collect::<Vec<_>>();
+            for path in &partial_paths {
+                if path.exists() {
+                    if let Err(e) = fs::remove_file(path) {
+                        log::warn!("Failed to clean up partial export file '{}': {}", path.display(), e);
+                    } else {
+                        log::info!("Cleaned up partial export file: {}", path.display());
+                    }
+                }
+            }
         }
         _ => {
             return Err("No export task is currently running.".to_string());

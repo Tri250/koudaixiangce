@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useUIStore } from '../store/useUIStore';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { useEditorStore } from '../store/useEditorStore';
+import { Invokes } from '../components/ui/AppProperties';
 
 export function useAndroidBackHandler() {
   useEffect(() => {
@@ -91,11 +94,39 @@ export function useAndroidBackHandler() {
         return;
       }
 
+      // Close right panel if open in editor
+      if (ui.activeRightPanel !== null) {
+        ui.setUI({ activeRightPanel: null });
+        return;
+      }
+
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
     };
 
+    // Flush sidecar data to disk — called from Android lifecycle events (onPause/onStop/onSaveInstanceState)
+    (window as any).__flushSidecar = () => {
+      const { selectedImage, adjustments } = useEditorStore.getState();
+      if (selectedImage?.path) {
+        invoke(Invokes.SaveMetadataAndUpdateThumbnail, { path: selectedImage.path, adjustments }).catch(
+          (err: any) => console.error('Sidecar flush failed:', err),
+        );
+      }
+    };
+
+    // Periodic sidecar flush every 30 seconds on Android to guard against process kills
+    const periodicFlushInterval = setInterval(() => {
+      const { selectedImage, adjustments } = useEditorStore.getState();
+      if (selectedImage?.path) {
+        invoke(Invokes.SaveMetadataAndUpdateThumbnail, { path: selectedImage.path, adjustments }).catch(
+          (err: any) => console.error('Periodic sidecar flush failed:', err),
+        );
+      }
+    }, 30000);
+
     return () => {
       delete (window as any).__handleAndroidBack;
+      delete (window as any).__flushSidecar;
+      clearInterval(periodicFlushInterval);
     };
   }, []);
 }

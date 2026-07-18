@@ -826,10 +826,25 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
     setActivePresetId(preset.id);
     setPresetIntensity(100);
 
-    setAdjustments((prevAdjustments: Adjustments) => ({
-      ...prevAdjustments,
-      ...preset.adjustments,
-    }));
+    const isTool = preset.presetType === 'tool';
+
+    if (isTool) {
+      // Tool presets are additive: only overlay keys that the preset explicitly defines
+      setAdjustments((prevAdjustments: Adjustments) => {
+        const merged = { ...prevAdjustments };
+        const presetAdj = preset.adjustments as Record<string, any>;
+        for (const key of Object.keys(presetAdj)) {
+          (merged as any)[key] = presetAdj[key];
+        }
+        return merged;
+      });
+    } else {
+      // Style presets replace: spread over initial, then apply
+      setAdjustments((prevAdjustments: Adjustments) => ({
+        ...prevAdjustments,
+        ...preset.adjustments,
+      }));
+    }
   };
 
   const handleIntensityChange = useCallback(

@@ -13,6 +13,7 @@ use ort::session::Session;
 use ort::value::Tensor;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use sysinfo::System;
 use tauri::Emitter;
 use tauri::Manager;
 use tokenizers::Tokenizer;
@@ -317,6 +318,23 @@ pub async fn get_or_init_ai_models(
     }
 
     let _guard = ai_init_lock.lock().await;
+
+    // Check available memory before loading AI models — they require significant RAM
+    let mut sys = sysinfo::System::new();
+    sys.refresh_memory();
+    let available_ram_gb = sys.available_memory() as f64 / 1024.0 / 1024.0 / 1024.0;
+    let min_required_ram_gb = 2.0; // Minimum ~2 GB free RAM for AI models
+    if available_ram_gb < min_required_ram_gb {
+        log::warn!(
+            "Insufficient RAM for AI models: {:.1} GB available (minimum {:.1} GB required)",
+            available_ram_gb,
+            min_required_ram_gb
+        );
+        return Err(format!(
+            "Insufficient memory for AI features: {:.1} GB available (minimum {:.1} GB required). Close other apps and try again.",
+            available_ram_gb, min_required_ram_gb
+        ));
+    }
 
     if let Some(models) = ai_state_mutex
         .lock()

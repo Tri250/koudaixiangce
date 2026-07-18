@@ -112,4 +112,26 @@ class MainActivity : TauriActivity() {
       }
     })
   }
+
+  override fun onPause() {
+    super.onPause()
+    flushSidecar()
+  }
+
+  override fun onStop() {
+    super.onStop()
+    flushSidecar()
+  }
+
+  override fun onSaveInstanceState(outState: Bundle) {
+    flushSidecar()
+    super.onSaveInstanceState(outState)
+  }
+
+  private fun flushSidecar() {
+    webView?.evaluateJavascript(
+      "if (typeof window.__flushSidecar === 'function') { window.__flushSidecar(); }",
+      null
+    )
+  }
 }

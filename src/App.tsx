@@ -647,6 +647,12 @@ function App() {
             [hasMainContent && (isFullScreen ? 'p-0 gap-0' : 'p-2 gap-2')],
           )}
         >
+          {isAndroid && isCompactPortrait && selectedImage && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 text-yellow-400 text-xs rounded-md border border-yellow-500/20">
+              <span className="font-medium">⚠</span>
+              <span>Compact mode — some editing features may be limited on this screen size.</span>
+            </div>
+          )}
           <div className="flex flex-row grow h-full min-h-0">
             {!shouldHideFolderTree && renderFolderTree()}
             <div className="relative flex-1 flex flex-col min-w-0">
