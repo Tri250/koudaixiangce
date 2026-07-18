@@ -661,6 +661,11 @@
         "presetFile": "预设文件",
         "rapidRawPreset": "RapidRAW 预设"
       },
+      "filters": {
+        "all": "全部",
+        "style": "风格",
+        "tool": "工具"
+      },
       "menu": {
         "configurePreset": "配置预设",
         "deleteFolder": "删除文件夹",
@@ -679,6 +684,7 @@
         "getCommunity": "获取社区预设",
         "loading": "加载预设中..."
       },
+      "searchPlaceholder": "搜索预设...",
       "supports": {
         "cropTransform": "裁剪与变换",
         "label": "支持 {{features}}",

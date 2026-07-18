@@ -661,6 +661,11 @@
         "presetFile": "Preset File",
         "rapidRawPreset": "RapidRAW Preset"
       },
+      "filters": {
+        "all": "All",
+        "style": "Style",
+        "tool": "Tool"
+      },
       "menu": {
         "configurePreset": "Configure Preset",
         "deleteFolder": "Delete Folder",
@@ -679,6 +684,7 @@
         "getCommunity": "Get Community Presets",
         "loading": "Loading Presets..."
       },
+      "searchPlaceholder": "Search presets...",
       "supports": {
         "cropTransform": "Crop & Transform",
         "label": "Supports {{features}}",

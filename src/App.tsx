@@ -481,9 +481,9 @@ function App() {
       moveEvent.preventDefault();
 
       if (stateKey === 'left') {
-        setUI({ leftPanelWidth: Math.round(Math.max(200, Math.min(startSize + (moveEvent.clientX - startX), 500))) });
+        setUI({ leftPanelWidth: Math.round(Math.max(220, Math.min(startSize + (moveEvent.clientX - startX), 550))) });
       } else if (stateKey === 'right') {
-        setUI({ rightPanelWidth: Math.round(Math.max(280, Math.min(startSize - (moveEvent.clientX - startX), 600))) });
+        setUI({ rightPanelWidth: Math.round(Math.max(300, Math.min(startSize - (moveEvent.clientX - startX), 650))) });
       } else if (stateKey === 'bottom') {
         setUI({
           bottomPanelHeight: Math.round(Math.max(100, Math.min(startSize - (moveEvent.clientY - startY), 400))),

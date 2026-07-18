@@ -1273,9 +1273,49 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
   const folders = useMemo(() => presets.filter((item: UserPreset) => item.folder), [presets]);
   const rootPresets = useMemo(() => presets.filter((item: UserPreset) => item.preset), [presets]);
 
+  // Filter helpers
+  const filterPreset = useCallback(
+    (preset: Preset) => {
+      if (filterType !== 'all' && preset.presetType !== filterType) return false;
+      if (searchQuery && !preset.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      return true;
+    },
+    [filterType, searchQuery],
+  );
+
+  // Render a preset grid item
+  const renderPresetItem = useCallback(
+    (preset: Preset, index: number) => (
+      <motion.div
+        key={preset.id}
+        animate="visible"
+        custom={index}
+        exit="exit"
+        initial="hidden"
+        layout="position"
+        variants={itemVariants}
+      >
+        <DraggablePresetItem
+          isGeneratingPreviews={isGeneratingPreviews}
+          onApply={handleApplyPreset}
+          onContextMenu={(e: any) => handleContextMenu(e, { preset })}
+          preset={preset}
+          previewUrl={previews[preset.id] || ''}
+          isActive={preset.id === activePresetId}
+          intensity={preset.id === activePresetId ? presetIntensity : 100}
+          onIntensityChange={(val) => handleIntensityChange(preset, val)}
+          onDragStateChange={handleDragStateChange}
+          viewMode={viewMode}
+        />
+      </motion.div>
+    ),
+    [isGeneratingPreviews, handleApplyPreset, handleContextMenu, previews, activePresetId, presetIntensity, handleIntensityChange, handleDragStateChange, viewMode],
+  );
+
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-full">
+        {/* Header */}
         <div className="p-4 flex justify-between items-center shrink-0 border-b border-surface">
           <Text variant={TextVariants.title}>{t('editor.presets.title')}</Text>
           <div className="flex items-center gap-1">
@@ -1315,8 +1355,74 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
           </div>
         </div>
 
+        {/* Filter toolbar */}
+        {presets.length > 0 && (
+          <div className="px-4 pt-3 pb-2 flex items-center gap-2 shrink-0">
+            {/* Type filter pills */}
+            <div className="flex items-center gap-1.5 mr-auto overflow-x-auto scrollbar-hide">
+              {(['all', 'style', 'tool'] as const).map((type) => (
+                <button
+                  key={type}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
+                    filterType === type
+                      ? 'bg-accent text-white shadow-sm shadow-accent/25'
+                      : 'bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary'
+                  }`}
+                  onClick={() => setFilterType(type)}
+                >
+                  {t(`editor.presets.filters.${type}`)}
+                </button>
+              ))}
+            </div>
+            {/* View mode toggle */}
+            <div className="flex items-center bg-surface rounded-lg p-0.5">
+              <button
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'}`}
+                onClick={() => setViewMode('grid')}
+                data-tooltip="Grid"
+              >
+                <LayoutGrid size={14} />
+              </button>
+              <button
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'}`}
+                onClick={() => setViewMode('list')}
+                data-tooltip="List"
+              >
+                <ListIcon size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Search bar (only when presets exist) */}
+        {presets.length > 0 && (
+          <div className="px-4 pb-2 shrink-0">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
+              <input
+                type="text"
+                placeholder={t('editor.presets.searchPlaceholder', 'Search presets...')}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-surface border border-border-color/40 rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-secondary outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all"
+              />
+              {searchQuery && (
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-surface-hover text-text-secondary"
+                  onClick={() => setSearchQuery('')}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Content area */}
         <div
-          className={`grow overflow-y-auto p-4 space-y-2 rounded-lg transition-colors ${
+          className={`grow overflow-y-auto p-4 rounded-lg transition-colors ${
             isRootOver ? 'bg-surface-hover' : ''
           }`}
           onContextMenu={handleBackgroundContextMenu}
@@ -1343,18 +1449,66 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
                 </Button>
               )}
             </div>
+          ) : viewMode === 'grid' ? (
+            /* ── Grid layout ──────────────────────────────────── */
+            <div className="flex flex-col gap-4">
+              <AnimatePresence>
+                {folders
+                  .filter((item: UserPreset) => item.folder?.id !== deletingItemId)
+                  .map((item: UserPreset, index: number) => {
+                    const filteredChildren = item.folder?.children
+                      ?.filter((p: Preset) => p.id !== deletingItemId && filterPreset(p)) ?? [];
+                    return (
+                      <motion.div
+                        key={item.folder?.id}
+                        animate="visible"
+                        custom={index}
+                        exit="exit"
+                        initial="hidden"
+                        layout="position"
+                        variants={itemVariants}
+                      >
+                        <DroppableFolderItem
+                          folder={item.folder}
+                          isExpanded={item.folder?.id ? expandedFolders.has(item.folder?.id) : false}
+                          onContextMenu={(e: any) => handleContextMenu(e, item)}
+                          onToggle={toggleFolder}
+                        >
+                          <AnimatePresence>
+                            <div className="grid grid-cols-2 gap-2">
+                              {filteredChildren.map((preset: Preset, ci: number) => (
+                                renderPresetItem(preset, ci)
+                              ))}
+                            </div>
+                          </AnimatePresence>
+                        </DroppableFolderItem>
+                      </motion.div>
+                    );
+                  })}
+              </AnimatePresence>
+              <AnimatePresence>
+                <div className="grid grid-cols-2 gap-2">
+                  {rootPresets
+                    .filter((item: UserPreset) => item.preset?.id !== deletingItemId && filterPreset(item.preset as Preset))
+                    .map((item: UserPreset, index: number) => (
+                      renderPresetItem(item.preset as Preset, folders.length + index)
+                    ))}
+                </div>
+              </AnimatePresence>
+            </div>
           ) : (
+            /* ── List layout ──────────────────────────────────── */
             <>
               <AnimatePresence>
                 {folders
                   .filter((item: UserPreset) => item.folder?.id !== deletingItemId)
                   .map((item: UserPreset, index: number) => (
                     <motion.div
+                      key={item.folder?.id}
                       animate="visible"
                       custom={index}
                       exit="exit"
                       initial="hidden"
-                      key={item.folder?.id}
                       layout="position"
                       variants={itemVariants}
                     >
@@ -1366,25 +1520,9 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
                       >
                         <AnimatePresence>
                           {item.folder?.children
-                            .filter((preset: Preset) => preset.id !== deletingItemId)
+                            .filter((p: Preset) => p.id !== deletingItemId && filterPreset(p))
                             .map((preset: Preset) => (
-                              <motion.div
-                                exit={{ opacity: 0, x: -15, transition: { duration: 0.2 } }}
-                                key={preset.id}
-                                layout="position"
-                              >
-                                <DraggablePresetItem
-                                  isGeneratingPreviews={isGeneratingPreviews}
-                                  onApply={handleApplyPreset}
-                                  onContextMenu={(e: any) => handleContextMenu(e, { preset })}
-                                  preset={preset}
-                                  previewUrl={previews[preset.id] || ''}
-                                  isActive={preset.id === activePresetId}
-                                  intensity={preset.id === activePresetId ? presetIntensity : 100}
-                                  onIntensityChange={(val) => handleIntensityChange(preset, val)}
-                                  onDragStateChange={handleDragStateChange}
-                                />
-                              </motion.div>
+                              renderPresetItem(preset, 0)
                             ))}
                         </AnimatePresence>
                       </DroppableFolderItem>
@@ -1393,28 +1531,9 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
               </AnimatePresence>
               <AnimatePresence>
                 {rootPresets
-                  .filter((item: UserPreset) => item.preset?.id !== deletingItemId)
+                  .filter((item: UserPreset) => item.preset?.id !== deletingItemId && filterPreset(item.preset as Preset))
                   .map((item: UserPreset, index: number) => (
-                    <motion.div
-                      animate="visible"
-                      custom={folders.length + index}
-                      exit="exit"
-                      initial="hidden"
-                      key={item.preset?.id}
-                      layout="position"
-                      variants={itemVariants}
-                    >
-                      <DraggablePresetItem
-                        isGeneratingPreviews={isGeneratingPreviews}
-                        onApply={handleApplyPreset}
-                        onContextMenu={(e: any) => handleContextMenu(e, item)}
-                        preset={item.preset}
-                        previewUrl={(item.preset?.id ? previews[item.preset.id] : '') || ''}
-                        isActive={item.preset?.id === activePresetId}
-                        intensity={item.preset?.id === activePresetId ? presetIntensity : 100}
-                        onIntensityChange={(val) => handleIntensityChange(item.preset as Preset, val)}
-                      />
-                    </motion.div>
+                    renderPresetItem(item.preset as Preset, folders.length + index)
                   ))}
               </AnimatePresence>
             </>
@@ -1446,6 +1565,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
               isGeneratingPreviews={false}
               preset={activeItem.data}
               previewUrl={previews[activeItem.data.id] || ''}
+              viewMode={viewMode}
             />
           ) : (
             <FolderItemDisplay folder={activeItem.data} />
