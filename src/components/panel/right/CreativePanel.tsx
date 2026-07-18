@@ -106,7 +106,7 @@ function ColorMatchSection() {
         tint?: number;
         vibrance?: number;
         saturation?: number;
-      }>('ai_match_colors', { sourceAdjustments, referenceImageBase64, matchMethod, strength });
+      }>('ai_match_colors', { source_adjustments: sourceAdjustments, reference_image_base64: referenceImageBase64, match_method: matchMethod, strength });
       // ai_match_colors returns color adjustment parameters; apply them to
       // the editor adjustments so the GPU preview reflects the match.
       if (result) {
@@ -184,11 +184,11 @@ function FillLightSection() {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
       const result = await invoke<string>('apply_fill_light', {
-        jsAdjustments,
+        js_adjustments: jsAdjustments,
         direction,
         intensity,
         softness,
-        colorTemp,
+        color_temp: colorTemp,
       });
       if (result) {
         setEditor({ retouchingResultUrl: result });
@@ -263,7 +263,7 @@ function SuperResolutionSection() {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
       const scaleFactor = scale === '2x' ? 2 : 4;
-      const result = await invoke<string>('apply_super_resolution', { jsAdjustments, scaleFactor, modelType });
+      const result = await invoke<string>('apply_super_resolution', { js_adjustments: jsAdjustments, scale_factor: scaleFactor, model_type: modelType });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.superResolution.apply'));
@@ -325,7 +325,7 @@ function IdPhotoSection() {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
       const backgroundColor = hexToRgbTuple(bgColor);
-      const result = await invoke<string>('process_id_photo', { jsAdjustments, size: sizePreset, backgroundColor });
+      const result = await invoke<string>('process_id_photo', { js_adjustments: jsAdjustments, size: sizePreset, background_color: backgroundColor });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.idPhoto.process'));
@@ -383,10 +383,10 @@ function ClothingSection() {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
       const result = await invoke<string>('retouch_clothing', {
-        jsAdjustments,
-        bodyKeypoints: [],
-        removeWrinkles: wrinkleStrength / 100,
-        removeStains: blemishToggle,
+        js_adjustments: jsAdjustments,
+        body_keypoints: [],
+        remove_wrinkles: wrinkleStrength / 100,
+        remove_stains: blemishToggle,
       });
       if (result) {
         setEditor({ retouchingResultUrl: result });
@@ -445,11 +445,11 @@ function LensBlurSection() {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
       const result = await invoke<string>('apply_lens_blur', {
-        jsAdjustments,
-        blurType,
-        focalPoint: [0.5, 0.5] as [number, number],
-        blurAmount,
-        depthMaskBase64: null,
+        js_adjustments: jsAdjustments,
+        blur_type: blurType,
+        focal_point: [0.5, 0.5] as [number, number],
+        blur_amount: blurAmount,
+        depth_mask_base64: null,
       });
       if (result) {
         setEditor({ retouchingResultUrl: result });
@@ -502,7 +502,7 @@ function OldPhotoRestoreSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<string>('restore_old_photo', { jsAdjustments, denoiseStrength, scratchRemoval, colorize });
+      const result = await invoke<string>('restore_old_photo', { js_adjustments: jsAdjustments, denoise_strength: denoiseStrength, scratch_removal: scratchRemoval, colorize });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.oldPhoto.restore'));
@@ -558,7 +558,7 @@ function SeasonalEffectsSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<string>('apply_seasonal_effect', { jsAdjustments, effectType, intensity });
+      const result = await invoke<string>('apply_seasonal_effect', { js_adjustments: jsAdjustments, effect_type: effectType, intensity });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.seasonal.apply'));
@@ -626,7 +626,7 @@ function PeopleRemovalSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<string>('ai_remove_people', { jsAdjustments, personRegions: [] });
+      const result = await invoke<string>('ai_remove_people', { js_adjustments: jsAdjustments, person_regions: [] });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.peopleRemoval.apply'));
