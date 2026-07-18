@@ -2442,6 +2442,7 @@ pub fn run() {
             color_science_commands::get_color_profiles,
             color_science_commands::convert_color_space,
             color_science_commands::soft_proof,
+            color_science_commands::check_out_of_gamut,
             color_science_commands::apply_hdr_highlight_recovery,
             color_science_commands::generate_gain_map,
             color_science_commands::export_ultra_hdr_jpeg,

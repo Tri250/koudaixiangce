@@ -10,6 +10,28 @@ import Dropdown from '../../ui/Dropdown';
 import Switch from '../../ui/Switch';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
+import { Adjustments } from '../../../utils/adjustments';
+
+const getTransformAdjustments = (adj: Adjustments) => ({
+  transformDistortion: adj.transformDistortion,
+  transformVertical: adj.transformVertical,
+  transformHorizontal: adj.transformHorizontal,
+  transformRotate: adj.transformRotate,
+  transformAspect: adj.transformAspect,
+  transformScale: adj.transformScale,
+  transformXOffset: adj.transformXOffset,
+  transformYOffset: adj.transformYOffset,
+  lensDistortionAmount: adj.lensDistortionAmount,
+  lensVignetteAmount: adj.lensVignetteAmount,
+  lensTcaAmount: adj.lensTcaAmount,
+  lensDistortionParams: adj.lensDistortionParams,
+  lensMaker: adj.lensMaker,
+  lensModel: adj.lensModel,
+  lensDistortionEnabled: adj.lensDistortionEnabled,
+  lensTcaEnabled: adj.lensTcaEnabled,
+  lensVignetteEnabled: adj.lensVignetteEnabled,
+});
 
 const PEAK_BRIGHTNESS_OPTIONS = [
     { label: '1000 nits', value: 1000 },
@@ -33,6 +55,7 @@ const COLOR_SPACE_OPTIONS = [
 
 export default function HDRPanel() {
     const { t } = useTranslation();
+    const adjustments = useEditorStore((s) => s.adjustments);
 
     // State
     const [hdrPreviewEnabled, setHdrPreviewEnabled] = useState(false);
@@ -51,10 +74,11 @@ export default function HDRPanel() {
         if (!hdrPreviewEnabled) return;
         setIsProcessing(true);
         try {
+            const jsAdjustments = getTransformAdjustments(adjustments);
             await invoke('apply_hdr_highlight_recovery', {
-                imageDataBase64: '', // Will be populated by editor store
+                jsAdjustments,
                 mode: highlightMode,
-                recoveryAmount: recoveryAmount,
+                recoveryAmount,
                 peakBrightnessNits: peakBrightness,
             });
         } catch (err) {
@@ -62,7 +86,7 @@ export default function HDRPanel() {
         } finally {
             setIsProcessing(false);
         }
-    }, [hdrPreviewEnabled, highlightMode, recoveryAmount, peakBrightness]);
+    }, [hdrPreviewEnabled, highlightMode, recoveryAmount, peakBrightness, adjustments]);
 
     useEffect(() => {
         if (hdrPreviewEnabled) {
@@ -76,8 +100,9 @@ export default function HDRPanel() {
             return;
         }
         try {
+            const jsAdjustments = getTransformAdjustments(adjustments);
             const count = await invoke<number>('check_out_of_gamut', {
-                imageDataBase64: '',
+                jsAdjustments,
                 targetColorSpace: outputColorSpace,
             });
             setOutOfGamutWarning(count);
@@ -85,7 +110,7 @@ export default function HDRPanel() {
             console.error('check_out_of_gamut failed:', err);
             setOutOfGamutWarning(null);
         }
-    }, [hdrPreviewEnabled, outputColorSpace]);
+    }, [hdrPreviewEnabled, outputColorSpace, adjustments]);
 
     useEffect(() => {
         handleCheckOutOfGamut();
@@ -94,8 +119,9 @@ export default function HDRPanel() {
     const handleExportUltraHDR = useCallback(async () => {
         setIsExportingJpeg(true);
         try {
+            const jsAdjustments = getTransformAdjustments(adjustments);
             await invoke('export_ultra_hdr_jpeg', {
-                hdrImageBase64: '',
+                jsAdjustments,
                 sdrImageBase64: '',
                 peakBrightnessNits: peakBrightness,
                 quality: 90,
@@ -105,13 +131,14 @@ export default function HDRPanel() {
         } finally {
             setIsExportingJpeg(false);
         }
-    }, [peakBrightness]);
+    }, [peakBrightness, adjustments]);
 
     const handleExportHDRTIFF = useCallback(async () => {
         setIsExportingTiff(true);
         try {
+            const jsAdjustments = getTransformAdjustments(adjustments);
             await invoke('export_hdr_tiff', {
-                imageDataBase64: '',
+                jsAdjustments,
                 peakBrightnessNits: peakBrightness,
                 bitDepth: tiffBitDepth,
             });
@@ -120,7 +147,7 @@ export default function HDRPanel() {
         } finally {
             setIsExportingTiff(false);
         }
-    }, [peakBrightness, tiffBitDepth]);
+    }, [peakBrightness, tiffBitDepth, adjustments]);
 
     return (
         <div className="flex flex-col h-full select-none overflow-hidden">

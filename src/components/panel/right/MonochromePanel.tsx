@@ -9,6 +9,28 @@ import Button from '../../ui/Button';
 import Dropdown from '../../ui/Dropdown';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
+import { Adjustments } from '../../../utils/adjustments';
+
+const getTransformAdjustments = (adj: Adjustments) => ({
+  transformDistortion: adj.transformDistortion,
+  transformVertical: adj.transformVertical,
+  transformHorizontal: adj.transformHorizontal,
+  transformRotate: adj.transformRotate,
+  transformAspect: adj.transformAspect,
+  transformScale: adj.transformScale,
+  transformXOffset: adj.transformXOffset,
+  transformYOffset: adj.transformYOffset,
+  lensDistortionAmount: adj.lensDistortionAmount,
+  lensVignetteAmount: adj.lensVignetteAmount,
+  lensTcaAmount: adj.lensTcaAmount,
+  lensDistortionParams: adj.lensDistortionParams,
+  lensMaker: adj.lensMaker,
+  lensModel: adj.lensModel,
+  lensDistortionEnabled: adj.lensDistortionEnabled,
+  lensTcaEnabled: adj.lensTcaEnabled,
+  lensVignetteEnabled: adj.lensVignetteEnabled,
+});
 
 interface MonoPresetOption {
     id: string;
@@ -38,6 +60,7 @@ const TONING_TYPE_OPTIONS = [
 
 export default function MonochromePanel() {
     const { t } = useTranslation();
+    const adjustments = useEditorStore((s) => s.adjustments);
 
     // State
     const [selectedPreset, setSelectedPreset] = useState<string>('neutral');
@@ -59,8 +82,9 @@ export default function MonochromePanel() {
     const handleApply = useCallback(async () => {
         setIsProcessing(true);
         try {
+            const jsAdjustments = getTransformAdjustments(adjustments);
             await invoke('convert_to_monochrome', {
-                imageDataBase64: '', // Will be populated by editor store
+                jsAdjustments,
                 redWeight: redWeight / 100,
                 greenWeight: greenWeight / 100,
                 blueWeight: blueWeight / 100,
@@ -77,7 +101,7 @@ export default function MonochromePanel() {
         } finally {
             setIsProcessing(false);
         }
-    }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength, shadowColor, highlightColor, splitBalance]);
+    }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength, shadowColor, highlightColor, splitBalance, adjustments]);
 
     const handlePresetSelect = useCallback((presetId: string) => {
         setSelectedPreset(presetId);

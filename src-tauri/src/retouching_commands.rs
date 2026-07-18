@@ -11,6 +11,7 @@ use crate::app_state::AppState;
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct LiquifyStrokeCommand {
     pub brush_type: String, // "push" | "pull" | "pucker" | "bloat" | "twirl" | "reconstruct"
     pub radius: f32,
@@ -19,6 +20,7 @@ pub struct LiquifyStrokeCommand {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct FaceReshapeParamsCommand {
     pub face_slimming: f32,
     pub eye_enlarging: f32,
@@ -31,6 +33,7 @@ pub struct FaceReshapeParamsCommand {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct BodyReshapeParamsCommand {
     pub upper_leg_slim: f32,
     pub lower_leg_slim: f32,
@@ -118,11 +121,11 @@ pub async fn detect_body_in_image(
 
 #[tauri::command]
 pub async fn apply_liquify(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     strokes: Vec<LiquifyStrokeCommand>,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
         let liquify_strokes: Vec<crate::liquify::LiquifyStrokeCommand> = strokes
@@ -134,7 +137,7 @@ pub async fn apply_liquify(
                 points: s.points,
             })
             .collect();
-        crate::liquify::apply_liquify_strokes(&image, &liquify_strokes).map_err(|e| e.to_string())
+        crate::liquify::apply_liquify_strokes(warped_image.as_ref(), &liquify_strokes).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -144,17 +147,17 @@ pub async fn apply_liquify(
 
 #[tauri::command]
 pub async fn apply_skin_smoothing(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     method: String,
     strength: f32,
     texture_preservation: f32,
     radius: f32,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::smooth_skin(&image, &method, strength, texture_preservation, radius)
+        crate::skin_retouching::smooth_skin(warped_image.as_ref(), &method, strength, texture_preservation, radius)
             .map_err(|e| e.to_string())
     })
     .await
@@ -165,16 +168,16 @@ pub async fn apply_skin_smoothing(
 
 #[tauri::command]
 pub async fn auto_remove_blemishes(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
     sensitivity: f32,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::auto_remove_blemishes_compat(&image, &face_landmarks, sensitivity)
+        crate::skin_retouching::auto_remove_blemishes_compat(warped_image.as_ref(), &face_landmarks, sensitivity)
             .map_err(|e| e.to_string())
     })
     .await
@@ -189,15 +192,15 @@ pub async fn auto_remove_blemishes(
 
 #[tauri::command]
 pub async fn apply_face_reshape(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
     params: FaceReshapeParamsCommand,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::reshape_face(&image, &face_landmarks, &params).map_err(|e| e.to_string())
+        crate::face_reshaping::reshape_face(warped_image.as_ref(), &face_landmarks, &params).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -207,15 +210,15 @@ pub async fn apply_face_reshape(
 
 #[tauri::command]
 pub async fn apply_body_reshape(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     body_keypoints: serde_json::Value,
     params: BodyReshapeParamsCommand,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::reshape_body(&image, &body_keypoints, &params).map_err(|e| e.to_string())
+        crate::face_reshaping::reshape_body(warped_image.as_ref(), &body_keypoints, &params).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -225,15 +228,15 @@ pub async fn apply_body_reshape(
 
 #[tauri::command]
 pub async fn unify_skin_color(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
     strength: f32,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::unify_skin_color(&image, &face_landmarks, strength).map_err(|e| e.to_string())
+        crate::skin_retouching::unify_skin_color(warped_image.as_ref(), &face_landmarks, strength).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -273,15 +276,15 @@ pub async fn replace_sky(
 
 #[tauri::command]
 pub async fn ai_remove_people(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     person_regions: Vec<(f64, f64, f64, f64)>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::ai_remove_people(&image, &person_regions, &app_handle)
+        crate::skin_retouching::ai_remove_people(warped_image.as_ref(), &person_regions, &app_handle)
             .map_err(|e| e.to_string())
     })
     .await
@@ -316,17 +319,17 @@ pub async fn ai_match_colors(
 
 #[tauri::command]
 pub async fn apply_fill_light(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     direction: f32,
     intensity: f32,
     softness: f32,
     color_temp: f32,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::creative_tools::apply_fill_light(&image, direction, intensity, softness, color_temp)
+        crate::creative_tools::apply_fill_light(warped_image.as_ref(), direction, intensity, softness, color_temp)
             .map_err(|e| e.to_string())
     })
     .await
@@ -337,16 +340,16 @@ pub async fn apply_fill_light(
 
 #[tauri::command]
 pub async fn apply_super_resolution(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     scale_factor: u32,
     model_type: String,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::super_resolution::upscale(&image, scale_factor, &model_type, &app_handle)
+        crate::super_resolution::upscale(warped_image.as_ref(), scale_factor, &model_type, &app_handle)
             .map_err(|e| e.to_string())
     })
     .await
@@ -357,16 +360,16 @@ pub async fn apply_super_resolution(
 
 #[tauri::command]
 pub async fn process_id_photo(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     size: String,
     background_color: Option<(u8, u8, u8)>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::creative_tools::process_id_photo(&image, &size, background_color, &app_handle)
+        crate::creative_tools::process_id_photo(warped_image.as_ref(), &size, background_color, &app_handle)
             .map_err(|e| e.to_string())
     })
     .await
@@ -377,16 +380,16 @@ pub async fn process_id_photo(
 
 #[tauri::command]
 pub async fn retouch_clothing(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     body_keypoints: serde_json::Value,
     remove_wrinkles: f32,
     remove_stains: bool,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::retouch_clothing(&image, &body_keypoints, remove_wrinkles, remove_stains)
+        crate::skin_retouching::retouch_clothing(warped_image.as_ref(), &body_keypoints, remove_wrinkles, remove_stains)
             .map_err(|e| e.to_string())
     })
     .await
@@ -397,21 +400,21 @@ pub async fn retouch_clothing(
 
 #[tauri::command]
 pub async fn apply_lens_blur(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     blur_type: String,
     focal_point: (f32, f32),
     blur_amount: f32,
     depth_mask_base64: Option<String>,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
     let depth_mask = depth_mask_base64
         .as_deref()
         .map(decode_base64_image)
         .transpose()?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::creative_tools::apply_lens_blur(&image, &blur_type, focal_point, blur_amount, depth_mask.as_ref())
+        crate::creative_tools::apply_lens_blur(warped_image.as_ref(), &blur_type, focal_point, blur_amount, depth_mask.as_ref())
             .map_err(|e| e.to_string())
     })
     .await
@@ -422,17 +425,17 @@ pub async fn apply_lens_blur(
 
 #[tauri::command]
 pub async fn restore_old_photo(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     denoise_strength: f32,
     scratch_removal: bool,
     colorize: bool,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::creative_tools::restore_old_photo(&image, denoise_strength, scratch_removal, colorize, &app_handle)
+        crate::creative_tools::restore_old_photo(warped_image.as_ref(), denoise_strength, scratch_removal, colorize, &app_handle)
             .map_err(|e| e.to_string())
     })
     .await
@@ -443,15 +446,15 @@ pub async fn restore_old_photo(
 
 #[tauri::command]
 pub async fn apply_seasonal_effect(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     effect_type: String,
     intensity: f32,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::creative_tools::apply_seasonal_effect(&image, &effect_type, intensity)
+        crate::creative_tools::apply_seasonal_effect(warped_image.as_ref(), &effect_type, intensity)
             .map_err(|e| e.to_string())
     })
     .await
@@ -526,16 +529,16 @@ pub async fn batch_sync_preset(
 
 #[tauri::command]
 pub async fn add_eye_catchlight(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
     intensity: f32,
     light_position: (f32, f32),
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::add_eye_catchlight(&image, &face_landmarks, intensity, light_position)
+        crate::face_reshaping::add_eye_catchlight(warped_image.as_ref(), &face_landmarks, intensity, light_position)
             .map_err(|e| e.to_string())
     })
     .await
@@ -546,15 +549,15 @@ pub async fn add_eye_catchlight(
 
 #[tauri::command]
 pub async fn adjust_smile(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
     smile_amount: f32,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::adjust_smile(&image, &face_landmarks, smile_amount).map_err(|e| e.to_string())
+        crate::face_reshaping::adjust_smile(warped_image.as_ref(), &face_landmarks, smile_amount).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -564,16 +567,16 @@ pub async fn adjust_smile(
 
 #[tauri::command]
 pub async fn adjust_neck_shoulder(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     body_keypoints: serde_json::Value,
     neck_adjust: f32,
     shoulder_adjust: f32,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::adjust_neck_shoulder(&image, &body_keypoints, neck_adjust, shoulder_adjust)
+        crate::face_reshaping::adjust_neck_shoulder(warped_image.as_ref(), &body_keypoints, neck_adjust, shoulder_adjust)
             .map_err(|e| e.to_string())
     })
     .await
@@ -584,14 +587,14 @@ pub async fn adjust_neck_shoulder(
 
 #[tauri::command]
 pub async fn apply_hair_retouch(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     params: serde_json::Value,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    let image = decode_base64_image(&image_data_base64)?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::hair_retouching::apply_hair_retouch(&image, &params)
+        crate::hair_retouching::apply_hair_retouch(warped_image.as_ref(), &params)
             .map_err(|e| e.to_string())
     })
     .await

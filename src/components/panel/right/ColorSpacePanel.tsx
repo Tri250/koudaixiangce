@@ -9,6 +9,28 @@ import Dropdown from '../../ui/Dropdown';
 import Switch from '../../ui/Switch';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
+import { useEditorStore } from '../../../store/useEditorStore';
+import { Adjustments } from '../../../utils/adjustments';
+
+const getTransformAdjustments = (adj: Adjustments) => ({
+  transformDistortion: adj.transformDistortion,
+  transformVertical: adj.transformVertical,
+  transformHorizontal: adj.transformHorizontal,
+  transformRotate: adj.transformRotate,
+  transformAspect: adj.transformAspect,
+  transformScale: adj.transformScale,
+  transformXOffset: adj.transformXOffset,
+  transformYOffset: adj.transformYOffset,
+  lensDistortionAmount: adj.lensDistortionAmount,
+  lensVignetteAmount: adj.lensVignetteAmount,
+  lensTcaAmount: adj.lensTcaAmount,
+  lensDistortionParams: adj.lensDistortionParams,
+  lensMaker: adj.lensMaker,
+  lensModel: adj.lensModel,
+  lensDistortionEnabled: adj.lensDistortionEnabled,
+  lensTcaEnabled: adj.lensTcaEnabled,
+  lensVignetteEnabled: adj.lensVignetteEnabled,
+});
 
 const COLOR_SPACE_OPTIONS = [
     { label: 'sRGB', value: 'srgb' as const },
@@ -26,6 +48,8 @@ interface CameraProfileInfo {
 
 export default function ColorSpacePanel() {
     const { t } = useTranslation();
+    const adjustments = useEditorStore((s) => s.adjustments);
+    const selectedImage = useEditorStore((s) => s.selectedImage);
 
     // State
     const [workingColorSpace, setWorkingColorSpace] = useState<string>('srgb');
@@ -60,13 +84,16 @@ export default function ColorSpacePanel() {
     // Auto-detect camera profile from EXIF
     const handleAutoDetect = useCallback(async () => {
         try {
+            // Get EXIF data from selected image metadata
+            const exifMake = (selectedImage as any)?.exifMake || '';
+            const exifModel = (selectedImage as any)?.exifModel || '';
             const result = await invoke<{
                 detectedMake: string;
                 detectedModel: string;
                 suggestedProfile: CameraProfileInfo;
             }>('get_camera_profile_for_image', {
-                exifMake: '', // Will be populated by editor store
-                exifModel: '',
+                exifMake,
+                exifModel,
             });
             setDetectedCamera({ make: result.detectedMake, model: result.detectedModel });
             if (result.suggestedProfile) {
@@ -74,6 +101,16 @@ export default function ColorSpacePanel() {
             }
         } catch (err) {
             console.error('get_camera_profile_for_image failed:', err);
+        }
+    }, [selectedImage]);
+
+    // Set camera color profile
+    const handleSetProfile = useCallback(async (profileName: string) => {
+        try {
+            setSelectedProfileName(profileName);
+            await invoke('set_camera_color_profile', { profileName });
+        } catch (err) {
+            console.error('set_camera_color_profile failed:', err);
         }
     }, []);
 
@@ -96,18 +133,33 @@ export default function ColorSpacePanel() {
         }
     }, []);
 
+    // Convert color space
+    const handleConvertColorSpace = useCallback(async () => {
+        try {
+            const jsAdjustments = getTransformAdjustments(adjustments);
+            await invoke('convert_color_space', {
+                jsAdjustments,
+                fromSpace: workingColorSpace,
+                toSpace: outputColorSpace,
+            });
+        } catch (err) {
+            console.error('convert_color_space failed:', err);
+        }
+    }, [workingColorSpace, outputColorSpace, adjustments]);
+
     // Soft proof
     const handleSoftProof = useCallback(async () => {
         try {
+            const jsAdjustments = getTransformAdjustments(adjustments);
             const result = await invoke<{ proofImageBase64: string; outOfGamutPixels: number }>('soft_proof', {
-                imageDataBase64: '', // Will be populated by editor store
+                jsAdjustments,
                 targetColorSpace: outputColorSpace,
             });
             setOutOfGamutCount(result.outOfGamutPixels);
         } catch (err) {
             console.error('soft_proof failed:', err);
         }
-    }, [outputColorSpace]);
+    }, [outputColorSpace, adjustments]);
 
     useEffect(() => {
         if (softProofEnabled) {
@@ -178,6 +230,13 @@ export default function ColorSpacePanel() {
                         onChange={(v) => setOutputColorSpace(v)}
                         placeholder={t('editor.colorSpace.selectOutputColorSpace')}
                     />
+                    <Button
+                        className="w-full bg-surface mt-3"
+                        onClick={handleConvertColorSpace}
+                    >
+                        <Palette size={16} className="mr-2" />
+                        {t('editor.colorSpace.convert')}
+                    </Button>
                 </CollapsibleSection>
 
                 {/* Camera Profile Section */}
@@ -213,7 +272,7 @@ export default function ColorSpacePanel() {
                         <Dropdown
                             options={cameraProfileOptions}
                             value={selectedProfileName}
-                            onChange={(v) => setSelectedProfileName(v)}
+                            onChange={(v) => handleSetProfile(v)}
                             placeholder={t('editor.colorSpace.selectCameraProfile')}
                             className="mb-3"
                         />

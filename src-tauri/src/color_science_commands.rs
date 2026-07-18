@@ -2,6 +2,22 @@ use base64::{Engine as _, engine::general_purpose};
 use serde_json;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::app_state::AppState;
+
+// ---- Helpers ----
+
+/// Parse a hex color string (e.g., "#FF8C00" or "FF8C00") into (r, g, b) normalized to 0..1.
+pub fn parse_hex_color(hex: &str) -> Option<(f32, f32, f32)> {
+    let hex = hex.trim_start_matches('#');
+    if hex.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some((r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0))
+}
+
 // ---- Color Science Commands ----
 
 #[tauri::command]
@@ -22,17 +38,15 @@ pub async fn get_color_profiles() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 pub async fn convert_color_space(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     from_space: String,
     to_space: String,
+    state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || {
-        let decoded = general_purpose::STANDARD
-            .decode(&image_data_base64)
-            .map_err(|e| format!("Failed to decode base64: {}", e))?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
-        let img = image::load_from_memory(&decoded)
-            .map_err(|e| format!("Failed to load image: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        let img = warped_image.as_ref().clone();
 
         let rgb_image = img.to_rgb8();
         let (width, height) = rgb_image.dimensions();
@@ -75,16 +89,14 @@ pub async fn convert_color_space(
 
 #[tauri::command]
 pub async fn soft_proof(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     target_color_space: String,
+    state: tauri::State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
-    tokio::task::spawn_blocking(move || {
-        let decoded = general_purpose::STANDARD
-            .decode(&image_data_base64)
-            .map_err(|e| format!("Failed to decode base64: {}", e))?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
-        let img = image::load_from_memory(&decoded)
-            .map_err(|e| format!("Failed to load image: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        let img = warped_image.as_ref().clone();
 
         let rgb_image = img.to_rgb8();
         let (width, height) = rgb_image.dimensions();
@@ -133,22 +145,56 @@ pub async fn soft_proof(
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
+#[tauri::command]
+pub async fn check_out_of_gamut(
+    js_adjustments: serde_json::Value,
+    target_color_space: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<usize, String> {
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
+
+    tokio::task::spawn_blocking(move || {
+        let img = warped_image.as_ref();
+        let rgb_image = img.to_rgb8();
+
+        let target_matrix = get_color_space_matrix(&target_color_space)?;
+        let srgb_matrix = get_color_space_matrix("srgb")?;
+        let target_inverse = invert_matrix3x3(&target_matrix)
+            .ok_or_else(|| format!("Failed to invert matrix for color space: {}", target_color_space))?;
+        let conversion_matrix = multiply_matrix3x3(&srgb_matrix, &target_inverse);
+
+        let mut out_of_gamut_pixels: usize = 0;
+        for pixel in rgb_image.pixels() {
+            let r = pixel[0] as f32 / 255.0;
+            let g = pixel[1] as f32 / 255.0;
+            let b = pixel[2] as f32 / 255.0;
+            let r_out = conversion_matrix[0][0] * r + conversion_matrix[0][1] * g + conversion_matrix[0][2] * b;
+            let g_out = conversion_matrix[1][0] * r + conversion_matrix[1][1] * g + conversion_matrix[1][2] * b;
+            let b_out = conversion_matrix[2][0] * r + conversion_matrix[2][1] * g + conversion_matrix[2][2] * b;
+            if r_out < 0.0 || r_out > 1.0 || g_out < 0.0 || g_out > 1.0 || b_out < 0.0 || b_out > 1.0 {
+                out_of_gamut_pixels += 1;
+            }
+        }
+        Ok(out_of_gamut_pixels)
+    })
+    .await
+    .map_err(|e| format!("Task panicked: {}", e))?
+}
+
 // ---- HDR Commands ----
 
 #[tauri::command]
 pub async fn apply_hdr_highlight_recovery(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     mode: String,
     recovery_amount: f32,
     peak_brightness_nits: f32,
+    state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || {
-        let decoded = general_purpose::STANDARD
-            .decode(&image_data_base64)
-            .map_err(|e| format!("Failed to decode base64: {}", e))?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
-        let img = image::load_from_memory(&decoded)
-            .map_err(|e| format!("Failed to load image: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        let img = warped_image.as_ref().clone();
 
         let mut rgb_image = img.to_rgb8();
         let (width, height) = rgb_image.dimensions();
@@ -219,20 +265,18 @@ pub async fn apply_hdr_highlight_recovery(
 
 #[tauri::command]
 pub async fn generate_gain_map(
-    hdr_image_base64: String,
+    js_adjustments: serde_json::Value,
     sdr_image_base64: String,
     peak_brightness_nits: f32,
+    state: tauri::State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
-    tokio::task::spawn_blocking(move || {
-        let hdr_decoded = general_purpose::STANDARD
-            .decode(&hdr_image_base64)
-            .map_err(|e| format!("Failed to decode HDR base64: {}", e))?;
-        let sdr_decoded = general_purpose::STANDARD
-            .decode(&sdr_image_base64)
-            .map_err(|e| format!("Failed to decode SDR base64: {}", e))?;
+    let hdr_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
+    let sdr_decoded = general_purpose::STANDARD
+        .decode(&sdr_image_base64)
+        .map_err(|e| format!("Failed to decode SDR base64: {}", e))?;
 
-        let hdr_img = image::load_from_memory(&hdr_decoded)
-            .map_err(|e| format!("Failed to load HDR image: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        let hdr_img = hdr_image.as_ref().clone();
         let sdr_img = image::load_from_memory(&sdr_decoded)
             .map_err(|e| format!("Failed to load SDR image: {}", e))?;
 
@@ -291,21 +335,19 @@ pub async fn generate_gain_map(
 
 #[tauri::command]
 pub async fn export_ultra_hdr_jpeg(
-    hdr_image_base64: String,
+    js_adjustments: serde_json::Value,
     sdr_image_base64: String,
     peak_brightness_nits: f32,
     quality: u8,
+    state: tauri::State<'_, AppState>,
 ) -> Result<Vec<u8>, String> {
-    tokio::task::spawn_blocking(move || {
-        let hdr_decoded = general_purpose::STANDARD
-            .decode(&hdr_image_base64)
-            .map_err(|e| format!("Failed to decode HDR base64: {}", e))?;
-        let sdr_decoded = general_purpose::STANDARD
-            .decode(&sdr_image_base64)
-            .map_err(|e| format!("Failed to decode SDR base64: {}", e))?;
+    let hdr_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
+    let sdr_decoded = general_purpose::STANDARD
+        .decode(&sdr_image_base64)
+        .map_err(|e| format!("Failed to decode SDR base64: {}", e))?;
 
-        let hdr_img = image::load_from_memory(&hdr_decoded)
-            .map_err(|e| format!("Failed to load HDR image: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        let hdr_img = hdr_image.as_ref().clone();
         let sdr_img = image::load_from_memory(&sdr_decoded)
             .map_err(|e| format!("Failed to load SDR image: {}", e))?;
 
@@ -344,17 +386,15 @@ pub async fn export_ultra_hdr_jpeg(
 
 #[tauri::command]
 pub async fn export_hdr_tiff(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     peak_brightness_nits: f32,
     bit_depth: u8,
+    state: tauri::State<'_, AppState>,
 ) -> Result<Vec<u8>, String> {
-    tokio::task::spawn_blocking(move || {
-        let decoded = general_purpose::STANDARD
-            .decode(&image_data_base64)
-            .map_err(|e| format!("Failed to decode base64: {}", e))?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
-        let img = image::load_from_memory(&decoded)
-            .map_err(|e| format!("Failed to load image: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        let img = warped_image.as_ref().clone();
 
         let scale = peak_brightness_nits / 100.0;
 
@@ -417,7 +457,7 @@ pub async fn export_hdr_tiff(
 
 #[tauri::command]
 pub async fn convert_to_monochrome(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     red_weight: f32,
     green_weight: f32,
     blue_weight: f32,
@@ -425,14 +465,15 @@ pub async fn convert_to_monochrome(
     preset: String,
     toning_type: String,
     toning_strength: f32,
+    shadow_color: Option<String>,
+    highlight_color: Option<String>,
+    split_balance: Option<f32>,
+    state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || {
-        let decoded = general_purpose::STANDARD
-            .decode(&image_data_base64)
-            .map_err(|e| format!("Failed to decode base64: {}", e))?;
+    let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
-        let img = image::load_from_memory(&decoded)
-            .map_err(|e| format!("Failed to load image: {}", e))?;
+    tokio::task::spawn_blocking(move || {
+        let img = warped_image.as_ref().clone();
 
         let rgb_image = img.to_rgb8();
         let (width, height) = rgb_image.dimensions();
@@ -511,13 +552,33 @@ pub async fn convert_to_monochrome(
                     (r_t, g_t, b_t)
                 }
                 "split" => {
-                    // Split toning: warm highlights, cool shadows
+                    // Split toning with optional custom colors
                     let s = toning_factor;
-                    let highlight = luma.max(0.5);
-                    let shadow = luma.min(0.5);
-                    let r_t = luma + s * (highlight * 0.2 - shadow * 0.1);
-                    let g_t = luma + s * (highlight * 0.05);
-                    let b_t = luma + s * (-highlight * 0.05 + shadow * 0.2);
+                    let balance = split_balance.unwrap_or(50.0) / 100.0;
+                    let split_point = balance;
+
+                    // Parse shadow color (hex string like "#8B4513")
+                    let (sr, sg, sb) = shadow_color.as_deref()
+                        .and_then(|c| crate::color_science_commands::parse_hex_color(c))
+                        .unwrap_or((0.545, 0.271, 0.075)); // default warm brown
+                    // Parse highlight color
+                    let (hr, hg, hb) = highlight_color.as_deref()
+                        .and_then(|c| crate::color_science_commands::parse_hex_color(c))
+                        .unwrap_or((0.831, 0.686, 0.216)); // default gold
+
+                    let t = if luma > split_point {
+                        (luma - split_point) / (1.0 - split_point).max(0.01)
+                    } else {
+                        0.0
+                    };
+                    let st = if luma < split_point {
+                        (split_point - luma) / split_point.max(0.01)
+                    } else {
+                        0.0
+                    };
+                    let r_t = luma + s * (t * (hr - luma) + st * (sr - luma));
+                    let g_t = luma + s * (t * (hg - luma) + st * (sg - luma));
+                    let b_t = luma + s * (t * (hb - luma) + st * (sb - luma));
                     (r_t, g_t, b_t)
                 }
                 _ => (luma, luma, luma), // "none"
@@ -542,8 +603,9 @@ pub async fn convert_to_monochrome(
 
 #[tauri::command]
 pub async fn get_monochrome_preview(
-    image_data_base64: String,
+    js_adjustments: serde_json::Value,
     params: serde_json::Value,
+    state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
     let red_weight = params["redWeight"].as_f64().unwrap_or(0.333) as f32;
     let green_weight = params["greenWeight"].as_f64().unwrap_or(0.333) as f32;
@@ -552,9 +614,12 @@ pub async fn get_monochrome_preview(
     let preset = params["preset"].as_str().unwrap_or("neutral").to_string();
     let toning_type = params["toningType"].as_str().unwrap_or("none").to_string();
     let toning_strength = params["toningStrength"].as_f64().unwrap_or(0.0) as f32;
+    let shadow_color = params["shadowColor"].as_str().map(|s| s.to_string());
+    let highlight_color = params["highlightColor"].as_str().map(|s| s.to_string());
+    let split_balance = params["splitBalance"].as_f64().map(|v| v as f32);
 
     convert_to_monochrome(
-        image_data_base64,
+        js_adjustments,
         red_weight,
         green_weight,
         blue_weight,
@@ -562,6 +627,10 @@ pub async fn get_monochrome_preview(
         preset,
         toning_type,
         toning_strength,
+        shadow_color,
+        highlight_color,
+        split_balance,
+        state,
     )
     .await
 }

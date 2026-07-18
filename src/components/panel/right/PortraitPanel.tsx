@@ -27,18 +27,16 @@ const TAB_CONFIG: { id: PortraitTab; icon: typeof User; labelKey: string }[] = [
   { id: 'hair', icon: Scissors, labelKey: 'editor.portrait.tabs.hair' },
 ];
 
+// Aligned with Rust FaceReshapeParamsCommand (camelCase via serde rename_all)
 const DEFAULT_FACE_PARAMS: FaceReshapeParams = {
   faceSlimming: 0,
   eyeEnlarging: 0,
   noseSlimming: 0,
   lipAdjustment: 0,
-  jaw: 0,
-  forehead: 0,
-  chin: 0,
-  eyebrow: 0,
-  eyeCatchlightIntensity: 0,
-  eyeCatchlightPosition: 50,
-  smileManagement: 0,
+  jawAdjustment: 0,
+  foreheadAdjustment: 0,
+  chinAdjustment: 0,
+  eyebrowAdjustment: 0,
 };
 
 const DEFAULT_SKIN_PARAMS: SkinSmoothingParams = {
@@ -48,14 +46,15 @@ const DEFAULT_SKIN_PARAMS: SkinSmoothingParams = {
   radius: 5,
 };
 
+// Aligned with Rust BodyReshapeParamsCommand (camelCase via serde rename_all)
 const DEFAULT_BODY_PARAMS: BodyReshapeParams = {
-  upperLeg: 0,
-  lowerLeg: 0,
-  arm: 0,
-  waist: 0,
-  shoulder: 0,
-  neck: 0,
-  hip: 0,
+  upperLegSlim: 0,
+  lowerLegSlim: 0,
+  armSlim: 0,
+  waistSlim: 0,
+  shoulderAdjust: 0,
+  neckAdjust: 0,
+  hipAdjust: 0,
 };
 
 const DEFAULT_HAIR_PARAMS: HairParams = {
@@ -67,7 +66,6 @@ const DEFAULT_HAIR_PARAMS: HairParams = {
 
 export default function PortraitPanel() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
   const {
     faceDetections,
     isDetectingFaces,
@@ -100,16 +98,12 @@ export default function PortraitPanel() {
   }, []);
 
   const handleDetectFaces = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
-    await detectFaces(imagePath);
-  }, [detectFaces, selectedImage]);
+    await detectFaces();
+  }, [detectFaces]);
 
   const handleDetectBody = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
-    await detectBody(imagePath);
-  }, [detectBody, selectedImage]);
+    await detectBody();
+  }, [detectBody]);
 
   const handleReset = useCallback(() => {
     setFaceParams(DEFAULT_FACE_PARAMS);
@@ -121,71 +115,61 @@ export default function PortraitPanel() {
 
   const handleApplyFaceReshape = useCallback(async () => {
     if (faceDetections.length === 0) return;
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applyFaceReshape(imagePath, faceParams, faceDetections[0].landmarks);
+      await applyFaceReshape(faceDetections[0].landmarks, faceParams);
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, faceParams, applyFaceReshape, selectedImage]);
+  }, [faceDetections, faceParams, applyFaceReshape]);
 
   const handleApplySkinSmoothing = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applySkinSmoothing(imagePath, skinParams);
+      await applySkinSmoothing(skinParams.method, skinParams.strength, skinParams.texturePreservation, skinParams.radius);
     } finally {
       setIsApplying(false);
     }
-  }, [skinParams, applySkinSmoothing, selectedImage]);
+  }, [skinParams, applySkinSmoothing]);
 
   const handleAutoBlemishRemove = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applyBlemishRemoval(imagePath);
+      const allLandmarks = faceDetections.map((d) => d.landmarks);
+      await applyBlemishRemoval(allLandmarks, 0.5);
     } finally {
       setIsApplying(false);
     }
-  }, [applyBlemishRemoval, selectedImage]);
+  }, [applyBlemishRemoval, faceDetections]);
 
   const handleSkinColorUniform = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applySkinColorUniform(imagePath, { strength: skinColorUniformStrength });
+      const allLandmarks = faceDetections.map((d) => d.landmarks);
+      await applySkinColorUniform(allLandmarks, skinColorUniformStrength);
     } finally {
       setIsApplying(false);
     }
-  }, [skinColorUniformStrength, applySkinColorUniform, selectedImage]);
+  }, [skinColorUniformStrength, applySkinColorUniform, faceDetections]);
 
   const handleApplyBodyReshape = useCallback(async () => {
     if (bodyDetections.length === 0) return;
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applyBodyReshape(imagePath, bodyParams, bodyDetections[0].keypoints);
+      await applyBodyReshape(bodyDetections[0].keypoints, bodyParams);
     } finally {
       setIsApplying(false);
     }
-  }, [bodyDetections, bodyParams, applyBodyReshape, selectedImage]);
+  }, [bodyDetections, bodyParams, applyBodyReshape]);
 
   const handleApplyHair = useCallback(async () => {
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applyHairRetouch(imagePath, hairParams as unknown as Record<string, unknown>);
+      await applyHairRetouch(hairParams as unknown as Record<string, unknown>);
     } finally {
       setIsApplying(false);
     }
-  }, [hairParams, applyHairRetouch, selectedImage]);
+  }, [hairParams, applyHairRetouch]);
 
   const skinMethodOptions = [
     { label: t('editor.portrait.skin.method.neutralGray'), value: 'neutral_gray' as const },
@@ -250,70 +234,33 @@ export default function PortraitPanel() {
         min={-100}
         max={100}
         step={1}
-        value={faceParams.jaw}
-        onChange={(e) => updateFaceParam('jaw', Number(e.target.value))}
+        value={faceParams.jawAdjustment}
+        onChange={(e) => updateFaceParam('jawAdjustment', Number(e.target.value))}
       />
       <Slider
         label={t('editor.portrait.face.forehead')}
         min={-100}
         max={100}
         step={1}
-        value={faceParams.forehead}
-        onChange={(e) => updateFaceParam('forehead', Number(e.target.value))}
+        value={faceParams.foreheadAdjustment}
+        onChange={(e) => updateFaceParam('foreheadAdjustment', Number(e.target.value))}
       />
       <Slider
         label={t('editor.portrait.face.chin')}
         min={-100}
         max={100}
         step={1}
-        value={faceParams.chin}
-        onChange={(e) => updateFaceParam('chin', Number(e.target.value))}
+        value={faceParams.chinAdjustment}
+        onChange={(e) => updateFaceParam('chinAdjustment', Number(e.target.value))}
       />
       <Slider
         label={t('editor.portrait.face.eyebrow')}
         min={-100}
         max={100}
         step={1}
-        value={faceParams.eyebrow}
-        onChange={(e) => updateFaceParam('eyebrow', Number(e.target.value))}
+        value={faceParams.eyebrowAdjustment}
+        onChange={(e) => updateFaceParam('eyebrowAdjustment', Number(e.target.value))}
       />
-
-      <CollapsibleSection
-        title={t('editor.portrait.face.advancedTitle')}
-        isOpen={false}
-        onToggle={() => {}}
-        canToggleVisibility={false}
-        isContentVisible={true}
-      >
-        <div className="space-y-2 pt-2">
-          <Slider
-            label={t('editor.portrait.face.eyeCatchlightIntensity')}
-            min={0}
-            max={100}
-            step={1}
-            value={faceParams.eyeCatchlightIntensity}
-            onChange={(e) => updateFaceParam('eyeCatchlightIntensity', Number(e.target.value))}
-            fillOrigin="min"
-          />
-          <Slider
-            label={t('editor.portrait.face.eyeCatchlightPosition')}
-            min={0}
-            max={100}
-            step={1}
-            value={faceParams.eyeCatchlightPosition}
-            onChange={(e) => updateFaceParam('eyeCatchlightPosition', Number(e.target.value))}
-            fillOrigin="min"
-          />
-          <Slider
-            label={t('editor.portrait.face.smileManagement')}
-            min={-100}
-            max={100}
-            step={1}
-            value={faceParams.smileManagement}
-            onChange={(e) => updateFaceParam('smileManagement', Number(e.target.value))}
-          />
-        </div>
-      </CollapsibleSection>
 
       <Button
         className="w-full"
@@ -423,56 +370,56 @@ export default function PortraitPanel() {
         min={-100}
         max={100}
         step={1}
-        value={bodyParams.upperLeg}
-        onChange={(e) => updateBodyParam('upperLeg', Number(e.target.value))}
+        value={bodyParams.upperLegSlim}
+        onChange={(e) => updateBodyParam('upperLegSlim', Number(e.target.value))}
       />
       <Slider
         label={t('editor.portrait.body.lowerLeg')}
         min={-100}
         max={100}
         step={1}
-        value={bodyParams.lowerLeg}
-        onChange={(e) => updateBodyParam('lowerLeg', Number(e.target.value))}
+        value={bodyParams.lowerLegSlim}
+        onChange={(e) => updateBodyParam('lowerLegSlim', Number(e.target.value))}
       />
       <Slider
         label={t('editor.portrait.body.arm')}
         min={-100}
         max={100}
         step={1}
-        value={bodyParams.arm}
-        onChange={(e) => updateBodyParam('arm', Number(e.target.value))}
+        value={bodyParams.armSlim}
+        onChange={(e) => updateBodyParam('armSlim', Number(e.target.value))}
       />
       <Slider
         label={t('editor.portrait.body.waist')}
         min={-100}
         max={100}
         step={1}
-        value={bodyParams.waist}
-        onChange={(e) => updateBodyParam('waist', Number(e.target.value))}
+        value={bodyParams.waistSlim}
+        onChange={(e) => updateBodyParam('waistSlim', Number(e.target.value))}
       />
       <Slider
         label={t('editor.portrait.body.shoulder')}
         min={-100}
         max={100}
         step={1}
-        value={bodyParams.shoulder}
-        onChange={(e) => updateBodyParam('shoulder', Number(e.target.value))}
+        value={bodyParams.shoulderAdjust}
+        onChange={(e) => updateBodyParam('shoulderAdjust', Number(e.target.value))}
       />
       <Slider
         label={t('editor.portrait.body.neck')}
         min={-100}
         max={100}
         step={1}
-        value={bodyParams.neck}
-        onChange={(e) => updateBodyParam('neck', Number(e.target.value))}
+        value={bodyParams.neckAdjust}
+        onChange={(e) => updateBodyParam('neckAdjust', Number(e.target.value))}
       />
       <Slider
         label={t('editor.portrait.body.hip')}
         min={-100}
         max={100}
         step={1}
-        value={bodyParams.hip}
-        onChange={(e) => updateBodyParam('hip', Number(e.target.value))}
+        value={bodyParams.hipAdjust}
+        onChange={(e) => updateBodyParam('hipAdjust', Number(e.target.value))}
       />
 
       <Button

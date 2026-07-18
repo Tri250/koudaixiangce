@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   Palette,
@@ -25,12 +26,56 @@ import Dropdown from '../../ui/Dropdown';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
+import { Adjustments } from '../../../utils/adjustments';
+
+// ── Helper ────────────────────────────────────────────────────────────
+
+const getTransformAdjustments = (adj: Adjustments) => ({
+  transformDistortion: adj.transformDistortion,
+  transformVertical: adj.transformVertical,
+  transformHorizontal: adj.transformHorizontal,
+  transformRotate: adj.transformRotate,
+  transformAspect: adj.transformAspect,
+  transformScale: adj.transformScale,
+  transformXOffset: adj.transformXOffset,
+  transformYOffset: adj.transformYOffset,
+  lensDistortionAmount: adj.lensDistortionAmount,
+  lensVignetteAmount: adj.lensVignetteAmount,
+  lensTcaAmount: adj.lensTcaAmount,
+  lensDistortionParams: adj.lensDistortionParams,
+  lensMaker: adj.lensMaker,
+  lensModel: adj.lensModel,
+  lensDistortionEnabled: adj.lensDistortionEnabled,
+  lensTcaEnabled: adj.lensTcaEnabled,
+  lensVignetteEnabled: adj.lensVignetteEnabled,
+});
+
+async function readFileAsBase64DataUrl(filePath: string): Promise<string> {
+  const assetUrl = convertFileSrc(filePath);
+  const response = await fetch(assetUrl);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function hexToRgbTuple(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.substring(0, 2), 16),
+    parseInt(h.substring(2, 4), 16),
+    parseInt(h.substring(4, 6), 16),
+  ];
+}
 
 // ── Color Match Section ──────────────────────────────────────────────
 
 function ColorMatchSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [matchMethod, setMatchMethod] = useState<'histogram' | 'linear'>('histogram');
   const [strength, setStrength] = useState(50);
   const [referencePath, setReferencePath] = useState<string | null>(null);
@@ -52,14 +97,15 @@ function ColorMatchSection() {
     if (!referencePath) return;
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('ai_match_colors', { imagePath, referencePath, method: matchMethod, strength });
+      const sourceAdjustments = getTransformAdjustments(adjustments);
+      const referenceImageBase64 = await readFileAsBase64DataUrl(referencePath);
+      await invoke('ai_match_colors', { sourceAdjustments, referenceImageBase64, matchMethod, strength });
     } catch (err) {
       console.error('apply_color_match failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [referencePath, matchMethod, strength, selectedImage]);
+  }, [referencePath, matchMethod, strength, adjustments]);
 
   const methodOptions = [
     { label: t('editor.creative.colorMatch.methodHistogram'), value: 'histogram' as const },
@@ -103,11 +149,30 @@ function ColorMatchSection() {
 
 function FillLightSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [direction, setDirection] = useState(0);
   const [intensity, setIntensity] = useState(50);
   const [softness, setSoftness] = useState(30);
   const [colorTemp, setColorTemp] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleApply = useCallback(async () => {
+    setIsProcessing(true);
+    try {
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      await invoke('apply_fill_light', {
+        jsAdjustments,
+        direction,
+        intensity,
+        softness,
+        colorTemp,
+      });
+    } catch (err) {
+      console.error('apply_fill_light failed:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [adjustments, direction, intensity, softness, colorTemp]);
 
   return (
     <div className="space-y-2 pt-2">
@@ -147,6 +212,10 @@ function FillLightSection() {
         value={colorTemp}
         onChange={(e) => setColorTemp(Number(e.target.value))}
       />
+      <Button className="w-full" onClick={handleApply} disabled={isProcessing}>
+        {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Sun size={16} />}
+        <span className="ml-2">{t('editor.creative.fillLight.apply')}</span>
+      </Button>
     </div>
   );
 }
@@ -155,21 +224,23 @@ function FillLightSection() {
 
 function SuperResolutionSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [scale, setScale] = useState<'2x' | '4x'>('2x');
+  const [modelType, setModelType] = useState<'esrgan' | 'real_esrgan'>('real_esrgan');
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleApply = useCallback(async () => {
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('apply_super_resolution', { imagePath, scale: scale === '2x' ? 2 : 4 });
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      const scaleFactor = scale === '2x' ? 2 : 4;
+      await invoke('apply_super_resolution', { jsAdjustments, scaleFactor, modelType });
     } catch (err) {
       console.error('apply_super_resolution failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [scale, selectedImage]);
+  }, [scale, modelType, adjustments]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -189,6 +260,14 @@ function SuperResolutionSection() {
           </button>
         ))}
       </div>
+      <Dropdown
+        options={[
+          { label: 'Real-ESRGAN', value: 'real_esrgan' as const },
+          { label: 'ESRGAN', value: 'esrgan' as const },
+        ]}
+        value={modelType}
+        onChange={setModelType}
+      />
       <Button className="w-full" onClick={handleApply} disabled={isProcessing}>
         {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <ZoomIn size={16} />}
         <span className="ml-2">{t('editor.creative.superResolution.apply')}</span>
@@ -201,7 +280,7 @@ function SuperResolutionSection() {
 
 function IdPhotoSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [sizePreset, setSizePreset] = useState<'one_inch' | 'two_inch' | 'passport'>('one_inch');
   const [bgColor, setBgColor] = useState('#FFFFFF');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -209,14 +288,15 @@ function IdPhotoSection() {
   const handleProcess = useCallback(async () => {
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('process_id_photo', { imagePath, sizePreset, bgColor });
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      const backgroundColor = hexToRgbTuple(bgColor);
+      await invoke('process_id_photo', { jsAdjustments, size: sizePreset, backgroundColor });
     } catch (err) {
       console.error('process_id_photo failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [sizePreset, bgColor, selectedImage]);
+  }, [sizePreset, bgColor, adjustments]);
 
   const presetOptions = [
     { label: t('editor.creative.idPhoto.oneInch'), value: 'one_inch' as const },
@@ -252,8 +332,27 @@ function IdPhotoSection() {
 
 function ClothingSection() {
   const { t } = useTranslation();
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [wrinkleStrength, setWrinkleStrength] = useState(50);
   const [blemishToggle, setBlemishToggle] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleApply = useCallback(async () => {
+    setIsProcessing(true);
+    try {
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      await invoke('retouch_clothing', {
+        jsAdjustments,
+        bodyKeypoints: [],
+        removeWrinkles: wrinkleStrength / 100,
+        removeStains: blemishToggle,
+      });
+    } catch (err) {
+      console.error('retouch_clothing failed:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [wrinkleStrength, blemishToggle, adjustments]);
 
   return (
     <div className="space-y-2 pt-2">
@@ -271,6 +370,10 @@ function ClothingSection() {
         label={t('editor.creative.clothing.blemishToggle')}
         onChange={setBlemishToggle}
       />
+      <Button className="w-full" onClick={handleApply} disabled={isProcessing}>
+        {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Shirt size={16} />}
+        <span className="ml-2">{t('editor.creative.clothing.apply')}</span>
+      </Button>
     </div>
   );
 }
@@ -279,14 +382,34 @@ function ClothingSection() {
 
 function LensBlurSection() {
   const { t } = useTranslation();
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [blurType, setBlurType] = useState<'gaussian' | 'bokeh' | 'tilt_shift'>('gaussian');
   const [blurAmount, setBlurAmount] = useState(30);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const blurTypeOptions = [
     { label: t('editor.creative.lensBlur.gaussian'), value: 'gaussian' as const },
     { label: t('editor.creative.lensBlur.bokeh'), value: 'bokeh' as const },
     { label: t('editor.creative.lensBlur.tiltShift'), value: 'tilt_shift' as const },
   ];
+
+  const handleApply = useCallback(async () => {
+    setIsProcessing(true);
+    try {
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      await invoke('apply_lens_blur', {
+        jsAdjustments,
+        blurType,
+        focalPoint: [0.5, 0.5] as [number, number],
+        blurAmount,
+        depthMaskBase64: null,
+      });
+    } catch (err) {
+      console.error('apply_lens_blur failed:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [blurType, blurAmount, adjustments]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -304,6 +427,10 @@ function LensBlurSection() {
         onChange={(e) => setBlurAmount(Number(e.target.value))}
         fillOrigin="min"
       />
+      <Button className="w-full" onClick={handleApply} disabled={isProcessing}>
+        {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CircleDot size={16} />}
+        <span className="ml-2">{t('editor.creative.lensBlur.apply')}</span>
+      </Button>
     </div>
   );
 }
@@ -312,7 +439,7 @@ function LensBlurSection() {
 
 function OldPhotoRestoreSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [denoiseStrength, setDenoiseStrength] = useState(50);
   const [scratchRemoval, setScratchRemoval] = useState(true);
   const [colorize, setColorize] = useState(false);
@@ -321,14 +448,14 @@ function OldPhotoRestoreSection() {
   const handleRestore = useCallback(async () => {
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('restore_old_photo', { imagePath, denoiseStrength, scratchRemoval, colorize });
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      await invoke('restore_old_photo', { jsAdjustments, denoiseStrength, scratchRemoval, colorize });
     } catch (err) {
       console.error('restore_old_photo failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [denoiseStrength, scratchRemoval, colorize, selectedImage]);
+  }, [denoiseStrength, scratchRemoval, colorize, adjustments]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -363,7 +490,7 @@ function OldPhotoRestoreSection() {
 
 function SeasonalEffectsSection() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [effectType, setEffectType] = useState<'sakura' | 'summer' | 'autumn' | 'winter'>('sakura');
   const [intensity, setIntensity] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -371,14 +498,14 @@ function SeasonalEffectsSection() {
   const handleApply = useCallback(async () => {
     setIsProcessing(true);
     try {
-      const imagePath = selectedImage?.path ?? '';
-      await invoke('apply_seasonal_effect', { imagePath, effectType, intensity });
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      await invoke('apply_seasonal_effect', { jsAdjustments, effectType, intensity });
     } catch (err) {
       console.error('apply_seasonal_effect failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [effectType, intensity, selectedImage]);
+  }, [effectType, intensity, adjustments]);
 
   const effectOptions = [
     { id: 'sakura' as const, labelKey: 'editor.creative.seasonal.sakura', color: '#FFB7C5' },
@@ -427,18 +554,20 @@ function SeasonalEffectsSection() {
 
 function PeopleRemovalSection() {
   const { t } = useTranslation();
+  const adjustments = useEditorStore((s) => s.adjustments);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleApply = useCallback(async () => {
     setIsProcessing(true);
     try {
-      await invoke('ai_remove_people', { imageDataBase64: '', personRegions: [] });
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      await invoke('ai_remove_people', { jsAdjustments, personRegions: [] });
     } catch (err) {
       console.error('ai_remove_people failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, []);
+  }, [adjustments]);
 
   return (
     <div className="space-y-3 pt-2">

@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useEditorStore } from '../store/useEditorStore';
+import { Adjustments } from '../utils/adjustments';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -40,13 +42,10 @@ export interface FaceReshapeParams {
   eyeEnlarging: number;
   noseSlimming: number;
   lipAdjustment: number;
-  jaw: number;
-  forehead: number;
-  chin: number;
-  eyebrow: number;
-  eyeCatchlightIntensity: number;
-  eyeCatchlightPosition: number;
-  smileManagement: number;
+  jawAdjustment: number;
+  foreheadAdjustment: number;
+  chinAdjustment: number;
+  eyebrowAdjustment: number;
 }
 
 export interface SkinSmoothingParams {
@@ -61,13 +60,13 @@ export interface SkinColorUniformParams {
 }
 
 export interface BodyReshapeParams {
-  upperLeg: number;
-  lowerLeg: number;
-  arm: number;
-  waist: number;
-  shoulder: number;
-  neck: number;
-  hip: number;
+  upperLegSlim: number;
+  lowerLegSlim: number;
+  armSlim: number;
+  waistSlim: number;
+  shoulderAdjust: number;
+  neckAdjust: number;
+  hipAdjust: number;
 }
 
 export interface HairParams {
@@ -76,6 +75,28 @@ export interface HairParams {
   colorUniformStrength: number;
   smoothStrength: number;
 }
+
+// ── Helper: extract transform adjustments for js_adjustments ──────────
+
+const getTransformAdjustments = (adj: Adjustments) => ({
+  transformDistortion: adj.transformDistortion,
+  transformVertical: adj.transformVertical,
+  transformHorizontal: adj.transformHorizontal,
+  transformRotate: adj.transformRotate,
+  transformAspect: adj.transformAspect,
+  transformScale: adj.transformScale,
+  transformXOffset: adj.transformXOffset,
+  transformYOffset: adj.transformYOffset,
+  lensDistortionAmount: adj.lensDistortionAmount,
+  lensVignetteAmount: adj.lensVignetteAmount,
+  lensTcaAmount: adj.lensTcaAmount,
+  lensDistortionParams: adj.lensDistortionParams,
+  lensMaker: adj.lensMaker,
+  lensModel: adj.lensModel,
+  lensDistortionEnabled: adj.lensDistortionEnabled,
+  lensTcaEnabled: adj.lensTcaEnabled,
+  lensVignetteEnabled: adj.lensVignetteEnabled,
+});
 
 // ── Hook ────────────────────────────────────────────────────────────────
 
@@ -93,13 +114,17 @@ export function useRetouching() {
   // Liquify state
   const [liquifyStrokes, setLiquifyStrokes] = useState<LiquifyStroke[]>([]);
 
+  // Get current adjustments from editor store
+  const adjustments = useEditorStore((s) => s.adjustments);
+
   // ── Face Detection ──────────────────────────────────────────────────
 
-  const detectFaces = useCallback(async (imagePath: string): Promise<FaceDetection[]> => {
+  const detectFaces = useCallback(async (): Promise<FaceDetection[]> => {
     setIsDetectingFaces(true);
     setFaceDetectionError(null);
     try {
-      const result = await invoke<FaceDetection[]>('detect_faces_in_image', { imagePath });
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      const result = await invoke<FaceDetection[]>('detect_faces_in_image', { jsAdjustments });
       setFaceDetections(result);
       return result;
     } catch (err) {
@@ -109,15 +134,16 @@ export function useRetouching() {
     } finally {
       setIsDetectingFaces(false);
     }
-  }, []);
+  }, [adjustments]);
 
   // ── Body Detection ──────────────────────────────────────────────────
 
-  const detectBody = useCallback(async (imagePath: string): Promise<BodyDetection[]> => {
+  const detectBody = useCallback(async (): Promise<BodyDetection[]> => {
     setIsDetectingBody(true);
     setBodyDetectionError(null);
     try {
-      const result = await invoke<BodyDetection[]>('detect_body_in_image', { imagePath });
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      const result = await invoke<BodyDetection[]>('detect_body_in_image', { jsAdjustments });
       setBodyDetections(result);
       return result;
     } catch (err) {
@@ -127,17 +153,18 @@ export function useRetouching() {
     } finally {
       setIsDetectingBody(false);
     }
-  }, []);
+  }, [adjustments]);
 
   // ── Face Reshape ────────────────────────────────────────────────────
 
   const applyFaceReshape = useCallback(
-    async (imagePath: string, params: FaceReshapeParams, landmarks: FaceLandmark[]): Promise<string | null> => {
+    async (faceLandmarks: FaceLandmark[], params: FaceReshapeParams): Promise<string | null> => {
       try {
+        const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('apply_face_reshape', {
-          imagePath,
+          jsAdjustments,
+          faceLandmarks,
           params,
-          landmarks,
         });
         return result;
       } catch (err) {
@@ -145,60 +172,68 @@ export function useRetouching() {
         return null;
       }
     },
-    [],
+    [adjustments],
   );
 
   // ── Skin Smoothing ──────────────────────────────────────────────────
 
   const applySkinSmoothing = useCallback(
-    async (imagePath: string, params: SkinSmoothingParams): Promise<string | null> => {
+    async (method: string, strength: number, texturePreservation: number, radius: number): Promise<string | null> => {
       try {
-        const result = await invoke<string>('apply_skin_smoothing', { imagePath, params });
+        const jsAdjustments = getTransformAdjustments(adjustments);
+        const result = await invoke<string>('apply_skin_smoothing', { jsAdjustments, method, strength, texturePreservation, radius });
         return result;
       } catch (err) {
         console.error('applySkinSmoothing failed:', err);
         return null;
       }
     },
-    [],
+    [adjustments],
   );
 
   // ── Blemish Removal ────────────────────────────────────────────────
 
-  const applyBlemishRemoval = useCallback(async (imagePath: string): Promise<string | null> => {
+  const applyBlemishRemoval = useCallback(async (faceLandmarks?: FaceLandmark[][], sensitivity?: number): Promise<string | null> => {
     try {
-      const result = await invoke<string>('auto_remove_blemishes', { imagePath });
+      const jsAdjustments = getTransformAdjustments(adjustments);
+      const result = await invoke<string>('auto_remove_blemishes', {
+        jsAdjustments,
+        faceLandmarks: faceLandmarks ?? [],
+        sensitivity: sensitivity ?? 0.5,
+      });
       return result;
     } catch (err) {
       console.error('applyBlemishRemoval failed:', err);
       return null;
     }
-  }, []);
+  }, [adjustments]);
 
   // ── Skin Color Uniform ─────────────────────────────────────────────
 
   const applySkinColorUniform = useCallback(
-    async (imagePath: string, params: SkinColorUniformParams): Promise<string | null> => {
+    async (faceLandmarks: FaceLandmark[][], strength: number): Promise<string | null> => {
       try {
-        const result = await invoke<string>('unify_skin_color', { imagePath, params });
+        const jsAdjustments = getTransformAdjustments(adjustments);
+        const result = await invoke<string>('unify_skin_color', { jsAdjustments, faceLandmarks, strength });
         return result;
       } catch (err) {
         console.error('applySkinColorUniform failed:', err);
         return null;
       }
     },
-    [],
+    [adjustments],
   );
 
   // ── Body Reshape ────────────────────────────────────────────────────
 
   const applyBodyReshape = useCallback(
-    async (imagePath: string, params: BodyReshapeParams, keypoints: BodyKeypoint[]): Promise<string | null> => {
+    async (bodyKeypoints: BodyKeypoint[], params: BodyReshapeParams): Promise<string | null> => {
       try {
+        const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('apply_body_reshape', {
-          imagePath,
+          jsAdjustments,
+          bodyKeypoints,
           params,
-          keypoints,
         });
         return result;
       } catch (err) {
@@ -206,7 +241,7 @@ export function useRetouching() {
         return null;
       }
     },
-    [],
+    [adjustments],
   );
 
   // ── Liquify ─────────────────────────────────────────────────────────
@@ -224,16 +259,24 @@ export function useRetouching() {
   }, []);
 
   const applyLiquify = useCallback(
-    async (imagePath: string, strokes: LiquifyStroke[]): Promise<string | null> => {
+    async (strokes: LiquifyStroke[]): Promise<string | null> => {
       try {
-        const result = await invoke<string>('apply_liquify', { imagePath, strokes });
+        const jsAdjustments = getTransformAdjustments(adjustments);
+        // Map frontend LiquifyStroke to Rust LiquifyStrokeCommand format
+        const mappedStrokes = strokes.map((s) => ({
+          brushType: s.brushType,
+          radius: s.brushSize,
+          pressure: s.brushPressure,
+          points: s.points.map((p) => [p.x, p.y]),
+        }));
+        const result = await invoke<string>('apply_liquify', { jsAdjustments, strokes: mappedStrokes });
         return result;
       } catch (err) {
         console.error('applyLiquify failed:', err);
         return null;
       }
     },
-    [],
+    [adjustments],
   );
 
   const resetLiquifyMesh = useCallback(() => {
@@ -241,16 +284,17 @@ export function useRetouching() {
   }, []);
 
   const applyHairRetouch = useCallback(
-    async (imagePath: string, params: Record<string, unknown>): Promise<string | null> => {
+    async (params: Record<string, unknown>): Promise<string | null> => {
       try {
-        const result = await invoke<string>('apply_hair_retouch', { imagePath, params });
+        const jsAdjustments = getTransformAdjustments(adjustments);
+        const result = await invoke<string>('apply_hair_retouch', { jsAdjustments, params });
         return result;
       } catch (err) {
         console.error('applyHairRetouch failed:', err);
         return null;
       }
     },
-    [],
+    [adjustments],
   );
 
   return {

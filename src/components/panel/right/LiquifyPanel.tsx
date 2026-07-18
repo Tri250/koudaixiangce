@@ -18,6 +18,7 @@ import Text from '../../ui/Text';
 import { TextColors, TextVariants } from '../../../types/typography';
 import { BrushType, LiquifyStroke, useRetouching } from '../../../hooks/useRetouching';
 import { useEditorStore } from '../../../store/useEditorStore';
+import { Adjustments } from '../../../utils/adjustments';
 
 interface BrushTypeConfig {
   id: BrushType;
@@ -48,7 +49,6 @@ function MinimizeIcon(props: React.SVGProps<SVGSVGElement> & { size?: number }) 
 
 export default function LiquifyPanel() {
   const { t } = useTranslation();
-  const selectedImage = useEditorStore((s) => s.selectedImage);
   const {
     liquifyStrokes,
     addLiquifyStroke,
@@ -84,15 +84,13 @@ export default function LiquifyPanel() {
 
   const handleApply = useCallback(async () => {
     if (liquifyStrokes.length === 0) return;
-    const imagePath = selectedImage?.path ?? '';
-    if (!imagePath) return;
     setIsApplying(true);
     try {
-      await applyLiquify(imagePath, liquifyStrokes);
+      await applyLiquify(liquifyStrokes);
     } finally {
       setIsApplying(false);
     }
-  }, [liquifyStrokes, applyLiquify, selectedImage]);
+  }, [liquifyStrokes, applyLiquify]);
 
   return (
     <div className="flex flex-col h-full select-none overflow-hidden">
