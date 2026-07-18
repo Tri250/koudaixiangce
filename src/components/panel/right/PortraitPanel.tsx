@@ -113,13 +113,16 @@ export default function PortraitPanel() {
     await detectBody();
   }, [detectBody]);
 
+  const setEditor = useEditorStore((s) => s.setEditor);
+
   const handleReset = useCallback(() => {
     setFaceParams(DEFAULT_FACE_PARAMS);
     setSkinParams(DEFAULT_SKIN_PARAMS);
     setSkinColorUniformStrength(50);
     setBodyParams(DEFAULT_BODY_PARAMS);
     setHairParams(DEFAULT_HAIR_PARAMS);
-  }, []);
+    setEditor({ retouchingResultUrl: null });
+  }, [setEditor]);
 
   const handleApplyFaceReshape = useCallback(async () => {
     if (faceDetections.length === 0) return;
