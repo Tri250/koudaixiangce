@@ -297,6 +297,48 @@ export function useRetouching() {
     [adjustments],
   );
 
+  const addEyeCatchlight = useCallback(
+    async (faceLandmarks: FaceLandmark[], intensity: number, lightPosition: string): Promise<string | null> => {
+      try {
+        const jsAdjustments = getTransformAdjustments(adjustments);
+        const result = await invoke<string>('add_eye_catchlight', { jsAdjustments, faceLandmarks, intensity, lightPosition });
+        return result;
+      } catch (err) {
+        console.error('addEyeCatchlight failed:', err);
+        return null;
+      }
+    },
+    [adjustments],
+  );
+
+  const adjustSmile = useCallback(
+    async (faceLandmarks: FaceLandmark[], smileAmount: number): Promise<string | null> => {
+      try {
+        const jsAdjustments = getTransformAdjustments(adjustments);
+        const result = await invoke<string>('adjust_smile', { jsAdjustments, faceLandmarks, smileAmount });
+        return result;
+      } catch (err) {
+        console.error('adjustSmile failed:', err);
+        return null;
+      }
+    },
+    [adjustments],
+  );
+
+  const adjustNeckShoulder = useCallback(
+    async (bodyKeypoints: BodyKeypoint[], neckAdjust: number, shoulderAdjust: number): Promise<string | null> => {
+      try {
+        const jsAdjustments = getTransformAdjustments(adjustments);
+        const result = await invoke<string>('adjust_neck_shoulder', { jsAdjustments, bodyKeypoints, neckAdjust, shoulderAdjust });
+        return result;
+      } catch (err) {
+        console.error('adjustNeckShoulder failed:', err);
+        return null;
+      }
+    },
+    [adjustments],
+  );
+
   return {
     // Face
     faceDetections,
@@ -323,6 +365,11 @@ export function useRetouching() {
 
     // Hair
     applyHairRetouch,
+
+    // Advanced portrait
+    addEyeCatchlight,
+    adjustSmile,
+    adjustNeckShoulder,
 
     // Liquify
     liquifyStrokes,

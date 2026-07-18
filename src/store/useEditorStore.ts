@@ -76,6 +76,7 @@ interface EditorState {
   faceLandmarks: any[] | null;
   bodyKeypoints: any[] | null;
   liquifyStrokes: any[];
+  isLiquifyModalOpen: boolean;
   skinSmoothingMethod: 'neutral_gray' | 'bilateral' | 'frequency_separation';
   skinSmoothingStrength: number;
   skinTexturePreservation: number;
@@ -152,6 +153,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   faceLandmarks: null,
   bodyKeypoints: null,
   liquifyStrokes: [],
+  isLiquifyModalOpen: false,
   skinSmoothingMethod: 'bilateral',
   skinSmoothingStrength: 50,
   skinTexturePreservation: 50,

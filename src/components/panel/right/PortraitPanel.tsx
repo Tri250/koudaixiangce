@@ -79,6 +79,9 @@ export default function PortraitPanel() {
     applySkinColorUniform,
     applyBodyReshape,
     applyHairRetouch,
+    addEyeCatchlight,
+    adjustSmile,
+    adjustNeckShoulder,
   } = useRetouching();
 
   const [activeTab, setActiveTab] = useState<PortraitTab>('face');
@@ -87,6 +90,11 @@ export default function PortraitPanel() {
   const [skinColorUniformStrength, setSkinColorUniformStrength] = useState(50);
   const [bodyParams, setBodyParams] = useState<BodyReshapeParams>(DEFAULT_BODY_PARAMS);
   const [hairParams, setHairParams] = useState<HairParams>(DEFAULT_HAIR_PARAMS);
+  const [catchlightIntensity, setCatchlightIntensity] = useState(50);
+  const [catchlightPosition, setCatchlightPosition] = useState('top-left');
+  const [smileAmount, setSmileAmount] = useState(0);
+  const [neckAdjust, setNeckAdjust] = useState(0);
+  const [shoulderAdjustValue, setShoulderAdjustValue] = useState(0);
   const [isApplying, setIsApplying] = useState(false);
 
   const updateFaceParam = useCallback((key: keyof FaceReshapeParams, value: number) => {
@@ -170,6 +178,36 @@ export default function PortraitPanel() {
       setIsApplying(false);
     }
   }, [hairParams, applyHairRetouch]);
+
+  const handleApplyCatchlight = useCallback(async () => {
+    if (faceDetections.length === 0) return;
+    setIsApplying(true);
+    try {
+      await addEyeCatchlight(faceDetections[0].landmarks, catchlightIntensity, catchlightPosition);
+    } finally {
+      setIsApplying(false);
+    }
+  }, [faceDetections, catchlightIntensity, catchlightPosition, addEyeCatchlight]);
+
+  const handleApplySmile = useCallback(async () => {
+    if (faceDetections.length === 0) return;
+    setIsApplying(true);
+    try {
+      await adjustSmile(faceDetections[0].landmarks, smileAmount);
+    } finally {
+      setIsApplying(false);
+    }
+  }, [faceDetections, smileAmount, adjustSmile]);
+
+  const handleApplyNeckShoulder = useCallback(async () => {
+    if (bodyDetections.length === 0) return;
+    setIsApplying(true);
+    try {
+      await adjustNeckShoulder(bodyDetections[0].keypoints, neckAdjust, shoulderAdjustValue);
+    } finally {
+      setIsApplying(false);
+    }
+  }, [bodyDetections, neckAdjust, shoulderAdjustValue, adjustNeckShoulder]);
 
   const skinMethodOptions = [
     { label: t('editor.portrait.skin.method.neutralGray'), value: 'neutral_gray' as const },
@@ -270,6 +308,56 @@ export default function PortraitPanel() {
         {isApplying ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
         <span className="ml-2">{t('editor.portrait.face.apply')}</span>
       </Button>
+
+      <div className="h-px bg-surface my-2" />
+
+      {/* Advanced: Eye Catchlight */}
+      <CollapsibleSection
+        title={t('editor.portrait.face.advancedTitle')}
+        isOpen={true}
+        isContentVisible={true}
+        onToggle={() => {}}
+        canToggleVisibility={false}
+      >
+        <Slider
+          label={t('editor.portrait.face.eyeCatchlightIntensity')}
+          min={0}
+          max={100}
+          step={1}
+          value={catchlightIntensity}
+          onChange={(e) => setCatchlightIntensity(Number(e.target.value))}
+          fillOrigin="min"
+        />
+        <Dropdown
+          options={[
+            { label: t('editor.portrait.face.eyeCatchlightPosition') + ' - 左上', value: 'top-left' },
+            { label: t('editor.portrait.face.eyeCatchlightPosition') + ' - 右上', value: 'top-right' },
+            { label: t('editor.portrait.face.eyeCatchlightPosition') + ' - 居中', value: 'center' },
+          ]}
+          value={catchlightPosition}
+          onChange={setCatchlightPosition}
+        />
+        <Button className="w-full bg-surface" onClick={handleApplyCatchlight} disabled={isApplying || faceDetections.length === 0}>
+          <Sparkles size={16} />
+          <span className="ml-2">{t('editor.portrait.face.eyeCatchlightIntensity')}</span>
+        </Button>
+
+        <div className="h-px bg-surface my-2" />
+
+        {/* Smile Management */}
+        <Slider
+          label={t('editor.portrait.face.smileManagement')}
+          min={-100}
+          max={100}
+          step={1}
+          value={smileAmount}
+          onChange={(e) => setSmileAmount(Number(e.target.value))}
+        />
+        <Button className="w-full bg-surface" onClick={handleApplySmile} disabled={isApplying || faceDetections.length === 0}>
+          <Sparkles size={16} />
+          <span className="ml-2">{t('editor.portrait.face.smileManagement')}</span>
+        </Button>
+      </CollapsibleSection>
     </div>
   );
 
@@ -430,6 +518,38 @@ export default function PortraitPanel() {
         {isApplying ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
         <span className="ml-2">{t('editor.portrait.body.apply')}</span>
       </Button>
+
+      <div className="h-px bg-surface my-2" />
+
+      {/* Neck & Shoulder Fine-tuning */}
+      <CollapsibleSection
+        title={t('editor.portrait.body.neck') + ' & ' + t('editor.portrait.body.shoulder')}
+        isOpen={true}
+        isContentVisible={true}
+        onToggle={() => {}}
+        canToggleVisibility={false}
+      >
+        <Slider
+          label={t('editor.portrait.body.neck')}
+          min={-100}
+          max={100}
+          step={1}
+          value={neckAdjust}
+          onChange={(e) => setNeckAdjust(Number(e.target.value))}
+        />
+        <Slider
+          label={t('editor.portrait.body.shoulder')}
+          min={-100}
+          max={100}
+          step={1}
+          value={shoulderAdjustValue}
+          onChange={(e) => setShoulderAdjustValue(Number(e.target.value))}
+        />
+        <Button className="w-full bg-surface" onClick={handleApplyNeckShoulder} disabled={isApplying || bodyDetections.length === 0}>
+          <Sparkles size={16} />
+          <span className="ml-2">{t('editor.portrait.body.neck') + ' & ' + t('editor.portrait.body.shoulder')}</span>
+        </Button>
+      </CollapsibleSection>
     </div>
   );
 

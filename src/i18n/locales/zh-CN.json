@@ -807,6 +807,7 @@
       "strokeCount": "{{count}} 笔画",
       "undoStroke": "撤销笔画",
       "resetMesh": "重置网格",
+      "openCanvas": "打开液化画布",
       "cancel": "取消",
       "apply": "应用"
     },

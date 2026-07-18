@@ -800,6 +800,7 @@
       "strokeCount": "{{count}} stroke(s)",
       "undoStroke": "Undo Stroke",
       "resetMesh": "Reset Mesh",
+      "openCanvas": "Open Liquify Canvas",
       "cancel": "Cancel",
       "apply": "Apply"
     },

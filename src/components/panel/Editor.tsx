@@ -20,6 +20,7 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 import { useUIStore } from '../../store/useUIStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useAiMasking } from '../../hooks/useAiMasking';
+import LiquifyModal from '../modals/LiquifyModal';
 
 const parseRgb = (rgbStr: string): [number, number, number, number] => {
   const match = rgbStr.match(/[\d.]+/g);
@@ -96,6 +97,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   const targetZoom = useEditorStore((s) => s.zoom);
   const originalSize = useEditorStore((s) => s.originalSize);
   const isRotationActive = useEditorStore((s) => s.isRotationActive);
+  const isLiquifyModalOpen = useEditorStore((s) => s.isLiquifyModalOpen);
   const overlayMode = useEditorStore((s) => s.overlayMode);
   const overlayRotation = useEditorStore((s) => s.overlayRotation);
   const isStraightenActive = useEditorStore((s) => s.isStraightenActive);
@@ -2056,6 +2058,14 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
           />
         </div>
       </div>
+
+      <LiquifyModal
+        isOpen={isLiquifyModalOpen}
+        onClose={() => setEditor({ isLiquifyModalOpen: false })}
+        imageUrl={finalPreviewUrl}
+        imageWidth={imageRenderSize.width}
+        imageHeight={imageRenderSize.height}
+      />
     </div>
   );
 }
