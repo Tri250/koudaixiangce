@@ -108,6 +108,10 @@ export enum Invokes {
   SaveAlbums = 'save_albums',
   AddToAlbum = 'add_to_album',
   GetAlbumImages = 'get_album_images',
+  BatchSyncPreset = 'batch_sync_preset',
+  GetColorProfiles = 'get_color_profiles',
+  GetMonochromePreview = 'get_monochrome_preview',
+  GenerateGainMap = 'generate_gain_map',
 }
 
 export enum ExifOverlay {

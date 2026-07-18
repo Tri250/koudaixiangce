@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
-import { Circle, Loader2, RotateCcw, Check } from 'lucide-react';
+import { Circle, Loader2, RotateCcw, Check, Eye } from 'lucide-react';
 import clsx from 'clsx';
 import CollapsibleSection from '../../ui/CollapsibleSection';
 import Slider from '../../ui/Slider';
@@ -12,6 +12,7 @@ import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 import { Adjustments } from '../../../utils/adjustments';
+import { Invokes } from '../../ui/AppProperties';
 
 const getTransformAdjustments = (adj: Adjustments) => ({
   transformDistortion: adj.transformDistortion,
@@ -73,6 +74,8 @@ export default function MonochromePanel() {
     const [toningType, setToningType] = useState<string>('none');
     const [toningStrength, setToningStrength] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
     // Split toning state
     const [shadowColor, setShadowColor] = useState('#8B4513');
@@ -109,6 +112,34 @@ export default function MonochromePanel() {
             setIsProcessing(false);
         }
     }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength, shadowColor, highlightColor, splitBalance, adjustments, setEditor, t]);
+
+    const handlePreview = useCallback(async () => {
+        setIsPreviewLoading(true);
+        try {
+            const jsAdjustments = getTransformAdjustments(adjustments);
+            const result = await invoke<string>(Invokes.GetMonochromePreview, {
+                jsAdjustments,
+                redWeight: redWeight / 100,
+                greenWeight: greenWeight / 100,
+                blueWeight: blueWeight / 100,
+                contrast,
+                preset: selectedPreset,
+                toningType,
+                toningStrength,
+                shadowColor,
+                highlightColor,
+                splitBalance,
+            });
+            if (result) {
+                setPreviewUrl(result);
+            }
+        } catch (err) {
+            console.error('get_monochrome_preview failed:', err);
+            toast.error(`${t('editor.monochrome.preview', 'Preview')} failed: ${err}`);
+        } finally {
+            setIsPreviewLoading(false);
+        }
+    }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength, shadowColor, highlightColor, splitBalance, adjustments, t]);
 
     const handlePresetSelect = useCallback((presetId: string) => {
         setSelectedPreset(presetId);
@@ -336,6 +367,27 @@ export default function MonochromePanel() {
                         </div>
                     )}
                 </CollapsibleSection>
+
+                {/* Preview Button */}
+                <Button
+                    className="w-full bg-surface mb-2"
+                    onClick={handlePreview}
+                    disabled={isPreviewLoading}
+                >
+                    {isPreviewLoading ? (
+                        <Loader2 size={16} className="animate-spin mr-2" />
+                    ) : (
+                        <Eye size={16} className="mr-2" />
+                    )}
+                    {t('editor.monochrome.preview', 'Preview')}
+                </Button>
+
+                {/* Preview Thumbnail */}
+                {previewUrl && (
+                    <div className="mb-2 rounded-lg overflow-hidden border border-border-color/40">
+                        <img src={previewUrl} alt="Monochrome preview" className="w-full h-auto" />
+                    </div>
+                )}
 
                 {/* Apply Button */}
                 <Button

@@ -11,6 +11,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'react-toastify';
 import { PresetListType, usePresets, UserPreset } from '../../../hooks/usePresets';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import {
@@ -35,6 +36,7 @@ import {
   Search,
   LayoutGrid,
   List as ListIcon,
+  Sync,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfigurePresetModal from '../../modals/ConfigurePresetModal';
@@ -1172,6 +1174,19 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
     }
   };
 
+  const handleBatchSyncPreset = useCallback(async () => {
+    const presetIds = presets
+      .map((item: any) => item.preset?.id || item.folder?.id)
+      .filter(Boolean);
+    if (presetIds.length === 0) return;
+    try {
+      await invoke(Invokes.BatchSyncPreset, { presetIds });
+      toast.success(t('editor.presets.tooltips.sync', 'Sync presets'));
+    } catch (error) {
+      console.error('Failed to sync presets:', error);
+    }
+  }, [presets, t]);
+
   const handleContextMenu = (event: any, item: UserPreset) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1367,6 +1382,14 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
               data-tooltip={t('editor.presets.tooltips.export')}
             >
               <FileDown size={18} />
+            </button>
+            <button
+              className="p-2 rounded-full hover:bg-surface transition-colors"
+              disabled={presets.length === 0 || isLoading}
+              onClick={handleBatchSyncPreset}
+              data-tooltip={t('editor.presets.tooltips.sync', 'Sync presets')}
+            >
+              <Sync size={18} />
             </button>
             <button
               className="p-2 rounded-full hover:bg-surface transition-colors"

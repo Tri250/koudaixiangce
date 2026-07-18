@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { toast } from 'react-toastify';
 import debounce from 'lodash.debounce';
-import { Sun, Download, Image, Loader2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Sun, Download, Image, Loader2, AlertTriangle, RotateCcw, Layers } from 'lucide-react';
 import clsx from 'clsx';
 import CollapsibleSection from '../../ui/CollapsibleSection';
 import Slider from '../../ui/Slider';
@@ -15,6 +15,7 @@ import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 import { Adjustments } from '../../../utils/adjustments';
+import { Invokes } from '../../ui/AppProperties';
 
 const getTransformAdjustments = (adj: Adjustments) => ({
   transformDistortion: adj.transformDistortion,
@@ -71,6 +72,7 @@ export default function HDRPanel() {
     const [outOfGamutWarning, setOutOfGamutWarning] = useState<number | null>(null);
     const [isExportingJpeg, setIsExportingJpeg] = useState(false);
     const [isExportingTiff, setIsExportingTiff] = useState(false);
+    const [isGeneratingGainMap, setIsGeneratingGainMap] = useState(false);
     const [gamutWarningOverlay, setGamutWarningOverlay] = useState(false);
     const [tiffBitDepth, setTiffBitDepth] = useState<16 | 32>(16);
 
@@ -206,6 +208,20 @@ export default function HDRPanel() {
             setIsExportingTiff(false);
         }
     }, [peakBrightness, tiffBitDepth, adjustments, t]);
+
+    const handleGenerateGainMap = useCallback(async () => {
+        setIsGeneratingGainMap(true);
+        try {
+            const jsAdjustments = getTransformAdjustments(adjustments);
+            await invoke(Invokes.GenerateGainMap, { jsAdjustments });
+            toast.success(t('editor.hdr.generateGainMap', 'Generate Gain Map'));
+        } catch (err) {
+            console.error('generate_gain_map failed:', err);
+            toast.error(`${t('editor.hdr.generateGainMap', 'Generate Gain Map')} failed: ${err}`);
+        } finally {
+            setIsGeneratingGainMap(false);
+        }
+    }, [adjustments, t]);
 
     return (
         <div className="flex flex-col h-full select-none overflow-hidden">
@@ -364,6 +380,19 @@ export default function HDRPanel() {
                             <Image size={16} className="mr-2" />
                         )}
                         {t('editor.hdr.exportHDRTIFF')}
+                    </Button>
+
+                    <Button
+                        className="w-full bg-surface mb-2"
+                        onClick={handleGenerateGainMap}
+                        disabled={isGeneratingGainMap}
+                    >
+                        {isGeneratingGainMap ? (
+                            <Loader2 size={16} className="animate-spin mr-2" />
+                        ) : (
+                            <Layers size={16} className="mr-2" />
+                        )}
+                        {t('editor.hdr.generateGainMap', 'Generate Gain Map')}
                     </Button>
 
                     {/* TIFF Bit Depth Selector */}

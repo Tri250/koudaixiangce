@@ -318,6 +318,40 @@ pub async fn generate_manual_cleanup_patch(
 }
 
 #[tauri::command]
+pub async fn invoke_generative_replace(
+    path: String,
+    region: serde_json::Value,
+    prompt: String,
+    current_adjustments: Value,
+    use_fast_inpaint: bool,
+    token: Option<String>,
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    // Build a patch definition from the region, then delegate to the mask_def version
+    let patch_id = uuid::Uuid::new_v4().to_string();
+    let patch_definition = AiPatchDefinition {
+        id: patch_id.clone(),
+        name: format!("Generative Replace {}", &patch_id[..8]),
+        visible: true,
+        invert: false,
+        prompt: prompt.clone(),
+        patch_data: None,
+        opacity: 1.0,
+        sub_masks: vec![crate::mask_generation::SubMask {
+            id: uuid::Uuid::new_v4().to_string(),
+            mask_type: "rect".to_string(),
+            visible: true,
+            invert: false,
+            opacity: 100.0,
+            mode: crate::mask_generation::SubMaskMode::Additive,
+            parameters: region,
+        }],
+    };
+    invoke_generative_replace_with_mask_def(path, patch_definition, current_adjustments, use_fast_inpaint, token, app_handle, state).await
+}
+
+#[tauri::command]
 pub async fn invoke_generative_replace_with_mask_def(
     path: String,
     patch_definition: AiPatchDefinition,

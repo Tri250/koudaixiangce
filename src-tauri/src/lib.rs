@@ -1722,6 +1722,36 @@ fn generate_preview_for_path(
     Ok(Response::new(bytes))
 }
 
+#[tauri::command]
+fn generate_thumbnails_progressive(
+    paths: Vec<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let total = paths.len() as u32;
+    if total == 0 {
+        return Ok(());
+    }
+
+    let handle = app_handle.clone();
+
+    std::thread::spawn(move || {
+        for (i, path) in paths.iter().enumerate() {
+            if file_management::generate_thumbnail_data(path, None, None, &handle).is_ok() {
+                let _ = handle.emit("thumbnail-progress", serde_json::json!({
+                    "current": i + 1,
+                    "total": total,
+                    "path": path,
+                }));
+            }
+        }
+        let _ = handle.emit("thumbnail-progress-complete", serde_json::json!({
+            "total": total,
+        }));
+    });
+
+    Ok(())
+}
+
 fn setup_logging(app_handle: &tauri::AppHandle) {
     let log_dir = match app_handle.path().app_log_dir() {
         Ok(dir) => dir,
@@ -2424,6 +2454,7 @@ pub fn run() {
             generate_preset_preview,
             generate_uncropped_preview,
             generate_fullscreen_preview,
+            generate_thumbnails_progressive,
             preview_geometry_transform,
             get_log_file_path,
             frontend_log,
@@ -2455,6 +2486,7 @@ pub fn run() {
             ai_commands::check_ai_connector_status,
             ai_commands::test_ai_connector_connection,
             inpainting::invoke_generative_replace_with_mask_def,
+            inpainting::invoke_generative_replace,
             inpainting::generate_manual_cleanup_patch,
             denoising::apply_denoising,
             denoising::batch_denoise_images,

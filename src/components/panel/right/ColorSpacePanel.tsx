@@ -14,6 +14,7 @@ import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 import { Adjustments } from '../../../utils/adjustments';
+import { Invokes } from '../../ui/AppProperties';
 
 const getTransformAdjustments = (adj: Adjustments) => ({
   transformDistortion: adj.transformDistortion,
@@ -69,6 +70,9 @@ export default function ColorSpacePanel() {
     const [isImporting, setIsImporting] = useState(false);
     const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
 
+    // Color profiles state (all available, not camera-specific)
+    const [colorProfiles, setColorProfiles] = useState<string[]>([]);
+
     // Load camera profiles on mount
     useEffect(() => {
         const loadProfiles = async () => {
@@ -81,6 +85,12 @@ export default function ColorSpacePanel() {
                 toast.error(`${t('editor.colorSpace.cameraProfile')} failed: ${err}`);
             } finally {
                 setIsLoadingProfiles(false);
+            }
+            try {
+                const allProfiles = await invoke<string[]>(Invokes.GetColorProfiles);
+                setColorProfiles(allProfiles);
+            } catch (err) {
+                console.error('get_color_profiles failed:', err);
             }
         };
         loadProfiles();
@@ -339,6 +349,27 @@ export default function ColorSpacePanel() {
                         {t('editor.colorSpace.importDCP')}
                     </Button>
                 </CollapsibleSection>
+
+                {/* Color Profiles Section */}
+                {colorProfiles.length > 0 && (
+                    <CollapsibleSection
+                        title={t('editor.colorSpace.colorProfiles', 'Color Profiles')}
+                        isOpen={true}
+                        isContentVisible={true}
+                        onToggle={() => {}}
+                        canToggleVisibility={false}
+                    >
+                        <div className="space-y-1">
+                            {colorProfiles.map((profile) => (
+                                <div key={profile} className="px-3 py-1.5 bg-card-active rounded-md">
+                                    <Text variant={TextVariants.small} color={TextColors.primary}>
+                                        {profile}
+                                    </Text>
+                                </div>
+                            ))}
+                        </div>
+                    </CollapsibleSection>
+                )}
 
                 {/* Soft Proof Toggle */}
                 <Switch
