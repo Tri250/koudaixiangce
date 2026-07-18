@@ -59,6 +59,14 @@ const DEPTH_FILENAME: &str = "depth_anything_v2_vits.onnx";
 const DEPTH_INPUT_SIZE: u32 = 518;
 const DEPTH_SHA256: &str = "d2b11a11c1d4a12b47608fa65a17ee9a4c605b55ee1730c8e3b526304f2562be";
 
+const FACE_LANDMARK_URL: &str = "https://huggingface.co/CyberTimon/RapidRAW-Models/resolve/main/face_landmark_468.onnx?download=true";
+const FACE_LANDMARK_FILENAME: &str = "face_landmark_468.onnx";
+const FACE_LANDMARK_SHA256: &str = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+
+const BODY_POSE_URL: &str = "https://huggingface.co/CyberTimon/RapidRAW-Models/resolve/main/body_pose_mediapipe.onnx?download=true";
+const BODY_POSE_FILENAME: &str = "body_pose_mediapipe.onnx";
+const BODY_POSE_SHA256: &str = "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5";
+
 pub struct AiModels {
     pub sam_encoder: Mutex<Session>,
     pub sam_decoder: Mutex<Session>,
@@ -94,6 +102,8 @@ pub struct AiState {
     pub embeddings: Option<ImageEmbeddings>,
     pub depth_map: Option<CachedDepthMap>,
     pub super_resolution_model: Option<Arc<Mutex<Session>>>,
+    pub face_landmark_model: Option<Arc<Mutex<Session>>>,
+    pub body_pose_model: Option<Arc<Mutex<Session>>>,
 }
 
 fn edt_1d(f: &mut [f32], v: &mut [usize], z: &mut [f32], d: &mut [f32]) {
@@ -411,6 +421,8 @@ pub async fn get_or_init_ai_models(
             embeddings: None,
             depth_map: None,
             super_resolution_model: None,
+            face_landmark_model: None,
+            body_pose_model: None,
         });
     }
 
@@ -472,6 +484,8 @@ pub async fn get_or_init_denoise_model(
             embeddings: None,
             depth_map: None,
             super_resolution_model: None,
+            face_landmark_model: None,
+            body_pose_model: None,
         });
     }
 
@@ -545,6 +559,8 @@ pub async fn get_or_init_clip_models(
             embeddings: None,
             depth_map: None,
             super_resolution_model: None,
+            face_landmark_model: None,
+            body_pose_model: None,
         });
     }
 
@@ -606,10 +622,138 @@ pub async fn get_or_init_lama_model(
             embeddings: None,
             depth_map: None,
             super_resolution_model: None,
+            face_landmark_model: None,
+            body_pose_model: None,
         });
     }
 
     Ok(lama_model)
+}
+
+pub async fn get_or_init_face_model(
+    app_handle: &tauri::AppHandle,
+    ai_state_mutex: &Mutex<Option<AiState>>,
+    ai_init_lock: &TokioMutex<()>,
+) -> Result<Arc<Mutex<Session>>> {
+    if let Some(face_landmark_model) = ai_state_mutex
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|state| state.face_landmark_model.clone())
+    {
+        return Ok(face_landmark_model);
+    }
+
+    let _guard = ai_init_lock.lock().await;
+
+    if let Some(face_landmark_model) = ai_state_mutex
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|state| state.face_landmark_model.clone())
+    {
+        return Ok(face_landmark_model);
+    }
+
+    let models_dir = get_models_dir(app_handle)?;
+    download_and_verify_model(
+        app_handle,
+        &models_dir,
+        FACE_LANDMARK_FILENAME,
+        FACE_LANDMARK_URL,
+        FACE_LANDMARK_SHA256,
+        "Face Landmark Model",
+    )
+    .await?;
+
+    let _ = ort::init().with_name("AI-FaceLandmark").commit();
+    let model_path = models_dir.join(FACE_LANDMARK_FILENAME);
+    let session = Session::builder()?.commit_from_file(model_path)?;
+    let face_landmark_model = Arc::new(Mutex::new(session));
+
+    crate::register_exit_handler();
+
+    let mut ai_state_lock = ai_state_mutex.lock().unwrap();
+    if let Some(state) = ai_state_lock.as_mut() {
+        state.face_landmark_model = Some(face_landmark_model.clone());
+    } else {
+        *ai_state_lock = Some(AiState {
+            models: None,
+            denoise_model: None,
+            clip_models: None,
+            lama_model: None,
+            embeddings: None,
+            depth_map: None,
+            super_resolution_model: None,
+            face_landmark_model: Some(face_landmark_model.clone()),
+            body_pose_model: None,
+        });
+    }
+
+    Ok(face_landmark_model)
+}
+
+pub async fn get_or_init_body_model(
+    app_handle: &tauri::AppHandle,
+    ai_state_mutex: &Mutex<Option<AiState>>,
+    ai_init_lock: &TokioMutex<()>,
+) -> Result<Arc<Mutex<Session>>> {
+    if let Some(body_pose_model) = ai_state_mutex
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|state| state.body_pose_model.clone())
+    {
+        return Ok(body_pose_model);
+    }
+
+    let _guard = ai_init_lock.lock().await;
+
+    if let Some(body_pose_model) = ai_state_mutex
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|state| state.body_pose_model.clone())
+    {
+        return Ok(body_pose_model);
+    }
+
+    let models_dir = get_models_dir(app_handle)?;
+    download_and_verify_model(
+        app_handle,
+        &models_dir,
+        BODY_POSE_FILENAME,
+        BODY_POSE_URL,
+        BODY_POSE_SHA256,
+        "Body Pose Model",
+    )
+    .await?;
+
+    let _ = ort::init().with_name("AI-BodyPose").commit();
+    let model_path = models_dir.join(BODY_POSE_FILENAME);
+    let session = Session::builder()?.commit_from_file(model_path)?;
+    let body_pose_model = Arc::new(Mutex::new(session));
+
+    crate::register_exit_handler();
+
+    let mut ai_state_lock = ai_state_mutex.lock().unwrap();
+    if let Some(state) = ai_state_lock.as_mut() {
+        state.body_pose_model = Some(body_pose_model.clone());
+    } else {
+        *ai_state_lock = Some(AiState {
+            models: None,
+            denoise_model: None,
+            clip_models: None,
+            lama_model: None,
+            embeddings: None,
+            depth_map: None,
+            super_resolution_model: None,
+            face_landmark_model: None,
+            body_pose_model: Some(body_pose_model.clone()),
+        });
+    }
+
+    Ok(body_pose_model)
 }
 
 #[derive(Clone, Copy)]

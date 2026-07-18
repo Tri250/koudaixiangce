@@ -294,6 +294,73 @@ pub fn find_profile(make: &str, model: &str) -> Option<CameraProfile> {
 }
 
 // ============================================================================
+// TIFF/DCP helper functions
+// ============================================================================
+
+fn tiff_read_u16(data: &[u8], little_endian: bool, offset: usize) -> u16 {
+    if offset + 2 > data.len() {
+        return 0;
+    }
+    if little_endian {
+        u16::from_le_bytes([data[offset], data[offset + 1]])
+    } else {
+        u16::from_be_bytes([data[offset], data[offset + 1]])
+    }
+}
+
+fn tiff_read_u32(data: &[u8], little_endian: bool, offset: usize) -> u32 {
+    if offset + 4 > data.len() {
+        return 0;
+    }
+    if little_endian {
+        u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+    } else {
+        u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+    }
+}
+
+fn tiff_read_i32(data: &[u8], little_endian: bool, offset: usize) -> i32 {
+    if offset + 4 > data.len() {
+        return 0;
+    }
+    if little_endian {
+        i32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+    } else {
+        i32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+    }
+}
+
+/// Read SRational values (TIFF type 10) from data at offset.
+/// Each SRational is (numerator: i32, denominator: i32) => num/den as f32.
+fn tiff_read_srationals(data: &[u8], little_endian: bool, offset: usize, count: usize) -> Vec<f32> {
+    let mut vals = Vec::with_capacity(count);
+    for i in 0..count {
+        let off = offset + i * 8;
+        if off + 8 > data.len() {
+            break;
+        }
+        let num = tiff_read_i32(data, little_endian, off);
+        let den = tiff_read_i32(data, little_endian, off + 4);
+        if den != 0 {
+            vals.push(num as f32 / den as f32);
+        } else {
+            vals.push(0.0);
+        }
+    }
+    vals
+}
+
+/// Convert a slice of f32 values to a 3x3 matrix (row-major).
+/// Falls back to identity if fewer than 9 values.
+fn vals_to_matrix3x3(vals: &[f32]) -> Matrix3x3 {
+    if vals.len() < 9 {
+        [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    } else {
+        [vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8]]
+    }
+}
+
+// ============================================================================
 // DCP Parsing
 // ============================================================================
 
@@ -302,16 +369,6 @@ pub fn find_profile(make: &str, model: &str) -> Option<CameraProfile> {
 /// DCP files are TIFF-based containers with IFD tags specifying
 /// color matrices, tone curves, and look tables.
 pub fn parse_dcp(data: &[u8]) -> anyhow::Result<DCPProfile> {
-    // Minimal DCP parser: read TIFF structure and extract relevant tags.
-    // DCP uses TIFF IFD tags:
-    //   50721 - ColorMatrix1
-    //   50722 - ColorMatrix2
-    //   50725 - ForwardMatrix1
-    //   50778 - CalibrationIlluminant1
-    //   50779 - CalibrationIlluminant2
-    //   50936 - ProfileName
-    //   50937 - ProfileCopyright
-
     if data.len() < 8 {
         anyhow::bail!("DCP file too short");
     }
@@ -323,49 +380,148 @@ pub fn parse_dcp(data: &[u8]) -> anyhow::Result<DCPProfile> {
         _ => anyhow::bail!("Invalid DCP: not a TIFF file"),
     };
 
-    let read_u16 = |offset: usize| -> u16 {
-        if little_endian {
-            u16::from_le_bytes([data[offset], data[offset + 1]])
-        } else {
-            u16::from_be_bytes([data[offset], data[offset + 1]])
-        }
-    };
-
-    let _read_u32 = |offset: usize| -> u32 {
-        if little_endian {
-            u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
-        } else {
-            u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
-        }
-    };
-
     // Validate TIFF magic number
-    if read_u16(2) != 42 {
+    if tiff_read_u16(data, little_endian, 2) != 42 {
         anyhow::bail!("Invalid DCP: bad TIFF magic");
     }
 
-    // Parse IFD entries for color matrices
-    // For a full implementation, we'd iterate all IFD entries.
-    // Here we provide a fallback default profile.
-    let default_profile = CameraProfile {
+    // Read IFD0 offset (bytes 4-7)
+    let ifd0_offset = tiff_read_u32(data, little_endian, 4) as usize;
+
+    // DCP tag IDs
+    const TAG_COLORMATRIX1: u16 = 50721;
+    const TAG_COLORMATRIX2: u16 = 50722;
+    const TAG_FORWARDMATRIX1: u16 = 50725;
+    const TAG_CALIBILLUM1: u16 = 50778;
+    const TAG_CALIBILLUM2: u16 = 50779;
+    const TAG_PROFILENAME: u16 = 50936;
+    const TAG_SUBIFD: u16 = 330;
+
+    // TIFF type IDs
+    const TYPE_SHORT: u16 = 3;
+    const TYPE_SRATIONAL: u16 = 10;
+    const TYPE_BYTE: u16 = 1;
+
+    // Parsed values with defaults
+    let mut color_matrix_1: Option<Matrix3x3> = None;
+    let mut color_matrix_2: Option<Matrix3x3> = None;
+    let mut forward_matrix_1: Option<Matrix3x3> = None;
+    let mut calibration_illuminant_1: u16 = 21;
+    let mut calibration_illuminant_2: u16 = 17;
+    let mut profile_name = String::from("Unknown DCP");
+    let mut sub_ifd_offset: Option<u32> = None;
+
+    // Collect IFD offsets to process: IFD0, then SubIFD, then next IFD
+    let mut ifd_offsets = vec![ifd0_offset];
+
+    // Also queue SubIFD and next IFD from IFD0
+    if ifd0_offset + 2 <= data.len() {
+        let entry_count = tiff_read_u16(data, little_endian, ifd0_offset) as usize;
+        // Scan for SubIFD tag in IFD0
+        for i in 0..entry_count {
+            let entry_offset = ifd0_offset + 2 + i * 12;
+            if entry_offset + 12 > data.len() {
+                break;
+            }
+            let tag = tiff_read_u16(data, little_endian, entry_offset);
+            if tag == TAG_SUBIFD {
+                let sub_off = tiff_read_u32(data, little_endian, entry_offset + 8);
+                sub_ifd_offset = Some(sub_off);
+            }
+        }
+        // Check next IFD pointer
+        let next_ifd_ptr_offset = ifd0_offset + 2 + entry_count * 12;
+        if next_ifd_ptr_offset + 4 <= data.len() {
+            let next_ifd = tiff_read_u32(data, little_endian, next_ifd_ptr_offset);
+            if next_ifd > 0 && (next_ifd as usize) < data.len() {
+                ifd_offsets.push(next_ifd as usize);
+            }
+        }
+    }
+
+    if let Some(sub_off) = sub_ifd_offset {
+        ifd_offsets.push(sub_off as usize);
+    }
+
+    // Process all collected IFDs
+    for ifd_offset in ifd_offsets {
+        if ifd_offset + 2 > data.len() {
+            continue;
+        }
+        let entry_count = tiff_read_u16(data, little_endian, ifd_offset) as usize;
+        for i in 0..entry_count {
+            let entry_offset = ifd_offset + 2 + i * 12;
+            if entry_offset + 12 > data.len() {
+                break;
+            }
+            let tag = tiff_read_u16(data, little_endian, entry_offset);
+            let type_id = tiff_read_u16(data, little_endian, entry_offset + 2);
+            let count = tiff_read_u32(data, little_endian, entry_offset + 4) as usize;
+            let value_offset_raw = tiff_read_u32(data, little_endian, entry_offset + 8);
+
+            match tag {
+                TAG_COLORMATRIX1 | TAG_COLORMATRIX2 | TAG_FORWARDMATRIX1
+                    if type_id == TYPE_SRATIONAL && count >= 9 =>
+                {
+                    let data_off = value_offset_raw as usize;
+                    let vals = tiff_read_srationals(data, little_endian, data_off, 9);
+                    let matrix = vals_to_matrix3x3(&vals);
+                    match tag {
+                        TAG_COLORMATRIX1 => color_matrix_1 = Some(matrix),
+                        TAG_COLORMATRIX2 => color_matrix_2 = Some(matrix),
+                        TAG_FORWARDMATRIX1 => forward_matrix_1 = Some(matrix),
+                        _ => {}
+                    }
+                }
+                TAG_CALIBILLUM1 if type_id == TYPE_SHORT && count >= 1 => {
+                    calibration_illuminant_1 = if count <= 2 {
+                        (value_offset_raw & 0xFFFF) as u16
+                    } else {
+                        tiff_read_u16(data, little_endian, value_offset_raw as usize)
+                    };
+                }
+                TAG_CALIBILLUM2 if type_id == TYPE_SHORT && count >= 1 => {
+                    calibration_illuminant_2 = if count <= 2 {
+                        (value_offset_raw & 0xFFFF) as u16
+                    } else {
+                        tiff_read_u16(data, little_endian, value_offset_raw as usize)
+                    };
+                }
+                TAG_PROFILENAME if type_id == TYPE_BYTE && count > 0 => {
+                    let data_off = if count <= 4 {
+                        entry_offset + 8
+                    } else {
+                        value_offset_raw as usize
+                    };
+                    if data_off + count <= data.len() {
+                        profile_name = String::from_utf8_lossy(&data[data_off..data_off + count])
+                            .trim_end_matches('\0')
+                            .to_string();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let identity = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+
+    let profile = CameraProfile {
         make: "Unknown".into(),
-        model: "Unknown DCP".into(),
-        color_matrix_1: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        color_matrix_2: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        forward_matrix_1: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        calibration_illuminant_1: 21,
-        calibration_illuminant_2: 17,
+        model: profile_name,
+        color_matrix_1: color_matrix_1.unwrap_or(identity),
+        color_matrix_2: color_matrix_2.unwrap_or(identity),
+        forward_matrix_1: forward_matrix_1.unwrap_or(identity),
+        calibration_illuminant_1,
+        calibration_illuminant_2,
         base_exposure_offset: 0.0,
         baseline_exposure: 1.0,
     };
 
-    // TODO: Parse actual IFD entries and populate matrices from TIFF tags
-    // For now, return the identity profile (pass-through)
-
     Ok(DCPProfile {
-        profile: default_profile,
-        tone_curve: vec![(0.0, 0.0), (1.0, 1.0)], // Linear tone curve
-        look_table: vec![1.0], // Identity look
+        profile,
+        tone_curve: vec![(0.0, 0.0), (1.0, 1.0)],
+        look_table: vec![1.0],
     })
 }
 
@@ -413,12 +569,63 @@ pub fn parse_icc(data: &[u8]) -> anyhow::Result<ICCProfile> {
     let wp_y = u32::from_be_bytes([data[72], data[73], data[74], data[75]]) as f32 / 65536.0;
     let wp_z = u32::from_be_bytes([data[76], data[77], data[78], data[79]]) as f32 / 65536.0;
 
-    let default_profile = CameraProfile {
+    // Parse ICC tag table to extract XYZ chromaticity and build color matrix
+    // Tag table starts at offset 128: tag count (u32), then entries
+    let identity = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+    let mut color_matrix = identity;
+
+    if data.len() > 132 {
+        let tag_count = u32::from_be_bytes([data[128], data[129], data[130], data[131]]) as usize;
+        // Each tag table entry: signature (u32), offset (u32), size (u32) = 12 bytes
+        // Look for rXYZ, gXYZ, bXYZ tags to construct color matrix
+        let sig_rxyz = u32::from_be_bytes(*b"rXYZ");
+        let sig_gxyz = u32::from_be_bytes(*b"gXYZ");
+        let sig_bxyz = u32::from_be_bytes(*b"bXYZ");
+
+        let mut rxyz: Option<[f32; 3]> = None;
+        let mut gxyz: Option<[f32; 3]> = None;
+        let mut bxyz: Option<[f32; 3]> = None;
+
+        for i in 0..tag_count {
+            let entry_off = 132 + i * 12;
+            if entry_off + 12 > data.len() {
+                break;
+            }
+            let sig = u32::from_be_bytes([data[entry_off], data[entry_off + 1], data[entry_off + 2], data[entry_off + 3]]);
+            let tag_offset = u32::from_be_bytes([data[entry_off + 4], data[entry_off + 5], data[entry_off + 6], data[entry_off + 7]]) as usize;
+            let _tag_size = u32::from_be_bytes([data[entry_off + 8], data[entry_off + 9], data[entry_off + 10], data[entry_off + 11]]) as usize;
+
+            if sig == sig_rxyz || sig == sig_gxyz || sig == sig_bxyz {
+                // XYZ tag data: 4-byte type signature ('XYZ '), then 4 bytes reserved,
+                // then 3 x s15Fixed16Number (i32 / 65536.0) for X, Y, Z
+                if tag_offset + 20 <= data.len() {
+                    let x = i32::from_be_bytes([data[tag_offset + 8], data[tag_offset + 9], data[tag_offset + 10], data[tag_offset + 11]]) as f32 / 65536.0;
+                    let y = i32::from_be_bytes([data[tag_offset + 12], data[tag_offset + 13], data[tag_offset + 14], data[tag_offset + 15]]) as f32 / 65536.0;
+                    let z = i32::from_be_bytes([data[tag_offset + 16], data[tag_offset + 17], data[tag_offset + 18], data[tag_offset + 19]]) as f32 / 65536.0;
+                    match sig {
+                        s if s == sig_rxyz => rxyz = Some([x, y, z]),
+                        s if s == sig_gxyz => gxyz = Some([x, y, z]),
+                        s if s == sig_bxyz => bxyz = Some([x, y, z]),
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // If we have all three XYZ primaries, construct a 3x3 color matrix
+        // The matrix columns are the R, G, B primaries in XYZ space
+        if let (Some(r), Some(g), Some(b)) = (rxyz, gxyz, bxyz) {
+            // Row-major: row 0 = [Rx, Gx, Bx], row 1 = [Ry, Gy, By], row 2 = [Rz, Gz, Bz]
+            color_matrix = [r[0], g[0], b[0], r[1], g[1], b[1], r[2], g[2], b[2]];
+        }
+    }
+
+    let profile = CameraProfile {
         make: "Unknown".into(),
         model: "Unknown ICC".into(),
-        color_matrix_1: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        color_matrix_2: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        forward_matrix_1: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        color_matrix_1: color_matrix,
+        color_matrix_2: identity,
+        forward_matrix_1: color_matrix,
         calibration_illuminant_1: 21,
         calibration_illuminant_2: 17,
         base_exposure_offset: 0.0,
@@ -426,7 +633,7 @@ pub fn parse_icc(data: &[u8]) -> anyhow::Result<ICCProfile> {
     };
 
     Ok(ICCProfile {
-        profile: default_profile,
+        profile,
         rendering_intent,
         white_point: [wp_x, wp_y, wp_z],
         black_point: [0.0, 0.0, 0.0],
@@ -438,13 +645,47 @@ pub fn parse_icc(data: &[u8]) -> anyhow::Result<ICCProfile> {
 // ============================================================================
 
 /// Apply a camera profile's color matrix to convert raw camera RGB
-/// to profile connection space (CIE XYZ under D65).
+/// to sRGB for display.
+///
+/// The color_matrix_1 converts camera RGB → CIE XYZ.
+/// To display in sRGB, we compute: sRGB = M_xyz_to_srgb * M_camera_to_xyz * camera_RGB
+/// where M_xyz_to_srgb is the inverse of the sRGB→XYZ matrix.
+/// After the linear transform, sRGB gamma encoding is applied.
 pub fn apply_profile(image: &DynamicImage, profile: &CameraProfile) -> DynamicImage {
     let (width, height) = image.dimensions();
     let rgb = image.to_rgb8();
     let mut result = RgbImage::new(width, height);
 
-    let matrix = profile.color_matrix_1;
+    // sRGB XYZ primaries matrix (column-major, stored row-major):
+    // Xr=0.4124564  Xg=0.3575761  Xb=0.1804375
+    // Yr=0.2126729  Yg=0.7151522  Yb=0.0721749
+    // Zr=0.0193339  Zg=0.1191920  Zb=0.9503041
+    let srgb_to_xyz: Matrix3x3 = [
+        0.4124564, 0.3575761, 0.1804375,
+        0.2126729, 0.7151522, 0.0721749,
+        0.0193339, 0.1191920, 0.9503041,
+    ];
+
+    // Compute XYZ→sRGB = inverse(sRGB→XYZ)
+    let xyz_to_srgb = match mat3_inverse(&srgb_to_xyz) {
+        Some(inv) => inv,
+        None => {
+            // Fallback: if inverse fails, just return the original image
+            return image.clone();
+        }
+    };
+
+    // Full transform: sRGB = xyz_to_srgb * color_matrix_1 * camera_RGB
+    let transform = mat3_multiply(&xyz_to_srgb, &profile.color_matrix_1);
+
+    // sRGB gamma encoding helper
+    let srgb_gamma = |linear: f32| -> f32 {
+        if linear <= 0.0031308 {
+            12.92 * linear
+        } else {
+            1.055 * linear.powf(1.0 / 2.4) - 0.055
+        }
+    };
 
     for y in 0..height {
         for x in 0..width {
@@ -453,16 +694,15 @@ pub fn apply_profile(image: &DynamicImage, profile: &CameraProfile) -> DynamicIm
             let g = p[1] as f32 / 255.0;
             let b = p[2] as f32 / 255.0;
 
-            // Apply color matrix: XYZ = M * [R, G, B]^T
-            let xyz_r = matrix[0] * r + matrix[1] * g + matrix[2] * b;
-            let xyz_g = matrix[3] * r + matrix[4] * g + matrix[5] * b;
-            let xyz_b = matrix[6] * r + matrix[7] * g + matrix[8] * b;
+            // Apply full transform: sRGB_linear = transform * [R, G, B]^T
+            let linear_r = transform[0] * r + transform[1] * g + transform[2] * b;
+            let linear_g = transform[3] * r + transform[4] * g + transform[5] * b;
+            let linear_b = transform[6] * r + transform[7] * g + transform[8] * b;
 
-            // Convert back to sRGB (simplified: just normalize and clamp)
-            // A proper implementation would use the inverse matrix
-            let r_out = xyz_r.clamp(0.0, 1.0);
-            let g_out = xyz_g.clamp(0.0, 1.0);
-            let b_out = xyz_b.clamp(0.0, 1.0);
+            // Apply sRGB gamma encoding and clamp
+            let r_out = srgb_gamma(linear_r).clamp(0.0, 1.0);
+            let g_out = srgb_gamma(linear_g).clamp(0.0, 1.0);
+            let b_out = srgb_gamma(linear_b).clamp(0.0, 1.0);
 
             result.put_pixel(
                 x,

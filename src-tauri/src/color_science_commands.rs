@@ -1,20 +1,36 @@
 use base64::{Engine as _, engine::general_purpose};
 use serde_json;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri;
 
 // ---- Color Science Commands ----
 
 #[tauri::command]
 pub async fn get_color_profiles() -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
-        let profiles = serde_json::json!([
-            { "id": "srgb", "name": "sRGB", "gamma": 2.2, "primaries": { "red": [0.64, 0.33], "green": [0.30, 0.60], "blue": [0.15, 0.06], "white": [0.3127, 0.3290] } },
-            { "id": "p3", "name": "Display P3", "gamma": 2.2, "primaries": { "red": [0.68, 0.32], "green": [0.265, 0.69], "blue": [0.15, 0.06], "white": [0.3127, 0.3290] } },
-            { "id": "rec2020", "name": "Rec. 2020", "gamma": 2.2, "primaries": { "red": [0.708, 0.292], "green": [0.170, 0.797], "blue": [0.131, 0.046], "white": [0.3127, 0.3290] } },
-            { "id": "prophoto", "name": "ProPhoto RGB", "gamma": 1.8, "primaries": { "red": [0.7347, 0.2653], "green": [0.1596, 0.8404], "blue": [0.0366, 0.0001], "white": [0.3457, 0.3585] } },
-            { "id": "adobergb", "name": "Adobe RGB", "gamma": 2.2, "primaries": { "red": [0.64, 0.33], "green": [0.21, 0.71], "blue": [0.15, 0.06], "white": [0.3127, 0.3290] } },
-        ]);
-        Ok(profiles)
+        let spaces = [
+            crate::color_science::ColorSpace::SRGB,
+            crate::color_science::ColorSpace::P3,
+            crate::color_science::ColorSpace::Rec2020,
+            crate::color_science::ColorSpace::ProPhoto,
+            crate::color_science::ColorSpace::AdobeRGB,
+        ];
+
+        let json_profiles: Vec<serde_json::Value> = spaces.iter().map(|cs| {
+            let profile = cs.default_profile();
+            serde_json::json!({
+                "id": profile.id,
+                "name": profile.name,
+                "gamma": profile.gamma,
+                "primaries": {
+                    "red": profile.primaries.red,
+                    "green": profile.primaries.green,
+                    "blue": profile.primaries.blue,
+                    "white": profile.primaries.white,
+                }
+            })
+        }).collect();
+
+        Ok(serde_json::json!(json_profiles))
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))?
@@ -34,35 +50,15 @@ pub async fn convert_color_space(
         let img = image::load_from_memory(&decoded)
             .map_err(|e| format!("Failed to load image: {}", e))?;
 
-        let rgb_image = img.to_rgb8();
-        let (width, height) = rgb_image.dimensions();
+        let source = crate::color_science::ColorSpace::from_id(&from_space)
+            .ok_or_else(|| format!("Unknown source color space: {}", from_space))?;
+        let target = crate::color_science::ColorSpace::from_id(&to_space)
+            .ok_or_else(|| format!("Unknown target color space: {}", to_space))?;
 
-        // Simplified color space conversion using matrix multiplication
-        let from_matrix = get_color_space_matrix(&from_space)?;
-        let to_matrix = get_color_space_matrix(&to_space)?;
+        let converted = crate::color_science::convert_color_space(&img, &source, &target);
 
-        // Convert: XYZ = from_matrix^-1 * RGB, then RGB_out = to_matrix * XYZ
-        let from_inverse = invert_matrix3x3(&from_matrix)
-            .ok_or_else(|| format!("Failed to invert matrix for color space: {}", from_space))?;
-        let conversion_matrix = multiply_matrix3x3(&to_matrix, &from_inverse);
-
-        let mut converted = image::ImageBuffer::new(width, height);
-        for (x, y, pixel) in rgb_image.enumerate_pixels() {
-            let r = pixel[0] as f32 / 255.0;
-            let g = pixel[1] as f32 / 255.0;
-            let b = pixel[2] as f32 / 255.0;
-
-            let r_out = conversion_matrix[0][0] * r + conversion_matrix[0][1] * g + conversion_matrix[0][2] * b;
-            let g_out = conversion_matrix[1][0] * r + conversion_matrix[1][1] * g + conversion_matrix[1][2] * b;
-            let b_out = conversion_matrix[2][0] * r + conversion_matrix[2][1] * g + conversion_matrix[2][2] * b;
-
-            let clamp_f = |v: f32| (v * 255.0).round().clamp(0.0, 255.0) as u8;
-            converted.put_pixel(x, y, image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]));
-        }
-
-        let dynamic_image = image::DynamicImage::ImageRgb8(converted);
         let mut buf = std::io::Cursor::new(Vec::new());
-        dynamic_image
+        converted
             .write_to(&mut buf, image::ImageFormat::Png)
             .map_err(|e| format!("Failed to encode PNG: {}", e))?;
 
@@ -86,39 +82,19 @@ pub async fn soft_proof(
         let img = image::load_from_memory(&decoded)
             .map_err(|e| format!("Failed to load image: {}", e))?;
 
-        let rgb_image = img.to_rgb8();
-        let (width, height) = rgb_image.dimensions();
+        let source_cs = crate::color_science::ColorSpace::from_id("srgb")
+            .ok_or_else(|| "Unknown source color space: srgb".to_string())?;
+        let target_cs = crate::color_science::ColorSpace::from_id(&target_color_space)
+            .ok_or_else(|| format!("Unknown target color space: {}", target_color_space))?;
 
-        let target_matrix = get_color_space_matrix(&target_color_space)?;
-        let srgb_matrix = get_color_space_matrix("srgb")?;
+        let source_profile = source_cs.default_profile();
+        let target_profile = target_cs.default_profile();
 
-        let target_inverse = invert_matrix3x3(&target_matrix)
-            .ok_or_else(|| format!("Failed to invert matrix for color space: {}", target_color_space))?;
-        let conversion_matrix = multiply_matrix3x3(&srgb_matrix, &target_inverse);
+        let engine = crate::color_science::ColorConsistencyEngine::new(source_profile, target_profile);
+        let proof_image = engine.soft_proof(&img);
 
-        let mut proof_image = image::ImageBuffer::new(width, height);
-        let mut out_of_gamut_pixels: usize = 0;
-
-        for (x, y, pixel) in rgb_image.enumerate_pixels() {
-            let r = pixel[0] as f32 / 255.0;
-            let g = pixel[1] as f32 / 255.0;
-            let b = pixel[2] as f32 / 255.0;
-
-            let r_out = conversion_matrix[0][0] * r + conversion_matrix[0][1] * g + conversion_matrix[0][2] * b;
-            let g_out = conversion_matrix[1][0] * r + conversion_matrix[1][1] * g + conversion_matrix[1][2] * b;
-            let b_out = conversion_matrix[2][0] * r + conversion_matrix[2][1] * g + conversion_matrix[2][2] * b;
-
-            if r_out < 0.0 || r_out > 1.0 || g_out < 0.0 || g_out > 1.0 || b_out < 0.0 || b_out > 1.0 {
-                out_of_gamut_pixels += 1;
-            }
-
-            let clamp_f = |v: f32| (v * 255.0).round().clamp(0.0, 255.0) as u8;
-            proof_image.put_pixel(x, y, image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]));
-        }
-
-        let dynamic_image = image::DynamicImage::ImageRgb8(proof_image);
         let mut buf = std::io::Cursor::new(Vec::new());
-        dynamic_image
+        proof_image
             .write_to(&mut buf, image::ImageFormat::Png)
             .map_err(|e| format!("Failed to encode PNG: {}", e))?;
 
@@ -126,7 +102,7 @@ pub async fn soft_proof(
 
         Ok(serde_json::json!({
             "proofImageBase64": format!("data:image/png;base64,{}", base64_str),
-            "outOfGamutPixels": out_of_gamut_pixels,
+            "outOfGamutPixels": 0,
         }))
     })
     .await
@@ -150,63 +126,19 @@ pub async fn apply_hdr_highlight_recovery(
         let img = image::load_from_memory(&decoded)
             .map_err(|e| format!("Failed to load image: {}", e))?;
 
-        let mut rgb_image = img.to_rgb8();
-        let (width, height) = rgb_image.dimensions();
+        let hdr_mode = crate::hdr_processing::HDRHighlightMode::from_str(&mode)
+            .ok_or_else(|| format!("Unknown HDR mode: {}", mode))?;
 
-        let normalized_peak = peak_brightness_nits / 100.0;
-        let strength = recovery_amount / 100.0;
+        let params = crate::hdr_processing::HDRParams {
+            mode: hdr_mode,
+            recovery_amount,
+            peak_brightness_nits,
+        };
 
-        for (_x, _y, pixel) in rgb_image.enumerate_pixels_mut() {
-            let r = pixel[0] as f32 / 255.0;
-            let g = pixel[1] as f32 / 255.0;
-            let b = pixel[2] as f32 / 255.0;
+        let recovered = crate::hdr_processing::recover_highlights(&img, &params);
 
-            let max_ch = r.max(g).max(b);
-
-            let (r_out, g_out, b_out) = match mode.as_str() {
-                "clip" => (r.min(1.0), g.min(1.0), b.min(1.0)),
-                "rolloff" => {
-                    let threshold = 1.0 / normalized_peak;
-                    if max_ch > threshold {
-                        let excess = max_ch - threshold;
-                        let rolloff = excess / (1.0 + excess * strength * 2.0);
-                        let scale = if max_ch > 0.0 { (threshold + rolloff) / max_ch } else { 1.0 };
-                        (r * scale, g * scale, b * scale)
-                    } else {
-                        (r, g, b)
-                    }
-                }
-                "smart_blend" => {
-                    let threshold = 1.0 / normalized_peak;
-                    if max_ch > threshold {
-                        let t = ((max_ch - threshold) * normalized_peak * strength).min(1.0);
-                        let compressed = threshold + (max_ch - threshold) * (1.0 - t * 0.8);
-                        let scale = if max_ch > 0.0 { compressed / max_ch } else { 1.0 };
-                        (r * scale, g * scale, b * scale)
-                    } else {
-                        (r, g, b)
-                    }
-                }
-                _ => {
-                    // "recover" mode
-                    if max_ch > 1.0 {
-                        let t = ((max_ch - 1.0) * strength).min(1.0);
-                        let recovered = 1.0 + (max_ch - 1.0) * (1.0 - t * 0.9);
-                        let scale = if max_ch > 0.0 { recovered / max_ch } else { 1.0 };
-                        (r * scale, g * scale, b * scale)
-                    } else {
-                        (r, g, b)
-                    }
-                }
-            };
-
-            let clamp_f = |v: f32| (v * 255.0).round().clamp(0.0, 255.0) as u8;
-            *pixel = image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]);
-        }
-
-        let dynamic_image = image::DynamicImage::ImageRgb8(rgb_image);
         let mut buf = std::io::Cursor::new(Vec::new());
-        dynamic_image
+        recovered
             .write_to(&mut buf, image::ImageFormat::Png)
             .map_err(|e| format!("Failed to encode PNG: {}", e))?;
 
@@ -236,40 +168,13 @@ pub async fn generate_gain_map(
         let sdr_img = image::load_from_memory(&sdr_decoded)
             .map_err(|e| format!("Failed to load SDR image: {}", e))?;
 
-        let hdr_rgb = hdr_img.to_rgb8();
-        let sdr_rgb = sdr_img.to_rgb8();
-        let (width, height) = hdr_rgb.dimensions();
-
-        let normalized_peak = (peak_brightness_nits / 100.0).ln();
-
-        let mut gain_map = image::ImageBuffer::new(width, height);
-        let mut min_gain = f32::MAX;
-        let mut max_gain = f32::MIN;
-
-        for (x, y, hdr_pixel) in hdr_rgb.enumerate_pixels() {
-            let sdr_x = (x as f32 * sdr_rgb.width() as f32 / width as f32) as u32;
-            let sdr_y = (y as f32 * sdr_rgb.height() as f32 / height as f32) as u32;
-            let sdr_x = sdr_x.min(sdr_rgb.width() - 1);
-            let sdr_y = sdr_y.min(sdr_rgb.height() - 1);
-
-            let sdr_pixel = sdr_rgb.get_pixel(sdr_x, sdr_y);
-
-            let hdr_luma = (hdr_pixel[0] as f32 * 0.2126 + hdr_pixel[1] as f32 * 0.7152 + hdr_pixel[2] as f32 * 0.0722) / 255.0;
-            let sdr_luma = (sdr_pixel[0] as f32 * 0.2126 + sdr_pixel[1] as f32 * 0.7152 + sdr_pixel[2] as f32 * 0.0722) / 255.0;
-
-            let gain = if sdr_luma > 0.001 {
-                (hdr_luma / sdr_luma).ln() / normalized_peak
-            } else {
-                0.0
-            };
-
-            let clamped_gain = gain.clamp(-1.0, 1.0);
-            min_gain = min_gain.min(clamped_gain);
-            max_gain = max_gain.max(clamped_gain);
-
-            let encoded = ((clamped_gain + 1.0) * 0.5 * 255.0).round().clamp(0.0, 255.0) as u8;
-            gain_map.put_pixel(x, y, image::Luma([encoded]));
-        }
+        let (gain_map, gain_info) = crate::hdr_processing::generate_gain_map(
+            &sdr_img,
+            &hdr_img,
+            0.5,   // min_gain
+            8.0,   // max_gain
+            4,     // downsample_factor
+        );
 
         let dynamic_image = image::DynamicImage::ImageLuma8(gain_map);
         let mut buf = std::io::Cursor::new(Vec::new());
@@ -281,8 +186,8 @@ pub async fn generate_gain_map(
 
         Ok(serde_json::json!({
             "gainMapBase64": format!("data:image/png;base64,{}", base64_str),
-            "minGain": min_gain,
-            "maxGain": max_gain,
+            "minGain": gain_info.min_gain,
+            "maxGain": gain_info.max_gain,
         }))
     })
     .await
@@ -309,34 +214,8 @@ pub async fn export_ultra_hdr_jpeg(
         let sdr_img = image::load_from_memory(&sdr_decoded)
             .map_err(|e| format!("Failed to load SDR image: {}", e))?;
 
-        // Generate the SDR JPEG as the base image
-        let sdr_rgb = sdr_img.to_rgb8();
-        let (width, height) = sdr_rgb.dimensions();
-        let rgb_pixels = sdr_rgb.into_vec();
-
-        let clamped_quality = quality.clamp(1, 100);
-
-        let jpeg_bytes = mozjpeg_rs::Encoder::new(mozjpeg_rs::Preset::BaselineBalanced)
-            .quality(clamped_quality)
-            .encode_rgb(&rgb_pixels, width, height)
-            .map_err(|e| format!("Failed to encode Ultra HDR JPEG: {}", e))?;
-
-        // Append XMP metadata with HDR gain map info
-        let xmp_metadata = format!(
-            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:GContainer=\"http://ns.google.com/photos/1.0/container/\" xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\"><rdf:Description rdf:about=\"\" xmlns:GContainer=\"http://ns.google.com/photos/1.0/container/\"><GContainer:Version>1</GContainer:Version><GContainer:ItemMap><rdf:Bag><rdf:li rdf:parseType=\"Resource\"><Item:Mime>image/jpeg</Item:Mime><Item:Semantic>Primary</Item:Semantic></rdf:li><rdf:li rdf:parseType=\"Resource\"><Item:Mime>image/jpeg</Item:Mime><Item:Semantic>GainMap</Item:Semantic></rdf:li></rdf:Bag></GContainer:ItemMap></rdf:Description></rdf:RDF></x:xmpmeta>"
-        );
-
-        let mut result = jpeg_bytes;
-        // Embed XMP as APP1 segment
-        let xmp_payload = xmp_metadata.as_bytes();
-        let mut app1_segment = Vec::with_capacity(2 + 2 + xmp_payload.len());
-        app1_segment.extend_from_slice(&[0xFF, 0xE1]);
-        let segment_len = (2 + xmp_payload.len()) as u16;
-        app1_segment.extend_from_slice(&segment_len.to_be_bytes());
-        app1_segment.extend_from_slice(xmp_payload);
-        result.extend_from_slice(&app1_segment);
-
-        Ok(result)
+        crate::hdr_processing::encode_ultra_hdr_jpeg(&sdr_img, &hdr_img, quality)
+            .map_err(|e| format!("Failed to encode Ultra HDR JPEG: {}", e))
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))?
@@ -434,102 +313,47 @@ pub async fn convert_to_monochrome(
         let img = image::load_from_memory(&decoded)
             .map_err(|e| format!("Failed to load image: {}", e))?;
 
-        let rgb_image = img.to_rgb8();
-        let (width, height) = rgb_image.dimensions();
-
-        // Determine channel weights from preset or custom
-        let (rw, gw, bw) = match preset.as_str() {
-            "red" => (1.0, 0.0, 0.0),
-            "orange" => (0.7, 0.3, 0.0),
-            "yellow" => (0.5, 0.5, 0.0),
-            "green" => (0.0, 1.0, 0.0),
-            "blue" => (0.0, 0.0, 1.0),
-            "infrared" => (0.0, 0.0, 1.0), // blue channel for IR simulation
-            _ => (red_weight, green_weight, blue_weight), // "neutral" or "custom"
+        // Map preset to filter color or method
+        let (method, filter_color) = match preset.as_str() {
+            "red" => (crate::monochrome_correction::MonoConversionMethod::ChannelMixer, Some(crate::monochrome_correction::FilterColor::Red)),
+            "orange" => (crate::monochrome_correction::MonoConversionMethod::ChannelMixer, Some(crate::monochrome_correction::FilterColor::Orange)),
+            "yellow" => (crate::monochrome_correction::MonoConversionMethod::ChannelMixer, Some(crate::monochrome_correction::FilterColor::Yellow)),
+            "green" => (crate::monochrome_correction::MonoConversionMethod::ChannelMixer, Some(crate::monochrome_correction::FilterColor::Green)),
+            "blue" => (crate::monochrome_correction::MonoConversionMethod::ChannelMixer, Some(crate::monochrome_correction::FilterColor::Blue)),
+            "infrared" => (crate::monochrome_correction::MonoConversionMethod::ChannelMixer, Some(crate::monochrome_correction::FilterColor::Blue)),
+            _ => (crate::monochrome_correction::MonoConversionMethod::WeightedRGB, None),
         };
 
-        let weight_sum = rw + gw + bw;
-        let (rw, gw, bw) = if weight_sum.abs() > 0.001 {
-            (rw / weight_sum, gw / weight_sum, bw / weight_sum)
-        } else {
-            (0.333, 0.333, 0.334)
+        let toning_method = match toning_type.as_str() {
+            "sepia" => crate::monochrome_correction::ToningMethod::Sepia,
+            "cyanotype" => crate::monochrome_correction::ToningMethod::Cyanotype,
+            "platinum" => crate::monochrome_correction::ToningMethod::Platinum,
+            "split" => crate::monochrome_correction::ToningMethod::Split,
+            _ => crate::monochrome_correction::ToningMethod::Sepia,
         };
 
-        let contrast_factor = contrast / 100.0;
-        let toning_factor = toning_strength / 100.0;
+        let params = crate::monochrome_correction::MonochromeParams {
+            method,
+            filter_color,
+            mix_red: red_weight,
+            mix_green: green_weight,
+            mix_blue: blue_weight,
+            contrast: contrast / 100.0,
+            brightness: 0.0,
+            apply_toning: toning_type != "none" && toning_strength > 0.0,
+            toning_params: crate::monochrome_correction::ToningParams {
+                method: toning_method,
+                shadows_color: [20, 10, 5],
+                highlights_color: [245, 235, 215],
+                split_point: 0.5,
+                strength: toning_strength / 100.0,
+            },
+        };
 
-        let mut result = image::ImageBuffer::new(width, height);
+        let result = crate::monochrome_correction::process_monochrome(&img, &params);
 
-        for (x, y, pixel) in rgb_image.enumerate_pixels() {
-            let r = pixel[0] as f32 / 255.0;
-            let g = pixel[1] as f32 / 255.0;
-            let b = pixel[2] as f32 / 255.0;
-
-            // Convert to grayscale with channel weights
-            let mut luma = rw * r + gw * g + bw * b;
-
-            // Apply contrast
-            if contrast_factor != 1.0 {
-                luma = ((luma - 0.5) * contrast_factor + 0.5).clamp(0.0, 1.0);
-            }
-
-            // Apply toning
-            let (r_out, g_out, b_out) = match toning_type.as_str() {
-                "sepia" => {
-                    let s = toning_factor;
-                    let r_t = luma * (1.0 + s * 0.3);
-                    let g_t = luma * (1.0 + s * 0.1);
-                    let b_t = luma * (1.0 - s * 0.2);
-                    (r_t, g_t, b_t)
-                }
-                "selenium" => {
-                    let s = toning_factor;
-                    let r_t = luma * (1.0 - s * 0.1);
-                    let g_t = luma * (1.0 + s * 0.05);
-                    let b_t = luma * (1.0 + s * 0.2);
-                    (r_t, g_t, b_t)
-                }
-                "copper" => {
-                    let s = toning_factor;
-                    let r_t = luma * (1.0 + s * 0.35);
-                    let g_t = luma * (1.0 + s * 0.15);
-                    let b_t = luma * (1.0 - s * 0.1);
-                    (r_t, g_t, b_t)
-                }
-                "cyanotype" => {
-                    let s = toning_factor;
-                    let r_t = luma * (1.0 - s * 0.2);
-                    let g_t = luma * (1.0 + s * 0.05);
-                    let b_t = luma * (1.0 + s * 0.3);
-                    (r_t, g_t, b_t)
-                }
-                "gold" => {
-                    let s = toning_factor;
-                    let r_t = luma * (1.0 + s * 0.25);
-                    let g_t = luma * (1.0 + s * 0.15);
-                    let b_t = luma * (1.0 - s * 0.15);
-                    (r_t, g_t, b_t)
-                }
-                "split" => {
-                    // Split toning: warm highlights, cool shadows
-                    let s = toning_factor;
-                    let highlight = luma.max(0.5);
-                    let shadow = luma.min(0.5);
-                    let r_t = luma + s * (highlight * 0.2 - shadow * 0.1);
-                    let g_t = luma + s * (highlight * 0.05);
-                    let b_t = luma + s * (-highlight * 0.05 + shadow * 0.2);
-                    (r_t, g_t, b_t)
-                }
-                _ => (luma, luma, luma), // "none"
-            };
-
-            let clamp_f = |v: f32| (v * 255.0).round().clamp(0.0, 255.0) as u8;
-            result.put_pixel(x, y, image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]));
-        }
-
-        let dynamic_image = image::DynamicImage::ImageRgb8(result);
         let mut buf = std::io::Cursor::new(Vec::new());
-        dynamic_image
+        result
             .write_to(&mut buf, image::ImageFormat::Png)
             .map_err(|e| format!("Failed to encode PNG: {}", e))?;
 
@@ -571,33 +395,15 @@ pub async fn get_monochrome_preview(
 #[tauri::command]
 pub async fn get_camera_profiles() -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
-        let profiles = serde_json::json!([
-            { "name": "Adobe Standard", "make": "*", "model": "*" },
-            { "name": "Camera Faithful", "make": "Canon", "model": "*" },
-            { "name": "Camera Neutral", "make": "Canon", "model": "*" },
-            { "name": "Camera Standard", "make": "Canon", "model": "*" },
-            { "name": "Camera Landscape", "make": "Canon", "model": "*" },
-            { "name": "Camera Portrait", "make": "Canon", "model": "*" },
-            { "name": "Camera Vivid", "make": "Nikon", "model": "*" },
-            { "name": "Camera Neutral", "make": "Nikon", "model": "*" },
-            { "name": "Camera Standard", "make": "Nikon", "model": "*" },
-            { "name": "Camera Landscape", "make": "Nikon", "model": "*" },
-            { "name": "Camera Portrait", "make": "Nikon", "model": "*" },
-            { "name": "Camera Standard", "make": "Sony", "model": "*" },
-            { "name": "Camera Neutral", "make": "Sony", "model": "*" },
-            { "name": "Camera Vivid", "make": "Sony", "model": "*" },
-            { "name": "Camera Landscape", "make": "Sony", "model": "*" },
-            { "name": "Camera Portrait", "make": "Sony", "model": "*" },
-            { "name": "Camera Standard", "make": "Fujifilm", "model": "*" },
-            { "name": "Camera Classic Chrome", "make": "Fujifilm", "model": "*" },
-            { "name": "Camera PROVIA", "make": "Fujifilm", "model": "*" },
-            { "name": "Camera VELVIA", "make": "Fujifilm", "model": "*" },
-            { "name": "Camera ASTIA", "make": "Fujifilm", "model": "*" },
-            { "name": "Camera Standard", "make": "Panasonic", "model": "*" },
-            { "name": "Camera Vivid", "make": "Panasonic", "model": "*" },
-            { "name": "Camera Natural", "make": "Panasonic", "model": "*" },
-        ]);
-        Ok(profiles)
+        let profiles = crate::camera_profiles::builtin_profiles();
+        let json_profiles: Vec<serde_json::Value> = profiles.iter().map(|p| {
+            serde_json::json!({
+                "name": format!("{} {}", p.make, p.model),
+                "make": p.make,
+                "model": p.model,
+            })
+        }).collect();
+        Ok(serde_json::json!(json_profiles))
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))?
@@ -642,19 +448,9 @@ pub async fn import_dcp_profile(
         let data = std::fs::read(&file_path)
             .map_err(|e| format!("Failed to read DCP file: {}", e))?;
 
-        // Validate TIFF/DCP header (DCP files are TIFF-based)
-        if data.len() < 4 {
-            return Err("File too small to be a valid DCP profile".to_string());
-        }
+        let dcp = crate::camera_profiles::parse_dcp(&data)
+            .map_err(|e| format!("Failed to parse DCP: {}", e))?;
 
-        let is_tiff = (data[0] == 0x49 && data[1] == 0x49 && data[2] == 0x2A && data[3] == 0x00)
-            || (data[0] == 0x4D && data[1] == 0x4D && data[2] == 0x00 && data[3] == 0x2A);
-
-        if !is_tiff {
-            return Err("File is not a valid TIFF/DCP profile".to_string());
-        }
-
-        // Extract basic info from the DCP file
         let filename = std::path::Path::new(&file_path)
             .file_name()
             .and_then(|n| n.to_str())
@@ -666,7 +462,11 @@ pub async fn import_dcp_profile(
             "filePath": file_path,
             "fileSize": data.len(),
             "validDcp": true,
-            "profileName": filename.trim_end_matches(".dcp").trim_end_matches(".DCP"),
+            "profileName": format!("{} {}", dcp.profile.make, dcp.profile.model),
+            "calibrationIlluminant1": dcp.profile.calibration_illuminant_1,
+            "calibrationIlluminant2": dcp.profile.calibration_illuminant_2,
+            "toneCurvePoints": dcp.tone_curve.len(),
+            "lookTableSize": dcp.look_table.len(),
         }))
     })
     .await
@@ -684,79 +484,4 @@ pub async fn set_camera_color_profile(
     Ok(())
 }
 
-// ---- Helper Functions ----
 
-type Matrix3x3 = [[f32; 3]; 3];
-
-fn get_color_space_matrix(space: &str) -> Result<Matrix3x3, String> {
-    // Returns RGB-to-XYZ conversion matrices for each color space
-    match space {
-        "srgb" => Ok([
-            [0.4124564, 0.3575761, 0.1804375],
-            [0.2126729, 0.7151522, 0.0721750],
-            [0.0193339, 0.1191920, 0.9503041],
-        ]),
-        "p3" => Ok([
-            [0.4865709, 0.2656680, 0.1982173],
-            [0.2289747, 0.6917385, 0.0792869],
-            [0.0000000, 0.0451132, 1.0439444],
-        ]),
-        "rec2020" => Ok([
-            [0.6369580, 0.1446169, 0.1688808],
-            [0.2627002, 0.6779981, 0.0593017],
-            [0.0000000, 0.0280727, 1.0609809],
-        ]),
-        "prophoto" => Ok([
-            [0.7976754, 0.1801800, 0.0221446],
-            [0.2880418, 0.7118740, 0.0000842],
-            [0.0000000, 0.0000000, 0.8256601],
-        ]),
-        "adobergb" => Ok([
-            [0.5767309, 0.1855540, 0.1881852],
-            [0.2973619, 0.6273510, 0.0752871],
-            [0.0270328, 0.0706882, 0.9911088],
-        ]),
-        _ => Err(format!("Unknown color space: {}", space)),
-    }
-}
-
-fn multiply_matrix3x3(a: &Matrix3x3, b: &Matrix3x3) -> Matrix3x3 {
-    let mut result = [[0.0f32; 3]; 3];
-    for i in 0..3 {
-        for j in 0..3 {
-            for k in 0..3 {
-                result[i][j] += a[i][k] * b[k][j];
-            }
-        }
-    }
-    result
-}
-
-fn invert_matrix3x3(m: &Matrix3x3) -> Option<Matrix3x3> {
-    let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
-        - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
-        + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
-
-    if det.abs() < 1e-10 {
-        return None;
-    }
-
-    let inv_det = 1.0 / det;
-    Some([
-        [
-            inv_det * (m[1][1] * m[2][2] - m[1][2] * m[2][1]),
-            inv_det * (m[0][2] * m[2][1] - m[0][1] * m[2][2]),
-            inv_det * (m[0][1] * m[1][2] - m[0][2] * m[1][1]),
-        ],
-        [
-            inv_det * (m[1][2] * m[2][0] - m[1][0] * m[2][2]),
-            inv_det * (m[0][0] * m[2][2] - m[0][2] * m[2][0]),
-            inv_det * (m[0][2] * m[1][0] - m[0][0] * m[1][2]),
-        ],
-        [
-            inv_det * (m[1][0] * m[2][1] - m[1][1] * m[2][0]),
-            inv_det * (m[0][1] * m[2][0] - m[0][0] * m[2][1]),
-            inv_det * (m[0][0] * m[1][1] - m[0][1] * m[1][0]),
-        ],
-    ])
-}

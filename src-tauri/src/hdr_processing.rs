@@ -346,12 +346,12 @@ pub fn generate_gain_map(
 // Ultra HDR JPEG encoding
 // ============================================================================
 
-/// Encode an image as an Ultra HDR JPEG (gain map embedded in EXIF).
+/// Encode an image as an Ultra HDR JPEG (ISO 21496-1 / Google Ultra HDR).
 ///
-/// This creates a standard 8-bit JPEG with an embedded gain map
-/// that enables HDR rendering on compatible displays.
-///
-/// Returns the raw bytes of the Ultra HDR JPEG file.
+/// Embeds a gain map as a secondary image in an MPF (Multi-Picture Format)
+/// JPEG container, with XMP metadata in APP1 describing gain map parameters.
+/// Compatible viewers use the gain map to reconstruct HDR on capable displays;
+/// non-HDR viewers display the primary SDR image unchanged.
 pub fn encode_ultra_hdr_jpeg(
     sdr_image: &DynamicImage,
     hdr_image: &DynamicImage,
@@ -367,38 +367,111 @@ pub fn encode_ultra_hdr_jpeg(
     );
 
     // Encode SDR as standard JPEG
-    let mut jpeg_buf = std::io::Cursor::new(Vec::new());
-    sdr_image.write_to(&mut jpeg_buf, image::ImageFormat::Jpeg)?;
-
-    let mut jpeg_data = jpeg_buf.into_inner();
+    let mut sdr_jpeg_buf = std::io::Cursor::new(Vec::new());
+    sdr_image.write_to(&mut sdr_jpeg_buf, image::ImageFormat::Jpeg)?;
+    let sdr_jpeg_data = sdr_jpeg_buf.into_inner();
 
     // Encode gain map as JPEG
     let gain_dynamic = DynamicImage::ImageLuma8(gain_map);
-    let mut gain_buf = std::io::Cursor::new(Vec::new());
-    gain_dynamic.write_to(&mut gain_buf, image::ImageFormat::Jpeg)?;
-    let gain_jpeg_data = gain_buf.into_inner();
+    let mut gain_jpeg_buf = std::io::Cursor::new(Vec::new());
+    gain_dynamic.write_to(&mut gain_jpeg_buf, image::ImageFormat::Jpeg)?;
+    let gain_jpeg_data = gain_jpeg_buf.into_inner();
 
-    // Write gain map info as XMP metadata
-    // In a full implementation, this would embed the gain map in the
-    // JPEG's APP1 (EXIF/XMP) marker segment following the Ultra HDR spec.
-    // For now, we append the gain map data with a custom marker.
-    let gain_info_json = serde_json::json!({
-        "minGain": gain_info.min_gain,
-        "maxGain": gain_info.max_gain,
-        "peakBrightnessNits": gain_info.peak_brightness_nits,
-        "gainMapSize": gain_jpeg_data.len(),
-    });
-    let info_bytes = serde_json::to_vec(&gain_info_json)?;
+    // Build XMP metadata for the gain map (ISO 21496-1 / Google Ultra HDR)
+    let xmp = format!(
+        concat!(
+            "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n",
+            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n",
+            "  <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n",
+            "    <rdf:Description rdf:about=\"\"\n",
+            "      xmlns:GContainer=\"http://ns.google.com/photos/1.0/container/\"\n",
+            "      xmlns:GGainMap=\"http://ns.google.com/photos/1.0/gainmap/\"\n",
+            "      GGainMap:GainMapMin=\"{min_gain}\"\n",
+            "      GGainMap:GainMapMax=\"{max_gain}\"\n",
+            "      GGainMap:Gamma=\"1.0\"\n",
+            "      GGainMap:OffsetSDR=\"0.0\"\n",
+            "      GGainMap:OffsetHDR=\"0.0\"\n",
+            "      GGainMap:HDRCapacityMin=\"0.0\"\n",
+            "      GGainMap:HDRCapacityMax=\"{peak_nits}\"\n",
+            "      GGainMap:BaseRenditionIsHDR=\"False\">\n",
+            "      <GContainer:Directory>\n",
+            "        <rdf:Seq>\n",
+            "          <rdf:li GContainer:ItemUri=\"primary.jpg\" GContainer:ItemRole=\"Primary\"/>\n",
+            "          <rdf:li GContainer:ItemUri=\"gainmap.jpg\" GContainer:ItemRole=\"GainMap\"/>\n",
+            "        </rdf:Seq>\n",
+            "      </GContainer:Directory>\n",
+            "    </rdf:Description>\n",
+            "  </rdf:RDF>\n",
+            "</x:xmpmeta>\n",
+            "<?xpacket end=\"w\"?>\n"
+        ),
+        min_gain = gain_info.min_gain,
+        max_gain = gain_info.max_gain,
+        peak_nits = gain_info.peak_brightness_nits,
+    );
 
-    // Append: [length_u32][info_json][gain_jpeg]
-    let info_len = info_bytes.len() as u32;
-    let gain_len = gain_jpeg_data.len() as u32;
-    jpeg_data.extend_from_slice(&info_len.to_le_bytes());
-    jpeg_data.extend_from_slice(&info_bytes);
-    jpeg_data.extend_from_slice(&gain_len.to_le_bytes());
-    jpeg_data.extend_from_slice(&gain_jpeg_data);
+    // Verify SOI marker in primary JPEG
+    if sdr_jpeg_data.len() < 2 || sdr_jpeg_data[0] != 0xFF || sdr_jpeg_data[1] != 0xD8 {
+        anyhow::bail!("Invalid JPEG: missing SOI marker");
+    }
 
-    Ok(jpeg_data)
+    let rest_of_primary = &sdr_jpeg_data[2..];
+
+    // APP1 XMP: marker 0xFFE1, then length (2B, includes itself), then namespace + data
+    let xmp_namespace = b"http://ns.adobe.com/xap/1.0/\0";
+    let xmp_payload_len = xmp_namespace.len() + xmp.len();
+    let app1_length = (2 + xmp_payload_len) as u16;
+    let app1_total = 2 + 2 + xmp_payload_len; // marker + length bytes + payload
+
+    // APP2 MPF: marker 0xFFE2, length, "MPF\0" signature, then MPF body
+    let mpf_signature = b"MPF\0";
+    let num_images: u32 = 2;
+    // MPF body: version(4) + num_images(4) + entries(num_images * 16)
+    let mpf_body_size = 4 + 4 + (num_images as usize * 16);
+    let mpf_payload_len = mpf_signature.len() + mpf_body_size;
+    let mpf_app2_length = (2 + mpf_payload_len) as u16;
+    let mpf_total = 2 + 2 + mpf_payload_len; // marker + length bytes + payload
+
+    // Compute gain map offset: SOI(2) + APP1 + APP2 + rest of primary
+    let gain_map_offset = 2 + app1_total + mpf_total + rest_of_primary.len();
+
+    // Build output
+    let mut output = Vec::with_capacity(gain_map_offset + gain_jpeg_data.len());
+
+    // SOI
+    output.extend_from_slice(&[0xFF, 0xD8]);
+
+    // APP1 XMP
+    output.extend_from_slice(&[0xFF, 0xE1]);
+    output.extend_from_slice(&app1_length.to_be_bytes());
+    output.extend_from_slice(xmp_namespace);
+    output.extend_from_slice(xmp.as_bytes());
+
+    // APP2 MPF
+    output.extend_from_slice(&[0xFF, 0xE2]);
+    output.extend_from_slice(&mpf_app2_length.to_be_bytes());
+    output.extend_from_slice(mpf_signature);
+    // MPF version 1.0
+    output.extend_from_slice(&0x00010000u32.to_be_bytes());
+    output.extend_from_slice(&num_images.to_be_bytes());
+    // Entry 0 – primary image
+    output.extend_from_slice(&0u32.to_be_bytes()); // Individual Image type
+    output.extend_from_slice(&((2 + app1_total + mpf_total + rest_of_primary.len()) as u32).to_be_bytes()); // size
+    output.extend_from_slice(&0u32.to_be_bytes()); // offset from SOI
+    output.extend_from_slice(&0u32.to_be_bytes()); // dependent flags
+    // Entry 1 – gain map
+    output.extend_from_slice(&0u32.to_be_bytes()); // Individual Image type
+    output.extend_from_slice(&(gain_jpeg_data.len() as u32).to_be_bytes()); // size
+    output.extend_from_slice(&(gain_map_offset as u32).to_be_bytes()); // offset from SOI
+    output.extend_from_slice(&0u32.to_be_bytes()); // dependent flags
+
+    // Rest of primary JPEG (after SOI)
+    output.extend_from_slice(rest_of_primary);
+
+    // Gain map JPEG (secondary image)
+    output.extend_from_slice(&gain_jpeg_data);
+
+    Ok(output)
 }
 
 // ============================================================================

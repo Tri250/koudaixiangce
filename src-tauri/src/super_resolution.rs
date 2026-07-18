@@ -142,6 +142,8 @@ pub async fn get_or_init_super_resolution_model(
                 embeddings: None,
                 depth_map: None,
                 super_resolution_model: Some(sr_model.clone()),
+                face_landmark_model: None,
+                body_pose_model: None,
             };
             *state_lock = Some(new_state);
         }

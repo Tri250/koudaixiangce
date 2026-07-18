@@ -89,7 +89,7 @@ pub fn apply_face_reshape(
     }
 
     let warp_field = calculate_face_warp_field(landmarks, params, image.width(), image.height());
-    apply_warp_field(image, &warp_field)
+    apply_warp_with_landmarks(image, landmarks, &warp_field)
 }
 
 /// Apply body reshaping to an image using detected body pose keypoints.
@@ -107,7 +107,7 @@ pub fn apply_body_reshape(
 
     let warp_field =
         calculate_body_warp_field(keypoints, params, image.width(), image.height());
-    apply_warp_field(image, &warp_field)
+    apply_warp_with_landmarks(image, keypoints, &warp_field)
 }
 
 /// Calculate displacement vectors for face adjustments based on 468 face landmarks.
@@ -386,44 +386,7 @@ pub fn calculate_body_warp_field(
 /// For each output pixel, we find the source location by looking up the
 /// displacement at the nearest landmark and using RBF interpolation to
 /// smoothly blend between landmarks.
-fn apply_warp_field(
-    image: &DynamicImage,
-    displacements: &[Displacement],
-) -> anyhow::Result<DynamicImage> {
-    let (width, height) = image.dimensions();
-    let rgba = image.to_rgba8();
 
-    // We need landmarks for the RBF interpolation, but they aren't stored here.
-    // Instead, we compute a dense displacement field from the sparse landmark
-    // displacements using a simplified approach: for each pixel, find the
-    // closest landmarks and blend their displacements with distance-based weights.
-
-    // For efficiency, we compute the inverse warp: for each destination pixel,
-    // find the source pixel by subtracting the interpolated displacement.
-
-    // Build a smooth displacement map at reduced resolution for performance
-    let scale = 4; // Compute at 1/4 resolution and upsample
-    let map_w = (width as usize + scale - 1) / scale;
-    let map_h = (height as usize + scale - 1) / scale;
-
-    // Without landmark positions in this function, we can't do RBF interpolation.
-    // Fall back to a no-op if there's no meaningful displacement.
-    // In practice, the caller should use the full pipeline that passes landmarks.
-    // For now, return the original image unchanged as the displacement field
-    // needs to be applied with landmark context.
-
-    // The actual warp application happens when landmarks and displacements
-    // are available together. This function provides the framework.
-    let mut result = RgbaImage::new(width, height);
-
-    for y in 0..height {
-        for x in 0..width {
-            result.put_pixel(x, y, *rgba.get_pixel(x, y));
-        }
-    }
-
-    Ok(DynamicImage::ImageRgba8(result))
-}
 
 /// Apply a warp field to an image given landmarks and their displacements.
 /// Uses radial basis function (RBF) interpolation for smooth warping.

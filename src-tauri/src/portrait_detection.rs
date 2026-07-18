@@ -885,68 +885,70 @@ fn deduplicate_blemishes(
 // ============================================================================
 
 /// Face detection called from the Tauri command layer.
-/// Uses the app_handle to access model state, with a fallback if
-/// models aren't loaded yet.
+/// Uses the ONNX model session when available, otherwise returns
+/// an empty result with modelLoaded=false.
 pub fn detect_faces_compat(
     image: &DynamicImage,
-    app_handle: &tauri::AppHandle,
+    face_session: Option<&Arc<Mutex<Session>>>,
 ) -> Result<serde_json::Value> {
-    let state = app_handle.state::<crate::app_state::AppState>();
-    let ai_state_lock = state.ai_state.lock().unwrap();
-
-    // Try to use existing model if loaded in ai_state
-    // Since portrait models are stored separately, we fall back to a
-    // lightweight detection result when the model isn't available.
-    drop(ai_state_lock);
-
-    // Return a basic face detection result.
-    // When the ONNX model is properly initialized through get_or_init_face_model,
-    // the full 468-landmark detection will be used.
     let (width, height) = image.dimensions();
 
-    // Simple heuristic: assume a face exists in the center-upper region
-    // This will be replaced by real model inference when the model is loaded
-    let face_region = serde_json::json!({
-        "faces": [{
-            "landmarks": [],
-            "bbox": [
-                (width as f32 * 0.3),
-                (height as f32 * 0.1),
-                (width as f32 * 0.7),
-                (height as f32 * 0.5)
-            ],
-            "confidence": 0.5
-        }],
-        "modelLoaded": false,
-        "width": width,
-        "height": height
-    });
+    if let Some(session) = face_session {
+        let faces = detect_faces(image, session.as_ref())?;
+        let json_faces: Vec<serde_json::Value> = faces.iter().map(|f| {
+            serde_json::json!({
+                "landmarks": f.landmarks.iter().map(|lm| serde_json::json!({"x": lm.x, "y": lm.y, "z": lm.z})).collect::<Vec<_>>(),
+                "bbox": [f.bbox.0, f.bbox.1, f.bbox.2, f.bbox.3],
+                "confidence": f.confidence
+            })
+        }).collect();
 
-    Ok(face_region)
+        Ok(serde_json::json!({
+            "faces": json_faces,
+            "modelLoaded": true,
+            "width": width,
+            "height": height
+        }))
+    } else {
+        Ok(serde_json::json!({
+            "faces": [],
+            "modelLoaded": false,
+            "width": width,
+            "height": height
+        }))
+    }
 }
 
 /// Body pose detection called from the Tauri command layer.
+/// Uses the ONNX model session when available, otherwise returns
+/// an empty result with modelLoaded=false.
 pub fn detect_body_compat(
     image: &DynamicImage,
-    app_handle: &tauri::AppHandle,
+    body_session: Option<&Arc<Mutex<Session>>>,
 ) -> Result<serde_json::Value> {
-    let state = app_handle.state::<crate::app_state::AppState>();
-    let ai_state_lock = state.ai_state.lock().unwrap();
-    drop(ai_state_lock);
-
     let (width, height) = image.dimensions();
 
-    // Return a basic body detection result.
-    // This will be replaced by real model inference when the model is loaded.
-    let body_result = serde_json::json!({
-        "poses": [{
-            "keypoints": [],
-            "confidence": 0.5
-        }],
-        "modelLoaded": false,
-        "width": width,
-        "height": height
-    });
+    if let Some(session) = body_session {
+        let poses = detect_body_pose(image, session.as_ref())?;
+        let json_poses: Vec<serde_json::Value> = poses.iter().map(|p| {
+            serde_json::json!({
+                "keypoints": p.keypoints.iter().map(|kp| serde_json::json!({"x": kp.x, "y": kp.y, "z": kp.z, "confidence": kp.confidence, "name": kp.name})).collect::<Vec<_>>(),
+                "confidence": p.confidence
+            })
+        }).collect();
 
-    Ok(body_result)
+        Ok(serde_json::json!({
+            "poses": json_poses,
+            "modelLoaded": true,
+            "width": width,
+            "height": height
+        }))
+    } else {
+        Ok(serde_json::json!({
+            "poses": [],
+            "modelLoaded": false,
+            "width": width,
+            "height": height
+        }))
+    }
 }

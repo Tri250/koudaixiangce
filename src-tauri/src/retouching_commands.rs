@@ -88,8 +88,16 @@ pub async fn detect_faces_in_image(
 ) -> Result<serde_json::Value, String> {
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
+    let face_session = crate::ai_processing::get_or_init_face_model(
+        &app_handle,
+        &state.ai_state,
+        &state.ai_init_lock,
+    )
+    .await
+    .ok();
+
     let result = tokio::task::spawn_blocking(move || {
-        crate::portrait_detection::detect_faces_compat(warped_image.as_ref(), &app_handle)
+        crate::portrait_detection::detect_faces_compat(warped_image.as_ref(), face_session.as_ref())
             .map_err(|e| e.to_string())
     })
     .await
@@ -106,8 +114,16 @@ pub async fn detect_body_in_image(
 ) -> Result<serde_json::Value, String> {
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
+    let body_session = crate::ai_processing::get_or_init_body_model(
+        &app_handle,
+        &state.ai_state,
+        &state.ai_init_lock,
+    )
+    .await
+    .ok();
+
     let result = tokio::task::spawn_blocking(move || {
-        crate::portrait_detection::detect_body_compat(warped_image.as_ref(), &app_handle)
+        crate::portrait_detection::detect_body_compat(warped_image.as_ref(), body_session.as_ref())
             .map_err(|e| e.to_string())
     })
     .await
