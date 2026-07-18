@@ -78,6 +78,7 @@ jobs:
           - platform: 'ubuntu-24.04-arm'
             target: ''
             asset-prefix: '03'
+          # Android arm64-v8a (primary target for domestic app stores)
           - platform: 'ubuntu-latest'
             mobile: 'android'
             target: 'aarch64-linux-android'
