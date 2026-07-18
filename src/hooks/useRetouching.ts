@@ -116,6 +116,18 @@ export function useRetouching() {
 
   // Get current adjustments from editor store
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
+
+  // Helper: publish a destructive retouching result image (base64 data URL)
+  // to the editor store so the canvas displays it.
+  const publishRetouchingResult = useCallback(
+    (result: string | null) => {
+      if (result) {
+        setEditor({ retouchingResultUrl: result });
+      }
+    },
+    [setEditor],
+  );
 
   // ── Face Detection ──────────────────────────────────────────────────
 
@@ -166,13 +178,14 @@ export function useRetouching() {
           faceLandmarks,
           params,
         });
+        publishRetouchingResult(result);
         return result;
       } catch (err) {
         console.error('applyFaceReshape failed:', err);
         return null;
       }
     },
-    [adjustments],
+    [adjustments, publishRetouchingResult],
   );
 
   // ── Skin Smoothing ──────────────────────────────────────────────────
@@ -182,13 +195,14 @@ export function useRetouching() {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('apply_skin_smoothing', { jsAdjustments, method, strength, texturePreservation, radius });
+        publishRetouchingResult(result);
         return result;
       } catch (err) {
         console.error('applySkinSmoothing failed:', err);
         return null;
       }
     },
-    [adjustments],
+    [adjustments, publishRetouchingResult],
   );
 
   // ── Blemish Removal ────────────────────────────────────────────────
@@ -201,12 +215,13 @@ export function useRetouching() {
         faceLandmarks: faceLandmarks ?? [],
         sensitivity: sensitivity ?? 0.5,
       });
+      publishRetouchingResult(result);
       return result;
     } catch (err) {
       console.error('applyBlemishRemoval failed:', err);
       return null;
     }
-  }, [adjustments]);
+  }, [adjustments, publishRetouchingResult]);
 
   // ── Skin Color Uniform ─────────────────────────────────────────────
 
@@ -215,13 +230,14 @@ export function useRetouching() {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('unify_skin_color', { jsAdjustments, faceLandmarks, strength });
+        publishRetouchingResult(result);
         return result;
       } catch (err) {
         console.error('applySkinColorUniform failed:', err);
         return null;
       }
     },
-    [adjustments],
+    [adjustments, publishRetouchingResult],
   );
 
   // ── Body Reshape ────────────────────────────────────────────────────
@@ -235,13 +251,14 @@ export function useRetouching() {
           bodyKeypoints,
           params,
         });
+        publishRetouchingResult(result);
         return result;
       } catch (err) {
         console.error('applyBodyReshape failed:', err);
         return null;
       }
     },
-    [adjustments],
+    [adjustments, publishRetouchingResult],
   );
 
   // ── Liquify ─────────────────────────────────────────────────────────
@@ -270,13 +287,14 @@ export function useRetouching() {
           points: s.points.map((p) => [p.x, p.y]),
         }));
         const result = await invoke<string>('apply_liquify', { jsAdjustments, strokes: mappedStrokes });
+        publishRetouchingResult(result);
         return result;
       } catch (err) {
         console.error('applyLiquify failed:', err);
         return null;
       }
     },
-    [adjustments],
+    [adjustments, publishRetouchingResult],
   );
 
   const resetLiquifyMesh = useCallback(() => {
@@ -288,27 +306,41 @@ export function useRetouching() {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('apply_hair_retouch', { jsAdjustments, params });
+        publishRetouchingResult(result);
         return result;
       } catch (err) {
         console.error('applyHairRetouch failed:', err);
         return null;
       }
     },
-    [adjustments],
+    [adjustments, publishRetouchingResult],
   );
 
   const addEyeCatchlight = useCallback(
     async (faceLandmarks: FaceLandmark[], intensity: number, lightPosition: string): Promise<string | null> => {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
-        const result = await invoke<string>('add_eye_catchlight', { jsAdjustments, faceLandmarks, intensity, lightPosition });
+        // Map the human-readable light position string to a normalized
+        // (x, y) tuple centred on (0.5, 0.5) as expected by the Rust backend.
+        // The backend computes the catchlight offset as (pos - 0.5) * radius * 2.
+        const positionMap: Record<string, [number, number]> = {
+          'top-left': [0.3, 0.3],
+          'top-right': [0.7, 0.3],
+          'top-center': [0.5, 0.3],
+          'center': [0.5, 0.5],
+          'bottom-left': [0.3, 0.7],
+          'bottom-right': [0.7, 0.7],
+        };
+        const lightPos = positionMap[lightPosition] ?? [0.5, 0.5];
+        const result = await invoke<string>('add_eye_catchlight', { jsAdjustments, faceLandmarks, intensity, lightPosition: lightPos });
+        publishRetouchingResult(result);
         return result;
       } catch (err) {
         console.error('addEyeCatchlight failed:', err);
         return null;
       }
     },
-    [adjustments],
+    [adjustments, publishRetouchingResult],
   );
 
   const adjustSmile = useCallback(
@@ -316,13 +348,14 @@ export function useRetouching() {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('adjust_smile', { jsAdjustments, faceLandmarks, smileAmount });
+        publishRetouchingResult(result);
         return result;
       } catch (err) {
         console.error('adjustSmile failed:', err);
         return null;
       }
     },
-    [adjustments],
+    [adjustments, publishRetouchingResult],
   );
 
   const adjustNeckShoulder = useCallback(
@@ -330,13 +363,14 @@ export function useRetouching() {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('adjust_neck_shoulder', { jsAdjustments, bodyKeypoints, neckAdjust, shoulderAdjust });
+        publishRetouchingResult(result);
         return result;
       } catch (err) {
         console.error('adjustNeckShoulder failed:', err);
         return null;
       }
     },
-    [adjustments],
+    [adjustments, publishRetouchingResult],
   );
 
   return {

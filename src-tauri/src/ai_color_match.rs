@@ -497,43 +497,41 @@ fn decode_image(data: &str) -> anyhow::Result<DynamicImage> {
 // ============================================================================
 
 /// Color match called from the Tauri command layer.
-/// Returns a serde_json::Value containing the adjustment parameters.
+///
+/// Delegates to `match_colors_with_params` after re-encoding the reference
+/// image as a base64 data URL (the params struct expects a base64 string so
+/// it can be serialised / cached). The source image is supplied directly so
+/// real source-vs-reference statistics are compared.
+///
+/// Returns a `serde_json::Value` containing the adjustment parameters.
 pub fn match_colors(
-    source_adjustments: &serde_json::Value,
+    source_image: &DynamicImage,
     reference_image: &DynamicImage,
     match_method: &str,
     strength: f32,
 ) -> anyhow::Result<serde_json::Value> {
-    // Extract the source image from the adjustments (not available directly,
-    // so we work with the reference image statistics to generate adjustment params)
     let method = match match_method {
         "linear" => MatchMethod::Linear,
         "ml" => MatchMethod::ML,
         _ => MatchMethod::Histogram,
     };
 
-    let ref_stats = match_color_statistics(reference_image);
+    // Encode the reference image to a base64 PNG data URL so it can be
+    // embedded in ColorMatchParams (which the underlying matcher expects).
+    let mut ref_buf = Cursor::new(Vec::new());
+    reference_image.write_to(&mut ref_buf, image::ImageFormat::Png)?;
+    let reference_image_b64 = format!(
+        "data:image/png;base64,{}",
+        general_purpose::STANDARD.encode(ref_buf.get_ref())
+    );
 
-    // Build a ColorMatchResult from the reference statistics
-    // Since we don't have the source image here, we generate adjustments
-    // that would move an image toward the reference's color characteristics
-    let result = ColorMatchResult {
-        temperature: ((ref_stats.mean[2] - ref_stats.mean[0]) / 255.0 * 0.5).clamp(-1.0, 1.0),
-        tint: ((ref_stats.mean[1] - (ref_stats.mean[0] + ref_stats.mean[2]) / 2.0) / 255.0 * 0.5)
-            .clamp(-1.0, 1.0),
-        vibrance: ((ref_stats.std_dev[0] + ref_stats.std_dev[1] + ref_stats.std_dev[2]) / 3.0 / 128.0
-            - 1.0)
-            .clamp(-1.0, 1.0),
-        saturation: 0.0,
-        hsl_hue_shifts: [0.0, 0.0, 0.0],
-        hsl_sat_shifts: [0.0, 0.0, 0.0],
-        hsl_lum_shifts: [0.0, 0.0, 0.0],
-        curve_points: Vec::new(),
-        exposure: ((ref_stats.avg_luminance / 128.0 - 1.0) * strength).clamp(-3.0, 3.0),
-        contrast: 0.0,
-        highlights: 0.0,
-        shadows: 0.0,
+    let params = ColorMatchParams {
+        reference_image: reference_image_b64,
+        match_method: method,
+        strength,
+        preserve_luminance: true,
     };
 
+    let result = match_colors_with_params(source_image, &params)?;
     Ok(serde_json::to_value(&result)?)
 }

@@ -2,6 +2,7 @@
   "adjustments": {
     "basic": {
       "blacks": "黑色",
+      "brightness": "亮度",
       "contrast": "对比度",
       "evShift": "EV 偏移",
       "exposure": "曝光",
@@ -448,6 +449,10 @@
         "free": {
           "desc": "自由构图",
           "name": "自由"
+        },
+        "goldenRatio": {
+          "desc": "1.618:1 - 黄金比例，自然界最和谐的比例",
+          "name": "黄金比"
         },
         "original": {
           "desc": "原始图像宽高比",
@@ -956,6 +961,29 @@
       "outOfGamutCount": "超出色域像素数：{{count}}",
       "gamutWarningOverlay": "色域警告叠加层",
       "convert": "转换色彩空间"
+    },
+    "sky": {
+      "title": "换天空",
+      "resetTooltip": "重置天空替换",
+      "detectSky": "检测天空",
+      "maskDetected": "天空蒙版已生成",
+      "selectSkyImage": "选择天空图",
+      "imageFilterLabel": "图片",
+      "presetsTitle": "天空预设",
+      "feather": "羽化",
+      "colorMatchStrength": "色彩匹配强度",
+      "horizonAdjust": "地平线调整",
+      "apply": "应用天空替换",
+      "presets": {
+        "blueSky": "蓝天",
+        "sunset": "日落",
+        "dramaticClouds": "戏剧云层",
+        "night": "夜景",
+        "goldenHour": "黄金时刻",
+        "overcast": "阴天",
+        "stormy": "暴风雨",
+        "aurora": "极光"
+      }
     }
   },
   "export": {

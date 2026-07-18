@@ -45,6 +45,25 @@ async function readFileAsBase64DataUrl(filePath: string): Promise<string> {
   });
 }
 
+/// Generate a synthetic vertical-gradient sky image (1024×1024 PNG) from the
+/// given preset colours. Used when the user picks a sky preset instead of
+/// supplying their own sky photo, so the "Apply" action always has a sky to
+/// composite.
+function generateGradientSkyBase64(from: string, to: string): string {
+  const size = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  const gradient = ctx.createLinearGradient(0, 0, 0, size);
+  gradient.addColorStop(0, from);
+  gradient.addColorStop(1, to);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  return canvas.toDataURL('image/png');
+}
+
 interface SkyPreset {
   id: string;
   nameKey: string;
@@ -68,6 +87,7 @@ export default function SkyPanel() {
   const { t } = useTranslation();
   const selectedImage = useEditorStore((s) => s.selectedImage);
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [isDetectingSky, setIsDetectingSky] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
@@ -128,21 +148,28 @@ export default function SkyPanel() {
       if (skyImagePath) {
         skyImageBase64 = await readFileAsBase64DataUrl(skyImagePath);
       } else {
-        throw new Error('No sky image selected');
+        // Generate a synthetic gradient sky from the selected preset.
+        const preset = SKY_PRESETS.find((p) => p.id === selectedPreset);
+        if (!preset) throw new Error('No sky image selected');
+        skyImageBase64 = generateGradientSkyBase64(preset.gradientFrom, preset.gradientTo);
+        if (!skyImageBase64) throw new Error('Failed to generate sky gradient');
       }
-      await invoke('replace_sky', {
+      const result = await invoke<{ image: string }>('replace_sky', {
         jsAdjustments: transformAdjustments,
         skyImageBase64,
         feather,
         colorMatchStrength,
         horizonAdjust,
       });
+      if (result?.image) {
+        setEditor({ retouchingResultUrl: result.image });
+      }
     } catch (err) {
       console.error('replace_sky failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [skyMaskGenerated, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust, selectedImage, adjustments]);
+  }, [skyMaskGenerated, skyImagePath, selectedPreset, feather, colorMatchStrength, horizonAdjust, selectedImage, adjustments, setEditor]);
 
   return (
     <div className="flex flex-col h-full select-none overflow-hidden">
@@ -157,6 +184,7 @@ export default function SkyPanel() {
             setFeather(10);
             setColorMatchStrength(50);
             setHorizonAdjust(0);
+            setEditor({ retouchingResultUrl: null });
           }}
           data-tooltip={t('editor.sky.resetTooltip')}
         >

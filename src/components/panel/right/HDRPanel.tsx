@@ -56,6 +56,7 @@ const COLOR_SPACE_OPTIONS = [
 export default function HDRPanel() {
     const { t } = useTranslation();
     const adjustments = useEditorStore((s) => s.adjustments);
+    const setEditor = useEditorStore((s) => s.setEditor);
 
     // State
     const [hdrPreviewEnabled, setHdrPreviewEnabled] = useState(false);
@@ -71,22 +72,28 @@ export default function HDRPanel() {
     const [tiffBitDepth, setTiffBitDepth] = useState<16 | 32>(16);
 
     const handleApplyHighlightRecovery = useCallback(async () => {
-        if (!hdrPreviewEnabled) return;
+        if (!hdrPreviewEnabled) {
+            setEditor({ retouchingResultUrl: null });
+            return;
+        }
         setIsProcessing(true);
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
-            await invoke('apply_hdr_highlight_recovery', {
+            const result = await invoke<string>('apply_hdr_highlight_recovery', {
                 jsAdjustments,
                 mode: highlightMode,
                 recoveryAmount,
                 peakBrightnessNits: peakBrightness,
             });
+            if (result) {
+                setEditor({ retouchingResultUrl: result });
+            }
         } catch (err) {
             console.error('apply_hdr_highlight_recovery failed:', err);
         } finally {
             setIsProcessing(false);
         }
-    }, [hdrPreviewEnabled, highlightMode, recoveryAmount, peakBrightness, adjustments]);
+    }, [hdrPreviewEnabled, highlightMode, recoveryAmount, peakBrightness, adjustments, setEditor]);
 
     useEffect(() => {
         if (hdrPreviewEnabled) {
@@ -168,6 +175,7 @@ export default function HDRPanel() {
                         setOutputColorSpace('srgb');
                         setOutOfGamutWarning(null);
                         setTiffBitDepth(16);
+                        setEditor({ retouchingResultUrl: null });
                     }}
                 >
                     <RotateCcw size={18} />

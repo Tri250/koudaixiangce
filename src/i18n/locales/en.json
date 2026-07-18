@@ -2,6 +2,7 @@
   "adjustments": {
     "basic": {
       "blacks": "Blacks",
+      "brightness": "Brightness",
       "contrast": "Contrast",
       "evShift": "EV Shift",
       "exposure": "Exposure",
@@ -448,6 +449,10 @@
         "free": {
           "desc": "Freeform crop",
           "name": "Free"
+        },
+        "goldenRatio": {
+          "desc": "1.618:1 - Golden ratio, the most harmonious natural proportion",
+          "name": "Golden Ratio"
         },
         "original": {
           "desc": "Original image aspect ratio",
@@ -949,6 +954,29 @@
       "outOfGamutCount": "Out of gamut pixels: {{count}}",
       "gamutWarningOverlay": "Gamut Warning Overlay",
       "convert": "Convert Color Space"
+    },
+    "sky": {
+      "title": "Sky Replacement",
+      "resetTooltip": "Reset Sky Replacement",
+      "detectSky": "Detect Sky",
+      "maskDetected": "Sky mask generated",
+      "selectSkyImage": "Select Sky Image",
+      "imageFilterLabel": "Images",
+      "presetsTitle": "Sky Presets",
+      "feather": "Feather",
+      "colorMatchStrength": "Color Match Strength",
+      "horizonAdjust": "Horizon Adjust",
+      "apply": "Apply Sky Replacement",
+      "presets": {
+        "blueSky": "Blue Sky",
+        "sunset": "Sunset",
+        "dramaticClouds": "Dramatic Clouds",
+        "night": "Night",
+        "goldenHour": "Golden Hour",
+        "overcast": "Overcast",
+        "stormy": "Stormy",
+        "aurora": "Aurora"
+      }
     }
   },
   "export": {

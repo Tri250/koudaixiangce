@@ -89,6 +89,16 @@ pub async fn detect_faces_in_image(
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
+    // Ensure the face-landmark model is loaded before running detection.
+    // Model init failures are non-fatal: detect_faces_compat will return an
+    // empty result with modelLoaded=false in that case.
+    let _ = crate::portrait_detection::get_or_init_face_model(
+        &app_handle,
+        &state.portrait_state,
+        &state.portrait_init_lock,
+    )
+    .await;
+
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result = tokio::task::spawn_blocking(move || {
@@ -107,6 +117,13 @@ pub async fn detect_body_in_image(
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
+    let _ = crate::portrait_detection::get_or_init_body_model(
+        &app_handle,
+        &state.portrait_state,
+        &state.portrait_init_lock,
+    )
+    .await;
+
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result = tokio::task::spawn_blocking(move || {
@@ -305,11 +322,31 @@ pub async fn ai_match_colors(
     strength: f32,
     state: tauri::State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
+    // Decode the reference image up-front so it can be moved into the
+    // blocking task.
     let reference_image = decode_base64_image(&reference_image_base64)?;
 
+    // Retrieve the actual source (warped) image from the cache so the
+    // matcher can compare real source statistics against the reference
+    // instead of fabricating adjustments from the reference alone.
+    let source_image = crate::get_cached_full_warped_image(&state, &source_adjustments)?;
+
+    // The front-end slider exposes strength as 0–100; normalise to 0.0–1.0
+    // for the matcher. Values already within [0,1] are passed through.
+    let normalized_strength = if strength > 1.0 {
+        (strength / 100.0).clamp(0.0, 1.0)
+    } else {
+        strength.clamp(0.0, 1.0)
+    };
+
     let result = tokio::task::spawn_blocking(move || {
-        crate::ai_color_match::match_colors(&source_adjustments, &reference_image, &match_method, strength)
-            .map_err(|e| e.to_string())
+        crate::ai_color_match::match_colors(
+            source_image.as_ref(),
+            &reference_image,
+            &match_method,
+            normalized_strength,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;

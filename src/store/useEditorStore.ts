@@ -31,6 +31,12 @@ interface EditorState {
   interactivePatch: InteractivePatch | null;
   showOriginal: boolean;
 
+  // Destructive retouching result (portrait / liquify / sky / creative /
+  // HDR / monochrome / color-space ops). When set, the canvas displays this
+  // image in place of the regular preview so the user sees the applied
+  // effect. Cleared on image change or explicit reset.
+  retouchingResultUrl: string | null;
+
   // Analytics
   histogram: ChannelConfig | null;
   waveform: WaveformData | null;
@@ -111,6 +117,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   finalPreviewUrl: null,
   uncroppedAdjustedPreviewUrl: null,
   showOriginal: false,
+  retouchingResultUrl: null,
   histogram: null,
   waveform: null,
   isWaveformVisible: false,

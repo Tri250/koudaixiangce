@@ -12,6 +12,7 @@ import { useOsPlatform } from '../../../hooks/useOsPlatform';
 import { useTranslation } from 'react-i18next';
 import type { OverlayMode } from '../right/CropPanel';
 import CompositionOverlays from './overlays/CompositionOverlays';
+import { useEditorStore } from '../../../store/useEditorStore';
 
 interface CursorPreview {
   visible: boolean;
@@ -1145,7 +1146,7 @@ const ImageCanvas = memo(
     adjustments,
     brushSettings,
     crop,
-    finalPreviewUrl,
+    finalPreviewUrl: _finalPreviewUrl,
     handleCropComplete,
     imageRenderSize,
     interactivePatch,
@@ -1185,6 +1186,16 @@ const ImageCanvas = memo(
     transformState,
     hasRenderedFirstFrame,
   }: ImageCanvasProps) => {
+    // Destructive retouching result (portrait / liquify / sky / creative /
+    // HDR / monochrome / color-space). When present it overrides the regular
+    // preview so the user sees the applied effect on the canvas.
+    const retouchingResultUrl = useEditorStore((s) => s.retouchingResultUrl);
+    // Effective preview URL: retouching result takes precedence over the
+    // GPU-rendered adjustment preview.
+    const finalPreviewUrl = retouchingResultUrl
+      ? retouchingResultUrl
+      : _finalPreviewUrl;
+
     const [isCropViewVisible, setIsCropViewVisible] = useState(false);
     const cropImageRef = useRef<HTMLImageElement>(null);
     const [displayedMaskUrl, setDisplayedMaskUrl] = useState<string | null>(null);

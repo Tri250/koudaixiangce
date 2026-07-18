@@ -61,6 +61,7 @@ const TONING_TYPE_OPTIONS = [
 export default function MonochromePanel() {
     const { t } = useTranslation();
     const adjustments = useEditorStore((s) => s.adjustments);
+    const setEditor = useEditorStore((s) => s.setEditor);
 
     // State
     const [selectedPreset, setSelectedPreset] = useState<string>('neutral');
@@ -83,7 +84,7 @@ export default function MonochromePanel() {
         setIsProcessing(true);
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
-            await invoke('convert_to_monochrome', {
+            const result = await invoke<string>('convert_to_monochrome', {
                 jsAdjustments,
                 redWeight: redWeight / 100,
                 greenWeight: greenWeight / 100,
@@ -96,12 +97,15 @@ export default function MonochromePanel() {
                 highlightColor,
                 splitBalance,
             });
+            if (result) {
+                setEditor({ retouchingResultUrl: result });
+            }
         } catch (err) {
             console.error('convert_to_monochrome failed:', err);
         } finally {
             setIsProcessing(false);
         }
-    }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength, shadowColor, highlightColor, splitBalance, adjustments]);
+    }, [redWeight, greenWeight, blueWeight, contrast, selectedPreset, toningType, toningStrength, shadowColor, highlightColor, splitBalance, adjustments, setEditor]);
 
     const handlePresetSelect = useCallback((presetId: string) => {
         setSelectedPreset(presetId);
@@ -150,6 +154,7 @@ export default function MonochromePanel() {
                         setShadowColor('#8B4513');
                         setHighlightColor('#D4AF37');
                         setSplitBalance(50);
+                        setEditor({ retouchingResultUrl: null });
                     }}
                 >
                     <RotateCcw size={18} />

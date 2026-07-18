@@ -16,6 +16,7 @@ use crate::gpu_processing::GpuProcessor;
 use crate::image_processing::GpuContext;
 use crate::lens_correction::LensDatabase;
 use crate::lut_processing::Lut;
+use crate::portrait_detection::PortraitState;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -147,6 +148,8 @@ pub struct AppState {
     pub gpu_processor: Mutex<Option<GpuProcessorState>>,
     pub ai_state: Mutex<Option<AiState>>,
     pub ai_init_lock: TokioMutex<()>,
+    pub portrait_state: Mutex<Option<PortraitState>>,
+    pub portrait_init_lock: TokioMutex<()>,
     pub export_task_handle: Mutex<Option<JoinHandle<()>>>,
     pub exported_output_paths: Mutex<Vec<PathBuf>>,
     pub hdr_result: Arc<Mutex<Option<DynamicImage>>>,

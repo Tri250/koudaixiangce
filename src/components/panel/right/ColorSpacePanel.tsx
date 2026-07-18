@@ -50,6 +50,7 @@ export default function ColorSpacePanel() {
     const { t } = useTranslation();
     const adjustments = useEditorStore((s) => s.adjustments);
     const selectedImage = useEditorStore((s) => s.selectedImage);
+    const setEditor = useEditorStore((s) => s.setEditor);
 
     // State
     const [workingColorSpace, setWorkingColorSpace] = useState<string>('srgb');
@@ -137,15 +138,18 @@ export default function ColorSpacePanel() {
     const handleConvertColorSpace = useCallback(async () => {
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
-            await invoke('convert_color_space', {
+            const result = await invoke<string>('convert_color_space', {
                 jsAdjustments,
                 fromSpace: workingColorSpace,
                 toSpace: outputColorSpace,
             });
+            if (result) {
+                setEditor({ retouchingResultUrl: result });
+            }
         } catch (err) {
             console.error('convert_color_space failed:', err);
         }
-    }, [workingColorSpace, outputColorSpace, adjustments]);
+    }, [workingColorSpace, outputColorSpace, adjustments, setEditor]);
 
     // Soft proof
     const handleSoftProof = useCallback(async () => {
@@ -156,18 +160,22 @@ export default function ColorSpacePanel() {
                 targetColorSpace: outputColorSpace,
             });
             setOutOfGamutCount(result.outOfGamutPixels);
+            if (result.proofImageBase64) {
+                setEditor({ retouchingResultUrl: result.proofImageBase64 });
+            }
         } catch (err) {
             console.error('soft_proof failed:', err);
         }
-    }, [outputColorSpace, adjustments]);
+    }, [outputColorSpace, adjustments, setEditor]);
 
     useEffect(() => {
         if (softProofEnabled) {
             handleSoftProof();
         } else {
             setOutOfGamutCount(0);
+            setEditor({ retouchingResultUrl: null });
         }
-    }, [softProofEnabled, handleSoftProof]);
+    }, [softProofEnabled, handleSoftProof, setEditor]);
 
     const cameraProfileOptions = cameraProfiles.map((p) => ({
         label: p.name,
@@ -192,6 +200,7 @@ export default function ColorSpacePanel() {
                         setGamutWarningOverlay(false);
                         setOutOfGamutCount(0);
                         setSelectedProfileName('Adobe Standard');
+                        setEditor({ retouchingResultUrl: null });
                     }}
                 >
                     <RotateCcw size={18} />

@@ -74,7 +74,8 @@ export default function LiquifyPanel() {
   const handleResetMesh = useCallback(() => {
     resetLiquifyMesh();
     clearLiquifyStrokes();
-  }, [resetLiquifyMesh, clearLiquifyStrokes]);
+    setEditor({ retouchingResultUrl: null });
+  }, [resetLiquifyMesh, clearLiquifyStrokes, setEditor]);
 
   const handleUndoStroke = useCallback(() => {
     undoLiquifyStroke();

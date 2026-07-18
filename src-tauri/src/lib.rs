@@ -2287,6 +2287,8 @@ pub fn run() {
             gpu_processor: Mutex::new(None),
             ai_state: Mutex::new(None),
             ai_init_lock: TokioMutex::new(()),
+            portrait_state: Mutex::new(None),
+            portrait_init_lock: TokioMutex::new(()),
             export_task_handle: Mutex::new(None),
             exported_output_paths: Mutex::new(Vec::new()),
             hdr_result: Arc::new(Mutex::new(None)),

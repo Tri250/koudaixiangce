@@ -76,6 +76,7 @@ function hexToRgbTuple(hex: string): [number, number, number] {
 function ColorMatchSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [matchMethod, setMatchMethod] = useState<'histogram' | 'linear'>('histogram');
   const [strength, setStrength] = useState(50);
   const [referencePath, setReferencePath] = useState<string | null>(null);
@@ -99,13 +100,31 @@ function ColorMatchSection() {
     try {
       const sourceAdjustments = getTransformAdjustments(adjustments);
       const referenceImageBase64 = await readFileAsBase64DataUrl(referencePath);
-      await invoke('ai_match_colors', { sourceAdjustments, referenceImageBase64, matchMethod, strength });
+      const result = await invoke<{
+        temperature?: number;
+        tint?: number;
+        vibrance?: number;
+        saturation?: number;
+      }>('ai_match_colors', { sourceAdjustments, referenceImageBase64, matchMethod, strength });
+      // ai_match_colors returns color adjustment parameters; apply them to
+      // the editor adjustments so the GPU preview reflects the match.
+      if (result) {
+        setEditor({
+          adjustments: {
+            ...adjustments,
+            temperature: (adjustments.temperature ?? 0) + (result.temperature ?? 0) * 100,
+            tint: (adjustments.tint ?? 0) + (result.tint ?? 0) * 100,
+            vibrance: (adjustments.vibrance ?? 0) + (result.vibrance ?? 0) * 100,
+            saturation: (adjustments.saturation ?? 0) + (result.saturation ?? 0) * 100,
+          },
+        });
+      }
     } catch (err) {
       console.error('apply_color_match failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [referencePath, matchMethod, strength, adjustments]);
+  }, [referencePath, matchMethod, strength, adjustments, setEditor]);
 
   const methodOptions = [
     { label: t('editor.creative.colorMatch.methodHistogram'), value: 'histogram' as const },
@@ -150,6 +169,7 @@ function ColorMatchSection() {
 function FillLightSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [direction, setDirection] = useState(0);
   const [intensity, setIntensity] = useState(50);
   const [softness, setSoftness] = useState(30);
@@ -160,19 +180,22 @@ function FillLightSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      await invoke('apply_fill_light', {
+      const result = await invoke<string>('apply_fill_light', {
         jsAdjustments,
         direction,
         intensity,
         softness,
         colorTemp,
       });
+      if (result) {
+        setEditor({ retouchingResultUrl: result });
+      }
     } catch (err) {
       console.error('apply_fill_light failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [adjustments, direction, intensity, softness, colorTemp]);
+  }, [adjustments, direction, intensity, softness, colorTemp, setEditor]);
 
   return (
     <div className="space-y-2 pt-2">
@@ -225,6 +248,7 @@ function FillLightSection() {
 function SuperResolutionSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [scale, setScale] = useState<'2x' | '4x'>('2x');
   const [modelType, setModelType] = useState<'esrgan' | 'real_esrgan'>('real_esrgan');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -234,13 +258,16 @@ function SuperResolutionSection() {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
       const scaleFactor = scale === '2x' ? 2 : 4;
-      await invoke('apply_super_resolution', { jsAdjustments, scaleFactor, modelType });
+      const result = await invoke<string>('apply_super_resolution', { jsAdjustments, scaleFactor, modelType });
+      if (result) {
+        setEditor({ retouchingResultUrl: result });
+      }
     } catch (err) {
       console.error('apply_super_resolution failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [scale, modelType, adjustments]);
+  }, [scale, modelType, adjustments, setEditor]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -281,6 +308,7 @@ function SuperResolutionSection() {
 function IdPhotoSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [sizePreset, setSizePreset] = useState<'one_inch' | 'two_inch' | 'passport'>('one_inch');
   const [bgColor, setBgColor] = useState('#FFFFFF');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -290,13 +318,16 @@ function IdPhotoSection() {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
       const backgroundColor = hexToRgbTuple(bgColor);
-      await invoke('process_id_photo', { jsAdjustments, size: sizePreset, backgroundColor });
+      const result = await invoke<string>('process_id_photo', { jsAdjustments, size: sizePreset, backgroundColor });
+      if (result) {
+        setEditor({ retouchingResultUrl: result });
+      }
     } catch (err) {
       console.error('process_id_photo failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [sizePreset, bgColor, adjustments]);
+  }, [sizePreset, bgColor, adjustments, setEditor]);
 
   const presetOptions = [
     { label: t('editor.creative.idPhoto.oneInch'), value: 'one_inch' as const },
@@ -333,6 +364,7 @@ function IdPhotoSection() {
 function ClothingSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [wrinkleStrength, setWrinkleStrength] = useState(50);
   const [blemishToggle, setBlemishToggle] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -341,18 +373,21 @@ function ClothingSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      await invoke('retouch_clothing', {
+      const result = await invoke<string>('retouch_clothing', {
         jsAdjustments,
         bodyKeypoints: [],
         removeWrinkles: wrinkleStrength / 100,
         removeStains: blemishToggle,
       });
+      if (result) {
+        setEditor({ retouchingResultUrl: result });
+      }
     } catch (err) {
       console.error('retouch_clothing failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [wrinkleStrength, blemishToggle, adjustments]);
+  }, [wrinkleStrength, blemishToggle, adjustments, setEditor]);
 
   return (
     <div className="space-y-2 pt-2">
@@ -383,6 +418,7 @@ function ClothingSection() {
 function LensBlurSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [blurType, setBlurType] = useState<'gaussian' | 'bokeh' | 'tilt_shift'>('gaussian');
   const [blurAmount, setBlurAmount] = useState(30);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -397,19 +433,22 @@ function LensBlurSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      await invoke('apply_lens_blur', {
+      const result = await invoke<string>('apply_lens_blur', {
         jsAdjustments,
         blurType,
         focalPoint: [0.5, 0.5] as [number, number],
         blurAmount,
         depthMaskBase64: null,
       });
+      if (result) {
+        setEditor({ retouchingResultUrl: result });
+      }
     } catch (err) {
       console.error('apply_lens_blur failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [blurType, blurAmount, adjustments]);
+  }, [blurType, blurAmount, adjustments, setEditor]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -440,6 +479,7 @@ function LensBlurSection() {
 function OldPhotoRestoreSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [denoiseStrength, setDenoiseStrength] = useState(50);
   const [scratchRemoval, setScratchRemoval] = useState(true);
   const [colorize, setColorize] = useState(false);
@@ -449,13 +489,16 @@ function OldPhotoRestoreSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      await invoke('restore_old_photo', { jsAdjustments, denoiseStrength, scratchRemoval, colorize });
+      const result = await invoke<string>('restore_old_photo', { jsAdjustments, denoiseStrength, scratchRemoval, colorize });
+      if (result) {
+        setEditor({ retouchingResultUrl: result });
+      }
     } catch (err) {
       console.error('restore_old_photo failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [denoiseStrength, scratchRemoval, colorize, adjustments]);
+  }, [denoiseStrength, scratchRemoval, colorize, adjustments, setEditor]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -491,6 +534,7 @@ function OldPhotoRestoreSection() {
 function SeasonalEffectsSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [effectType, setEffectType] = useState<'sakura' | 'summer' | 'autumn' | 'winter'>('sakura');
   const [intensity, setIntensity] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -499,13 +543,16 @@ function SeasonalEffectsSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      await invoke('apply_seasonal_effect', { jsAdjustments, effectType, intensity });
+      const result = await invoke<string>('apply_seasonal_effect', { jsAdjustments, effectType, intensity });
+      if (result) {
+        setEditor({ retouchingResultUrl: result });
+      }
     } catch (err) {
       console.error('apply_seasonal_effect failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [effectType, intensity, adjustments]);
+  }, [effectType, intensity, adjustments, setEditor]);
 
   const effectOptions = [
     { id: 'sakura' as const, labelKey: 'editor.creative.seasonal.sakura', color: '#FFB7C5' },
@@ -555,19 +602,23 @@ function SeasonalEffectsSection() {
 function PeopleRemovalSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleApply = useCallback(async () => {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      await invoke('ai_remove_people', { jsAdjustments, personRegions: [] });
+      const result = await invoke<string>('ai_remove_people', { jsAdjustments, personRegions: [] });
+      if (result) {
+        setEditor({ retouchingResultUrl: result });
+      }
     } catch (err) {
       console.error('ai_remove_people failed:', err);
     } finally {
       setIsProcessing(false);
     }
-  }, [adjustments]);
+  }, [adjustments, setEditor]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -626,6 +677,7 @@ const SECTION_COMPONENTS: Record<SectionKey, React.FC> = {
 
 export default function CreativePanel() {
   const { t } = useTranslation();
+  const setEditor = useEditorStore((s) => s.setEditor);
   const [collapsibleState, setCollapsibleState] = useState<Record<SectionKey, boolean>>(
     () => Object.fromEntries(SECTION_KEYS.map((k) => [k, false])) as Record<SectionKey, boolean>,
   );
@@ -641,6 +693,7 @@ export default function CreativePanel() {
         <button
           className="p-2 rounded-full hover:bg-surface transition-colors"
           data-tooltip={t('editor.creative.resetTooltip')}
+          onClick={() => setEditor({ retouchingResultUrl: null })}
         >
           <RotateCcw size={18} />
         </button>

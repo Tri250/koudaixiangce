@@ -885,68 +885,109 @@ fn deduplicate_blemishes(
 // ============================================================================
 
 /// Face detection called from the Tauri command layer.
-/// Uses the app_handle to access model state, with a fallback if
-/// models aren't loaded yet.
+/// Uses the app_handle to access the portrait model state. The caller
+/// (`detect_faces_in_image` Tauri command) is responsible for ensuring the
+/// face-landmark ONNX model has been loaded via `get_or_init_face_model`
+/// before invoking this function. If the model is not yet loaded (e.g. the
+/// async init failed), this returns an empty result with `modelLoaded: false`
+/// so the front-end can degrade gracefully instead of receiving fake data.
 pub fn detect_faces_compat(
     image: &DynamicImage,
     app_handle: &tauri::AppHandle,
 ) -> Result<serde_json::Value> {
     let state = app_handle.state::<crate::app_state::AppState>();
-    let ai_state_lock = state.ai_state.lock().unwrap();
-
-    // Try to use existing model if loaded in ai_state
-    // Since portrait models are stored separately, we fall back to a
-    // lightweight detection result when the model isn't available.
-    drop(ai_state_lock);
-
-    // Return a basic face detection result.
-    // When the ONNX model is properly initialized through get_or_init_face_model,
-    // the full 468-landmark detection will be used.
     let (width, height) = image.dimensions();
 
-    // Simple heuristic: assume a face exists in the center-upper region
-    // This will be replaced by real model inference when the model is loaded
-    let face_region = serde_json::json!({
-        "faces": [{
-            "landmarks": [],
-            "bbox": [
-                (width as f32 * 0.3),
-                (height as f32 * 0.1),
-                (width as f32 * 0.7),
-                (height as f32 * 0.5)
-            ],
-            "confidence": 0.5
-        }],
-        "modelLoaded": false,
+    let models_arc = {
+        let portrait_state_lock = state.portrait_state.lock().unwrap();
+        portrait_state_lock
+            .as_ref()
+            .and_then(|s| s.models.clone())
+    };
+
+    let Some(models) = models_arc else {
+        // Model not loaded – return an empty (but honest) result.
+        return Ok(serde_json::json!({
+            "faces": [],
+            "modelLoaded": false,
+            "width": width,
+            "height": height
+        }));
+    };
+
+    let face_session = Arc::clone(&models.face_landmark);
+    let detected = detect_faces(image, &face_session)?;
+
+    let faces_json: Vec<serde_json::Value> = detected
+        .into_iter()
+        .map(|face| {
+            serde_json::json!({
+                "landmarks": face.landmarks.iter().map(|lm| {
+                    serde_json::json!({ "x": lm.x, "y": lm.y, "z": lm.z })
+                }).collect::<Vec<_>>(),
+                "bbox": [face.bbox.0, face.bbox.1, face.bbox.2, face.bbox.3],
+                "confidence": face.confidence
+            })
+        })
+        .collect();
+
+    Ok(serde_json::json!({
+        "faces": faces_json,
+        "modelLoaded": true,
         "width": width,
         "height": height
-    });
-
-    Ok(face_region)
+    }))
 }
 
 /// Body pose detection called from the Tauri command layer.
+/// Like `detect_faces_compat`, the caller must ensure the body-pose model is
+/// loaded via `get_or_init_body_model` before invoking this function.
 pub fn detect_body_compat(
     image: &DynamicImage,
     app_handle: &tauri::AppHandle,
 ) -> Result<serde_json::Value> {
     let state = app_handle.state::<crate::app_state::AppState>();
-    let ai_state_lock = state.ai_state.lock().unwrap();
-    drop(ai_state_lock);
-
     let (width, height) = image.dimensions();
 
-    // Return a basic body detection result.
-    // This will be replaced by real model inference when the model is loaded.
-    let body_result = serde_json::json!({
-        "poses": [{
-            "keypoints": [],
-            "confidence": 0.5
-        }],
-        "modelLoaded": false,
+    let models_arc = {
+        let portrait_state_lock = state.portrait_state.lock().unwrap();
+        portrait_state_lock
+            .as_ref()
+            .and_then(|s| s.models.clone())
+    };
+
+    let Some(models) = models_arc else {
+        return Ok(serde_json::json!({
+            "poses": [],
+            "modelLoaded": false,
+            "width": width,
+            "height": height
+        }));
+    };
+
+    let body_session = Arc::clone(&models.body_pose);
+    let detected = detect_body_pose(image, &body_session)?;
+
+    let poses_json: Vec<serde_json::Value> = detected
+        .into_iter()
+        .map(|pose| {
+            serde_json::json!({
+                "keypoints": pose.keypoints.iter().map(|kp| {
+                    serde_json::json!({
+                        "x": kp.x, "y": kp.y, "z": kp.z,
+                        "confidence": kp.confidence,
+                        "name": kp.name
+                    })
+                }).collect::<Vec<_>>(),
+                "confidence": pose.confidence
+            })
+        })
+        .collect();
+
+    Ok(serde_json::json!({
+        "poses": poses_json,
+        "modelLoaded": true,
         "width": width,
         "height": height
-    });
-
-    Ok(body_result)
+    }))
 }
