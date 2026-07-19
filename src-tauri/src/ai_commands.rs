@@ -93,7 +93,7 @@ pub fn generate_sky_mask_internal(
     let state = app_handle.state::<crate::app_state::AppState>();
 
     // Try to get AI models synchronously (they may already be loaded)
-    let ai_state_lock = state.ai_state.lock().unwrap();
+    let ai_state_lock = state.ai_state.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(ai_state) = ai_state_lock.as_ref() {
         if let Some(models) = &ai_state.models {
             return crate::ai_processing::run_sky_seg_model(image, &models.sky_seg);
@@ -141,7 +141,7 @@ pub async fn generate_ai_depth_mask(
     };
 
     let cached_depth = {
-        let mut ai_state_lock = state.ai_state.lock().unwrap();
+        let mut ai_state_lock = state.ai_state.lock().unwrap_or_else(|e| e.into_inner());
         let ai_state = ai_state_lock.as_mut().unwrap();
 
         if let Some(cached) = &ai_state.depth_map {
@@ -230,7 +230,7 @@ pub async fn generate_ai_subject_mask(
     };
 
     let embeddings = {
-        let mut ai_state_lock = state.ai_state.lock().unwrap();
+        let mut ai_state_lock = state.ai_state.lock().unwrap_or_else(|e| e.into_inner());
         let ai_state = ai_state_lock.as_mut().unwrap();
 
         if let Some(cached_embeddings) = &ai_state.embeddings {
@@ -375,7 +375,7 @@ pub async fn precompute_ai_subject_mask(
         hasher.finalize().to_hex().to_string()
     };
 
-    let mut ai_state_lock = state.ai_state.lock().unwrap();
+    let mut ai_state_lock = state.ai_state.lock().unwrap_or_else(|e| e.into_inner());
     let ai_state = ai_state_lock.as_mut().unwrap();
 
     if let Some(cached_embeddings) = &ai_state.embeddings

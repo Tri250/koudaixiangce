@@ -794,7 +794,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
         const midX = (pts[0].x + pts[1].x) / 2;
         const midY = (pts[0].y + pts[1].y) / 2;
 
-        const distDelta = dist / lastPinch.current.dist;
+        const distDelta = lastPinch.current.dist > 0 ? dist / lastPinch.current.dist : 1;
         let newScale = transformStateRef.current.scale * distDelta;
         newScale = Math.max(minScaleRef.current, Math.min(maxScaleRef.current, newScale));
 
@@ -958,7 +958,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
       transitionAnchorRef.current = null;
     }
 
-    if (transitionAnchorRef.current && transitionAnchorRef.current.active) {
+    if (transitionAnchorRef.current && transitionAnchorRef.current.active && imageRenderSize.width > 0) {
       const anchor = transitionAnchorRef.current;
 
       const scaleNew = anchor.physicalImageWidth / imageRenderSize.width;

@@ -517,7 +517,7 @@ pub async fn batch_sync_preset(
 
         // Resolve lens params for the new adjustments
         {
-            let lens_db_guard = state.lens_db.lock().unwrap();
+            let lens_db_guard = state.lens_db.lock().unwrap_or_else(|e| e.into_inner());
             crate::file_management::resolve_lens_params_in_adjustments(
                 &mut final_adjustments,
                 &metadata.exif,

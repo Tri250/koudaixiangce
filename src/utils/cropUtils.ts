@@ -28,7 +28,10 @@ export function calculateCenteredCrop(
   const sin = Math.sin(rad);
   const cos = Math.cos(rad);
 
-  const h_c = Math.min(H / (aspectRatio * sin + cos), W / (aspectRatio * cos + sin));
+  const denom1 = aspectRatio * sin + cos;
+  const denom2 = aspectRatio * cos + sin;
+  if (Math.abs(denom1) < 1e-10 || Math.abs(denom2) < 1e-10) return null;
+  const h_c = Math.min(H / denom1, W / denom2);
   const w_c = aspectRatio * h_c;
 
   return {

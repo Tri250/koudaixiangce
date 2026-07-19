@@ -99,6 +99,9 @@ const FilmstripThumbnail = memo(
     useEffect(() => {
       if (thumbnailAspectRatio === ThumbnailAspectRatio.Contain && thumbData) {
         const img = new Image();
+        img.onerror = () => {
+          console.warn('Failed to load thumbnail for aspect ratio:', thumbData);
+        };
         img.onload = () => {
           const ratio = img.naturalWidth / img.naturalHeight;
           setRatio(index, ratio);
