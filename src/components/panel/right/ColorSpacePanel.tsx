@@ -107,8 +107,8 @@ export default function ColorSpacePanel() {
                 detectedModel: string;
                 suggestedProfile: CameraProfileInfo;
             }>('get_camera_profile_for_image', {
-                exifMake,
-                exifModel,
+                exif_make: exifMake,
+                exif_model: exifModel,
             });
             setDetectedCamera({ make: result.detectedMake, model: result.detectedModel });
             if (result.suggestedProfile) {

@@ -176,11 +176,11 @@ export default function SkyPanel() {
         if (!skyImageBase64) throw new Error('Failed to generate sky gradient');
       }
       const result = await invoke<{ image: string }>('replace_sky', {
-        jsAdjustments: transformAdjustments,
-        skyImageBase64,
+        js_adjustments: transformAdjustments,
+        sky_image_base64: skyImageBase64,
         feather,
-        colorMatchStrength,
-        horizonAdjust,
+        color_match_strength: colorMatchStrength,
+        horizon_adjust: horizonAdjust,
       });
       if (result?.image) {
         setEditor({ retouchingResultUrl: result.image });

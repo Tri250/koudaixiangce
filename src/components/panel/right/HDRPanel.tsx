@@ -60,6 +60,7 @@ const COLOR_SPACE_OPTIONS = [
 export default function HDRPanel() {
     const { t } = useTranslation();
     const adjustments = useEditorStore((s) => s.adjustments);
+    const selectedImage = useEditorStore((s) => s.selectedImage);
     const setEditor = useEditorStore((s) => s.setEditor);
 
     // State
@@ -168,7 +169,7 @@ export default function HDRPanel() {
             await invoke('export_ultra_hdr_jpeg', {
                 js_adjustments: jsAdjustments,
                 output_path: outputPath,
-                sdr_image_base64: '',
+                sdr_image_base64: selectedImage?.original_base64 || '',
                 peak_brightness_nits: peakBrightness,
                 quality: 90,
             });
@@ -179,7 +180,7 @@ export default function HDRPanel() {
         } finally {
             setIsExportingJpeg(false);
         }
-    }, [peakBrightness, adjustments, t]);
+    }, [peakBrightness, adjustments, selectedImage, t]);
 
     const handleExportHDRTIFF = useCallback(async () => {
         setIsExportingTiff(true);
@@ -207,13 +208,18 @@ export default function HDRPanel() {
         } finally {
             setIsExportingTiff(false);
         }
-    }, [peakBrightness, tiffBitDepth, adjustments, t]);
+    }, [peakBrightness, adjustments, selectedImage, t]);
 
     const handleGenerateGainMap = useCallback(async () => {
         setIsGeneratingGainMap(true);
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
-            await invoke(Invokes.GenerateGainMap, { js_adjustments: jsAdjustments });
+            const sdrImageBase64 = selectedImage?.original_base64 || '';
+            await invoke(Invokes.GenerateGainMap, {
+                js_adjustments: jsAdjustments,
+                sdr_image_base64: sdrImageBase64,
+                peak_brightness_nits: peakBrightness,
+            });
             toast.success(t('editor.hdr.generateGainMap', 'Generate Gain Map'));
         } catch (err) {
             console.error('generate_gain_map failed:', err);
