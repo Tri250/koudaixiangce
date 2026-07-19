@@ -336,7 +336,8 @@ export default function MetadataPanel() {
   const isVirtualCopy = fullPath.includes('?vc=');
   const basePath = fullPath.split('?vc=')[0];
   const fileName = basePath.split(/[\\/]/).pop() || '';
-  const fileExtension = fileName.split('.').pop()?.toUpperCase() || 'FILE';
+  const extMatch = fileName.match(/\.([a-zA-Z0-9]+)$/);
+  const fileExtension = extMatch ? extMatch[1].toUpperCase() : 'FILE';
   const megapixels =
     selectedImage?.width && selectedImage?.height
       ? ((selectedImage.width * selectedImage.height) / 1000000).toFixed(1)

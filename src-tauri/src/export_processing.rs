@@ -729,12 +729,12 @@ pub async fn export_images(
 ) -> Result<(), String> {
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
-    if state.export_task_handle.lock().unwrap().is_some() {
+    if state.export_task_handle.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
         return Err("An export is already in progress.".to_string());
     }
 
     // Clear the list of exported output paths from any previous export
-    state.exported_output_paths.lock().unwrap().clear();
+    state.exported_output_paths.lock().unwrap_or_else(|e| e.into_inner()).clear();
 
     let context = get_or_init_gpu_context(&state, &app_handle)?;
     let context = Arc::new(context);
@@ -1076,19 +1076,19 @@ pub async fn export_images(
             .unwrap() = None;
     });
 
-    *state.export_task_handle.lock().unwrap() = Some(task);
+    *state.export_task_handle.lock().unwrap_or_else(|e| e.into_inner()) = Some(task);
     Ok(())
 }
 
 #[tauri::command]
 pub fn cancel_export(state: tauri::State<AppState>) -> Result<(), String> {
-    match state.export_task_handle.lock().unwrap().take() {
+    match state.export_task_handle.lock().unwrap_or_else(|e| e.into_inner()).take() {
         Some(handle) => {
             handle.abort();
             log::info!("Export task cancellation requested.");
 
             // Clean up partially exported files
-            let partial_paths = state.exported_output_paths.lock().unwrap().drain(..).collect::<Vec<_>>();
+            let partial_paths = state.exported_output_paths.lock().unwrap_or_else(|e| e.into_inner()).drain(..).collect::<Vec<_>>();
             for path in &partial_paths {
                 if path.exists() {
                     if let Err(e) = fs::remove_file(path) {
@@ -1146,7 +1146,7 @@ pub async fn estimate_export_sizes(
         hydrate_adjustments(&state, &mut adjustments_clone);
 
         let new_transform_hash = calculate_transform_hash(&adjustments_clone);
-        let cached_preview_lock = state.cached_preview.lock().unwrap();
+        let cached_preview_lock = state.cached_preview.lock().unwrap_or_else(|e| e.into_inner());
         let preview_dim = settings.editor_preview_resolution.unwrap_or(1920);
 
         let (preview_image, scale, unscaled_crop_offset) = if let Some(cached) =

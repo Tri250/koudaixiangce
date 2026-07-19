@@ -159,7 +159,9 @@ export default function LUTControl({
         const allowedExtensions = new Set(['cube', '3dl']);
         validPaths = sourcePaths.filter((_, index) => {
           const resolvedName = resolvedNames[index];
-          const ext = resolvedName.split('.').pop()?.toLowerCase() || '';
+          const lutFileName = resolvedName.split(/[\\/]/).pop() || resolvedName;
+          const extMatch = lutFileName.match(/\.([a-zA-Z0-9]+)$/);
+          const ext = extMatch ? extMatch[1].toLowerCase() : '';
           if (!allowedExtensions.has(ext)) {
             console.warn(`Skipping unsupported file: ${resolvedName}`);
             return false;

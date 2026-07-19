@@ -124,13 +124,13 @@ fn enqueue_metadata(
     let state = app_handle.state::<crate::AppState>();
     let manager = &state.metadata_manager;
 
-    let mut pending = manager.pending.lock().unwrap();
+    let mut pending = manager.pending.lock().unwrap_or_else(|e| e.into_inner());
     if !pending.insert(sidecar_path.clone()) {
         return;
     }
     drop(pending);
 
-    manager.queue.lock().unwrap().push_back(PendingMetadata {
+    manager.queue.lock().unwrap_or_else(|e| e.into_inner()).push_back(PendingMetadata {
         virtual_path,
         image_path,
         sidecar_path,
@@ -154,7 +154,7 @@ pub fn start_metadata_workers(app_handle: tauri::AppHandle) {
         std::thread::spawn(move || {
             loop {
                 let item = {
-                    let mut queue = manager_clone.queue.lock().unwrap();
+                    let mut queue = manager_clone.queue.lock().unwrap_or_else(|e| e.into_inner());
                     while queue.is_empty() {
                         queue = manager_clone.cvar.wait(queue).unwrap();
                     }
@@ -1241,7 +1241,7 @@ pub fn generate_thumbnail_data(
         let crop_data: Option<Crop> = serde_json::from_value(meta.adjustments["crop"].clone()).ok();
 
         let cached_base: Option<(DynamicImage, f32)> = {
-            let cache = state.thumbnail_geometry_cache.lock().unwrap();
+            let cache = state.thumbnail_geometry_cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some((cached_hash, img, scale)) = cache.get(path_str) {
                 let mut sufficient_resolution = true;
                 if let Some(c) = &crop_data
@@ -1357,7 +1357,7 @@ pub fn generate_thumbnail_data(
 
             let total_scale = gpu_scale * raw_scale_factor;
 
-            let mut cache = state.thumbnail_geometry_cache.lock().unwrap();
+            let mut cache = state.thumbnail_geometry_cache.lock().unwrap_or_else(|e| e.into_inner());
             if cache.len() > 30 {
                 cache.clear();
             }
@@ -1422,7 +1422,7 @@ pub fn generate_thumbnail_data(
         let gpu_adjustments = get_all_adjustments_from_json(&meta.adjustments, is_raw, tm_override);
         let lut_path = meta.adjustments["lutPath"].as_str();
         let lut = lut_path.and_then(|p| {
-            let mut cache = state.lut_cache.lock().unwrap();
+            let mut cache = state.lut_cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(cached_lut) = cache.get(p) {
                 return Some(cached_lut.clone());
             }
@@ -1593,13 +1593,13 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
         std::thread::spawn(move || {
             loop {
                 let path_to_process: String = {
-                    let mut queue = manager_clone.queue.lock().unwrap();
+                    let mut queue = manager_clone.queue.lock().unwrap_or_else(|e| e.into_inner());
                     while queue.is_empty() {
                         queue = manager_clone.cvar.wait(queue).unwrap();
                     }
                     let path = queue.pop_back().unwrap();
 
-                    let mut processing = manager_clone.processing_now.lock().unwrap();
+                    let mut processing = manager_clone.processing_now.lock().unwrap_or_else(|e| e.into_inner());
                     if processing.contains(&path) {
                         let state = app_clone.state::<crate::AppState>();
                         increment_thumbnail_progress(&state, &app_clone);
@@ -1652,11 +1652,11 @@ pub fn update_thumbnail_queue(
 ) -> Result<(), String> {
     let state = app_handle.state::<crate::AppState>();
 
-    let mut queue = state.thumbnail_manager.queue.lock().unwrap();
+    let mut queue = state.thumbnail_manager.queue.lock().unwrap_or_else(|e| e.into_inner());
 
     if paths.is_empty() {
         queue.clear();
-        let mut tracker = state.thumbnail_progress.lock().unwrap();
+        let mut tracker = state.thumbnail_progress.lock().unwrap_or_else(|e| e.into_inner());
         tracker.total = 0;
         tracker.completed = 0;
         drop(tracker);
@@ -1690,7 +1690,7 @@ pub fn update_thumbnail_queue(
     let queue_len = queue.len();
     drop(queue);
 
-    let mut tracker = state.thumbnail_progress.lock().unwrap();
+    let mut tracker = state.thumbnail_progress.lock().unwrap_or_else(|e| e.into_inner());
     tracker.total = tracker.completed + queue_len;
 
     let current = tracker.completed;
@@ -1707,7 +1707,7 @@ pub fn update_thumbnail_queue(
 }
 
 pub fn add_to_thumbnail_queue(state: &AppState, count: usize, app_handle: &AppHandle) {
-    let mut tracker = state.thumbnail_progress.lock().unwrap();
+    let mut tracker = state.thumbnail_progress.lock().unwrap_or_else(|e| e.into_inner());
     tracker.total += count;
     let current = tracker.completed;
     let total = tracker.total;
@@ -1720,7 +1720,7 @@ pub fn add_to_thumbnail_queue(state: &AppState, count: usize, app_handle: &AppHa
 }
 
 pub fn increment_thumbnail_progress(state: &AppState, app_handle: &AppHandle) {
-    let mut tracker = state.thumbnail_progress.lock().unwrap();
+    let mut tracker = state.thumbnail_progress.lock().unwrap_or_else(|e| e.into_inner());
     tracker.completed += 1;
     let current = tracker.completed;
     let total = tracker.total;
@@ -2217,7 +2217,7 @@ pub fn save_metadata_and_update_thumbnail(
 
     let mut final_adjustments = adjustments;
     {
-        let lens_db_guard = state.lens_db.lock().unwrap();
+        let lens_db_guard = state.lens_db.lock().unwrap_or_else(|e| e.into_inner());
         resolve_lens_params_in_adjustments(
             &mut final_adjustments,
             &metadata.exif,
@@ -2237,7 +2237,7 @@ pub fn save_metadata_and_update_thumbnail(
         sync_metadata_to_xmp(&source_path, &metadata, create_if_missing);
     }
 
-    let loaded_image_lock = state.original_image.lock().unwrap();
+    let loaded_image_lock = state.original_image.lock().unwrap_or_else(|e| e.into_inner());
     let preloaded_image_option = if let Some(loaded_image) = loaded_image_lock.as_ref() {
         if loaded_image.path == path {
             Some(loaded_image.image.clone())

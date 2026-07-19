@@ -24,8 +24,9 @@ export default function RenameFileModal({ filesToRename, isOpen, onClose, onSave
   useEffect(() => {
     if (isOpen) {
       if (isSingleFile && filesToRename[0]) {
-        const fileName = filesToRename[0].split(/[\\/]/).pop();
-        const nameWithoutExt = fileName?.substring(0, fileName.lastIndexOf('.'));
+        const fileName = filesToRename[0].split(/[\\/]/).pop() || '';
+        const lastDotIndex = fileName.lastIndexOf('.');
+        const nameWithoutExt = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
         if (nameWithoutExt) {
           setNameTemplate(nameWithoutExt);
         }

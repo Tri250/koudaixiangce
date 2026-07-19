@@ -130,7 +130,7 @@ pub async fn get_or_init_super_resolution_model(
 
     // Store in AI state
     {
-        let mut state_lock = ai_state_mutex.lock().unwrap();
+        let mut state_lock = ai_state_mutex.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(state) = state_lock.as_mut() {
             state.super_resolution_model = Some(sr_model.clone());
         } else {
@@ -321,7 +321,7 @@ fn process_full_image(
 
     // Run inference
     let output = {
-        let mut sess = session.lock().unwrap();
+        let mut sess = session.lock().unwrap_or_else(|e| e.into_inner());
         let outputs = sess.run(ort::inputs![t_input])?;
         outputs[0].try_extract_array::<f32>()?.to_owned()
     };
@@ -364,7 +364,7 @@ fn process_tile(
     let t_input = Tensor::from_array(input_values)?;
 
     let output = {
-        let mut sess = session.lock().unwrap();
+        let mut sess = session.lock().unwrap_or_else(|e| e.into_inner());
         let outputs = sess.run(ort::inputs![t_input])?;
         outputs[0].try_extract_array::<f32>()?.to_owned()
     };
@@ -575,7 +575,7 @@ pub fn upscale(
 
     // Try to use ONNX model if available
     let state = app_handle.state::<crate::app_state::AppState>();
-    let ai_state_lock = state.ai_state.lock().unwrap();
+    let ai_state_lock = state.ai_state.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(sr_model) = ai_state_lock
         .as_ref()
         .and_then(|s| s.super_resolution_model.clone())

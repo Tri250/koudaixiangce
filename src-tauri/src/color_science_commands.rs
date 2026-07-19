@@ -748,7 +748,7 @@ pub async fn set_camera_color_profile(
     state: tauri::State<'_, crate::app_state::AppState>,
 ) -> Result<(), String> {
     // Store the selected camera profile name in app state for use during processing
-    let mut current_profile = state.camera_color_profile.lock().unwrap();
+    let mut current_profile = state.camera_color_profile.lock().unwrap_or_else(|e| e.into_inner());
     *current_profile = Some(profile_name);
     Ok(())
 }

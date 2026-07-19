@@ -280,7 +280,7 @@ pub async fn get_or_init_face_model(
     crate::register_exit_handler();
 
     // Store in portrait state (create entry if needed).
-    let mut state_lock = portrait_state_mutex.lock().unwrap();
+    let mut state_lock = portrait_state_mutex.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(state) = state_lock.as_mut() {
         if let Some(models) = state.models.as_mut() {
             // Body pose model may already be loaded – keep it.
@@ -368,7 +368,7 @@ pub async fn get_or_init_body_model(
 
     crate::register_exit_handler();
 
-    let mut state_lock = portrait_state_mutex.lock().unwrap();
+    let mut state_lock = portrait_state_mutex.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(state) = state_lock.as_mut() {
         if let Some(models) = state.models.as_mut() {
             let face_landmark = Arc::clone(&models.face_landmark);
@@ -436,7 +436,7 @@ pub fn detect_faces(
 
     // Run inference.
     let (confidence_arr, landmark_arr) = {
-        let mut sess = face_session.lock().unwrap();
+        let mut sess = face_session.lock().unwrap_or_else(|e| e.into_inner());
         let outputs = sess.run(ort::inputs![t_input])?;
 
         // The model is expected to output:
@@ -545,7 +545,7 @@ pub fn detect_body_pose(
     let t_input = Tensor::from_array(input_dyn.as_standard_layout().into_owned())?;
 
     let (kp_arr, confidence_arr) = {
-        let mut sess = body_session.lock().unwrap();
+        let mut sess = body_session.lock().unwrap_or_else(|e| e.into_inner());
         let outputs = sess.run(ort::inputs![t_input])?;
 
         // Expected outputs:
@@ -899,7 +899,7 @@ pub fn detect_faces_compat(
     let (width, height) = image.dimensions();
 
     let models_arc = {
-        let portrait_state_lock = state.portrait_state.lock().unwrap();
+        let portrait_state_lock = state.portrait_state.lock().unwrap_or_else(|e| e.into_inner());
         portrait_state_lock
             .as_ref()
             .and_then(|s| s.models.clone())
@@ -950,7 +950,7 @@ pub fn detect_body_compat(
     let (width, height) = image.dimensions();
 
     let models_arc = {
-        let portrait_state_lock = state.portrait_state.lock().unwrap();
+        let portrait_state_lock = state.portrait_state.lock().unwrap_or_else(|e| e.into_inner());
         portrait_state_lock
             .as_ref()
             .and_then(|s| s.models.clone())

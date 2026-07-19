@@ -104,7 +104,9 @@ export function computeSortedLibrary(libraryState: any, settingsState: any): Ima
       supportedTypes
     ) {
       const pathWithoutVC = image.path.split('?vc=')[0];
-      const extension = pathWithoutVC.split('.').pop()?.toLowerCase() || '';
+      const filename = pathWithoutVC.split(/[\\/]/).pop() || '';
+      const extMatch = filename.match(/\.([a-zA-Z0-9]+)$/);
+      const extension = extMatch ? extMatch[1].toLowerCase() : '';
       const isRaw = supportedTypes.raw?.includes(extension);
 
       if (filterCriteria.rawStatus === RawStatus.RawOnly && !isRaw) return false;

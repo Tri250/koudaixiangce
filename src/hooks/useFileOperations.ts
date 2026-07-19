@@ -383,7 +383,9 @@ export function useFileOperations(
               return true;
             }
 
-            const ext = resolvedName.split('.').pop()?.toLowerCase() || 'unknown';
+            const fileName = resolvedName.split(/[\\/]/).pop() || resolvedName;
+            const extMatch = fileName.match(/\.([a-zA-Z0-9]+)$/);
+            const ext = extMatch ? extMatch[1].toLowerCase() : 'unknown';
             if (ext === 'unknown') {
               return true;
             }

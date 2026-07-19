@@ -1675,6 +1675,10 @@ const ImageCanvas = memo(
         img.crossOrigin = 'Anonymous';
         img.src = finalPreviewUrl;
 
+        img.onerror = () => {
+          console.warn('Failed to load image for white balance picker');
+        };
+
         img.onload = () => {
           const radius = 5;
           const side = radius * 2 + 1;
@@ -2506,6 +2510,10 @@ const ImageCanvas = memo(
       const img = new Image();
       img.src = originalSrc;
 
+      img.onerror = () => {
+        setOriginalLoaded(false);
+      };
+
       if (img.complete) {
         setOriginalLoaded(true);
       } else {
@@ -2515,6 +2523,7 @@ const ImageCanvas = memo(
 
       return () => {
         img.onload = null;
+        img.onerror = null;
       };
     }, [originalSrc]);
 
