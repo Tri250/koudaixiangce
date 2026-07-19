@@ -308,6 +308,10 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
 
         const imageState = imageStates[image.path] || { offsetX: 0, offsetY: 0, scale: 1 };
         const currentScale = imageState.scale || 1;
+        if (img.width <= 0 || img.height <= 0 || cellFinalHeight <= 0) {
+          ctx.restore();
+          return;
+        }
         const imageRatio = img.width / img.height;
         const cellRatio = cellFinalWidth / cellFinalHeight;
 

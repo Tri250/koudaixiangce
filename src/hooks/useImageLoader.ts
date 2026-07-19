@@ -61,7 +61,7 @@ export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
 
           if (appSettings?.editorPreviewResolution) {
             const maxSize = appSettings.editorPreviewResolution;
-            const aspectRatio = width / height;
+            const aspectRatio = height > 0 ? width / height : 1;
 
             if (width > height) {
               const pWidth = Math.min(width, maxSize);
@@ -97,7 +97,7 @@ export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
           setEditor((state) => {
             if (!state.adjustments.aspectRatio && !state.adjustments.crop) {
               return {
-                adjustments: { ...state.adjustments, aspectRatio: loadImageResult.width / loadImageResult.height },
+                adjustments: { ...state.adjustments, aspectRatio: loadImageResult.height > 0 ? loadImageResult.width / loadImageResult.height : 1 },
               };
             }
             return state;

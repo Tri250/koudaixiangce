@@ -142,6 +142,16 @@ pub async fn apply_liquify(
     strokes: Vec<LiquifyStrokeCommand>,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
+    // Validate stroke parameters to prevent NaN/Infinity/negative values reaching image processing
+    for s in &strokes {
+        if !s.radius.is_finite() || s.radius < 0.0 {
+            return Err(format!("Invalid liquify radius: {}", s.radius));
+        }
+        if !s.pressure.is_finite() || s.pressure < 0.0 || s.pressure > 1.0 {
+            return Err(format!("Invalid liquify pressure: {}", s.pressure));
+        }
+    }
+
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
@@ -383,6 +393,13 @@ pub async fn apply_super_resolution(
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
+    if scale_factor == 0 {
+        return Err("scale_factor must be greater than 0".to_string());
+    }
+    if scale_factor > 8 {
+        return Err(format!("scale_factor {} exceeds maximum allowed (8)", scale_factor));
+    }
+
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {

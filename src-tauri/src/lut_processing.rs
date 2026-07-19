@@ -208,6 +208,9 @@ fn parse_cube(reader: impl BufRead) -> anyhow::Result<Lut> {
                             e
                         )
                     })?;
+                    if !r.is_finite() {
+                        return Err(anyhow!("Non-finite R value on line {}: {}", line_num, line));
+                    }
                     let g: f32 = parts[1].parse().map_err(|e| {
                         anyhow!(
                             "Failed to parse G value on line {}: '{}'. Error: {}",
@@ -216,6 +219,9 @@ fn parse_cube(reader: impl BufRead) -> anyhow::Result<Lut> {
                             e
                         )
                     })?;
+                    if !g.is_finite() {
+                        return Err(anyhow!("Non-finite G value on line {}: {}", line_num, line));
+                    }
                     let b: f32 = parts[2].parse().map_err(|e| {
                         anyhow!(
                             "Failed to parse B value on line {}: '{}'. Error: {}",

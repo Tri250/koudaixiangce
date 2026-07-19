@@ -90,10 +90,11 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
     const container = containerRef.current;
     const containerW = container.clientWidth;
     const containerH = container.clientHeight;
+    if (imageWidth <= 0 || imageHeight <= 0 || containerW <= 0 || containerH <= 0) return;
     const scaleX = containerW / imageWidth;
     const scaleY = containerH / imageHeight;
     const newScale = Math.min(scaleX, scaleY, 1);
-    setScale(newScale);
+    setScale(newScale > 0 && isFinite(newScale) ? newScale : 1);
     setOffset({
       x: (containerW - imageWidth * newScale) / 2,
       y: (containerH - imageHeight * newScale) / 2,

@@ -487,7 +487,7 @@ fn encode_image_to_bytes(
                 }
             } else {
                 let distance = (100.0 - jpeg_quality as f32) / 10.0;
-                let distance = distance.max(0.01);
+                let distance = distance.max(0.01).min(15.0);
 
                 if has_alpha {
                     let rgba = image.to_rgba8();

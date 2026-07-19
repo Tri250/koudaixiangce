@@ -324,7 +324,7 @@ export default function CropPanel() {
       if (preferPortrait) {
         newAspectRatio = targetRatio > 1 ? 1 / targetRatio : targetRatio;
       } else {
-        newAspectRatio = targetRatio > 1 ? targetRatio : targetRatio;
+        newAspectRatio = targetRatio < 1 ? 1 / targetRatio : targetRatio;
       }
     }
 

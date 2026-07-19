@@ -29,6 +29,7 @@ export default function EffectsPanel({
 
   const handleAdjustmentChange = (key: string, value: string) => {
     const numericValue = parseFloat(value);
+    if (isNaN(numericValue)) return;
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
   };
 

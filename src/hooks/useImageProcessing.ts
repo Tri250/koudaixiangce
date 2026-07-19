@@ -203,6 +203,10 @@ export function useImageProcessing(
           }
 
           if (dragging) {
+            if (buffer.byteLength < 24) {
+              console.warn('Patch buffer too small:', buffer.byteLength);
+              return;
+            }
             const view = new DataView(buffer);
             const patchX = view.getUint32(0, true);
             const patchY = view.getUint32(4, true);
@@ -211,6 +215,10 @@ export function useImageProcessing(
             const fullW = view.getUint32(16, true);
             const fullH = view.getUint32(20, true);
 
+            if (fullW === 0 || fullH === 0) {
+              console.warn('Invalid patch dimensions: fullW/fullH is zero');
+              return;
+            }
             const imageBuffer = buffer.slice(24);
             const blob = new Blob([imageBuffer], { type: 'image/jpeg' });
             const url = URL.createObjectURL(blob);

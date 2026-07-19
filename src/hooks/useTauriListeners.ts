@@ -357,7 +357,7 @@ export function useTauriListeners({
       }
       thumbnailBuffer.current = {};
       ratingBuffer.current = {};
-      listeners.forEach((p) => p.then((unlisten) => unlisten()));
+      listeners.forEach((p) => p.then((unlisten) => { try { unlisten(); } catch (e) { console.warn('Listener cleanup failed:', e); } }).catch((e) => console.warn('Listener promise rejected:', e)));
     };
   }, []);
 }

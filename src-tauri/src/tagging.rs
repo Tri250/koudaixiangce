@@ -43,10 +43,12 @@ fn preprocess_clip_image(image: &DynamicImage) -> Array<f32, ndarray::Dim<[usize
 fn softmax(array: &Array<f32, ndarray::Dim<[usize; 2]>>) -> Array<f32, ndarray::Dim<[usize; 2]>> {
     let mut new_array = array.clone();
     for mut row in new_array.axis_iter_mut(Axis(0)) {
+        // Filter out NaN/Infinity values to prevent propagation
+        row.mapv_inplace(|x| if x.is_finite() { x } else { 0.0 });
         let max_val = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
         row.mapv_inplace(|x| (x - max_val).exp());
         let sum = row.sum();
-        if sum > 0.0 {
+        if sum > 0.0 && sum.is_finite() {
             row.mapv_inplace(|x| x / sum);
         }
     }
