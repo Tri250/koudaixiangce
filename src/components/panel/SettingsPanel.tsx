@@ -771,7 +771,7 @@ export default function SettingsPanel({
     try {
       let totalCount = 0;
       for (const root of effectiveRootPaths) {
-        const count: number = await invoke(Invokes.ClearAllSidecars, { rootPath: root });
+        const count: number = await invoke(Invokes.ClearAllSidecars, { root_path: root });
         totalCount += count;
       }
       setClearMessage(t('settings.data.statuses.sidecarSuccess', { count: totalCount }));
@@ -804,7 +804,7 @@ export default function SettingsPanel({
     try {
       let totalCount = 0;
       for (const root of effectiveRootPaths) {
-        const count: number = await invoke(Invokes.ClearAiTags, { rootPath: root });
+        const count: number = await invoke(Invokes.ClearAiTags, { root_path: root });
         totalCount += count;
       }
       setAiTagsClearMessage(t('settings.data.statuses.aiSuccess', { count: totalCount }));
@@ -837,7 +837,7 @@ export default function SettingsPanel({
     try {
       let totalCount = 0;
       for (const root of effectiveRootPaths) {
-        const count: number = await invoke(Invokes.ClearAllTags, { rootPath: root });
+        const count: number = await invoke(Invokes.ClearAllTags, { root_path: root });
         totalCount += count;
       }
       setTagsClearMessage(t('settings.data.statuses.allSuccess', { count: totalCount }));

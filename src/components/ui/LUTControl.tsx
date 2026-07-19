@@ -149,7 +149,7 @@ export default function LUTControl({
         const resolvedNames = await Promise.all(
           sourcePaths.map(async (path) => {
             try {
-              return await invoke<string>('resolve_android_content_uri_name', { uriStr: path });
+              return await invoke<string>('resolve_android_content_uri_name', { uri_str: path });
             } catch (e) {
               console.error('Failed to resolve Android URI:', e);
               return path;

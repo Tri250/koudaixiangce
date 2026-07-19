@@ -140,7 +140,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
             label: item.name,
             icon: ResolvedIcon,
             onClick: () => {
-              invoke(Invokes.AddToAlbum, { albumId: item.id, paths: pathsToAdd })
+              invoke(Invokes.AddToAlbum, { album_id: item.id, paths: pathsToAdd })
                 .then(() => {
                   console.log(`Added image(s) to ${item.name}`);
                   invoke(Invokes.GetAlbums).then((res: any) =>
@@ -418,8 +418,8 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       const handleCreateVirtualCopy = async (sourcePath: string) => {
         try {
           await invoke(Invokes.CreateVirtualCopy, {
-            sourceVirtualPath: sourcePath,
-            targetAlbumId: activeAlbumId || null,
+            source_virtual_path: sourcePath,
+            target_album_id: activeAlbumId || null,
           });
 
           if (activeAlbumId) {
@@ -650,7 +650,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                 try {
                   await invoke(Invokes.DuplicateFile, {
                     path: finalSelection[0],
-                    targetAlbumId: activeAlbumId || null,
+                    target_album_id: activeAlbumId || null,
                   });
                   if (activeAlbumId) {
                     const sortedTree = await invoke<AlbumItem[]>(Invokes.GetAlbums);
@@ -913,7 +913,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               label: copyPastedLabel,
               onClick: async () => {
                 try {
-                  await invoke(Invokes.CopyFiles, { sourcePaths: copiedFilePaths, destinationFolder: targetPath });
+                  await invoke(Invokes.CopyFiles, { source_paths: copiedFilePaths, destination_folder: targetPath });
                   if (targetPath === currentFolderPath) props.handleLibraryRefresh();
                 } catch (err) {
                   toast.error(t('contextMenus.toasts.failedCopy', { err }));
@@ -924,7 +924,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               label: movePastedLabel,
               onClick: async () => {
                 try {
-                  await invoke(Invokes.MoveFiles, { sourcePaths: copiedFilePaths, destinationFolder: targetPath });
+                  await invoke(Invokes.MoveFiles, { source_paths: copiedFilePaths, destination_folder: targetPath });
                   setProcess({ copiedFilePaths: [] });
                   setLibrary({ multiSelectedPaths: [] });
                   props.refreshAllFolderTrees();
@@ -1254,7 +1254,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
             disabled: copiedFilePaths.length === 0,
             onClick: async () => {
               try {
-                await invoke(Invokes.AddToAlbum, { albumId: activeAlbumId, paths: copiedFilePaths });
+                await invoke(Invokes.AddToAlbum, { album_id: activeAlbumId, paths: copiedFilePaths });
                 console.log(`Added ${numCopied} image(s) to album`);
                 const updatedTree = await invoke<AlbumItem[]>(Invokes.GetAlbums);
                 setLibrary({ albumTree: updatedTree });
@@ -1274,8 +1274,8 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                 onClick: async () => {
                   try {
                     await invoke(Invokes.CopyFiles, {
-                      sourcePaths: copiedFilePaths,
-                      destinationFolder: currentFolderPath,
+                      source_paths: copiedFilePaths,
+                      destination_folder: currentFolderPath,
                     });
                     props.handleLibraryRefresh();
                   } catch (err) {
@@ -1288,8 +1288,8 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                 onClick: async () => {
                   try {
                     await invoke(Invokes.MoveFiles, {
-                      sourcePaths: copiedFilePaths,
-                      destinationFolder: currentFolderPath,
+                      source_paths: copiedFilePaths,
+                      destination_folder: currentFolderPath,
                     });
                     setProcess({ copiedFilePaths: [] });
                     setLibrary({ multiSelectedPaths: [] });

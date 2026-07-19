@@ -75,13 +75,13 @@ export function useExternalEditSession(handleImageSelect: (path: string) => void
     try {
       await invoke(Invokes.ExportImages, {
         paths: [session.source],
-        outputFolderOrFile: session.output,
-        isExplicitFilePath: true,
-        baseOriginFolders: [],
-        exportSettings,
-        outputFormat: session.format,
-        currentEditPath: selectedImage.path,
-        currentEditAdjustments: adjustments || null,
+        output_folder_or_file: session.output,
+        is_explicit_file_path: true,
+        base_origin_folders: [],
+        export_settings: exportSettings,
+        output_format: session.format,
+        current_edit_path: selectedImage.path,
+        current_edit_adjustments: adjustments || null,
       });
     } catch (error) {
       setIsFinishing(false);

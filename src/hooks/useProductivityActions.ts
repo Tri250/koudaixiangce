@@ -35,7 +35,7 @@ export function useProductivityActions(refreshImageList: () => Promise<void>) {
     }
     try {
       const savedPath: string = await invoke(Invokes.SavePanorama, {
-        firstPathStr: panoramaModalState.stitchingSourcePaths[0],
+        first_path_str: panoramaModalState.stitchingSourcePaths[0],
       });
       await refreshImageList();
       return savedPath;
@@ -72,7 +72,7 @@ export function useProductivityActions(refreshImageList: () => Promise<void>) {
       throw new Error(err);
     }
     try {
-      const savedPath: string = await invoke(Invokes.SaveHdr, { firstPathStr: hdrModalState.stitchingSourcePaths[0] });
+      const savedPath: string = await invoke(Invokes.SaveHdr, { first_path_str: hdrModalState.stitchingSourcePaths[0] });
       await refreshImageList();
       return savedPath;
     } catch (err) {
@@ -129,7 +129,7 @@ export function useProductivityActions(refreshImageList: () => Promise<void>) {
     const { denoiseModalState } = useUIStore.getState();
     if (denoiseModalState.targetPaths.length === 0) throw new Error('No target path');
     const savedPath = await invoke<string>(Invokes.SaveDenoisedImage, {
-      originalPathStr: denoiseModalState.targetPaths[0],
+      original_path_str: denoiseModalState.targetPaths[0],
     });
     await refreshImageList();
     return savedPath;
@@ -138,7 +138,7 @@ export function useProductivityActions(refreshImageList: () => Promise<void>) {
   const handleSaveCollage = useCallback(
     async (base64Data: string, firstPath: string): Promise<string> => {
       try {
-        const savedPath: string = await invoke(Invokes.SaveCollage, { base64Data, firstPathStr: firstPath });
+        const savedPath: string = await invoke(Invokes.SaveCollage, { base64_data: base64Data, first_path_str: firstPath });
         await refreshImageList();
         return savedPath;
       } catch (err) {

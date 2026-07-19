@@ -89,17 +89,17 @@ export default function MonochromePanel() {
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
             const result = await invoke<string>('convert_to_monochrome', {
-                jsAdjustments,
-                redWeight: redWeight / 100,
-                greenWeight: greenWeight / 100,
-                blueWeight: blueWeight / 100,
+                js_adjustments: jsAdjustments,
+                red_weight: redWeight / 100,
+                green_weight: greenWeight / 100,
+                blue_weight: blueWeight / 100,
                 contrast,
                 preset: selectedPreset,
-                toningType,
-                toningStrength,
-                shadowColor,
-                highlightColor,
-                splitBalance,
+                toning_type: toningType,
+                toning_strength: toningStrength,
+                shadow_color: shadowColor,
+                highlight_color: highlightColor,
+                split_balance: splitBalance,
             });
             if (result) {
                 setEditor({ retouchingResultUrl: result });
@@ -118,17 +118,17 @@ export default function MonochromePanel() {
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
             const result = await invoke<string>(Invokes.GetMonochromePreview, {
-                jsAdjustments,
-                redWeight: redWeight / 100,
-                greenWeight: greenWeight / 100,
-                blueWeight: blueWeight / 100,
+                js_adjustments: jsAdjustments,
+                red_weight: redWeight / 100,
+                green_weight: greenWeight / 100,
+                blue_weight: blueWeight / 100,
                 contrast,
                 preset: selectedPreset,
-                toningType,
-                toningStrength,
-                shadowColor,
-                highlightColor,
-                splitBalance,
+                toning_type: toningType,
+                toning_strength: toningStrength,
+                shadow_color: shadowColor,
+                highlight_color: highlightColor,
+                split_balance: splitBalance,
             });
             if (result) {
                 setPreviewUrl(result);

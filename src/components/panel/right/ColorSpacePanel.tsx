@@ -125,7 +125,7 @@ export default function ColorSpacePanel() {
     const handleSetProfile = useCallback(async (profileName: string) => {
         try {
             setSelectedProfileName(profileName);
-            await invoke('set_camera_color_profile', { profileName });
+            await invoke('set_camera_color_profile', { profile_name: profileName });
             toast.success(t('editor.colorSpace.cameraProfile'));
         } catch (err) {
             console.error('set_camera_color_profile failed:', err);
@@ -147,7 +147,7 @@ export default function ColorSpacePanel() {
                 return;
             }
             await invoke('import_dcp_profile', {
-                filePath: selected,
+                file_path: selected,
             });
             toast.success(t('editor.colorSpace.importDCP'));
             // Reload profiles after import
@@ -166,9 +166,9 @@ export default function ColorSpacePanel() {
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
             const result = await invoke<string>('convert_color_space', {
-                jsAdjustments,
-                fromSpace: workingColorSpace,
-                toSpace: outputColorSpace,
+                js_adjustments: jsAdjustments,
+                from_space: workingColorSpace,
+                to_space: outputColorSpace,
             });
             if (result) {
                 setEditor({ retouchingResultUrl: result });
@@ -185,8 +185,8 @@ export default function ColorSpacePanel() {
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
             const result = await invoke<{ proofImageBase64: string; outOfGamutPixels: number }>('soft_proof', {
-                jsAdjustments,
-                targetColorSpace: outputColorSpace,
+                js_adjustments: jsAdjustments,
+                target_color_space: outputColorSpace,
             });
             setOutOfGamutCount(result.outOfGamutPixels);
             if (result.proofImageBase64) {

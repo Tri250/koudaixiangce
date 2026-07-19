@@ -175,12 +175,12 @@ export function useImageProcessing(
 
       try {
         const buffer: ArrayBuffer = await invoke(Invokes.ApplyAdjustments, {
-          jsAdjustments: payload,
-          isInteractive: dragging,
-          targetResolution: targetRes || null,
+          js_adjustments: payload,
+          is_interactive: dragging,
+          target_resolution: targetRes || null,
           roi: roi || null,
-          computeWaveform: !!isWaveformVisible,
-          activeWaveformChannel: activeWaveformChannelRef.current || null,
+          compute_waveform: !!isWaveformVisible,
+          active_waveform_channel: activeWaveformChannelRef.current || null,
         });
 
         if (newlySentPatches.size > 0) {
@@ -307,7 +307,7 @@ export function useImageProcessing(
   const generateUncroppedPreview = useCallback(
     (currentAdjustments: Adjustments) => {
       if (!selectedImage?.isReady) return;
-      invoke(Invokes.GenerateUncroppedPreview, { jsAdjustments: currentAdjustments }).catch((err) =>
+      invoke(Invokes.GenerateUncroppedPreview, { js_adjustments: currentAdjustments }).catch((err) =>
         console.error('Failed to generate uncropped preview:', err),
       );
     },
@@ -368,8 +368,8 @@ export function useImageProcessing(
         if (targetRes > currentOriginalResRef.current) {
           try {
             const base64Data: string = await invoke('generate_original_transformed_preview', {
-              jsAdjustments: currentAdjustments,
-              targetResolution: targetRes,
+              js_adjustments: currentAdjustments,
+              target_resolution: targetRes,
             });
             currentOriginalResRef.current = targetRes;
             setEditor({ transformedOriginalUrl: base64Data });
@@ -511,8 +511,8 @@ export function useImageProcessing(
         try {
           const targetRes = calculateTargetRes();
           const base64Data: string = await invoke('generate_original_transformed_preview', {
-            jsAdjustments: adjustments,
-            targetResolution: targetRes,
+            js_adjustments: adjustments,
+            target_resolution: targetRes,
           });
           if (isEffectActive) {
             currentOriginalResRef.current = targetRes;

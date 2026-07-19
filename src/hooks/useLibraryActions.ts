@@ -234,8 +234,8 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
       if (rootPaths && rootPaths.length > 0) {
         const treesData = await invoke(Invokes.GetPinnedFolderTrees, {
           paths: rootPaths,
-          expandedFolders: expandedArray,
-          showImageCounts,
+          expanded_folders: expandedArray,
+          show_image_counts: showImageCounts,
         });
         updates.folderTrees = treesData;
       } else {
@@ -245,8 +245,8 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
       if (pinnedFolders && pinnedFolders.length > 0) {
         const pinnedTreesData = await invoke(Invokes.GetPinnedFolderTrees, {
           paths: pinnedFolders,
-          expandedFolders: expandedArray,
-          showImageCounts,
+          expanded_folders: expandedArray,
+          show_image_counts: showImageCounts,
         });
         updates.pinnedFolderTrees = pinnedTreesData;
       } else {
@@ -277,8 +277,8 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
     try {
       const trees = await invoke(Invokes.GetPinnedFolderTrees, {
         paths: newPins,
-        expandedFolders: Array.from(expandedFolders),
-        showImageCounts: appSettings.enableFolderImageCounts ?? false,
+        expanded_folders: Array.from(expandedFolders),
+        show_image_counts: appSettings.enableFolderImageCounts ?? false,
       });
       setLibrary({ pinnedFolderTrees: trees });
     } catch (err) {

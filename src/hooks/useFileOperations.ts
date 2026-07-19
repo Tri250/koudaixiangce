@@ -165,7 +165,7 @@ export function useFileOperations(
           const oldPath = folderActionTarget;
           const trimmedNewName = newName.trim();
 
-          await invoke(Invokes.RenameFolder, { path: oldPath, newName: trimmedNewName });
+          await invoke(Invokes.RenameFolder, { path: oldPath, new_name: trimmedNewName });
 
           const parentDir = getParentDir(oldPath);
           const separator = oldPath.includes('/') ? '/' : '\\';
@@ -216,7 +216,7 @@ export function useFileOperations(
       if (renameTargetPaths.length > 0 && nameTemplate) {
         try {
           const newPaths: Array<string> = await invoke(Invokes.RenameFiles, {
-            nameTemplate,
+            name_template: nameTemplate,
             paths: renameTargetPaths,
           });
 
@@ -260,7 +260,7 @@ export function useFileOperations(
     if (sourcePaths.length === 0 || !destinationFolder) return;
 
     try {
-      await invoke(Invokes.ImportFiles, { destinationFolder, settings, sourcePaths });
+      await invoke(Invokes.ImportFiles, { destination_folder: destinationFolder, settings, source_paths: sourcePaths });
     } catch (err) {
       console.error('Failed to start import:', err);
       useProcessStore
@@ -317,7 +317,7 @@ export function useFileOperations(
             selected.map(async (path) => {
               if (isAndroid) {
                 try {
-                  return await invoke<string>('resolve_android_content_uri_name', { uriStr: path });
+                  return await invoke<string>('resolve_android_content_uri_name', { uri_str: path });
                 } catch (e) {
                   console.error('Failed to resolve URI:', e);
                   return path;
@@ -379,9 +379,9 @@ export function useFileOperations(
 
       try {
         if (mode === 'copy') {
-          await invoke(Invokes.CopyFiles, { sourcePaths: copiedFilePaths, destinationFolder: currentFolderPath });
+          await invoke(Invokes.CopyFiles, { source_paths: copiedFilePaths, destination_folder: currentFolderPath });
         } else {
-          await invoke(Invokes.MoveFiles, { sourcePaths: copiedFilePaths, destinationFolder: currentFolderPath });
+          await invoke(Invokes.MoveFiles, { source_paths: copiedFilePaths, destination_folder: currentFolderPath });
           setProcess({ copiedFilePaths: [] });
           setLibrary({ multiSelectedPaths: [] });
           await refreshAllFolderTrees();

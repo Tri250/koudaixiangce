@@ -143,7 +143,7 @@ export default function NegativeConversionModal({
       if (selectedImagePath) {
         invoke('generate_preview_for_path', {
           path: selectedImagePath,
-          jsAdjustments: {},
+          js_adjustments: {},
         })
           .then((res: any) => {
             const blob = new Blob([new Uint8Array(res)], { type: 'image/jpeg' });

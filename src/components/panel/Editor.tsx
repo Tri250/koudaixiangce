@@ -1041,12 +1041,12 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
       stripSubMasks(strippedMaskDef.subMasks);
 
       const dataUrl: string = await invoke(Invokes.GenerateMaskOverlay, {
-        cropOffset,
+        crop_offset: cropOffset,
         height: Math.round(renderSize.height),
-        maskDef: strippedMaskDef,
+        mask_def: strippedMaskDef,
         scale: renderSize.scale,
         width: Math.round(renderSize.width),
-        jsAdjustments: strippedAdjustments,
+        js_adjustments: strippedAdjustments,
       });
 
       if (dataUrl) {
@@ -1174,18 +1174,18 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
           isInvoking = true;
           invoke(Invokes.UpdateWgpuTransform, {
             payload: {
-              windowWidth,
-              windowHeight,
+              window_width: windowWidth,
+              window_height: windowHeight,
               x: -999999,
               y: -999999,
               width: 1,
               height: 1,
-              clipX,
-              clipY,
-              clipWidth: clipW,
-              clipHeight: clipH,
-              bgPrimary: state.bgPrimary || [0, 0, 0, 1],
-              bgSecondary: state.bgSecondary || [0, 0, 0, 1],
+              clip_x: clipX,
+              clip_y: clipY,
+              clip_width: clipW,
+              clip_height: clipH,
+              bg_primary: state.bgPrimary || [0, 0, 0, 1],
+              bg_secondary: state.bgSecondary || [0, 0, 0, 1],
               pixelated: false,
             },
           })
@@ -1240,18 +1240,18 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
 
         invoke(Invokes.UpdateWgpuTransform, {
           payload: {
-            windowWidth,
-            windowHeight,
+            window_width: windowWidth,
+            window_height: windowHeight,
             x: screenX,
             y: screenY,
             width: screenW,
             height: screenH,
-            clipX,
-            clipY,
-            clipWidth: clipW,
-            clipHeight: clipH,
-            bgPrimary: state.bgPrimary || [0, 0, 0, 1],
-            bgSecondary: state.bgSecondary || [0, 0, 0, 1],
+            clip_x: clipX,
+            clip_y: clipY,
+            clip_width: clipW,
+            clip_height: clipH,
+            bg_primary: state.bgPrimary || [0, 0, 0, 1],
+            bg_secondary: state.bgSecondary || [0, 0, 0, 1],
             pixelated: isZoomedIn,
           },
         })

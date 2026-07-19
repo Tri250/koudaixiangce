@@ -137,7 +137,7 @@ export function useRetouching() {
     setFaceDetectionError(null);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<FaceDetection[]>('detect_faces_in_image', { jsAdjustments });
+      const result = await invoke<FaceDetection[]>('detect_faces_in_image', { js_adjustments: jsAdjustments });
       setFaceDetections(result);
       return result;
     } catch (err) {
@@ -156,7 +156,7 @@ export function useRetouching() {
     setBodyDetectionError(null);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<BodyDetection[]>('detect_body_in_image', { jsAdjustments });
+      const result = await invoke<BodyDetection[]>('detect_body_in_image', { js_adjustments: jsAdjustments });
       setBodyDetections(result);
       return result;
     } catch (err) {
@@ -175,8 +175,8 @@ export function useRetouching() {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('apply_face_reshape', {
-          jsAdjustments,
-          faceLandmarks,
+          js_adjustments: jsAdjustments,
+          face_landmarks: faceLandmarks,
           params,
         });
         publishRetouchingResult(result);
@@ -195,7 +195,7 @@ export function useRetouching() {
     async (method: string, strength: number, texturePreservation: number, radius: number): Promise<string | null> => {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
-        const result = await invoke<string>('apply_skin_smoothing', { jsAdjustments, method, strength, texturePreservation, radius });
+        const result = await invoke<string>('apply_skin_smoothing', { js_adjustments: jsAdjustments, method, strength, texture_preservation: texturePreservation, radius });
         publishRetouchingResult(result);
         return result;
       } catch (err) {
@@ -212,8 +212,8 @@ export function useRetouching() {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
       const result = await invoke<string>('auto_remove_blemishes', {
-        jsAdjustments,
-        faceLandmarks: faceLandmarks ?? [],
+        js_adjustments: jsAdjustments,
+        face_landmarks: faceLandmarks ?? [],
         sensitivity: sensitivity ?? 0.5,
       });
       publishRetouchingResult(result);
@@ -230,7 +230,7 @@ export function useRetouching() {
     async (faceLandmarks: FaceLandmark[][], strength: number): Promise<string | null> => {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
-        const result = await invoke<string>('unify_skin_color', { jsAdjustments, faceLandmarks, strength });
+        const result = await invoke<string>('unify_skin_color', { js_adjustments: jsAdjustments, face_landmarks: faceLandmarks, strength });
         publishRetouchingResult(result);
         return result;
       } catch (err) {
@@ -248,8 +248,8 @@ export function useRetouching() {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('apply_body_reshape', {
-          jsAdjustments,
-          bodyKeypoints,
+          js_adjustments: jsAdjustments,
+          body_keypoints: bodyKeypoints,
           params,
         });
         publishRetouchingResult(result);
@@ -282,12 +282,12 @@ export function useRetouching() {
         const jsAdjustments = getTransformAdjustments(adjustments);
         // Map frontend LiquifyStroke to Rust LiquifyStrokeCommand format
         const mappedStrokes = strokes.map((s) => ({
-          brushType: s.brushType,
+          brush_type: s.brushType,
           radius: s.brushSize,
           pressure: s.brushPressure,
           points: s.points.map((p) => [p.x, p.y]),
         }));
-        const result = await invoke<string>('apply_liquify', { jsAdjustments, strokes: mappedStrokes });
+        const result = await invoke<string>('apply_liquify', { js_adjustments: jsAdjustments, strokes: mappedStrokes });
         publishRetouchingResult(result);
         return result;
       } catch (err) {
@@ -306,7 +306,7 @@ export function useRetouching() {
     async (params: Record<string, unknown>): Promise<string | null> => {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
-        const result = await invoke<string>('apply_hair_retouch', { jsAdjustments, params });
+        const result = await invoke<string>('apply_hair_retouch', { js_adjustments: jsAdjustments, params });
         publishRetouchingResult(result);
         return result;
       } catch (err) {
@@ -333,7 +333,7 @@ export function useRetouching() {
           'bottom-right': [0.7, 0.7],
         };
         const lightPos = positionMap[lightPosition] ?? [0.5, 0.5];
-        const result = await invoke<string>('add_eye_catchlight', { jsAdjustments, faceLandmarks, intensity, lightPosition: lightPos });
+        const result = await invoke<string>('add_eye_catchlight', { js_adjustments: jsAdjustments, face_landmarks: faceLandmarks, intensity, light_position: lightPos });
         publishRetouchingResult(result);
         return result;
       } catch (err) {
@@ -348,7 +348,7 @@ export function useRetouching() {
     async (faceLandmarks: FaceLandmark[], smileAmount: number): Promise<string | null> => {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
-        const result = await invoke<string>('adjust_smile', { jsAdjustments, faceLandmarks, smileAmount });
+        const result = await invoke<string>('adjust_smile', { js_adjustments: jsAdjustments, face_landmarks: faceLandmarks, smile_amount: smileAmount });
         publishRetouchingResult(result);
         return result;
       } catch (err) {
@@ -363,7 +363,7 @@ export function useRetouching() {
     async (bodyKeypoints: BodyKeypoint[], neckAdjust: number, shoulderAdjust: number): Promise<string | null> => {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
-        const result = await invoke<string>('adjust_neck_shoulder', { jsAdjustments, bodyKeypoints, neckAdjust, shoulderAdjust });
+        const result = await invoke<string>('adjust_neck_shoulder', { js_adjustments: jsAdjustments, body_keypoints: bodyKeypoints, neck_adjust: neckAdjust, shoulder_adjust: shoulderAdjust });
         publishRetouchingResult(result);
         return result;
       } catch (err) {

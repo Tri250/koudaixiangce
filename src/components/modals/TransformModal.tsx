@@ -224,8 +224,8 @@ export default function TransformModal({ isOpen, onClose, onApply, currentAdjust
 
         const result: string = await invoke('preview_geometry_transform', {
           params: fullParams,
-          jsAdjustments: currentAdjustments,
-          showLines: linesEnabled,
+          js_adjustments: currentAdjustments,
+          show_lines: linesEnabled,
         });
         setPreviewUrl(result);
       } catch (e) {
@@ -316,8 +316,8 @@ export default function TransformModal({ isOpen, onClose, onApply, currentAdjust
       };
       const result: string = await invoke('preview_geometry_transform', {
         params: fullParams,
-        jsAdjustments: currentAdjustments,
-        showLines: false,
+        js_adjustments: currentAdjustments,
+        show_lines: false,
       });
       setPreviewUrl(result);
     } else {

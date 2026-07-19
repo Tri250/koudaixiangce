@@ -88,10 +88,10 @@ export default function HDRPanel() {
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
             const result = await invoke<string>('apply_hdr_highlight_recovery', {
-                jsAdjustments,
+                js_adjustments: jsAdjustments,
                 mode: highlightMode,
-                recoveryAmount,
-                peakBrightnessNits: peakBrightness,
+                recovery_amount: recoveryAmount,
+                peak_brightness_nits: peakBrightness,
             });
             if (result) {
                 setEditor({ retouchingResultUrl: result });
@@ -128,8 +128,8 @@ export default function HDRPanel() {
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
             const count = await invoke<number>('check_out_of_gamut', {
-                jsAdjustments,
-                targetColorSpace: outputColorSpace,
+                js_adjustments: jsAdjustments,
+                target_color_space: outputColorSpace,
             });
             setOutOfGamutWarning(count);
         } catch (err) {
@@ -166,10 +166,10 @@ export default function HDRPanel() {
             }
             const jsAdjustments = getTransformAdjustments(adjustments);
             await invoke('export_ultra_hdr_jpeg', {
-                jsAdjustments,
-                outputPath,
-                sdrImageBase64: '',
-                peakBrightnessNits: peakBrightness,
+                js_adjustments: jsAdjustments,
+                output_path: outputPath,
+                sdr_image_base64: '',
+                peak_brightness_nits: peakBrightness,
                 quality: 90,
             });
             toast.success(t('editor.hdr.exportUltraHDR'));
@@ -195,10 +195,10 @@ export default function HDRPanel() {
             }
             const jsAdjustments = getTransformAdjustments(adjustments);
             await invoke('export_hdr_tiff', {
-                jsAdjustments,
-                outputPath,
-                peakBrightnessNits: peakBrightness,
-                bitDepth: tiffBitDepth,
+                js_adjustments: jsAdjustments,
+                output_path: outputPath,
+                peak_brightness_nits: peakBrightness,
+                bit_depth: tiffBitDepth,
             });
             toast.success(t('editor.hdr.exportHDRTIFF'));
         } catch (err) {
@@ -213,7 +213,7 @@ export default function HDRPanel() {
         setIsGeneratingGainMap(true);
         try {
             const jsAdjustments = getTransformAdjustments(adjustments);
-            await invoke(Invokes.GenerateGainMap, { jsAdjustments });
+            await invoke(Invokes.GenerateGainMap, { js_adjustments: jsAdjustments });
             toast.success(t('editor.hdr.generateGainMap', 'Generate Gain Map'));
         } catch (err) {
             console.error('generate_gain_map failed:', err);

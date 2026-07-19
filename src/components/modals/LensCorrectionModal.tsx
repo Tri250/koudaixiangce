@@ -240,7 +240,7 @@ export default function LensCorrectionModal({
       const distParams: any = await invoke('get_lens_distortion_params', {
         maker,
         model,
-        focalLength: focalLength,
+        focal_length: focalLength,
         aperture: aperture,
         distance: distance,
       });
@@ -285,8 +285,8 @@ export default function LensCorrectionModal({
 
         const result: string = await invoke('preview_geometry_transform', {
           params: fullParams,
-          jsAdjustments: currentAdjustments,
-          showLines: false,
+          js_adjustments: currentAdjustments,
+          show_lines: false,
         });
         setPreviewUrl(result);
       } catch (e) {
@@ -525,8 +525,8 @@ export default function LensCorrectionModal({
 
       invoke('preview_geometry_transform', {
         params: fullParams,
-        jsAdjustments: currentAdjustments,
-        showLines: false,
+        js_adjustments: currentAdjustments,
+        show_lines: false,
       }).then((result: any) => setPreviewUrl(result));
     } else {
       updatePreview(params);

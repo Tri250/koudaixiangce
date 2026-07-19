@@ -180,8 +180,8 @@ export const useAppInitialization = ({
           try {
             const trees = await invoke(Invokes.GetPinnedFolderTrees, {
               paths: settings.pinnedFolders,
-              expandedFolders: settings.lastFolderState?.expandedFolders || [],
-              showImageCounts: settings.enableFolderImageCounts || settings.folderTreeSort?.key === 'imageCount',
+              expanded_folders: settings.lastFolderState?.expandedFolders || [],
+              show_image_counts: settings.enableFolderImageCounts || settings.folderTreeSort?.key === 'imageCount',
             });
             setLibrary({ pinnedFolderTrees: trees });
           } catch (err) {
@@ -208,8 +208,8 @@ export const useAppInitialization = ({
             currentPath: currentPath,
             trees: invoke(Invokes.GetPinnedFolderTrees, {
               paths: rootFolders,
-              expandedFolders: settings.lastFolderState?.expandedFolders ?? rootFolders,
-              showImageCounts: settings.enableFolderImageCounts || settings.folderTreeSort?.key === 'imageCount',
+              expanded_folders: settings.lastFolderState?.expandedFolders ?? rootFolders,
+              show_image_counts: settings.enableFolderImageCounts || settings.folderTreeSort?.key === 'imageCount',
             }),
             images: isAlbum ? undefined : invoke(command, { path: currentPath }),
           };
@@ -375,8 +375,8 @@ export const useAppInitialization = ({
         promises.push(
           invoke(Invokes.GetPinnedFolderTrees, {
             paths: pinnedFolders,
-            expandedFolders: currentExpanded,
-            showImageCounts: needsImageCounts,
+            expanded_folders: currentExpanded,
+            show_image_counts: needsImageCounts,
           }).then((trees: any) => ({ type: 'pinned', trees })),
         );
       }
@@ -385,8 +385,8 @@ export const useAppInitialization = ({
         promises.push(
           invoke(Invokes.GetPinnedFolderTrees, {
             paths: rootFolders,
-            expandedFolders: currentExpanded,
-            showImageCounts: needsImageCounts,
+            expanded_folders: currentExpanded,
+            show_image_counts: needsImageCounts,
           }).then((trees: any) => ({ type: 'root', trees })),
         );
       }

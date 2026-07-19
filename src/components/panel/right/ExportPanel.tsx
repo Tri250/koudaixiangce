@@ -355,10 +355,10 @@ export default function ExportPanel({
         try {
           const size: number = await invoke(Invokes.EstimateExportSizes, {
             paths,
-            exportSettings,
-            outputFormat: format,
-            currentEditPath: currentPath || null,
-            currentEditAdjustments: currentAdj || null,
+            export_settings: exportSettings,
+            output_format: format,
+            current_edit_path: currentPath || null,
+            current_edit_adjustments: currentAdj || null,
           });
           setEstimatedSize(size);
         } catch (err) {
@@ -519,13 +519,13 @@ export default function ExportPanel({
         setExportState({ status: Status.Exporting, progress: { current: 0, total: numImages }, errorMessage: '' });
         await invoke(Invokes.ExportImages, {
           paths: pathsToExport,
-          outputFolderOrFile: outputFolderOrFile,
-          isExplicitFilePath: shouldChooseOutputFile,
-          baseOriginFolders: rootPaths,
-          exportSettings,
-          outputFormat: selectedFormat.extensions[0],
-          currentEditPath: selectedImage?.path || null,
-          currentEditAdjustments: adjustments || null,
+          output_folder_or_file: outputFolderOrFile,
+          is_explicit_file_path: shouldChooseOutputFile,
+          base_origin_folders: rootPaths,
+          export_settings: exportSettings,
+          output_format: selectedFormat.extensions[0],
+          current_edit_path: selectedImage?.path || null,
+          current_edit_adjustments: adjustments || null,
         });
       }
     } catch (error) {

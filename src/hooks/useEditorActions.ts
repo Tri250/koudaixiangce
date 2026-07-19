@@ -88,7 +88,7 @@ export function useEditorActions() {
       try {
         const result: { size: number } = await invoke('load_and_parse_lut', { path });
         let name = isAndroid && path.startsWith('content://')
-          ? await invoke<string>('resolve_android_content_uri_name', { uriStr: path })
+          ? await invoke<string>('resolve_android_content_uri_name', { uri_str: path })
           : path.split(/[\\/]/).pop() || 'LUT';
         setAdjustments((prev: Adjustments) => ({
           ...prev,

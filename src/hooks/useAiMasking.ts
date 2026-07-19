@@ -73,9 +73,9 @@ export function useAiMasking() {
         const patchDefinitionForBackend = adjustments.aiPatches.find((p: AiPatch) => p.id === patchId);
 
         const newPatchDataJson: any = await invoke('generate_manual_cleanup_patch', {
-          currentAdjustments: adjustments,
-          patchDefinition: patchDefinitionForBackend,
-          sourcePoint: [sourceX, sourceY],
+          current_adjustments: adjustments,
+          patch_definition: patchDefinitionForBackend,
+          source_point: [sourceX, sourceY],
         });
 
         const newPatchData = JSON.parse(newPatchDataJson);
@@ -118,10 +118,10 @@ export function useAiMasking() {
 
       try {
         const newPatchDataJson: any = await invoke(Invokes.InvokeGenerativeReplaseWithMaskDef, {
-          currentAdjustments: adjustments,
-          patchDefinition: patchDefinition,
+          current_adjustments: adjustments,
+          patch_definition: patchDefinition,
           path: selectedImage.path,
-          useFastInpaint: useFastInpaint,
+          use_fast_inpaint: useFastInpaint,
           token: token || null,
         });
 
@@ -175,14 +175,14 @@ export function useAiMasking() {
       try {
         const transformAdjustments = getTransformAdjustments(adjustments);
         const newMaskParams: any = await invoke(Invokes.GenerateAiSubjectMask, {
-          jsAdjustments: transformAdjustments,
-          endPoint: [endPoint.x, endPoint.y],
-          flipHorizontal: adjustments.flipHorizontal,
-          flipVertical: adjustments.flipVertical,
-          orientationSteps: adjustments.orientationSteps,
+          js_adjustments: transformAdjustments,
+          end_point: [endPoint.x, endPoint.y],
+          flip_horizontal: adjustments.flipHorizontal,
+          flip_vertical: adjustments.flipVertical,
+          orientation_steps: adjustments.orientationSteps,
           path: selectedImage.path,
           rotation: adjustments.rotation,
-          startPoint: [startPoint.x, startPoint.y],
+          start_point: [startPoint.x, startPoint.y],
         });
 
         const subMaskToUpdate = adjustments.aiPatches
@@ -205,10 +205,10 @@ export function useAiMasking() {
 
         const patchDefinitionForBackend = updatedAdjustmentsForBackend.aiPatches.find((p: AiPatch) => p.id === patchId);
         const newPatchDataJson: any = await invoke(Invokes.InvokeGenerativeReplaseWithMaskDef, {
-          currentAdjustments: updatedAdjustmentsForBackend,
-          patchDefinition: { ...patchDefinitionForBackend, prompt: '' },
+          current_adjustments: updatedAdjustmentsForBackend,
+          patch_definition: { ...patchDefinitionForBackend, prompt: '' },
           path: selectedImage.path,
-          useFastInpaint: true,
+          use_fast_inpaint: true,
           token: token || null,
         });
 
@@ -290,14 +290,14 @@ export function useAiMasking() {
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
       const newParameters = await invoke(Invokes.GenerateAiSubjectMask, {
-        jsAdjustments: transformAdjustments,
-        endPoint: [endPoint.x, endPoint.y],
-        flipHorizontal: adjustments.flipHorizontal,
-        flipVertical: adjustments.flipVertical,
-        orientationSteps: adjustments.orientationSteps,
+        js_adjustments: transformAdjustments,
+        end_point: [endPoint.x, endPoint.y],
+        flip_horizontal: adjustments.flipHorizontal,
+        flip_vertical: adjustments.flipVertical,
+        orientation_steps: adjustments.orientationSteps,
         path: selectedImage.path,
         rotation: adjustments.rotation,
-        startPoint: [startPoint.x, startPoint.y],
+        start_point: [startPoint.x, startPoint.y],
       });
 
       const subMask = adjustments.aiPatches
@@ -321,16 +321,16 @@ export function useAiMasking() {
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
       const newParameters = await invoke('generate_ai_depth_mask', {
-        jsAdjustments: transformAdjustments,
+        js_adjustments: transformAdjustments,
         path: selectedImage.path,
-        minDepth: parameters.minDepth ?? 20,
-        maxDepth: parameters.maxDepth ?? 100,
-        minFade: parameters.minFade ?? 15,
-        maxFade: parameters.maxFade ?? 15,
+        min_depth: parameters.minDepth ?? 20,
+        max_depth: parameters.maxDepth ?? 100,
+        min_fade: parameters.minFade ?? 15,
+        max_fade: parameters.maxFade ?? 15,
         feather: parameters.feather ?? 10,
-        flipHorizontal: adjustments.flipHorizontal,
-        flipVertical: adjustments.flipVertical,
-        orientationSteps: adjustments.orientationSteps,
+        flip_horizontal: adjustments.flipHorizontal,
+        flip_vertical: adjustments.flipVertical,
+        orientation_steps: adjustments.orientationSteps,
         rotation: adjustments.rotation,
       });
 
@@ -355,10 +355,10 @@ export function useAiMasking() {
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
       const newParameters = await invoke(Invokes.GenerateAiForegroundMask, {
-        jsAdjustments: transformAdjustments,
-        flipHorizontal: adjustments.flipHorizontal,
-        flipVertical: adjustments.flipVertical,
-        orientationSteps: adjustments.orientationSteps,
+        js_adjustments: transformAdjustments,
+        flip_horizontal: adjustments.flipHorizontal,
+        flip_vertical: adjustments.flipVertical,
+        orientation_steps: adjustments.orientationSteps,
         rotation: adjustments.rotation,
       });
 
@@ -383,10 +383,10 @@ export function useAiMasking() {
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
       const newParameters = await invoke(Invokes.GenerateAiSkyMask, {
-        jsAdjustments: transformAdjustments,
-        flipHorizontal: adjustments.flipHorizontal,
-        flipVertical: adjustments.flipVertical,
-        orientationSteps: adjustments.orientationSteps,
+        js_adjustments: transformAdjustments,
+        flip_horizontal: adjustments.flipHorizontal,
+        flip_vertical: adjustments.flipVertical,
+        orientation_steps: adjustments.orientationSteps,
         rotation: adjustments.rotation,
       });
 
@@ -412,7 +412,7 @@ export function useAiMasking() {
     if (activeSubMask?.type === 'ai-subject' && selectedImage?.path) {
       const transformAdjustments = getTransformAdjustments(adjustments);
       invoke('precompute_ai_subject_mask', {
-        jsAdjustments: transformAdjustments,
+        js_adjustments: transformAdjustments,
         path: selectedImage.path,
       }).catch((err) => console.error('Failed to precompute AI subject mask:', err));
     }

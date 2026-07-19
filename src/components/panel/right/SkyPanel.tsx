@@ -114,10 +114,10 @@ export default function SkyPanel() {
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
       await invoke(Invokes.GenerateAiSkyMask, {
-        jsAdjustments: transformAdjustments,
-        flipHorizontal: adjustments.flipHorizontal,
-        flipVertical: adjustments.flipVertical,
-        orientationSteps: adjustments.orientationSteps,
+        js_adjustments: transformAdjustments,
+        flip_horizontal: adjustments.flipHorizontal,
+        flip_vertical: adjustments.flipVertical,
+        orientation_steps: adjustments.orientationSteps,
         rotation: adjustments.rotation,
       });
       setSkyMaskGenerated(true);

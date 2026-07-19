@@ -150,7 +150,7 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
 
           const imageData: Uint8Array = await invoke(Invokes.GeneratePreviewForPath, {
             path: imageFile.path,
-            jsAdjustments: adjustments,
+            js_adjustments: adjustments,
           });
           const blob = new Blob([imageData.buffer as BlobPart], { type: 'image/jpeg' });
           const url = URL.createObjectURL(blob);

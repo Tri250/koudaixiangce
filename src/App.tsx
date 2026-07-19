@@ -558,7 +558,7 @@ function App() {
         const showCounts = appSettings?.enableFolderImageCounts ?? false;
         const newChildren: any[] = await invoke(Invokes.GetFolderChildren, {
           path,
-          showImageCounts: showCounts,
+          show_image_counts: showCounts,
         });
         setLibrary((state) => ({
           folderTrees: state.folderTrees.map((t: any) => insertChildrenIntoTree(t, path, newChildren)),

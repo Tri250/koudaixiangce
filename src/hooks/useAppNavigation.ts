@@ -380,7 +380,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         }
 
         if (!preserveEditor) {
-          invoke(Invokes.StartBackgroundIndexing, { folderPath: path }).catch((err) => {
+          invoke(Invokes.StartBackgroundIndexing, { folder_path: path }).catch((err) => {
             console.error('Failed to start background indexing:', err);
           });
         }
@@ -466,8 +466,8 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           try {
             const newTree = await invoke(Invokes.GetFolderTree, {
               path: selectedPath,
-              expandedFolders: [selectedPath],
-              showImageCounts:
+              expanded_folders: [selectedPath],
+              show_image_counts:
                 appSettings?.enableFolderImageCounts || appSettings?.folderTreeSort?.key === 'imageCount',
             });
             setLibrary({ folderTrees: [...folderTrees, newTree] });
@@ -522,8 +522,8 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
             : rootFolders;
           treesData = await invoke(Invokes.GetPinnedFolderTrees, {
             paths: rootFolders,
-            expandedFolders: expandedArr,
-            showImageCounts: appSettings?.enableFolderImageCounts || appSettings?.folderTreeSort?.key === 'imageCount',
+            expanded_folders: expandedArr,
+            show_image_counts: appSettings?.enableFolderImageCounts || appSettings?.folderTreeSort?.key === 'imageCount',
           });
         }
         setLibrary({ folderTrees: treesData });

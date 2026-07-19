@@ -571,7 +571,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     async (filePath: string) => {
       setIsLoading(true);
       try {
-        const updatedPresetList: Array<any> = await invoke(Invokes.HandleImportPresetsFromFile, { filePath });
+        const updatedPresetList: Array<any> = await invoke(Invokes.HandleImportPresetsFromFile, { file_path: filePath });
         setPresets(updatedPresetList);
       } catch (error) {
         console.error('Failed to import presets from file:', error);
@@ -588,7 +588,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       setIsLoading(true);
       try {
         const updatedPresetList: Array<UserPreset> = await invoke(Invokes.HandleImportLegacyPresetsFromFile, {
-          filePath,
+          file_path: filePath,
         });
         setPresets(updatedPresetList);
       } catch (error) {
@@ -603,7 +603,7 @@ export function usePresets(currentAdjustments: Adjustments) {
 
   const exportPresetsToFile = useCallback(async (presetsToExport: Array<any>, filePath: string) => {
     try {
-      await invoke(Invokes.HandleExportPresetsToFile, { presetsToExport, filePath });
+      await invoke(Invokes.HandleExportPresetsToFile, { presets_to_export: presetsToExport, file_path: filePath });
     } catch (error) {
       console.error('Failed to export presets to file:', error);
       throw error;

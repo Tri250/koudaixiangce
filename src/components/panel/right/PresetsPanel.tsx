@@ -771,7 +771,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
       try {
         const fullPresetAdjustments = { ...INITIAL_ADJUSTMENTS, ...preset.adjustments };
         const imageData: Uint8Array = await invoke(Invokes.GeneratePresetPreview, {
-          jsAdjustments: fullPresetAdjustments,
+          js_adjustments: fullPresetAdjustments,
         });
 
         if (pathAtStart !== currentImagePathRef.current) {
@@ -840,7 +840,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
       try {
         const fullPresetAdjustments: any = { ...INITIAL_ADJUSTMENTS, ...preset.adjustments };
         const imageData: Uint8Array = await invoke(Invokes.GeneratePresetPreview, {
-          jsAdjustments: fullPresetAdjustments,
+          js_adjustments: fullPresetAdjustments,
         });
 
         if (pathAtStart !== currentImagePathRef.current) return;
@@ -1180,7 +1180,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
       .filter(Boolean);
     if (presetIds.length === 0) return;
     try {
-      await invoke(Invokes.BatchSyncPreset, { presetIds });
+      await invoke(Invokes.BatchSyncPreset, { preset_ids: presetIds });
       toast.success(t('editor.presets.tooltips.sync', 'Sync presets'));
     } catch (error) {
       console.error('Failed to sync presets:', error);

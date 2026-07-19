@@ -146,7 +146,7 @@ const CommunityPage = ({ onBackToLibrary, imageList, currentFolderPath }: Commun
       setAllPreviewsLoaded(false);
       try {
         const previewDataMap: Record<string, number[]> = await invoke(Invokes.GenerateAllCommunityPreviews, {
-          imagePaths: previewImagePaths,
+          image_paths: previewImagePaths,
           presets: presets.map((p) => ({
             ...p,
             adjustments: { ...INITIAL_ADJUSTMENTS, ...p.adjustments },
@@ -183,9 +183,9 @@ const CommunityPage = ({ onBackToLibrary, imageList, currentFolderPath }: Commun
       await invoke(Invokes.SaveCommunityPreset, {
         name: preset.name,
         adjustments: preset.adjustments,
-        includeMasks: preset.includeMasks,
-        includeCropTransform: preset.includeCropTransform,
-        presetType: preset.presetType || 'style',
+        include_masks: preset.includeMasks,
+        include_crop_transform: preset.includeCropTransform,
+        preset_type: preset.presetType || 'style',
       });
       setDownloadStatus((prev) => ({ ...prev, [preset.name]: 'success' }));
     } catch (error) {
