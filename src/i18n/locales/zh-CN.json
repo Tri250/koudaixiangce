@@ -797,6 +797,11 @@
         "advancedTitle": "高级选项",
         "eyeCatchlightIntensity": "眼神光强度",
         "eyeCatchlightPosition": "眼神光位置",
+        "catchlightPositions": {
+          "topLeft": "左上",
+          "topRight": "右上",
+          "center": "居中"
+        },
         "smileManagement": "笑容管理",
         "apply": "应用面部重塑",
         "detectFirst": "请先检测人脸",
@@ -1058,6 +1063,9 @@
       "preserveFolders": "保留文件夹结构",
       "preserveTimestamps": "将文件时间戳设为 EXIF 拍摄日期",
       "title": "导出设置"
+    },
+    "errors": {
+      "unsupportedFormat": "不支持的导出格式，请重新选择"
     },
     "bytes": {
       "bytes": "字节",
@@ -2255,5 +2263,21 @@
   },
   "permissions": {
     "storageDenied": "需要存储权限才能执行此操作，请在系统设置中开启权限后重试。"
+  },
+  "errors": {
+    "ai": {
+      "cleanupFailed": "清理失败：{{message}}",
+      "replaceFailed": "AI 替换失败：{{message}}",
+      "quickEraseFailed": "快速擦除失败：{{message}}",
+      "maskFailed": "AI 蒙版失败：{{message}}",
+      "depthMaskFailed": "AI 深度蒙版失败：{{message}}",
+      "copyFailed": "复制文件失败：{{message}}",
+      "moveFailed": "移动文件失败：{{message}}",
+      "unsupportedFormat": "检测到不支持的文件格式：{{list}}"
+    },
+    "deleteFailed": "删除文件失败：{{message}}",
+    "createFolderFailed": "创建文件夹失败：{{message}}",
+    "renameFolderFailed": "重命名文件夹失败：{{message}}",
+    "renameFilesFailed": "重命名文件失败：{{message}}"
   }
 }

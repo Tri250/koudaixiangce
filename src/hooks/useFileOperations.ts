@@ -106,7 +106,7 @@ export function useFileOperations(
       } catch (err) {
         console.error('Failed to delete files:', err);
         if (!handlePermissionError(err)) {
-          toast.error(`Failed to delete files: ${err}`);
+          toast.error(i18n.t('errors.deleteFailed' as any, { message: err instanceof Error ? err.message : String(err) }));
         }
       }
     },
@@ -167,7 +167,7 @@ export function useFileOperations(
           await refreshAllFolderTrees();
         } catch (err) {
           if (!handlePermissionError(err)) {
-            toast.error(`Failed to create folder: ${err}`);
+            toast.error(i18n.t('errors.createFolderFailed' as any, { message: err instanceof Error ? err.message : String(err) }));
           }
         }
       }
@@ -222,7 +222,7 @@ export function useFileOperations(
           await refreshAllFolderTrees();
         } catch (err) {
           if (!handlePermissionError(err)) {
-            toast.error(`Failed to rename folder: ${err}`);
+            toast.error(i18n.t('errors.renameFolderFailed' as any, { message: err instanceof Error ? err.message : String(err) }));
           }
         }
       }
@@ -266,7 +266,7 @@ export function useFileOperations(
           setLibrary({ multiSelectedPaths: newPaths });
         } catch (err) {
           if (!handlePermissionError(err)) {
-            toast.error(`Failed to rename files: ${err}`);
+            toast.error(i18n.t('errors.renameFilesFailed' as any, { message: err instanceof Error ? err.message : String(err) }));
           }
         }
       }
@@ -358,11 +358,33 @@ export function useFileOperations(
 
           const validFiles = selected.filter((originalPath, index) => {
             const resolvedName = resolvedFiles[index];
-            const ext = resolvedName.split('.').pop()?.toLowerCase() || 'unknown';
 
-            // Android content URIs may not have an extension in the resolved name
-            // In that case, try to infer from the original path or allow it through
-            if (ext === 'unknown' && isAndroid && originalPath.startsWith('content://')) {
+            // Android content URIs (content://...) may not have a usable extension.
+            // If the resolved name is the raw URI itself (resolve failed) or has no
+            // extension, allow it through and let the backend handle validation.
+            const isContentUri = originalPath.startsWith('content://');
+            const looksLikeUri = /^[a-z]+:\/\//i.test(resolvedName);
+
+            if (isContentUri || looksLikeUri) {
+              // Try to extract a real extension from the resolved display name first,
+              // then fall back to the original URI. If no valid extension can be
+              // extracted, allow the file through (backend will validate the actual bytes).
+              const candidates = [resolvedName, originalPath];
+              for (const candidate of candidates) {
+                const match = candidate.match(/\.([a-zA-Z0-9]{2,5})(?:[?#]|$)/);
+                if (match) {
+                  const candidateExt = match[1].toLowerCase();
+                  if (allowedExtensions.has(candidateExt)) {
+                    return true;
+                  }
+                }
+              }
+              // No usable extension found, but it's a content URI — allow through.
+              return true;
+            }
+
+            const ext = resolvedName.split('.').pop()?.toLowerCase() || 'unknown';
+            if (ext === 'unknown') {
               return true;
             }
 
@@ -375,7 +397,7 @@ export function useFileOperations(
 
           if (invalidExtensions.size > 0) {
             const extList = Array.from(invalidExtensions).join(', ');
-            toast.error(`Unsupported file format(s) detected: ${extList}`);
+            toast.error(i18n.t('errors.unsupportedFormat' as any, { list: extList }));
             return;
           }
 
@@ -418,7 +440,8 @@ export function useFileOperations(
         await refreshImageList();
       } catch (err) {
         if (!handlePermissionError(err)) {
-          toast.error(`Failed to ${mode} files: ${err}`);
+          const message = err instanceof Error ? err.message : String(err);
+          toast.error(i18n.t((mode === 'copy' ? 'errors.copyFailed' : 'errors.moveFailed') as any, { message }));
         }
       }
     },

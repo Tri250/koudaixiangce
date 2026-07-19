@@ -427,9 +427,9 @@ export default function PortraitPanel() {
         />
         <Dropdown
           options={[
-            { label: t('editor.portrait.face.eyeCatchlightPosition') + ' - 左上', value: 'top-left' },
-            { label: t('editor.portrait.face.eyeCatchlightPosition') + ' - 右上', value: 'top-right' },
-            { label: t('editor.portrait.face.eyeCatchlightPosition') + ' - 居中', value: 'center' },
+            { label: t('editor.portrait.face.catchlightPositions.topLeft' as any), value: 'top-left' },
+            { label: t('editor.portrait.face.catchlightPositions.topRight' as any), value: 'top-right' },
+            { label: t('editor.portrait.face.catchlightPositions.center' as any), value: 'center' },
           ]}
           value={catchlightPosition}
           onChange={setCatchlightPosition}

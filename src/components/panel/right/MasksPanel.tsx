@@ -1209,7 +1209,7 @@ export default function MasksPanel() {
           const newContainer = {
             ...INITIAL_MASK_CONTAINER,
             id: uuidv4(),
-            name: `Mask ${newMasks.length + 1}`,
+            name: t('editor.masks.patches.maskName', { count: newMasks.length + 1 }),
             subMasks: [movedSubMask],
           };
           newMasks.push(newContainer);

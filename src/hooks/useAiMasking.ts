@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
+import i18n from 'i18next';
 import { useEditorStore } from '../store/useEditorStore';
 import { useEditorActions } from './useEditorActions';
 import { Adjustments, AiPatch, MaskContainer, Coord } from '../utils/adjustments';
@@ -71,6 +72,7 @@ export function useAiMasking() {
 
       try {
         const patchDefinitionForBackend = adjustments.aiPatches.find((p: AiPatch) => p.id === patchId);
+        if (!patchDefinitionForBackend) return;
 
         const newPatchDataJson: any = await invoke('generate_manual_cleanup_patch', {
           current_adjustments: adjustments,
@@ -88,7 +90,7 @@ export function useAiMasking() {
           ),
         }));
       } catch (err: any) {
-        toast.error(`Cleanup Failed: ${err.message || String(err)}`);
+        toast.error(i18n.t('errors.ai.cleanupFailed' as any, { message: err.message || String(err) }));
         setAdjustments((prev: Partial<Adjustments>) => ({
           ...prev,
           aiPatches: prev.aiPatches?.map((p: AiPatch) => (p.id === patchId ? { ...p, isLoading: false } : p)),
@@ -143,7 +145,7 @@ export function useAiMasking() {
         }));
         setEditor({ activeAiPatchContainerId: null, activeAiSubMaskId: null });
       } catch (err) {
-        toast.error(`AI Replace Failed: ${err}`);
+        toast.error(i18n.t('errors.ai.replaceFailed' as any, { message: err instanceof Error ? err.message : String(err) }));
         setAdjustments((prev: Adjustments) => ({
           ...prev,
           aiPatches: prev.aiPatches.map((p: AiPatch) => (p.id === patchId ? { ...p, isLoading: false } : p)),
@@ -188,7 +190,8 @@ export function useAiMasking() {
         const subMaskToUpdate = adjustments.aiPatches
           ?.find((p: AiPatch) => p.id === patchId)
           ?.subMasks.find((sm: SubMask) => sm.id === subMaskId);
-        const finalSubMaskParams: any = { ...subMaskToUpdate?.parameters, ...newMaskParams };
+        if (!subMaskToUpdate) return;
+        const finalSubMaskParams: any = { ...subMaskToUpdate.parameters, ...newMaskParams };
         const updatedAdjustmentsForBackend = {
           ...adjustments,
           aiPatches: adjustments.aiPatches.map((p: AiPatch) =>
@@ -204,6 +207,7 @@ export function useAiMasking() {
         };
 
         const patchDefinitionForBackend = updatedAdjustmentsForBackend.aiPatches.find((p: AiPatch) => p.id === patchId);
+        if (!patchDefinitionForBackend) return;
         const newPatchDataJson: any = await invoke(Invokes.InvokeGenerativeReplaseWithMaskDef, {
           current_adjustments: updatedAdjustmentsForBackend,
           patch_definition: { ...patchDefinitionForBackend, prompt: '' },
@@ -232,7 +236,7 @@ export function useAiMasking() {
         }));
         setEditor({ activeAiPatchContainerId: null, activeAiSubMaskId: null });
       } catch (err: any) {
-        toast.error(`Quick Erase Failed: ${err.message || String(err)}`);
+        toast.error(i18n.t('errors.ai.quickEraseFailed' as any, { message: err.message || String(err) }));
         setAdjustments((prev: Partial<Adjustments>) => ({
           ...prev,
           aiPatches: prev.aiPatches?.map((p: AiPatch) => (p.id === patchId ? { ...p, isLoading: false } : p)),
@@ -307,7 +311,7 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
-      toast.error(`AI Mask Failed: ${error}`);
+      toast.error(i18n.t('errors.ai.maskFailed' as any, { message: error instanceof Error ? error.message : String(error) }));
     } finally {
       setEditor({ isGeneratingAiMask: false });
     }
@@ -341,7 +345,7 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
-      toast.error(`AI Depth Mask Failed: ${error}`);
+      toast.error(i18n.t('errors.ai.depthMaskFailed' as any, { message: error instanceof Error ? error.message : String(error) }));
     } finally {
       setEditor({ isGeneratingAiMask: false });
     }
@@ -369,7 +373,7 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
-      toast.error(`AI Mask Failed: ${error}`);
+      toast.error(i18n.t('errors.ai.maskFailed' as any, { message: error instanceof Error ? error.message : String(error) }));
     } finally {
       setEditor({ isGeneratingAiMask: false });
     }
@@ -397,7 +401,7 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
-      toast.error(`AI Mask Failed: ${error}`);
+      toast.error(i18n.t('errors.ai.maskFailed' as any, { message: error instanceof Error ? error.message : String(error) }));
     } finally {
       setEditor({ isGeneratingAiMask: false });
     }

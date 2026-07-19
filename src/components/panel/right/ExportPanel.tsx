@@ -484,6 +484,14 @@ export default function ExportPanel({
 
     try {
       const selectedFormat: any = FILE_FORMATS.find((f) => f.id === fileFormat);
+      if (!selectedFormat) {
+        setExportState({
+          errorMessage: t('export.errors.unsupportedFormat' as any),
+          progress: 0,
+          status: Status.Error,
+        });
+        return;
+      }
 
       let outputFolderOrFile = '';
       const shouldChooseOutputFile = numImages === 1 && !preserveFolders;

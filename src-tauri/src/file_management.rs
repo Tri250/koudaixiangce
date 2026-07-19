@@ -3301,7 +3301,11 @@ pub async fn import_files(
                         .extension()
                         .and_then(|s| s.to_str())
                         .unwrap_or("");
-                    let new_filename = format!("{}.{}", new_stem, extension);
+                    let new_filename = if extension.is_empty() {
+                        new_stem.to_string()
+                    } else {
+                        format!("{}.{}", new_stem, extension)
+                    };
                     let dest_file_path = final_dest_folder.join(new_filename);
 
                     if dest_file_path.exists() {

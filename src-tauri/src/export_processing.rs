@@ -526,7 +526,13 @@ fn encode_image_to_bytes(
                 .map_err(|e| e.to_string())?;
         }
         "tiff" => {
-            DynamicImage::ImageRgb16(image.to_rgb16())
+            let image_to_encode = if image.as_rgb32f().is_some() {
+                DynamicImage::ImageRgb16(image.to_rgb16())
+            } else {
+                image.clone()
+            };
+
+            image_to_encode
                 .write_to(&mut cursor, image::ImageFormat::Tiff)
                 .map_err(|e| e.to_string())?;
         }
@@ -869,7 +875,11 @@ pub async fn export_images(
                     ) {
                         let full_dir = output_folder_path.join(rel_dir);
                         if let Err(e) = std::fs::create_dir_all(&full_dir) {
-                            log::warn!("Failed to create export subdirectory: {}", e);
+                            return Err(format!(
+                                "Failed to create export subdirectory '{}': {}",
+                                full_dir.display(),
+                                e
+                            ));
                         }
                         full_dir.join(&new_filename)
                     } else {

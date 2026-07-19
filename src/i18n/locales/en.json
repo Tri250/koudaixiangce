@@ -790,6 +790,11 @@
         "advancedTitle": "Advanced",
         "eyeCatchlightIntensity": "Eye Catchlight Intensity",
         "eyeCatchlightPosition": "Eye Catchlight Position",
+        "catchlightPositions": {
+          "topLeft": "Top Left",
+          "topRight": "Top Right",
+          "center": "Center"
+        },
         "smileManagement": "Smile Management",
         "apply": "Apply Face Reshape",
         "detectFirst": "Please detect faces first",
@@ -1051,6 +1056,9 @@
       "preserveFolders": "Preserve Folder Structure",
       "preserveTimestamps": "Set File Timestamps from EXIF Capture Date",
       "title": "Export Settings"
+    },
+    "errors": {
+      "unsupportedFormat": "Unsupported export format, please reselect"
     },
     "bytes": {
       "bytes": "Bytes",
@@ -2156,5 +2164,21 @@
   },
   "permissions": {
     "storageDenied": "Storage permission is required to perform this action. Please enable it in system settings and try again."
+  },
+  "errors": {
+    "ai": {
+      "cleanupFailed": "Cleanup failed: {{message}}",
+      "replaceFailed": "AI Replace failed: {{message}}",
+      "quickEraseFailed": "Quick Erase failed: {{message}}",
+      "maskFailed": "AI Mask failed: {{message}}",
+      "depthMaskFailed": "AI Depth Mask failed: {{message}}",
+      "copyFailed": "Failed to copy files: {{message}}",
+      "moveFailed": "Failed to move files: {{message}}",
+      "unsupportedFormat": "Unsupported file format(s) detected: {{list}}"
+    },
+    "deleteFailed": "Failed to delete files: {{message}}",
+    "createFolderFailed": "Failed to create folder: {{message}}",
+    "renameFolderFailed": "Failed to rename folder: {{message}}",
+    "renameFilesFailed": "Failed to rename files: {{message}}"
   }
 }
