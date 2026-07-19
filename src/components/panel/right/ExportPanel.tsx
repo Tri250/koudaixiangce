@@ -557,7 +557,7 @@ export default function ExportPanel({
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-text-secondary hover:bg-surface hover:text-text-primary"
+            className="p-2 rounded-md text-text-secondary hover:bg-surface hover:text-text-primary"
           >
             <X size={20} />
           </button>
