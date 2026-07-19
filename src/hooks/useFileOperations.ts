@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { toast } from 'react-toastify';
+import i18n from 'i18next';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
@@ -9,6 +10,22 @@ import { useProcessStore } from '../store/useProcessStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { Invokes } from '../components/ui/AppProperties';
 import { Status } from '../components/ui/ExportImportProperties';
+
+function handlePermissionError(err: unknown): boolean {
+  const msg = String(err).toLowerCase();
+  const isPermission =
+    msg.includes('permission denied') ||
+    msg.includes('os error 13') ||
+    msg.includes('not permitted') ||
+    msg.includes('access is denied') ||
+    msg.includes('权限') ||
+    msg.includes('not allowed');
+  if (isPermission) {
+    toast.error(i18n.t('permissions.storageDenied'));
+    return true;
+  }
+  return false;
+}
 
 export function useFileOperations(
   refreshImageList: () => Promise<void>,
@@ -88,7 +105,9 @@ export function useFileOperations(
         }
       } catch (err) {
         console.error('Failed to delete files:', err);
-        toast.error(`Failed to delete files: ${err}`);
+        if (!handlePermissionError(err)) {
+          toast.error(`Failed to delete files: ${err}`);
+        }
       }
     },
     [refreshImageList, handleBackToLibrary, sortedImageList, handleImageSelect],
@@ -147,7 +166,9 @@ export function useFileOperations(
           await invoke(Invokes.CreateFolder, { path: `${folderActionTarget}/${folderName.trim()}` });
           await refreshAllFolderTrees();
         } catch (err) {
-          toast.error(`Failed to create folder: ${err}`);
+          if (!handlePermissionError(err)) {
+            toast.error(`Failed to create folder: ${err}`);
+          }
         }
       }
     },
@@ -200,7 +221,9 @@ export function useFileOperations(
 
           await refreshAllFolderTrees();
         } catch (err) {
-          toast.error(`Failed to rename folder: ${err}`);
+          if (!handlePermissionError(err)) {
+            toast.error(`Failed to rename folder: ${err}`);
+          }
         }
       }
     },
@@ -242,7 +265,9 @@ export function useFileOperations(
 
           setLibrary({ multiSelectedPaths: newPaths });
         } catch (err) {
-          toast.error(`Failed to rename files: ${err}`);
+          if (!handlePermissionError(err)) {
+            toast.error(`Failed to rename files: ${err}`);
+          }
         }
       }
       setUI({ renameTargetPaths: [] });
@@ -263,9 +288,13 @@ export function useFileOperations(
       await invoke(Invokes.ImportFiles, { destination_folder: destinationFolder, settings, source_paths: sourcePaths });
     } catch (err) {
       console.error('Failed to start import:', err);
-      useProcessStore
-        .getState()
-        .setImportState({ status: Status.Error, errorMessage: `Failed to start import: ${err}` });
+      if (handlePermissionError(err)) {
+        useProcessStore.getState().setImportState({ status: Status.Error, errorMessage: i18n.t('permissions.storageDenied') as string });
+      } else {
+        useProcessStore
+          .getState()
+          .setImportState({ status: Status.Error, errorMessage: `Failed to start import: ${err}` });
+      }
     }
   }, []);
 
@@ -388,7 +417,9 @@ export function useFileOperations(
         }
         await refreshImageList();
       } catch (err) {
-        toast.error(`Failed to ${mode} files: ${err}`);
+        if (!handlePermissionError(err)) {
+          toast.error(`Failed to ${mode} files: ${err}`);
+        }
       }
     },
     [refreshImageList, refreshAllFolderTrees],

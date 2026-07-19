@@ -183,7 +183,7 @@ export const useAppInitialization = ({
               expanded_folders: settings.lastFolderState?.expandedFolders || [],
               show_image_counts: settings.enableFolderImageCounts || settings.folderTreeSort?.key === 'imageCount',
             });
-            setLibrary({ pinnedFolderTrees: trees });
+            setLibrary({ pinnedFolderTrees: trees as any[] });
           } catch (err) {
             console.error('Failed to load pinned folder trees:', err);
           }
@@ -358,8 +358,8 @@ export const useAppInitialization = ({
     if (prevImageCountsNeed.current !== needsImageCounts) {
       prevImageCountsNeed.current = needsImageCounts;
 
-      const rootFolders = appSettings.rootFolders?.length
-        ? appSettings.rootFolders
+      const rootFolders = (appSettings as any).rootFolders?.length
+        ? (appSettings as any).rootFolders
         : appSettings.lastRootPath
           ? [appSettings.lastRootPath]
           : [];
@@ -425,11 +425,11 @@ export const useAppInitialization = ({
       root.style.setProperty(key, value as string);
     });
 
-    const fontFamily = appSettings?.fontFamily || 'poppins';
+    const fontFamily = (appSettings as any)?.fontFamily || 'poppins';
     const fontStack =
       fontFamily === 'system'
         ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
         : "'Poppins', system-ui, sans-serif";
     root.style.setProperty('--font-family', fontStack);
-  }, [theme, appSettings?.fontFamily]);
+  }, [theme, (appSettings as any)?.fontFamily]);
 };

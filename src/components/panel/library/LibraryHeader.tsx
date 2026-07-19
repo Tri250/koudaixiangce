@@ -535,7 +535,7 @@ export function ViewOptionsDropdown({
                       }`}
                       key={option.value}
                       onClick={() =>
-                        setFilterCriteria((prev: Partial<FilterCriteria>) => ({ ...prev, rating: option.value }))
+                        setFilterCriteria((prev: FilterCriteria) => ({ ...prev, rating: option.value }))
                       }
                       role="menuitem"
                     >
@@ -568,7 +568,7 @@ export function ViewOptionsDropdown({
                           key={starValue}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setFilterCriteria((prev: Partial<FilterCriteria>) => ({
+                            setFilterCriteria((prev: FilterCriteria) => ({
                               ...prev,
                               rating: prev.rating === starValue ? 0 : starValue,
                             }));
@@ -609,7 +609,7 @@ export function ViewOptionsDropdown({
                     }`}
                     key={option.key}
                     onClick={() =>
-                      setFilterCriteria((prev: Partial<FilterCriteria>) => ({ ...prev, rawStatus: option.key }))
+                      setFilterCriteria((prev: FilterCriteria) => ({ ...prev, rawStatus: option.key }))
                     }
                     role="menuitem"
                   >
@@ -639,7 +639,7 @@ export function ViewOptionsDropdown({
                     }`}
                     key={option.key}
                     onClick={() =>
-                      setFilterCriteria((prev: Partial<FilterCriteria>) => ({ ...prev, editedStatus: option.key }))
+                      setFilterCriteria((prev: FilterCriteria) => ({ ...prev, editedStatus: option.key }))
                     }
                     role="menuitem"
                   >

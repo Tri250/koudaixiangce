@@ -31,7 +31,7 @@ function ClerkContextPopulator({ children }: { children: React.ReactNode }) {
   const { signOut } = clerkUseClerk();
 
   return (
-    <ClerkContext.Provider value={{ getToken, user, isSignedIn, signOut }}>
+    <ClerkContext.Provider value={{ getToken, user, isSignedIn: !!isSignedIn, signOut }}>
       {children}
     </ClerkContext.Provider>
   );
@@ -76,7 +76,7 @@ export function useClerkInstance() {
 export function ClerkShowFallback({ when, children }: { when: string; children?: React.ReactNode }) {
   const osPlatform = useSettingsStore((s) => s.osPlatform);
   if (osPlatform === 'android') return null;
-  return <ClerkShow when={when}>{children}</ClerkShow>;
+  return <ClerkShow when={when as any}>{children}</ClerkShow>;
 }
 
 export function ClerkSignInFallback(props: any) {

@@ -1277,7 +1277,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   }, []);
 
   const overlayTriggerHash = useMemo(() => {
-    let activeMaskDef = null;
+    let activeMaskDef: any = null;
     if (activeRightPanel === Panel.Masks && activeMaskContainerId) {
       activeMaskDef = adjustments.masks?.find((c: MaskContainer) => c.id === activeMaskContainerId);
     } else if (activeRightPanel === Panel.Ai && activeAiPatchContainerId) {

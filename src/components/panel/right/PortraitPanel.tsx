@@ -727,7 +727,7 @@ export default function PortraitPanel() {
             onClick={() => setActiveTab(id)}
           >
             <Icon size={16} />
-            <span>{t(labelKey)}</span>
+            <span>{t(labelKey as any)}</span>
           </button>
         ))}
       </div>

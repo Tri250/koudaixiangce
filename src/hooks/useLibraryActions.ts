@@ -280,7 +280,7 @@ export function useLibraryActions(handleImageSelect?: (path: string) => void) {
         expanded_folders: Array.from(expandedFolders),
         show_image_counts: appSettings.enableFolderImageCounts ?? false,
       });
-      setLibrary({ pinnedFolderTrees: trees });
+      setLibrary({ pinnedFolderTrees: trees as any[] });
     } catch (err) {
       toast.error(`Failed to refresh pinned folders: ${err}`);
     }

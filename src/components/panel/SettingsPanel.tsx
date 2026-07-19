@@ -865,7 +865,7 @@ export default function SettingsPanel({
   };
 
   const shortcutTagVariants = {
-    visible: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 500, damping: 30 } },
+    visible: { opacity: 1, scale: 1, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
     exit: { opacity: 0, scale: 0.8, transition: { duration: 0.15 } },
   };
 
@@ -2241,14 +2241,14 @@ export default function SettingsPanel({
                       <Sparkles size={20} />
                     </div>
                     <Text variant={TextVariants.title} color={TextColors.accent}>
-                      {t('settings.processing.ai.vision.title')}
+                      {t('settings.processing.vision.title')}
                     </Text>
                   </div>
                   <div className="space-y-6">
-                    <Text className="text-text-secondary">{t('settings.processing.ai.vision.description')}</Text>
+                    <Text className="text-text-secondary">{t('settings.processing.vision.description')}</Text>
                     <SettingItem
-                      label={t('settings.processing.ai.vision.apiUrl')}
-                      description={t('settings.processing.ai.vision.apiUrlDesc', { defaultValue: 'OpenAI-compatible Vision API endpoint URL' })}
+                      label={t('settings.processing.vision.apiUrl')}
+                      description={t('settings.processing.vision.apiUrlDesc', { defaultValue: 'OpenAI-compatible Vision API endpoint URL' })}
                     >
                       <Input
                         className="w-full sm:w-auto"
@@ -2271,8 +2271,8 @@ export default function SettingsPanel({
                       />
                     </SettingItem>
                     <SettingItem
-                      label={t('settings.processing.ai.vision.apiKey')}
-                      description={t('settings.processing.ai.vision.apiKeyDesc', { defaultValue: 'API key for the Vision API' })}
+                      label={t('settings.processing.vision.apiKey')}
+                      description={t('settings.processing.vision.apiKeyDesc', { defaultValue: 'API key for the Vision API' })}
                     >
                       <Input
                         className="w-full sm:w-auto"
@@ -2295,8 +2295,8 @@ export default function SettingsPanel({
                       />
                     </SettingItem>
                     <SettingItem
-                      label={t('settings.processing.ai.vision.model')}
-                      description={t('settings.processing.ai.vision.modelDesc', { defaultValue: 'Vision model name' })}
+                      label={t('settings.processing.vision.model')}
+                      description={t('settings.processing.vision.modelDesc', { defaultValue: 'Vision model name' })}
                     >
                       <Input
                         className="w-full sm:w-auto"
@@ -2319,12 +2319,12 @@ export default function SettingsPanel({
                       />
                     </SettingItem>
                     <SettingItem
-                      label={t('settings.processing.ai.vision.strictness')}
-                      description={t('settings.processing.ai.vision.strictnessDesc', { defaultValue: 'How strict the AI rating should be (0 = lenient, 1 = strict)' })}
+                      label={t('settings.processing.vision.strictness')}
+                      description={t('settings.processing.vision.strictnessDesc', { defaultValue: 'How strict the AI rating should be (0 = lenient, 1 = strict)' })}
                     >
                       <div className="w-full max-w-xs">
                         <Slider
-                          label={t('settings.processing.ai.vision.strictness')}
+                          label={t('settings.processing.vision.strictness')}
                           min={0}
                           max={1}
                           step={0.1}

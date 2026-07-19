@@ -261,7 +261,7 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
                   : 'text-text-secondary hover:bg-card-active hover:text-text-primary',
               )}
               onClick={() => setActiveBrushType(id)}
-              data-tooltip={t(labelKey)}
+              data-tooltip={t(labelKey as any)}
             >
               <Icon size={18} />
             </button>

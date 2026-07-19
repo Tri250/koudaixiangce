@@ -107,7 +107,6 @@ export default function ConfirmModal({
             className="bg-bg-primary shadow-transparent hover:bg-bg-primary text-white shadow-none focus:outline-hidden focus:ring-0"
             onClick={onClose}
             variant="ghost"
-            tabIndex={0}
           >
             {resolvedCancelText}
           </Button>

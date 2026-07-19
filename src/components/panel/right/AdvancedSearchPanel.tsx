@@ -185,11 +185,11 @@ export default function AdvancedSearchPanel() {
                         </label>
                         <div className="flex items-center gap-3">
                             <div className="flex items-center gap-1">
-                                <Text variant={TextVariants.micro} color={TextColors.secondary}>Min</Text>
+                                <Text variant={TextVariants.small} color={TextColors.secondary}>Min</Text>
                                 <StarRating value={minRating} onChange={setMinRating} />
                             </div>
                             <div className="flex items-center gap-1">
-                                <Text variant={TextVariants.micro} color={TextColors.secondary}>Max</Text>
+                                <Text variant={TextVariants.small} color={TextColors.secondary}>Max</Text>
                                 <StarRating value={maxRating} onChange={setMaxRating} />
                             </div>
                         </div>
@@ -208,7 +208,7 @@ export default function AdvancedSearchPanel() {
                                 value={dateFrom}
                                 onChange={(e) => setDateFrom(e.target.value)}
                             />
-                            <Text variant={TextVariants.micro} color={TextColors.secondary}>—</Text>
+                            <Text variant={TextVariants.small} color={TextColors.secondary}>—</Text>
                             <input
                                 type="date"
                                 className={clsx(inputClassName, 'flex-1')}
@@ -344,13 +344,13 @@ export default function AdvancedSearchPanel() {
                                         {item.path.split(/[\\/]/).pop()}
                                     </Text>
                                     {item.camera_model && (
-                                        <Text variant={TextVariants.micro} color={TextColors.secondary} className="truncate block">
+                                        <Text variant={TextVariants.small} color={TextColors.secondary} className="truncate block">
                                             {item.camera_model}
                                         </Text>
                                     )}
                                 </div>
                                 {item.date && (
-                                    <Text variant={TextVariants.micro} color={TextColors.secondary} className="shrink-0">
+                                    <Text variant={TextVariants.small} color={TextColors.secondary} className="shrink-0">
                                         {item.date.split(' ')[0]}
                                     </Text>
                                 )}

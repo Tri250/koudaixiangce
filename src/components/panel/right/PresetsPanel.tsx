@@ -36,7 +36,7 @@ import {
   Search,
   LayoutGrid,
   List as ListIcon,
-  Sync,
+  RefreshCw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfigurePresetModal from '../../modals/ConfigurePresetModal';
@@ -1389,7 +1389,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
               onClick={handleBatchSyncPreset}
               data-tooltip={t('editor.presets.tooltips.sync')}
             >
-              <Sync size={18} />
+              <RefreshCw size={18} />
             </button>
             <button
               className="p-2 rounded-full hover:bg-surface transition-colors"

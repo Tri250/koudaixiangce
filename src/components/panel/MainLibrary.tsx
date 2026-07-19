@@ -226,7 +226,7 @@ export default function MainLibrary(props: MainLibraryProps) {
     if (!props.appSettings) {
       return null;
     }
-    const hasLastPath = !!props.appSettings.lastRootPath || !!props.appSettings.rootFolders?.length;
+    const hasLastPath = !!props.appSettings.lastRootPath || !!(props.appSettings as any).rootFolders?.length;
     const currentThemeId = props.theme || DEFAULT_THEME_ID;
     const selectedTheme: ThemeProps | undefined =
       THEMES.find((t: ThemeProps) => t.id === currentThemeId) ||
@@ -485,7 +485,7 @@ export default function MainLibrary(props: MainLibraryProps) {
       {props.isAndroid && (
         <Button
           className="absolute bottom-18 right-8 h-12 w-12 bg-accent text-button-text shadow-lg p-0 flex items-center justify-center z-50 border border-border-color/50"
-          onClick={(e) => {
+          onClick={(e: React.MouseEvent) => {
             e.stopPropagation();
             props.onImportClick();
           }}

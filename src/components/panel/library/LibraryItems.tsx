@@ -286,25 +286,25 @@ const ThumbnailComponent = ({
             </div>
             <div className="pt-1.5 pb-0.5 flex flex-wrap items-center gap-x-2.5 shrink-0">
               <div className="flex items-center gap-1">
-                <IconShutter className="w-2.5 h-2.5" />
+                <IconShutter {...({ className: 'w-2.5 h-2.5' } as any)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {shutter || '-'}
                 </Text>
               </div>
               <div className="flex items-center gap-1">
-                <IconAperture className="w-2.5 h-2.5" />
+                <IconAperture {...({ className: 'w-2.5 h-2.5' } as any)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {fNumber || '-'}
                 </Text>
               </div>
               <div className="flex items-center gap-1">
-                <IconIso className="w-2.5 h-2.5" />
+                <IconIso {...({ className: 'w-2.5 h-2.5' } as any)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {iso || '-'}
                 </Text>
               </div>
               <div className="flex items-center gap-1">
-                <IconFocalLength className="w-2.5 h-2.5" />
+                <IconFocalLength {...({ className: 'w-2.5 h-2.5' } as any)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {focal ? (String(focal).endsWith('mm') ? focal : `${focal}mm`) : '-'}
                 </Text>
@@ -375,7 +375,7 @@ const ThumbnailComponent = ({
                 className="flex items-center gap-1 text-text-secondary"
                 data-tooltip={t('library.items.tooltipShutterSpeed')}
               >
-                <IconShutter className="w-2.5 h-2.5" />
+                <IconShutter {...({ className: 'w-2.5 h-2.5' } as any)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {shutter || '-'}
                 </Text>
@@ -384,13 +384,13 @@ const ThumbnailComponent = ({
                 className="flex items-center gap-1 text-text-secondary"
                 data-tooltip={t('library.items.tooltipAperture')}
               >
-                <IconAperture className="w-2.5 h-2.5" />
+                <IconAperture {...({ className: 'w-2.5 h-2.5' } as any)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {fNumber || '-'}
                 </Text>
               </div>
               <div className="flex items-center gap-1 text-text-secondary" data-tooltip={t('library.items.tooltipIso')}>
-                <IconIso className="w-2.5 h-2.5" />
+                <IconIso {...({ className: 'w-2.5 h-2.5' } as any)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {iso || '-'}
                 </Text>
@@ -399,7 +399,7 @@ const ThumbnailComponent = ({
                 className="flex items-center gap-1 text-text-secondary"
                 data-tooltip={t('library.items.tooltipFocalLength')}
               >
-                <IconFocalLength className="w-2.5 h-2.5" />
+                <IconFocalLength {...({ className: 'w-2.5 h-2.5' } as any)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {focal ? (String(focal).endsWith('mm') ? focal : `${focal}mm`) : '-'}
                 </Text>

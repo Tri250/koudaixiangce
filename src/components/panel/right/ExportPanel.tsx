@@ -58,6 +58,18 @@ function Section({ title, children }: SectionProps) {
   );
 }
 
+function isPermissionError(err: unknown): boolean {
+  const msg = String(err).toLowerCase();
+  return (
+    msg.includes('permission denied') ||
+    msg.includes('os error 13') ||
+    msg.includes('not permitted') ||
+    msg.includes('access is denied') ||
+    msg.includes('权限') ||
+    msg.includes('not allowed')
+  );
+}
+
 function WatermarkPreview({
   anchor,
   scale,
@@ -529,11 +541,19 @@ export default function ExportPanel({
         });
       }
     } catch (error) {
-      setExportState({
-        errorMessage: typeof error === 'string' ? error : t('export.status.failed'),
-        progress,
-        status: Status.Error,
-      });
+      if (isPermissionError(error)) {
+        setExportState({
+          errorMessage: t('permissions.storageDenied'),
+          progress,
+          status: Status.Error,
+        });
+      } else {
+        setExportState({
+          errorMessage: typeof error === 'string' ? error : t('export.status.failed'),
+          progress,
+          status: Status.Error,
+        });
+      }
     }
   };
 

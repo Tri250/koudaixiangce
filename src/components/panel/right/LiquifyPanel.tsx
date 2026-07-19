@@ -30,7 +30,7 @@ interface BrushTypeConfig {
 const BRUSH_TYPES: BrushTypeConfig[] = [
   { id: 'push', icon: Move, labelKey: 'editor.liquify.brushTypes.push' },
   { id: 'pull', icon: Shrink, labelKey: 'editor.liquify.brushTypes.pull' },
-  { id: 'pucker', icon: MinimizeIcon, labelKey: 'editor.liquify.brushTypes.pucker' },
+  { id: 'pucker', icon: MinimizeIcon as any, labelKey: 'editor.liquify.brushTypes.pucker' },
   { id: 'bloat', icon: Maximize2, labelKey: 'editor.liquify.brushTypes.bloat' },
   { id: 'twirl', icon: Wind, labelKey: 'editor.liquify.brushTypes.twirl' },
   { id: 'reconstruct', icon: RotateCw, labelKey: 'editor.liquify.brushTypes.reconstruct' },
@@ -80,7 +80,7 @@ export default function LiquifyPanel() {
       liquifyBrushType: activeBrushType,
       liquifyBrushSize: brushSize,
       liquifyBrushPressure: brushPressure,
-    });
+    } as any);
   }, [activeBrushType, brushSize, brushPressure, setEditor]);
 
   const handleResetMesh = useCallback(() => {
@@ -145,7 +145,7 @@ export default function LiquifyPanel() {
                 onClick={() => setActiveBrushType(id)}
               >
                 <Icon size={18} />
-                <span>{t(labelKey)}</span>
+                <span>{t(labelKey as any)}</span>
               </button>
             ))}
           </div>

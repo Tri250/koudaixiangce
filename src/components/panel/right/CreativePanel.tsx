@@ -593,7 +593,7 @@ function SeasonalEffectsSection() {
             onClick={() => setEffectType(id)}
           >
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-            <span>{t(labelKey)}</span>
+            <span>{t(labelKey as any)}</span>
           </button>
         ))}
       </div>
@@ -724,7 +724,7 @@ export default function CreativePanel() {
           return (
             <div className="shrink-0" key={key}>
               <CollapsibleSection
-                title={t(titleKey)}
+                title={t(titleKey as any)}
                 isOpen={collapsibleState[key]}
                 onToggle={() => handleToggleSection(key)}
                 canToggleVisibility={false}

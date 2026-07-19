@@ -791,7 +791,10 @@
         "eyeCatchlightIntensity": "Eye Catchlight Intensity",
         "eyeCatchlightPosition": "Eye Catchlight Position",
         "smileManagement": "Smile Management",
-        "apply": "Apply Face Reshape"
+        "apply": "Apply Face Reshape",
+        "detectFirst": "Please detect faces first",
+        "applySuccess": "Face reshape applied successfully",
+        "applyFailed": "Face reshape failed"
       },
       "skin": {
         "smoothingMethod": "Smoothing Method",
@@ -806,7 +809,9 @@
         "applySmoothing": "Apply Skin Smoothing",
         "autoBlemishRemove": "Auto Blemish Removal",
         "colorUniformStrength": "Skin Color Uniform Strength",
-        "applyColorUniform": "Apply Skin Color Uniform"
+        "applyColorUniform": "Apply Skin Color Uniform",
+        "applySuccess": "Skin smoothing applied successfully",
+        "applyFailed": "Skin smoothing failed"
       },
       "body": {
         "detectBody": "Detect Body",
@@ -819,14 +824,19 @@
         "shoulder": "Shoulder",
         "neck": "Neck",
         "hip": "Hip",
-        "apply": "Apply Body Reshape"
+        "apply": "Apply Body Reshape",
+        "detectFirst": "Please detect body first",
+        "applySuccess": "Body reshape applied successfully",
+        "applyFailed": "Body reshape failed"
       },
       "hair": {
         "removeFlyaway": "Remove Flyaway Hair",
         "flyawayStrength": "Flyaway Removal Strength",
         "colorUniformStrength": "Hair Color Uniform Strength",
         "smoothStrength": "Hair Smooth Strength",
-        "apply": "Apply Hair Retouch"
+        "apply": "Apply Hair Retouch",
+        "applySuccess": "Hair retouch applied successfully",
+        "applyFailed": "Hair retouch failed"
       }
     },
     "liquify": {
@@ -849,7 +859,10 @@
       "resetMesh": "Reset Mesh",
       "openCanvas": "Open Liquify Canvas",
       "cancel": "Cancel",
-      "apply": "Apply"
+      "apply": "Apply",
+      "noStrokes": "No strokes",
+      "applySuccess": "Liquify applied successfully",
+      "applyFailed": "Liquify failed"
     },
     "creative": {
       "title": "Creative Tools",
@@ -1012,6 +1025,14 @@
       "colorMatchStrength": "Color Match Strength",
       "horizonAdjust": "Horizon Adjust",
       "apply": "Apply Sky Replacement",
+      "detectFirst": "Please detect sky first",
+      "selectSkyFirst": "Please select a sky image first",
+      "applySuccess": "Sky replacement applied successfully",
+      "applyFailed": "Sky replacement failed",
+      "detecting": "Detecting...",
+      "processing": "Processing...",
+      "detectSuccess": "Sky detection successful",
+      "detectFailed": "Sky detection failed",
       "presets": {
         "blueSky": "Blue Sky",
         "sunset": "Sunset",
@@ -2035,6 +2056,11 @@
     "title": "Settings",
     "tooltips": {
       "goHome": "Go to Home"
+    },
+    "contact": {
+      "title": "Contact Us",
+      "description": "If you have any questions or suggestions, feel free to contact us through the following channels.",
+      "hint": "Search for '带娃的小陈工' on Douyin and Xiaohongshu"
     }
   },
   "ui": {
@@ -2127,5 +2153,8 @@
     "title": "Something went wrong",
     "message": "Sorry, RapidRAW encountered an unexpected issue. You can try reloading the interface.",
     "reload": "Reload"
+  },
+  "permissions": {
+    "storageDenied": "Storage permission is required to perform this action. Please enable it in system settings and try again."
   }
 }

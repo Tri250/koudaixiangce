@@ -798,7 +798,10 @@
         "eyeCatchlightIntensity": "眼神光强度",
         "eyeCatchlightPosition": "眼神光位置",
         "smileManagement": "笑容管理",
-        "apply": "应用面部重塑"
+        "apply": "应用面部重塑",
+        "detectFirst": "请先检测人脸",
+        "applySuccess": "面部重塑成功",
+        "applyFailed": "面部重塑失败"
       },
       "skin": {
         "smoothingMethod": "磨皮方法",
@@ -813,7 +816,9 @@
         "applySmoothing": "应用磨皮",
         "autoBlemishRemove": "一键祛瑕",
         "colorUniformStrength": "肤色统一强度",
-        "applyColorUniform": "应用肤色统一"
+        "applyColorUniform": "应用肤色统一",
+        "applySuccess": "磨皮成功",
+        "applyFailed": "磨皮失败"
       },
       "body": {
         "detectBody": "检测身体",
@@ -826,14 +831,19 @@
         "shoulder": "直角肩",
         "neck": "天鹅颈",
         "hip": "臀部",
-        "apply": "应用美型"
+        "apply": "应用美型",
+        "detectFirst": "请先检测身体",
+        "applySuccess": "美型成功",
+        "applyFailed": "美型失败"
       },
       "hair": {
         "removeFlyaway": "祛碎发",
         "flyawayStrength": "碎发去除强度",
         "colorUniformStrength": "发色统一强度",
         "smoothStrength": "头发柔顺强度",
-        "apply": "应用头发精修"
+        "apply": "应用头发精修",
+        "applySuccess": "头发精修成功",
+        "applyFailed": "头发精修失败"
       }
     },
     "liquify": {
@@ -856,7 +866,10 @@
       "resetMesh": "重置网格",
       "openCanvas": "打开液化画布",
       "cancel": "取消",
-      "apply": "应用"
+      "apply": "应用",
+      "noStrokes": "无笔画",
+      "applySuccess": "液化成功",
+      "applyFailed": "液化失败"
     },
     "creative": {
       "title": "创意工具",
@@ -1019,6 +1032,14 @@
       "colorMatchStrength": "色彩匹配强度",
       "horizonAdjust": "地平线调整",
       "apply": "应用天空替换",
+      "detectFirst": "请先检测天空",
+      "selectSkyFirst": "请先选择天空图像",
+      "applySuccess": "天空替换成功",
+      "applyFailed": "天空替换失败",
+      "detecting": "正在检测...",
+      "processing": "正在处理...",
+      "detectSuccess": "天空检测成功",
+      "detectFailed": "天空检测失败",
       "presets": {
         "blueSky": "蓝天",
         "sunset": "日落",
@@ -2047,6 +2068,11 @@
     "title": "设置",
     "tooltips": {
       "goHome": "返回首页"
+    },
+    "contact": {
+      "title": "联系我们",
+      "description": "如有问题或建议，欢迎通过以下方式联系我们。",
+      "hint": "抖音、小红书搜索「带娃的小陈工」"
     }
   },
   "ui": {
@@ -2226,5 +2252,8 @@
     "title": "应用发生错误",
     "message": "抱歉，口袋相册遇到了意外问题。您可以尝试重新加载界面。",
     "reload": "重新加载"
+  },
+  "permissions": {
+    "storageDenied": "需要存储权限才能执行此操作，请在系统设置中开启权限后重试。"
   }
 }
