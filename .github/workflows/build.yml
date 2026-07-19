@@ -125,18 +125,24 @@ jobs:
         if: ${{ inputs.mobile == 'android' }}
         shell: bash
         run: |
-          ORT_VERSION="1.20.1"
+          set -euo pipefail
+          ORT_VERSION="1.20.0"
           ORT_DIR="src-tauri/libs/arm64-v8a"
           mkdir -p "$ORT_DIR"
           if [ ! -f "$ORT_DIR/libonnxruntime.so" ]; then
-            echo "Downloading ONNX Runtime ${ORT_VERSION} for Android arm64-v8a..."
-            curl -sL -o /tmp/onnxruntime-android.aar \
-              "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-android-${ORT_VERSION}.aar"
-            unzip -q -j /tmp/onnxruntime-android.aar "jni/arm64-v8a/libonnxruntime.so" -d "$ORT_DIR/"
+            echo "Downloading ONNX Runtime ${ORT_VERSION} for Android arm64-v8a from Maven Central..."
+            # ONNX Runtime Android artifacts are published to Maven Central (not GitHub releases)
+            curl -fL --retry 5 --retry-delay 10 -o /tmp/onnxruntime-android.aar \
+              "https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/${ORT_VERSION}/onnxruntime-android-${ORT_VERSION}.aar"
+            # Verify it's actually a zip file (not an error page)
+            file /tmp/onnxruntime-android.aar
+            unzip -q -j -o /tmp/onnxruntime-android.aar "jni/arm64-v8a/libonnxruntime.so" -d "$ORT_DIR/"
             rm -f /tmp/onnxruntime-android.aar
+            ls -la "$ORT_DIR/libonnxruntime.so"
             echo "ONNX Runtime downloaded to $ORT_DIR/libonnxruntime.so"
           else
             echo "ONNX Runtime already present, skipping download"
+            ls -la "$ORT_DIR/libonnxruntime.so"
           fi
 
       - name: Setup Android signing
