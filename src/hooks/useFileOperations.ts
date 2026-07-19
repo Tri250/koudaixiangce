@@ -284,6 +284,16 @@ export function useFileOperations(
   const startImportFiles = useCallback(async (sourcePaths: string[], destinationFolder: string, settings: any) => {
     if (!sourcePaths || sourcePaths.length === 0 || !destinationFolder) return;
 
+    // Set importing state immediately so the UI reflects the in-flight request,
+    // even before the backend emits `import-start`. This prevents the user from
+    // re-triggering the import while it's still being scheduled.
+    useProcessStore.getState().setImportState({
+      errorMessage: '',
+      path: '',
+      progress: { current: 0, total: sourcePaths.length },
+      status: Status.Importing,
+    });
+
     try {
       await invoke(Invokes.ImportFiles, { destination_folder: destinationFolder, settings, source_paths: sourcePaths });
     } catch (err) {
@@ -342,22 +352,24 @@ export function useFileOperations(
           const invalidExtensions = new Set<string>();
           const allowedExtensions = new Set(allImageExtensions.map((e) => e.toLowerCase()));
 
-          const resolvedFiles = await Promise.all(
-            selected.map(async (path) => {
-              if (isAndroid) {
-                try {
-                  return await invoke<string>('resolve_android_content_uri_name', { uri_str: path });
-                } catch (e) {
-                  console.error('Failed to resolve URI:', e);
-                  return path;
-                }
-              }
-              return path;
-            }),
-          );
+          // IMPORTANT: For Android content URIs the displayed path is the URI
+          // itself (content://...), but backend import_files needs the URI to
+          // call resolve_android_content_uri_name itself. So we keep the
+          // ORIGINAL path (selected) for the backend, and only use the
+          // resolved display name for extension validation.
+          const validFiles: string[] = [];
+          for (let index = 0; index < selected.length; index++) {
+            const originalPath = selected[index];
+            let resolvedName = originalPath;
 
-          const validFiles = selected.filter((originalPath, index) => {
-            const resolvedName = resolvedFiles[index];
+            if (isAndroid) {
+              try {
+                resolvedName = await invoke<string>('resolve_android_content_uri_name', { uri_str: originalPath });
+              } catch (e) {
+                console.error('Failed to resolve URI:', e);
+                // Fall back to the original path; backend will handle the error.
+              }
+            }
 
             // Android content URIs (content://...) may not have a usable extension.
             // If the resolved name is the raw URI itself (resolve failed) or has no
@@ -370,36 +382,49 @@ export function useFileOperations(
               // then fall back to the original URI. If no valid extension can be
               // extracted, allow the file through (backend will validate the actual bytes).
               const candidates = [resolvedName, originalPath];
+              let matched = false;
               for (const candidate of candidates) {
                 const match = candidate.match(/\.([a-zA-Z0-9]{2,5})(?:[?#]|$)/);
                 if (match) {
                   const candidateExt = match[1].toLowerCase();
                   if (allowedExtensions.has(candidateExt)) {
-                    return true;
+                    matched = true;
+                    break;
                   }
                 }
               }
               // No usable extension found, but it's a content URI — allow through.
-              return true;
+              // Always push the ORIGINAL path (URI) for Android so the backend can
+              // re-resolve it.
+              validFiles.push(originalPath);
+              if (!matched) {
+                // Still pushed through; backend validates actual bytes.
+              }
+              continue;
             }
 
             const fileName = resolvedName.split(/[\\/]/).pop() || resolvedName;
             const extMatch = fileName.match(/\.([a-zA-Z0-9]+)$/);
             const ext = extMatch ? extMatch[1].toLowerCase() : 'unknown';
             if (ext === 'unknown') {
-              return true;
+              validFiles.push(originalPath);
+              continue;
             }
 
             if (!allowedExtensions.has(ext)) {
               invalidExtensions.add(`.${ext}`);
-              return false;
+              continue;
             }
-            return true;
-          });
+            validFiles.push(originalPath);
+          }
 
           if (invalidExtensions.size > 0) {
             const extList = Array.from(invalidExtensions).join(', ');
             toast.error(i18n.t('errors.unsupportedFormat' as any, { list: extList }));
+            return;
+          }
+
+          if (validFiles.length === 0) {
             return;
           }
 

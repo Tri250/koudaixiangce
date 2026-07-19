@@ -176,20 +176,24 @@ export function useTauriListeners({
         if (isEffectActive) useProcessStore.getState().setExportState({ status: Status.Cancelled });
       }),
       listen('import-start', (event: any) => {
-        if (isEffectActive)
-          useProcessStore.getState().setImportState({
-            errorMessage: '',
-            path: '',
-            progress: { current: 0, total: event.payload.total },
-            status: Status.Importing,
-          });
+        if (!isEffectActive || !event.payload) return;
+        const total = Number(event.payload.total) || 0;
+        useProcessStore.getState().setImportState({
+          errorMessage: '',
+          path: '',
+          progress: { current: 0, total },
+          status: Status.Importing,
+        });
       }),
       listen('import-progress', (event: any) => {
-        if (isEffectActive)
-          useProcessStore.getState().setImportState({
-            path: event.payload.path,
-            progress: { current: event.payload.current, total: event.payload.total },
-          });
+        if (!isEffectActive || !event.payload) return;
+        const payload = event.payload;
+        const current = Number(payload.current) || 0;
+        const total = Number(payload.total) || 0;
+        useProcessStore.getState().setImportState({
+          path: payload.path ?? '',
+          progress: { current, total },
+        });
       }),
       listen('import-complete', () => {
         if (isEffectActive) {
@@ -202,11 +206,20 @@ export function useTauriListeners({
         }
       }),
       listen('import-error', (event: any) => {
-        if (isEffectActive)
-          useProcessStore.getState().setImportState({
-            status: Status.Error,
-            errorMessage: event.payload ? (typeof event.payload === 'string' ? event.payload : 'Unknown error') : 'Unknown error',
-          });
+        if (!isEffectActive) return;
+        const payload = event.payload;
+        let errorMessage = 'Unknown error';
+        if (payload) {
+          if (typeof payload === 'string') {
+            errorMessage = payload;
+          } else if (typeof payload === 'object' && payload.error) {
+            errorMessage = payload.error;
+          }
+        }
+        useProcessStore.getState().setImportState({
+          status: Status.Error,
+          errorMessage,
+        });
       }),
       listen('denoise-progress', (event: any) => {
         if (isEffectActive)

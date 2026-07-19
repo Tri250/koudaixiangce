@@ -130,11 +130,15 @@ fn enqueue_metadata(
     }
     drop(pending);
 
-    manager.queue.lock().unwrap_or_else(|e| e.into_inner()).push_back(PendingMetadata {
-        virtual_path,
-        image_path,
-        sidecar_path,
-    });
+    manager
+        .queue
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .push_back(PendingMetadata {
+            virtual_path,
+            image_path,
+            sidecar_path,
+        });
     manager.cvar.notify_one();
 }
 
@@ -154,9 +158,15 @@ pub fn start_metadata_workers(app_handle: tauri::AppHandle) {
         std::thread::spawn(move || {
             loop {
                 let item = {
-                    let mut queue = manager_clone.queue.lock().unwrap_or_else(|e| e.into_inner());
+                    let mut queue = manager_clone
+                        .queue
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
                     while queue.is_empty() {
-                        queue = manager_clone.cvar.wait(queue).unwrap_or_else(|e| e.into_inner());
+                        queue = manager_clone
+                            .cvar
+                            .wait(queue)
+                            .unwrap_or_else(|e| e.into_inner());
                     }
                     match queue.pop_front() {
                         Some(item) => item,
@@ -1244,7 +1254,10 @@ pub fn generate_thumbnail_data(
         let crop_data: Option<Crop> = serde_json::from_value(meta.adjustments["crop"].clone()).ok();
 
         let cached_base: Option<(DynamicImage, f32)> = {
-            let cache = state.thumbnail_geometry_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let cache = state
+                .thumbnail_geometry_cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             if let Some((cached_hash, img, scale)) = cache.get(path_str) {
                 let mut sufficient_resolution = true;
                 if let Some(c) = &crop_data
@@ -1360,7 +1373,10 @@ pub fn generate_thumbnail_data(
 
             let total_scale = gpu_scale * raw_scale_factor;
 
-            let mut cache = state.thumbnail_geometry_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let mut cache = state
+                .thumbnail_geometry_cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             if cache.len() > 30 {
                 cache.clear();
             }
@@ -1596,16 +1612,25 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
         std::thread::spawn(move || {
             loop {
                 let path_to_process: String = {
-                    let mut queue = manager_clone.queue.lock().unwrap_or_else(|e| e.into_inner());
+                    let mut queue = manager_clone
+                        .queue
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
                     while queue.is_empty() {
-                        queue = manager_clone.cvar.wait(queue).unwrap_or_else(|e| e.into_inner());
+                        queue = manager_clone
+                            .cvar
+                            .wait(queue)
+                            .unwrap_or_else(|e| e.into_inner());
                     }
                     let path = match queue.pop_back() {
                         Some(p) => p,
                         None => continue,
                     };
 
-                    let mut processing = manager_clone.processing_now.lock().unwrap_or_else(|e| e.into_inner());
+                    let mut processing = manager_clone
+                        .processing_now
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
                     if processing.contains(&path) {
                         let state = app_clone.state::<crate::AppState>();
                         increment_thumbnail_progress(&state, &app_clone);
@@ -1658,11 +1683,18 @@ pub fn update_thumbnail_queue(
 ) -> Result<(), String> {
     let state = app_handle.state::<crate::AppState>();
 
-    let mut queue = state.thumbnail_manager.queue.lock().unwrap_or_else(|e| e.into_inner());
+    let mut queue = state
+        .thumbnail_manager
+        .queue
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
 
     if paths.is_empty() {
         queue.clear();
-        let mut tracker = state.thumbnail_progress.lock().unwrap_or_else(|e| e.into_inner());
+        let mut tracker = state
+            .thumbnail_progress
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         tracker.total = 0;
         tracker.completed = 0;
         drop(tracker);
@@ -1696,7 +1728,10 @@ pub fn update_thumbnail_queue(
     let queue_len = queue.len();
     drop(queue);
 
-    let mut tracker = state.thumbnail_progress.lock().unwrap_or_else(|e| e.into_inner());
+    let mut tracker = state
+        .thumbnail_progress
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     tracker.total = tracker.completed + queue_len;
 
     let current = tracker.completed;
@@ -1713,7 +1748,10 @@ pub fn update_thumbnail_queue(
 }
 
 pub fn add_to_thumbnail_queue(state: &AppState, count: usize, app_handle: &AppHandle) {
-    let mut tracker = state.thumbnail_progress.lock().unwrap_or_else(|e| e.into_inner());
+    let mut tracker = state
+        .thumbnail_progress
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     tracker.total += count;
     let current = tracker.completed;
     let total = tracker.total;
@@ -1726,7 +1764,10 @@ pub fn add_to_thumbnail_queue(state: &AppState, count: usize, app_handle: &AppHa
 }
 
 pub fn increment_thumbnail_progress(state: &AppState, app_handle: &AppHandle) {
-    let mut tracker = state.thumbnail_progress.lock().unwrap_or_else(|e| e.into_inner());
+    let mut tracker = state
+        .thumbnail_progress
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     tracker.completed += 1;
     let current = tracker.completed;
     let total = tracker.total;
@@ -2243,7 +2284,10 @@ pub fn save_metadata_and_update_thumbnail(
         sync_metadata_to_xmp(&source_path, &metadata, create_if_missing);
     }
 
-    let loaded_image_lock = state.original_image.lock().unwrap_or_else(|e| e.into_inner());
+    let loaded_image_lock = state
+        .original_image
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let preloaded_image_option = if let Some(loaded_image) = loaded_image_lock.as_ref() {
         if loaded_image.path == path {
             Some(loaded_image.image.clone())
@@ -3256,6 +3300,34 @@ pub async fn import_files(
     settings: ImportSettings,
     app_handle: AppHandle,
 ) -> Result<(), String> {
+    // Validate inputs before any work or events are emitted.
+    if destination_folder.trim().is_empty() {
+        return Err("Destination folder cannot be empty.".to_string());
+    }
+    if source_paths.is_empty() {
+        return Err("No source files provided for import.".to_string());
+    }
+    // Validate filename template — must not contain path separators to prevent
+    // generated filenames from escaping the destination folder.
+    let safe_template = settings.filename_template.trim();
+    if safe_template.is_empty() {
+        return Err("Filename template cannot be empty.".to_string());
+    }
+    if safe_template.contains('/') || safe_template.contains('\\') || safe_template.contains("..") {
+        return Err("Filename template contains invalid path characters.".to_string());
+    }
+    if settings.organize_by_date && settings.date_folder_format.trim().is_empty() {
+        return Err(
+            "Date folder format cannot be empty when organize_by_date is enabled.".to_string(),
+        );
+    }
+
+    let dest_root = PathBuf::from(&destination_folder);
+    if !dest_root.exists() {
+        fs::create_dir_all(&dest_root)
+            .map_err(|e| format!("Failed to create destination folder: {}", e))?;
+    }
+
     let total_files = source_paths.len();
     let _ = app_handle.emit("import-start", serde_json::json!({ "total": total_files }));
 
@@ -3303,6 +3375,16 @@ pub async fn import_files(
                         total_files,
                         &file_date,
                     );
+                    // Reject any template output containing path separators — this
+                    // prevents a malicious or misconfigured template from writing
+                    // outside the destination folder.
+                    if new_stem.contains('/') || new_stem.contains('\\') || new_stem.contains("..")
+                    {
+                        return Err(format!(
+                            "Generated filename contains path separators: {}",
+                            new_stem
+                        ));
+                    }
                     let extension = source_name_path
                         .extension()
                         .and_then(|s| s.to_str())
@@ -3312,7 +3394,16 @@ pub async fn import_files(
                     } else {
                         format!("{}.{}", new_stem, extension)
                     };
-                    let dest_file_path = final_dest_folder.join(new_filename);
+                    let dest_file_path = final_dest_folder.join(&new_filename);
+
+                    // Path traversal safety: ensure the resolved destination is
+                    // still inside the destination root.
+                    if !dest_file_path.starts_with(&final_dest_folder) {
+                        return Err(format!(
+                            "Resolved destination path escapes target folder: {}",
+                            dest_file_path.display()
+                        ));
+                    }
 
                     if dest_file_path.exists() {
                         return Err(format!(
@@ -3361,12 +3452,34 @@ pub async fn import_files(
                     total_files,
                     &file_date,
                 );
+                // Reject any template output containing path separators — this
+                // prevents a malicious or misconfigured template from writing
+                // outside the destination folder.
+                if new_stem.contains('/') || new_stem.contains('\\') || new_stem.contains("..") {
+                    return Err(format!(
+                        "Generated filename contains path separators: {}",
+                        new_stem
+                    ));
+                }
                 let extension = source_path
                     .extension()
                     .and_then(|s| s.to_str())
                     .unwrap_or("");
-                let new_filename = format!("{}.{}", new_stem, extension);
-                let dest_file_path = final_dest_folder.join(new_filename);
+                let new_filename = if extension.is_empty() {
+                    new_stem.to_string()
+                } else {
+                    format!("{}.{}", new_stem, extension)
+                };
+                let dest_file_path = final_dest_folder.join(&new_filename);
+
+                // Path traversal safety: ensure the resolved destination is
+                // still inside the destination root.
+                if !dest_file_path.starts_with(&final_dest_folder) {
+                    return Err(format!(
+                        "Resolved destination path escapes target folder: {}",
+                        dest_file_path.display()
+                    ));
+                }
 
                 if dest_file_path.exists() {
                     return Err(format!(
@@ -3383,12 +3496,28 @@ pub async fn import_files(
                     fs::copy(&source_sidecar, &dest_sidecar).map_err(|e| e.to_string())?;
                 }
 
-                let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
+                let mut source_rrexif_name = source_path
+                    .file_name()
+                    .ok_or_else(|| {
+                        format!(
+                            "Cannot determine source file name: {}",
+                            source_path.display()
+                        )
+                    })?
+                    .to_os_string();
                 source_rrexif_name.push(".rrexif");
                 let source_rrexif = source_path.with_file_name(source_rrexif_name);
 
                 if source_rrexif.exists() {
-                    let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
+                    let mut dest_rrexif_name = dest_file_path
+                        .file_name()
+                        .ok_or_else(|| {
+                            format!(
+                                "Cannot determine destination file name: {}",
+                                dest_file_path.display()
+                            )
+                        })?
+                        .to_os_string();
                     dest_rrexif_name.push(".rrexif");
                     let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
                     let _ = fs::copy(&source_rrexif, &dest_rrexif);
@@ -3415,6 +3544,18 @@ pub async fn import_files(
                             );
                             fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
                         }
+                        // Also clean up the source rrexif sidecar to avoid
+                        // orphaned metadata after move-to-trash imports.
+                        if source_rrexif.exists()
+                            && let Err(trash_error) = trash::delete(&source_rrexif)
+                        {
+                            log::warn!(
+                                "Failed to trash source rrexif {}: {}. Deleting permanently.",
+                                source_rrexif.display(),
+                                trash_error
+                            );
+                            let _ = fs::remove_file(&source_rrexif);
+                        }
                     }
 
                     #[cfg(not(any(
@@ -3438,8 +3579,13 @@ pub async fn import_files(
 
             if let Err(e) = import_result {
                 eprintln!("Failed to import {}: {}", source_path_str, e);
-                let _ = app_handle.emit("import-error", e);
-                return;
+                let _ = app_handle.emit(
+                    "import-error",
+                    serde_json::json!({ "path": source_path_str, "error": e }),
+                );
+                // Continue processing remaining files instead of aborting the whole batch.
+                // The frontend will surface per-file errors to the user.
+                continue;
             }
         }
 
@@ -3464,23 +3610,38 @@ pub fn generate_filename_from_template(
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("image");
-    let sequence_str = format!(
-        "{:0width$}",
-        sequence,
-        width = total.to_string().len().max(1)
-    );
+    let seq_width = total.to_string().len().max(1);
+    let sequence_str = format!("{:0width$}", sequence, width = seq_width);
     let local_date = file_date.with_timezone(&chrono::Local);
 
-    let mut result = template.to_string();
-    result = result.replace("{original_filename}", stem);
-    result = result.replace("{sequence}", &sequence_str);
-    result = result.replace("{YYYY}", &local_date.format("%Y").to_string());
-    result = result.replace("{MM}", &local_date.format("%m").to_string());
-    result = result.replace("{DD}", &local_date.format("%d").to_string());
-    result = result.replace("{hh}", &local_date.format("%H").to_string());
-    result = result.replace("{mm}", &local_date.format("%M").to_string());
+    let result = template.to_string();
+    let result = result.replace("{original_filename}", stem);
+    let result = result.replace("{sequence}", &sequence_str);
+    // Format each date component with a fallback to empty string on failure
+    // (chrono's format never fails for these tokens, but be defensive anyway).
+    let result = result.replace("{YYYY}", &local_date.format("%Y").to_string());
+    let result = result.replace("{MM}", &local_date.format("%m").to_string());
+    let result = result.replace("{DD}", &local_date.format("%d").to_string());
+    let result = result.replace("{hh}", &local_date.format("%H").to_string());
+    let result = result.replace("{mm}", &local_date.format("%M").to_string());
 
-    result
+    // Replace any remaining unrecognized placeholders with underscores to
+    // avoid leaving raw template syntax in the final filename.
+    // Matches patterns like {anything_here} that weren't substituted above.
+    let placeholder_re = Regex::new(r"\{[^{}]+\}").unwrap();
+    let result = placeholder_re.replace_all(&result, "_").to_string();
+
+    // Trim any leading/trailing whitespace and path-separator characters
+    // that could result in unexpected paths after joining.
+    let trimmed = result
+        .trim()
+        .trim_matches(|c| c == '/' || c == '\\' || c == '.')
+        .to_string();
+    if trimmed.is_empty() {
+        "image".to_string()
+    } else {
+        trimmed
+    }
 }
 
 #[tauri::command]
