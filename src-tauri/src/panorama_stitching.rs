@@ -508,7 +508,7 @@ fn build_stitching_order(
                             .try_inverse()
                             .unwrap_or_else(|| {
                                 log::warn!("Failed to invert homography for MST edge {}->{}", u, v);
-                                na::Matrix3::identity()
+                                Matrix3::identity()
                             })
                     } else {
                         log::warn!("Match not found for MST edge between {} and {}", u, v);
