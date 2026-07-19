@@ -109,10 +109,8 @@ impl ColorConsistencyEngine {
         let converted = self.apply_pipeline(image);
 
         // Now convert back to see what would be lost
-        let back_engine = ColorConsistencyEngine::new(
-            self.target_profile.clone(),
-            self.source_profile.clone(),
-        );
+        let back_engine =
+            ColorConsistencyEngine::new(self.target_profile.clone(), self.source_profile.clone());
         back_engine.apply_pipeline(&converted)
     }
 
@@ -142,15 +140,14 @@ impl ColorConsistencyEngine {
                 let rgb_target = mat3_mul_vec(&dst_matrix.from_xyz, &xyz_adapted);
 
                 // Check if all channels are in [0, 1]
-                let in_gamut = rgb_target[0] >= 0.0 && rgb_target[0] <= 1.0
-                    && rgb_target[1] >= 0.0 && rgb_target[1] <= 1.0
-                    && rgb_target[2] >= 0.0 && rgb_target[2] <= 1.0;
+                let in_gamut = rgb_target[0] >= 0.0
+                    && rgb_target[0] <= 1.0
+                    && rgb_target[1] >= 0.0
+                    && rgb_target[1] <= 1.0
+                    && rgb_target[2] >= 0.0
+                    && rgb_target[2] <= 1.0;
 
-                mask.put_pixel(
-                    x,
-                    y,
-                    image::Luma([if in_gamut { 255 } else { 0 }]),
-                );
+                mask.put_pixel(x, y, image::Luma([if in_gamut { 255 } else { 0 }]));
             }
         }
 
@@ -260,9 +257,7 @@ pub fn compute_matrices(primaries: &ColorPrimaries) -> ColorMatrices {
 
     // Primary matrix: [R_xyz | G_xyz | B_xyz] as columns
     let prim = [
-        r_xyz[0], g_xyz[0], b_xyz[0],
-        r_xyz[1], g_xyz[1], b_xyz[1],
-        r_xyz[2], g_xyz[2], b_xyz[2],
+        r_xyz[0], g_xyz[0], b_xyz[0], r_xyz[1], g_xyz[1], b_xyz[1], r_xyz[2], g_xyz[2], b_xyz[2],
     ];
 
     // Solve prim * S = W for S (scaling factors)
@@ -271,9 +266,15 @@ pub fn compute_matrices(primaries: &ColorPrimaries) -> ColorMatrices {
 
     // Scale the primary matrix
     let to_xyz = [
-        r_xyz[0] * s[0], g_xyz[0] * s[1], b_xyz[0] * s[2],
-        r_xyz[1] * s[0], g_xyz[1] * s[1], b_xyz[1] * s[2],
-        r_xyz[2] * s[0], g_xyz[2] * s[1], b_xyz[2] * s[2],
+        r_xyz[0] * s[0],
+        g_xyz[0] * s[1],
+        b_xyz[0] * s[2],
+        r_xyz[1] * s[0],
+        g_xyz[1] * s[1],
+        b_xyz[1] * s[2],
+        r_xyz[2] * s[0],
+        g_xyz[2] * s[1],
+        b_xyz[2] * s[2],
     ];
 
     let from_xyz = mat3_inverse(&to_xyz);
@@ -299,14 +300,11 @@ fn xy_to_xyz(xy: [f32; 2]) -> [f32; 3] {
 pub fn bradford_adaptation(source_white: &[f32; 2], target_white: &[f32; 2]) -> [f32; 9] {
     // Bradford cone-response matrix
     let bradford: [f32; 9] = [
-         0.8951,  0.2664, -0.1614,
-        -0.7502,  1.7135,  0.0367,
-         0.0389, -0.0685,  1.0296,
+        0.8951, 0.2664, -0.1614, -0.7502, 1.7135, 0.0367, 0.0389, -0.0685, 1.0296,
     ];
     let bradford_inv: [f32; 9] = [
-         0.9869929, -0.1470543,  0.1599627,
-         0.4323053,  0.5183603,  0.0492912,
-        -0.0085287,  0.0400428,  0.9684867,
+        0.9869929, -0.1470543, 0.1599627, 0.4323053, 0.5183603, 0.0492912, -0.0085287, 0.0400428,
+        0.9684867,
     ];
 
     let src_xyz = xy_to_xyz(*source_white);
@@ -321,9 +319,15 @@ pub fn bradford_adaptation(source_white: &[f32; 2], target_white: &[f32; 2]) -> 
         return [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]; // Identity
     }
     let scale: [f32; 9] = [
-        dst_cone[0] / src_cone[0], 0.0, 0.0,
-        0.0, dst_cone[1] / src_cone[1], 0.0,
-        0.0, 0.0, dst_cone[2] / src_cone[2],
+        dst_cone[0] / src_cone[0],
+        0.0,
+        0.0,
+        0.0,
+        dst_cone[1] / src_cone[1],
+        0.0,
+        0.0,
+        0.0,
+        dst_cone[2] / src_cone[2],
     ];
 
     // M_adapt = bradford_inv * scale * bradford
@@ -379,9 +383,7 @@ fn mat3_mul(a: &[f32; 9], b: &[f32; 9]) -> [f32; 9] {
     let mut result = [0.0f32; 9];
     for i in 0..3 {
         for j in 0..3 {
-            result[i * 3 + j] = a[i * 3] * b[j]
-                + a[i * 3 + 1] * b[3 + j]
-                + a[i * 3 + 2] * b[6 + j];
+            result[i * 3 + j] = a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j];
         }
     }
     result
@@ -389,8 +391,7 @@ fn mat3_mul(a: &[f32; 9], b: &[f32; 9]) -> [f32; 9] {
 
 /// Compute the inverse of a 3x3 matrix.
 fn mat3_inverse(m: &[f32; 9]) -> [f32; 9] {
-    let det = m[0] * (m[4] * m[8] - m[5] * m[7])
-        - m[1] * (m[3] * m[8] - m[5] * m[6])
+    let det = m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6])
         + m[2] * (m[3] * m[7] - m[4] * m[6]);
 
     if det.abs() < 1e-10 {

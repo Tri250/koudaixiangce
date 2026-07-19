@@ -951,7 +951,11 @@ fn generate_ai_depth_bitmap(
         let depth_intensity = val_pct / 100.0;
         let final_intensity = bandpass_weight * depth_intensity;
 
-        mask.put_pixel(x, y, Luma([(final_intensity.clamp(0.0, 1.0) * 255.0) as u8]));
+        mask.put_pixel(
+            x,
+            y,
+            Luma([(final_intensity.clamp(0.0, 1.0) * 255.0) as u8]),
+        );
     }
 
     if params.feather > 0.0 {

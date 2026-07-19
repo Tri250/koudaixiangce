@@ -154,6 +154,10 @@ pub struct AppState {
     pub exported_output_paths: Mutex<Vec<PathBuf>>,
     pub hdr_result: Arc<Mutex<Option<DynamicImage>>>,
     pub panorama_result: Arc<Mutex<Option<DynamicImage>>>,
+    /// Cancellation flag for the currently running panorama stitch.
+    /// Set to true to request that the stitching task abort at its next
+    /// checkpoint.
+    pub panorama_cancel_flag: Arc<AtomicBool>,
     pub denoise_result: Arc<Mutex<Option<DynamicImage>>>,
     pub indexing_task_handle: Mutex<Option<JoinHandle<()>>>,
     pub lut_cache: Mutex<HashMap<String, Arc<Lut>>>,
@@ -167,6 +171,11 @@ pub struct AppState {
     pub patch_cache: Mutex<HashMap<String, serde_json::Value>>,
     pub geometry_cache: Mutex<HashMap<u64, DynamicImage>>,
     pub thumbnail_geometry_cache: Mutex<HashMap<String, (u64, DynamicImage, f32)>>,
+    /// Cached log-space pixels and channel bounds for negative conversion
+    /// previews. Keyed by a hash of the source path so that slider adjustments
+    /// skip file decode + log10 + bounds analysis entirely.
+    pub negative_preview_cache:
+        Mutex<HashMap<u64, crate::negative_conversion::NegativePreviewCache>>,
     pub lens_db: Mutex<Option<Arc<LensDatabase>>>,
     pub load_image_generation: Arc<AtomicUsize>,
     pub full_warped_cache: Mutex<Option<(u64, Arc<DynamicImage>)>>,

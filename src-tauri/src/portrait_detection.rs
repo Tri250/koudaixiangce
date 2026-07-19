@@ -19,7 +19,8 @@ use tokio::sync::Mutex as TokioMutex;
 const FACE_LANDMARK_URL: &str = "https://huggingface.co/CyberTimon/RapidRAW-Models/resolve/main/face_landmark_468.onnx?download=true";
 const FACE_LANDMARK_FILENAME: &str = "face_landmark_468.onnx";
 const FACE_LANDMARK_INPUT_SIZE: u32 = 192;
-const FACE_LANDMARK_SHA256: &str = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+const FACE_LANDMARK_SHA256: &str =
+    "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
 
 const BODY_POSE_URL: &str = "https://huggingface.co/CyberTimon/RapidRAW-Models/resolve/main/body_pose_mediapipe.onnx?download=true";
 const BODY_POSE_FILENAME: &str = "body_pose_mediapipe.onnx";
@@ -280,7 +281,9 @@ pub async fn get_or_init_face_model(
     crate::register_exit_handler();
 
     // Store in portrait state (create entry if needed).
-    let mut state_lock = portrait_state_mutex.lock().unwrap_or_else(|e| e.into_inner());
+    let mut state_lock = portrait_state_mutex
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     if let Some(state) = state_lock.as_mut() {
         if let Some(models) = state.models.as_mut() {
             // Body pose model may already be loaded – keep it.
@@ -368,7 +371,9 @@ pub async fn get_or_init_body_model(
 
     crate::register_exit_handler();
 
-    let mut state_lock = portrait_state_mutex.lock().unwrap_or_else(|e| e.into_inner());
+    let mut state_lock = portrait_state_mutex
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     if let Some(state) = state_lock.as_mut() {
         if let Some(models) = state.models.as_mut() {
             let face_landmark = Arc::clone(&models.face_landmark);
@@ -465,9 +470,9 @@ pub fn detect_faces(
         return Ok(Vec::new());
     }
 
-    let lm_slice = landmark_arr.as_slice().ok_or_else(|| {
-        anyhow::anyhow!("Failed to extract landmark output as contiguous slice")
-    })?;
+    let lm_slice = landmark_arr
+        .as_slice()
+        .ok_or_else(|| anyhow::anyhow!("Failed to extract landmark output as contiguous slice"))?;
 
     // Parse 468 × 3 = 1404 floats into landmarks.
     let mut landmarks = Vec::with_capacity(468);
@@ -496,7 +501,12 @@ pub fn detect_faces(
     // Scale normalised coords back to pixel space.
     let scale_x = orig_width as f32;
     let scale_y = orig_height as f32;
-    let bbox = (x_min * scale_x, y_min * scale_y, x_max * scale_x, y_max * scale_y);
+    let bbox = (
+        x_min * scale_x,
+        y_min * scale_y,
+        x_max * scale_x,
+        y_max * scale_y,
+    );
 
     for lm in &mut landmarks {
         lm.x *= scale_x;
@@ -620,11 +630,7 @@ pub fn detect_body_pose(
 /// The mask is `width × height` and uses convex-hull-like filling around the
 /// face landmark contour points (approximated by the face oval landmarks).
 /// Pixels inside the face region are set to 255, others to 0.
-pub fn detect_skin_region(
-    face: &FaceLandmark,
-    width: u32,
-    height: u32,
-) -> GrayImage {
+pub fn detect_skin_region(face: &FaceLandmark, width: u32, height: u32) -> GrayImage {
     let mut mask = GrayImage::from_pixel(width, height, Luma([0u8]));
 
     // Use a subset of landmarks that outline the face oval.
@@ -721,10 +727,7 @@ fn point_in_polygon(x: i32, y: i32, polygon: &[(i32, i32)]) -> bool {
 ///
 /// Returns a list of `(x, y, radius)` tuples indicating the approximate
 /// centre and size of each candidate blemish, in pixel coordinates.
-pub fn detect_blemishes(
-    image: &DynamicImage,
-    face: &FaceLandmark,
-) -> Result<Vec<(u32, u32, u32)>> {
+pub fn detect_blemishes(image: &DynamicImage, face: &FaceLandmark) -> Result<Vec<(u32, u32, u32)>> {
     let (width, height) = image.dimensions();
 
     // Build a skin mask to constrain the search.
@@ -746,14 +749,10 @@ pub fn detect_blemishes(
     // to avoid false positives from natural shadows.
     let feature_indices: [usize; 24] = [
         // Left eye
-        33, 7, 163, 144, 145, 153, 154, 155,
-        // Right eye
-        263, 249, 390, 373, 374, 380, 381, 382,
-        // Nose
-        1, 2, 98, 327,
-        // Mouth
-        61, 291,
-        // Eyebrows
+        33, 7, 163, 144, 145, 153, 154, 155, // Right eye
+        263, 249, 390, 373, 374, 380, 381, 382, // Nose
+        1, 2, 98, 327, // Mouth
+        61, 291, // Eyebrows
         70, 300,
     ];
 
@@ -792,9 +791,7 @@ pub fn detect_blemishes(
             // not in a feature region.
             let cx = bx + block_size / 2;
             let cy = by + block_size / 2;
-            if skin_mask.get_pixel(cx, cy)[0] == 0
-                || feature_mask.get_pixel(cx, cy)[0] > 0
-            {
+            if skin_mask.get_pixel(cx, cy)[0] == 0 || feature_mask.get_pixel(cx, cy)[0] > 0 {
                 bx += block_size / 2;
                 continue;
             }
@@ -855,10 +852,7 @@ pub fn detect_blemishes(
 
 /// Remove blemish candidates that are too close together, keeping the
 /// one with the larger radius.
-fn deduplicate_blemishes(
-    blemishes: &[(u32, u32, u32)],
-    min_distance: u32,
-) -> Vec<(u32, u32, u32)> {
+fn deduplicate_blemishes(blemishes: &[(u32, u32, u32)], min_distance: u32) -> Vec<(u32, u32, u32)> {
     let mut result: Vec<(u32, u32, u32)> = Vec::new();
     let min_dist_sq = (min_distance * min_distance) as f32;
 
@@ -899,10 +893,11 @@ pub fn detect_faces_compat(
     let (width, height) = image.dimensions();
 
     let models_arc = {
-        let portrait_state_lock = state.portrait_state.lock().unwrap_or_else(|e| e.into_inner());
-        portrait_state_lock
-            .as_ref()
-            .and_then(|s| s.models.clone())
+        let portrait_state_lock = state
+            .portrait_state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        portrait_state_lock.as_ref().and_then(|s| s.models.clone())
     };
 
     let Some(models) = models_arc else {
@@ -950,10 +945,11 @@ pub fn detect_body_compat(
     let (width, height) = image.dimensions();
 
     let models_arc = {
-        let portrait_state_lock = state.portrait_state.lock().unwrap_or_else(|e| e.into_inner());
-        portrait_state_lock
-            .as_ref()
-            .and_then(|s| s.models.clone())
+        let portrait_state_lock = state
+            .portrait_state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        portrait_state_lock.as_ref().and_then(|s| s.models.clone())
     };
 
     let Some(models) = models_arc else {

@@ -128,7 +128,10 @@ impl MeshGrid {
     fn displaced_position(&self, col: usize, row: usize) -> (f32, f32) {
         let (ox, oy) = self.original_position(col, row);
         let idx = (row * self.cols + col) * 2;
-        (ox + self.displacements[idx], oy + self.displacements[idx + 1])
+        (
+            ox + self.displacements[idx],
+            oy + self.displacements[idx + 1],
+        )
     }
 
     /// Set the displacement at grid vertex (col, row).
@@ -209,12 +212,7 @@ pub fn push_pull_deform(
 /// When `pressure > 0` the effect is *bloat* (expand), when `pressure < 0`
 /// the effect is *pucker* (shrink).  Vertices are moved radially away from
 /// or towards the centre.
-pub fn pucker_bloat_deform(
-    grid: &mut MeshGrid,
-    centre: (f32, f32),
-    radius: f32,
-    pressure: f32,
-) {
+pub fn pucker_bloat_deform(grid: &mut MeshGrid, centre: (f32, f32), radius: f32, pressure: f32) {
     let r_sq = radius * radius;
     if r_sq < 1e-6 {
         return;
@@ -259,12 +257,7 @@ pub fn pucker_bloat_deform(
 ///
 /// Vertices within `radius` are rotated by an angle proportional to `pressure`
 /// and a smooth fall-off kernel.
-pub fn twirl_deform(
-    grid: &mut MeshGrid,
-    centre: (f32, f32),
-    radius: f32,
-    pressure: f32,
-) {
+pub fn twirl_deform(grid: &mut MeshGrid, centre: (f32, f32), radius: f32, pressure: f32) {
     let r_sq = radius * radius;
     if r_sq < 1e-6 {
         return;
@@ -313,12 +306,7 @@ pub fn twirl_deform(
 /// Vertices within `radius` of `centre` are moved back towards their
 /// original (zero-displacement) positions, with strength proportional to
 /// `pressure`.
-pub fn reconstruct_deform(
-    grid: &mut MeshGrid,
-    centre: (f32, f32),
-    radius: f32,
-    pressure: f32,
-) {
+pub fn reconstruct_deform(grid: &mut MeshGrid, centre: (f32, f32), radius: f32, pressure: f32) {
     let r_sq = radius * radius;
     if r_sq < 1e-6 {
         return;
@@ -384,7 +372,13 @@ pub fn apply_liquify_stroke(grid: &mut MeshGrid, stroke: &LiquifyStroke) {
 
         match brush.brush_type {
             LiquifyBrushType::Push => {
-                push_pull_deform(grid, brush.position, brush.radius, brush.pressure, direction);
+                push_pull_deform(
+                    grid,
+                    brush.position,
+                    brush.radius,
+                    brush.pressure,
+                    direction,
+                );
             }
             LiquifyBrushType::Pull => {
                 push_pull_deform(
@@ -502,11 +496,7 @@ fn catmull_rom(t: f32) -> f32 {
 /// Bicubic interpolation on a 2D displacement field sampled at the grid
 /// vertex level.  Returns the interpolated (dx, dy) at fractional grid
 /// coordinate (fx, fy).
-fn bicubic_interpolate_displacement(
-    grid: &MeshGrid,
-    fx: f32,
-    fy: f32,
-) -> (f32, f32) {
+fn bicubic_interpolate_displacement(grid: &MeshGrid, fx: f32, fy: f32) -> (f32, f32) {
     let ix = fx.floor() as i32;
     let iy = fy.floor() as i32;
     let tx = fx - ix as f32;
@@ -575,13 +565,7 @@ pub fn apply_liquify_mesh(grid: &MeshGrid, original: &DynamicImage) -> RgbaImage
 /// Bilinear sampling of an RGBA image at fractional coordinates.
 ///
 /// Coordinates outside the image are clamped to the edge.
-fn bilinear_sample(
-    img: &RgbaImage,
-    x: f32,
-    y: f32,
-    width: u32,
-    height: u32,
-) -> Rgba<u8> {
+fn bilinear_sample(img: &RgbaImage, x: f32, y: f32, width: u32, height: u32) -> Rgba<u8> {
     let x0 = x.floor().clamp(0.0, (width - 1) as f32) as u32;
     let y0 = y.floor().clamp(0.0, (height - 1) as f32) as u32;
     let x1 = (x0 + 1).min(width - 1);

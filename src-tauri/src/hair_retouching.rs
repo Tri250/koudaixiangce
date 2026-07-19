@@ -46,7 +46,13 @@ pub fn apply_hair_retouch(image: &DynamicImage, params: &Value) -> Result<Dynami
     }
 
     if color_uniform_strength > 0.0 {
-        uniform_hair_color(&mut result, &hair_mask, width, height, color_uniform_strength);
+        uniform_hair_color(
+            &mut result,
+            &hair_mask,
+            width,
+            height,
+            color_uniform_strength,
+        );
     }
 
     if smooth_strength > 0.0 {
@@ -141,13 +147,7 @@ fn build_texture_mask(img: &RgbaImage, width: u32, height: u32) -> Vec<f32> {
 /// large *and* isolated – those are flyaway strands. We then blend those
 /// pixels toward the low-frequency background, weighted by the flyaway
 /// strength and the texture mask.
-fn remove_flyaway_hair(
-    img: &mut RgbaImage,
-    mask: &[f32],
-    width: u32,
-    height: u32,
-    strength: f32,
-) {
+fn remove_flyaway_hair(img: &mut RgbaImage, mask: &[f32], width: u32, height: u32, strength: f32) {
     let w = width as usize;
     let h = height as usize;
     if w == 0 || h == 0 {
@@ -211,13 +211,7 @@ fn remove_flyaway_hair(
 /// while preserving the broad colour structure (highlights vs shadows), which
 /// a global-mean approach would flatten. The texture mask protects non-hair
 /// regions and the strength controls the blend.
-fn uniform_hair_color(
-    img: &mut RgbaImage,
-    mask: &[f32],
-    width: u32,
-    height: u32,
-    strength: f32,
-) {
+fn uniform_hair_color(img: &mut RgbaImage, mask: &[f32], width: u32, height: u32, strength: f32) {
     let w = width as usize;
     let h = height as usize;
     let radius = 6i32; // 13×13 window – averages across a strand cluster
@@ -257,13 +251,7 @@ fn uniform_hair_color(
 /// texture mask and a luminance similarity weight so hard edges (hair against
 /// background) are preserved. The strength controls the blend toward the
 /// smoothed result.
-fn smooth_hair(
-    img: &mut RgbaImage,
-    mask: &[f32],
-    width: u32,
-    height: u32,
-    strength: f32,
-) {
+fn smooth_hair(img: &mut RgbaImage, mask: &[f32], width: u32, height: u32, strength: f32) {
     let w = width as usize;
     let h = height as usize;
     let radius = 3i32; // 7×7 window
@@ -308,8 +296,7 @@ fn box_blur(img: &RgbaImage, width: u32, height: u32, radius: i32) -> RgbaImage 
     let r = radius as usize;
 
     // Horizontal pass.
-    let mut horiz: ImageBuffer<Rgba<u8>, Vec<u8>> =
-        ImageBuffer::new(width, height);
+    let mut horiz: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(width, height);
     for y in 0..h {
         for x in 0..w {
             let mut rs = [0u32; 3];
@@ -337,8 +324,7 @@ fn box_blur(img: &RgbaImage, width: u32, height: u32, radius: i32) -> RgbaImage 
     }
 
     // Vertical pass.
-    let mut out: ImageBuffer<Rgba<u8>, Vec<u8>> =
-        ImageBuffer::new(width, height);
+    let mut out: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(width, height);
     for y in 0..h {
         let y0 = y.saturating_sub(r);
         let y1 = (y + r).min(h - 1);

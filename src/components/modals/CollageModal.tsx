@@ -98,6 +98,22 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
   const [hoveredCellIndex, setHoveredCellIndex] = useState<number | null>(null);
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
 
+  // Refs for values that change frequently (resize, export dimension edits)
+  // but should NOT cause drawCanvas to be recreated on every change.
+  // drawCanvas reads these from refs so its identity stays stable across
+  // resize / dimension typing, and only re-triggers redraw when
+  // layout / images / visual properties actually change.
+  const previewSizeRef = useRef(previewSize);
+  const exportWidthRef = useRef(exportWidth);
+  const exportHeightRef = useRef(exportHeight);
+  useEffect(() => {
+    previewSizeRef.current = previewSize;
+  }, [previewSize]);
+  useEffect(() => {
+    exportWidthRef.current = exportWidth;
+    exportHeightRef.current = exportHeight;
+  }, [exportWidth, exportHeight]);
+
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const imageElementsRef = useRef<Record<string, HTMLImageElement>>({});
@@ -145,38 +161,90 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
       setError(null);
       try {
         const imagePromises = sourceImages.map(async (imageFile) => {
-          const metadata: any = await invoke(Invokes.LoadMetadata, { path: imageFile.path });
-          const adjustments = metadata.adjustments && !metadata.adjustments.is_null ? metadata.adjustments : {};
+          try {
+            const metadata: any = await invoke(Invokes.LoadMetadata, { path: imageFile.path });
+            const adjustments = metadata.adjustments && !metadata.adjustments.is_null ? metadata.adjustments : {};
 
-          const imageData: Uint8Array = await invoke(Invokes.GeneratePreviewForPath, {
-            path: imageFile.path,
-            js_adjustments: adjustments,
-          });
-          const blob = new Blob([imageData.buffer as BlobPart], { type: 'image/jpeg' });
-          const url = URL.createObjectURL(blob);
+            const imageData: Uint8Array = await invoke(Invokes.GeneratePreviewForPath, {
+              path: imageFile.path,
+              js_adjustments: adjustments,
+            });
+            const blob = new Blob([imageData.buffer as BlobPart], { type: 'image/jpeg' });
+            const url = URL.createObjectURL(blob);
 
-          return new Promise<LoadedImage>((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-              imageElementsRef.current[imageFile.path] = img;
-              resolve({ path: imageFile.path, url, width: img.width, height: img.height });
-            };
-            img.onerror = () => reject(new Error(`Failed to load image: ${imageFile.path}`));
-            img.src = url;
-          });
+            return new Promise<{ success: true; data: LoadedImage }>((resolve, reject) => {
+              const img = new Image();
+              img.onload = () => {
+                imageElementsRef.current[imageFile.path] = img;
+                resolve({
+                  success: true,
+                  data: { path: imageFile.path, url, width: img.width, height: img.height },
+                });
+              };
+              img.onerror = () => {
+                URL.revokeObjectURL(url);
+                reject(new Error(`Failed to decode image: ${imageFile.path}`));
+              };
+              img.src = url;
+            });
+          } catch (err: any) {
+            return Promise.resolve({
+              success: false as const,
+              path: imageFile.path,
+              error: err?.message || 'Unknown error',
+            });
+          }
         });
 
         const results = await Promise.all(imagePromises);
-        if (results.length === 1) {
-          const img = results[0];
+        const successful = results.filter(
+          (r): r is { success: true; data: LoadedImage } => r.success === true && 'data' in r,
+        );
+        const failed = results.filter(
+          (r): r is { success: false; path: string; error: string } => r.success === false,
+        );
+
+        if (successful.length === 0) {
+          setError(
+            t('modals.collage.allImagesFailed', {
+              defaultValue: `Failed to load all ${failed.length} image(s).`,
+            }),
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        if (failed.length > 0) {
+          const failedNames = failed
+            .map((f) => {
+              const parts = f.path.split(/[\\/]/);
+              return parts[parts.length - 1] || f.path;
+            })
+            .slice(0, 3)
+            .join(', ');
+          const extra = failed.length > 3 ? ` (+${failed.length - 3} more)` : '';
+          console.warn(
+            `[Collage] ${failed.length} image(s) failed to load:`,
+            failed.map((f) => f.path),
+          );
+          setError(
+            t('modals.collage.someImagesFailed', {
+              defaultValue: `Skipped ${failed.length} image(s) that failed to load: ${failedNames}${extra}`,
+            }),
+          );
+        }
+
+        if (successful.length === 1) {
+          const img = successful[0].data;
           const ratio = img.width / img.height;
           setActiveAspectRatio({ id: 'original', name: t('modals.collage.original'), value: ratio });
           setExportHeight(Math.round(DEFAULT_EXPORT_WIDTH / ratio));
         }
-        setLoadedImages(results);
+        const loadedData = successful.map((s) => s.data);
+        setLoadedImages(loadedData);
 
         const initialStates: Record<string, ImageState> = {};
-        results.forEach((img) => {
+        loadedData.forEach((img) => {
           initialStates[img.path] = { offsetX: 0, offsetY: 0, scale: 1 };
         });
         setImageStates(initialStates);
@@ -241,7 +309,9 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
 
   const drawCanvas = useCallback(
     (canvas: HTMLCanvasElement | null, isExport: boolean = false) => {
-      if (!canvas || !activeLayout || loadedImages.length === 0 || (previewSize.width === 0 && !isExport)) return;
+      if (!canvas || !activeLayout || loadedImages.length === 0) return;
+      const prevW = previewSizeRef.current.width;
+      if (prevW === 0 && !isExport) return;
 
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
@@ -252,14 +322,14 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
       const dpr = isExport ? 1 : window.devicePixelRatio || 1;
 
       if (isExport) {
-        canvasWidth = exportWidth;
-        canvasHeight = exportHeight;
-        if (previewSize.width > 0) {
-          exportScale = exportWidth / previewSize.width;
+        canvasWidth = exportWidthRef.current;
+        canvasHeight = exportHeightRef.current;
+        if (prevW > 0) {
+          exportScale = exportWidthRef.current / prevW;
         }
       } else {
-        canvasWidth = previewSize.width;
-        canvasHeight = previewSize.height;
+        canvasWidth = prevW;
+        canvasHeight = previewSizeRef.current.height;
       }
 
       canvas.width = canvasWidth * dpr;
@@ -353,9 +423,6 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
       imageStates,
       spacing,
       borderRadius,
-      previewSize,
-      exportWidth,
-      exportHeight,
       backgroundColor,
       keepOriginalRatio,
     ],
@@ -364,6 +431,14 @@ export default function CollageModal({ isOpen, onClose, onSave, sourceImages }: 
   useEffect(() => {
     drawCanvas(previewCanvasRef.current);
   }, [drawCanvas]);
+
+  // Redraw when preview size changes (resize events) — drawCanvas identity is
+  // now stable, so we need this separate effect to drive re-renders on resize.
+  useEffect(() => {
+    if (previewSize.width > 0 && previewSize.height > 0) {
+      drawCanvas(previewCanvasRef.current);
+    }
+  }, [previewSize, drawCanvas]);
 
   const handleAspectRatioChange = (preset: AspectRatioPreset) => {
     setActiveAspectRatio(preset);

@@ -124,9 +124,7 @@ pub fn evaluate_smart_album(
         if let Some(ref required_tags) = criteria.ai_tags {
             let image_tags_set: HashSet<String> = image_ai_tags.into_iter().collect();
             if !required_tags.is_empty()
-                && !required_tags
-                    .iter()
-                    .any(|t| image_tags_set.contains(t))
+                && !required_tags.iter().any(|t| image_tags_set.contains(t))
             {
                 matches = false;
             }
@@ -138,9 +136,7 @@ pub fn evaluate_smart_album(
         if let Some(ref required_tags) = criteria.user_tags {
             let image_tags_set: HashSet<String> = image_user_tags.into_iter().collect();
             if !required_tags.is_empty()
-                && !required_tags
-                    .iter()
-                    .any(|t| image_tags_set.contains(t))
+                && !required_tags.iter().any(|t| image_tags_set.contains(t))
             {
                 matches = false;
             }
@@ -207,10 +203,7 @@ pub fn evaluate_smart_album(
                 .and_then(|e| e.get("Model"))
                 .map(|s| s.as_str())
                 .unwrap_or("");
-            if !camera_models.is_empty()
-                && !camera_models
-                    .iter()
-                    .any(|c| image_camera.contains(c))
+            if !camera_models.is_empty() && !camera_models.iter().any(|c| image_camera.contains(c))
             {
                 matches = false;
             }
@@ -226,9 +219,7 @@ pub fn evaluate_smart_album(
                 .and_then(|e| e.get("LensModel"))
                 .map(|s| s.as_str())
                 .unwrap_or("");
-            if !lenses.is_empty()
-                && !lenses.iter().any(|l| image_lens.contains(l))
-            {
+            if !lenses.is_empty() && !lenses.iter().any(|l| image_lens.contains(l)) {
                 matches = false;
             }
         }
@@ -259,11 +250,7 @@ pub fn evaluate_smart_album(
                     .as_object()
                     .is_some_and(|o| !o.is_empty());
             let is_edited = if has_adjustments {
-                crate::image_processing::is_image_edited(
-                    &metadata.adjustments,
-                    is_raw,
-                    None,
-                )
+                crate::image_processing::is_image_edited(&metadata.adjustments, is_raw, None)
             } else {
                 false
             };
@@ -347,10 +334,7 @@ pub async fn search_images(
                     .exif
                     .as_ref()
                     .and_then(|e| e.get("DateTimeOriginal").cloned()),
-                camera_model: metadata
-                    .exif
-                    .as_ref()
-                    .and_then(|e| e.get("Model").cloned()),
+                camera_model: metadata.exif.as_ref().and_then(|e| e.get("Model").cloned()),
             })
         })
         .collect();
@@ -401,9 +385,7 @@ pub fn save_smart_albums(
 
 /// Load smart albums definition
 #[tauri::command]
-pub fn load_smart_albums(
-    app_handle: tauri::AppHandle,
-) -> Result<Vec<SmartAlbum>, String> {
+pub fn load_smart_albums(app_handle: tauri::AppHandle) -> Result<Vec<SmartAlbum>, String> {
     use std::fs;
     use tauri::Manager;
 

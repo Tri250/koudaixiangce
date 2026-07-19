@@ -164,7 +164,8 @@ pub async fn apply_liquify(
                 points: s.points,
             })
             .collect();
-        crate::liquify::apply_liquify_strokes(warped_image.as_ref(), &liquify_strokes).map_err(|e| e.to_string())
+        crate::liquify::apply_liquify_strokes(warped_image.as_ref(), &liquify_strokes)
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -184,8 +185,14 @@ pub async fn apply_skin_smoothing(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::smooth_skin(warped_image.as_ref(), &method, strength, texture_preservation, radius)
-            .map_err(|e| e.to_string())
+        crate::skin_retouching::smooth_skin(
+            warped_image.as_ref(),
+            &method,
+            strength,
+            texture_preservation,
+            radius,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -204,8 +211,12 @@ pub async fn auto_remove_blemishes(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::auto_remove_blemishes_compat(warped_image.as_ref(), &face_landmarks, sensitivity)
-            .map_err(|e| e.to_string())
+        crate::skin_retouching::auto_remove_blemishes_compat(
+            warped_image.as_ref(),
+            &face_landmarks,
+            sensitivity,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -227,7 +238,8 @@ pub async fn apply_face_reshape(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::reshape_face(warped_image.as_ref(), &face_landmarks, &params).map_err(|e| e.to_string())
+        crate::face_reshaping::reshape_face(warped_image.as_ref(), &face_landmarks, &params)
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -245,7 +257,8 @@ pub async fn apply_body_reshape(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::reshape_body(warped_image.as_ref(), &body_keypoints, &params).map_err(|e| e.to_string())
+        crate::face_reshaping::reshape_body(warped_image.as_ref(), &body_keypoints, &params)
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -263,7 +276,8 @@ pub async fn unify_skin_color(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::unify_skin_color(warped_image.as_ref(), &face_landmarks, strength).map_err(|e| e.to_string())
+        crate::skin_retouching::unify_skin_color(warped_image.as_ref(), &face_landmarks, strength)
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -311,8 +325,12 @@ pub async fn ai_remove_people(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::ai_remove_people(warped_image.as_ref(), &person_regions, &app_handle)
-            .map_err(|e| e.to_string())
+        crate::skin_retouching::ai_remove_people(
+            warped_image.as_ref(),
+            &person_regions,
+            &app_handle,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -376,8 +394,14 @@ pub async fn apply_fill_light(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::creative_tools::apply_fill_light(warped_image.as_ref(), direction, intensity, softness, color_temp)
-            .map_err(|e| e.to_string())
+        crate::creative_tools::apply_fill_light(
+            warped_image.as_ref(),
+            direction,
+            intensity,
+            softness,
+            color_temp,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -397,14 +421,22 @@ pub async fn apply_super_resolution(
         return Err("scale_factor must be greater than 0".to_string());
     }
     if scale_factor > 8 {
-        return Err(format!("scale_factor {} exceeds maximum allowed (8)", scale_factor));
+        return Err(format!(
+            "scale_factor {} exceeds maximum allowed (8)",
+            scale_factor
+        ));
     }
 
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::super_resolution::upscale(warped_image.as_ref(), scale_factor, &model_type, &app_handle)
-            .map_err(|e| e.to_string())
+        crate::super_resolution::upscale(
+            warped_image.as_ref(),
+            scale_factor,
+            &model_type,
+            &app_handle,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -423,8 +455,13 @@ pub async fn process_id_photo(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::creative_tools::process_id_photo(warped_image.as_ref(), &size, background_color, &app_handle)
-            .map_err(|e| e.to_string())
+        crate::creative_tools::process_id_photo(
+            warped_image.as_ref(),
+            &size,
+            background_color,
+            &app_handle,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -443,8 +480,13 @@ pub async fn retouch_clothing(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::skin_retouching::retouch_clothing(warped_image.as_ref(), &body_keypoints, remove_wrinkles, remove_stains)
-            .map_err(|e| e.to_string())
+        crate::skin_retouching::retouch_clothing(
+            warped_image.as_ref(),
+            &body_keypoints,
+            remove_wrinkles,
+            remove_stains,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -468,8 +510,14 @@ pub async fn apply_lens_blur(
         .transpose()?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::creative_tools::apply_lens_blur(warped_image.as_ref(), &blur_type, focal_point, blur_amount, depth_mask.as_ref())
-            .map_err(|e| e.to_string())
+        crate::creative_tools::apply_lens_blur(
+            warped_image.as_ref(),
+            &blur_type,
+            focal_point,
+            blur_amount,
+            depth_mask.as_ref(),
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -489,8 +537,14 @@ pub async fn restore_old_photo(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::creative_tools::restore_old_photo(warped_image.as_ref(), denoise_strength, scratch_removal, colorize, &app_handle)
-            .map_err(|e| e.to_string())
+        crate::creative_tools::restore_old_photo(
+            warped_image.as_ref(),
+            denoise_strength,
+            scratch_removal,
+            colorize,
+            &app_handle,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -557,13 +611,8 @@ pub async fn batch_sync_preset(
 
         // Write the sidecar in the standard .rrdata format
         let json_string = serde_json::to_string_pretty(&metadata).map_err(|e| e.to_string())?;
-        std::fs::write(&sidecar_path, json_string).map_err(|e| {
-            format!(
-                "Failed to write sidecar {}: {}",
-                sidecar_path.display(),
-                e
-            )
-        })?;
+        std::fs::write(&sidecar_path, json_string)
+            .map_err(|e| format!("Failed to write sidecar {}: {}", sidecar_path.display(), e))?;
 
         let _ = app_handle.emit(
             "batch-sync-progress",
@@ -592,8 +641,13 @@ pub async fn add_eye_catchlight(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::add_eye_catchlight(warped_image.as_ref(), &face_landmarks, intensity, light_position)
-            .map_err(|e| e.to_string())
+        crate::face_reshaping::add_eye_catchlight(
+            warped_image.as_ref(),
+            &face_landmarks,
+            intensity,
+            light_position,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -611,7 +665,8 @@ pub async fn adjust_smile(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::adjust_smile(warped_image.as_ref(), &face_landmarks, smile_amount).map_err(|e| e.to_string())
+        crate::face_reshaping::adjust_smile(warped_image.as_ref(), &face_landmarks, smile_amount)
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;
@@ -630,8 +685,13 @@ pub async fn adjust_neck_shoulder(
     let warped_image = crate::get_cached_full_warped_image(&state, &js_adjustments)?;
 
     let result_image = tokio::task::spawn_blocking(move || {
-        crate::face_reshaping::adjust_neck_shoulder(warped_image.as_ref(), &body_keypoints, neck_adjust, shoulder_adjust)
-            .map_err(|e| e.to_string())
+        crate::face_reshaping::adjust_neck_shoulder(
+            warped_image.as_ref(),
+            &body_keypoints,
+            neck_adjust,
+            shoulder_adjust,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Task panicked: {}", e))??;

@@ -1,6 +1,4 @@
-use image::{
-    DynamicImage, GenericImageView, GrayImage, Luma, Rgb, RgbImage, Rgba, RgbaImage,
-};
+use image::{DynamicImage, GenericImageView, GrayImage, Luma, Rgb, RgbImage, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -60,10 +58,7 @@ impl Default for SkinSmoothingParams {
 /// - **High frequency** = image − low + 128  (offset so it can be stored as u8)
 ///
 /// Returns `(low_freq, high_freq_offset)`.
-pub fn frequency_separation(
-    image: &RgbImage,
-    radius: f32,
-) -> (RgbImage, RgbImage) {
+pub fn frequency_separation(image: &RgbImage, radius: f32) -> (RgbImage, RgbImage) {
     // Low-frequency layer: Gaussian blur of the original.
     let low = image::imageops::blur(image, radius);
 
@@ -100,10 +95,7 @@ pub fn frequency_separation(
 /// 4. Recombine: smoothed = smoothed_low + high − 128.
 ///
 /// `strength` blends between the original and the smoothed result.
-pub fn neutral_gray_smoothing(
-    image: &RgbImage,
-    params: &SkinSmoothingParams,
-) -> RgbImage {
+pub fn neutral_gray_smoothing(image: &RgbImage, params: &SkinSmoothingParams) -> RgbImage {
     let (width, height) = image.dimensions();
 
     // Step 1: frequency separation with a large radius for the initial split.
@@ -152,10 +144,7 @@ pub fn neutral_gray_smoothing(
 ///
 /// This implementation uses an approximate bilateral filter with separate
 /// spatial and range Gaussian kernels.
-pub fn bilateral_skin_smooth(
-    image: &RgbImage,
-    params: &SkinSmoothingParams,
-) -> RgbImage {
+pub fn bilateral_skin_smooth(image: &RgbImage, params: &SkinSmoothingParams) -> RgbImage {
     let (width, height) = image.dimensions();
     let spatial_sigma = params.radius;
     let range_sigma = 25.0f32 * params.strength; // colour distance sigma
@@ -287,10 +276,7 @@ fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (f32, f32) {
 /// 2. Apply the chosen smoothing algorithm to the entire image.
 /// 3. Blend the smoothed result with the original using the skin mask
 ///    (only skin pixels receive the smoothed version).
-pub fn apply_skin_smoothing(
-    image: &DynamicImage,
-    params: &SkinSmoothingParams,
-) -> RgbImage {
+pub fn apply_skin_smoothing(image: &DynamicImage, params: &SkinSmoothingParams) -> RgbImage {
     let rgb = image.to_rgb8();
     let skin_mask = detect_skin_mask(image);
 
@@ -314,12 +300,9 @@ pub fn apply_skin_smoothing(
             let orig = rgb.get_pixel(x, y);
             let smooth = smoothed.get_pixel(x, y);
 
-            let r = (orig[0] as f32 * (1.0 - mask_val) + smooth[0] as f32 * mask_val).round()
-                as u8;
-            let g = (orig[1] as f32 * (1.0 - mask_val) + smooth[1] as f32 * mask_val).round()
-                as u8;
-            let b = (orig[2] as f32 * (1.0 - mask_val) + smooth[2] as f32 * mask_val).round()
-                as u8;
+            let r = (orig[0] as f32 * (1.0 - mask_val) + smooth[0] as f32 * mask_val).round() as u8;
+            let g = (orig[1] as f32 * (1.0 - mask_val) + smooth[1] as f32 * mask_val).round() as u8;
+            let b = (orig[2] as f32 * (1.0 - mask_val) + smooth[2] as f32 * mask_val).round() as u8;
 
             result.put_pixel(x, y, Rgb([r, g, b]));
         }
@@ -750,7 +733,9 @@ pub fn ai_remove_people(
         // Inpaint: blend each pixel towards border average with distance weight
         let cx = (x0 + x1) as f32 / 2.0;
         let cy = (y0 + y1) as f32 / 2.0;
-        let max_dist = ((x1 - x0) as f32 / 2.0).max((y1 - y0) as f32 / 2.0).max(1.0);
+        let max_dist = ((x1 - x0) as f32 / 2.0)
+            .max((y1 - y0) as f32 / 2.0)
+            .max(1.0);
 
         for py in y0..y1 {
             for px in x0..x1 {
@@ -885,7 +870,9 @@ pub fn retouch_clothing(
                 let mut count = 0u32;
                 for dy in -1i32..=1 {
                     for dx in -1i32..=1 {
-                        if dx == 0 && dy == 0 { continue; }
+                        if dx == 0 && dy == 0 {
+                            continue;
+                        }
                         let nx = (x as i32 + dx).clamp(0, (width - 1) as i32) as u32;
                         let ny = (y as i32 + dy).clamp(0, (height - 1) as i32) as u32;
                         sum += gray.get_pixel(nx, ny)[0] as f32;
@@ -897,11 +884,15 @@ pub fn retouch_clothing(
                     let p = result.get_pixel(x, y);
                     let ratio = if centre > 0.0 { avg / centre } else { 1.0 };
                     let ratio = ratio.clamp(0.5, 1.5);
-                    result.put_pixel(x, y, Rgb([
-                        (p[0] as f32 * ratio).clamp(0.0, 255.0) as u8,
-                        (p[1] as f32 * ratio).clamp(0.0, 255.0) as u8,
-                        (p[2] as f32 * ratio).clamp(0.0, 255.0) as u8,
-                    ]));
+                    result.put_pixel(
+                        x,
+                        y,
+                        Rgb([
+                            (p[0] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                            (p[1] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                            (p[2] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                        ]),
+                    );
                 }
             }
         }
@@ -983,7 +974,10 @@ pub fn auto_remove_blemishes_compat(
                     }
                 }
             }
-            if count == 0 { bx += block / 2; continue; }
+            if count == 0 {
+                bx += block / 2;
+                continue;
+            }
             let mean = sum / count as f32;
             let centre = gray.get_pixel(cx.min(width - 1), cy.min(height - 1))[0] as f32;
             if centre < mean - thresh * 0.5 {
@@ -1002,9 +996,14 @@ pub fn auto_remove_blemishes_compat(
         for &r in &deduped {
             let dx = c.0 as f32 - r.0 as f32;
             let dy = c.1 as f32 - r.1 as f32;
-            if dx * dx + dy * dy < 100.0 { dominated = true; break; }
+            if dx * dx + dy * dy < 100.0 {
+                dominated = true;
+                break;
+            }
         }
-        if !dominated { deduped.push(c); }
+        if !dominated {
+            deduped.push(c);
+        }
     }
 
     let result = auto_remove_blemishes(image, &deduped);
@@ -1018,11 +1017,7 @@ pub fn auto_remove_blemishes_compat(
 ///
 /// This is achieved via frequency separation: the high-frequency layer is
 /// scaled by `(1 + amount)` before recombining.
-pub fn skin_texture_enhance(
-    image: &DynamicImage,
-    amount: f32,
-    radius: f32,
-) -> RgbImage {
+pub fn skin_texture_enhance(image: &DynamicImage, amount: f32, radius: f32) -> RgbImage {
     let rgb = image.to_rgb8();
     let skin_mask = detect_skin_mask(image);
 

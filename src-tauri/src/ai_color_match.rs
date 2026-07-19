@@ -1,6 +1,6 @@
+use base64::{Engine as _, engine::general_purpose};
 use image::{DynamicImage, GenericImageView, Rgb, RgbImage, RgbaImage};
 use serde::{Deserialize, Serialize};
-use base64::{Engine as _, engine::general_purpose};
 use std::io::Cursor;
 
 /// Method for color matching between images.
@@ -104,7 +104,8 @@ pub fn match_colors_with_params(
         MatchMethod::Histogram => {
             let source_hist = calculate_histogram(source);
             let ref_hist = calculate_histogram(&reference);
-            let transform = histogram_matching_transform(&source_hist, &ref_hist, &source_stats, &ref_stats);
+            let transform =
+                histogram_matching_transform(&source_hist, &ref_hist, &source_stats, &ref_stats);
             color_adjustments_from_transform(&transform, params.strength, params.preserve_luminance)
         }
         MatchMethod::ML => {
@@ -112,7 +113,8 @@ pub fn match_colors_with_params(
             let linear_transform = linear_color_transfer(&source_stats, &ref_stats);
             let source_hist = calculate_histogram(source);
             let ref_hist = calculate_histogram(&reference);
-            let hist_transform = histogram_matching_transform(&source_hist, &ref_hist, &source_stats, &ref_stats);
+            let hist_transform =
+                histogram_matching_transform(&source_hist, &ref_hist, &source_stats, &ref_stats);
             // Blend both transforms
             let blended = blend_transforms(&linear_transform, &hist_transform, 0.4);
             color_adjustments_from_transform(&blended, params.strength, params.preserve_luminance)
@@ -127,7 +129,10 @@ pub fn batch_apply_color_match(
     sources: &[DynamicImage],
     params: &ColorMatchParams,
 ) -> anyhow::Result<Vec<ColorMatchResult>> {
-    sources.iter().map(|src| match_colors_with_params(src, params)).collect()
+    sources
+        .iter()
+        .map(|src| match_colors_with_params(src, params))
+        .collect()
 }
 
 /// Color statistics extracted from an image.
@@ -298,12 +303,11 @@ pub fn color_adjustments_from_transform(
 
     // Derive temperature and tint from the relative scaling of channels
     // Temperature: blue-red balance
-    let temperature = ((scale[2] - scale[0]) / (scale[0] + scale[2]).max(0.01) * 2.0)
-        .clamp(-1.0, 1.0);
+    let temperature =
+        ((scale[2] - scale[0]) / (scale[0] + scale[2]).max(0.01) * 2.0).clamp(-1.0, 1.0);
     // Tint: green deviation
-    let tint = ((scale[1] - (scale[0] + scale[2]) / 2.0)
-        / ((scale[0] + scale[2]) / 2.0).max(0.01))
-    .clamp(-1.0, 1.0);
+    let tint = ((scale[1] - (scale[0] + scale[2]) / 2.0) / ((scale[0] + scale[2]) / 2.0).max(0.01))
+        .clamp(-1.0, 1.0);
 
     // Saturation/vibrance from overall scale variance
     let avg_scale = (scale[0] + scale[1] + scale[2]) / 3.0;

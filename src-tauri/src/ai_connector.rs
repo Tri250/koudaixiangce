@@ -291,7 +291,10 @@ Respond ONLY with valid JSON, no other text.",
     };
 
     let mut req = client
-        .post(format!("{}/chat/completions", api_url.trim_end_matches('/')))
+        .post(format!(
+            "{}/chat/completions",
+            api_url.trim_end_matches('/')
+        ))
         .json(&request)
         .header("Content-Type", "application/json");
 
@@ -333,26 +336,42 @@ Respond ONLY with valid JSON, no other text.",
                     return serde_json::from_str(json_str.trim());
                 }
             }
-            Err(serde::de::Error::custom("Failed to parse vision API response"))
+            Err(serde::de::Error::custom(
+                "Failed to parse vision API response",
+            ))
         })
-        .map_err(|e| anyhow!("Failed to parse vision API response: {} - Content: {}", e, content))?;
+        .map_err(|e| {
+            anyhow!(
+                "Failed to parse vision API response: {} - Content: {}",
+                e,
+                content
+            )
+        })?;
 
-    let description = parsed.get("description")
+    let description = parsed
+        .get("description")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
 
-    let tags = parsed.get("tags")
+    let tags = parsed
+        .get("tags")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
 
-    let rating = parsed.get("rating")
+    let rating = parsed
+        .get("rating")
         .and_then(|v| v.as_i64())
         .unwrap_or(3)
         .clamp(1, 5) as i32;
 
-    let reasons = parsed.get("reasons")
+    let reasons = parsed
+        .get("reasons")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();

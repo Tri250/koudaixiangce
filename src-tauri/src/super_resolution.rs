@@ -1,7 +1,3 @@
-use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use image::{DynamicImage, GenericImageView, RgbaImage, imageops};
 use ndarray::{Array, Array4, IxDyn};
@@ -9,6 +5,10 @@ use ort::session::Session;
 use ort::value::Tensor;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::fs;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex as TokioMutex;
 
@@ -78,11 +78,8 @@ impl SRTileParams {
     }
 }
 
-const SR_TILE_DEFAULT: SRTileParams = SRTileParams::new(
-    ESRGAN_INPUT_SIZE + 32,
-    ESRGAN_INPUT_SIZE,
-    16,
-);
+const SR_TILE_DEFAULT: SRTileParams =
+    SRTileParams::new(ESRGAN_INPUT_SIZE + 32, ESRGAN_INPUT_SIZE, 16);
 
 /// Get or initialize the super resolution ONNX model.
 ///
@@ -240,9 +237,16 @@ pub fn apply_super_resolution(
                 if gx < width as usize && gy < height as usize {
                     // Compute blending weight based on position in tile
                     let w = compute_tile_weight(
-                        cx, cy, ud0, ud1, ud2, ud3,
-                        absx0, absy0,
-                        width as usize, height as usize,
+                        cx,
+                        cy,
+                        ud0,
+                        ud1,
+                        ud2,
+                        ud3,
+                        absx0,
+                        absy0,
+                        width as usize,
+                        height as usize,
                         tile_params.overlap,
                     );
 

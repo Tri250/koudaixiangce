@@ -29,7 +29,10 @@ pub async fn generate_manual_cleanup_patch(
     }
 
     let is_raw = {
-        let guard = state.original_image.lock().unwrap_or_else(|e| e.into_inner());
+        let guard = state
+            .original_image
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         guard.as_ref().map(|img| img.is_raw).unwrap_or(false)
     };
 
@@ -351,7 +354,16 @@ pub async fn invoke_generative_replace(
             parameters: region,
         }],
     };
-    invoke_generative_replace_with_mask_def(path, patch_definition, current_adjustments, use_fast_inpaint, token, app_handle, state).await
+    invoke_generative_replace_with_mask_def(
+        path,
+        patch_definition,
+        current_adjustments,
+        use_fast_inpaint,
+        token,
+        app_handle,
+        state,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -375,7 +387,10 @@ pub async fn invoke_generative_replace_with_mask_def(
     }
 
     let is_raw = {
-        let guard = state.original_image.lock().unwrap_or_else(|e| e.into_inner());
+        let guard = state
+            .original_image
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         guard.as_ref().map(|img| img.is_raw).unwrap_or(false)
     };
 

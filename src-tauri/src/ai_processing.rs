@@ -342,7 +342,8 @@ pub async fn get_or_init_ai_models(
         );
         return Err(anyhow::anyhow!(
             "Insufficient memory for AI features: {:.1} GB available (minimum {:.1} GB required). Close other apps and try again.",
-            available_ram_gb, min_required_ram_gb
+            available_ram_gb,
+            min_required_ram_gb
         ));
     }
 

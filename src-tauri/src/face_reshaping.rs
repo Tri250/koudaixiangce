@@ -105,8 +105,7 @@ pub fn apply_body_reshape(
         return Ok(image.clone());
     }
 
-    let warp_field =
-        calculate_body_warp_field(keypoints, params, image.width(), image.height());
+    let warp_field = calculate_body_warp_field(keypoints, params, image.width(), image.height());
     apply_warp_field(image, &warp_field)
 }
 
@@ -620,7 +619,9 @@ fn compute_eye_indices(n: usize) -> (Vec<usize>, Vec<usize>) {
 fn compute_nose_indices(n: usize) -> Vec<usize> {
     if n >= 468 {
         // MediaPipe 468 nose bridge and bottom
-        vec![168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 164, 0, 11, 12, 13, 14, 15, 16, 17, 18]
+        vec![
+            168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 164, 0, 11, 12, 13, 14, 15, 16, 17, 18,
+        ]
     } else if n >= 68 {
         // 68-point model: nose 27-35
         (27..=35).collect()
@@ -635,8 +636,8 @@ fn compute_lip_indices(n: usize) -> Vec<usize> {
         // MediaPipe 468 lips
         vec![
             61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87,
-            178, 88, 95, 78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402, 317,
-            14, 87, 178, 88, 95,
+            178, 88, 95, 78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402, 317, 14,
+            87, 178, 88, 95,
         ]
     } else if n >= 68 {
         // 68-point model: outer lip 48-59, inner lip 60-67
@@ -705,7 +706,8 @@ pub fn reshape_face(
         return Ok(image.clone());
     }
 
-    let warp_field = calculate_face_warp_field(&landmarks, &face_params, image.width(), image.height());
+    let warp_field =
+        calculate_face_warp_field(&landmarks, &face_params, image.width(), image.height());
     apply_warp_with_landmarks(image, &landmarks, &warp_field)
 }
 
@@ -730,7 +732,8 @@ pub fn reshape_body(
         return Ok(image.clone());
     }
 
-    let warp_field = calculate_body_warp_field(&keypoints, &body_params, image.width(), image.height());
+    let warp_field =
+        calculate_body_warp_field(&keypoints, &body_params, image.width(), image.height());
     apply_warp_with_landmarks(image, &keypoints, &warp_field)
 }
 
@@ -766,12 +769,16 @@ pub fn add_eye_catchlight(
                     let py = lm.y as u32;
                     if px < width && py < height {
                         let p = rgba.get_pixel(px, py);
-                        rgba.put_pixel(px, py, Rgba([
-                            (p[0] as f32 + brightness).min(255.0) as u8,
-                            (p[1] as f32 + brightness).min(255.0) as u8,
-                            (p[2] as f32 + brightness).min(255.0) as u8,
-                            p[3],
-                        ]));
+                        rgba.put_pixel(
+                            px,
+                            py,
+                            Rgba([
+                                (p[0] as f32 + brightness).min(255.0) as u8,
+                                (p[1] as f32 + brightness).min(255.0) as u8,
+                                (p[2] as f32 + brightness).min(255.0) as u8,
+                                p[3],
+                            ]),
+                        );
                     }
                 }
             }

@@ -53,6 +53,14 @@ pub struct MatchInfo {
 }
 
 #[tauri::command]
+pub async fn cancel_panorama(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state
+        .panorama_cancel_flag
+        .store(true, std::sync::atomic::Ordering::Relaxed);
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn stitch_panorama(
     paths: Vec<String>,
     app_handle: tauri::AppHandle,
@@ -62,15 +70,31 @@ pub async fn stitch_panorama(
         return Err("Please select at least two images to stitch.".to_string());
     }
 
+    // Reset the cancel flag before starting a new stitch.
+    state
+        .panorama_cancel_flag
+        .store(false, std::sync::atomic::Ordering::Relaxed);
+
     let source_paths: Vec<String> = paths
         .iter()
         .map(|p| parse_virtual_path(p).0.to_string_lossy().into_owned())
         .collect();
 
     let panorama_result_handle = state.panorama_result.clone();
+    let cancel_flag = state.panorama_cancel_flag.clone();
 
     let task = tokio::task::spawn_blocking(move || {
-        let panorama_result = stitch_images(source_paths, app_handle.clone());
+        let panorama_result = stitch_images(source_paths, app_handle.clone(), &cancel_flag);
+
+        // Clear the stored partial result if we were cancelled so a stale
+        // image isn't picked up by the next session.
+        if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            *panorama_result_handle
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = None;
+            let _ = app_handle.emit("panorama-cancelled", ());
+            return Err("Panorama stitching was cancelled.".to_string());
+        }
 
         match panorama_result {
             Ok(panorama_image) => {
@@ -97,7 +121,9 @@ pub async fn stitch_panorama(
                 let base64_str = general_purpose::STANDARD.encode(buf.get_ref());
                 let final_base64 = format!("data:image/png;base64,{}", base64_str);
 
-                *panorama_result_handle.lock().unwrap_or_else(|e| e.into_inner()) = Some(panorama_image);
+                *panorama_result_handle
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner()) = Some(panorama_image);
 
                 let _ = app_handle.emit(
                     "panorama-complete",
@@ -124,26 +150,69 @@ pub async fn stitch_panorama(
 #[tauri::command]
 pub async fn save_panorama(
     first_path_str: String,
+    app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
     let panorama_image = state
         .panorama_result
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .take()
         .ok_or_else(|| {
-            "No panorama image found in memory to save. It might have already been saved."
-                .to_string()
+            "No panorama image found in memory. It might have already been saved.".to_string()
         })?;
 
     let (first_path, _) = parse_virtual_path(&first_path_str);
-    let parent_dir = first_path
-        .parent()
-        .ok_or_else(|| "Could not determine parent directory of the first image.".to_string())?;
-    let stem = first_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("panorama");
+
+    // Determine the parent directory and filename stem, with special handling
+    // for Android content URIs which may not parse as regular file paths.
+    let is_content_uri = first_path_str.starts_with("content://");
+
+    let parent_dir = if is_content_uri {
+        // For Android content URIs we cannot derive a parent directory from
+        // the URI itself. Save to the app's picture directory instead.
+        // This matches the pattern used elsewhere for Android saves.
+        let picture_dir = app_handle
+            .path()
+            .picture_dir()
+            .map_err(|e| format!("Failed to resolve picture directory: {}", e))?;
+        if !picture_dir.exists() {
+            std::fs::create_dir_all(&picture_dir)
+                .map_err(|e| format!("Failed to create picture directory: {}", e))?;
+        }
+        picture_dir
+    } else {
+        first_path
+            .parent()
+            .ok_or_else(|| "Could not determine parent directory of the first image.".to_string())?
+            .to_path_buf()
+    };
+
+    // Derive a reasonable stem from the source path or URI.
+    let stem: String = if is_content_uri {
+        // Extract the last path segment from the content URI as a fallback name,
+        // or use "panorama" if the URI has no usable segments.
+        let raw = first_path_str
+            .trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .unwrap_or("panorama");
+        let filtered: String = raw
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+            .collect();
+        if filtered.is_empty() {
+            "panorama".to_string()
+        } else {
+            filtered
+        }
+    } else {
+        first_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("panorama")
+            .to_string()
+    };
 
     let (output_filename, image_to_save): (String, DynamicImage) =
         if panorama_image.color().has_alpha() {
@@ -166,17 +235,34 @@ pub async fn save_panorama(
         .save(&output_path)
         .map_err(|e| format!("Failed to save panorama image: {}", e))?;
 
-    let (real_path, _) = crate::file_management::parse_virtual_path(&first_path_str);
-    let _ =
-        crate::exif_processing::write_rrexif_sidecar(&real_path.to_string_lossy(), &output_path);
+    // Only attempt sidecar write for regular file paths, not content URIs.
+    if !is_content_uri {
+        let (real_path, _) = crate::file_management::parse_virtual_path(&first_path_str);
+        let _ = crate::exif_processing::write_rrexif_sidecar(
+            &real_path.to_string_lossy(),
+            &output_path,
+        );
+    }
 
     Ok(output_path.to_string_lossy().to_string())
 }
 
-fn stitch_images(image_paths: Vec<String>, app_handle: AppHandle) -> Result<DynamicImage, String> {
+fn stitch_images(
+    image_paths: Vec<String>,
+    app_handle: AppHandle,
+    cancel_flag: &std::sync::atomic::AtomicBool,
+) -> Result<DynamicImage, String> {
     if image_paths.len() < 2 {
         return Err("At least two images are required for a panorama.".to_string());
     }
+
+    let check_cancel = || -> Result<(), String> {
+        if cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+            Err("Panorama stitching was cancelled.".to_string())
+        } else {
+            Ok(())
+        }
+    };
 
     let _ = app_handle.emit("panorama-progress", "Starting panorama process...");
     println!(
@@ -267,6 +353,8 @@ fn stitch_images(image_paths: Vec<String>, app_handle: AppHandle) -> Result<Dyna
         start_time.elapsed()
     );
 
+    check_cancel()?;
+
     let start_time = Instant::now();
     let _ = app_handle.emit("panorama-progress", "Finding image matches...");
     println!("Finding all pairwise matches (in parallel)...");
@@ -353,6 +441,8 @@ fn stitch_images(image_paths: Vec<String>, app_handle: AppHandle) -> Result<Dyna
         );
     }
 
+    check_cancel()?;
+
     let start_time = Instant::now();
     let _ = app_handle.emit("panorama-progress", "Determining stitching order...");
     println!("Determining stitching order...");
@@ -394,6 +484,8 @@ fn stitch_images(image_paths: Vec<String>, app_handle: AppHandle) -> Result<Dyna
         "Global homography calculation completed in {:.2?}\n",
         start_time.elapsed()
     );
+
+    check_cancel()?;
 
     let start_time = Instant::now();
     let _ = app_handle.emit("panorama-progress", "Warping and blending images...");
@@ -504,12 +596,10 @@ fn build_stitching_order(
                     let h_vu = if let Some(m) = matches.get(&(v, u)) {
                         m.homography
                     } else if let Some(m) = matches.get(&(u, v)) {
-                        m.homography
-                            .try_inverse()
-                            .unwrap_or_else(|| {
-                                log::warn!("Failed to invert homography for MST edge {}->{}", u, v);
-                                Matrix3::identity()
-                            })
+                        m.homography.try_inverse().unwrap_or_else(|| {
+                            log::warn!("Failed to invert homography for MST edge {}->{}", u, v);
+                            Matrix3::identity()
+                        })
                     } else {
                         log::warn!("Match not found for MST edge between {} and {}", u, v);
                         continue;

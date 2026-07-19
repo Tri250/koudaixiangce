@@ -1,8 +1,11 @@
-use image::{DynamicImage, GenericImageView, GrayImage, ImageBuffer, Luma, Rgb, RgbImage, Rgba, RgbaImage, ImageFormat};
-use serde::{Deserialize, Serialize};
-use base64::{Engine as _, engine::general_purpose};
-use std::io::Cursor;
 use anyhow;
+use base64::{Engine as _, engine::general_purpose};
+use image::{
+    DynamicImage, GenericImageView, GrayImage, ImageBuffer, ImageFormat, Luma, Rgb, RgbImage, Rgba,
+    RgbaImage,
+};
+use serde::{Deserialize, Serialize};
+use std::io::Cursor;
 
 /// Parameters for sky replacement.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -71,16 +74,28 @@ pub fn replace_sky_with_mask(
     let sky_image = decode_sky_image(&params.sky_image, width, height)?;
 
     // Step 1: Refine the sky mask
-    let refined_mask = refine_sky_mask(sky_mask, params.mask_refinement, params.transition_feather, width, height);
+    let refined_mask = refine_sky_mask(
+        sky_mask,
+        params.mask_refinement,
+        params.transition_feather,
+        width,
+        height,
+    );
 
     // Step 2: Detect horizon line for better transition
     let horizon_y = detect_horizon_line(&refined_mask);
 
     // Step 3: Adjust mask based on horizon adjustment
-    let adjusted_mask = adjust_mask_for_horizon(&refined_mask, horizon_y, params.horizon_adjust, height);
+    let adjusted_mask =
+        adjust_mask_for_horizon(&refined_mask, horizon_y, params.horizon_adjust, height);
 
     // Step 4: Color match the new sky to the existing image
-    let matched_sky = color_match_sky(image, &sky_image, &adjusted_mask, params.color_match_strength);
+    let matched_sky = color_match_sky(
+        image,
+        &sky_image,
+        &adjusted_mask,
+        params.color_match_strength,
+    );
 
     // Step 5: Composite sky behind foreground
     let result = blend_sky_composite(image, &matched_sky, &adjusted_mask, &params.blend_mode);
@@ -240,10 +255,7 @@ pub fn blend_sky_composite(
     for y in 0..height {
         for x in 0..width {
             let fg = fg_rgba.get_pixel(x, y);
-            let sk = sky_rgba.get_pixel(
-                x.min(sky_rgba.width() - 1),
-                y.min(sky_rgba.height() - 1),
-            );
+            let sk = sky_rgba.get_pixel(x.min(sky_rgba.width() - 1), y.min(sky_rgba.height() - 1));
             let mask_val = mask.get_pixel(x, y)[0] as f32 / 255.0;
 
             // mask_val: 1.0 = pure sky, 0.0 = pure foreground
@@ -331,7 +343,12 @@ pub fn detect_horizon_line(mask: &GrayImage) -> f32 {
 }
 
 /// Adjust the mask based on horizon adjustment parameter.
-fn adjust_mask_for_horizon(mask: &GrayImage, horizon_y: f32, adjust: f32, height: u32) -> GrayImage {
+fn adjust_mask_for_horizon(
+    mask: &GrayImage,
+    horizon_y: f32,
+    adjust: f32,
+    height: u32,
+) -> GrayImage {
     if adjust.abs() < 0.01 {
         return mask.clone();
     }
@@ -419,13 +436,26 @@ pub fn replace_sky(
     };
 
     // Run the full sky replacement pipeline
-    let refined_mask = refine_sky_mask(&sky_mask, params.mask_refinement, params.transition_feather, width, height);
-    let matched_sky = color_match_sky(image, &resized_sky, &refined_mask, params.color_match_strength);
+    let refined_mask = refine_sky_mask(
+        &sky_mask,
+        params.mask_refinement,
+        params.transition_feather,
+        width,
+        height,
+    );
+    let matched_sky = color_match_sky(
+        image,
+        &resized_sky,
+        &refined_mask,
+        params.color_match_strength,
+    );
     let result = blend_sky_composite(image, &matched_sky, &refined_mask, &params.blend_mode);
 
     // Encode result as base64 PNG
     let mut buf = std::io::Cursor::new(Vec::new());
-    result.to_rgb8().write_to(&mut buf, image::ImageFormat::Png)?;
+    result
+        .to_rgb8()
+        .write_to(&mut buf, image::ImageFormat::Png)?;
     let b64 = general_purpose::STANDARD.encode(buf.get_ref());
     let data_url = format!("data:image/png;base64,{}", b64);
 
@@ -475,7 +505,11 @@ fn sample_sky_region_mean(image: &RgbImage, mask: &GrayImage) -> (f32, f32, f32)
         return (128.0, 128.0, 128.0);
     }
 
-    (sum_r / count as f32, sum_g / count as f32, sum_b / count as f32)
+    (
+        sum_r / count as f32,
+        sum_g / count as f32,
+        sum_b / count as f32,
+    )
 }
 
 /// Sample the mean RGB values of an entire image.

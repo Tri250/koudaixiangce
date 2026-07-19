@@ -76,7 +76,9 @@ pub fn recover_highlights(image: &DynamicImage, params: &HDRParams) -> DynamicIm
                     let mut count = 0u32;
                     for dy in -1i32..=1 {
                         for dx in -1i32..=1 {
-                            if dx == 0 && dy == 0 { continue; }
+                            if dx == 0 && dy == 0 {
+                                continue;
+                            }
                             let nx = (x as i32 + dx) as u32;
                             let ny = (y as i32 + dy) as u32;
                             let np = rgb.get_pixel(nx, ny);
@@ -94,7 +96,11 @@ pub fn recover_highlights(image: &DynamicImage, params: &HDRParams) -> DynamicIm
                         continue;
                     }
 
-                    let avg = [sum[0] / count as f32, sum[1] / count as f32, sum[2] / count as f32];
+                    let avg = [
+                        sum[0] / count as f32,
+                        sum[1] / count as f32,
+                        sum[2] / count as f32,
+                    ];
 
                     // Gradient from the neighbor average to the clipped pixel
                     for c in 0..3 {
@@ -105,7 +111,8 @@ pub fn recover_highlights(image: &DynamicImage, params: &HDRParams) -> DynamicIm
                         let final_val = match params.mode {
                             HDRHighlightMode::RollOff => {
                                 // Smooth roll-off near clipping point
-                                let t = (original - clip_threshold as f32) / (255.0 - clip_threshold as f32);
+                                let t = (original - clip_threshold as f32)
+                                    / (255.0 - clip_threshold as f32);
                                 let t = t.clamp(0.0, 1.0);
                                 let smooth = t * t * (3.0 - 2.0 * t); // smoothstep
                                 original * (1.0 - smooth) + extrapolated * smooth
@@ -114,7 +121,8 @@ pub fn recover_highlights(image: &DynamicImage, params: &HDRParams) -> DynamicIm
                                 // Blend based on channel distance from white
                                 let dist_from_white = (255.0 - original) / 255.0;
                                 let weight = (1.0 - dist_from_white).powi(2);
-                                original * (1.0 - weight * recovery) + extrapolated * weight * recovery
+                                original * (1.0 - weight * recovery)
+                                    + extrapolated * weight * recovery
                             }
                             _ => extrapolated,
                         };
@@ -320,11 +328,17 @@ pub fn generate_gain_map(
             let hdr_p = hdr_rgb.get_pixel(sx, sy);
 
             // Luminance
-            let sdr_lum = 0.2126 * sdr_p[0] as f32 + 0.7152 * sdr_p[1] as f32 + 0.0722 * sdr_p[2] as f32;
-            let hdr_lum = 0.2126 * hdr_p[0] as f32 + 0.7152 * hdr_p[1] as f32 + 0.0722 * hdr_p[2] as f32;
+            let sdr_lum =
+                0.2126 * sdr_p[0] as f32 + 0.7152 * sdr_p[1] as f32 + 0.0722 * sdr_p[2] as f32;
+            let hdr_lum =
+                0.2126 * hdr_p[0] as f32 + 0.7152 * hdr_p[1] as f32 + 0.0722 * hdr_p[2] as f32;
 
             // Gain ratio (log scale)
-            let gain = if sdr_lum > 1.0 { hdr_lum / sdr_lum } else { 1.0 };
+            let gain = if sdr_lum > 1.0 {
+                hdr_lum / sdr_lum
+            } else {
+                1.0
+            };
             let log_gain = gain.ln();
 
             // Normalize to [0, 255]
@@ -359,11 +373,9 @@ pub fn encode_ultra_hdr_jpeg(
 ) -> anyhow::Result<Vec<u8>> {
     // Generate gain map
     let (gain_map, gain_info) = generate_gain_map(
-        sdr_image,
-        hdr_image,
-        0.5,  // min gain
-        8.0,  // max gain
-        4,    // downsample 4x
+        sdr_image, hdr_image, 0.5, // min gain
+        8.0, // max gain
+        4,   // downsample 4x
     );
 
     // Encode SDR as standard JPEG

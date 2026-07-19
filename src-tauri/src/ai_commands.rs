@@ -434,15 +434,17 @@ pub async fn analyze_image(
 ) -> Result<AiImageAnalysisResult, String> {
     let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
 
-    let api_url = settings.ai_vision_api_url
+    let api_url = settings
+        .ai_vision_api_url
         .ok_or_else(|| "AI vision API URL not configured".to_string())?;
     let api_key = settings.ai_vision_api_key.unwrap_or_default();
-    let model = settings.ai_vision_model.unwrap_or_else(|| "gpt-4o-mini".to_string());
+    let model = settings
+        .ai_vision_model
+        .unwrap_or_else(|| "gpt-4o-mini".to_string());
     let strictness = settings.ai_rating_strictness.unwrap_or(0.5);
 
     // Load and encode image
-    let img = image::open(&image_path)
-        .map_err(|e| format!("Failed to load image: {}", e))?;
+    let img = image::open(&image_path).map_err(|e| format!("Failed to load image: {}", e))?;
 
     // Resize for API if too large (max 1024px on longest side for efficiency)
     let (w, h) = img.dimensions();
@@ -459,13 +461,21 @@ pub async fn analyze_image(
     // Encode as JPEG base64
     let mut buf = std::io::Cursor::new(Vec::new());
     let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 85);
-    encoder.encode_image(&img.to_rgb8())
+    encoder
+        .encode_image(&img.to_rgb8())
         .map_err(|e| format!("Failed to encode image: {}", e))?;
     let image_base64 = base64::engine::general_purpose::STANDARD.encode(buf.get_ref());
 
     let result = crate::ai_connector::analyze_image_with_vision_api(
-        &api_url, &api_key, &model, &image_base64, &task, strictness,
-    ).await.map_err(|e| e.to_string())?;
+        &api_url,
+        &api_key,
+        &model,
+        &image_base64,
+        &task,
+        strictness,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     Ok(AiImageAnalysisResult {
         description: result.description,
@@ -483,10 +493,13 @@ pub async fn analyze_images_batch(
 ) -> Result<Vec<AiImageAnalysisResult>, String> {
     let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
 
-    let api_url = settings.ai_vision_api_url
+    let api_url = settings
+        .ai_vision_api_url
         .ok_or_else(|| "AI vision API URL not configured".to_string())?;
     let api_key = settings.ai_vision_api_key.unwrap_or_default();
-    let model = settings.ai_vision_model.unwrap_or_else(|| "gpt-4o-mini".to_string());
+    let model = settings
+        .ai_vision_model
+        .unwrap_or_else(|| "gpt-4o-mini".to_string());
     let strictness = settings.ai_rating_strictness.unwrap_or(0.5);
 
     let mut results = Vec::new();
@@ -519,8 +532,15 @@ pub async fn analyze_images_batch(
                 let image_base64 = base64::engine::general_purpose::STANDARD.encode(buf.get_ref());
 
                 match crate::ai_connector::analyze_image_with_vision_api(
-                    &api_url, &api_key, &model, &image_base64, &task, strictness,
-                ).await {
+                    &api_url,
+                    &api_key,
+                    &model,
+                    &image_base64,
+                    &task,
+                    strictness,
+                )
+                .await
+                {
                     Ok(result) => {
                         results.push(AiImageAnalysisResult {
                             description: result.description,
@@ -551,10 +571,13 @@ pub async fn analyze_images_batch(
 
         // Emit progress
         use tauri::Emitter;
-        let _ = app_handle.emit("ai-analysis-progress", serde_json::json!({
-            "completed": results.len(),
-            "total": image_paths.len(),
-        }));
+        let _ = app_handle.emit(
+            "ai-analysis-progress",
+            serde_json::json!({
+                "completed": results.len(),
+                "total": image_paths.len(),
+            }),
+        );
     }
 
     Ok(results)

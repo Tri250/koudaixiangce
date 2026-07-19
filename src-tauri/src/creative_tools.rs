@@ -1,6 +1,9 @@
-use image::{DynamicImage, GenericImageView, GrayImage, ImageBuffer, Luma, Rgb, RgbImage, Rgba, RgbaImage, imageops};
-use serde::{Deserialize, Serialize};
 use anyhow;
+use image::{
+    DynamicImage, GenericImageView, GrayImage, ImageBuffer, Luma, Rgb, RgbImage, Rgba, RgbaImage,
+    imageops,
+};
+use serde::{Deserialize, Serialize};
 
 // ============================================================================
 // Fill Light
@@ -51,7 +54,10 @@ impl Default for FillLightParams {
 /// 2. Apply soft blending with configurable softness
 /// 3. Adjust color temperature of the added light
 /// 4. Composite light onto image using screen/additive blending
-pub fn apply_fill_light_with_params(image: &DynamicImage, params: &FillLightParams) -> DynamicImage {
+pub fn apply_fill_light_with_params(
+    image: &DynamicImage,
+    params: &FillLightParams,
+) -> DynamicImage {
     let (width, height) = image.dimensions();
     let mut rgba = image.to_rgba8();
 
@@ -165,11 +171,7 @@ impl Default for SelectionMask {
 }
 
 /// Create a selection mask from the given parameters.
-pub fn create_selection_mask(
-    params: &SelectionMask,
-    width: u32,
-    height: u32,
-) -> GrayImage {
+pub fn create_selection_mask(params: &SelectionMask, width: u32, height: u32) -> GrayImage {
     let mut mask = GrayImage::new(width, height);
 
     match params.selection_type {
@@ -190,7 +192,15 @@ pub fn create_selection_mask(
                         let py = y as f32;
                         let inside = px >= min_x && px <= max_x && py >= min_y && py <= max_y;
                         let val = if inside {
-                            apply_feather_rect(px, py, min_x, min_y, max_x, max_y, params.feather_radius)
+                            apply_feather_rect(
+                                px,
+                                py,
+                                min_x,
+                                min_y,
+                                max_x,
+                                max_y,
+                                params.feather_radius,
+                            )
                         } else {
                             0.0
                         };
@@ -212,7 +222,8 @@ pub fn create_selection_mask(
                         let dy = (y as f64 - cy) / ry.max(0.01);
                         let dist = (dx * dx + dy * dy).sqrt();
                         let val = if dist <= 1.0 {
-                            let feather = params.feather_radius as f64 / rx.max(1.0).min(ry.max(1.0));
+                            let feather =
+                                params.feather_radius as f64 / rx.max(1.0).min(ry.max(1.0));
                             if dist > 1.0 - feather {
                                 ((1.0 - dist) / feather) as f32
                             } else {
@@ -250,7 +261,15 @@ pub fn create_selection_mask(
 }
 
 /// Apply feathering to a rectangular selection.
-fn apply_feather_rect(x: f32, y: f32, min_x: f32, min_y: f32, max_x: f32, max_y: f32, feather: f32) -> f32 {
+fn apply_feather_rect(
+    x: f32,
+    y: f32,
+    min_x: f32,
+    min_y: f32,
+    max_x: f32,
+    max_y: f32,
+    feather: f32,
+) -> f32 {
     if feather <= 0.0 {
         return 1.0;
     }
@@ -274,10 +293,26 @@ fn fill_polygon_mask(mask: &mut GrayImage, points: &[(f64, f64)], feather: f32) 
     }
 
     // Find bounding box
-    let min_x = points.iter().map(|p| p.0).fold(f64::INFINITY, f64::min).max(0.0) as u32;
-    let max_x = points.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::min).min(width as f64 - 1.0) as u32;
-    let min_y = points.iter().map(|p| p.1).fold(f64::INFINITY, f64::min).max(0.0) as u32;
-    let max_y = points.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::min).min(height as f64 - 1.0) as u32;
+    let min_x = points
+        .iter()
+        .map(|p| p.0)
+        .fold(f64::INFINITY, f64::min)
+        .max(0.0) as u32;
+    let max_x = points
+        .iter()
+        .map(|p| p.0)
+        .fold(f64::NEG_INFINITY, f64::min)
+        .min(width as f64 - 1.0) as u32;
+    let min_y = points
+        .iter()
+        .map(|p| p.1)
+        .fold(f64::INFINITY, f64::min)
+        .max(0.0) as u32;
+    let max_y = points
+        .iter()
+        .map(|p| p.1)
+        .fold(f64::NEG_INFINITY, f64::min)
+        .min(height as f64 - 1.0) as u32;
 
     // Point-in-polygon test using ray casting
     for y in min_y..=max_y {
@@ -373,11 +408,14 @@ impl Default for IdPhotoParams {
 /// 2. Crop to specified ID photo size ratio
 /// 3. If bg replacement: detect background, replace with solid color
 /// 4. Adjust brightness/contrast for ID photo standard
-pub fn process_id_photo_with_params(image: &DynamicImage, params: &IdPhotoParams) -> anyhow::Result<DynamicImage> {
+pub fn process_id_photo_with_params(
+    image: &DynamicImage,
+    params: &IdPhotoParams,
+) -> anyhow::Result<DynamicImage> {
     let (target_w, target_h) = match params.size {
-        IdPhotoSize::OneInch => (295, 413),   // 25mm x 35mm at 300 DPI
-        IdPhotoSize::TwoInch => (413, 579),   // 35mm x 49mm at 300 DPI
-        IdPhotoSize::Passport => (354, 472),  // 30mm x 40mm at 300 DPI
+        IdPhotoSize::OneInch => (295, 413),  // 25mm x 35mm at 300 DPI
+        IdPhotoSize::TwoInch => (413, 579),  // 35mm x 49mm at 300 DPI
+        IdPhotoSize::Passport => (354, 472), // 30mm x 40mm at 300 DPI
         IdPhotoSize::Custom => (params.custom_width.max(100), params.custom_height.max(100)),
     };
 
@@ -394,7 +432,8 @@ pub fn process_id_photo_with_params(image: &DynamicImage, params: &IdPhotoParams
     let crop_w = target_w.min(width);
     let crop_h = target_h.min(height);
     if crop_x + crop_w <= width && crop_y + crop_h <= height {
-        let cropped = imageops::crop_imm(&result.to_rgba8(), crop_x, crop_y, crop_w, crop_h).to_image();
+        let cropped =
+            imageops::crop_imm(&result.to_rgba8(), crop_x, crop_y, crop_w, crop_h).to_image();
         result = DynamicImage::ImageRgba8(cropped);
     }
 
@@ -567,7 +606,10 @@ pub fn retouch_clothing(
     if params.remove_wrinkles_strength > 0.01 {
         // Low-pass filter (blur) to separate low frequency (color) from high frequency (texture/wrinkles)
         let sigma = 5.0 + params.remove_wrinkles_strength * 10.0;
-        let low_freq = imageproc::filter::gaussian_blur_f32(&DynamicImage::ImageRgba8(result.clone()).to_luma8(), sigma);
+        let low_freq = imageproc::filter::gaussian_blur_f32(
+            &DynamicImage::ImageRgba8(result.clone()).to_luma8(),
+            sigma,
+        );
 
         for y in 0..height {
             for x in 0..width {
@@ -588,7 +630,10 @@ pub fn retouch_clothing(
     // Fabric smoothing
     if params.smooth_fabric > 0.01 {
         let sigma = 1.0 + params.smooth_fabric * 3.0;
-        let smoothed = imageproc::filter::gaussian_blur_f32(&DynamicImage::ImageRgba8(result.clone()).to_luma8(), sigma);
+        let smoothed = imageproc::filter::gaussian_blur_f32(
+            &DynamicImage::ImageRgba8(result.clone()).to_luma8(),
+            sigma,
+        );
 
         for y in 0..height {
             for x in 0..width {
@@ -636,7 +681,8 @@ fn remove_local_artifacts(image: &mut RgbaImage, detection_threshold: f32, radiu
                     let ny = (y as i32 + dy) as u32;
                     if nx < width && ny < height {
                         let np = original.get_pixel(nx, ny);
-                        sum_lum += 0.299 * np[0] as f32 + 0.587 * np[1] as f32 + 0.114 * np[2] as f32;
+                        sum_lum +=
+                            0.299 * np[0] as f32 + 0.587 * np[1] as f32 + 0.114 * np[2] as f32;
                         count += 1;
                     }
                 }
@@ -776,7 +822,8 @@ pub fn apply_lens_blur_with_params(
             let mut result = RgbaImage::new(width, height);
             for y in 0..height {
                 for x in 0..width {
-                    let blur_radius = compute_blur_radius(depth_map, x, y, focal_depth, max_blur_radius);
+                    let blur_radius =
+                        compute_blur_radius(depth_map, x, y, focal_depth, max_blur_radius);
                     let pixel = apply_local_gaussian(&rgba, x, y, blur_radius, width, height);
                     result.put_pixel(x, y, pixel);
                 }
@@ -788,12 +835,15 @@ pub fn apply_lens_blur_with_params(
             let mut result = RgbaImage::new(width, height);
             for y in 0..height {
                 for x in 0..width {
-                    let blur_radius = compute_blur_radius(depth_map, x, y, focal_depth, max_blur_radius);
+                    let blur_radius =
+                        compute_blur_radius(depth_map, x, y, focal_depth, max_blur_radius);
                     let mut pixel = apply_local_gaussian(&rgba, x, y, blur_radius, width, height);
 
                     // Enhance highlights in bokeh
                     if blur_radius > 1.0 {
-                        let lum = 0.299 * pixel[0] as f32 + 0.587 * pixel[1] as f32 + 0.114 * pixel[2] as f32;
+                        let lum = 0.299 * pixel[0] as f32
+                            + 0.587 * pixel[1] as f32
+                            + 0.114 * pixel[2] as f32;
                         if lum / 255.0 > params.highlight_threshold {
                             let boost = 1.0 + (lum / 255.0 - params.highlight_threshold) * 2.0;
                             pixel[0] = (pixel[0] as f32 * boost).min(255.0) as u8;
@@ -936,7 +986,10 @@ impl Default for OldPhotoRestoreParams {
 /// 2. Scratch/defect detection and removal
 /// 3. Optional colorization (if grayscale input)
 /// 4. Sharpening for detail recovery
-pub fn restore_old_photo_with_params(image: &DynamicImage, params: &OldPhotoRestoreParams) -> DynamicImage {
+pub fn restore_old_photo_with_params(
+    image: &DynamicImage,
+    params: &OldPhotoRestoreParams,
+) -> DynamicImage {
     let mut result = image.clone();
 
     // Step 1: Denoise (simple Gaussian for now; AI denoise would use the existing pipeline)
@@ -955,12 +1008,16 @@ pub fn restore_old_photo_with_params(image: &DynamicImage, params: &OldPhotoRest
                 let o = gray.get_pixel(x, y)[0];
                 let ratio = if o > 0 { d as f32 / o as f32 } else { 1.0 };
                 let ratio = ratio.clamp(0.5, 1.5);
-                denoised.put_pixel(x, y, Rgba([
-                    (p[0] as f32 * ratio).clamp(0.0, 255.0) as u8,
-                    (p[1] as f32 * ratio).clamp(0.0, 255.0) as u8,
-                    (p[2] as f32 * ratio).clamp(0.0, 255.0) as u8,
-                    p[3],
-                ]));
+                denoised.put_pixel(
+                    x,
+                    y,
+                    Rgba([
+                        (p[0] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                        (p[1] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                        (p[2] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                        p[3],
+                    ]),
+                );
             }
         }
         result = DynamicImage::ImageRgba8(denoised);
@@ -990,12 +1047,16 @@ pub fn restore_old_photo_with_params(image: &DynamicImage, params: &OldPhotoRest
                 let g = lum * 0.95 + 10.0;
                 let b = lum * 0.8;
 
-                colored.put_pixel(x, y, Rgba([
-                    r.clamp(0.0, 255.0) as u8,
-                    g.clamp(0.0, 255.0) as u8,
-                    b.clamp(0.0, 255.0) as u8,
-                    p[3],
-                ]));
+                colored.put_pixel(
+                    x,
+                    y,
+                    Rgba([
+                        r.clamp(0.0, 255.0) as u8,
+                        g.clamp(0.0, 255.0) as u8,
+                        b.clamp(0.0, 255.0) as u8,
+                        p[3],
+                    ]),
+                );
             }
         }
         result = DynamicImage::ImageRgba8(colored);
@@ -1013,7 +1074,10 @@ pub fn restore_old_photo_with_params(image: &DynamicImage, params: &OldPhotoRest
 fn apply_unsharp_mask(image: &DynamicImage, sigma: f32, amount: f32) -> DynamicImage {
     let (width, height) = image.dimensions();
     let rgba = image.to_rgba8();
-    let blurred = imageproc::filter::gaussian_blur_f32(&DynamicImage::ImageRgba8(rgba.clone()).to_luma8(), sigma);
+    let blurred = imageproc::filter::gaussian_blur_f32(
+        &DynamicImage::ImageRgba8(rgba.clone()).to_luma8(),
+        sigma,
+    );
 
     let mut result = RgbaImage::new(width, height);
     for y in 0..height {
@@ -1088,7 +1152,10 @@ impl Default for SeasonalEffectParams {
 /// - Summer sun: warm golden tone + light leak
 /// - Autumn leaves: warm orange/brown shift + vignette
 /// - Winter snow: cool blue shift + brightness boost + optional snow overlay
-pub fn apply_seasonal_effect_with_params(image: &DynamicImage, params: &SeasonalEffectParams) -> DynamicImage {
+pub fn apply_seasonal_effect_with_params(
+    image: &DynamicImage,
+    params: &SeasonalEffectParams,
+) -> DynamicImage {
     let (width, height) = image.dimensions();
     let mut rgba = image.to_rgba8();
     let intensity = params.intensity.clamp(0.0, 1.0);
@@ -1103,12 +1170,16 @@ pub fn apply_seasonal_effect_with_params(image: &DynamicImage, params: &Seasonal
                     let r = p[0] as f32 + intensity * 20.0;
                     let g = p[1] as f32 + intensity * 5.0;
                     let b = p[2] as f32 + intensity * 15.0;
-                    rgba.put_pixel(x, y, Rgba([
-                        (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        p[3],
-                    ]));
+                    rgba.put_pixel(
+                        x,
+                        y,
+                        Rgba([
+                            (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            p[3],
+                        ]),
+                    );
                 }
             }
             // Soft pink overlay in highlights
@@ -1122,12 +1193,16 @@ pub fn apply_seasonal_effect_with_params(image: &DynamicImage, params: &Seasonal
                     let r = p[0] as f32 + intensity * 25.0;
                     let g = p[1] as f32 + intensity * 15.0;
                     let b = p[2] as f32 - intensity * 10.0;
-                    rgba.put_pixel(x, y, Rgba([
-                        (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        p[3],
-                    ]));
+                    rgba.put_pixel(
+                        x,
+                        y,
+                        Rgba([
+                            (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            p[3],
+                        ]),
+                    );
                 }
             }
             // Light leak effect (warm gradient from corner)
@@ -1141,12 +1216,16 @@ pub fn apply_seasonal_effect_with_params(image: &DynamicImage, params: &Seasonal
                     let r = p[0] as f32 + intensity * 20.0;
                     let g = p[1] as f32 + intensity * 5.0;
                     let b = p[2] as f32 - intensity * 20.0;
-                    rgba.put_pixel(x, y, Rgba([
-                        (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        p[3],
-                    ]));
+                    rgba.put_pixel(
+                        x,
+                        y,
+                        Rgba([
+                            (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            p[3],
+                        ]),
+                    );
                 }
             }
             // Vignette
@@ -1160,12 +1239,16 @@ pub fn apply_seasonal_effect_with_params(image: &DynamicImage, params: &Seasonal
                     let r = p[0] as f32 - intensity * 10.0 + intensity * 15.0; // Slight brighten
                     let g = p[1] as f32 + intensity * 5.0;
                     let b = p[2] as f32 + intensity * 25.0;
-                    rgba.put_pixel(x, y, Rgba([
-                        (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                        p[3],
-                    ]));
+                    rgba.put_pixel(
+                        x,
+                        y,
+                        Rgba([
+                            (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            p[3],
+                        ]),
+                    );
                 }
             }
         }
@@ -1183,12 +1266,19 @@ fn apply_highlight_tint(image: &mut RgbaImage, tint: [u8; 3], strength: f32) {
             let lum = 0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32;
             let highlight_factor = (lum / 255.0).max(0.0).powi(2) * strength;
 
-            image.put_pixel(x, y, Rgba([
-                (p[0] as f32 * (1.0 - highlight_factor) + tint[0] as f32 * highlight_factor).round() as u8,
-                (p[1] as f32 * (1.0 - highlight_factor) + tint[1] as f32 * highlight_factor).round() as u8,
-                (p[2] as f32 * (1.0 - highlight_factor) + tint[2] as f32 * highlight_factor).round() as u8,
-                p[3],
-            ]));
+            image.put_pixel(
+                x,
+                y,
+                Rgba([
+                    (p[0] as f32 * (1.0 - highlight_factor) + tint[0] as f32 * highlight_factor)
+                        .round() as u8,
+                    (p[1] as f32 * (1.0 - highlight_factor) + tint[1] as f32 * highlight_factor)
+                        .round() as u8,
+                    (p[2] as f32 * (1.0 - highlight_factor) + tint[2] as f32 * highlight_factor)
+                        .round() as u8,
+                    p[3],
+                ]),
+            );
         }
     }
 }
@@ -1212,12 +1302,16 @@ fn apply_light_leak(image: &mut RgbaImage, strength: f32, color: [u8; 3]) {
                 (1.0 - (1.0 - b) * (1.0 - a)).clamp(0.0, 1.0)
             };
 
-            image.put_pixel(x, y, Rgba([
-                (blend(p[0], color[0]) * 255.0).round() as u8,
-                (blend(p[1], color[1]) * 255.0).round() as u8,
-                (blend(p[2], color[2]) * 255.0).round() as u8,
-                p[3],
-            ]));
+            image.put_pixel(
+                x,
+                y,
+                Rgba([
+                    (blend(p[0], color[0]) * 255.0).round() as u8,
+                    (blend(p[1], color[1]) * 255.0).round() as u8,
+                    (blend(p[2], color[2]) * 255.0).round() as u8,
+                    p[3],
+                ]),
+            );
         }
     }
 }
@@ -1237,12 +1331,16 @@ fn apply_vignette(image: &mut RgbaImage, strength: f32) {
             let vignette = 1.0 - dist.powi(2) * strength;
 
             let p = image.get_pixel(x, y);
-            image.put_pixel(x, y, Rgba([
-                (p[0] as f32 * vignette).round() as u8,
-                (p[1] as f32 * vignette).round() as u8,
-                (p[2] as f32 * vignette).round() as u8,
-                p[3],
-            ]));
+            image.put_pixel(
+                x,
+                y,
+                Rgba([
+                    (p[0] as f32 * vignette).round() as u8,
+                    (p[1] as f32 * vignette).round() as u8,
+                    (p[2] as f32 * vignette).round() as u8,
+                    p[3],
+                ]),
+            );
         }
     }
 }
@@ -1296,12 +1394,16 @@ fn apply_fill_light_impl(image: &DynamicImage, params: &FillLightParams) -> Dyna
             let out_g = 1.0 - (1.0 - pg) * (1.0 - add_g);
             let out_b = 1.0 - (1.0 - pb) * (1.0 - add_b);
 
-            rgba.put_pixel(x, y, Rgba([
-                (out_r.clamp(0.0, 1.0) * 255.0).round() as u8,
-                (out_g.clamp(0.0, 1.0) * 255.0).round() as u8,
-                (out_b.clamp(0.0, 1.0) * 255.0).round() as u8,
-                p[3],
-            ]));
+            rgba.put_pixel(
+                x,
+                y,
+                Rgba([
+                    (out_r.clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (out_g.clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (out_b.clamp(0.0, 1.0) * 255.0).round() as u8,
+                    p[3],
+                ]),
+            );
         }
     }
     DynamicImage::ImageRgba8(rgba)
@@ -1332,7 +1434,10 @@ pub fn process_id_photo(
 }
 
 /// Internal ID photo implementation.
-fn process_id_photo_impl(image: &DynamicImage, params: &IdPhotoParams) -> anyhow::Result<DynamicImage> {
+fn process_id_photo_impl(
+    image: &DynamicImage,
+    params: &IdPhotoParams,
+) -> anyhow::Result<DynamicImage> {
     let (target_w, target_h) = match params.size {
         IdPhotoSize::OneInch => (295, 413),
         IdPhotoSize::TwoInch => (413, 579),
@@ -1348,7 +1453,8 @@ fn process_id_photo_impl(image: &DynamicImage, params: &IdPhotoParams) -> anyhow
     let crop_w = target_w.min(width);
     let crop_h = target_h.min(height);
     if crop_x + crop_w <= width && crop_y + crop_h <= height {
-        let cropped = imageops::crop_imm(&result.to_rgba8(), crop_x, crop_y, crop_w, crop_h).to_image();
+        let cropped =
+            imageops::crop_imm(&result.to_rgba8(), crop_x, crop_y, crop_w, crop_h).to_image();
         result = DynamicImage::ImageRgba8(cropped);
     }
     result = result.resize_exact(target_w, target_h, imageops::FilterType::Lanczos3);
@@ -1384,14 +1490,20 @@ pub fn apply_lens_blur(
 }
 
 /// Internal lens blur implementation.
-fn apply_lens_blur_impl(image: &DynamicImage, depth_map: Option<&GrayImage>, params: &LensBlurParams) -> DynamicImage {
+fn apply_lens_blur_impl(
+    image: &DynamicImage,
+    depth_map: Option<&GrayImage>,
+    params: &LensBlurParams,
+) -> DynamicImage {
     let (width, height) = image.dimensions();
     let rgba = image.to_rgba8();
     let focal_x = (params.focal_point.0 * width as f32) as u32;
     let focal_y = (params.focal_point.1 * height as f32) as u32;
     let focal_depth = if let Some(dm) = depth_map {
         dm.get_pixel(focal_x.min(width - 1), focal_y.min(height - 1))[0] as f32 / 255.0
-    } else { 0.5 };
+    } else {
+        0.5
+    };
     let max_blur_radius = params.blur_amount * 20.0;
 
     match params.blur_type {
@@ -1399,10 +1511,13 @@ fn apply_lens_blur_impl(image: &DynamicImage, depth_map: Option<&GrayImage>, par
             let mut result = RgbaImage::new(width, height);
             for y in 0..height {
                 for x in 0..width {
-                    let blur_radius = compute_blur_radius(depth_map, x, y, focal_depth, max_blur_radius);
+                    let blur_radius =
+                        compute_blur_radius(depth_map, x, y, focal_depth, max_blur_radius);
                     let mut pixel = apply_local_gaussian(&rgba, x, y, blur_radius, width, height);
                     if params.blur_type == LensBlurType::Bokeh && blur_radius > 1.0 {
-                        let lum = 0.299 * pixel[0] as f32 + 0.587 * pixel[1] as f32 + 0.114 * pixel[2] as f32;
+                        let lum = 0.299 * pixel[0] as f32
+                            + 0.587 * pixel[1] as f32
+                            + 0.114 * pixel[2] as f32;
                         if lum / 255.0 > params.highlight_threshold {
                             let boost = 1.0 + (lum / 255.0 - params.highlight_threshold) * 2.0;
                             pixel[0] = (pixel[0] as f32 * boost).min(255.0) as u8;
@@ -1467,12 +1582,16 @@ fn restore_old_photo_impl(image: &DynamicImage, params: &OldPhotoRestoreParams) 
                 let o = gray.get_pixel(x, y)[0];
                 let ratio = if o > 0 { d as f32 / o as f32 } else { 1.0 };
                 let ratio = ratio.clamp(0.5, 1.5);
-                denoised.put_pixel(x, y, Rgba([
-                    (p[0] as f32 * ratio).clamp(0.0, 255.0) as u8,
-                    (p[1] as f32 * ratio).clamp(0.0, 255.0) as u8,
-                    (p[2] as f32 * ratio).clamp(0.0, 255.0) as u8,
-                    p[3],
-                ]));
+                denoised.put_pixel(
+                    x,
+                    y,
+                    Rgba([
+                        (p[0] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                        (p[1] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                        (p[2] as f32 * ratio).clamp(0.0, 255.0) as u8,
+                        p[3],
+                    ]),
+                );
             }
         }
         result = DynamicImage::ImageRgba8(denoised);
@@ -1493,12 +1612,16 @@ fn restore_old_photo_impl(image: &DynamicImage, params: &OldPhotoRestoreParams) 
                 let r = lum * 1.1 + 20.0;
                 let g = lum * 0.95 + 10.0;
                 let b = lum * 0.8;
-                colored.put_pixel(x, y, Rgba([
-                    r.clamp(0.0, 255.0) as u8,
-                    g.clamp(0.0, 255.0) as u8,
-                    b.clamp(0.0, 255.0) as u8,
-                    p[3],
-                ]));
+                colored.put_pixel(
+                    x,
+                    y,
+                    Rgba([
+                        r.clamp(0.0, 255.0) as u8,
+                        g.clamp(0.0, 255.0) as u8,
+                        b.clamp(0.0, 255.0) as u8,
+                        p[3],
+                    ]),
+                );
             }
         }
         result = DynamicImage::ImageRgba8(colored);
@@ -1539,59 +1662,87 @@ fn apply_seasonal_effect_impl(image: &DynamicImage, params: &SeasonalEffectParam
 
     match params.effect_type {
         SeasonalEffectType::Sakura => {
-            for y in 0..height { for x in 0..width {
-                let p = rgba.get_pixel(x, y);
-                let r = p[0] as f32 + intensity * 20.0;
-                let g = p[1] as f32 + intensity * 5.0;
-                let b = p[2] as f32 + intensity * 15.0;
-                rgba.put_pixel(x, y, Rgba([
-                    (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                    (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                    (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8, p[3],
-                ]));
-            }}
+            for y in 0..height {
+                for x in 0..width {
+                    let p = rgba.get_pixel(x, y);
+                    let r = p[0] as f32 + intensity * 20.0;
+                    let g = p[1] as f32 + intensity * 5.0;
+                    let b = p[2] as f32 + intensity * 15.0;
+                    rgba.put_pixel(
+                        x,
+                        y,
+                        Rgba([
+                            (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            p[3],
+                        ]),
+                    );
+                }
+            }
             apply_highlight_tint(&mut rgba, [255, 180, 200], intensity * 0.3);
         }
         SeasonalEffectType::SummerSun => {
-            for y in 0..height { for x in 0..width {
-                let p = rgba.get_pixel(x, y);
-                let r = p[0] as f32 + intensity * 25.0;
-                let g = p[1] as f32 + intensity * 15.0;
-                let b = p[2] as f32 - intensity * 10.0;
-                rgba.put_pixel(x, y, Rgba([
-                    (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                    (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                    (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8, p[3],
-                ]));
-            }}
+            for y in 0..height {
+                for x in 0..width {
+                    let p = rgba.get_pixel(x, y);
+                    let r = p[0] as f32 + intensity * 25.0;
+                    let g = p[1] as f32 + intensity * 15.0;
+                    let b = p[2] as f32 - intensity * 10.0;
+                    rgba.put_pixel(
+                        x,
+                        y,
+                        Rgba([
+                            (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            p[3],
+                        ]),
+                    );
+                }
+            }
             apply_light_leak(&mut rgba, intensity * 0.4, [255, 200, 100]);
         }
         SeasonalEffectType::AutumnLeaves => {
-            for y in 0..height { for x in 0..width {
-                let p = rgba.get_pixel(x, y);
-                let r = p[0] as f32 + intensity * 20.0;
-                let g = p[1] as f32 + intensity * 5.0;
-                let b = p[2] as f32 - intensity * 20.0;
-                rgba.put_pixel(x, y, Rgba([
-                    (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                    (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                    (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8, p[3],
-                ]));
-            }}
+            for y in 0..height {
+                for x in 0..width {
+                    let p = rgba.get_pixel(x, y);
+                    let r = p[0] as f32 + intensity * 20.0;
+                    let g = p[1] as f32 + intensity * 5.0;
+                    let b = p[2] as f32 - intensity * 20.0;
+                    rgba.put_pixel(
+                        x,
+                        y,
+                        Rgba([
+                            (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            p[3],
+                        ]),
+                    );
+                }
+            }
             apply_vignette(&mut rgba, intensity * 0.3);
         }
         SeasonalEffectType::WinterSnow => {
-            for y in 0..height { for x in 0..width {
-                let p = rgba.get_pixel(x, y);
-                let r = p[0] as f32 - intensity * 10.0 + intensity * 15.0;
-                let g = p[1] as f32 + intensity * 5.0;
-                let b = p[2] as f32 + intensity * 25.0;
-                rgba.put_pixel(x, y, Rgba([
-                    (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                    (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
-                    (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8, p[3],
-                ]));
-            }}
+            for y in 0..height {
+                for x in 0..width {
+                    let p = rgba.get_pixel(x, y);
+                    let r = p[0] as f32 - intensity * 10.0 + intensity * 15.0;
+                    let g = p[1] as f32 + intensity * 5.0;
+                    let b = p[2] as f32 + intensity * 25.0;
+                    rgba.put_pixel(
+                        x,
+                        y,
+                        Rgba([
+                            (r * blend + p[0] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (g * blend + p[1] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            (b * blend + p[2] as f32 * (1.0 - blend)).clamp(0.0, 255.0) as u8,
+                            p[3],
+                        ]),
+                    );
+                }
+            }
         }
     }
     DynamicImage::ImageRgba8(rgba)

@@ -104,13 +104,9 @@ pub fn get_android_sdk_version() -> i32 {
         Err(_) => return 0,
     };
 
-    env.get_static_field(
-        "android/os/Build$VERSION",
-        "SDK_INT",
-        "I",
-    )
-    .and_then(|v| v.i())
-    .unwrap_or(0)
+    env.get_static_field("android/os/Build$VERSION", "SDK_INT", "I")
+        .and_then(|v| v.i())
+        .unwrap_or(0)
 }
 
 #[cfg(target_os = "android")]

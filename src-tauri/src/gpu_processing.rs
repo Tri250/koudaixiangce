@@ -65,7 +65,9 @@ impl WgpuDisplay {
                         wgpu::CurrentSurfaceTexture::Success(tex)
                         | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
                         _ => {
-                            log::warn!("Failed to acquire surface texture after reconfigure, skipping frame");
+                            log::warn!(
+                                "Failed to acquire surface texture after reconfigure, skipping frame"
+                            );
                             return;
                         }
                     }
@@ -158,7 +160,11 @@ pub fn get_or_init_gpu_context(
         instance_desc.backends = wgpu::Backends::PRIMARY;
     }
 
-    let flag_path = state.gpu_crash_flag_path.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let flag_path = state
+        .gpu_crash_flag_path
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     if let Some(p) = &flag_path {
         if let Some(parent) = p.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -1657,7 +1663,10 @@ fn process_and_get_dynamic_image_inner(
 
     let mut reallocated = false;
 
-    let mut processor_lock = state.gpu_processor.lock().unwrap_or_else(|e| e.into_inner());
+    let mut processor_lock = state
+        .gpu_processor
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let mut needs_new_processor = false;
     let new_width = (width + 255) & !255;
     let new_height = (height + 255) & !255;
@@ -1737,7 +1746,10 @@ fn process_and_get_dynamic_image_inner(
         display.current_bind_group = Some(bind_group);
     }
 
-    let mut cache_lock = state.gpu_image_cache.lock().unwrap_or_else(|e| e.into_inner());
+    let mut cache_lock = state
+        .gpu_image_cache
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let mut needs_new_cache = false;
 
     if let Some(cache) = &*cache_lock {

@@ -190,7 +190,8 @@ pub fn adjust_contrast(image: &DynamicImage, contrast: f32) -> DynamicImage {
             for ch in 0..3 {
                 let v = p[ch] as f32 / 255.0;
                 // S-curve around midpoint 0.5
-                let adjusted = 0.5 + (v - 0.5) * factor / (1.0 + (v - 0.5).abs() * (factor - 1.0).max(0.0) * 2.0);
+                let adjusted = 0.5
+                    + (v - 0.5) * factor / (1.0 + (v - 0.5).abs() * (factor - 1.0).max(0.0) * 2.0);
                 result.get_pixel_mut(x, y)[ch] = (adjusted.clamp(0.0, 1.0) * 255.0).round() as u8;
             }
         }
@@ -389,7 +390,11 @@ pub fn zone_system_adjust(image: &DynamicImage, zone_adjustments: &[f32; 10]) ->
 
             // Get the adjustment for this zone (and next, for interpolation)
             let adj = zone_adjustments[zone];
-            let adj_next = if zone < 9 { zone_adjustments[zone + 1] } else { adj };
+            let adj_next = if zone < 9 {
+                zone_adjustments[zone + 1]
+            } else {
+                adj
+            };
             let adj_interp = adj * (1.0 - t) + adj_next * t;
 
             // Apply adjustment as an exposure shift

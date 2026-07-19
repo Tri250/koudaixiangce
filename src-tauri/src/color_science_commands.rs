@@ -66,12 +66,22 @@ pub async fn convert_color_space(
             let g = pixel[1] as f32 / 255.0;
             let b = pixel[2] as f32 / 255.0;
 
-            let r_out = conversion_matrix[0][0] * r + conversion_matrix[0][1] * g + conversion_matrix[0][2] * b;
-            let g_out = conversion_matrix[1][0] * r + conversion_matrix[1][1] * g + conversion_matrix[1][2] * b;
-            let b_out = conversion_matrix[2][0] * r + conversion_matrix[2][1] * g + conversion_matrix[2][2] * b;
+            let r_out = conversion_matrix[0][0] * r
+                + conversion_matrix[0][1] * g
+                + conversion_matrix[0][2] * b;
+            let g_out = conversion_matrix[1][0] * r
+                + conversion_matrix[1][1] * g
+                + conversion_matrix[1][2] * b;
+            let b_out = conversion_matrix[2][0] * r
+                + conversion_matrix[2][1] * g
+                + conversion_matrix[2][2] * b;
 
             let clamp_f = |v: f32| (v * 255.0).round().clamp(0.0, 255.0) as u8;
-            converted.put_pixel(x, y, image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]));
+            converted.put_pixel(
+                x,
+                y,
+                image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]),
+            );
         }
 
         let dynamic_image = image::DynamicImage::ImageRgb8(converted);
@@ -104,8 +114,12 @@ pub async fn soft_proof(
         let target_matrix = get_color_space_matrix(&target_color_space)?;
         let srgb_matrix = get_color_space_matrix("srgb")?;
 
-        let target_inverse = invert_matrix3x3(&target_matrix)
-            .ok_or_else(|| format!("Failed to invert matrix for color space: {}", target_color_space))?;
+        let target_inverse = invert_matrix3x3(&target_matrix).ok_or_else(|| {
+            format!(
+                "Failed to invert matrix for color space: {}",
+                target_color_space
+            )
+        })?;
         let conversion_matrix = multiply_matrix3x3(&srgb_matrix, &target_inverse);
 
         let mut proof_image = image::ImageBuffer::new(width, height);
@@ -116,16 +130,32 @@ pub async fn soft_proof(
             let g = pixel[1] as f32 / 255.0;
             let b = pixel[2] as f32 / 255.0;
 
-            let r_out = conversion_matrix[0][0] * r + conversion_matrix[0][1] * g + conversion_matrix[0][2] * b;
-            let g_out = conversion_matrix[1][0] * r + conversion_matrix[1][1] * g + conversion_matrix[1][2] * b;
-            let b_out = conversion_matrix[2][0] * r + conversion_matrix[2][1] * g + conversion_matrix[2][2] * b;
+            let r_out = conversion_matrix[0][0] * r
+                + conversion_matrix[0][1] * g
+                + conversion_matrix[0][2] * b;
+            let g_out = conversion_matrix[1][0] * r
+                + conversion_matrix[1][1] * g
+                + conversion_matrix[1][2] * b;
+            let b_out = conversion_matrix[2][0] * r
+                + conversion_matrix[2][1] * g
+                + conversion_matrix[2][2] * b;
 
-            if r_out < 0.0 || r_out > 1.0 || g_out < 0.0 || g_out > 1.0 || b_out < 0.0 || b_out > 1.0 {
+            if r_out < 0.0
+                || r_out > 1.0
+                || g_out < 0.0
+                || g_out > 1.0
+                || b_out < 0.0
+                || b_out > 1.0
+            {
                 out_of_gamut_pixels += 1;
             }
 
             let clamp_f = |v: f32| (v * 255.0).round().clamp(0.0, 255.0) as u8;
-            proof_image.put_pixel(x, y, image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]));
+            proof_image.put_pixel(
+                x,
+                y,
+                image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]),
+            );
         }
 
         let dynamic_image = image::DynamicImage::ImageRgb8(proof_image);
@@ -159,8 +189,12 @@ pub async fn check_out_of_gamut(
 
         let target_matrix = get_color_space_matrix(&target_color_space)?;
         let srgb_matrix = get_color_space_matrix("srgb")?;
-        let target_inverse = invert_matrix3x3(&target_matrix)
-            .ok_or_else(|| format!("Failed to invert matrix for color space: {}", target_color_space))?;
+        let target_inverse = invert_matrix3x3(&target_matrix).ok_or_else(|| {
+            format!(
+                "Failed to invert matrix for color space: {}",
+                target_color_space
+            )
+        })?;
         let conversion_matrix = multiply_matrix3x3(&srgb_matrix, &target_inverse);
 
         let mut out_of_gamut_pixels: usize = 0;
@@ -168,10 +202,22 @@ pub async fn check_out_of_gamut(
             let r = pixel[0] as f32 / 255.0;
             let g = pixel[1] as f32 / 255.0;
             let b = pixel[2] as f32 / 255.0;
-            let r_out = conversion_matrix[0][0] * r + conversion_matrix[0][1] * g + conversion_matrix[0][2] * b;
-            let g_out = conversion_matrix[1][0] * r + conversion_matrix[1][1] * g + conversion_matrix[1][2] * b;
-            let b_out = conversion_matrix[2][0] * r + conversion_matrix[2][1] * g + conversion_matrix[2][2] * b;
-            if r_out < 0.0 || r_out > 1.0 || g_out < 0.0 || g_out > 1.0 || b_out < 0.0 || b_out > 1.0 {
+            let r_out = conversion_matrix[0][0] * r
+                + conversion_matrix[0][1] * g
+                + conversion_matrix[0][2] * b;
+            let g_out = conversion_matrix[1][0] * r
+                + conversion_matrix[1][1] * g
+                + conversion_matrix[1][2] * b;
+            let b_out = conversion_matrix[2][0] * r
+                + conversion_matrix[2][1] * g
+                + conversion_matrix[2][2] * b;
+            if r_out < 0.0
+                || r_out > 1.0
+                || g_out < 0.0
+                || g_out > 1.0
+                || b_out < 0.0
+                || b_out > 1.0
+            {
                 out_of_gamut_pixels += 1;
             }
         }
@@ -216,7 +262,11 @@ pub async fn apply_hdr_highlight_recovery(
                     if max_ch > threshold {
                         let excess = max_ch - threshold;
                         let rolloff = excess / (1.0 + excess * strength * 2.0);
-                        let scale = if max_ch > 0.0 { (threshold + rolloff) / max_ch } else { 1.0 };
+                        let scale = if max_ch > 0.0 {
+                            (threshold + rolloff) / max_ch
+                        } else {
+                            1.0
+                        };
                         (r * scale, g * scale, b * scale)
                     } else {
                         (r, g, b)
@@ -227,7 +277,11 @@ pub async fn apply_hdr_highlight_recovery(
                     if max_ch > threshold {
                         let t = ((max_ch - threshold) * normalized_peak * strength).min(1.0);
                         let compressed = threshold + (max_ch - threshold) * (1.0 - t * 0.8);
-                        let scale = if max_ch > 0.0 { compressed / max_ch } else { 1.0 };
+                        let scale = if max_ch > 0.0 {
+                            compressed / max_ch
+                        } else {
+                            1.0
+                        };
                         (r * scale, g * scale, b * scale)
                     } else {
                         (r, g, b)
@@ -238,7 +292,11 @@ pub async fn apply_hdr_highlight_recovery(
                     if max_ch > 1.0 {
                         let t = ((max_ch - 1.0) * strength).min(1.0);
                         let recovered = 1.0 + (max_ch - 1.0) * (1.0 - t * 0.9);
-                        let scale = if max_ch > 0.0 { recovered / max_ch } else { 1.0 };
+                        let scale = if max_ch > 0.0 {
+                            recovered / max_ch
+                        } else {
+                            1.0
+                        };
                         (r * scale, g * scale, b * scale)
                     } else {
                         (r, g, b)
@@ -302,8 +360,14 @@ pub async fn generate_gain_map(
 
             let sdr_pixel = sdr_rgb.get_pixel(sdr_x, sdr_y);
 
-            let hdr_luma = (hdr_pixel[0] as f32 * 0.2126 + hdr_pixel[1] as f32 * 0.7152 + hdr_pixel[2] as f32 * 0.0722) / 255.0;
-            let sdr_luma = (sdr_pixel[0] as f32 * 0.2126 + sdr_pixel[1] as f32 * 0.7152 + sdr_pixel[2] as f32 * 0.0722) / 255.0;
+            let hdr_luma = (hdr_pixel[0] as f32 * 0.2126
+                + hdr_pixel[1] as f32 * 0.7152
+                + hdr_pixel[2] as f32 * 0.0722)
+                / 255.0;
+            let sdr_luma = (sdr_pixel[0] as f32 * 0.2126
+                + sdr_pixel[1] as f32 * 0.7152
+                + sdr_pixel[2] as f32 * 0.0722)
+                / 255.0;
 
             let gain = if sdr_luma > 0.001 {
                 (hdr_luma / sdr_luma).ln() / normalized_peak
@@ -315,7 +379,9 @@ pub async fn generate_gain_map(
             min_gain = min_gain.min(clamped_gain);
             max_gain = max_gain.max(clamped_gain);
 
-            let encoded = ((clamped_gain + 1.0) * 0.5 * 255.0).round().clamp(0.0, 255.0) as u8;
+            let encoded = ((clamped_gain + 1.0) * 0.5 * 255.0)
+                .round()
+                .clamp(0.0, 255.0) as u8;
             gain_map.put_pixel(x, y, image::Luma([encoded]));
         }
 
@@ -414,11 +480,7 @@ pub async fn export_hdr_tiff(
                 scaled.put_pixel(
                     x,
                     y,
-                    image::Rgb([
-                        pixel[0] * scale,
-                        pixel[1] * scale,
-                        pixel[2] * scale,
-                    ]),
+                    image::Rgb([pixel[0] * scale, pixel[1] * scale, pixel[2] * scale]),
                 );
             }
 
@@ -438,9 +500,12 @@ pub async fn export_hdr_tiff(
                     x,
                     y,
                     image::Rgb([
-                        ((pixel[0] as f32 / 65535.0 * scale_u16).clamp(0.0, 1.0) * 65535.0).round() as u16,
-                        ((pixel[1] as f32 / 65535.0 * scale_u16).clamp(0.0, 1.0) * 65535.0).round() as u16,
-                        ((pixel[2] as f32 / 65535.0 * scale_u16).clamp(0.0, 1.0) * 65535.0).round() as u16,
+                        ((pixel[0] as f32 / 65535.0 * scale_u16).clamp(0.0, 1.0) * 65535.0).round()
+                            as u16,
+                        ((pixel[1] as f32 / 65535.0 * scale_u16).clamp(0.0, 1.0) * 65535.0).round()
+                            as u16,
+                        ((pixel[2] as f32 / 65535.0 * scale_u16).clamp(0.0, 1.0) * 65535.0).round()
+                            as u16,
                     ]),
                 );
             }
@@ -562,11 +627,13 @@ pub async fn convert_to_monochrome(
                     let split_point = balance;
 
                     // Parse shadow color (hex string like "#8B4513")
-                    let (sr, sg, sb) = shadow_color.as_deref()
+                    let (sr, sg, sb) = shadow_color
+                        .as_deref()
                         .and_then(|c| crate::color_science_commands::parse_hex_color(c))
                         .unwrap_or((0.545, 0.271, 0.075)); // default warm brown
                     // Parse highlight color
-                    let (hr, hg, hb) = highlight_color.as_deref()
+                    let (hr, hg, hb) = highlight_color
+                        .as_deref()
                         .and_then(|c| crate::color_science_commands::parse_hex_color(c))
                         .unwrap_or((0.831, 0.686, 0.216)); // default gold
 
@@ -589,7 +656,11 @@ pub async fn convert_to_monochrome(
             };
 
             let clamp_f = |v: f32| (v * 255.0).round().clamp(0.0, 255.0) as u8;
-            result.put_pixel(x, y, image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]));
+            result.put_pixel(
+                x,
+                y,
+                image::Rgb([clamp_f(r_out), clamp_f(g_out), clamp_f(b_out)]),
+            );
         }
 
         let dynamic_image = image::DynamicImage::ImageRgb8(result);
@@ -708,12 +779,10 @@ pub async fn get_camera_profile_for_image(
 }
 
 #[tauri::command]
-pub async fn import_dcp_profile(
-    file_path: String,
-) -> Result<serde_json::Value, String> {
+pub async fn import_dcp_profile(file_path: String) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
-        let data = std::fs::read(&file_path)
-            .map_err(|e| format!("Failed to read DCP file: {}", e))?;
+        let data =
+            std::fs::read(&file_path).map_err(|e| format!("Failed to read DCP file: {}", e))?;
 
         // Validate TIFF/DCP header (DCP files are TIFF-based)
         if data.len() < 4 {
@@ -752,7 +821,10 @@ pub async fn set_camera_color_profile(
     state: tauri::State<'_, crate::app_state::AppState>,
 ) -> Result<(), String> {
     // Store the selected camera profile name in app state for use during processing
-    let mut current_profile = state.camera_color_profile.lock().unwrap_or_else(|e| e.into_inner());
+    let mut current_profile = state
+        .camera_color_profile
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     *current_profile = Some(profile_name);
     Ok(())
 }
