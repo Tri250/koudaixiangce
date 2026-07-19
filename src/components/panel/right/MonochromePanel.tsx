@@ -135,7 +135,7 @@ export default function MonochromePanel() {
             }
         } catch (err) {
             console.error('get_monochrome_preview failed:', err);
-            toast.error(`${t('editor.monochrome.preview', 'Preview')} failed: ${err}`);
+            toast.error(`${t('editor.monochrome.preview')} 失败: ${err}`);
         } finally {
             setIsPreviewLoading(false);
         }
@@ -379,13 +379,13 @@ export default function MonochromePanel() {
                     ) : (
                         <Eye size={16} className="mr-2" />
                     )}
-                    {t('editor.monochrome.preview', 'Preview')}
+                    {t('editor.monochrome.preview')}
                 </Button>
 
                 {/* Preview Thumbnail */}
                 {previewUrl && (
                     <div className="mb-2 rounded-lg overflow-hidden border border-border-color/40">
-                        <img src={previewUrl} alt="Monochrome preview" className="w-full h-auto" />
+                        <img src={previewUrl} alt={t('editor.monochrome.preview')} className="w-full h-auto" />
                     </div>
                 )}
 

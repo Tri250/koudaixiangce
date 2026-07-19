@@ -713,7 +713,8 @@
         "explore": "Explore Community Presets",
         "export": "Export all presets to .rrpreset file",
         "import": "Import presets from .rrpreset file",
-        "saveNew": "Save as new preset"
+        "saveNew": "Save as new preset",
+        "sync": "Sync Presets"
       },
       "types": {
         "folder": "Folder",
@@ -934,6 +935,7 @@
       "exportUltraHDR": "Export Ultra HDR JPG",
       "exportHDRTIFF": "Export HDR TIFF",
       "gamutWarningOverlay": "Gamut Warning Overlay",
+      "generateGainMap": "Generate Gain Map",
       "modes": {
         "recover": "Recover",
         "clip": "Clip",
@@ -967,6 +969,7 @@
       "highlightColor": "Highlight Color",
       "splitBalance": "Split Balance",
       "apply": "Apply",
+      "preview": "Preview",
       "toningTypes": {
         "none": "None",
         "sepia": "Sepia",
@@ -994,7 +997,8 @@
       "outOfGamutWarning": "Out of Gamut Warning",
       "outOfGamutCount": "Out of gamut pixels: {{count}}",
       "gamutWarningOverlay": "Gamut Warning Overlay",
-      "convert": "Convert Color Space"
+      "convert": "Convert Color Space",
+      "colorProfiles": "Color Profiles"
     },
     "sky": {
       "title": "Sky Replacement",

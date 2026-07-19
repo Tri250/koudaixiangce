@@ -137,7 +137,7 @@ export default function SkyPanel() {
         multiple: false,
         filters: [
           {
-            name: t('editor.sky.imageFilterLabel', 'Images'),
+            name: t('editor.sky.imageFilterLabel'),
             extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'],
           },
         ],

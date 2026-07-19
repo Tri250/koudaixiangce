@@ -713,7 +713,8 @@
         "explore": "探索社区预设",
         "export": "将所有预设导出为 .rrpreset 文件",
         "import": "从 .rrpreset 文件导入预设",
-        "saveNew": "保存为新预设"
+        "saveNew": "保存为新预设",
+        "sync": "同步预设"
       },
       "types": {
         "folder": "文件夹",
@@ -941,6 +942,7 @@
       "exportUltraHDR": "导出 Ultra HDR JPG",
       "exportHDRTIFF": "导出 HDR TIFF",
       "gamutWarningOverlay": "色域警告叠加层",
+      "generateGainMap": "生成增益图",
       "modes": {
         "recover": "恢复",
         "clip": "裁剪",
@@ -974,6 +976,7 @@
       "highlightColor": "高光颜色",
       "splitBalance": "分离平衡",
       "apply": "应用",
+      "preview": "预览",
       "toningTypes": {
         "none": "无",
         "sepia": "棕褐",
@@ -1001,7 +1004,8 @@
       "outOfGamutWarning": "超出色域警告",
       "outOfGamutCount": "超出色域像素数：{{count}}",
       "gamutWarningOverlay": "色域警告叠加层",
-      "convert": "转换色彩空间"
+      "convert": "转换色彩空间",
+      "colorProfiles": "色彩配置文件"
     },
     "sky": {
       "title": "换天空",

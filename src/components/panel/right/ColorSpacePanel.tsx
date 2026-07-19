@@ -353,7 +353,7 @@ export default function ColorSpacePanel() {
                 {/* Color Profiles Section */}
                 {colorProfiles.length > 0 && (
                     <CollapsibleSection
-                        title={t('editor.colorSpace.colorProfiles', 'Color Profiles')}
+                        title={t('editor.colorSpace.colorProfiles')}
                         isOpen={true}
                         isContentVisible={true}
                         onToggle={() => {}}

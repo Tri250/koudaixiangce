@@ -1181,7 +1181,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
     if (presetIds.length === 0) return;
     try {
       await invoke(Invokes.BatchSyncPreset, { preset_ids: presetIds });
-      toast.success(t('editor.presets.tooltips.sync', 'Sync presets'));
+      toast.success(t('editor.presets.tooltips.sync'));
     } catch (error) {
       console.error('Failed to sync presets:', error);
     }
@@ -1387,7 +1387,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
               className="p-2 rounded-full hover:bg-surface transition-colors"
               disabled={presets.length === 0 || isLoading}
               onClick={handleBatchSyncPreset}
-              data-tooltip={t('editor.presets.tooltips.sync', 'Sync presets')}
+              data-tooltip={t('editor.presets.tooltips.sync')}
             >
               <Sync size={18} />
             </button>
@@ -1448,7 +1448,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
               <input
                 type="text"
-                placeholder={t('editor.presets.searchPlaceholder', 'Search presets...')}
+                placeholder={t('editor.presets.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-surface border border-border-color/40 rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-secondary outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all"

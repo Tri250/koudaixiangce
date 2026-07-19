@@ -220,10 +220,10 @@ export default function HDRPanel() {
                 sdr_image_base64: sdrImageBase64,
                 peak_brightness_nits: peakBrightness,
             });
-            toast.success(t('editor.hdr.generateGainMap', 'Generate Gain Map'));
+            toast.success(t('editor.hdr.generateGainMap'));
         } catch (err) {
             console.error('generate_gain_map failed:', err);
-            toast.error(`${t('editor.hdr.generateGainMap', 'Generate Gain Map')} failed: ${err}`);
+            toast.error(`${t('editor.hdr.generateGainMap')} 失败: ${err}`);
         } finally {
             setIsGeneratingGainMap(false);
         }
@@ -398,7 +398,7 @@ export default function HDRPanel() {
                         ) : (
                             <Layers size={16} className="mr-2" />
                         )}
-                        {t('editor.hdr.generateGainMap', 'Generate Gain Map')}
+                        {t('editor.hdr.generateGainMap')}
                     </Button>
 
                     {/* TIFF Bit Depth Selector */}
