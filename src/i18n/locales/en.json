@@ -2119,5 +2119,13 @@
         "vectorscope": "Vectorscope"
       }
     }
+  },
+  "app": {
+    "compactMode": "Portrait compact mode — layout optimized for this screen size, all features available."
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "message": "Sorry, RapidRAW encountered an unexpected issue. You can try reloading the interface.",
+    "reload": "Reload"
   }
 }

@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ClerkProviderFallback } from './hooks/useClerkFallback';
 import { ToastContainer, toast, Slide } from 'react-toastify';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
 import TitleBar from './window/TitleBar';
@@ -34,6 +35,7 @@ import { useSortedLibrary } from './hooks/useSortedLibrary';
 import { useAppNavigation } from './hooks/useAppNavigation';
 import { useExternalEditSession } from './hooks/useExternalEditSession';
 import ExternalEditBar from './components/ui/ExternalEditBar';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 import { Status } from './components/ui/ExportImportProperties';
 
 import { useEditorActions } from './hooks/useEditorActions';
@@ -84,6 +86,7 @@ const insertChildrenIntoTree = (node: any, targetPath: string, newChildren: any[
 };
 
 function App() {
+  const { t } = useTranslation();
   const COMPACT_EDITOR_MAX_WIDTH = 900;
 
   const { appSettings, theme, osPlatform, handleSettingsChange } = useSettingsStore(
@@ -209,6 +212,7 @@ function App() {
   const isPortraitViewport = viewportSize.width > 0 && viewportSize.height > viewportSize.width;
   const isCompactPortrait =
     viewportSize.width > 0 && viewportSize.width <= COMPACT_EDITOR_MAX_WIDTH && isPortraitViewport;
+  const isAndroidCompact = isAndroid && viewportSize.width > 0 && viewportSize.width <= COMPACT_EDITOR_MAX_WIDTH;
 
   const compactEditorPanelMinHeight = 220;
   const compactEditorPanelMaxHeight =
@@ -615,8 +619,9 @@ function App() {
   const useMacWindowShell = osPlatform === 'macos' && !appSettings?.decorations && !isWindowFullScreen && !isFullScreen;
 
   return (
-    <>
-      <ImageProcessingManager
+    <ErrorBoundary>
+      <>
+        <ImageProcessingManager
         transformWrapperRef={transformWrapperRef}
         prevAdjustmentsRef={prevAdjustmentsRef}
         previewJobIdRef={previewJobIdRef}
@@ -647,10 +652,10 @@ function App() {
             [hasMainContent && (isFullScreen ? 'p-0 gap-0' : 'p-2 gap-2')],
           )}
         >
-          {isAndroid && isCompactPortrait && selectedImage && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 text-yellow-400 text-xs rounded-md border border-yellow-500/20">
-              <span className="font-medium">⚠</span>
-              <span>Compact mode — some editing features may be limited on this screen size.</span>
+          {isAndroidCompact && selectedImage && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 text-blue-400 text-xs rounded-md border border-blue-500/20">
+              <span className="font-medium">ℹ</span>
+              <span>{t('app.compactMode')}</span>
             </div>
           )}
           <div className="flex flex-row grow h-full min-h-0">
@@ -669,6 +674,7 @@ function App() {
                   transformWrapperRef={transformWrapperRef}
                   isResizing={isResizing}
                   isCompactPortrait={isCompactPortrait}
+                  isAndroidCompact={isAndroidCompact}
                   isAndroid={isAndroid}
                   compactEditorPanelHeight={compactEditorPanelHeight}
                   compactEditorPanelCollapsedHeight={compactEditorPanelCollapsedHeight}
@@ -780,7 +786,8 @@ function App() {
           }
         />
       </div>
-    </>
+      </>
+    </ErrorBoundary>
   );
 }
 

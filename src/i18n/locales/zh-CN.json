@@ -2218,5 +2218,13 @@
   "creative.removeStains": "祛污渍",
   "creative.oneInch": "一寸",
   "creative.twoInch": "二寸",
-  "creative.passport": "护照"
+  "creative.passport": "护照",
+  "app": {
+    "compactMode": "竖屏紧凑模式 — 布局已针对当前屏幕优化，全部功能可用。"
+  },
+  "errorBoundary": {
+    "title": "应用发生错误",
+    "message": "抱歉，口袋相册遇到了意外问题。您可以尝试重新加载界面。",
+    "reload": "重新加载"
+  }
 }
