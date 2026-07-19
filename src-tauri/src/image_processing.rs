@@ -3418,7 +3418,7 @@ pub fn calculate_auto_adjustments(
     let original_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .ok_or("No image loaded for auto adjustments")?
         .image

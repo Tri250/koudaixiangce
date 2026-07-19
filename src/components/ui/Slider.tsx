@@ -78,24 +78,36 @@ const Slider = ({
     };
   }, []);
 
-  const fillPercentage = max !== min ? ((displayValue - min) / (max - min)) * 100 : 0;
+  const safeDisplayValue = isFinite(displayValue) ? displayValue : defaultValue;
+  const safeMin = isFinite(min) ? min : 0;
+  const safeMax = isFinite(max) ? max : 100;
+  const hasValidRange = safeMax > safeMin;
+
+  const fillPercentage = hasValidRange ? ((safeDisplayValue - safeMin) / (safeMax - safeMin)) * 100 : 0;
   const originPercentage = useMemo(() => {
     if (fillOrigin === 'min') {
       return 0;
     }
-    return max !== min ? ((defaultValue - min) / (max - min)) * 100 : 0;
-  }, [fillOrigin, defaultValue, min, max]);
+    const safeDefault = isFinite(defaultValue) ? defaultValue : 0;
+    return hasValidRange ? ((safeDefault - safeMin) / (safeMax - safeMin)) * 100 : 0;
+  }, [fillOrigin, defaultValue, safeMin, safeMax, hasValidRange]);
 
   const stepStr = String(step);
   const decimalPlaces = stepStr.includes('.') ? stepStr.split('.')[1].length : 0;
 
   const snapToStep = useCallback(
     (val: number): number => {
-      const snapped = Math.round((val - min) / step) * step + min;
-      const clamped = Math.max(min, Math.min(max, snapped));
+      if (typeof val !== 'number' || !isFinite(val) || isNaN(val)) {
+        return defaultValue;
+      }
+      const safeMin = isFinite(min) ? min : 0;
+      const safeMax = isFinite(max) ? max : 100;
+      const safeStep = isFinite(step) && step > 0 ? step : 1;
+      const snapped = Math.round((val - safeMin) / safeStep) * safeStep + safeMin;
+      const clamped = Math.max(safeMin, Math.min(safeMax, snapped));
       return parseFloat(clamped.toFixed(decimalPlaces));
     },
-    [min, max, step, decimalPlaces],
+    [min, max, step, decimalPlaces, defaultValue],
   );
 
   const onChangeRef = useRef(onChange);
@@ -403,14 +415,17 @@ const Slider = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return;
     const textVal = e.target.value;
-    if (!/^[0-9.,\-]*$/.test(textVal)) {
+    if (!/^-?[0-9]*\.?[0-9]*$/.test(textVal) && textVal !== '' && textVal !== '-') {
       return;
     }
     setInputValue(textVal);
+    if (textVal === '' || textVal === '-') {
+      return;
+    }
     const parseableText = textVal.replace(',', '.');
     const parsedValue = parseFloat(parseableText);
-    if (!isNaN(parsedValue)) {
-      const clampedValue = Math.max(min, Math.min(max, parsedValue));
+    if (!isNaN(parsedValue) && isFinite(parsedValue)) {
+      const clampedValue = Math.max(safeMin, Math.min(safeMax, parsedValue));
       onChange({
         target: {
           value: clampedValue,
@@ -421,10 +436,10 @@ const Slider = ({
 
   const handleInputCommit = () => {
     let newValue = parseFloat(inputValue.replace(',', '.'));
-    if (isNaN(newValue)) {
-      newValue = value;
+    if (isNaN(newValue) || !isFinite(newValue)) {
+      newValue = typeof value === 'number' && isFinite(value) ? value : defaultValue;
     } else {
-      newValue = Math.max(min, Math.min(max, newValue));
+      newValue = Math.max(safeMin, Math.min(safeMax, newValue));
     }
     const syntheticEvent = {
       target: {
@@ -447,11 +462,12 @@ const Slider = ({
     } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
       let currentNum = parseFloat(inputValue.replace(',', '.'));
-      if (isNaN(currentNum)) {
-        currentNum = value;
+      if (isNaN(currentNum) || !isFinite(currentNum)) {
+        currentNum = typeof value === 'number' && isFinite(value) ? value : defaultValue;
       }
       const direction = e.key === 'ArrowUp' ? 1 : -1;
-      const newValue = currentNum + direction * step;
+      const safeStep = isFinite(step) && step > 0 ? step : 1;
+      const newValue = currentNum + direction * safeStep;
       const snappedNewValue = snapToStep(newValue);
       setInputValue(String(snappedNewValue));
       onChange({
@@ -473,7 +489,7 @@ const Slider = ({
     }
   };
 
-  const numericValue = isNaN(Number(value)) ? 0 : Number(value);
+  const numericValue = typeof value === 'number' && isFinite(value) && !isNaN(value) ? value : 0;
 
   return (
     <div className="mb-2 group" ref={containerRef}>

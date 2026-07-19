@@ -164,8 +164,8 @@ export default function BasicAdjustments({
   const { t } = useTranslation();
 
   const handleAdjustmentChange = (key: BasicAdjustment, value: any) => {
-    const numericValue = parseFloat(value);
-    if (isNaN(numericValue)) return;
+    const numericValue = typeof value === 'number' ? value : parseFloat(value);
+    if (isNaN(numericValue) || !isFinite(numericValue)) return;
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
   };
 

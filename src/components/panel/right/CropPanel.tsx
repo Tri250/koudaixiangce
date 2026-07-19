@@ -270,9 +270,13 @@ export default function CropPanel() {
     const numW = parseFloat(customW);
     const numH = parseFloat(customH);
 
-    if (numW > 0 && numH > 0) {
+    if (isFinite(numW) && isFinite(numH) && numW > 0 && numH > 0) {
       setCustomRatioError(false);
       const newAspectRatio = numW / numH;
+      if (!isFinite(newAspectRatio) || newAspectRatio <= 0) {
+        setCustomRatioError(true);
+        return;
+      }
       lastSyncedRatio.current = newAspectRatio;
       if (!adjustments?.aspectRatio || Math.abs(adjustments.aspectRatio - newAspectRatio) > RATIO_TOLERANCE) {
         setAdjustments((prev: Adjustments) => ({ ...prev, aspectRatio: newAspectRatio }));
@@ -392,10 +396,12 @@ export default function CropPanel() {
 
   const handleFineRotationChange = (e: any) => {
     const newFineRotation = parseFloat(e.target.value);
+    if (isNaN(newFineRotation) || !isFinite(newFineRotation)) return;
+    const clampedRotation = Math.max(-45, Math.min(45, newFineRotation));
     if (isRotationActive) {
-      updateLocalRotation(newFineRotation);
+      updateLocalRotation(clampedRotation);
     } else {
-      setAdjustments((prev: Adjustments) => ({ ...prev, rotation: newFineRotation }));
+      setAdjustments((prev: Adjustments) => ({ ...prev, rotation: clampedRotation }));
     }
   };
 

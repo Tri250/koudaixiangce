@@ -67,7 +67,8 @@ function ListHeader({ widths, setWidths, containerRef, sortCriteria, onSortChang
   const Column = ({ title, widthKey, nextKey, sortKey }: any) => {
     const isSorted = sortCriteria.key === sortKey;
     const isAsc = sortCriteria.order === SortDirection.Ascending;
-    const actualWidth = `${(widths[widthKey] / totalRawWidth) * 100}%`;
+    const safeTotal = totalRawWidth > 0 ? totalRawWidth : 1;
+    const actualWidth = `${(widths[widthKey] / safeTotal) * 100}%`;
 
     return (
       <div

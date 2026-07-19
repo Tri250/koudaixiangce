@@ -5,10 +5,12 @@ export function getOrientedDimensions(
   imageHeight: number,
   orientationSteps: number,
 ): { width: number; height: number } {
+  const safeWidth = isFinite(imageWidth) && imageWidth > 0 ? imageWidth : 1;
+  const safeHeight = isFinite(imageHeight) && imageHeight > 0 ? imageHeight : 1;
   const isSwapped = orientationSteps === 1 || orientationSteps === 3;
   return {
-    width: isSwapped ? imageHeight : imageWidth,
-    height: isSwapped ? imageWidth : imageHeight,
+    width: isSwapped ? safeHeight : safeWidth,
+    height: isSwapped ? safeWidth : safeHeight,
   };
 }
 
@@ -19,7 +21,10 @@ export function calculateCenteredCrop(
   aspectRatio: number | null,
   rotation: number = 0,
 ): Crop | null {
-  if (!aspectRatio || aspectRatio <= 0) return null;
+  if (!aspectRatio || !isFinite(aspectRatio) || aspectRatio <= 0) return null;
+  if (!isFinite(imageWidth) || !isFinite(imageHeight)) return null;
+  if (imageWidth <= 0 || imageHeight <= 0) return null;
+  if (!isFinite(rotation)) rotation = 0;
 
   const { width: W, height: H } = getOrientedDimensions(imageWidth, imageHeight, orientationSteps);
 

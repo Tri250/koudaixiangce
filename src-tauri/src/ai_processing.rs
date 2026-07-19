@@ -320,7 +320,7 @@ pub async fn get_or_init_ai_models(
 ) -> Result<Arc<AiModels>> {
     if let Some(models) = ai_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.models.clone())
     {
@@ -348,7 +348,7 @@ pub async fn get_or_init_ai_models(
 
     if let Some(models) = ai_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.models.clone())
     {
@@ -452,7 +452,7 @@ pub async fn get_or_init_denoise_model(
 ) -> Result<Arc<Mutex<Session>>> {
     if let Some(denoise_model) = ai_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.denoise_model.clone())
     {
@@ -463,7 +463,7 @@ pub async fn get_or_init_denoise_model(
 
     if let Some(denoise_model) = ai_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.denoise_model.clone())
     {

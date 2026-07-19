@@ -173,6 +173,10 @@ export function useRetouching() {
   const applyFaceReshape = useCallback(
     async (faceLandmarks: FaceLandmark[], params: FaceReshapeParams): Promise<string | null> => {
       try {
+        if (!faceLandmarks || faceLandmarks.length === 0) {
+          console.error('applyFaceReshape: invalid faceLandmarks');
+          return null;
+        }
         const jsAdjustments = getTransformAdjustments(adjustments);
         const result = await invoke<string>('apply_face_reshape', {
           js_adjustments: jsAdjustments,

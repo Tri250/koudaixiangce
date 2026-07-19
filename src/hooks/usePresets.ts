@@ -60,6 +60,11 @@ export function usePresets(currentAdjustments: Adjustments) {
     includeCropTransform: boolean = false,
     presetType: 'tool' | 'style' = 'style',
   ) => {
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      console.error('addPreset: invalid name');
+      return null;
+    }
+    const trimmedName = name.trim();
     const GEOMETRY_KEYS = ADJUSTMENT_GROUPS.geometry.flatMap((group) => group.keys);
     const MASK_KEYS = ADJUSTMENT_GROUPS.masks.flatMap((group) => group.keys);
 
@@ -86,7 +91,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     const newPresetData: Preset = {
       adjustments: presetAdjustments,
       id: crypto.randomUUID(),
-      name,
+      name: trimmedName,
       includeMasks,
       includeCropTransform,
       presetType,
@@ -569,39 +574,67 @@ export function usePresets(currentAdjustments: Adjustments) {
 
   const importPresetsFromFile = useCallback(
     async (filePath: string) => {
+      if (!filePath || typeof filePath !== 'string' || filePath.trim() === '') {
+        console.error('importPresetsFromFile: invalid filePath');
+        return;
+      }
+      const previousPresets = [...presets];
       setIsLoading(true);
       try {
         const updatedPresetList: Array<any> = await invoke(Invokes.HandleImportPresetsFromFile, { file_path: filePath });
+        if (!Array.isArray(updatedPresetList)) {
+          throw new Error('Invalid preset data format');
+        }
         setPresets(updatedPresetList);
+        savePresetsToBackend(updatedPresetList);
       } catch (error) {
         console.error('Failed to import presets from file:', error);
+        setPresets(previousPresets);
         throw error;
       } finally {
         setIsLoading(false);
       }
     },
-    [setPresets],
+    [presets, savePresetsToBackend],
   );
 
   const importLegacyPresetsFromFile = useCallback(
     async (filePath: string) => {
+      if (!filePath || typeof filePath !== 'string' || filePath.trim() === '') {
+        console.error('importLegacyPresetsFromFile: invalid filePath');
+        return;
+      }
+      const previousPresets = [...presets];
       setIsLoading(true);
       try {
         const updatedPresetList: Array<UserPreset> = await invoke(Invokes.HandleImportLegacyPresetsFromFile, {
           file_path: filePath,
         });
+        if (!Array.isArray(updatedPresetList)) {
+          throw new Error('Invalid preset data format');
+        }
         setPresets(updatedPresetList);
+        savePresetsToBackend(updatedPresetList);
       } catch (error) {
         console.error('Failed to import legacy presets from file:', error);
+        setPresets(previousPresets);
         throw error;
       } finally {
         setIsLoading(false);
       }
     },
-    [setPresets],
+    [presets, savePresetsToBackend],
   );
 
   const exportPresetsToFile = useCallback(async (presetsToExport: Array<any>, filePath: string) => {
+    if (!presetsToExport || !Array.isArray(presetsToExport)) {
+      console.error('exportPresetsToFile: invalid presetsToExport');
+      throw new Error('Invalid presets data');
+    }
+    if (!filePath || typeof filePath !== 'string' || filePath.trim() === '') {
+      console.error('exportPresetsToFile: invalid filePath');
+      throw new Error('Invalid file path');
+    }
     try {
       await invoke(Invokes.HandleExportPresetsToFile, { presets_to_export: presetsToExport, file_path: filePath });
     } catch (error) {

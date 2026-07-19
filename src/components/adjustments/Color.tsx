@@ -122,9 +122,9 @@ const ColorGradingPanel = ({ adjustments, setAdjustments, onDragStateChange }: C
     }));
   };
 
-  const handleColorGradingSliderChange = (grading: ColorGrading, value: string) => {
-    const numVal = parseFloat(value);
-    if (isNaN(numVal)) return;
+  const handleColorGradingSliderChange = (grading: ColorGrading, value: string | number) => {
+    const numVal = typeof value === 'number' ? value : parseFloat(value);
+    if (isNaN(numVal) || !isFinite(numVal)) return;
     setAdjustments((prev: Partial<Adjustments>) => ({
       ...prev,
       colorGrading: {
@@ -454,18 +454,22 @@ export default function ColorPanel({
     };
   }, [effectiveHue, currentHsl.saturation, activeColor]);
 
-  const handleAdjustmentChange = (key: ColorAdjustment, value: string) => {
-    setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: parseFloat(value) }));
+  const handleAdjustmentChange = (key: ColorAdjustment, value: string | number) => {
+    const numericValue = typeof value === 'number' ? value : parseFloat(value);
+    if (isNaN(numericValue) || !isFinite(numericValue)) return;
+    setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
   };
 
-  const handleHslChange = (key: ColorAdjustment, value: string) => {
+  const handleHslChange = (key: ColorAdjustment, value: string | number) => {
+    const numericValue = typeof value === 'number' ? value : parseFloat(value);
+    if (isNaN(numericValue) || !isFinite(numericValue)) return;
     setAdjustments((prev: Partial<Adjustments>) => ({
       ...prev,
       hsl: {
         ...(prev.hsl || {}),
         [activeColor]: {
           ...(prev.hsl?.[activeColor] || {}),
-          [key]: parseFloat(value),
+          [key]: numericValue,
         },
       },
     }));

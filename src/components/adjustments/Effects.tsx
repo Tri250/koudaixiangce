@@ -27,13 +27,14 @@ export default function EffectsPanel({
 }: EffectsPanelProps) {
   const { t } = useTranslation();
 
-  const handleAdjustmentChange = (key: string, value: string) => {
-    const numericValue = parseFloat(value);
-    if (isNaN(numericValue)) return;
+  const handleAdjustmentChange = (key: string, value: string | number) => {
+    const numericValue = typeof value === 'number' ? value : parseFloat(value);
+    if (isNaN(numericValue) || !isFinite(numericValue)) return;
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
   };
 
   const handleLutIntensityChange = (intensity: number) => {
+    if (isNaN(intensity) || !isFinite(intensity)) return;
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, lutIntensity: intensity }));
   };
 

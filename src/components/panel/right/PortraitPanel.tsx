@@ -177,9 +177,17 @@ export default function PortraitPanel() {
   }, [skinParams, applySkinSmoothing, showStatus, t]);
 
   const handleAutoBlemishRemove = useCallback(async () => {
+    if (faceDetections.length === 0) {
+      showStatus(t('editor.portrait.face.detectFirst'), 'error');
+      return;
+    }
     setIsApplying(true);
     try {
-      const allLandmarks = faceDetections.map((d) => d.landmarks);
+      const allLandmarks = faceDetections.map((d) => d.landmarks).filter(Boolean);
+      if (allLandmarks.length === 0) {
+        showStatus(t('editor.portrait.face.detectFirst'), 'error');
+        return;
+      }
       const result = await applyBlemishRemoval(allLandmarks, 0.5);
       if (result) {
         showStatus(t('editor.portrait.skin.applySuccess'), 'success');
@@ -194,9 +202,17 @@ export default function PortraitPanel() {
   }, [applyBlemishRemoval, faceDetections, showStatus, t]);
 
   const handleSkinColorUniform = useCallback(async () => {
+    if (faceDetections.length === 0) {
+      showStatus(t('editor.portrait.face.detectFirst'), 'error');
+      return;
+    }
     setIsApplying(true);
     try {
-      const allLandmarks = faceDetections.map((d) => d.landmarks);
+      const allLandmarks = faceDetections.map((d) => d.landmarks).filter(Boolean);
+      if (allLandmarks.length === 0) {
+        showStatus(t('editor.portrait.face.detectFirst'), 'error');
+        return;
+      }
       const result = await applySkinColorUniform(allLandmarks, skinColorUniformStrength);
       if (result) {
         showStatus(t('editor.portrait.skin.applySuccess'), 'success');

@@ -90,7 +90,8 @@ function WatermarkPreview({
   const { t } = useTranslation();
 
   const getPositionStyles = () => {
-    const minDimPercent = imageAspectRatio > 1 ? 100 / imageAspectRatio : 100;
+    const safeAspectRatio = imageAspectRatio > 0 ? imageAspectRatio : 1;
+    const minDimPercent = safeAspectRatio > 1 ? 100 / safeAspectRatio : 100;
     const watermarkSizePercent = minDimPercent * (scale / 100);
     const spacingPercent = minDimPercent * (spacing / 100);
 
@@ -308,13 +309,18 @@ export default function ExportPanel({
 
   useEffect(() => {
     const fetchDims = async () => {
-      if (!enableWatermark || numImages === 0 || !isVisible) return;
+      if (!enableWatermark || numImages === 0 || !isVisible || pathsToExport.length === 0) return;
       if (!isLibraryContext && selectedImage && selectedImage.width && selectedImage.height) {
         setImageAspectRatio(selectedImage.height > 0 ? selectedImage.width / selectedImage.height : 3 / 2);
         return;
       }
       try {
-        const dims: any = await invoke('get_image_dimensions', { path: pathsToExport[0] });
+        const firstPath = pathsToExport[0];
+        if (!firstPath) {
+          setImageAspectRatio(3 / 2);
+          return;
+        }
+        const dims: any = await invoke('get_image_dimensions', { path: firstPath });
         if (dims.width > 0 && dims.height > 0) setImageAspectRatio(dims.width / dims.height);
       } catch {
         setImageAspectRatio(3 / 2);
@@ -886,7 +892,7 @@ export default function ExportPanel({
                 ? t('export.status.estimatedTotalSize', { size: formatBytes(estimatedSize, t) }) ||
                   t('export.status.estimatedSize', { size: formatBytes(estimatedSize, t) })
                 : t('export.status.estimatedSize', { size: formatBytes(estimatedSize, t) })}
-              {numImages > 1 && ` (~${formatBytes(estimatedSize / numImages, t)})`}
+              {numImages > 1 && ` (~${formatBytes(numImages > 0 ? estimatedSize / numImages : 0, t)})`}
             </span>
           ) : null}
         </Text>

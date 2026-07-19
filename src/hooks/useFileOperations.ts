@@ -51,7 +51,7 @@ export function useFileOperations(
       const activePath = selectedImage ? selectedImage.path : libraryActivePath;
       let nextImagePath: string | null = null;
 
-      if (activePath) {
+      if (activePath && sortedImageList && sortedImageList.length > 0) {
         const physicalPath = activePath.split('?vc=')[0];
         const isActiveImageDeleted = pathsToDelete.some((p) => p === activePath || p === physicalPath);
 
@@ -282,7 +282,7 @@ export function useFileOperations(
   }, []);
 
   const startImportFiles = useCallback(async (sourcePaths: string[], destinationFolder: string, settings: any) => {
-    if (sourcePaths.length === 0 || !destinationFolder) return;
+    if (!sourcePaths || sourcePaths.length === 0 || !destinationFolder) return;
 
     try {
       await invoke(Invokes.ImportFiles, { destination_folder: destinationFolder, settings, source_paths: sourcePaths });

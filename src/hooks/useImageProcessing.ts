@@ -327,7 +327,7 @@ export function useImageProcessing(
 
   const calculateTargetRes = useCallback(() => {
     const baseTargetRes = appSettings?.editorPreviewResolution || 1920;
-    if (!(appSettings?.enableZoomHifi ?? true) || displaySize.width === 0) {
+    if (!(appSettings?.enableZoomHifi ?? true) || displaySize.width === 0 || displaySize.height === 0) {
       return baseTargetRes;
     }
 
@@ -399,7 +399,7 @@ export function useImageProcessing(
   }, [adjustments, activeRightPanel, selectedImage?.isReady, generateUncroppedPreview]);
 
   useEffect(() => {
-    if (selectedImage?.isReady && displaySize.width > 0 && !isSliderDragging) {
+    if (selectedImage?.isReady && displaySize.width > 0 && displaySize.height > 0 && !isSliderDragging) {
       let baseRes = calculateTargetRes();
       if (originalSize.width > 0 && originalSize.height > 0) {
         const maxRes = Math.max(originalSize.width, originalSize.height);
@@ -494,7 +494,7 @@ export function useImageProcessing(
   }, [geometricAdjustmentsKey, selectedImage?.path, setEditor]);
 
   useEffect(() => {
-    if (showOriginal && selectedImage?.isReady && displaySize.width > 0 && !isSliderDragging) {
+    if (showOriginal && selectedImage?.isReady && displaySize.width > 0 && displaySize.height > 0 && !isSliderDragging) {
       let targetRes = calculateTargetRes();
       if (targetRes > currentOriginalResRef.current) {
         requestHiFiOriginalZoom(adjustments, targetRes);

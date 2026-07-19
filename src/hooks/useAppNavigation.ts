@@ -129,6 +129,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
 
       const hasDifferentResolution =
         cached &&
+        cached.originalSize &&
         (useEditorStore.getState().originalSize.width !== cached.originalSize.width ||
           useEditorStore.getState().originalSize.height !== cached.originalSize.height);
 
@@ -363,8 +364,10 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
             setLibrary({ imageList: finalImageList });
           } else {
             setLibrary({ imageList: files });
+            const currentFolderPath = path;
             invoke(Invokes.ReadExifForPaths, { paths })
               .then((exifDataMap: any) => {
+                if (useLibraryStore.getState().currentFolderPath !== currentFolderPath) return;
                 setLibrary((state) => ({
                   imageList: state.imageList.map((image) => ({
                     ...image,

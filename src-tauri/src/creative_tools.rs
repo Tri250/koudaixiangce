@@ -878,6 +878,10 @@ fn apply_local_gaussian(
         }
     }
 
+    if w_sum == 0.0 {
+        return *image.get_pixel(cx, cy);
+    }
+
     Rgba([
         (sum[0] / w_sum).round() as u8,
         (sum[1] / w_sum).round() as u8,

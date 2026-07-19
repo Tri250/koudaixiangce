@@ -227,6 +227,9 @@ fn compute_full_transformed_res(
 
 #[tauri::command]
 fn get_image_dimensions(path: String) -> Result<ImageDimensions, String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
     let (source_path, _) = parse_virtual_path(&path);
     image::image_dimensions(&source_path)
         .map(|(width, height)| ImageDimensions { width, height })
@@ -498,7 +501,7 @@ fn process_preview_job(
         state
             .analytics_worker_tx
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .map(|tx| crate::AnalyticsConfig {
                 path: loaded_image.path.clone(),
@@ -735,7 +738,7 @@ fn generate_uncropped_preview(
     let loaded_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .clone()
         .ok_or("No original image loaded")?;
 
@@ -864,7 +867,7 @@ fn generate_original_transformed_preview(
     let loaded_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .clone()
         .ok_or("No original image loaded")?;
 
@@ -915,7 +918,7 @@ fn generate_fullscreen_preview(
     let loaded_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .clone()
         .ok_or("No original image loaded")?;
 
@@ -1024,7 +1027,7 @@ async fn preview_geometry_transform(
         let maybe_cached_image = state
             .geometry_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(&visual_hash)
             .cloned();
 
@@ -1226,7 +1229,7 @@ fn generate_preset_preview(
     let loaded_image = state
         .original_image
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .clone()
         .ok_or("No original image loaded for preset preview")?;
     let is_raw = loaded_image.is_raw;
@@ -2250,11 +2253,6 @@ pub fn run() {
             file_management::start_metadata_workers(app_handle.clone());
             jxl_oxide::integration::register_image_decoding_hook();
 
-            let window_cfg = app.config().app.windows.first().unwrap().clone();
-            let decorations = settings.decorations.unwrap_or(window_cfg.decorations);
-            #[cfg(target_os = "android")]
-            let _ = decorations;
-
             let main_window_cfg = app
                 .config()
                 .app
@@ -2264,9 +2262,13 @@ pub fn run() {
                 .expect("Main window config not found")
                 .clone();
 
+            let decorations = settings.decorations.unwrap_or(main_window_cfg.decorations);
+            #[cfg(target_os = "android")]
+            let _ = decorations;
+
             let mut window_builder =
                 tauri::WebviewWindowBuilder::from_config(app.handle(), &main_window_cfg)
-                    .unwrap();
+                    .map_err(|e| e.to_string())?;
 
             #[cfg(not(target_os = "android"))]
             {

@@ -152,9 +152,11 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
   const getCanvasPoint = useCallback(
     (clientX: number, clientY: number): { x: number; y: number } | null => {
       if (!containerRef.current) return null;
+      if (!isFinite(scale) || scale <= 0) return null;
       const rect = containerRef.current.getBoundingClientRect();
       const canvasX = (clientX - rect.left - offset.x) / scale;
       const canvasY = (clientY - rect.top - offset.y) / scale;
+      if (!isFinite(canvasX) || !isFinite(canvasY)) return null;
       return { x: canvasX, y: canvasY };
     },
     [scale, offset],
@@ -179,10 +181,9 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
       const point = getCanvasPoint(e.clientX, e.clientY);
       if (point) {
         currentStrokePointsRef.current.push(point);
-        // Draw temporary stroke on overlay
         if (overlayRef.current) {
           const ctx = overlayRef.current.getContext('2d');
-          if (ctx) {
+          if (ctx && currentStrokePointsRef.current.length >= 2) {
             const prevPoint = currentStrokePointsRef.current[currentStrokePointsRef.current.length - 2];
             ctx.strokeStyle = activeBrushType === 'reconstruct' ? 'rgba(255,200,0,0.6)' : 'rgba(0,150,255,0.6)';
             ctx.lineWidth = 2;

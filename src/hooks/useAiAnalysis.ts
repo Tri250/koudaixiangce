@@ -25,7 +25,12 @@ export function useAiAnalysis() {
         imagePath: string,
         task: 'describe' | 'score' | 'analyze' = 'analyze',
     ): Promise<AiImageAnalysisResult | null> => {
+        if (!imagePath || typeof imagePath !== 'string' || imagePath.trim() === '') {
+            console.error('analyzeImage: invalid imagePath');
+            return null;
+        }
         setIsAnalyzing(true);
+        setAnalysisResult(null);
         try {
             const result: AiImageAnalysisResult = await invoke(Invokes.AnalyzeImage, {
                 image_path: imagePath,
@@ -35,6 +40,7 @@ export function useAiAnalysis() {
             return result;
         } catch (err) {
             console.error('AI analysis failed:', err);
+            setAnalysisResult(null);
             return null;
         } finally {
             setIsAnalyzing(false);
@@ -47,8 +53,16 @@ export function useAiAnalysis() {
         onProgress?: (progress: AiAnalysisProgress) => void,
         onApplyResult?: (indexPath: string, result: AiImageAnalysisResult) => void,
     ): Promise<AiImageAnalysisResult[]> => {
+        if (!imagePaths || !Array.isArray(imagePaths) || imagePaths.length === 0) {
+            console.error('analyzeImagesBatch: invalid imagePaths');
+            return [];
+        }
+        const validPaths = imagePaths.filter(p => p && typeof p === 'string' && p.trim() !== '');
+        if (validPaths.length === 0) {
+            return [];
+        }
         setIsAnalyzing(true);
-        setBatchProgress({ completed: 0, total: imagePaths.length });
+        setBatchProgress({ completed: 0, total: validPaths.length });
         setBatchResults([]);
 
         let unlisten: (() => void) | null = null;
@@ -61,14 +75,14 @@ export function useAiAnalysis() {
             });
 
             const results: AiImageAnalysisResult[] = await invoke(Invokes.AnalyzeImagesBatch, {
-                image_paths: imagePaths,
+                image_paths: validPaths,
                 task,
             });
             setBatchResults(results);
 
-            if (onApplyResult && imagePaths.length === results.length) {
+            if (onApplyResult && validPaths.length === results.length) {
                 for (let i = 0; i < results.length; i++) {
-                    onApplyResult(imagePaths[i], results[i]);
+                    onApplyResult(validPaths[i], results[i]);
                 }
             }
 

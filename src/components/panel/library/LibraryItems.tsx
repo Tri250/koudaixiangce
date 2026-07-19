@@ -41,19 +41,16 @@ const ThumbnailComponent = ({
   const [showPlaceholder, setShowPlaceholder] = useState(false);
   const [layers, setLayers] = useState<ImageLayer[]>([]);
 
-  const [currentPath, setCurrentPath] = useState(path);
-  if (currentPath !== path) {
-    setCurrentPath(path);
-    setLayers([]);
-  }
-
   const pathRef = useRef(path);
   const hadDataOnPathChange = useRef(!!data);
 
-  if (pathRef.current !== path) {
-    pathRef.current = path;
-    hadDataOnPathChange.current = !!data;
-  }
+  useEffect(() => {
+    if (pathRef.current !== path) {
+      pathRef.current = path;
+      hadDataOnPathChange.current = !!data;
+      setLayers([]);
+    }
+  }, [path, data]);
 
   const { baseName, isVirtualCopy } = useMemo(() => {
     const fullFileName = path.split(/[\\/]/).pop() || '';
@@ -439,19 +436,16 @@ const ListItemComponent = ({
   const [showPlaceholder, setShowPlaceholder] = useState(false);
   const [layers, setLayers] = useState<ImageLayer[]>([]);
 
-  const [currentPath, setCurrentPath] = useState(path);
-  if (currentPath !== path) {
-    setCurrentPath(path);
-    setLayers([]);
-  }
-
   const pathRef = useRef(path);
   const hadDataOnPathChange = useRef(!!data);
 
-  if (pathRef.current !== path) {
-    pathRef.current = path;
-    hadDataOnPathChange.current = !!data;
-  }
+  useEffect(() => {
+    if (pathRef.current !== path) {
+      pathRef.current = path;
+      hadDataOnPathChange.current = !!data;
+      setLayers([]);
+    }
+  }, [path, data]);
 
   const { baseName, isVirtualCopy } = useMemo(() => {
     const fullFileName = path.split(/[\\/]/).pop() || '';
@@ -482,7 +476,8 @@ const ListItemComponent = ({
     columnWidths.rating +
     columnWidths.color +
     (showExifCols ? columnWidths.shutter + columnWidths.aperture + columnWidths.iso + columnWidths.focal : 0);
-  const getW = (key: keyof ColumnWidths) => `${(columnWidths[key] / totalBase) * 100}%`;
+  const safeTotalBase = totalBase > 0 ? totalBase : 1;
+  const getW = (key: keyof ColumnWidths) => `${(columnWidths[key] / safeTotalBase) * 100}%`;
 
   useEffect(() => {
     if (data) {

@@ -7,7 +7,10 @@ export const createSubMask = (
   imageDimensions: ImageDimensions,
   mode: SubMaskMode = SubMaskMode.Additive
 ) => {
-  const { width, height } = imageDimensions || { width: 1000, height: 1000 };
+  const rawWidth = imageDimensions?.width ?? 1000;
+  const rawHeight = imageDimensions?.height ?? 1000;
+  const width = isFinite(rawWidth) && rawWidth > 0 ? rawWidth : 1000;
+  const height = isFinite(rawHeight) && rawHeight > 0 ? rawHeight : 1000;
   const common = {
     id: uuidv4(),
     visible: true,

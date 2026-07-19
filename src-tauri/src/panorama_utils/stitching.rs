@@ -76,7 +76,10 @@ pub fn progressive_seam_stitcher(
 
     let base_img_info = images[0];
     let h_base = &global_homographies[&base_img_info.id];
-    let h_base_inv = h_base.try_inverse().unwrap();
+    let h_base_inv = match h_base.try_inverse() {
+        Some(inv) => inv,
+        None => return Rgb32FImage::new(0, 0),
+    };
     println!("  - Placing base image: '{}'", base_img_info.filename);
 
     let num_pixels_per_row = out_width as usize * 3;
@@ -118,7 +121,10 @@ pub fn progressive_seam_stitcher(
         println!("  - Progressively stitching '{}'", img_to_add_info.filename);
 
         let h_add = &global_homographies[&img_to_add_info.id];
-        let h_add_inv = h_add.try_inverse().unwrap();
+        let h_add_inv = match h_add.try_inverse() {
+            Some(inv) => inv,
+            None => continue,
+        };
         let img_to_add = &img_to_add_info.image;
 
         let ctx = SeamContext {
@@ -365,7 +371,10 @@ pub fn progressive_seam_stitcher(
 }
 
 fn find_adaptive_seam(ctx: &SeamContext) -> Option<SeamInfo> {
-    let h_add_inv = ctx.h_add.try_inverse().unwrap();
+    let h_add_inv = match ctx.h_add.try_inverse() {
+        Some(inv) => inv,
+        None => return None,
+    };
     let (w_add, h_add_img) = ctx.img_to_add.dimensions();
 
     let mut min_ox = u32::MAX;
@@ -409,7 +418,7 @@ fn find_adaptive_seam(ctx: &SeamContext) -> Option<SeamInfo> {
 
     if dx.abs() > dy.abs() {
         println!("    - Overlap is vertical. Finding vertical seam...");
-        let seam = find_pairwise_seam_dp_vertical(ctx);
+        let seam = find_pairwise_seam_dp_vertical(ctx)?;
         Some(SeamInfo {
             orientation: SeamOrientation::Vertical,
             coords: seam,
@@ -418,7 +427,7 @@ fn find_adaptive_seam(ctx: &SeamContext) -> Option<SeamInfo> {
         })
     } else {
         println!("    - Overlap is horizontal. Finding horizontal seam...");
-        let seam = find_pairwise_seam_dp_horizontal(ctx);
+        let seam = find_pairwise_seam_dp_horizontal(ctx)?;
         Some(SeamInfo {
             orientation: SeamOrientation::Horizontal,
             coords: seam,
@@ -428,8 +437,11 @@ fn find_adaptive_seam(ctx: &SeamContext) -> Option<SeamInfo> {
     }
 }
 
-fn find_pairwise_seam_dp_vertical(ctx: &SeamContext) -> Vec<i32> {
-    let h_add_inv = ctx.h_add.try_inverse().unwrap();
+fn find_pairwise_seam_dp_vertical(ctx: &SeamContext) -> Option<Vec<i32>> {
+    let h_add_inv = match ctx.h_add.try_inverse() {
+        Some(inv) => inv,
+        None => return None,
+    };
     let (w_add, h_add_img) = ctx.img_to_add.dimensions();
     let out_width = ctx.out_width;
     let out_height = ctx.out_height;
@@ -528,11 +540,14 @@ fn find_pairwise_seam_dp_vertical(ctx: &SeamContext) -> Vec<i32> {
     for y in (last_overlap_row + 1)..out_height as usize {
         seam[y] = seam[last_overlap_row];
     }
-    seam
+    Some(seam)
 }
 
-fn find_pairwise_seam_dp_horizontal(ctx: &SeamContext) -> Vec<i32> {
-    let h_add_inv = ctx.h_add.try_inverse().unwrap();
+fn find_pairwise_seam_dp_horizontal(ctx: &SeamContext) -> Option<Vec<i32>> {
+    let h_add_inv = match ctx.h_add.try_inverse() {
+        Some(inv) => inv,
+        None => return None,
+    };
     let (w_add, h_add_img) = ctx.img_to_add.dimensions();
     let out_width = ctx.out_width;
     let out_height = ctx.out_height;

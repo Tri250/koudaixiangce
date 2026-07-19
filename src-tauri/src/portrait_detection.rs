@@ -242,7 +242,7 @@ pub async fn get_or_init_face_model(
     // Fast path – already loaded?
     if let Some(models) = portrait_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.models.clone())
     {
@@ -254,7 +254,7 @@ pub async fn get_or_init_face_model(
     // Double-check after acquiring lock.
     if let Some(models) = portrait_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.models.clone())
     {
@@ -327,7 +327,7 @@ pub async fn get_or_init_body_model(
     // Fast path.
     if let Some(models) = portrait_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.models.clone())
     {
@@ -343,7 +343,7 @@ pub async fn get_or_init_body_model(
 
     if let Some(models) = portrait_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.models.clone())
     {

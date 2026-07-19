@@ -807,7 +807,11 @@ pub async fn export_images(
         let mut join_handles = Vec::new();
 
         for (global_index, image_path_str, appearance_count, explicit_vc) in export_items {
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|e| format!("Failed to acquire semaphore: {}", e))?;
 
             let app_handle_clone = app_handle.clone();
             let context_clone = Arc::clone(&context);
@@ -825,7 +829,7 @@ pub async fn export_images(
                     .state::<AppState>()
                     .export_task_handle
                     .lock()
-                    .unwrap()
+                    .unwrap_or_else(|e| e.into_inner())
                     .is_none()
                 {
                     return Err("Export cancelled".to_string());
@@ -996,7 +1000,7 @@ pub async fn export_images(
                         .state::<AppState>()
                         .exported_output_paths
                         .lock()
-                        .unwrap()
+                        .unwrap_or_else(|e| e.into_inner())
                         .push(output_path.clone());
 
                     if export_settings.preserve_timestamps {
@@ -1076,7 +1080,7 @@ pub async fn export_images(
             .state::<AppState>()
             .export_task_handle
             .lock()
-            .unwrap() = None;
+            .unwrap_or_else(|e| e.into_inner()) = None;
     });
 
     *state.export_task_handle.lock().unwrap_or_else(|e| e.into_inner()) = Some(task);
@@ -1142,10 +1146,10 @@ pub async fn estimate_export_sizes(
         let loaded_image = state
             .original_image
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or("No original image loaded")?;
-        let mut adjustments_clone = current_edit_adjustments.clone().unwrap();
+        let mut adjustments_clone = current_edit_adjustments.clone().ok_or("Missing current edit adjustments")?;
         hydrate_adjustments(&state, &mut adjustments_clone);
 
         let new_transform_hash = calculate_transform_hash(&adjustments_clone);
@@ -1263,8 +1267,8 @@ pub async fn estimate_export_sizes(
         let mmap_guard;
         let file_data: &[u8] = match read_file_mapped(Path::new(&source_path_str)) {
             Ok(mmap) => {
-                mmap_guard = Some(mmap);
-                mmap_guard.as_ref().unwrap()
+                mmap_guard = mmap;
+                &mmap_guard
             }
             Err(_) => {
                 file_slice = fs::read(&source_path_str).map_err(|io_err| io_err.to_string())?;

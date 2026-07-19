@@ -156,9 +156,12 @@ pub fn start_metadata_workers(app_handle: tauri::AppHandle) {
                 let item = {
                     let mut queue = manager_clone.queue.lock().unwrap_or_else(|e| e.into_inner());
                     while queue.is_empty() {
-                        queue = manager_clone.cvar.wait(queue).unwrap();
+                        queue = manager_clone.cvar.wait(queue).unwrap_or_else(|e| e.into_inner());
                     }
-                    queue.pop_front().unwrap()
+                    match queue.pop_front() {
+                        Some(item) => item,
+                        None => continue,
+                    }
                 };
 
                 let settings = load_settings(app_clone.clone()).unwrap_or_default();
@@ -182,7 +185,7 @@ pub fn start_metadata_workers(app_handle: tauri::AppHandle) {
                 manager_clone
                     .pending
                     .lock()
-                    .unwrap()
+                    .unwrap_or_else(|e| e.into_inner())
                     .remove(&item.sidecar_path);
             }
         });
@@ -1279,8 +1282,8 @@ pub fn generate_thumbnail_data(
 
                 let file_slice: &[u8] = match read_file_mapped(&source_path) {
                     Ok(mmap) => {
-                        mmap_guard = Some(mmap);
-                        mmap_guard.as_ref().unwrap()
+                        mmap_guard = mmap;
+                        &mmap_guard
                     }
                     Err(e) => {
                         if preloaded_image.is_none() {
@@ -1293,8 +1296,8 @@ pub fn generate_thumbnail_data(
                                 io_err
                             )
                         })?;
-                        vec_guard = Some(bytes);
-                        vec_guard.as_ref().unwrap()
+                        vec_guard = bytes;
+                        &vec_guard
                     }
                 };
 
@@ -1595,9 +1598,12 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
                 let path_to_process: String = {
                     let mut queue = manager_clone.queue.lock().unwrap_or_else(|e| e.into_inner());
                     while queue.is_empty() {
-                        queue = manager_clone.cvar.wait(queue).unwrap();
+                        queue = manager_clone.cvar.wait(queue).unwrap_or_else(|e| e.into_inner());
                     }
-                    let path = queue.pop_back().unwrap();
+                    let path = match queue.pop_back() {
+                        Some(p) => p,
+                        None => continue,
+                    };
 
                     let mut processing = manager_clone.processing_now.lock().unwrap_or_else(|e| e.into_inner());
                     if processing.contains(&path) {
@@ -1638,7 +1644,7 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
                 manager_clone
                     .processing_now
                     .lock()
-                    .unwrap()
+                    .unwrap_or_else(|e| e.into_inner())
                     .remove(&path_to_process);
             }
         });

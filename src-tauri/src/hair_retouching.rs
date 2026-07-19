@@ -150,6 +150,9 @@ fn remove_flyaway_hair(
 ) {
     let w = width as usize;
     let h = height as usize;
+    if w == 0 || h == 0 {
+        return;
+    }
     let radius = 4i32; // 9×9 low-frequency kernel – wider than a strand
 
     // Low-frequency image (box blur).
