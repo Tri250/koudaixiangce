@@ -325,12 +325,14 @@ export function useFileOperations(
         const processedRaw = expandExtensions(raw);
         const allImageExtensions = [...processedNonRaw, ...processedRaw];
 
-        const typeFilters = [
-          { name: 'All Supported Images', extensions: allImageExtensions },
-          { name: 'RAW Images', extensions: processedRaw },
-          { name: 'Standard Images (JPEG, PNG, etc.)', extensions: processedNonRaw },
-          ...(isAndroid ? [] : [{ name: 'All Files', extensions: ['*'] }]),
-        ];
+        const typeFilters = isAndroid
+          ? []
+          : [
+              { name: 'All Supported Images', extensions: allImageExtensions },
+              { name: 'RAW Images', extensions: processedRaw },
+              { name: 'Standard Images (JPEG, PNG, etc.)', extensions: processedNonRaw },
+              { name: 'All Files', extensions: ['*'] },
+            ];
 
         const selected = await open({
           filters: typeFilters,
@@ -371,7 +373,8 @@ export function useFileOperations(
               // extracted, allow the file through (backend will validate the actual bytes).
               const candidates = [resolvedName, originalPath];
               for (const candidate of candidates) {
-                const match = candidate.match(/\.([a-zA-Z0-9]{2,5})(?:[?#]|$)/);
+                const basename = candidate.split(/[\\/]/).pop() || '';
+                const match = basename.match(/\.([a-zA-Z0-9]{1,5})$/i);
                 if (match) {
                   const candidateExt = match[1].toLowerCase();
                   if (allowedExtensions.has(candidateExt)) {
@@ -383,7 +386,9 @@ export function useFileOperations(
               return true;
             }
 
-            const ext = resolvedName.split('.').pop()?.toLowerCase() || 'unknown';
+            const basename = resolvedName.split(/[\\/]/).pop() || '';
+            const extMatch = basename.match(/\.([a-zA-Z0-9]{1,5})$/i);
+            const ext = extMatch ? extMatch[1].toLowerCase() : 'unknown';
             if (ext === 'unknown') {
               return true;
             }

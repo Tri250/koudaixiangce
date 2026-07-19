@@ -867,7 +867,11 @@ pub async fn export_images(
 
                 let new_filename = format!("{}.{}", new_stem, output_format);
                 let output_path = if is_explicit_file_path && total_paths == 1 {
-                    output_folder_path
+                    let mut explicit_path = output_folder_path.to_path_buf();
+                    if explicit_path.extension().is_none() {
+                        explicit_path.set_extension(&output_format);
+                    }
+                    explicit_path
                 } else if export_settings.preserve_folders {
                     if let Some(rel_dir) = relative_export_dir_for_preserved_folders(
                         source_path.as_path(),
