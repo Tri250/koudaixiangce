@@ -479,14 +479,14 @@ export default function CropPanel() {
                 {t('editor.crop.aspectRatioHeading')}
                 <div className="flex items-center gap-2">
                   <button
-                    className="p-1.5 rounded-md hover:bg-surface transition-colors"
+                    className="p-2 rounded-md hover:bg-surface transition-colors"
                     onClick={handleOverlayCycle}
                     data-tooltip={getOverlayTooltip()}
                   >
                     <Grid3x3 size={16} />
                   </button>
                   <button
-                    className="p-1.5 rounded-md hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 rounded-md hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isOrientationToggleDisabled}
                     onClick={handleOrientationToggle}
                     data-tooltip={getOrientationTooltip()}
@@ -602,7 +602,7 @@ export default function CropPanel() {
                           });
                         }}
                         className={clsx(
-                          'p-1.5 rounded-md transition-colors',
+                          'p-2 rounded-md transition-colors',
                           isStraightenActive
                             ? 'bg-accent text-button-text'
                             : 'text-text-secondary hover:bg-card-active hover:text-text-primary',
@@ -612,7 +612,7 @@ export default function CropPanel() {
                         <Ruler size={14} />
                       </button>
                       <button
-                        className="p-1.5 rounded-md text-text-secondary transition-colors cursor-pointer hover:bg-card-active hover:text-text-primary"
+                        className="p-2 rounded-md text-text-secondary transition-colors cursor-pointer hover:bg-card-active hover:text-text-primary"
                         onClick={resetFineRotation}
                         data-tooltip={t('editor.crop.tooltips.resetFineRotation')}
                         disabled={displayRotation === 0}

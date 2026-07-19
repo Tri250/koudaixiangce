@@ -91,10 +91,10 @@ export default function CollapsibleSection({
             {title}
           </Text>
           {canToggleVisibility && (
-            <div className="w-6 h-6 flex items-center justify-center">
+            <div className="w-8 h-8 flex items-center justify-center">
               <button
                 className={clsx(
-                  'p-1 rounded-full text-text-secondary hover:bg-bg-primary z-10 transition-opacity duration-300',
+                  'p-2 rounded-full text-text-secondary hover:bg-bg-primary z-10 transition-opacity duration-300',
                   isHovering || !isContentVisible ? 'opacity-100' : 'opacity-0 pointer-events-none',
                 )}
                 onClick={handleVisibilityClick}

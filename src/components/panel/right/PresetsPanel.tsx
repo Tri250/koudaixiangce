@@ -1424,14 +1424,14 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
             {/* View mode toggle */}
             <div className="flex items-center bg-surface rounded-lg p-0.5">
               <button
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'}`}
+                className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'}`}
                 onClick={() => setViewMode('grid')}
                 data-tooltip="Grid"
               >
                 <LayoutGrid size={14} />
               </button>
               <button
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'}`}
+                className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'}`}
                 onClick={() => setViewMode('list')}
                 data-tooltip="List"
               >
