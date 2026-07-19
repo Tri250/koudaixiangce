@@ -134,6 +134,7 @@ const evaluateCurveY = (curve: Array<{ x: number; y: number }>, targetX: number)
 };
 
 const mixAdjustments = (presetObj: any, intensity: number, initialObj: any = INITIAL_ADJUSTMENTS): any => {
+  if (!Number.isFinite(intensity)) return { ...initialObj };
   const fraction = intensity / 100;
 
   if (fraction === 1) return { ...presetObj };

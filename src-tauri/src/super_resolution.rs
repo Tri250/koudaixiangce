@@ -179,9 +179,11 @@ pub fn apply_super_resolution(
     let out_h = height * scale;
 
     // Accumulator for the output image (float for blending)
-    let mut accumulator = vec![0.0f32; (out_w * out_h * 4) as usize];
+    let acc_len = (out_w as u64 * out_h as u64 * 4).min(u64::MAX as usize) as usize;
+    let mut accumulator = vec![0.0f32; acc_len];
     // Weight accumulator for blending
-    let mut weight_accum = vec![0.0f32; (out_w * out_h) as usize];
+    let weight_len = (out_w as u64 * out_h as u64).min(u64::MAX as usize) as usize;
+    let mut weight_accum = vec![0.0f32; weight_len];
 
     let step = tile_params.ucs.saturating_sub(tile_params.overlap).max(1);
     let iperhl = (width as usize).saturating_sub(tile_params.ucs) as f64 / step as f64;

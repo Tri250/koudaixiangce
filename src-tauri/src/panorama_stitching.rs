@@ -506,9 +506,13 @@ fn build_stitching_order(
                     } else if let Some(m) = matches.get(&(u, v)) {
                         m.homography
                             .try_inverse()
-                            .expect("Failed to invert homography for MST edge")
+                            .unwrap_or_else(|| {
+                                log::warn!("Failed to invert homography for MST edge {}->{}", u, v);
+                                na::Matrix3::identity()
+                            })
                     } else {
-                        panic!("Match not found for MST edge between {} and {}", u, v);
+                        log::warn!("Match not found for MST edge between {} and {}", u, v);
+                        continue;
                     };
 
                     let h_v_global = h_u_global * h_vu;

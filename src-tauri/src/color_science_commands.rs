@@ -284,7 +284,11 @@ pub async fn generate_gain_map(
         let sdr_rgb = sdr_img.to_rgb8();
         let (width, height) = hdr_rgb.dimensions();
 
-        let normalized_peak = (peak_brightness_nits / 100.0).ln();
+        let normalized_peak = if peak_brightness_nits > 0.0 {
+            (peak_brightness_nits / 100.0).ln()
+        } else {
+            1.0
+        };
 
         let mut gain_map = image::ImageBuffer::new(width, height);
         let mut min_gain = f32::MAX;

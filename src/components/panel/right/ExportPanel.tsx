@@ -310,7 +310,7 @@ export default function ExportPanel({
     const fetchDims = async () => {
       if (!enableWatermark || numImages === 0 || !isVisible) return;
       if (!isLibraryContext && selectedImage && selectedImage.width && selectedImage.height) {
-        setImageAspectRatio(selectedImage.width / selectedImage.height);
+        setImageAspectRatio(selectedImage.height > 0 ? selectedImage.width / selectedImage.height : 3 / 2);
         return;
       }
       try {
@@ -685,7 +685,7 @@ export default function ExportPanel({
                           className="w-24 bg-surface text-center rounded-md p-2 border border-surface focus:border-accent focus:ring-accent text-text-secondary focus:text-text-primary"
                           disabled={isExporting}
                           min="1"
-                          onChange={(e) => setResizeValue(parseInt(e?.target?.value))}
+                          onChange={(e) => { const v = parseInt(e?.target?.value); if (!isNaN(v) && v > 0) setResizeValue(v); }}
                           type="number"
                           value={resizeValue}
                         />

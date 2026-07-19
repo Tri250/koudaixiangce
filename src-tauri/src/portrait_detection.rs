@@ -473,7 +473,7 @@ pub fn detect_faces(
     let mut landmarks = Vec::with_capacity(468);
     for i in 0..468 {
         let base = i * 3;
-        if base + 2 >= lm_slice.len() {
+        if base + 2 > lm_slice.len() {
             break;
         }
         landmarks.push(Landmark3D {
@@ -584,7 +584,7 @@ pub fn detect_body_pose(
     let mut keypoints = Vec::with_capacity(33);
     for i in 0..33 {
         let base = i * 4;
-        if base + 3 >= kp_slice.len() {
+        if base + 3 > kp_slice.len() {
             break;
         }
         // MediaPipe ordering: y, x, z, visibility

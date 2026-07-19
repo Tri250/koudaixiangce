@@ -107,15 +107,25 @@ fn edt_1d(f: &mut [f32], v: &mut [usize], z: &mut [f32], d: &mut [f32]) {
     z[0] = f32::NEG_INFINITY;
     z[1] = f32::INFINITY;
     for q in 1..n {
-        let mut s = ((f[q] + (q * q) as f32) - (f[v[k]] + (v[k] * v[k]) as f32))
-            / (2.0 * (q as f32 - v[k] as f32));
+        let denom = 2.0 * (q as f32 - v[k] as f32);
+        if denom.abs() < 1e-10 {
+            k += 1;
+            v[k] = q;
+            z[k] = f32::NEG_INFINITY;
+            z[k + 1] = f32::INFINITY;
+            continue;
+        }
+        let mut s = ((f[q] + (q * q) as f32) - (f[v[k]] + (v[k] * v[k]) as f32)) / denom;
         while s <= z[k] {
             if k == 0 {
                 break;
             }
             k -= 1;
-            s = ((f[q] + (q * q) as f32) - (f[v[k]] + (v[k] * v[k]) as f32))
-                / (2.0 * (q as f32 - v[k] as f32));
+            let denom2 = 2.0 * (q as f32 - v[k] as f32);
+            if denom2.abs() < 1e-10 {
+                break;
+            }
+            s = ((f[q] + (q * q) as f32) - (f[v[k]] + (v[k] * v[k]) as f32)) / denom2;
         }
         k += 1;
         v[k] = q;

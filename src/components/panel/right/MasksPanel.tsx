@@ -1133,7 +1133,8 @@ export default function MasksPanel() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     const dragData = active.data.current as DragData;
-    const overData = over?.data.current as DragData;
+    const overData = over?.data?.current as DragData | undefined;
+    if (!dragData) return;
 
     if (dragData.type === 'Creation' && dragData.maskType) {
       const creationFn = () => {

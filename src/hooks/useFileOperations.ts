@@ -202,7 +202,7 @@ export function useFileOperations(
             settingsChanged = true;
           }
           if (currentFolderPath?.startsWith(oldPath)) {
-            const newCurrentPath = currentFolderPath.replace(oldPath, newPath);
+            const newCurrentPath = currentFolderPath.split(oldPath).join(newPath);
             setLibrary({ currentFolderPath: newCurrentPath });
           }
 

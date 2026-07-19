@@ -64,7 +64,10 @@ impl WgpuDisplay {
                     match self.surface.get_current_texture() {
                         wgpu::CurrentSurfaceTexture::Success(tex)
                         | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
-                        _ => panic!("Failed to acquire surface texture"),
+                        _ => {
+                            log::warn!("Failed to acquire surface texture after reconfigure, skipping frame");
+                            return;
+                        }
                     }
                 }
                 _ => return,
@@ -1088,6 +1091,9 @@ impl GpuProcessor {
     ) -> Result<(Vec<u8>, u32, u32, u32, u32), String> {
         let device = &self.context.device;
         let queue = &self.context.queue;
+        if width == 0 || height == 0 {
+            return Err("Invalid image dimensions: width or height is zero".to_string());
+        }
         let scale = (width.min(height) as f32) / 1080.0;
         const MAX_MASK_BINDINGS: u32 = 1;
 

@@ -266,7 +266,7 @@ fn grayscale_dilate(image: &GrayImage, k: u8) -> GrayImage {
         }
     }
 
-    GrayImage::from_raw(width, height, out).unwrap()
+    GrayImage::from_raw(width, height, out).unwrap_or_else(|| image::GrayImage::new(width, height))
 }
 
 fn grayscale_erode(image: &GrayImage, k: u8) -> GrayImage {
@@ -307,7 +307,7 @@ fn grayscale_erode(image: &GrayImage, k: u8) -> GrayImage {
         }
     }
 
-    GrayImage::from_raw(width, height, out).unwrap()
+    GrayImage::from_raw(width, height, out).unwrap_or_else(|| image::GrayImage::new(width, height))
 }
 
 fn apply_grow_and_feather(mask: &mut GrayImage, grow: f32, feather: f32, width: u32, height: u32) {
@@ -533,7 +533,7 @@ fn render_stroke_layer_parallel(
             }
         });
 
-    GrayImage::from_raw(bb_w, bb_h, out_pixels).unwrap()
+    GrayImage::from_raw(bb_w, bb_h, out_pixels).unwrap_or_else(|| image::GrayImage::new(bb_w, bb_h))
 }
 
 fn generate_radial_bitmap(
@@ -846,7 +846,9 @@ fn generate_ai_bitmap_from_full_mask(
                 && y_src >= 0.0
                 && y_src < full_mask_h as f32
             {
-                let pixel = full_mask_image.get_pixel(x_src as u32, y_src as u32);
+                let px_x = (x_src as u32).min(full_mask_w - 1);
+                let px_y = (y_src as u32).min(full_mask_h - 1);
+                let pixel = full_mask_image.get_pixel(px_x, px_y);
                 final_mask.put_pixel(x_out, y_out, *pixel);
             }
         }
@@ -949,7 +951,7 @@ fn generate_ai_depth_bitmap(
         let depth_intensity = val_pct / 100.0;
         let final_intensity = bandpass_weight * depth_intensity;
 
-        mask.put_pixel(x, y, Luma([(final_intensity * 255.0) as u8]));
+        mask.put_pixel(x, y, Luma([(final_intensity.clamp(0.0, 1.0) * 255.0) as u8]));
     }
 
     if params.feather > 0.0 {

@@ -123,11 +123,13 @@ const ColorGradingPanel = ({ adjustments, setAdjustments, onDragStateChange }: C
   };
 
   const handleColorGradingSliderChange = (grading: ColorGrading, value: string) => {
+    const numVal = parseFloat(value);
+    if (isNaN(numVal)) return;
     setAdjustments((prev: Partial<Adjustments>) => ({
       ...prev,
       colorGrading: {
         ...(prev.colorGrading || INITIAL_ADJUSTMENTS.colorGrading),
-        [grading]: parseFloat(value),
+        [grading]: numVal,
       },
     }));
   };

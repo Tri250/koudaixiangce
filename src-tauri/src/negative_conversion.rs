@@ -132,7 +132,7 @@ fn run_pipeline(
 
     let y0 = 1.0 / (1.0 + (k * x0).exp());
     let y1 = 1.0 / (1.0 + (-k * (1.0 - x0)).exp());
-    let scale = 1.0 / (y1 - y0);
+    let scale = if (y1 - y0).abs() < 1e-10 { 1.0 } else { 1.0 / (y1 - y0) };
 
     out_buffer
         .par_chunks_mut(3)
@@ -140,9 +140,12 @@ fn run_pipeline(
         .for_each(|(i, out_pixel)| {
             let idx = i * 3;
 
-            let mut n_r = (log_pixels[idx] - bounds[0].min) / (bounds[0].max - bounds[0].min);
-            let mut n_g = (log_pixels[idx + 1] - bounds[1].min) / (bounds[1].max - bounds[1].min);
-            let mut n_b = (log_pixels[idx + 2] - bounds[2].min) / (bounds[2].max - bounds[2].min);
+            let range_r = (bounds[0].max - bounds[0].min).max(1e-10);
+            let range_g = (bounds[1].max - bounds[1].min).max(1e-10);
+            let range_b = (bounds[2].max - bounds[2].min).max(1e-10);
+            let mut n_r = (log_pixels[idx] - bounds[0].min) / range_r;
+            let mut n_g = (log_pixels[idx + 1] - bounds[1].min) / range_g;
+            let mut n_b = (log_pixels[idx + 2] - bounds[2].min) / range_b;
 
             n_r = n_r.max(0.0) * params.red_weight;
             n_g = n_g.max(0.0) * params.green_weight;
@@ -175,7 +178,8 @@ fn run_pipeline(
             out_pixel[2] = b.clamp(0.0, 1.0).powf(gamma_inv);
         });
 
-    let out_img = Rgb32FImage::from_vec(width, height, out_buffer).unwrap();
+    let out_img = Rgb32FImage::from_vec(width, height, out_buffer)
+        .unwrap_or_else(|| Rgb32FImage::new(width, height));
     DynamicImage::ImageRgb32F(out_img)
 }
 

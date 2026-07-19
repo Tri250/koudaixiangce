@@ -2126,7 +2126,7 @@ const ImageCanvas = memo(
 
             const existingLines = activeSubMask?.parameters?.lines ? [...activeSubMask.parameters.lines] : [];
 
-            if (activeStrokeIndex.current !== null) {
+            if (activeStrokeIndex.current !== null && activeStrokeIndex.current < existingLines.length) {
               existingLines[activeStrokeIndex.current] = imageSpaceLine;
             } else {
               activeStrokeIndex.current = existingLines.length;
@@ -2228,10 +2228,12 @@ const ImageCanvas = memo(
         } else if (activeSubMask.type === Mask.Linear) {
           if (!newParams.range || newParams.range < 10) {
             const handleDist = Math.min(effectiveImageDimensions.width, effectiveImageDimensions.height) * 0.2;
-            newParams.startX = dragStartPointer.current!.x + handleDist;
-            newParams.startY = dragStartPointer.current!.y;
-            newParams.endX = dragStartPointer.current!.x - handleDist;
-            newParams.endY = dragStartPointer.current!.y;
+            const startPtr = dragStartPointer.current;
+            if (!startPtr) return;
+            newParams.startX = startPtr.x + handleDist;
+            newParams.startY = startPtr.y;
+            newParams.endX = startPtr.x - handleDist;
+            newParams.endY = startPtr.y;
             newParams.range = 100;
           }
         }
@@ -2317,7 +2319,7 @@ const ImageCanvas = memo(
 
         const existingLines = activeSubMask?.parameters?.lines ? [...activeSubMask.parameters.lines] : [];
 
-        if (activeStrokeIndex.current !== null) {
+        if (activeStrokeIndex.current !== null && activeStrokeIndex.current < existingLines.length) {
           existingLines[activeStrokeIndex.current] = imageSpaceLine;
         } else {
           existingLines.push(imageSpaceLine);

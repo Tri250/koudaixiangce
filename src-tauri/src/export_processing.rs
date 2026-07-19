@@ -192,12 +192,15 @@ fn calculate_resize_target(
     };
 
     let value = resize_opts.value;
+    if value == 0 || current_w == 0 || current_h == 0 {
+        return (current_w, current_h);
+    }
     if fix_width {
         let h = (value as f32 * (current_h as f32 / current_w as f32)).round() as u32;
-        (value, h)
+        (value, h.max(1))
     } else {
         let w = (value as f32 * (current_w as f32 / current_h as f32)).round() as u32;
-        (w, value)
+        (w.max(1), value)
     }
 }
 

@@ -165,6 +165,7 @@ export default function BasicAdjustments({
 
   const handleAdjustmentChange = (key: BasicAdjustment, value: any) => {
     const numericValue = parseFloat(value);
+    if (isNaN(numericValue)) return;
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
   };
 

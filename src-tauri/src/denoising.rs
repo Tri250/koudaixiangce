@@ -992,7 +992,7 @@ fn gaussian_blur_1ch(data: &[f32], width: usize, height: usize, sigma: f32) -> V
                     wsum += kernel_val;
                 }
             }
-            *out_val = val / wsum;
+            *out_val = if wsum.abs() > 1e-10 { val / wsum } else { 0.0 };
         }
     }
 
@@ -1009,7 +1009,7 @@ fn gaussian_blur_1ch(data: &[f32], width: usize, height: usize, sigma: f32) -> V
                     wsum += kernel_val;
                 }
             }
-            out[y * width + x] = val / wsum;
+            out[y * width + x] = if wsum.abs() > 1e-10 { val / wsum } else { 0.0 };
         }
     }
 

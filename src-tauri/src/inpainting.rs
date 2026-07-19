@@ -188,8 +188,8 @@ pub async fn generate_manual_cleanup_patch(
             }
         }
     } else {
-        let bw = max_x - min_x + 3;
-        let bh = max_y - min_y + 3;
+        let bw = max_x.saturating_sub(min_x).saturating_add(3);
+        let bh = max_y.saturating_sub(min_y).saturating_add(3);
 
         let mut v_r = vec![0.0f32; bw * bh];
         let mut v_g = vec![0.0f32; bw * bh];
@@ -250,6 +250,9 @@ pub async fn generate_manual_cleanup_patch(
         for _ in 0..iterations {
             for &(x, y) in &omega_coords {
                 let idx = y * bw + x;
+                if idx < bw || idx + bw >= v_r.len() || idx == 0 {
+                    continue;
+                }
                 let sum_r = v_r[idx - bw] + v_r[idx + bw] + v_r[idx - 1] + v_r[idx + 1];
                 let sum_g = v_g[idx - bw] + v_g[idx + bw] + v_g[idx - 1] + v_g[idx + 1];
                 let sum_b = v_b[idx - bw] + v_b[idx + bw] + v_b[idx - 1] + v_b[idx + 1];

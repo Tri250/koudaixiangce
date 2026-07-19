@@ -306,7 +306,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   imageRenderSizeRef.current = imageRenderSize;
 
   const transformConfig = useMemo(() => {
-    if (!selectedImage || !imageRenderSize.scale || !originalSize) {
+    if (!selectedImage || !imageRenderSize.scale || !originalSize || imageRenderSize.scale <= 0) {
       return { minScale: 0.1, maxScale: 20 };
     }
 
