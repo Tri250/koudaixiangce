@@ -119,7 +119,25 @@ jobs:
           df -h
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Download ONNX Runtime for Android
+        if: ${{ inputs.mobile == 'android' }}
+        shell: bash
+        run: |
+          ORT_VERSION="1.20.1"
+          ORT_DIR="src-tauri/libs/arm64-v8a"
+          mkdir -p "$ORT_DIR"
+          if [ ! -f "$ORT_DIR/libonnxruntime.so" ]; then
+            echo "Downloading ONNX Runtime ${ORT_VERSION} for Android arm64-v8a..."
+            curl -sL -o /tmp/onnxruntime-android.aar \
+              "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-android-${ORT_VERSION}.aar"
+            unzip -q -j /tmp/onnxruntime-android.aar "jni/arm64-v8a/libonnxruntime.so" -d "$ORT_DIR/"
+            rm -f /tmp/onnxruntime-android.aar
+            echo "ONNX Runtime downloaded to $ORT_DIR/libonnxruntime.so"
+          else
+            echo "ONNX Runtime already present, skipping download"
+          fi
 
       - name: Setup Android signing
         if: inputs.mobile == 'android' && github.event_name != 'pull_request'
@@ -236,7 +254,7 @@ jobs:
           name: ${{ inputs.asset-prefix }}_${{ inputs.platform }}${{ inputs.target && format('_{0}', inputs.target) || '' }}_artifacts
           path: |
             src-tauri/target/${{ inputs.target || 'release' }}/bundle/**/*.exe
-            src-tauri/target/${{ inputs.target || 'release' }}/release/bundle/**/*.exe
+            src-tauri/target/${{ inputs.target && format('{0}/release', inputs.target) || 'release' }}/bundle/**/*.exe
           retention-days: 7
           compression-level: 6
           if-no-files-found: warn
