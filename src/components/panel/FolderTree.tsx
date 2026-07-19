@@ -22,6 +22,10 @@ import {
   Briefcase,
   ArrowUpDown,
   Check,
+  Sparkles,
+  Edit,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,6 +36,8 @@ import Text from '../ui/Text';
 import { TEXT_COLOR_KEYS, TextColors, TextVariants, TextWeights } from '../../types/typography';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useUIStore } from '../../store/useUIStore';
+import { useSmartAlbums, SmartAlbum as SmartAlbumType } from '../../hooks/useSmartAlbums';
 import { AlbumItem, AlbumGroup, Album, Invokes, FolderTreeSort, SortDirection } from '../ui/AppProperties';
 
 export interface FolderTree {
@@ -625,7 +631,22 @@ export default function FolderTree({
     albumTree,
     activeAlbumId,
     expandedAlbumGroups,
+    rootPaths,
+    setLibrary,
   } = useLibraryStore();
+
+  const {
+    smartAlbums,
+    isResolving,
+    resolvedPaths,
+    createSmartAlbum,
+    updateSmartAlbum,
+    deleteSmartAlbum,
+    resolveSmartAlbum,
+  } = useSmartAlbums();
+
+  const [activeSmartAlbumId, setActiveSmartAlbumId] = useState<string | null>(null);
+  const [smartAlbumContextMenu, setSmartAlbumContextMenu] = useState<{ x: number; y: number; album: SmartAlbumType } | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isHovering, setIsHovering] = useState(false);
@@ -640,6 +661,13 @@ export default function FolderTree({
   useEffect(() => {
     invoke(Invokes.GetAlbums).then((res: any) => useLibraryStore.getState().setLibrary({ albumTree: res }));
   }, []);
+
+  useEffect(() => {
+    if (!smartAlbumContextMenu) return;
+    const close = () => setSmartAlbumContextMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [smartAlbumContextMenu]);
 
   const toggleSection = (section: string) => {
     if (appSettings) {
@@ -968,6 +996,124 @@ export default function FolderTree({
                   )}
                 </AnimatePresence>
               </>
+            )}
+
+            {/* Smart Albums Section */}
+            <div>
+              <div className="flex items-center justify-between px-2 py-1">
+                <button
+                  className="flex items-center gap-1 flex-1 text-left hover:bg-hover rounded px-1 py-0.5"
+                  onClick={() => toggleSection('smartAlbums')}
+                >
+                  <Text variant={TextVariants.label} weight={TextWeights.semibold} color={TextColors.secondary}>
+                    {t('library.smartAlbums.title')}
+                  </Text>
+                </button>
+                <button
+                  className="p-1 rounded hover:bg-hover text-text-secondary hover:text-accent transition-colors"
+                  onClick={() => {
+                    useUIStore.getState().setUI({ isSmartAlbumModalOpen: true, editingSmartAlbumId: null });
+                  }}
+                  title={t('library.smartAlbums.create')}
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+              <AnimatePresence>
+                {openSections.includes('smartAlbums') && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-1 pb-2">
+                      <AnimatePresence>
+                        {smartAlbums.map((album) => (
+                          <motion.div
+                            key={album.id}
+                            initial={{ opacity: 0, height: 0, x: -15 }}
+                            animate={{ opacity: 1, height: 'auto', x: 0 }}
+                            exit={{ opacity: 0, height: 0, x: -15, overflow: 'hidden' }}
+                            transition={{ duration: 0.2 }}
+                            layout="position"
+                          >
+                            <button
+                              className={clsx(
+                                'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded transition-colors group',
+                                activeSmartAlbumId === album.id
+                                  ? 'bg-accent/15 text-accent'
+                                  : 'text-text-primary hover:bg-hover',
+                              )}
+                              onClick={async () => {
+                                setActiveSmartAlbumId(album.id);
+                                await resolveSmartAlbum(album, rootPaths);
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSmartAlbumContextMenu({ x: e.clientX, y: e.clientY, album });
+                              }}
+                            >
+                              <Sparkles size={14} className="shrink-0 text-accent" />
+                              <span className="truncate flex-1 text-left">{album.name}</span>
+                              {isResolving && activeSmartAlbumId === album.id && (
+                                <Loader2 size={12} className="animate-spin text-accent shrink-0" />
+                              )}
+                              {!isResolving && activeSmartAlbumId === album.id && resolvedPaths.length > 0 && (
+                                <Text variant={TextVariants.small} color={TextColors.secondary} className="shrink-0">
+                                  {t('library.smartAlbums.matchCount', { count: resolvedPaths.length })}
+                                </Text>
+                              )}
+                            </button>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                      {smartAlbums.length === 0 && (
+                        <Text variant={TextVariants.small} className="p-2 text-center text-text-tertiary">
+                          {t('library.smartAlbums.create')}
+                        </Text>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Smart Album Context Menu */}
+            {smartAlbumContextMenu && (
+              <div
+                className="fixed z-50 bg-surface border border-border rounded-lg shadow-lg py-1 min-w-[140px]"
+                style={{ left: smartAlbumContextMenu.x, top: smartAlbumContextMenu.y }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-text-primary hover:bg-hover transition-colors"
+                  onClick={() => {
+                    useUIStore.getState().setUI({
+                      isSmartAlbumModalOpen: true,
+                      editingSmartAlbumId: smartAlbumContextMenu.album.id,
+                    });
+                    setSmartAlbumContextMenu(null);
+                  }}
+                >
+                  <Edit size={14} />
+                  {t('library.smartAlbums.edit')}
+                </button>
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-400 hover:bg-hover transition-colors"
+                  onClick={async () => {
+                    await deleteSmartAlbum(smartAlbumContextMenu.album.id);
+                    if (activeSmartAlbumId === smartAlbumContextMenu.album.id) {
+                      setActiveSmartAlbumId(null);
+                    }
+                    setSmartAlbumContextMenu(null);
+                  }}
+                >
+                  <Trash2 size={14} />
+                  {t('library.smartAlbums.delete')}
+                </button>
+              </div>
             )}
 
             {filteredTrees && filteredTrees.length > 0 && (

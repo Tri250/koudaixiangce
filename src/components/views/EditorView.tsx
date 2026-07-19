@@ -21,6 +21,8 @@ import PortraitPanel from '../panel/right/PortraitPanel';
 import LiquifyPanel from '../panel/right/LiquifyPanel';
 import SkyPanel from '../panel/right/SkyPanel';
 import CreativePanel from '../panel/right/CreativePanel';
+import AiAnalysisPanel from '../panel/right/AiAnalysisPanel';
+import AdvancedSearchPanel from '../panel/right/AdvancedSearchPanel';
 
 import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -249,6 +251,8 @@ export default function EditorView({
           {renderedRightPanel === Panel.Liquify && <LiquifyPanel />}
           {renderedRightPanel === Panel.Sky && <SkyPanel />}
           {renderedRightPanel === Panel.Creative && <CreativePanel />}
+          {renderedRightPanel === Panel.AiAnalysis && <AiAnalysisPanel />}
+          {renderedRightPanel === Panel.AdvancedSearch && <AdvancedSearchPanel />}
           {renderedRightPanel === Panel.Hdr && <HDRPanel />}
           {renderedRightPanel === Panel.Monochrome && <MonochromePanel />}
           {renderedRightPanel === Panel.ColorSpace && <ColorSpacePanel />}

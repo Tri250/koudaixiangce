@@ -19,8 +19,10 @@ import ConfirmModal from './ConfirmModal';
 import ImportSettingsModal from './ImportSettingsModal';
 import CullingModal from './CullingModal';
 import CollageModal from './CollageModal';
+import SmartAlbumModal from './SmartAlbumModal';
 import { AppSettings, Invokes, AlbumItem, Album, AlbumGroup } from '../ui/AppProperties';
 import { CopyPasteSettings } from '../../utils/adjustments';
+import { useSmartAlbums, SmartAlbum as SmartAlbumType, SmartAlbumCriteria } from '../../hooks/useSmartAlbums';
 
 export interface AppModalsProps {
   handleImageSelect: (path: string) => void;
@@ -66,6 +68,8 @@ export default function AppModals(props: AppModalsProps) {
     isCreateAlbumGroupModalOpen,
     isRenameAlbumModalOpen,
     albumActionTarget,
+    isSmartAlbumModalOpen,
+    editingSmartAlbumId,
     confirmModalState,
     panoramaModalState,
     hdrModalState,
@@ -88,6 +92,8 @@ export default function AppModals(props: AppModalsProps) {
       isCreateAlbumGroupModalOpen: state.isCreateAlbumGroupModalOpen,
       isRenameAlbumModalOpen: state.isRenameAlbumModalOpen,
       albumActionTarget: state.albumActionTarget,
+      isSmartAlbumModalOpen: state.isSmartAlbumModalOpen,
+      editingSmartAlbumId: state.editingSmartAlbumId,
       confirmModalState: state.confirmModalState,
       panoramaModalState: state.panoramaModalState,
       hdrModalState: state.hdrModalState,
@@ -323,6 +329,43 @@ export default function AppModals(props: AppModalsProps) {
         sourceImages={collageModalState.sourceImages}
         thumbnails={thumbnails}
       />
+      <SmartAlbumModalWrapper
+        isSmartAlbumModalOpen={isSmartAlbumModalOpen}
+        editingSmartAlbumId={editingSmartAlbumId}
+        onClose={() => setUI({ isSmartAlbumModalOpen: false, editingSmartAlbumId: null })}
+      />
     </>
+  );
+}
+
+function SmartAlbumModalWrapper({
+  isSmartAlbumModalOpen,
+  editingSmartAlbumId,
+  onClose,
+}: {
+  isSmartAlbumModalOpen: boolean;
+  editingSmartAlbumId: string | null;
+  onClose: () => void;
+}) {
+  const { smartAlbums, createSmartAlbum, updateSmartAlbum } = useSmartAlbums();
+  const editingAlbum = editingSmartAlbumId
+    ? smartAlbums.find((a) => a.id === editingSmartAlbumId) ?? null
+    : null;
+
+  const handleSave = async (name: string, criteria: SmartAlbumCriteria) => {
+    if (editingAlbum) {
+      await updateSmartAlbum(editingAlbum.id, { name, criteria });
+    } else {
+      await createSmartAlbum(name, criteria);
+    }
+  };
+
+  return (
+    <SmartAlbumModal
+      isOpen={isSmartAlbumModalOpen}
+      onClose={onClose}
+      onSave={handleSave}
+      editingAlbum={editingAlbum}
+    />
   );
 }

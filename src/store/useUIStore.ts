@@ -114,6 +114,10 @@ interface UIState {
   isRenameAlbumModalOpen: boolean;
   albumActionTarget: string | null;
 
+  // Smart Album Modal
+  isSmartAlbumModalOpen: boolean;
+  editingSmartAlbumId: string | null;
+
   // Complex Modal States
   confirmModalState: ConfirmModalState;
   panoramaModalState: PanoramaModalState;
@@ -163,6 +167,9 @@ export const useUIStore = create<UIState>((set, get) => ({
   isCreateAlbumGroupModalOpen: false,
   isRenameAlbumModalOpen: false,
   albumActionTarget: null,
+
+  isSmartAlbumModalOpen: false,
+  editingSmartAlbumId: null,
 
   confirmModalState: { isOpen: false },
   panoramaModalState: {

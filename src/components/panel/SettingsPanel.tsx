@@ -18,6 +18,7 @@ import {
   Image as ImageIcon,
   Mouse,
   Touchpad,
+  Sparkles,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -2230,6 +2231,112 @@ export default function SettingsPanel({
                         </motion.div>
                       )}
                     </AnimatePresence>
+                  </div>
+                </section>
+
+                {/* AI Vision Analysis */}
+                <section className="p-5 sm:p-6 bg-surface rounded-2xl shadow-sm border border-border-color/50">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-color/60">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent">
+                      <Sparkles size={20} />
+                    </div>
+                    <Text variant={TextVariants.title} color={TextColors.accent}>
+                      {t('settings.processing.ai.vision.title')}
+                    </Text>
+                  </div>
+                  <div className="space-y-6">
+                    <Text className="text-text-secondary">{t('settings.processing.ai.vision.description')}</Text>
+                    <SettingItem
+                      label={t('settings.processing.ai.vision.apiUrl')}
+                      description={t('settings.processing.ai.vision.apiUrlDesc', { defaultValue: 'OpenAI-compatible Vision API endpoint URL' })}
+                    >
+                      <Input
+                        className="w-full sm:w-auto"
+                        id="ai-vision-api-url"
+                        onBlur={() =>
+                          onSettingsChange({
+                            ...appSettings,
+                            aiVisionApiUrl: (document.getElementById('ai-vision-api-url') as HTMLInputElement)?.value || '',
+                          })
+                        }
+                        onChange={(e: any) => {
+                          const val = e.target.value;
+                          onSettingsChange({ ...appSettings, aiVisionApiUrl: val });
+                        }}
+                        onKeyDown={(e: any) => e.stopPropagation()}
+                        placeholder="https://api.openai.com/v1"
+                        type="text"
+                        value={appSettings?.aiVisionApiUrl || ''}
+                        bgClassName="bg-bg-primary"
+                      />
+                    </SettingItem>
+                    <SettingItem
+                      label={t('settings.processing.ai.vision.apiKey')}
+                      description={t('settings.processing.ai.vision.apiKeyDesc', { defaultValue: 'API key for the Vision API' })}
+                    >
+                      <Input
+                        className="w-full sm:w-auto"
+                        id="ai-vision-api-key"
+                        onBlur={() =>
+                          onSettingsChange({
+                            ...appSettings,
+                            aiVisionApiKey: (document.getElementById('ai-vision-api-key') as HTMLInputElement)?.value || '',
+                          })
+                        }
+                        onChange={(e: any) => {
+                          const val = e.target.value;
+                          onSettingsChange({ ...appSettings, aiVisionApiKey: val });
+                        }}
+                        onKeyDown={(e: any) => e.stopPropagation()}
+                        placeholder="sk-..."
+                        type="password"
+                        value={appSettings?.aiVisionApiKey || ''}
+                        bgClassName="bg-bg-primary"
+                      />
+                    </SettingItem>
+                    <SettingItem
+                      label={t('settings.processing.ai.vision.model')}
+                      description={t('settings.processing.ai.vision.modelDesc', { defaultValue: 'Vision model name' })}
+                    >
+                      <Input
+                        className="w-full sm:w-auto"
+                        id="ai-vision-model"
+                        onBlur={() =>
+                          onSettingsChange({
+                            ...appSettings,
+                            aiVisionModel: (document.getElementById('ai-vision-model') as HTMLInputElement)?.value || 'gpt-4o-mini',
+                          })
+                        }
+                        onChange={(e: any) => {
+                          const val = e.target.value;
+                          onSettingsChange({ ...appSettings, aiVisionModel: val });
+                        }}
+                        onKeyDown={(e: any) => e.stopPropagation()}
+                        placeholder="gpt-4o-mini"
+                        type="text"
+                        value={appSettings?.aiVisionModel || 'gpt-4o-mini'}
+                        bgClassName="bg-bg-primary"
+                      />
+                    </SettingItem>
+                    <SettingItem
+                      label={t('settings.processing.ai.vision.strictness')}
+                      description={t('settings.processing.ai.vision.strictnessDesc', { defaultValue: 'How strict the AI rating should be (0 = lenient, 1 = strict)' })}
+                    >
+                      <div className="w-full max-w-xs">
+                        <Slider
+                          label={t('settings.processing.ai.vision.strictness')}
+                          min={0}
+                          max={1}
+                          step={0.1}
+                          value={appSettings?.aiRatingStrictness ?? 0.5}
+                          onChange={(e: any) => {
+                            const val = parseFloat(e.target.value);
+                            onSettingsChange({ ...appSettings, aiRatingStrictness: val });
+                          }}
+                          fillOrigin="min"
+                        />
+                      </div>
+                    </SettingItem>
                   </div>
                 </section>
 

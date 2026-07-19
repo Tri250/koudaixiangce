@@ -25,6 +25,7 @@ mod liquify;
 mod skin_retouching;
 mod face_reshaping;
 mod sky_replacement;
+mod smart_album;
 mod hair_retouching;
 mod ai_color_match;
 mod super_resolution;
@@ -2485,6 +2486,8 @@ pub fn run() {
             ai_commands::generate_ai_depth_mask,
             ai_commands::check_ai_connector_status,
             ai_commands::test_ai_connector_connection,
+            ai_commands::analyze_image,
+            ai_commands::analyze_images_batch,
             inpainting::invoke_generative_replace_with_mask_def,
             inpainting::invoke_generative_replace,
             inpainting::generate_manual_cleanup_patch,
@@ -2535,12 +2538,18 @@ pub fn run() {
             file_management::clear_thumbnail_cache,
             file_management::set_color_label_for_paths,
             file_management::set_rating_for_paths,
+            file_management::write_rating_to_sidecar,
             file_management::import_files,
             file_management::create_virtual_copy,
             file_management::get_albums,
             file_management::save_albums,
             file_management::add_to_album,
             file_management::get_album_images,
+            smart_album::evaluate_smart_album,
+            smart_album::resolve_smart_album,
+            smart_album::search_images,
+            smart_album::save_smart_albums,
+            smart_album::load_smart_albums,
             tagging::start_background_indexing,
             tagging::clear_ai_tags,
             tagging::clear_all_tags,

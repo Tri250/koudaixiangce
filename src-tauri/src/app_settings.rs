@@ -434,6 +434,14 @@ pub struct AppSettings {
     pub language: Option<String>,
     #[serde(default)]
     pub folder_tree_sort: Option<FolderTreeSort>,
+    #[serde(default)]
+    pub ai_vision_api_url: Option<String>,
+    #[serde(default)]
+    pub ai_vision_api_key: Option<String>,
+    #[serde(default)]
+    pub ai_vision_model: Option<String>,
+    #[serde(default)]
+    pub ai_rating_strictness: Option<f32>,
 }
 
 impl Default for AppSettings {
@@ -520,6 +528,10 @@ impl Default for AppSettings {
             exif_overlay: Some("off".to_string()),
             language: Some("zh-CN".to_string()),
             folder_tree_sort: Some(FolderTreeSort::default()),
+            ai_vision_api_url: None,
+            ai_vision_api_key: None,
+            ai_vision_model: Some("gpt-4o-mini".to_string()),
+            ai_rating_strictness: Some(0.5),
         }
     }
 }

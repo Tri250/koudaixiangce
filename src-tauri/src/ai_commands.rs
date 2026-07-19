@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 
 use base64::{Engine as _, engine::general_purpose};
-use image::{DynamicImage, GrayImage, ImageFormat};
+use image::{DynamicImage, GenericImageView, GrayImage, ImageFormat};
 use tauri::Manager;
 
 use crate::ai_connector;
@@ -416,4 +416,146 @@ pub async fn test_ai_connector_connection(address: String) -> Result<(), String>
         Ok(false) => Err("Server reachable but returned bad health status".to_string()),
         Err(e) => Err(e.to_string()),
     }
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct AiImageAnalysisResult {
+    pub description: String,
+    pub tags: Vec<String>,
+    pub rating: i32,
+    pub reasons: String,
+}
+
+#[tauri::command]
+pub async fn analyze_image(
+    image_path: String,
+    task: String,
+    app_handle: tauri::AppHandle,
+) -> Result<AiImageAnalysisResult, String> {
+    let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
+
+    let api_url = settings.ai_vision_api_url
+        .ok_or_else(|| "AI vision API URL not configured".to_string())?;
+    let api_key = settings.ai_vision_api_key.unwrap_or_default();
+    let model = settings.ai_vision_model.unwrap_or_else(|| "gpt-4o-mini".to_string());
+    let strictness = settings.ai_rating_strictness.unwrap_or(0.5);
+
+    // Load and encode image
+    let img = image::open(&image_path)
+        .map_err(|e| format!("Failed to load image: {}", e))?;
+
+    // Resize for API if too large (max 1024px on longest side for efficiency)
+    let (w, h) = img.dimensions();
+    let max_dim = 1024u32;
+    let img = if w.max(h) > max_dim {
+        let scale = max_dim as f32 / w.max(h) as f32;
+        let new_w = (w as f32 * scale) as u32;
+        let new_h = (h as f32 * scale) as u32;
+        img.resize(new_w, new_h, image::imageops::FilterType::Lanczos3)
+    } else {
+        img
+    };
+
+    // Encode as JPEG base64
+    let mut buf = std::io::Cursor::new(Vec::new());
+    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 85);
+    encoder.encode_image(&img.to_rgb8())
+        .map_err(|e| format!("Failed to encode image: {}", e))?;
+    let image_base64 = base64::engine::general_purpose::STANDARD.encode(buf.get_ref());
+
+    let result = crate::ai_connector::analyze_image_with_vision_api(
+        &api_url, &api_key, &model, &image_base64, &task, strictness,
+    ).await.map_err(|e| e.to_string())?;
+
+    Ok(AiImageAnalysisResult {
+        description: result.description,
+        tags: result.tags,
+        rating: result.rating,
+        reasons: result.reasons,
+    })
+}
+
+#[tauri::command]
+pub async fn analyze_images_batch(
+    image_paths: Vec<String>,
+    task: String,
+    app_handle: tauri::AppHandle,
+) -> Result<Vec<AiImageAnalysisResult>, String> {
+    let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
+
+    let api_url = settings.ai_vision_api_url
+        .ok_or_else(|| "AI vision API URL not configured".to_string())?;
+    let api_key = settings.ai_vision_api_key.unwrap_or_default();
+    let model = settings.ai_vision_model.unwrap_or_else(|| "gpt-4o-mini".to_string());
+    let strictness = settings.ai_rating_strictness.unwrap_or(0.5);
+
+    let mut results = Vec::new();
+
+    for image_path in &image_paths {
+        match image::open(image_path) {
+            Ok(img) => {
+                let (w, h) = img.dimensions();
+                let max_dim = 1024u32;
+                let img = if w.max(h) > max_dim {
+                    let scale = max_dim as f32 / w.max(h) as f32;
+                    let new_w = (w as f32 * scale) as u32;
+                    let new_h = (h as f32 * scale) as u32;
+                    img.resize(new_w, new_h, image::imageops::FilterType::Lanczos3)
+                } else {
+                    img
+                };
+
+                let mut buf = std::io::Cursor::new(Vec::new());
+                let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 85);
+                if let Err(e) = encoder.encode_image(&img.to_rgb8()) {
+                    results.push(AiImageAnalysisResult {
+                        description: String::new(),
+                        tags: Vec::new(),
+                        rating: 0,
+                        reasons: format!("Encode error: {}", e),
+                    });
+                    continue;
+                }
+                let image_base64 = base64::engine::general_purpose::STANDARD.encode(buf.get_ref());
+
+                match crate::ai_connector::analyze_image_with_vision_api(
+                    &api_url, &api_key, &model, &image_base64, &task, strictness,
+                ).await {
+                    Ok(result) => {
+                        results.push(AiImageAnalysisResult {
+                            description: result.description,
+                            tags: result.tags,
+                            rating: result.rating,
+                            reasons: result.reasons,
+                        });
+                    }
+                    Err(e) => {
+                        results.push(AiImageAnalysisResult {
+                            description: String::new(),
+                            tags: Vec::new(),
+                            rating: 0,
+                            reasons: e.to_string(),
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                results.push(AiImageAnalysisResult {
+                    description: String::new(),
+                    tags: Vec::new(),
+                    rating: 0,
+                    reasons: format!("Load error: {}", e),
+                });
+            }
+        }
+
+        // Emit progress
+        use tauri::Emitter;
+        let _ = app_handle.emit("ai-analysis-progress", serde_json::json!({
+            "completed": results.len(),
+            "total": image_paths.len(),
+        }));
+    }
+
+    Ok(results)
 }

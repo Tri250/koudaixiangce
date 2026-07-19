@@ -2648,6 +2648,33 @@ pub fn set_rating_for_paths(
 }
 
 #[tauri::command]
+pub fn write_rating_to_sidecar(
+    image_path: String,
+    rating: u8,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    if rating < 1 || rating > 5 {
+        return Err("Rating must be between 1 and 5".to_string());
+    }
+
+    let (source_path, sidecar_path) = parse_virtual_path(&image_path);
+
+    let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
+    metadata.rating = rating;
+
+    let json_string = serde_json::to_string_pretty(&metadata).map_err(|e| e.to_string())?;
+    std::fs::write(&sidecar_path, json_string).map_err(|e| e.to_string())?;
+
+    let settings = load_settings(app_handle).unwrap_or_default();
+    if settings.enable_xmp_sync.unwrap_or(false) {
+        let create_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
+        sync_metadata_to_xmp(&source_path, &metadata, create_if_missing);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn load_metadata(path: String, app_handle: AppHandle) -> Result<ImageMetadata, String> {
     let settings = load_settings(app_handle).unwrap_or_default();
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);

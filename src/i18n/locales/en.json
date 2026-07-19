@@ -393,6 +393,24 @@
         "useBasicInpaint": "Use basic inpainting"
       }
     },
+    "aiAnalysis": {
+      "title": "AI Analysis",
+      "describe": "Describe",
+      "score": "Score",
+      "analyze": "Full Analysis",
+      "analyzeButton": "Analyze",
+      "batchButton": "Analyze Selected",
+      "description": "Description",
+      "tags": "Tags",
+      "rating": "Rating",
+      "reasons": "Reasons",
+      "applyRating": "Apply Rating",
+      "ratingApplied": "Rating applied and saved to metadata",
+      "applyTags": "Apply Tags",
+      "progress": "Progress",
+      "results": "Results",
+      "notConfigured": "AI Vision API not configured. Go to Settings > AI Providers to set up."
+    },
     "crop": {
       "aspectRatioHeading": "Aspect Ratio",
       "custom": {
@@ -704,6 +722,21 @@
         "tool": "Tool"
       }
     },
+    "advancedSearch": {
+      "title": "Advanced Search",
+      "searchButton": "Search",
+      "textSearch": "Text Search",
+      "aiTags": "AI Tags",
+      "ratingRange": "Rating",
+      "dateRange": "Date Range",
+      "cameraModel": "Camera",
+      "rawOnly": "RAW Only",
+      "editedOnly": "Edited",
+      "sortBy": "Sort By",
+      "results": "{{count}} results",
+      "noResults": "No results found",
+      "searching": "Searching..."
+    },
     "switcher": {
       "tooltips": {
         "adjust": "Adjust",
@@ -712,7 +745,9 @@
         "info": "Info",
         "inpaint": "Inpaint",
         "masks": "Masks",
-        "presets": "Presets"
+        "presets": "Presets",
+        "aiAnalysis": "AI Analysis",
+        "advancedSearch": "Advanced Search"
       }
     },
     "toolbar": {
@@ -1146,6 +1181,27 @@
         "expand": "Expand",
         "sortFolders": "Sort Folders"
       }
+    },
+    "smartAlbums": {
+      "title": "Smart Albums",
+      "create": "Create Smart Album",
+      "edit": "Edit",
+      "delete": "Delete",
+      "name": "Name",
+      "criteria": {
+        "aiTags": "AI Tags",
+        "userTags": "User Tags",
+        "ratingRange": "Rating Range",
+        "colorLabels": "Color Labels",
+        "dateRange": "Date Range",
+        "camera": "Camera Model",
+        "lens": "Lens",
+        "rawOnly": "RAW Only",
+        "editedOnly": "Edited Only",
+        "descriptionSearch": "Description Search"
+      },
+      "resolving": "Resolving...",
+      "matchCount": "{{count}} photos match"
     },
     "grid": {
       "columns": {
@@ -1822,6 +1878,18 @@
           "cpu": "CPU"
         },
         "title": "Generative AI"
+      },
+      "vision": {
+        "title": "AI Vision Analysis",
+        "description": "Configure OpenAI-compatible Vision API for image analysis",
+        "apiUrl": "API URL",
+        "apiUrlDesc": "OpenAI-compatible Vision API endpoint URL",
+        "apiKey": "API Key",
+        "apiKeyDesc": "API key for the Vision API",
+        "model": "Model",
+        "modelDesc": "Vision model name",
+        "strictness": "Rating Strictness",
+        "strictnessDesc": "How strict the AI rating should be (0 = lenient, 1 = strict)"
       },
       "backend": "Processing Backend",
       "backendDesc": "Select the graphics API. 'Auto' is recommended. May fix crashes on some systems.",

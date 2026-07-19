@@ -14,6 +14,8 @@ import {
   Sun,
   Circle,
   Palette,
+  Brain,
+  Search,
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -43,6 +45,8 @@ const panelGroups: Array<Array<PanelOptions>> = [
     { id: Panel.Liquify, icon: Waves, title: 'editor.switcher.tooltips.liquify' },
     { id: Panel.Sky, icon: CloudSun, title: 'editor.switcher.tooltips.sky' },
     { id: Panel.Creative, icon: Sparkles, title: 'editor.switcher.tooltips.creative' },
+    { id: Panel.AiAnalysis, icon: Brain, title: 'editor.switcher.tooltips.aiAnalysis' },
+    { id: Panel.AdvancedSearch, icon: Search, title: 'editor.switcher.tooltips.advancedSearch' },
     { id: Panel.Hdr, icon: Sun, title: 'editor.switcher.tooltips.hdr' },
     { id: Panel.Monochrome, icon: Circle, title: 'editor.switcher.tooltips.monochrome' },
     { id: Panel.ColorSpace, icon: Palette, title: 'editor.switcher.tooltips.colorSpace' },

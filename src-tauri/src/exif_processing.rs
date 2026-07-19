@@ -1182,6 +1182,14 @@ pub fn persist_exif_if_missing(source_path: &Path, source_path_str: &str, file_b
     }
 }
 
+/// Write a rating value (1-5) to the EXIF metadata of an image file.
+/// Updates the sidecar (.rrdata) and, if XMP sync is enabled, the XMP sidecar as well.
+pub fn write_rating_to_exif(image_path: &Path, rating: u8) -> std::io::Result<()> {
+    let mut metadata = load_primary_metadata(image_path);
+    metadata.rating = rating;
+    save_primary_metadata(image_path, &metadata)
+}
+
 pub fn write_rrexif_sidecar(source_path_str: &str, target_image_path: &Path) -> Result<(), String> {
     let source_path = Path::new(source_path_str);
 

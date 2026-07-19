@@ -93,6 +93,7 @@ export enum Invokes {
   SaveSettings = 'save_settings',
   SetColorLabelForPaths = 'set_color_label_for_paths',
   SetRatingForPaths = 'set_rating_for_paths',
+  WriteRatingToSidecar = 'write_rating_to_sidecar',
   ShowInFinder = 'show_in_finder',
   StartBackgroundIndexing = 'start_background_indexing',
   StitchPanorama = 'stitch_panorama',
@@ -112,6 +113,13 @@ export enum Invokes {
   GetColorProfiles = 'get_color_profiles',
   GetMonochromePreview = 'get_monochrome_preview',
   GenerateGainMap = 'generate_gain_map',
+  AnalyzeImage = 'analyze_image',
+  AnalyzeImagesBatch = 'analyze_images_batch',
+  EvaluateSmartAlbum = 'evaluate_smart_album',
+  ResolveSmartAlbum = 'resolve_smart_album',
+  SearchImages = 'search_images',
+  SaveSmartAlbums = 'save_smart_albums',
+  LoadSmartAlbums = 'load_smart_albums',
 }
 
 export enum ExifOverlay {
@@ -122,6 +130,7 @@ export enum ExifOverlay {
 
 export enum Panel {
   Adjustments = 'adjustments',
+  AdvancedSearch = 'advancedSearch',
   Ai = 'ai',
   Crop = 'crop',
   Export = 'export',
@@ -135,6 +144,7 @@ export enum Panel {
   Hdr = 'hdr',
   Monochrome = 'monochrome',
   ColorSpace = 'colorSpace',
+  AiAnalysis = 'aiAnalysis',
 }
 
 export enum RawStatus {
@@ -222,6 +232,10 @@ export interface AppSettings {
   language?: string;
   folderTreeSort?: FolderTreeSort;
   taggingShortcuts?: string[];
+  aiVisionApiUrl?: string;
+  aiVisionApiKey?: string;
+  aiVisionModel?: string;
+  aiRatingStrictness?: number;
 }
 
 export interface BrushSettings {

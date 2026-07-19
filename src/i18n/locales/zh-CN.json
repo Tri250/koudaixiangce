@@ -393,6 +393,24 @@
         "useBasicInpaint": "使用基础图像修复"
       }
     },
+    "aiAnalysis": {
+      "title": "AI 分析",
+      "describe": "描述",
+      "score": "评分",
+      "analyze": "全面分析",
+      "analyzeButton": "分析",
+      "batchButton": "批量分析",
+      "description": "描述",
+      "tags": "标签",
+      "rating": "评分",
+      "reasons": "理由",
+      "applyRating": "应用评分",
+      "ratingApplied": "评分已应用并保存到元数据",
+      "applyTags": "应用标签",
+      "progress": "进度",
+      "results": "结果",
+      "notConfigured": "AI 视觉 API 未配置。请前往 设置 > AI 提供商 进行配置。"
+    },
     "crop": {
       "aspectRatioHeading": "宽高比",
       "custom": {
@@ -704,6 +722,21 @@
         "tool": "工具"
       }
     },
+    "advancedSearch": {
+      "title": "高级搜索",
+      "searchButton": "搜索",
+      "textSearch": "文本搜索",
+      "aiTags": "AI 标签",
+      "ratingRange": "评分",
+      "dateRange": "日期范围",
+      "cameraModel": "相机",
+      "rawOnly": "仅RAW",
+      "editedOnly": "已编辑",
+      "sortBy": "排序",
+      "results": "{{count}} 个结果",
+      "noResults": "未找到结果",
+      "searching": "搜索中..."
+    },
     "switcher": {
       "tooltips": {
         "adjust": "调整",
@@ -716,6 +749,8 @@
         "masks": "蒙版",
         "portrait": "人像精修",
         "presets": "预设",
+        "aiAnalysis": "AI 分析",
+        "advancedSearch": "高级搜索",
         "sky": "换天空",
         "hdr": "HDR",
         "monochrome": "黑白",
@@ -1153,6 +1188,27 @@
         "expand": "展开",
         "sortFolders": "对文件夹排序"
       }
+    },
+    "smartAlbums": {
+      "title": "智能相册",
+      "create": "创建智能相册",
+      "edit": "编辑",
+      "delete": "删除",
+      "name": "名称",
+      "criteria": {
+        "aiTags": "AI 标签",
+        "userTags": "用户标签",
+        "ratingRange": "评分范围",
+        "colorLabels": "颜色标签",
+        "dateRange": "日期范围",
+        "camera": "相机型号",
+        "lens": "镜头",
+        "rawOnly": "仅 RAW",
+        "editedOnly": "仅已编辑",
+        "descriptionSearch": "描述搜索"
+      },
+      "resolving": "解析中...",
+      "matchCount": "{{count}} 张照片匹配"
     },
     "grid": {
       "columns": {
@@ -1829,6 +1885,18 @@
           "cpu": "CPU"
         },
         "title": "生成式 AI"
+      },
+      "vision": {
+        "title": "AI 视觉分析",
+        "description": "配置 OpenAI 兼容的视觉 API 以进行图像分析",
+        "apiUrl": "API URL",
+        "apiUrlDesc": "OpenAI 兼容的视觉 API 端点 URL",
+        "apiKey": "API 密钥",
+        "apiKeyDesc": "视觉 API 的密钥",
+        "model": "模型",
+        "modelDesc": "视觉模型名称",
+        "strictness": "评分严格度",
+        "strictnessDesc": "AI 评分的严格程度（0 = 宽松，1 = 严格）"
       },
       "backend": "处理后端",
       "backendDesc": "选择图形 API。推荐使用「自动」。在某些系统上可能解决崩溃问题。",
