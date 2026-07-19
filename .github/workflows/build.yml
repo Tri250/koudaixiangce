@@ -39,6 +39,8 @@ on:
 jobs:
   build:
     runs-on: ${{ inputs.platform }}
+    env:
+      RUSTUP_TOOLCHAIN: stable
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -161,6 +163,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NO_STRIP: ${{ startsWith(inputs.platform, 'ubuntu') }}
         with:
+          tauriScript: npm run tauri
           args: --verbose ${{ inputs.build-args }} ${{ inputs.target != '' && '--target' || ''  }} ${{ inputs.target }}
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           releaseId: ${{ inputs.release-id }}
