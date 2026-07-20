@@ -198,7 +198,8 @@ function serializeValue(
   }
 
   if (typeof value === 'function') {
-    return `[Function ${(value as Function).name || 'anonymous'}]`;
+    const fnName = (value as { name?: string }).name;
+    return `[Function ${fnName || 'anonymous'}]`;
   }
 
   if (typeof value === 'bigint') {

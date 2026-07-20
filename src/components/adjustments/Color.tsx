@@ -304,22 +304,26 @@ const ColorCalibrationPanel = ({ adjustments, setAdjustments, onDragStateChange 
   );
 
   const handleShadowsChange = (value: string) => {
+    const numericValue = parseFloat(value);
+    if (isNaN(numericValue) || !isFinite(numericValue)) return;
     setAdjustments((prev: Partial<Adjustments>) => ({
       ...prev,
       colorCalibration: {
         ...(prev.colorCalibration || INITIAL_ADJUSTMENTS.colorCalibration),
-        shadowsTint: parseFloat(value),
+        shadowsTint: numericValue,
       },
     }));
   };
 
   const handlePrimaryChange = (key: 'Hue' | 'Saturation', value: string) => {
+    const numericValue = parseFloat(value);
+    if (isNaN(numericValue) || !isFinite(numericValue)) return;
     const fullKey = `${activePrimary}${key}` as keyof ColorCalibration;
     setAdjustments((prev: Partial<Adjustments>) => ({
       ...prev,
       colorCalibration: {
         ...(prev.colorCalibration || INITIAL_ADJUSTMENTS.colorCalibration),
-        [fullKey]: parseFloat(value),
+        [fullKey]: numericValue,
       },
     }));
   };

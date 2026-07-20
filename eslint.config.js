@@ -1,6 +1,7 @@
 const js = require('@eslint/js');
 const tseslint = require('typescript-eslint');
 const react = require('eslint-plugin-react');
+const reactHooks = require('eslint-plugin-react-hooks');
 const i18next = require('eslint-plugin-i18next');
 
 const tsFiles = ['**/*.{ts,tsx}'];
@@ -23,6 +24,7 @@ module.exports = [
       'src-tauri/gen/**',
       'src-tauri/rawler/**',
       'data/**',
+      'RapidRAW-upstream/**',
     ],
   },
   jsRecommendedForTs,
@@ -31,6 +33,7 @@ module.exports = [
     files: tsFiles,
     plugins: {
       react,
+      'react-hooks': reactHooks,
       i18next,
     },
     languageOptions: {
@@ -53,6 +56,8 @@ module.exports = [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
       'i18next/no-literal-string': [
         'warn',
         {

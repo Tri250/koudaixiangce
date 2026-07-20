@@ -530,8 +530,13 @@ export default function CurveGraph({
     const x = Math.max(0, Math.min(255, ((clientX - rect.left) / rect.width) * 255));
     const y = Math.max(0, Math.min(255, 255 - ((clientY - rect.top) / rect.height) * 255));
 
-    const newPoints = [...activePoints, { x, y }].sort((a: Coord, b: Coord) => a.x - b.x);
-    const newPointIndex = newPoints.findIndex((p: Coord) => p.x === x && p.y === y);
+    const newPoint: Coord = { x, y };
+    const newPoints = [...activePoints, newPoint].sort((a: Coord, b: Coord) => a.x - b.x);
+    // Use reference equality to find the newly added point. Value equality
+    // (p.x === x && p.y === y) can match an existing point at the same
+    // coordinates or fail due to floating-point precision, returning -1 and
+    // causing negative-index assignment further down the drag pipeline.
+    const newPointIndex = newPoints.indexOf(newPoint);
 
     setLocalPoints(newPoints);
     localPointsRef.current = newPoints;
