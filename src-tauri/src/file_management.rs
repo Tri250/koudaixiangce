@@ -323,7 +323,7 @@ pub fn parse_virtual_path(virtual_path: &str) -> (PathBuf, PathBuf) {
     (source_path, sidecar_path)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn read_exif_for_paths(
     paths: Vec<String>,
 ) -> Result<HashMap<String, HashMap<String, String>>, String> {
@@ -362,7 +362,7 @@ pub async fn read_exif_for_paths(
     .unwrap_or_else(|e| Err(format!("Task failed: {}", e)))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn update_exif_fields(
     paths: Vec<String>,
     updates: HashMap<String, String>,
@@ -407,7 +407,7 @@ pub async fn update_exif_fields(
     .map_err(|e| format!("Task failed: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<ImageFile>, String> {
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
@@ -522,7 +522,7 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
     Ok(result_list)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn list_images_recursive(
     path: String,
     app_handle: AppHandle,
@@ -695,7 +695,7 @@ pub fn sort_album_tree(items: &mut [AlbumItem]) {
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_albums(app_handle: AppHandle) -> Result<Vec<AlbumItem>, String> {
     let path = get_albums_path(&app_handle)?;
     if !path.exists() {
@@ -707,7 +707,7 @@ pub fn get_albums(app_handle: AppHandle) -> Result<Vec<AlbumItem>, String> {
     Ok(items)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn save_albums(mut tree: Vec<AlbumItem>, app_handle: AppHandle) -> Result<(), String> {
     let path = get_albums_path(&app_handle)?;
     sort_album_tree(&mut tree);
@@ -715,7 +715,7 @@ pub fn save_albums(mut tree: Vec<AlbumItem>, app_handle: AppHandle) -> Result<()
     fs::write(path, json_string).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn add_to_album(
     album_id: String,
     paths: Vec<String>,
@@ -846,7 +846,7 @@ fn sync_album_path_changes(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_album_images(
     paths: Vec<String>,
     app_handle: AppHandle,
@@ -1105,7 +1105,7 @@ fn get_folder_tree_sync(
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_folder_children(
     path: String,
     show_image_counts: bool,
@@ -1129,7 +1129,7 @@ pub async fn get_folder_children(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_folder_tree(
     path: String,
     expanded_folders: Vec<String>,
@@ -1146,7 +1146,7 @@ pub async fn get_folder_tree(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_pinned_folder_trees(
     paths: Vec<String>,
     expanded_folders: Vec<String>,
@@ -1685,7 +1685,7 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn update_thumbnail_queue(
     paths: Vec<String>,
     app_handle: tauri::AppHandle,
@@ -1908,7 +1908,7 @@ pub fn resolve_lens_params_in_adjustments(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_supported_file_types() -> Result<serde_json::Value, String> {
     let raw_extensions: Vec<&str> = crate::formats::RAW_EXTENSIONS
         .iter()
@@ -1922,7 +1922,7 @@ pub fn get_supported_file_types() -> Result<serde_json::Value, String> {
     }))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn create_folder(path: String) -> Result<(), String> {
     let path_obj = Path::new(&path);
     if let (Some(parent), Some(new_folder_name_os)) = (path_obj.parent(), path_obj.file_name())
@@ -1941,7 +1941,7 @@ pub fn create_folder(path: String) -> Result<(), String> {
     fs::create_dir_all(&path).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn rename_folder(path: String, new_name: String, app_handle: AppHandle) -> Result<(), String> {
     let p = Path::new(&path);
     if !p.is_dir() {
@@ -1968,7 +1968,7 @@ pub fn rename_folder(path: String, new_name: String, app_handle: AppHandle) -> R
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn delete_folder(path: String, app_handle: AppHandle) -> Result<(), String> {
     #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
     {
@@ -1993,7 +1993,7 @@ pub fn delete_folder(path: String, app_handle: AppHandle) -> Result<(), String> 
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn duplicate_file(
     path: String,
     target_album_id: Option<String>,
@@ -2107,7 +2107,7 @@ fn find_all_associated_files(source_image_path: &Path) -> Result<Vec<PathBuf>, S
     Ok(associated_files)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn copy_files(source_paths: Vec<String>, destination_folder: String) -> Result<(), String> {
     let dest_path = Path::new(&destination_folder);
     if !dest_path.is_dir() {
@@ -2170,7 +2170,7 @@ pub fn copy_files(source_paths: Vec<String>, destination_folder: String) -> Resu
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn move_files(
     source_paths: Vec<String>,
     destination_folder: String,
@@ -2260,7 +2260,7 @@ pub fn move_files(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn save_metadata_and_update_thumbnail(
     path: String,
     adjustments: Value,
@@ -2358,7 +2358,7 @@ pub fn save_metadata_and_update_thumbnail(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_adjustments_to_paths(
     paths: Vec<String>,
     adjustments: Value,
@@ -2470,7 +2470,7 @@ pub async fn apply_adjustments_to_paths(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn reset_adjustments_for_paths(
     paths: Vec<String>,
     app_handle: AppHandle,
@@ -2539,7 +2539,7 @@ pub async fn reset_adjustments_for_paths(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_auto_adjustments_to_paths(
     paths: Vec<String>,
     app_handle: AppHandle,
@@ -2649,7 +2649,7 @@ pub async fn apply_auto_adjustments_to_paths(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn set_color_label_for_paths(
     paths: Vec<String>,
     color: Option<String>,
@@ -2692,7 +2692,7 @@ pub fn set_color_label_for_paths(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn set_rating_for_paths(
     paths: Vec<String>,
     rating: u8,
@@ -2722,7 +2722,7 @@ pub fn set_rating_for_paths(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn write_rating_to_sidecar(
     image_path: String,
     rating: u8,
@@ -2749,7 +2749,7 @@ pub fn write_rating_to_sidecar(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn load_metadata(path: String, app_handle: AppHandle) -> Result<ImageMetadata, String> {
     let settings = load_settings(app_handle).unwrap_or_default();
     let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
@@ -2781,7 +2781,7 @@ fn get_presets_path(app_handle: &AppHandle) -> Result<std::path::PathBuf, String
     Ok(presets_dir.join("presets.json"))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn load_presets(app_handle: AppHandle) -> Result<Vec<PresetItem>, String> {
     let path = get_presets_path(&app_handle)?;
     if !path.exists() {
@@ -2791,7 +2791,7 @@ pub fn load_presets(app_handle: AppHandle) -> Result<Vec<PresetItem>, String> {
     serde_json::from_str(&content).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn save_presets(presets: Vec<PresetItem>, app_handle: AppHandle) -> Result<(), String> {
     let path = get_presets_path(&app_handle)?;
     let json_string = serde_json::to_string_pretty(&presets).map_err(|e| e.to_string())?;
@@ -2818,14 +2818,14 @@ fn get_internal_library_root_path(app_handle: &AppHandle) -> Result<std::path::P
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_or_create_internal_library_root(app_handle: AppHandle) -> Result<String, String> {
     let library_root = get_internal_library_root_path(&app_handle)?;
 
     Ok(library_root.to_string_lossy().to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn handle_import_presets_from_file(
     file_path: String,
     app_handle: AppHandle,
@@ -2880,7 +2880,7 @@ pub fn handle_import_presets_from_file(
     Ok(current_presets)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn handle_import_legacy_presets_from_file(
     file_path: String,
     app_handle: AppHandle,
@@ -2933,7 +2933,7 @@ pub fn handle_import_legacy_presets_from_file(
     Ok(current_presets)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn handle_export_presets_to_file(
     presets_to_export: Vec<PresetItem>,
     file_path: String,
@@ -2948,7 +2948,7 @@ pub fn handle_export_presets_to_file(
     fs::write(file_path, json_string).map_err(|e| format!("Failed to write preset file: {}", e))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn save_community_preset(
     name: String,
     adjustments: Value,
@@ -3003,7 +3003,7 @@ pub fn save_community_preset(
     save_presets(current_presets, app_handle)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn clear_all_sidecars(root_path: String) -> Result<usize, String> {
     if !Path::new(&root_path).exists() {
         return Err(format!("Root path does not exist: {}", root_path));
@@ -3029,7 +3029,7 @@ pub fn clear_all_sidecars(root_path: String) -> Result<usize, String> {
     Ok(deleted_count)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn clear_thumbnail_cache(app_handle: AppHandle) -> Result<(), String> {
     let cache_dir = app_handle
         .path()
@@ -3048,7 +3048,7 @@ pub fn clear_thumbnail_cache(app_handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn show_in_finder(path: String) -> Result<(), String> {
     let (source_path, _) = parse_virtual_path(&path);
 
@@ -3098,7 +3098,7 @@ pub fn show_in_finder(path: String) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn delete_files_from_disk(paths: Vec<String>, app_handle: AppHandle) -> Result<(), String> {
     let mut files_to_trash = HashSet::new();
 
@@ -3170,7 +3170,7 @@ pub fn delete_files_from_disk(paths: Vec<String>, app_handle: AppHandle) -> Resu
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn delete_files_with_associated(
     paths: Vec<String>,
     app_handle: AppHandle,
@@ -3318,7 +3318,7 @@ pub fn get_cached_or_generate_thumbnail_image(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn import_files(
     source_paths: Vec<String>,
     destination_folder: String,
@@ -3689,7 +3689,7 @@ pub fn generate_filename_from_template(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn rename_files(
     paths: Vec<String>,
     name_template: String,
@@ -3808,7 +3808,7 @@ pub fn rename_files(
     Ok(final_new_paths)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn create_virtual_copy(
     source_virtual_path: String,
     target_album_id: Option<String>,

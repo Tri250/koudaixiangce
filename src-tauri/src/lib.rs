@@ -228,7 +228,7 @@ fn compute_full_transformed_res(
     Ok((Arc::new(transformed_img.into_owned()), offset))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn get_image_dimensions(path: String) -> Result<ImageDimensions, String> {
     if path.is_empty() {
         return Err("Path cannot be empty".to_string());
@@ -239,7 +239,7 @@ fn get_image_dimensions(path: String) -> Result<ImageDimensions, String> {
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn cancel_thumbnail_generation(
     state: tauri::State<AppState>,
     app_handle: tauri::AppHandle,
@@ -302,7 +302,7 @@ pub fn get_cached_full_warped_image(
     Ok(warped_arc)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn update_wgpu_transform(
     payload: WgpuTransformPayload,
     state: tauri::State<'_, AppState>,
@@ -748,7 +748,7 @@ fn start_preview_worker(app_handle: tauri::AppHandle) {
     });
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn apply_adjustments(
     js_adjustments: serde_json::Value,
     is_interactive: bool,
@@ -792,7 +792,7 @@ async fn apply_adjustments(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn generate_uncropped_preview(
     js_adjustments: serde_json::Value,
     state: tauri::State<AppState>,
@@ -924,7 +924,7 @@ fn generate_uncropped_preview(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn generate_original_transformed_preview(
     js_adjustments: serde_json::Value,
     target_resolution: Option<u32>,
@@ -972,7 +972,7 @@ fn generate_original_transformed_preview(
     Ok(format!("data:image/jpeg;base64,{}", base64_str))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn generate_fullscreen_preview(
     js_adjustments: serde_json::Value,
     state: tauri::State<AppState>,
@@ -1090,7 +1090,7 @@ fn generate_fullscreen_preview(
     Ok(format!("data:image/jpeg;base64,{}", base64_str))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn preview_geometry_transform(
     params: GeometryParams,
     js_adjustments: serde_json::Value,
@@ -1313,7 +1313,7 @@ pub fn get_original_image(
     ))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn generate_preset_preview(
     js_adjustments: serde_json::Value,
     state: tauri::State<AppState>,
@@ -1390,7 +1390,7 @@ fn generate_preset_preview(
     Ok(Response::new(buf.into_inner()))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn fetch_community_presets() -> Result<Vec<CommunityPreset>, String> {
     let client = reqwest::Client::new();
     let url = "https://raw.githubusercontent.com/CyberTimon/RapidRAW-Presets/main/manifest.json";
@@ -1414,7 +1414,7 @@ async fn fetch_community_presets() -> Result<Vec<CommunityPreset>, String> {
     Ok(presets)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn generate_all_community_previews(
     image_paths: Vec<String>,
     presets: Vec<CommunityPreset>,
@@ -1590,7 +1590,7 @@ async fn generate_all_community_previews(
     Ok(results)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn save_temp_file(bytes: Vec<u8>) -> Result<String, String> {
     let mut temp_file = NamedTempFile::new().map_err(|e| e.to_string())?;
     temp_file.write_all(&bytes).map_err(|e| e.to_string())?;
@@ -1598,7 +1598,7 @@ async fn save_temp_file(bytes: Vec<u8>) -> Result<String, String> {
     Ok(path.to_string_lossy().to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn merge_hdr(
     paths: Vec<String>,
     app_handle: tauri::AppHandle,
@@ -1651,7 +1651,7 @@ async fn merge_hdr(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn save_hdr(
     first_path_str: String,
     state: tauri::State<'_, AppState>,
@@ -1702,7 +1702,7 @@ async fn save_hdr(
     Ok(output_path.to_string_lossy().to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn save_collage(base64_data: String, first_path_str: String) -> Result<String, String> {
     let data_url_prefix = "data:image/png;base64,";
     if !base64_data.starts_with(data_url_prefix) {
@@ -1732,7 +1732,7 @@ async fn save_collage(base64_data: String, first_path_str: String) -> Result<Str
     Ok(output_path.to_string_lossy().to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn generate_preview_for_path(
     path: String,
     js_adjustments: Value,
@@ -1826,7 +1826,7 @@ fn generate_preview_for_path(
     Ok(Response::new(bytes))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn generate_thumbnails_progressive(
     paths: Vec<String>,
     app_handle: tauri::AppHandle,
@@ -1933,14 +1933,14 @@ fn setup_logging(app_handle: &tauri::AppHandle) {
     );
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn get_log_file_path(app_handle: tauri::AppHandle) -> Result<String, String> {
     let log_dir = app_handle.path().app_log_dir().map_err(|e| e.to_string())?;
     let log_file_path = log_dir.join("app.log");
     Ok(log_file_path.to_string_lossy().to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn frontend_log(level: String, message: String) -> Result<(), String> {
     let trimmed = message.trim();
     if trimmed.is_empty() {
@@ -2110,7 +2110,7 @@ fn available_monitor_bounds(_window: &tauri::WebviewWindow) -> Vec<MonitorBounds
     Vec::new()
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn frontend_ready(
     app_handle: tauri::AppHandle,
     window: tauri::Window,
