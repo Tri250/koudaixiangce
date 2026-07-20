@@ -297,7 +297,7 @@ fn fill_polygon_mask(mask: &mut GrayImage, points: &[(f64, f64)], feather: f32) 
     let max_x = points
         .iter()
         .map(|p| p.0)
-        .fold(f64::NEG_INFINITY, f64::min)
+        .fold(f64::NEG_INFINITY, f64::max)
         .min(width as f64 - 1.0) as u32;
     let min_y = points
         .iter()
@@ -307,7 +307,7 @@ fn fill_polygon_mask(mask: &mut GrayImage, points: &[(f64, f64)], feather: f32) 
     let max_y = points
         .iter()
         .map(|p| p.1)
-        .fold(f64::NEG_INFINITY, f64::min)
+        .fold(f64::NEG_INFINITY, f64::max)
         .min(height as f64 - 1.0) as u32;
 
     // Point-in-polygon test using ray casting
