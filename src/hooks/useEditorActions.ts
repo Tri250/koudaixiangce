@@ -161,11 +161,11 @@ export function useEditorActions() {
     [setEditor],
   );
 
-  const handleCopyAdjustments = useCallback(async (pathOrEvent?: string | any) => {
+  const handleCopyAdjustments = useCallback(async (pathOrEvent?: string | KeyboardEvent) => {
     const pathOverride = typeof pathOrEvent === 'string' ? pathOrEvent : undefined;
     const { selectedImage, adjustments } = useEditorStore.getState();
     const { libraryActivePath, multiSelectedPaths } = useLibraryStore.getState();
-    let sourceAdjustments: any = null;
+    let sourceAdjustments: Adjustments | null = null;
 
     const pathToCopyFrom =
       pathOverride || (selectedImage ? selectedImage.path : libraryActivePath || multiSelectedPaths[0]);
@@ -174,7 +174,7 @@ export function useEditorActions() {
       sourceAdjustments = adjustments;
     } else if (pathToCopyFrom) {
       try {
-        const meta: any = await invoke(Invokes.LoadMetadata, { path: pathToCopyFrom });
+        const meta: Record<string, unknown> = await invoke<Record<string, unknown>>(Invokes.LoadMetadata, { path: pathToCopyFrom });
         if (meta?.adjustments && !meta.adjustments.is_null) {
           sourceAdjustments = normalizeLoadedAdjustments(meta.adjustments);
         } else {
@@ -188,7 +188,7 @@ export function useEditorActions() {
 
     if (!sourceAdjustments) return;
 
-    const adjustmentsToCopy: any = {};
+    const adjustmentsToCopy: Record<string, unknown> = {};
 
     for (const key of COPYABLE_ADJUSTMENT_KEYS) {
       if (Object.prototype.hasOwnProperty.call(sourceAdjustments, key)) {
@@ -208,8 +208,8 @@ export function useEditorActions() {
 
       if (!copiedAdjustments || !appSettings) return;
 
-      const mode = (appSettings.copyPasteSettings as any)?.mode;
-      const includedAdjustments = (appSettings.copyPasteSettings as any)?.includedAdjustments;
+      const mode = appSettings.copyPasteSettings?.mode;
+      const includedAdjustments = appSettings.copyPasteSettings?.includedAdjustments;
       const adjustmentsToApply: Partial<Adjustments> = {};
 
       for (const key of includedAdjustments) {
@@ -249,9 +249,9 @@ export function useEditorActions() {
       invoke(Invokes.ApplyAdjustmentsToPaths, { paths: pathsToUpdate, adjustments: adjustmentsToApply })
         .then(() => {
           if (selectedImage && pathsToUpdate.includes(selectedImage.path)) {
-            invoke('load_metadata', { path: selectedImage.path }).then((meta: any) => {
+            invoke<Record<string, unknown>>('load_metadata', { path: selectedImage.path }).then((meta) => {
               if (meta.adjustments) {
-                setAdjustments((prev: any) => ({
+                setAdjustments((prev: Adjustments) => ({
                   ...prev,
                   lensMaker: meta.adjustments.lensMaker,
                   lensModel: meta.adjustments.lensModel,

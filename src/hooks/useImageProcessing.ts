@@ -5,14 +5,15 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useLibraryStore } from '../store/useLibraryStore';
-import { Adjustments, COPYABLE_ADJUSTMENT_KEYS } from '../utils/adjustments';
+import { Adjustments, COPYABLE_ADJUSTMENT_KEYS, AiPatch, MaskContainer } from '../utils/adjustments';
+import type { SubMask } from '../components/panel/right/Masks';
 import { Invokes, Panel } from '../components/ui/AppProperties';
 import { debouncedSave } from './useEditorActions';
 import { globalImageCache } from '../utils/ImageLRUCache';
 
 export function useImageProcessing(
-  transformWrapperRef: any,
-  prevAdjustmentsRef: React.RefObject<any>,
+  transformWrapperRef: HTMLElement | null,
+  prevAdjustmentsRef: React.RefObject<unknown>,
   renderRefs: {
     previewJobIdRef: React.RefObject<number>;
     latestRenderedJobIdRef: React.RefObject<number>;
@@ -63,8 +64,8 @@ export function useImageProcessing(
   ]);
 
   const calculateROI = useCallback(() => {
-    if (!transformWrapperRef.current) return null;
-    const instance = transformWrapperRef.current.instance;
+    if (!transformWrapperRef) return null;
+    const instance = (transformWrapperRef as unknown as { instance?: { transformState?: { scale: number; positionX: number; positionY: number } } }).instance;
     if (!instance) return null;
     const state = instance.transformState;
     if (!state) return null;
@@ -72,7 +73,7 @@ export function useImageProcessing(
     if (!baseRenderSize) return null;
 
     const { scale, positionX, positionY } = state;
-    const { width: baseW, height: baseH, offsetX, offsetY, containerWidth, containerHeight } = baseRenderSize as any;
+    const { width: baseW, height: baseH, offsetX, offsetY, containerWidth, containerHeight } = baseRenderSize as { width: number; height: number; offsetX: number; offsetY: number; containerWidth: number; containerHeight: number };
 
     if (!baseW || !baseH || !containerWidth || !containerHeight) return null;
     if (scale <= 1.01) return null;
@@ -100,10 +101,10 @@ export function useImageProcessing(
       return null;
     }
 
-    let roiX = (intersectLeft - imgLeft) / baseW;
-    let roiY = (intersectTop - imgTop) / baseH;
-    let roiW = (intersectRight - intersectLeft) / baseW;
-    let roiH = (intersectBottom - intersectTop) / baseH;
+    const roiX = (intersectLeft - imgLeft) / baseW;
+    const roiY = (intersectTop - imgTop) / baseH;
+    const roiW = (intersectRight - intersectLeft) / baseW;
+    const roiH = (intersectBottom - intersectTop) / baseH;
 
     const newRoiX = roiX - paddingX;
     const newRoiY = roiY - paddingY;
@@ -129,9 +130,9 @@ export function useImageProcessing(
       const { patchesSentToBackend } = useEditorStore.getState();
       const newlySentPatches = new Set<string>();
 
-      const processSubMasks = (subMasks: any[]) => {
+      const processSubMasks = (subMasks: SubMask[]) => {
         if (!Array.isArray(subMasks)) return;
-        subMasks.forEach((sm: any) => {
+        subMasks.forEach((sm: SubMask) => {
           if (sm.id && sm.parameters) {
             const keys = ['mask_data_base64', 'maskDataBase64'];
             let foundMaskData = false;
@@ -152,7 +153,7 @@ export function useImageProcessing(
       };
 
       if (payload.aiPatches && Array.isArray(payload.aiPatches)) {
-        payload.aiPatches.forEach((p: any) => {
+        payload.aiPatches.forEach((p: AiPatch) => {
           if (p.id && p.patchData && !p.isLoading) {
             if (patchesSentToBackend.has(p.id)) {
               p.patchData = null;
@@ -165,7 +166,7 @@ export function useImageProcessing(
       }
 
       if (payload.masks && Array.isArray(payload.masks)) {
-        payload.masks.forEach((container: any) => {
+        payload.masks.forEach((container: MaskContainer) => {
           if (container.subMasks) processSubMasks(container.subMasks);
         });
       }
@@ -472,14 +473,14 @@ export function useImageProcessing(
 
         const otherPaths = multiSelectedPaths.filter((p) => p !== selectedImage.path);
         if (otherPaths.length > 0) {
-          const prev = prevAdjustmentsRef.current;
+          const prev = prevAdjustmentsRef.current as { path?: string; adjustments?: Adjustments } | null;
           if (prev && prev.path === selectedImage.path) {
             const delta: Partial<Adjustments> = {};
             const includedKeys = appSettings?.copyPasteSettings?.includedAdjustments || COPYABLE_ADJUSTMENT_KEYS;
             for (const key of Object.keys(adjustments) as Array<keyof Adjustments>) {
               if (includedKeys.includes(key as string)) {
                 if (JSON.stringify(adjustments[key]) !== JSON.stringify(prev.adjustments[key])) {
-                  (delta as any)[key] = adjustments[key];
+                  (delta as Record<string, unknown>)[key] = adjustments[key];
                 }
               }
             }
@@ -518,7 +519,7 @@ export function useImageProcessing(
 
   useEffect(() => {
     if (showOriginal && selectedImage?.isReady && displaySize.width > 0 && displaySize.height > 0 && !isSliderDragging) {
-      let targetRes = calculateTargetRes();
+      const targetRes = calculateTargetRes();
       if (targetRes > currentOriginalResRef.current) {
         requestHiFiOriginalZoom(adjustments, targetRes);
       }

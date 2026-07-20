@@ -222,7 +222,7 @@ export default function MonochromePanel() {
                                     style={{ backgroundColor: preset.color }}
                                 />
                                 <Text variant={TextVariants.small} color={TextColors.secondary} className="truncate w-full text-center">
-                                    {t(preset.nameKey as any)}
+                                    {t(preset.nameKey as unknown)}
                                 </Text>
                                 {selectedPreset === preset.id && (
                                     <Check size={14} className="absolute top-1 right-1 text-accent" />
@@ -279,7 +279,7 @@ export default function MonochromePanel() {
                         <Text
                             variant={TextVariants.small}
                             weight={TextWeights.semibold}
-                            color={totalWeight === 100 ? TextColors.primary : 'text-yellow-500' as any}
+                            color={totalWeight === 100 ? TextColors.primary : 'text-yellow-500' as unknown}
                         >
                             {totalWeight}%
                         </Text>

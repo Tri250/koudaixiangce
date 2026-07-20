@@ -25,7 +25,7 @@ interface CullingModalProps {
 
 type CullAction = 'reject' | 'rate_zero' | 'delete';
 
-function ImageThumbnail({ path, thumbnails, isSelected, onToggle, children }: any) {
+function ImageThumbnail({ path, thumbnails, isSelected, onToggle, children }: { path: string; thumbnails: Record<string, string>; isSelected: boolean; onToggle: () => void; children?: React.ReactNode }) {
   const thumbnailUrl = thumbnails[path];
   return (
     <div

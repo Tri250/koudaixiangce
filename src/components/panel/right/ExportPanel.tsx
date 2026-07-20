@@ -34,7 +34,7 @@ interface ExportPanelProps {
   exportState: ExportState;
   multiSelectedPaths: Array<string>;
   selectedImage: SelectedImage | null;
-  setExportState(state: any): void;
+  setExportState(state: Partial<Record<string, unknown>>): void;
   appSettings: AppSettings | null;
   onSettingsChange: (settings: AppSettings) => void;
   rootPaths: string[];
@@ -43,7 +43,7 @@ interface ExportPanelProps {
 }
 
 interface SectionProps {
-  children: any;
+  children: React.ReactNode;
   title: string;
 }
 
@@ -171,7 +171,7 @@ function WatermarkPreview({
   );
 }
 
-const formatBytes = (bytes: number, t: any, decimals = 2) => {
+const formatBytes = (bytes: number, t: (key: string) => string, decimals = 2) => {
   if (!+bytes) return `0 ${t('export.bytes.bytes')}`;
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
@@ -320,7 +320,7 @@ export default function ExportPanel({
           setImageAspectRatio(3 / 2);
           return;
         }
-        const dims: any = await invoke('get_image_dimensions', { path: firstPath });
+        const dims = await invoke<{ width: number; height: number }>('get_image_dimensions', { path: firstPath });
         if (dims.width > 0 && dims.height > 0) setImageAspectRatio(dims.width / dims.height);
       } catch {
         setImageAspectRatio(3 / 2);
@@ -492,10 +492,10 @@ export default function ExportPanel({
     const lastExportPath = appSettings?.exportPresets?.find((p) => p.id === '__last_used__')?.lastExportPath;
 
     try {
-      const selectedFormat: any = FILE_FORMATS.find((f) => f.id === fileFormat);
+      const selectedFormat: { id: string; label: string; extension: string } | undefined = FILE_FORMATS.find((f) => f.id === fileFormat);
       if (!selectedFormat) {
         setExportState({
-          errorMessage: t('export.errors.unsupportedFormat' as any),
+          errorMessage: t('export.errors.unsupportedFormat' as unknown),
           progress: 0,
           status: Status.Error,
         });

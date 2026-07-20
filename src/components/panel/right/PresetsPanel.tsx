@@ -54,18 +54,18 @@ import { useLongPress } from '../../../hooks/useLongPress';
 import { useEditorActions } from '../../../hooks/useEditorActions';
 
 interface DroppableFolderItemProps {
-  children: any;
-  folder: any;
+  children: React.ReactNode;
+  folder: Folder;
   isExpanded: boolean;
-  onContextMenu(event: any, folder: any): void;
+  onContextMenu(event: React.MouseEvent<HTMLElement>, folder: Folder): void;
   onToggle(id: string): void;
 }
 
 interface DraggablePresetItemProps {
   isGeneratingPreviews: boolean;
-  onApply(preset: any): void;
-  onContextMenu(event: any, preset: any): void;
-  preset: any;
+  onApply(preset: Preset): void;
+  onContextMenu(event: React.MouseEvent<HTMLElement>, preset: Preset): void;
+  preset: Preset;
   previewUrl: string;
   isActive?: boolean;
   intensity?: number;
@@ -75,12 +75,12 @@ interface DraggablePresetItemProps {
 }
 
 interface FolderProps {
-  folder: any;
+  folder: Folder;
 }
 
 interface FolderState {
   isOpen: boolean;
-  folder: any;
+  folder: Folder;
 }
 
 interface ModalState {
@@ -134,20 +134,20 @@ const evaluateCurveY = (curve: Array<{ x: number; y: number }>, targetX: number)
   return targetX;
 };
 
-const mixAdjustments = (presetObj: any, intensity: number, initialObj: any = INITIAL_ADJUSTMENTS): any => {
+const mixAdjustments = (presetObj: Partial<Adjustments>, intensity: number, initialObj: Adjustments = INITIAL_ADJUSTMENTS): Adjustments => {
   if (!Number.isFinite(intensity)) return { ...initialObj };
   const fraction = intensity / 100;
 
   if (fraction === 1) return { ...presetObj };
   if (fraction === 0) return { ...initialObj };
 
-  const result: any = {};
+  const result: Record<string, unknown> = {};
   const keys = Object.keys(presetObj);
 
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
     const presetVal = presetObj[key];
-    const initialVal = initialObj[key] !== undefined ? initialObj[key] : (INITIAL_ADJUSTMENTS as any)[key];
+    const initialVal = initialObj[key] !== undefined ? initialObj[key] : (INITIAL_ADJUSTMENTS as unknown)[key];
 
     if (typeof presetVal === 'number') {
       result[key] = typeof initialVal === 'number' ? initialVal + (presetVal - initialVal) * fraction : presetVal;
@@ -314,8 +314,8 @@ function PresetItemDisplay({
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.22, ease: 'easeInOut' }}
                 className="w-full cursor-auto overflow-hidden"
-                onClick={(e: any) => e.stopPropagation()}
-                onPointerDown={(e: any) => e.stopPropagation()}
+                onClick={(e: React.MouseEvent<HTMLElement>) => e.stopPropagation()}
+                onPointerDown={(e: React.PointerEvent<HTMLElement>) => e.stopPropagation()}
               >
                 <div className="pt-1.5 pb-0.5">
                   <div className="flex items-center justify-between mb-1">
@@ -331,7 +331,7 @@ function PresetItemDisplay({
                     max={200}
                     defaultValue={100}
                     value={intensity ?? 100}
-                    onChange={(e: any) => onIntensityChange(Number(e.target.value))}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => onIntensityChange(Number(e.target.value))}
                     onDragStateChange={onDragStateChange}
                     label=""
                     step={1}
@@ -401,8 +401,8 @@ function PresetItemDisplay({
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="w-full cursor-auto overflow-hidden"
-            onClick={(e: any) => e.stopPropagation()}
-            onPointerDown={(e: any) => e.stopPropagation()}
+            onClick={(e: React.MouseEvent<HTMLElement>) => e.stopPropagation()}
+            onPointerDown={(e: React.PointerEvent<HTMLElement>) => e.stopPropagation()}
           >
             <div className="mt-3 px-1 pb-1">
               <div className="flex items-center gap-2 mb-1.5">
@@ -418,7 +418,7 @@ function PresetItemDisplay({
                 max={200}
                 defaultValue={100}
                 value={intensity ?? 100}
-                onChange={(e: any) => onIntensityChange(Number(e.target.value))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onIntensityChange(Number(e.target.value))}
                 onDragStateChange={onDragStateChange}
                 label=""
                 step={1}
@@ -476,11 +476,11 @@ function DraggablePresetItem({
 
   // Long-press support for mobile context menu
   const longPress = useLongPress(
-    (pos) => onContextMenu({ clientX: pos.clientX, clientY: pos.clientY, preventDefault: () => {} } as any, { preset }),
+    (pos) => onContextMenu({ clientX: pos.clientX, clientY: pos.clientY, preventDefault: () => {} } as unknown, { preset }),
   );
 
   const setCombinedRef = useCallback(
-    (node: any) => {
+    (node: HTMLDivElement | null) => {
       setDraggableNodeRef(node);
       setDroppableNodeRef(node);
     },
@@ -498,7 +498,7 @@ function DraggablePresetItem({
   return (
     <div
       onClick={() => onApply(preset)}
-      onContextMenu={(e: any) => onContextMenu(e, { preset })}
+      onContextMenu={(e: React.MouseEvent<HTMLElement>) => onContextMenu(e, { preset })}
       {...longPress}
       ref={setCombinedRef}
       style={style}
@@ -543,7 +543,7 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
 
   // Long-press support for mobile context menu
   const longPress = useLongPress(
-    (pos) => onContextMenu({ clientX: pos.clientX, clientY: pos.clientY, preventDefault: () => {} } as any, { folder }),
+    (pos) => onContextMenu({ clientX: pos.clientX, clientY: pos.clientY, preventDefault: () => {} } as unknown, { folder }),
   );
 
   const style = {
@@ -561,14 +561,14 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
     >
       <div
         className="flex items-center gap-2 p-2 rounded-lg bg-surface cursor-pointer"
-        onContextMenu={(e: any) => onContextMenu(e, { folder })}
+        onContextMenu={(e: React.MouseEvent<HTMLElement>) => onContextMenu(e, { folder })}
         {...longPress}
       >
         <div className="p-1 cursor-grab" ref={setDraggableNodeRef} {...listeners} {...attributes}>
           {isExpanded ? (
             <FolderOpen
               className="text-primary"
-              onClick={(e: any) => {
+              onClick={(e: React.MouseEvent<HTMLElement>) => {
                 e.stopPropagation();
                 onToggle(folder.id);
               }}
@@ -577,7 +577,7 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
           ) : (
             <FolderIcon
               className="text-text-secondary"
-              onClick={(e: any) => {
+              onClick={(e: React.MouseEvent<HTMLElement>) => {
                 e.stopPropagation();
                 onToggle(folder.id);
               }}
@@ -650,7 +650,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
   const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
   const [renameFolderState, setRenameFolderState] = useState<FolderState>({ isOpen: false, folder: null });
   const [expandedFolders, setExpandedFolders] = useState(new Set<string>());
-  const [activeItem, setActiveItem] = useState<any>(null);
+  const [activeItem, setActiveItem] = useState<UserPreset | null>(null);
   const [folderPreviewsGenerated, setFolderPreviewsGenerated] = useState<Set<string>>(new Set());
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
@@ -662,7 +662,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
   previewsRef.current = previews;
   const expandedFoldersRef = useRef(expandedFolders);
   expandedFoldersRef.current = expandedFolders;
-  const previewQueue = useRef<Array<any>>([]);
+  const previewQueue = useRef<Array<unknown>>([]);
   const isProcessingQueue = useRef(false);
   const currentImagePathRef = useRef<string | null>(selectedImage?.path || null);
 
@@ -725,12 +725,12 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
 
   const allItemsMap = useMemo(() => {
     const map = new Map();
-    presets.forEach((item: any) => {
+    presets.forEach((item: UserPreset) => {
       if (item.preset) {
         map.set(item.preset.id, { type: PresetListType.Preset, data: item.preset });
       } else if (item.folder) {
         map.set(item.folder.id, { type: PresetListType.Folder, data: item.folder });
-        item.folder.children.forEach((p: any) => map.set(p.id, { type: PresetListType.Preset, data: p }));
+        item.folder.children.forEach((p: UserPreset) => map.set(p.id, { type: PresetListType.Preset, data: p }));
       }
     });
     return map;
@@ -817,7 +817,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
   const enqueuePreviews = useCallback(
     (presetsToGenerate: Array<UserPreset>, folderId: string | null = null) => {
       const newItems = presetsToGenerate
-        .filter((p: any) => !previewsRef.current[p?.id])
+        .filter((p: UserPreset) => !previewsRef.current[p?.id])
         .map((p: UserPreset) => ({ preset: p, folderId }));
       if (newItems.length > 0) {
         previewQueue.current.push(...newItems);
@@ -852,7 +852,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
       const pathAtStart = currentImagePathRef.current;
 
       try {
-        const fullPresetAdjustments: any = { ...INITIAL_ADJUSTMENTS, ...preset.adjustments };
+        const fullPresetAdjustments: Adjustments = { ...INITIAL_ADJUSTMENTS, ...preset.adjustments };
         const imageData: Uint8Array = await invoke(Invokes.GeneratePresetPreview, {
           js_adjustments: fullPresetAdjustments,
         });
@@ -889,12 +889,12 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
         return;
       }
 
-      const folder = presets.find((item: any) => item.folder && item.folder.id === folderId);
+      const folder = presets.find((item: UserPreset) => item.folder && item.folder.id === folderId);
       if (!folder?.folder?.children?.length) {
         return;
       }
 
-      const presetsToGenerate = folder.folder.children.filter((p: any) => !previewsRef.current[p.id]);
+      const presetsToGenerate = folder.folder.children.filter((p: UserPreset) => !previewsRef.current[p.id]);
       if (presetsToGenerate.length > 0) {
         enqueuePreviews(presetsToGenerate, folderId);
       }
@@ -909,7 +909,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
     }
 
     const rootPresets = presets.filter((item: UserPreset) => item.preset).map((item) => item.preset);
-    const presetsToGenerate: any = rootPresets.filter((p: any) => !previewsRef.current[p.id]);
+    const presetsToGenerate: UserPreset[] = rootPresets.filter((p: UserPreset) => !previewsRef.current[p.id]);
 
     if (presetsToGenerate.length > 0) {
       enqueuePreviews(presetsToGenerate);
@@ -976,9 +976,9 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
       // Tool presets are additive: only overlay keys that the preset explicitly defines
       setAdjustments((prevAdjustments: Adjustments) => {
         const merged = { ...prevAdjustments };
-        const presetAdj = preset.adjustments as Record<string, any>;
+        const presetAdj = preset.adjustments as Record<string, unknown>;
         for (const key of Object.keys(presetAdj)) {
-          (merged as any)[key] = presetAdj[key];
+          (merged as unknown)[key] = presetAdj[key];
         }
         return merged;
       });
@@ -1064,11 +1064,11 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
     }, 300);
   };
 
-  const handleDragStart = (event: any) => {
+  const handleDragStart = (event: React.DragEvent<HTMLElement>) => {
     setActiveItem(allItemsMap.get(event.active.id) ?? null);
   };
 
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = (event: React.DragEvent<HTMLElement>) => {
     const { active, over } = event;
     setActiveItem(null);
 
@@ -1190,7 +1190,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
 
   const handleBatchSyncPreset = useCallback(async () => {
     const presetIds = presets
-      .map((item: any) => item.preset?.id || item.folder?.id)
+      .map((item: UserPreset) => item.preset?.id || item.folder?.id)
       .filter(Boolean);
     if (presetIds.length === 0) return;
     try {
@@ -1201,7 +1201,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
     }
   }, [presets, t]);
 
-  const handleContextMenu = (event: any, item: UserPreset) => {
+  const handleContextMenu = (event: React.MouseEvent<HTMLElement>, item: UserPreset) => {
     event.preventDefault();
     event.stopPropagation();
 
@@ -1275,7 +1275,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
     showContextMenu(event.clientX, event.clientY, options);
   };
 
-  const handleBackgroundContextMenu = (event: any) => {
+  const handleBackgroundContextMenu = (event: React.MouseEvent<HTMLElement>) => {
     if (!event.currentTarget.contains(event.target)) {
       return;
     }
@@ -1351,7 +1351,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
         <DraggablePresetItem
           isGeneratingPreviews={isGeneratingPreviews}
           onApply={handleApplyPreset}
-          onContextMenu={(e: any) => handleContextMenu(e, { preset })}
+          onContextMenu={(e: React.MouseEvent<HTMLElement>) => handleContextMenu(e, { preset })}
           preset={preset}
           previewUrl={previews[preset.id] || ''}
           isActive={preset.id === activePresetId}
@@ -1532,7 +1532,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
                         <DroppableFolderItem
                           folder={item.folder}
                           isExpanded={item.folder?.id ? expandedFolders.has(item.folder?.id) : false}
-                          onContextMenu={(e: any) => handleContextMenu(e, item)}
+                          onContextMenu={(e: React.MouseEvent<HTMLElement>) => handleContextMenu(e, item)}
                           onToggle={toggleFolder}
                         >
                           <AnimatePresence>
@@ -1576,7 +1576,7 @@ export default function PresetsPanel({ onNavigateToCommunity, isAndroid }: Prese
                       <DroppableFolderItem
                         folder={item.folder}
                         isExpanded={item.folder?.id ? expandedFolders.has(item.folder?.id) : false}
-                        onContextMenu={(e: any) => handleContextMenu(e, item)}
+                        onContextMenu={(e: React.MouseEvent<HTMLElement>) => handleContextMenu(e, item)}
                         onToggle={toggleFolder}
                       >
                         <AnimatePresence>

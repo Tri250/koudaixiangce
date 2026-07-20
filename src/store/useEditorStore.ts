@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Adjustments, INITIAL_ADJUSTMENTS, MaskContainer, AiPatch } from '../utils/adjustments';
+import { Adjustments, INITIAL_ADJUSTMENTS, MaskContainer } from '../utils/adjustments';
 import { SelectedImage, WaveformData, BrushSettings } from '../components/ui/AppProperties';
 import { ChannelConfig } from '../components/adjustments/Curves';
 import { ImageDimensions } from '../hooks/useImageRenderSize';
@@ -74,14 +74,14 @@ interface EditorState {
   patchesSentToBackend: Set<string>;
 
   // Clipboard
-  copiedSectionAdjustments: any | null;
+  copiedSectionAdjustments: { section: string; values: Record<string, unknown> } | null;
   copiedMask: MaskContainer | null;
   copiedAdjustments: Adjustments | null;
 
   // Retouching & Portrait
-  faceLandmarks: any[] | null;
-  bodyKeypoints: any[] | null;
-  liquifyStrokes: any[];
+  faceLandmarks: unknown[] | null;
+  bodyKeypoints: unknown[] | null;
+  liquifyStrokes: unknown[];
   isLiquifyModalOpen: boolean;
   skinSmoothingMethod: 'neutral_gray' | 'bilateral' | 'frequency_separation';
   skinSmoothingStrength: number;

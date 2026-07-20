@@ -30,12 +30,12 @@ import Button from '../../ui/Button';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 import { ADVANCED_QUERY_REGEX } from '../../../hooks/useSortedLibrary';
 
-function DropdownMenu({ buttonContent, buttonTitle, children, contentClassName = 'w-56' }: any) {
+function DropdownMenu({ buttonContent, buttonTitle, children, contentClassName = 'w-56' }: { buttonContent: React.ReactNode; buttonTitle: string; children: React.ReactNode; contentClassName?: string }) {
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<any>(null);
+  const dropdownRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (event: any) => {
+    const handleClickOutside = (event: Event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
       }
@@ -78,7 +78,7 @@ function DropdownMenu({ buttonContent, buttonTitle, children, contentClassName =
   );
 }
 
-export function SearchInput({ indexingProgress, isIndexing }: any) {
+export function SearchInput({ indexingProgress, isIndexing }: { indexingProgress: { completed: number; total: number } | null; isIndexing: boolean }) {
   const { t } = useTranslation();
   const { searchCriteria, setSearchCriteria } = useLibraryStore(
     useShallow((state) => ({ searchCriteria: state.searchCriteria, setSearchCriteria: state.setSearchCriteria })),
@@ -98,7 +98,7 @@ export function SearchInput({ indexingProgress, isIndexing }: any) {
   }, [isSearchActive]);
 
   useEffect(() => {
-    function handleClickOutside(event: any) {
+    function handleClickOutside(event: Event) {
       if (containerRef.current && !containerRef.current.contains(event.target) && tags.length === 0 && !text) {
         setIsSearchActive(false);
       }
@@ -311,7 +311,7 @@ export function ViewOptionsDropdown({
   rawStatusOptions,
   editedStatusOptions,
   sortOptions,
-}: any) {
+}: { filterCriteria: FilterCriteria; setFilterCriteria: (criteria: FilterCriteria) => void; sortCriteria: SortCriteria; setSortCriteria: (criteria: SortCriteria) => void; thumbnailSize: ThumbnailSize; setThumbnailSize: (size: ThumbnailSize) => void; thumbnailAspectRatio: ThumbnailAspectRatio; setThumbnailAspectRatio: (ratio: ThumbnailAspectRatio) => void; viewMode: LibraryViewMode; setViewMode: (mode: LibraryViewMode) => void; searchQuery: string; setSearchQuery: (query: string) => void }) {
   const { t } = useTranslation();
   const { filterCriteria, setFilterCriteria, sortCriteria, setSortCriteria } = useLibraryStore(
     useShallow((state) => ({
@@ -346,7 +346,7 @@ export function ViewOptionsDropdown({
     [t],
   );
 
-  const handleColorClick = (colorName: string, event: any) => {
+  const handleColorClick = (colorName: string, event: React.MouseEvent<HTMLElement>) => {
     const { ctrlKey, metaKey, shiftKey } = event;
     const isCtrlPressed = ctrlKey || metaKey;
     const currentColors = filterCriteria.colors || [];
@@ -391,7 +391,7 @@ export function ViewOptionsDropdown({
             <Text as="div" variant={TextVariants.small} weight={TextWeights.semibold} className="px-3 py-2 uppercase">
               {t('library.header.viewOptions.thumbnailSize')}
             </Text>
-            {thumbnailSizeOptions.map((option: any) => {
+            {thumbnailSizeOptions.map((option: { value: unknown; label: string }) => {
               const isSelected = thumbnailSize === option.id;
               return (
                 <button
@@ -420,7 +420,7 @@ export function ViewOptionsDropdown({
               <Text as="div" variant={TextVariants.small} weight={TextWeights.semibold} className="px-3 py-2 uppercase">
                 {t('library.header.viewOptions.thumbnailFit')}
               </Text>
-              {thumbnailAspectRatioOptions.map((option: any) => {
+              {thumbnailAspectRatioOptions.map((option: { value: unknown; label: string }) => {
                 const isSelected = thumbnailAspectRatio === option.id;
                 return (
                   <button
@@ -525,8 +525,8 @@ export function ViewOptionsDropdown({
               </Text>
 
               {ratingFilterOptions
-                .filter((option: any) => option.value <= 0)
-                .map((option: any) => {
+                .filter((option: { value: unknown }) => option.value <= 0)
+                .map((option: { value: unknown; label: string }) => {
                   const isSelected = filterCriteria.rating === option.value;
                   return (
                     <button
@@ -561,7 +561,7 @@ export function ViewOptionsDropdown({
                     {[...Array(5)].map((_, index: number) => {
                       const starValue = index + 1;
                       const isFilled = filterCriteria.rating > 0 && starValue <= filterCriteria.rating;
-                      const optionLabel = ratingFilterOptions.find((o: any) => o.value === starValue)?.label;
+                      const optionLabel = ratingFilterOptions.find((o: { value: unknown; label?: string }) => o.value === starValue)?.label;
 
                       return (
                         <button
@@ -600,7 +600,7 @@ export function ViewOptionsDropdown({
               <Text as="div" variant={TextVariants.small} weight={TextWeights.semibold} className="px-3 py-2 uppercase">
                 {t('library.header.viewOptions.filterByFileType')}
               </Text>
-              {rawStatusOptions.map((option: any) => {
+              {rawStatusOptions.map((option: { value: unknown; label: string }) => {
                 const isSelected = (filterCriteria.rawStatus || RawStatus.All) === option.key;
                 return (
                   <button
@@ -630,7 +630,7 @@ export function ViewOptionsDropdown({
               <Text as="div" variant={TextVariants.small} weight={TextWeights.semibold} className="px-3 py-2 uppercase">
                 {t('library.header.viewOptions.filterByEdited', 'Filter by Edit Status')}
               </Text>
-              {editedStatusOptions.map((option: any) => {
+              {editedStatusOptions.map((option: { value: unknown; label: string }) => {
                 const isSelected = (filterCriteria.editedStatus || EditedStatus.All) === option.key;
                 return (
                   <button
@@ -676,7 +676,7 @@ export function ViewOptionsDropdown({
                   <button
                     key={color.name}
                     data-tooltip={title}
-                    onClick={(e: any) => handleColorClick(color.name, e)}
+                    onClick={(e: React.MouseEvent<HTMLElement>) => handleColorClick(color.name, e)}
                     className="w-6 h-6 rounded-full focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface transition-transform hover:scale-110"
                     role="menuitem"
                   >
@@ -718,7 +718,7 @@ export function ViewOptionsDropdown({
                 {sortCriteria.order === SortDirection.Ascending ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </button>
             </div>
-            {sortOptions.map((option: any) => {
+            {sortOptions.map((option: { value: unknown; label: string }) => {
               const isSelected = sortCriteria.key === option.key;
               return (
                 <button

@@ -17,11 +17,15 @@ import {
   Theme,
   ThumbnailSize,
   ThumbnailAspectRatio,
+  SupportedTypes,
+  AppSettings,
 } from '../components/ui/AppProperties';
+import type { FolderTree } from '../components/panel/FolderTree';
 import { useTranslation } from 'react-i18next';
+import type { ExternalEditSession } from '../store/useProcessStore';
 
 interface UseAppInitializationProps {
-  preloadedDataRef: React.RefObject<any>;
+  preloadedDataRef: React.RefObject<unknown>;
   thumbnailSize: ThumbnailSize;
   setThumbnailSize: (size: ThumbnailSize) => void;
   thumbnailAspectRatio: ThumbnailAspectRatio;
@@ -30,14 +34,15 @@ interface UseAppInitializationProps {
   setLibraryViewMode: (mode: LibraryViewMode) => void;
 }
 
-const getDefaultLanguage = (i18nInstance: any): string => {
-  const browserLang = navigator.language || (navigator as any).userLanguage || 'en';
+const getDefaultLanguage = (i18nInstance: { language?: string; options?: Record<string, unknown> }): string => {
+  const browserLang = navigator.language || (navigator as unknown as Record<string, unknown>).userLanguage as string || 'en';
   const shortLang = browserLang.split('-')[0].toLowerCase();
-  const supportedLanguages = Object.keys(i18nInstance.options.resources || {});
+  const supportedLanguages = Object.keys((i18nInstance.options as Record<string, unknown>)?.resources as Record<string, unknown> || {});
+  const fallbackLng = (i18nInstance.options as Record<string, unknown>)?.fallbackLng;
   const fallbackLang =
-    typeof i18nInstance.options.fallbackLng === 'string'
-      ? i18nInstance.options.fallbackLng
-      : i18nInstance.options.fallbackLng?.[0] || 'en';
+    typeof fallbackLng === 'string'
+      ? fallbackLng
+      : Array.isArray(fallbackLng) ? fallbackLng[0] as string || 'en' : 'en';
 
   return supportedLanguages.includes(browserLang)
     ? browserLang
@@ -127,14 +132,15 @@ export const useAppInitialization = ({
   }, [initPlatform]);
 
   useEffect(() => {
-    invoke(Invokes.GetSupportedFileTypes)
-      .then((types: any) => setSupportedTypes(types))
+    invoke<unknown>(Invokes.GetSupportedFileTypes)
+      .then((types) => setSupportedTypes(types as SupportedTypes))
       .catch((err) => console.error('Failed to load supported file types:', err));
   }, [setSupportedTypes]);
 
   useEffect(() => {
-    invoke(Invokes.LoadSettings)
-      .then(async (settings: any) => {
+    invoke<unknown>(Invokes.LoadSettings)
+      .then(async (settingsRaw) => {
+        const settings = settingsRaw as AppSettings & Record<string, unknown>;
         if (
           !settings.copyPasteSettings ||
           !settings.copyPasteSettings.includedAdjustments ||
@@ -145,58 +151,60 @@ export const useAppInitialization = ({
 
         if (!settings.language) {
           settings.language = getDefaultLanguage(i18n);
-          handleSettingsChange(settings);
+          handleSettingsChange(settings as AppSettings);
         }
 
-        setAppSettings(settings);
-        i18n.changeLanguage(settings.language);
+        setAppSettings(settings as AppSettings);
+        i18n.changeLanguage(settings.language as string);
 
-        if (settings?.sortCriteria) setSortCriteria(settings.sortCriteria);
+        if (settings?.sortCriteria) setSortCriteria(settings.sortCriteria as import('../components/ui/AppProperties').SortCriteria);
 
         if (settings?.filterCriteria) {
+          const fc = settings.filterCriteria as Record<string, unknown>;
           setFilterCriteria((prev: FilterCriteria) => ({
             ...prev,
-            ...settings.filterCriteria,
-            rawStatus: settings.filterCriteria.rawStatus || RawStatus.All,
-            editedStatus: settings.filterCriteria.editedStatus || EditedStatus.All,
-            colors: settings.filterCriteria.colors || [],
+            ...fc,
+            rawStatus: (fc.rawStatus as RawStatus) || RawStatus.All,
+            editedStatus: (fc.editedStatus as EditedStatus) || EditedStatus.All,
+            colors: (fc.colors as string[]) || [],
           }));
         }
 
-        if (settings?.theme) setTheme(settings.theme);
+        if (settings?.theme) setTheme(settings.theme as Theme);
 
         if (settings?.uiVisibility)
-          setUI((state) => ({ uiVisibility: { ...state.uiVisibility, ...settings.uiVisibility } }));
+          setUI((state) => ({ uiVisibility: { ...state.uiVisibility, ...(settings.uiVisibility as Record<string, unknown>) } }));
 
-        if (settings?.isWaveformVisible !== undefined) setEditor({ isWaveformVisible: settings.isWaveformVisible });
-        if (settings?.activeWaveformChannel) setEditor({ activeWaveformChannel: settings.activeWaveformChannel });
-        if (typeof settings?.waveformHeight === 'number') setEditor({ waveformHeight: settings.waveformHeight });
+        if (settings?.isWaveformVisible != null) setEditor({ isWaveformVisible: settings.isWaveformVisible as boolean });
+        if (settings?.activeWaveformChannel) setEditor({ activeWaveformChannel: settings.activeWaveformChannel as string });
+        if (typeof settings?.waveformHeight === 'number') setEditor({ waveformHeight: settings.waveformHeight as number });
 
-        setLibraryViewMode(settings?.libraryViewMode ?? defaultLibraryViewMode);
-        setThumbnailSize(settings?.thumbnailSize ?? defaultThumbnailSize);
-        if (settings?.thumbnailAspectRatio) setThumbnailAspectRatio(settings.thumbnailAspectRatio);
+        setLibraryViewMode((settings?.libraryViewMode ?? defaultLibraryViewMode) as LibraryViewMode);
+        setThumbnailSize((settings?.thumbnailSize ?? defaultThumbnailSize) as ThumbnailSize);
+        if (settings?.thumbnailAspectRatio) setThumbnailAspectRatio(settings.thumbnailAspectRatio as ThumbnailAspectRatio);
 
-        if (settings?.pinnedFolders && settings.pinnedFolders.length > 0) {
+        const pinnedFolders = (settings as Record<string, unknown>).pinnedFolders as string[] | undefined;
+        if (pinnedFolders && pinnedFolders.length > 0) {
           try {
-            const trees = await invoke(Invokes.GetPinnedFolderTrees, {
-              paths: settings.pinnedFolders,
+            const trees = await invoke<unknown>(Invokes.GetPinnedFolderTrees, {
+              paths: pinnedFolders,
               expanded_folders: settings.lastFolderState?.expandedFolders || [],
-              show_image_counts: settings.enableFolderImageCounts || settings.folderTreeSort?.key === 'imageCount',
+              show_image_counts: settings.enableFolderImageCounts || (settings.folderTreeSort as Record<string, unknown>)?.key === 'imageCount',
             });
-            setLibrary({ pinnedFolderTrees: trees as any[] });
+            setLibrary({ pinnedFolderTrees: trees as FolderTree[] });
           } catch (err) {
             console.error('Failed to load pinned folder trees:', err);
           }
         }
 
-        const rootFolders = settings.rootFolders?.length
-          ? settings.rootFolders
+        const rootFolders = ((settings as Record<string, unknown>).rootFolders as string[] | undefined)?.length
+          ? (settings as Record<string, unknown>).rootFolders as string[]
           : settings.lastRootPath
             ? [settings.lastRootPath]
             : [];
 
         if (!isAndroid && rootFolders.length > 0) {
-          const currentPath = settings.lastFolderState?.currentFolderPath || rootFolders[0];
+          const currentPath = (settings.lastFolderState?.currentFolderPath as string) || rootFolders[0];
           const isAlbum = currentPath.startsWith('Album: ');
           const command =
             settings.libraryViewMode === LibraryViewMode.Recursive
@@ -206,12 +214,12 @@ export const useAppInitialization = ({
           preloadedDataRef.current = {
             rootPaths: rootFolders,
             currentPath: currentPath,
-            trees: invoke(Invokes.GetPinnedFolderTrees, {
+            trees: invoke<unknown>(Invokes.GetPinnedFolderTrees, {
               paths: rootFolders,
               expanded_folders: settings.lastFolderState?.expandedFolders ?? rootFolders,
-              show_image_counts: settings.enableFolderImageCounts || settings.folderTreeSort?.key === 'imageCount',
+              show_image_counts: settings.enableFolderImageCounts || (settings.folderTreeSort as Record<string, unknown>)?.key === 'imageCount',
             }),
-            images: isAlbum ? undefined : invoke(command, { path: currentPath }),
+            images: isAlbum ? undefined : invoke<unknown>(command, { path: currentPath }),
           };
         }
 
@@ -222,12 +230,13 @@ export const useAppInitialization = ({
           });
         }
 
-        invoke('frontend_ready')
-          .then((launch: any) => {
+        invoke<unknown>('frontend_ready')
+          .then((launchRaw) => {
+            const launch = launchRaw as Record<string, unknown>;
             if (launch?.editSession) {
-              useProcessStore.getState().setProcess({ externalEditSession: launch.editSession });
+              useProcessStore.getState().setProcess({ externalEditSession: launch.editSession as ExternalEditSession });
             } else if (launch?.openWithFile) {
-              useProcessStore.getState().setProcess({ initialFileToOpen: launch.openWithFile });
+              useProcessStore.getState().setProcess({ initialFileToOpen: launch.openWithFile as string });
             }
           })
           .catch((e) => console.error('Failed to notify backend of readiness:', e));
@@ -358,12 +367,12 @@ export const useAppInitialization = ({
     if (prevImageCountsNeed.current !== needsImageCounts) {
       prevImageCountsNeed.current = needsImageCounts;
 
-      const rootFolders = (appSettings as any).rootFolders?.length
-        ? (appSettings as any).rootFolders
+      const rootFolders = ((appSettings as Record<string, unknown>).rootFolders as string[] | undefined)?.length
+        ? (appSettings as Record<string, unknown>).rootFolders as string[]
         : appSettings.lastRootPath
           ? [appSettings.lastRootPath]
           : [];
-      const pinnedFolders = appSettings.pinnedFolders || [];
+      const pinnedFolders = (appSettings as Record<string, unknown>).pinnedFolders as string[] || [];
 
       const currentExpanded = Array.from(useLibraryStore.getState().expandedFolders);
 
@@ -373,28 +382,28 @@ export const useAppInitialization = ({
 
       if (pinnedFolders.length > 0) {
         promises.push(
-          invoke(Invokes.GetPinnedFolderTrees, {
+          invoke<unknown>(Invokes.GetPinnedFolderTrees, {
             paths: pinnedFolders,
             expanded_folders: currentExpanded,
             show_image_counts: needsImageCounts,
-          }).then((trees: any) => ({ type: 'pinned', trees })),
+          }).then((trees) => ({ type: 'pinned' as const, trees: trees as FolderTree[] })),
         );
       }
 
       if (rootFolders.length > 0) {
         promises.push(
-          invoke(Invokes.GetPinnedFolderTrees, {
+          invoke<unknown>(Invokes.GetPinnedFolderTrees, {
             paths: rootFolders,
             expanded_folders: currentExpanded,
             show_image_counts: needsImageCounts,
-          }).then((trees: any) => ({ type: 'root', trees })),
+          }).then((trees) => ({ type: 'root' as const, trees: trees as FolderTree[] })),
         );
       }
 
       Promise.all(promises)
         .then((results) => {
           useLibraryStore.getState().setLibrary((_state) => {
-            const updates: any = { isTreeLoading: false };
+            const updates: Record<string, unknown> = { isTreeLoading: false };
             results.forEach((res) => {
               if (res.type === 'pinned') updates.pinnedFolderTrees = res.trees;
               if (res.type === 'root') updates.folderTrees = res.trees;
@@ -419,17 +428,17 @@ export const useAppInitialization = ({
       THEMES.find((t: ThemeProps) => t.id === DEFAULT_THEME_ID);
     if (!baseTheme) return;
 
-    let finalCssVariables: any = { ...baseTheme.cssVariables };
+    const finalCssVariables: Record<string, string> = { ...baseTheme.cssVariables };
 
     Object.entries(finalCssVariables).forEach(([key, value]) => {
       root.style.setProperty(key, value as string);
     });
 
-    const fontFamily = (appSettings as any)?.fontFamily || 'poppins';
+    const fontFamily = (appSettings as Record<string, unknown>)?.fontFamily as string || 'poppins';
     const fontStack =
       fontFamily === 'system'
         ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
         : "'Poppins', system-ui, sans-serif";
     root.style.setProperty('--font-family', fontStack);
-  }, [theme, (appSettings as any)?.fontFamily]);
+  }, [theme, (appSettings as Record<string, unknown>)?.fontFamily]);
 };

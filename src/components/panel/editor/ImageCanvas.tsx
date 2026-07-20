@@ -2,6 +2,10 @@ import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Stage, Layer, Ellipse, Line, Transformer, Group, Circle, Rect } from 'react-konva';
+import type { KonvaEventObject, Node as KonvaNode } from 'konva/lib/Node';
+import type { Stage as KonvaStageClass } from 'konva/lib/Stage';
+import type { Ellipse as KonvaEllipse } from 'konva/lib/shapes/Ellipse';
+import type { Transformer as KonvaTransformer } from 'konva/lib/shapes/Transformer';
 import { PercentCrop, Crop } from 'react-image-crop';
 import { Stamp, Bandage } from 'lucide-react';
 import { Adjustments, AiPatch, Coord, MaskContainer } from '../../../utils/adjustments';
@@ -49,7 +53,7 @@ interface ImageCanvasProps {
   isRotationActive?: boolean;
   maskOverlayUrl: string | null;
   onGenerateAiMask(id: string | null, start: Coord, end: Coord): void;
-  onLiveMaskPreview?: (previewMaskDef: any) => void;
+  onLiveMaskPreview?: (previewMaskDef: Record<string, unknown>) => void;
   onManualCleanup?(subMaskId: string, sourceX: number, sourceY: number): Promise<void> | void;
   onQuickErase(subMaskId: string | null, startPoint: Coord, endpoint: Coord): void;
   onSelectAiSubMask(id: string | null): void;
@@ -83,7 +87,7 @@ interface MaskOverlayProps {
   imageHeight: number;
   imageWidth: number;
   onMaskInteractionEnd(): void;
-  onMaskInteractionStart(event?: any): void;
+  onMaskInteractionStart(event?: KonvaEventObject<PointerEvent | DragEvent | TouchEvent>): void;
   isToolActive: boolean;
   isSelected: boolean;
   showBrushStrokes?: boolean;
@@ -97,6 +101,24 @@ interface MaskOverlayProps {
   offsetX: number;
   offsetY: number;
   stageScale: number;
+}
+
+type MaskParams = Record<string, number | string | boolean | number[] | null>;
+
+type AnyKonvaEventHandler = (e: KonvaEventObject<PointerEvent | DragEvent | TouchEvent | MouseEvent>) => void;
+
+interface RotateStart {
+  angle: number;
+  rotation: number;
+}
+
+interface CloneHealMarker {
+  id: string;
+  containerId: string;
+  type: Mask;
+  cx: number;
+  cy: number;
+  isAi: boolean;
 }
 
 const getEdgeFadeStyle = (fadeDistancePx: number = 128): React.CSSProperties => ({
@@ -213,9 +235,9 @@ const MaskOverlay = memo(
     offsetY,
     stageScale,
   }: MaskOverlayProps) => {
-    const shapeRef = useRef<any>(null);
-    const trRef = useRef<any>(null);
-    const rotateStartRef = useRef<any>(null);
+    const shapeRef = useRef<KonvaEllipse | null>(null);
+    const trRef = useRef<KonvaTransformer | null>(null);
+    const rotateStartRef = useRef<RotateStart | null>(null);
 
     const crop = adjustments.crop;
     const isPercent = crop?.unit === '%';
@@ -224,15 +246,16 @@ const MaskOverlay = memo(
     const cropW = crop ? (isPercent ? (crop.width / 100) * imageWidth : crop.width) : imageWidth;
     const cropH = crop ? (isPercent ? (crop.height / 100) * imageHeight : crop.height) : imageHeight;
 
-    const [p, setP] = useState(subMask.parameters);
-    const pRef = useRef(p);
+    const [p, setP] = useState(subMask.parameters ?? {});
+    const pRef = useRef<MaskParams>(subMask.parameters ?? {});
     const isDragging = useRef(false);
 
     const dragStartPointer = useRef<Coord | null>(null);
-    const dragStartParams = useRef<any>(null);
+    const dragStartParams = useRef<MaskParams | null>(null);
 
     const getPointer = useCallback(
-      (stage: any) => {
+      (stage: KonvaStageClass | null) => {
+        if (!stage) return null;
         const pos = stage.getPointerPosition();
         if (!pos) return null;
         return { x: pos.x / stageScale - offsetX, y: pos.y / stageScale - offsetY };
@@ -240,25 +263,30 @@ const MaskOverlay = memo(
       [offsetX, offsetY, stageScale],
     );
 
+    const setStageCursor = useCallback((e: KonvaEventObject<MouseEvent | PointerEvent>, cursor: string) => {
+      const stage = e.target.getStage();
+      if (stage) stage.container().style.cursor = cursor;
+    }, []);
+
     useEffect(() => {
       if (!isDragging.current) {
-        setP(subMask.parameters);
-        pRef.current = subMask.parameters;
+        setP(subMask.parameters ?? {});
+        pRef.current = subMask.parameters ?? {};
       }
     }, [subMask.parameters]);
 
-    const updateP = useCallback((newP: any) => {
+    const updateP = useCallback((newP: MaskParams) => {
       setP(newP);
       pRef.current = newP;
     }, []);
 
     const handleMaskTouchStart = useCallback(
-      (e: any) => {
-        if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
+      (e: KonvaEventObject<PointerEvent | TouchEvent>) => {
+        if (e.evt && 'button' in e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
 
-        onMaskInteractionStart(e);
-        if (e.evt.cancelable) e.evt.preventDefault();
-        e.evt.stopPropagation?.();
+        onMaskInteractionStart(e as KonvaEventObject<PointerEvent | DragEvent | TouchEvent>);
+        if ('cancelable' in e.evt && e.evt.cancelable) e.evt.preventDefault();
+        if ('stopPropagation' in e.evt) (e.evt as Event).stopPropagation?.();
       },
       [onMaskInteractionStart],
     );
@@ -271,20 +299,20 @@ const MaskOverlay = memo(
 
     useEffect(() => {
       if (isSelected && trRef.current && shapeRef.current) {
-        trRef.current?.nodes([shapeRef.current]);
-        trRef.current?.getLayer().batchDraw();
+        trRef.current.nodes([shapeRef.current]);
+        trRef.current.getLayer()?.batchDraw();
       }
     }, [isSelected, isToolActive]);
 
-    const lockDragBoundFunc = useCallback(function (this: any) {
+    const lockDragBoundFunc = useCallback(function (this: KonvaNode, pos: import('konva/lib/types').Vector2d) {
       return this.getAbsolutePosition();
     }, []);
 
     const handleRadialDragStart = useCallback(
-      (e: any) => {
-        if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
+      (e: KonvaEventObject<PointerEvent | DragEvent>) => {
+        if (e.evt && 'button' in e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
         isDragging.current = true;
-        onMaskInteractionStart(e);
+        onMaskInteractionStart(e as KonvaEventObject<PointerEvent | DragEvent | TouchEvent>);
         dragStartPointer.current = getPointer(e.target.getStage());
         dragStartParams.current = { ...pRef.current };
       },
@@ -292,7 +320,7 @@ const MaskOverlay = memo(
     );
 
     const handleRadialDragMove = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | DragEvent>) => {
         const pointerPos = getPointer(e.target.getStage());
         if (!pointerPos || !dragStartPointer.current || !dragStartParams.current) return;
 
@@ -301,8 +329,8 @@ const MaskOverlay = memo(
 
         const newP = {
           ...dragStartParams.current,
-          centerX: dragStartParams.current.centerX + dx,
-          centerY: dragStartParams.current.centerY + dy,
+          centerX: (dragStartParams.current.centerX as number) + dx,
+          centerY: (dragStartParams.current.centerY as number) + dy,
         };
 
         updateP(newP);
@@ -320,9 +348,9 @@ const MaskOverlay = memo(
     }, [subMask.id, onMaskInteractionEnd, onUpdate]);
 
     const handleRadialTransformStart = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | DragEvent>) => {
         isDragging.current = true;
-        onMaskInteractionStart(e);
+        onMaskInteractionStart(e as KonvaEventObject<PointerEvent | DragEvent | TouchEvent>);
       },
       [onMaskInteractionStart],
     );
@@ -334,16 +362,19 @@ const MaskOverlay = memo(
       const scaleX = Math.abs(node.scaleX());
       const scaleY = Math.abs(node.scaleY());
 
-      if (pRef.current.radiusX * scaleX < 5 || pRef.current.radiusY * scaleY < 5) {
-        node.scaleX(node.lastValidScaleX || 1);
-        node.scaleY(node.lastValidScaleY || 1);
+      const curRadiusX = pRef.current.radiusX as number;
+      const curRadiusY = pRef.current.radiusY as number;
+
+      if (curRadiusX * scaleX < 5 || curRadiusY * scaleY < 5) {
+        node.scaleX((node as unknown as Record<string, number>).lastValidScaleX || 1);
+        node.scaleY((node as unknown as Record<string, number>).lastValidScaleY || 1);
       } else {
-        node.lastValidScaleX = scaleX;
-        node.lastValidScaleY = scaleY;
+        (node as unknown as Record<string, number>).lastValidScaleX = scaleX;
+        (node as unknown as Record<string, number>).lastValidScaleY = scaleY;
       }
 
-      const newRadiusX = pRef.current.radiusX * node.scaleX();
-      const newRadiusY = pRef.current.radiusY * node.scaleY();
+      const newRadiusX = curRadiusX * node.scaleX();
+      const newRadiusY = curRadiusY * node.scaleY();
 
       const newP = {
         ...pRef.current,
@@ -368,8 +399,11 @@ const MaskOverlay = memo(
       const scaleX = node.scaleX();
       const scaleY = node.scaleY();
 
-      const newRadiusX = pRef.current.radiusX * scaleX;
-      const newRadiusY = pRef.current.radiusY * scaleY;
+      const curRadiusX = pRef.current.radiusX as number;
+      const curRadiusY = pRef.current.radiusY as number;
+
+      const newRadiusX = curRadiusX * scaleX;
+      const newRadiusY = curRadiusY * scaleY;
 
       node.scaleX(1);
       node.scaleY(1);
@@ -390,9 +424,10 @@ const MaskOverlay = memo(
     }, [scale, cropX, cropY, updateP, onMaskInteractionEnd, onUpdate, subMask.id]);
 
     const setRotateCursor = useCallback(
-      (stage: any, pointerPos: any) => {
-        const cx = (pRef.current.centerX - cropX) * scale;
-        const cy = (pRef.current.centerY - cropY) * scale;
+      (stage: KonvaStageClass | null, pointerPos: Coord) => {
+        if (!stage) return;
+        const cx = ((pRef.current.centerX as number) - cropX) * scale;
+        const cy = ((pRef.current.centerY as number) - cropY) * scale;
         const angle = Math.atan2(pointerPos.y - cy, pointerPos.x - cx) * (180 / Math.PI);
 
         const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.8));">
@@ -409,8 +444,8 @@ const MaskOverlay = memo(
     );
 
     const handleRotateStart = useCallback(
-      (e: any) => {
-        if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
+      (e: KonvaEventObject<PointerEvent | DragEvent | TouchEvent>) => {
+        if (e.evt && 'button' in e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
 
         isDragging.current = true;
         onMaskInteractionStart(e);
@@ -421,20 +456,20 @@ const MaskOverlay = memo(
         const pointer = getPointer(stage);
         if (!pointer) return;
 
-        const cx = (pRef.current.centerX - cropX) * scale;
-        const cy = (pRef.current.centerY - cropY) * scale;
+        const cx = ((pRef.current.centerX as number) - cropX) * scale;
+        const cy = ((pRef.current.centerY as number) - cropY) * scale;
 
         const startAngle = Math.atan2(pointer.y - cy, pointer.x - cx);
         rotateStartRef.current = {
           angle: startAngle,
-          rotation: pRef.current.rotation || 0,
+          rotation: (pRef.current.rotation as number) || 0,
         };
       },
       [onMaskInteractionStart, cropX, cropY, scale, getPointer],
     );
 
     const handleRotateMove = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | DragEvent | TouchEvent>) => {
         if (!rotateStartRef.current) return;
         const stage = e.target.getStage();
         const pointer = getPointer(stage);
@@ -442,8 +477,8 @@ const MaskOverlay = memo(
 
         setRotateCursor(stage, pointer);
 
-        const cx = (pRef.current.centerX - cropX) * scale;
-        const cy = (pRef.current.centerY - cropY) * scale;
+        const cx = ((pRef.current.centerX as number) - cropX) * scale;
+        const cy = ((pRef.current.centerY as number) - cropY) * scale;
 
         const currentAngle = Math.atan2(pointer.y - cy, pointer.x - cx);
         const angleDiff = currentAngle - rotateStartRef.current.angle;
@@ -464,21 +499,22 @@ const MaskOverlay = memo(
     );
 
     const handleRotateEnd = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | DragEvent | TouchEvent>) => {
         isDragging.current = false;
         rotateStartRef.current = null;
         onMaskInteractionEnd();
         onUpdate(subMask.id, { parameters: pRef.current });
 
         if (e?.target?.getStage) {
-          e.target.getStage().container().style.cursor = '';
+          const stage = e.target.getStage();
+          if (stage) stage.container().style.cursor = '';
         }
       },
       [subMask.id, onMaskInteractionEnd, onUpdate],
     );
 
     const handleRotateHoverMove = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | MouseEvent>) => {
         if (isToolActive || isDragging.current) return;
         const stage = e.target.getStage();
         const pointer = getPointer(stage);
@@ -488,7 +524,7 @@ const MaskOverlay = memo(
     );
 
     const handleRotateMouseEnter = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | MouseEvent>) => {
         onMaskMouseEnter();
         if (!isToolActive && !isDragging.current) {
           const stage = e.target.getStage();
@@ -500,21 +536,21 @@ const MaskOverlay = memo(
     );
 
     const handleRotateMouseLeave = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | MouseEvent>) => {
         onMaskMouseLeave();
         if (!isDragging.current) {
           const stage = e.target.getStage();
-          stage.container().style.cursor = '';
+          if (stage) stage.container().style.cursor = '';
         }
       },
       [onMaskMouseLeave],
     );
 
     const handleLinearGroupDragStart = useCallback(
-      (e: any) => {
-        if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
+      (e: KonvaEventObject<PointerEvent | DragEvent | TouchEvent>) => {
+        if (e.evt && 'button' in e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
         isDragging.current = true;
-        onMaskInteractionStart(e);
+        onMaskInteractionStart(e as KonvaEventObject<PointerEvent | DragEvent | TouchEvent>);
         dragStartPointer.current = getPointer(e.target.getStage());
         dragStartParams.current = { ...pRef.current };
         e.cancelBubble = true;
@@ -523,7 +559,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearGroupDragMove = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | DragEvent>) => {
         const pointerPos = getPointer(e.target.getStage());
         if (!pointerPos || !dragStartPointer.current || !dragStartParams.current) return;
 
@@ -532,10 +568,10 @@ const MaskOverlay = memo(
 
         const newP = {
           ...dragStartParams.current,
-          startX: dragStartParams.current.startX + dx,
-          startY: dragStartParams.current.startY + dy,
-          endX: dragStartParams.current.endX + dx,
-          endY: dragStartParams.current.endY + dy,
+          startX: (dragStartParams.current.startX as number) + dx,
+          startY: (dragStartParams.current.startY as number) + dy,
+          endX: (dragStartParams.current.endX as number) + dx,
+          endY: (dragStartParams.current.endY as number) + dy,
         };
 
         updateP(newP);
@@ -546,7 +582,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearGroupDragEnd = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | DragEvent>) => {
         isDragging.current = false;
         e.cancelBubble = true;
         onMaskInteractionEnd();
@@ -556,17 +592,17 @@ const MaskOverlay = memo(
     );
 
     const handleLinearPointDragStart = useCallback(
-      (e: any) => {
-        if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
+      (e: KonvaEventObject<PointerEvent | DragEvent | TouchEvent>) => {
+        if (e.evt && 'button' in e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) return;
         isDragging.current = true;
-        onMaskInteractionStart(e);
+        onMaskInteractionStart(e as KonvaEventObject<PointerEvent | DragEvent | TouchEvent>);
         e.cancelBubble = true;
       },
       [onMaskInteractionStart],
     );
 
     const handleLinearPointDragMove = useCallback(
-      (e: any, pointType: string) => {
+      (e: KonvaEventObject<PointerEvent | DragEvent>, pointType: string) => {
         const stage = e.target.getStage();
         const pointerPos = getPointer(stage);
         if (!pointerPos) return;
@@ -590,12 +626,15 @@ const MaskOverlay = memo(
     );
 
     const handleLinearRangeDragMove = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | DragEvent>) => {
         const stage = e.target.getStage();
         const pointerPos = getPointer(stage);
         if (!pointerPos) return;
 
-        const { startX, startY, endX, endY } = pRef.current;
+        const startX = pRef.current.startX as number;
+        const startY = pRef.current.startY as number;
+        const endX = pRef.current.endX as number;
+        const endY = pRef.current.endY as number;
         const sX = (startX - cropX) * scale;
         const sY = (startY - cropY) * scale;
         const eX = (endX - cropX) * scale;
@@ -605,7 +644,7 @@ const MaskOverlay = memo(
         const dy = eY - sY;
         const len = Math.sqrt(dx * dx + dy * dy);
 
-        let newRange = pRef.current.range;
+        let newRange = pRef.current.range as number;
         if (len > 0) {
           const dist = Math.abs(dx * (sY - pointerPos.y) - (sX - pointerPos.x) * dy) / len;
           newRange = Math.max(0.1, dist / scale);
@@ -621,7 +660,7 @@ const MaskOverlay = memo(
     );
 
     const handleLinearPointDragEnd = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent | DragEvent>) => {
         isDragging.current = false;
         e.cancelBubble = true;
         onMaskInteractionEnd();
@@ -651,7 +690,10 @@ const MaskOverlay = memo(
     };
 
     if (subMask.type === Mask.AiSubject || subMask.type === Mask.QuickEraser) {
-      const { startX, startY, endX, endY } = p;
+      const startX = p.startX as number;
+      const startY = p.startY as number;
+      const endX = p.endX as number;
+      const endY = p.endY as number;
       if (startX !== undefined && startY !== undefined && endX !== undefined && endY !== undefined) {
         const isPoint = Math.abs(startX - endX) < 1e-6 && Math.abs(startY - endY) < 1e-6;
         if (isPoint) {
@@ -699,7 +741,9 @@ const MaskOverlay = memo(
       subMask.type === Mask.Clone ||
       subMask.type === Mask.Heal
     ) {
-      const { lines = [], sourceX, sourceY } = p;
+      const lines = (p.lines as unknown as DrawnLine[] | undefined) ?? [];
+      const sourceX = p.sourceX as number | undefined;
+      const sourceY = p.sourceY as number | undefined;
 
       let dx = 0;
       let dy = 0;
@@ -795,7 +839,11 @@ const MaskOverlay = memo(
     }
 
     if (subMask.type === Mask.Radial) {
-      const { centerX, centerY, radiusX, radiusY, rotation } = p;
+      const centerX = p.centerX as number;
+      const centerY = p.centerY as number;
+      const radiusX = p.radiusX as number;
+      const radiusY = p.radiusY as number;
+      const rotation = p.rotation as number;
       if (p.isInitialDraw && (radiusX < 1 || radiusY < 2)) return null;
 
       return (
@@ -831,16 +879,18 @@ const MaskOverlay = memo(
             onDragStart={handleRadialDragStart}
             onDragMove={handleRadialDragMove}
             onDragEnd={handleRadialDragEnd}
-            onMouseEnter={(e: any) => {
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
               onMaskMouseEnter();
               if (!isToolActive && !isDragging.current) {
-                e.target.getStage().container().style.cursor = 'move';
+                const stage = e.target.getStage();
+                if (stage) stage.container().style.cursor = 'move';
               }
             }}
-            onMouseLeave={(e: any) => {
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
               onMaskMouseLeave();
               if (!isDragging.current && e?.target?.getStage) {
-                e.target.getStage().container().style.cursor = '';
+                const stage = e.target.getStage();
+                if (stage) stage.container().style.cursor = '';
               }
             }}
             onTouchEnd={handleMaskTouchEnd}
@@ -896,7 +946,11 @@ const MaskOverlay = memo(
 
     if (subMask.type === Mask.Linear) {
       const defaultRange = Math.min(cropW, cropH) * 0.1;
-      const { startX, startY, endX, endY, range = defaultRange } = p;
+      const startX = p.startX as number;
+      const startY = p.startY as number;
+      const endX = p.endX as number;
+      const endY = p.endY as number;
+      const range = (p.range as number) ?? defaultRange;
 
       const flickDistX = startX - endX;
       const flickDistY = startY - endY;
@@ -959,13 +1013,13 @@ const MaskOverlay = memo(
             onTap={handleSelect}
             onTouchEnd={handleMaskTouchEnd}
             onTouchStart={handleMaskTouchStart}
-            onMouseEnter={(e: any) => {
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
               onMaskMouseEnter();
-              if (!isToolActive) e.target.getStage().container().style.cursor = 'move';
+              if (!isToolActive) setStageCursor(e, 'move');
             }}
-            onMouseLeave={(e: any) => {
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
               onMaskMouseLeave();
-              e.target.getStage().container().style.cursor = '';
+              setStageCursor(e, '');
             }}
           >
             <Line points={[-5000, 0, 5000, 0]} {...lineProps} dash={[2, 3]} />
@@ -983,13 +1037,13 @@ const MaskOverlay = memo(
                 onDragEnd={handleLinearPointDragEnd}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
-                onMouseEnter={(e: any) => {
+                onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseEnter();
-                  if (!isToolActive) e.target.getStage().container().style.cursor = 'row-resize';
+                  if (!isToolActive) setStageCursor(e, 'row-resize');
                 }}
-                onMouseLeave={(e: any) => {
+                onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseLeave();
-                  e.target.getStage().container().style.cursor = '';
+                  setStageCursor(e, '');
                 }}
               />
               <Line
@@ -1002,13 +1056,13 @@ const MaskOverlay = memo(
                 onDragEnd={handleLinearPointDragEnd}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
-                onMouseEnter={(e: any) => {
+                onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseEnter();
-                  if (!isToolActive) e.target.getStage().container().style.cursor = 'row-resize';
+                  if (!isToolActive) setStageCursor(e, 'row-resize');
                 }}
-                onMouseLeave={(e: any) => {
+                onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseLeave();
-                  e.target.getStage().container().style.cursor = '';
+                  setStageCursor(e, '');
                 }}
               />
             </>
@@ -1030,13 +1084,13 @@ const MaskOverlay = memo(
                 onDragEnd={handleLinearPointDragEnd}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
-                onMouseEnter={(e: any) => {
+                onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseEnter();
-                  e.target.getStage().container().style.cursor = 'grab';
+                  setStageCursor(e, 'grab');
                 }}
-                onMouseLeave={(e: any) => {
+                onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseLeave();
-                  e.target.getStage().container().style.cursor = '';
+                  setStageCursor(e, '');
                 }}
               />
               <Circle
@@ -1053,13 +1107,13 @@ const MaskOverlay = memo(
                 onDragEnd={handleLinearPointDragEnd}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
-                onMouseEnter={(e: any) => {
+                onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseEnter();
-                  e.target.getStage().container().style.cursor = 'grab';
+                  setStageCursor(e, 'grab');
                 }}
-                onMouseLeave={(e: any) => {
+                onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseLeave();
-                  e.target.getStage().container().style.cursor = '';
+                  setStageCursor(e, '');
                 }}
               />
             </>
@@ -1077,13 +1131,13 @@ const MaskOverlay = memo(
                 onTap={handleSelect}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
-                onMouseEnter={(e: any) => {
+                onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseEnter();
-                  if (!isToolActive) e.target.getStage().container().style.cursor = 'row-resize';
+                  if (!isToolActive) setStageCursor(e, 'row-resize');
                 }}
-                onMouseLeave={(e: any) => {
+                onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseLeave();
-                  e.target.getStage().container().style.cursor = '';
+                  setStageCursor(e, '');
                 }}
               />
               <Line
@@ -1096,13 +1150,13 @@ const MaskOverlay = memo(
                 onTap={handleSelect}
                 onTouchEnd={handleMaskTouchEnd}
                 onTouchStart={handleMaskTouchStart}
-                onMouseEnter={(e: any) => {
+                onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseEnter();
-                  if (!isToolActive) e.target.getStage().container().style.cursor = 'row-resize';
+                  if (!isToolActive) setStageCursor(e, 'row-resize');
                 }}
-                onMouseLeave={(e: any) => {
+                onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
                   onMaskMouseLeave();
-                  e.target.getStage().container().style.cursor = '';
+                  setStageCursor(e, '');
                 }}
               />
             </>
@@ -1112,7 +1166,8 @@ const MaskOverlay = memo(
     }
 
     if (subMask.type === Mask.Color || subMask.type === Mask.Luminance) {
-      const { targetX, targetY } = p;
+      const targetX = p.targetX as number | undefined;
+      const targetY = p.targetY as number | undefined;
       if (targetX !== undefined && targetX >= 0 && targetY !== undefined && targetY >= 0) {
         return (
           <Circle
@@ -1200,11 +1255,11 @@ const ImageCanvas = memo(
     const cropImageRef = useRef<HTMLImageElement>(null);
     const [displayedMaskUrl, setDisplayedMaskUrl] = useState<string | null>(null);
     const [originalLoaded, setOriginalLoaded] = useState<boolean>(false);
-    const [localInitialDrawParams, setLocalInitialDrawParams] = useState<any>(null);
+    const [localInitialDrawParams, setLocalInitialDrawParams] = useState<MaskParams | null>(null);
     const [isMaskInteractionActive, setIsMaskInteractionActive] = useState(false);
     const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
     const isDrawing = useRef(false);
-    const drawingStageRef = useRef<any>(null);
+    const drawingStageRef = useRef<KonvaStageClass | null>(null);
     const dragStartPointer = useRef<Coord | null>(null);
     const lastBrushPoint = useRef<Coord | null>(null);
     const currentLine = useRef<DrawnLine | null>(null);
@@ -1213,7 +1268,7 @@ const ImageCanvas = memo(
     const activeStrokeIndex = useRef<number | null>(null);
 
     const [cursorPreview, setCursorPreview] = useState<CursorPreview>({ x: 0, y: 0, visible: false });
-    const [straightenLine, setStraightenLine] = useState<any>(null);
+    const [straightenLine, setStraightenLine] = useState<{ start: Coord; end: Coord } | null>(null);
     const isStraightening = useRef(false);
 
     const [displayState, setDisplayState] = useState({
@@ -1303,7 +1358,8 @@ const ImageCanvas = memo(
     const maxSafeScale = Math.max(1, Math.min(settledScale, 4092 / maxDimension));
 
     const getCanvasPointer = useCallback(
-      (stage: any) => {
+      (stage: KonvaStageClass | null) => {
+        if (!stage) return null;
         const pos = stage.getPointerPosition();
         if (!pos) return null;
         return {
@@ -1373,29 +1429,29 @@ const ImageCanvas = memo(
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Alt') {
           e.preventDefault();
-          (window as any).altKeyDown = true;
+          (window as unknown as Record<string, unknown>).altKeyDown = true;
           setIsAltPressed(true);
         }
         if (e.key === 'Control' || e.key === 'Meta') {
-          (window as any).ctrlKeyDown = true;
+          (window as unknown as Record<string, unknown>).ctrlKeyDown = true;
           setIsCtrlPressed(true);
         }
       };
       const handleKeyUp = (e: KeyboardEvent) => {
         if (e.key === 'Alt') {
           e.preventDefault();
-          (window as any).altKeyDown = false;
+          (window as unknown as Record<string, unknown>).altKeyDown = false;
           setIsAltPressed(false);
         }
         if (e.key === 'Control' || e.key === 'Meta') {
-          (window as any).ctrlKeyDown = false;
+          (window as unknown as Record<string, unknown>).ctrlKeyDown = false;
           setIsCtrlPressed(false);
         }
       };
       const handleBlur = () => {
-        (window as any).altKeyDown = false;
+        (window as unknown as Record<string, unknown>).altKeyDown = false;
         setIsAltPressed(false);
-        (window as any).ctrlKeyDown = false;
+        (window as unknown as Record<string, unknown>).ctrlKeyDown = false;
         setIsCtrlPressed(false);
       };
 
@@ -1407,8 +1463,8 @@ const ImageCanvas = memo(
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
         window.removeEventListener('blur', handleBlur);
-        (window as any).altKeyDown = false;
-        (window as any).ctrlKeyDown = false;
+        (window as unknown as Record<string, unknown>).altKeyDown = false;
+        (window as unknown as Record<string, unknown>).ctrlKeyDown = false;
       };
     }, []);
 
@@ -1481,7 +1537,7 @@ const ImageCanvas = memo(
     const isCloneOrHealActive =
       (isMasking || isAiEditing) && (activeSubMask?.type === Mask.Clone || activeSubMask?.type === Mask.Heal);
 
-    const activeLineFlow = activeSubMask?.type === Mask.Flow ? (activeSubMask?.parameters?.flow ?? 10) : undefined;
+    const activeLineFlow = activeSubMask?.type === Mask.Flow ? ((activeSubMask?.parameters?.flow as number) ?? 10) : undefined;
 
     const brushCursorPreview = useMemo(() => {
       const radius = Math.max(0.1, brushStageSize / 2);
@@ -1492,7 +1548,7 @@ const ImageCanvas = memo(
           ? Math.max(0, Math.min(1, activeContainer.opacity / 100))
           : 1;
       const flowOpacity =
-        activeSubMask?.type === Mask.Flow ? Math.max(0, Math.min(1, (activeSubMask.parameters?.flow ?? 10) / 100)) : 1;
+        activeSubMask?.type === Mask.Flow ? Math.max(0, Math.min(1, ((activeSubMask.parameters?.flow as number) ?? 10) / 100)) : 1;
       const alpha = Math.max(0, Math.min(0.5, 0.5 * subMaskOpacity * containerOpacity * flowOpacity));
 
       const isEraser = isAltPressed ? baseTool !== ToolType.Eraser : baseTool === ToolType.Eraser;
@@ -1598,14 +1654,14 @@ const ImageCanvas = memo(
     }, [activeContainer, activeMaskId, activeAiSubMaskId, isMasking, isAiEditing]);
 
     const cloneHealMarkers = useMemo(() => {
-      const markers: any[] = [];
+      const markers: CloneHealMarker[] = [];
       if (!adjustments.aiPatches && !adjustments.masks) return markers;
 
-      const processContainers = (containers: any[], isAi: boolean) => {
+      const processContainers = (containers: MaskContainer[] | AiPatch[], isAi: boolean) => {
         containers.forEach((container) => {
           container.subMasks.forEach((sm: SubMask) => {
             if (sm.type !== Mask.Clone && sm.type !== Mask.Heal) return;
-            const lines = sm.parameters?.lines || [];
+            const lines = (sm.parameters?.lines as DrawnLine[] | undefined) ?? [];
             if (lines.length === 0) return;
 
             let minX = Infinity,
@@ -1625,8 +1681,8 @@ const ImageCanvas = memo(
             const drawingCenterX = (minX + maxX) / 2;
             const drawingCenterY = (minY + maxY) / 2;
 
-            const sourceX = sm.parameters?.sourceX;
-            const sourceY = sm.parameters?.sourceY;
+            const sourceX = sm.parameters?.sourceX as number | undefined;
+            const sourceY = sm.parameters?.sourceY as number | undefined;
 
             let cx = drawingCenterX;
             let cy = drawingCenterY;
@@ -1638,7 +1694,7 @@ const ImageCanvas = memo(
 
             markers.push({
               id: sm.id,
-              containerId: container.id,
+              containerId: container.id as string,
               type: sm.type,
               cx,
               cy,
@@ -1664,7 +1720,7 @@ const ImageCanvas = memo(
     }, [isCropping, uncroppedAdjustedPreviewUrl]);
 
     const handleWbClick = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent>) => {
         if (!isWbPickerActive || !finalPreviewUrl || !onWbPicked) return;
 
         const stage = e.target.getStage();
@@ -1758,8 +1814,8 @@ const ImageCanvas = memo(
     );
 
     const handleStart = useCallback(
-      (e: any) => {
-        if (e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) {
+      (e: KonvaEventObject<PointerEvent | TouchEvent>) => {
+        if (e.evt && 'button' in e.evt && typeof e.evt.button === 'number' && e.evt.button !== 0) {
           return;
         }
 
@@ -1831,7 +1887,7 @@ const ImageCanvas = memo(
         }
 
         if (isManualCleanupActive && activeSubMask) {
-          const isCtrlPressedLocal = e.evt.ctrlKey || e.evt.metaKey || (window as any).ctrlKeyDown;
+          const isCtrlPressedLocal = e.evt.ctrlKey || e.evt.metaKey || (window as unknown as Record<string, unknown>).ctrlKeyDown;
           if (isCtrlPressedLocal || activeSubMask.parameters?.sourceX === undefined) {
             const pos = getCanvasPointer(e.target.getStage());
             if (!pos) return;
@@ -1846,7 +1902,7 @@ const ImageCanvas = memo(
                 parameters: { ...activeSubMask.parameters, sourceX: x, sourceY: y },
               });
 
-              if (onManualCleanup && activeSubMask.parameters?.lines?.length > 0) {
+              if (onManualCleanup && ((activeSubMask.parameters?.lines as DrawnLine[] | undefined)?.length ?? 0) > 0) {
                 onManualCleanup(activeId, x, y);
               }
             }
@@ -1878,7 +1934,7 @@ const ImageCanvas = memo(
             return;
           }
 
-          const isAltPressed = e.evt.altKey || (window as any).altKeyDown;
+          const isAltPressed = e.evt.altKey || (window as unknown as Record<string, unknown>).altKeyDown;
           let effectiveTool;
 
           if (isAiSubjectActive) {
@@ -1920,12 +1976,12 @@ const ImageCanvas = memo(
             };
 
             const activeId = isMasking ? activeMaskId : activeAiSubMaskId;
-            const existingLines = activeSubMask?.parameters?.lines || [];
+            const existingLines = (activeSubMask?.parameters?.lines as DrawnLine[] | undefined) ?? [];
 
             updateSubMask(activeId, {
               parameters: {
-                ...activeSubMask?.parameters,
-                lines: [...existingLines, imageSpaceLine],
+                ...(activeSubMask?.parameters ?? {}),
+                lines: [...existingLines, imageSpaceLine] as unknown as number[],
               },
             });
 
@@ -1993,19 +2049,24 @@ const ImageCanvas = memo(
     );
 
     const handleMove = useCallback(
-      (e: any) => {
+      (e: KonvaEventObject<PointerEvent> | MouseEvent | TouchEvent) => {
         if (isWbPickerActive) {
           return;
         }
 
+        const nativeEvt = e instanceof MouseEvent || e instanceof TouchEvent ? e : (e as KonvaEventObject<PointerEvent>).evt;
+
         let pos;
-        if (e && typeof e.target?.getStage === 'function') {
-          const stage = e.target.getStage();
-          pos = getCanvasPointer(stage);
-        } else if (e && (e.clientX != null || (e.touches && e.touches[0]))) {
+        if (e instanceof MouseEvent || e instanceof TouchEvent) {
           const stage = drawingStageRef.current;
           if (stage) {
             stage.setPointersPositions(e);
+            pos = getCanvasPointer(stage);
+          }
+        } else if (e && typeof e === 'object' && 'target' in e) {
+          const konvaEvt = e as KonvaEventObject<PointerEvent>;
+          if (typeof konvaEvt.target?.getStage === 'function') {
+            const stage = konvaEvt.target.getStage();
             pos = getCanvasPointer(stage);
           }
         }
@@ -2027,13 +2088,13 @@ const ImageCanvas = memo(
           const updatedBox = { ...previewBoxRef.current, end: pos };
           previewBoxRef.current = updatedBox;
           setPreviewBox(updatedBox);
-          if (e.evt && e.evt.cancelable) e.evt.preventDefault();
+          if (nativeEvt && nativeEvt.cancelable) nativeEvt.preventDefault();
           return;
         }
 
         if (isInitialDrawing && dragStartPointer.current && activeSubMask && localInitialDrawParams) {
           const stage =
-            drawingStageRef.current || (e && typeof e.target?.getStage === 'function' ? e.target.getStage() : null);
+            drawingStageRef.current || (e instanceof MouseEvent || e instanceof TouchEvent ? null : (typeof (e as KonvaEventObject<PointerEvent>).target?.getStage === 'function' ? (e as KonvaEventObject<PointerEvent>).target.getStage() : null));
           if (!stage) return;
           const pointerPos = getCanvasPointer(stage);
           if (!pointerPos) return;
@@ -2091,7 +2152,7 @@ const ImageCanvas = memo(
             updateSubMask(activeId, { parameters: updatedParams });
           }
 
-          if (e.evt && e.evt.cancelable) e.evt.preventDefault();
+          if (nativeEvt && nativeEvt.cancelable) nativeEvt.preventDefault();
           return;
         }
 
@@ -2105,7 +2166,7 @@ const ImageCanvas = memo(
             const dx = pos.x - lastPoint.x;
             const dy = pos.y - lastPoint.y;
             if (dx * dx + dy * dy < 4) {
-              if (e.evt && e.evt.cancelable) e.evt.preventDefault();
+              if (nativeEvt && nativeEvt.cancelable) nativeEvt.preventDefault();
               return;
             }
           }
@@ -2132,7 +2193,7 @@ const ImageCanvas = memo(
               tool: updatedLine.tool,
             };
 
-            const existingLines = activeSubMask?.parameters?.lines ? [...activeSubMask.parameters.lines] : [];
+            const existingLines = activeSubMask?.parameters?.lines ? [...(activeSubMask.parameters.lines as DrawnLine[])] : [];
 
             if (activeStrokeIndex.current !== null && activeStrokeIndex.current < existingLines.length) {
               existingLines[activeStrokeIndex.current] = imageSpaceLine;
@@ -2148,10 +2209,10 @@ const ImageCanvas = memo(
               },
             });
 
-            const sourceX = activeSubMask?.parameters.sourceX;
-            const sourceY = activeSubMask?.parameters.sourceY;
+            const sourceX = activeSubMask?.parameters?.sourceX as number | undefined;
+            const sourceY = activeSubMask?.parameters?.sourceY as number | undefined;
             if (sourceX !== undefined && sourceY !== undefined) {
-              triggerManualCleanup(activeId, sourceX, sourceY);
+              triggerManualCleanup(activeId, sourceX as number, sourceY as number);
             }
           } else if (onLiveMaskPreview && activeContainer && activeSubMask && isBrushActive) {
             const { scale } = imageRenderSize;
@@ -2185,7 +2246,7 @@ const ImageCanvas = memo(
 
             onLiveMaskPreview(previewContainer);
           }
-          if (e.evt && e.evt.cancelable) e.evt.preventDefault();
+          if (nativeEvt && nativeEvt.cancelable) nativeEvt.preventDefault();
         }
       },
       [
@@ -2230,11 +2291,11 @@ const ImageCanvas = memo(
         const newParams = { ...localInitialDrawParams };
         delete newParams.isInitialDraw;
 
-        if (activeSubMask.type === Mask.Radial && newParams.radiusX < 10 && newParams.radiusY < 10) {
+        if (activeSubMask.type === Mask.Radial && (newParams.radiusX as number) < 10 && (newParams.radiusY as number) < 10) {
           newParams.radiusX = 100;
           newParams.radiusY = 100;
         } else if (activeSubMask.type === Mask.Linear) {
-          if (!newParams.range || newParams.range < 10) {
+          if (!(newParams.range as number) || (newParams.range as number) < 10) {
             const handleDist = Math.min(effectiveImageDimensions.width, effectiveImageDimensions.height) * 0.2;
             const startPtr = dragStartPointer.current;
             if (!startPtr) return;
@@ -2351,8 +2412,8 @@ const ImageCanvas = memo(
         }
 
         if (isManualCleanupActive && activeId) {
-          const sourceX = activeSubMask?.parameters.sourceX;
-          const sourceY = activeSubMask?.parameters.sourceY;
+          const sourceX = activeSubMask?.parameters?.sourceX as number | undefined;
+          const sourceY = activeSubMask?.parameters?.sourceY as number | undefined;
           if (sourceX !== undefined && sourceY !== undefined) {
             triggerManualCleanup(activeId, sourceX, sourceY);
           }
@@ -2419,23 +2480,27 @@ const ImageCanvas = memo(
       };
     }, [isToolActive, handleMove, handleUp]);
 
-    const handleStraightenMouseDown = (e: any) => {
-      if (e.evt.button !== 0 && !e.evt.touches) {
+    const handleStraightenMouseDown = (e: KonvaEventObject<PointerEvent>) => {
+        if (e.evt.button !== 0 && !('touches' in e.evt)) {
         return;
       }
 
       isStraightening.current = true;
-      const pos = e.target.getStage().getPointerPosition();
+      const stage = e.target.getStage();
+      const pos = stage ? stage.getPointerPosition() : null;
+      if (!pos) return;
       setStraightenLine({ start: pos, end: pos });
     };
 
-    const handleStraightenMouseMove = (e: any) => {
+    const handleStraightenMouseMove = (e: KonvaEventObject<PointerEvent>) => {
       if (!isStraightening.current) {
         return;
       }
 
-      const pos = e.target.getStage().getPointerPosition();
-      setStraightenLine((prev: any) => ({ ...prev, end: pos }));
+      const stage = e.target.getStage();
+      const pos = stage ? stage.getPointerPosition() : null;
+      if (!pos) return;
+      setStraightenLine((prev: { start: Coord; end: Coord } | null) => prev ? { ...prev, end: pos } : null);
       if (e.evt && e.evt.cancelable) e.evt.preventDefault();
     };
 
@@ -2641,7 +2706,7 @@ const ImageCanvas = memo(
     );
 
     const handleMaskInteractionStart = useCallback(
-      (e?: any) => {
+      (e?: KonvaEventObject<PointerEvent>) => {
         setIsMaskInteractionActive(true);
         const eventType = e?.evt?.type;
         if (eventType === 'touchstart') {
@@ -2851,8 +2916,8 @@ const ImageCanvas = memo(
                     className="absolute pointer-events-auto rounded-full"
                     style={{
                       left:
-                        (activeSubMask.parameters.sourceX - cropX) * imageRenderSize.scale + imageRenderSize.offsetX,
-                      top: (activeSubMask.parameters.sourceY - cropY) * imageRenderSize.scale + imageRenderSize.offsetY,
+                        ((activeSubMask.parameters.sourceX as number) - cropX) * imageRenderSize.scale + imageRenderSize.offsetX,
+                      top: ((activeSubMask.parameters.sourceY as number) - cropY) * imageRenderSize.scale + imageRenderSize.offsetY,
                       width: 32,
                       height: 32,
                       transform: `translate(-50%, -50%) scale(${1 / maxSafeScale})`,
@@ -2886,14 +2951,14 @@ const ImageCanvas = memo(
               <Stage
                 width={stageWidth * maxSafeScale}
                 height={stageHeight * maxSafeScale}
-                onMouseDown={handleStart}
-                onTouchStart={handleStart}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-                onMouseMove={handleMove}
-                onTouchMove={handleMove}
-                onMouseUp={handleUp}
-                onTouchEnd={handleUp}
+                onMouseDown={handleStart as AnyKonvaEventHandler}
+                onTouchStart={handleStart as AnyKonvaEventHandler}
+                onMouseEnter={handleMouseEnter as AnyKonvaEventHandler}
+                onMouseLeave={handleMouseLeave as AnyKonvaEventHandler}
+                onMouseMove={handleMove as AnyKonvaEventHandler}
+                onTouchMove={handleMove as AnyKonvaEventHandler}
+                onMouseUp={handleUp as AnyKonvaEventHandler}
+                onTouchEnd={handleUp as AnyKonvaEventHandler}
               >
                 <Layer listening={!showOriginal}>
                   <Group scaleX={maxSafeScale} scaleY={maxSafeScale}>
@@ -3045,13 +3110,13 @@ const ImageCanvas = memo(
               {isStraightenActive && (
                 <Stage
                   height={uncroppedImageRenderSize.height}
-                  onMouseDown={handleStraightenMouseDown}
-                  onTouchStart={handleStraightenMouseDown}
-                  onMouseLeave={handleStraightenMouseLeave}
-                  onMouseMove={handleStraightenMouseMove}
-                  onTouchMove={handleStraightenMouseMove}
-                  onMouseUp={handleStraightenMouseUp}
-                  onTouchEnd={handleStraightenMouseUp}
+                  onMouseDown={handleStraightenMouseDown as AnyKonvaEventHandler}
+                  onTouchStart={handleStraightenMouseDown as AnyKonvaEventHandler}
+                  onMouseLeave={handleStraightenMouseLeave as AnyKonvaEventHandler}
+                  onMouseMove={handleStraightenMouseMove as AnyKonvaEventHandler}
+                  onTouchMove={handleStraightenMouseMove as AnyKonvaEventHandler}
+                  onMouseUp={handleStraightenMouseUp as AnyKonvaEventHandler}
+                  onTouchEnd={handleStraightenMouseUp as AnyKonvaEventHandler}
                   style={{
                     position: 'absolute',
                     top: 0,

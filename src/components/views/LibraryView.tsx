@@ -22,20 +22,20 @@ interface LibraryViewProps {
   setThumbnailAspectRatio: (ratio: ThumbnailAspectRatio) => void;
   setLibraryViewMode: (mode: LibraryViewMode) => void;
   handleClearSelection: () => void;
-  handleLibraryImageSingleClick: (...args: any) => void;
-  handleImageSelect: (...args: any) => void;
-  handleRate: (...args: any) => void;
-  handleThumbnailContextMenu: (...args: any) => void;
-  handleMainLibraryContextMenu: (...args: any) => void;
-  handleContinueSession: (...args: any) => void;
-  handleGoHome: (...args: any) => void;
-  handleOpenFolder: (...args: any) => void;
+  handleLibraryImageSingleClick: (path: string, event: React.MouseEvent<HTMLElement>) => void;
+  handleImageSelect: (path: string, event: React.MouseEvent<HTMLElement>) => void;
+  handleRate: (rating: number, paths?: string[]) => void;
+  handleThumbnailContextMenu: (event: React.MouseEvent<HTMLElement>, path: string) => void;
+  handleMainLibraryContextMenu: (event: React.MouseEvent<HTMLElement>, path: string | null, isPinned?: boolean) => void;
+  handleContinueSession: () => void;
+  handleGoHome: () => void;
+  handleOpenFolder: (path: string) => Promise<void>;
   handleImportClick: (path: string) => void;
   handleLibraryRefresh: () => Promise<void>;
   handleCopyAdjustments: () => void;
   handlePasteAdjustments: () => void;
   handleResetAdjustments: () => void;
-  requestThumbnails: any;
+  requestThumbnails: (visiblePaths: string[]) => void;
 }
 
 export default function LibraryView({

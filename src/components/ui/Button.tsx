@@ -2,10 +2,10 @@ import clsx from 'clsx';
 
 interface ButtonProps {
   autoFocus?: boolean;
-  children: any;
+  children: React.ReactNode;
   className?: string;
   disabled?: boolean;
-  onClick: any;
+  onClick: () => void;
   size?: string;
   title?: string;
   variant?: string;

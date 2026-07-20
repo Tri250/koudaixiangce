@@ -22,7 +22,7 @@ interface EditorToolbarProps {
   showOriginal: boolean;
   showDateView: boolean;
   onToggleDateView(): void;
-  adjustmentsHistory: any[];
+  adjustmentsHistory: unknown[];
   adjustmentsHistoryIndex: number;
   goToAdjustmentsHistoryIndex(index: number): void;
 }
@@ -259,8 +259,8 @@ const EditorToolbar = memo(
             if (currMasks.length > prevMasks.length) changed.push('Added Mask');
             else if (currMasks.length < prevMasks.length) changed.push('Deleted Mask');
             else {
-              currMasks.forEach((cMask: any) => {
-                const pMask = prevMasks.find((m: any) => m.id === cMask.id);
+              currMasks.forEach((cMask: MaskContainer) => {
+                const pMask = prevMasks.find((m: MaskContainer) => m.id === cMask.id);
                 if (pMask) {
                   if (pMask.opacity !== cMask.opacity) changed.push('Mask Opacity');
                   if (pMask.invert !== cMask.invert) changed.push('Mask Invert');
@@ -284,8 +284,8 @@ const EditorToolbar = memo(
             if (currPatches.length > prevPatches.length) changed.push('Added AI Patch');
             else if (currPatches.length < prevPatches.length) changed.push('Deleted AI Patch');
             else {
-              currPatches.forEach((cPatch: any) => {
-                const pPatch = prevPatches.find((p: any) => p.id === cPatch.id);
+              currPatches.forEach((cPatch: AiPatch) => {
+                const pPatch = prevPatches.find((p: AiPatch) => p.id === cPatch.id);
                 if (pPatch) {
                   if (pPatch.visible !== cPatch.visible) changed.push('AI Patch Visibility');
                   if (pPatch.subMasks !== cPatch.subMasks) changed.push('AI Patch Area');

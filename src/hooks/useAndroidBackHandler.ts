@@ -4,21 +4,21 @@ import { useUIStore } from '../store/useUIStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useEditorStore } from '../store/useEditorStore';
 import { useLibraryStore } from '../store/useLibraryStore';
-import { Invokes } from '../components/ui/AppProperties';
+import { Invokes, Panel } from '../components/ui/AppProperties';
 
 export function useAndroidBackHandler() {
   useEffect(() => {
     const osPlatform = useSettingsStore.getState().osPlatform;
     if (osPlatform !== 'android') return;
 
-    (window as any).__handleAndroidBack = () => {
+    (window as unknown as Record<string, unknown>).__handleAndroidBack = () => {
       const ui = useUIStore.getState();
       const editor = useEditorStore.getState();
       const library = useLibraryStore.getState();
 
       // Priority 1: Close any open modal
       if (ui.confirmModalState.isOpen) {
-        ui.setUI((state: any) => ({ confirmModalState: { ...state.confirmModalState, isOpen: false } }));
+        ui.setUI((state) => ({ confirmModalState: { ...state.confirmModalState, isOpen: false } }));
         return;
       }
       if (ui.isCreateFolderModalOpen) {
@@ -80,11 +80,11 @@ export function useAndroidBackHandler() {
         return;
       }
       if (ui.negativeModalState.isOpen) {
-        ui.setUI((state: any) => ({ negativeModalState: { ...state.negativeModalState, isOpen: false } }));
+        ui.setUI((state) => ({ negativeModalState: { ...state.negativeModalState, isOpen: false } }));
         return;
       }
       if (ui.denoiseModalState.isOpen) {
-        ui.setUI((state: any) => ({ denoiseModalState: { ...state.denoiseModalState, isOpen: false } }));
+        ui.setUI((state) => ({ denoiseModalState: { ...state.denoiseModalState, isOpen: false } }));
         return;
       }
       if (ui.cullingModalState.isOpen) {
@@ -140,8 +140,8 @@ export function useAndroidBackHandler() {
     };
 
     // State serialization for Android process death recovery
-    (window as any).__getAndroidState = () => {
-      const { selectedImage, adjustments } = useEditorStore.getState();
+    (window as unknown as Record<string, unknown>).__getAndroidState = () => {
+      const { selectedImage, adjustments: _adjustments } = useEditorStore.getState();
       const { libraryActivePath } = useLibraryStore.getState();
       const { activeRightPanel, isFullScreen } = useUIStore.getState();
       return JSON.stringify({
@@ -152,17 +152,17 @@ export function useAndroidBackHandler() {
       });
     };
 
-    (window as any).__restoreAndroidState = (stateJson: any) => {
+    (window as unknown as Record<string, unknown>).__restoreAndroidState = (stateJson: unknown) => {
       try {
-        const state = typeof stateJson === 'string' ? JSON.parse(stateJson) : stateJson;
+        const state = typeof stateJson === 'string' ? JSON.parse(stateJson) : stateJson as Record<string, unknown>;
         if (state.libraryActivePath) {
-          useLibraryStore.getState().setLibrary({ libraryActivePath: state.libraryActivePath });
+          useLibraryStore.getState().setLibrary({ libraryActivePath: state.libraryActivePath as string });
         }
         if (state.isFullScreen !== undefined) {
-          useUIStore.getState().setUI({ isFullScreen: state.isFullScreen });
+          useUIStore.getState().setUI({ isFullScreen: state.isFullScreen as boolean });
         }
         if (state.activeRightPanel !== undefined) {
-          useUIStore.getState().setUI({ activeRightPanel: state.activeRightPanel });
+          useUIStore.getState().setUI({ activeRightPanel: state.activeRightPanel as Panel | null });
         }
         // Note: selectedImage will be re-loaded from the libraryActivePath
         // after the app initializes, so we don't need to manually restore it.
@@ -172,7 +172,7 @@ export function useAndroidBackHandler() {
     };
 
     // Memory pressure handler — called from Android onTrimMemory / onLowMemory
-    (window as any).__onAndroidMemoryPressure = (level: string) => {
+    (window as unknown as Record<string, unknown>).__onAndroidMemoryPressure = (level: string) => {
       // Use dynamic import to avoid circular dependency
       import('../utils/ImageLRUCache.js').then(({ globalImageCache }) => {
         if (level === 'critical') {
@@ -192,18 +192,18 @@ export function useAndroidBackHandler() {
     };
 
     // Flush sidecar data to disk — called from Android lifecycle events (onPause/onStop/onSaveInstanceState)
-    (window as any).__flushSidecar = () => {
+    (window as unknown as Record<string, unknown>).__flushSidecar = () => {
       const { selectedImage, adjustments } = useEditorStore.getState();
       if (selectedImage?.path) {
         invoke(Invokes.SaveMetadataAndUpdateThumbnail, { path: selectedImage.path, adjustments }).catch(
-          (err: any) => console.error('Sidecar flush failed:', err),
+          (err: unknown) => console.error('Sidecar flush failed:', err),
         );
       }
     };
 
     // SAF file picker bridge — calls the Android Activity's native SAF methods
     // Uses Tauri dialog plugin as fallback on platforms where SAF is not available
-    (window as any).__androidSafOpen = (mimeTypes: string, callbackName: string) => {
+    (window as unknown as Record<string, unknown>).__androidSafOpen = (mimeTypes: string, callbackName: string) => {
       try {
         const extensions = mimeTypes.split(',').flatMap(m => {
           if (m.includes('jpeg') || m.includes('jpg')) return ['jpg', 'jpeg'];
@@ -217,18 +217,18 @@ export function useAndroidBackHandler() {
         invoke('plugin:dialog|open', {
           multiple: false,
           filters: [{ name: 'Images', extensions }]
-        }).then((result: any) => {
+        }).then((result: unknown) => {
           const path = Array.isArray(result) ? result[0] : result;
-          (window as any)[callbackName]?.(path || null);
+          (window as unknown as Record<string, unknown>)[callbackName] = ((window as unknown as Record<string, unknown>)[callbackName] as ((v: unknown) => void) | undefined)?.(path || null);
         }).catch(() => {
-          (window as any)[callbackName]?.(null);
+          (window as unknown as Record<string, unknown>)[callbackName] = ((window as unknown as Record<string, unknown>)[callbackName] as ((v: unknown) => void) | undefined)?.(null);
         });
-      } catch (e) {
-        (window as any)[callbackName]?.(null);
+      } catch (_e) {
+        (window as unknown as Record<string, unknown>)[callbackName] = ((window as unknown as Record<string, unknown>)[callbackName] as ((v: unknown) => void) | undefined)?.(null);
       }
     };
 
-    (window as any).__androidSafSave = (defaultName: string, mimeTypes: string, callbackName: string) => {
+    (window as unknown as Record<string, unknown>).__androidSafSave = (defaultName: string, mimeTypes: string, callbackName: string) => {
       try {
         const extensions = mimeTypes.split(',').flatMap(m => {
           if (m.includes('jpeg') || m.includes('jpg')) return ['jpg'];
@@ -240,13 +240,13 @@ export function useAndroidBackHandler() {
         invoke('plugin:dialog|save', {
           defaultPath: defaultName,
           filters: [{ name: 'Output', extensions }]
-        }).then((path: any) => {
-          (window as any)[callbackName]?.(path || null);
+        }).then((path: unknown) => {
+          (window as unknown as Record<string, unknown>)[callbackName] = ((window as unknown as Record<string, unknown>)[callbackName] as ((v: unknown) => void) | undefined)?.(path || null);
         }).catch(() => {
-          (window as any)[callbackName]?.(null);
+          (window as unknown as Record<string, unknown>)[callbackName] = ((window as unknown as Record<string, unknown>)[callbackName] as ((v: unknown) => void) | undefined)?.(null);
         });
-      } catch (e) {
-        (window as any)[callbackName]?.(null);
+      } catch (_e) {
+        (window as unknown as Record<string, unknown>)[callbackName] = ((window as unknown as Record<string, unknown>)[callbackName] as ((v: unknown) => void) | undefined)?.(null);
       }
     };
 
@@ -273,19 +273,19 @@ export function useAndroidBackHandler() {
       const { selectedImage, adjustments } = useEditorStore.getState();
       if (selectedImage?.path) {
         invoke(Invokes.SaveMetadataAndUpdateThumbnail, { path: selectedImage.path, adjustments }).catch(
-          (err: any) => console.error('Periodic sidecar flush failed:', err),
+          (err: unknown) => console.error('Periodic sidecar flush failed:', err),
         );
       }
     }, 30000);
 
     return () => {
-      delete (window as any).__handleAndroidBack;
-      delete (window as any).__flushSidecar;
-      delete (window as any).__getAndroidState;
-      delete (window as any).__restoreAndroidState;
-      delete (window as any).__onAndroidMemoryPressure;
-      delete (window as any).__androidSafOpen;
-      delete (window as any).__androidSafSave;
+      delete (window as unknown as Record<string, unknown>).__handleAndroidBack;
+      delete (window as unknown as Record<string, unknown>).__flushSidecar;
+      delete (window as unknown as Record<string, unknown>).__getAndroidState;
+      delete (window as unknown as Record<string, unknown>).__restoreAndroidState;
+      delete (window as unknown as Record<string, unknown>).__onAndroidMemoryPressure;
+      delete (window as unknown as Record<string, unknown>).__androidSafOpen;
+      delete (window as unknown as Record<string, unknown>).__androidSafSave;
       darkModeMediaQuery.removeEventListener('change', handleDarkModeChange);
       clearInterval(periodicFlushInterval);
     };

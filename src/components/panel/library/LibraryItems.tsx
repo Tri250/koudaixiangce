@@ -3,7 +3,7 @@ import { Image as ImageIcon, Folder, FolderOpen, Star as StarIcon, SlidersHorizo
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { COLOR_LABELS, Color } from '../../../utils/adjustments';
-import { ThumbnailAspectRatio, ImageFile, ExifOverlay } from '../../ui/AppProperties';
+import { ThumbnailAspectRatio, ThumbnailSize, ImageFile, ExifOverlay, SelectedImage } from '../../ui/AppProperties';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights, TEXT_COLOR_KEYS } from '../../../types/typography';
 import { ColumnWidths } from '../MainLibrary';
@@ -31,7 +31,21 @@ const ThumbnailComponent = ({
   isEdited,
   exif,
   isCloudPlaceholder,
-}: any) => {
+}: {
+  isActive: boolean;
+  isSelected: boolean;
+  onContextMenu?: (event: React.MouseEvent<HTMLElement>, path: string) => void;
+  onImageClick: (path: string, event: React.MouseEvent<HTMLElement>) => void;
+  onImageDoubleClick: (path: string) => void;
+  onLoad: (path: string) => void;
+  path: string;
+  rating: number;
+  tags: Array<string> | null;
+  aspectRatio: ThumbnailAspectRatio;
+  isEdited?: boolean;
+  exif: { [key: string]: string } | null;
+  isCloudPlaceholder?: boolean;
+}) => {
   const { t } = useTranslation();
   const data = useProcessStore((s) => s.thumbnails[path]);
   const exifOverlay = useSettingsStore((s) => s.appSettings?.exifOverlay || ExifOverlay.Off);
@@ -143,11 +157,11 @@ const ThumbnailComponent = ({
   return (
     <div
       className="aspect-square bg-surface rounded-md overflow-hidden cursor-pointer group relative flex flex-col transition-all duration-150 transform-gpu [-webkit-mask-image:-webkit-radial-gradient(white,black)]"
-      onClick={(e: any) => {
+      onClick={(e: React.MouseEvent<HTMLElement>) => {
         e.stopPropagation();
         onImageClick(path, e);
       }}
-      onContextMenu={(e: any) => onContextMenu(e, path)}
+      onContextMenu={(e: React.MouseEvent<HTMLElement>) => onContextMenu?.(e, path)}
       onDoubleClick={() => onImageDoubleClick(path)}
     >
       <div className="relative w-full flex-1 min-h-0 z-0 bg-surface">
@@ -283,25 +297,25 @@ const ThumbnailComponent = ({
             </div>
             <div className="pt-1.5 pb-0.5 flex flex-wrap items-center gap-x-2.5 shrink-0">
               <div className="flex items-center gap-1">
-                <IconShutter {...({ className: 'w-2.5 h-2.5' } as any)} />
+                <IconShutter {...({ className: 'w-2.5 h-2.5' } as Record<string, unknown>)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {shutter || '-'}
                 </Text>
               </div>
               <div className="flex items-center gap-1">
-                <IconAperture {...({ className: 'w-2.5 h-2.5' } as any)} />
+                <IconAperture {...({ className: 'w-2.5 h-2.5' } as Record<string, unknown>)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {fNumber || '-'}
                 </Text>
               </div>
               <div className="flex items-center gap-1">
-                <IconIso {...({ className: 'w-2.5 h-2.5' } as any)} />
+                <IconIso {...({ className: 'w-2.5 h-2.5' } as Record<string, unknown>)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {iso || '-'}
                 </Text>
               </div>
               <div className="flex items-center gap-1">
-                <IconFocalLength {...({ className: 'w-2.5 h-2.5' } as any)} />
+                <IconFocalLength {...({ className: 'w-2.5 h-2.5' } as Record<string, unknown>)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {focal ? (String(focal).endsWith('mm') ? focal : `${focal}mm`) : '-'}
                 </Text>
@@ -372,7 +386,7 @@ const ThumbnailComponent = ({
                 className="flex items-center gap-1 text-text-secondary"
                 data-tooltip={t('library.items.tooltipShutterSpeed')}
               >
-                <IconShutter {...({ className: 'w-2.5 h-2.5' } as any)} />
+                <IconShutter {...({ className: 'w-2.5 h-2.5' } as Record<string, unknown>)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {shutter || '-'}
                 </Text>
@@ -381,13 +395,13 @@ const ThumbnailComponent = ({
                 className="flex items-center gap-1 text-text-secondary"
                 data-tooltip={t('library.items.tooltipAperture')}
               >
-                <IconAperture {...({ className: 'w-2.5 h-2.5' } as any)} />
+                <IconAperture {...({ className: 'w-2.5 h-2.5' } as Record<string, unknown>)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {fNumber || '-'}
                 </Text>
               </div>
               <div className="flex items-center gap-1 text-text-secondary" data-tooltip={t('library.items.tooltipIso')}>
-                <IconIso {...({ className: 'w-2.5 h-2.5' } as any)} />
+                <IconIso {...({ className: 'w-2.5 h-2.5' } as Record<string, unknown>)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {iso || '-'}
                 </Text>
@@ -396,7 +410,7 @@ const ThumbnailComponent = ({
                 className="flex items-center gap-1 text-text-secondary"
                 data-tooltip={t('library.items.tooltipFocalLength')}
               >
-                <IconFocalLength {...({ className: 'w-2.5 h-2.5' } as any)} />
+                <IconFocalLength {...({ className: 'w-2.5 h-2.5' } as Record<string, unknown>)} />
                 <Text variant={TextVariants.small} className="text-[9px] font-medium tracking-wide">
                   {focal ? (String(focal).endsWith('mm') ? focal : `${focal}mm`) : '-'}
                 </Text>
@@ -428,7 +442,22 @@ const ListItemComponent = ({
   columnWidths,
   exif,
   isCloudPlaceholder,
-}: any) => {
+}: {
+  isActive: boolean;
+  isSelected: boolean;
+  onContextMenu?: (event: React.MouseEvent<HTMLElement>, path: string) => void;
+  onImageClick: (path: string, event: React.MouseEvent<HTMLElement>) => void;
+  onImageDoubleClick: (path: string) => void;
+  onLoad: (path: string) => void;
+  path: string;
+  rating: number;
+  tags: Array<string> | null;
+  modified: number;
+  aspectRatio: ThumbnailAspectRatio;
+  columnWidths: ColumnWidths;
+  exif: { [key: string]: string } | null;
+  isCloudPlaceholder?: boolean;
+}) => {
   const { t } = useTranslation();
   const data = useProcessStore((s) => s.thumbnails[path]);
   const exifOverlay = useSettingsStore((s) => s.appSettings?.exifOverlay || ExifOverlay.Off);
@@ -547,11 +576,11 @@ const ListItemComponent = ({
   return (
     <div
       className={`flex items-center w-full h-full border-b border-border-color/30 cursor-pointer transition-colors duration-150 ${stateClass}`}
-      onClick={(e: any) => {
+      onClick={(e: React.MouseEvent<HTMLElement>) => {
         e.stopPropagation();
         onImageClick(path, e);
       }}
-      onContextMenu={(e: any) => onContextMenu(e, path)}
+      onContextMenu={(e: React.MouseEvent<HTMLElement>) => onContextMenu?.(e, path)}
       onDoubleClick={() => onImageDoubleClick(path)}
     >
       <div
@@ -712,7 +741,28 @@ const RowComponent = ({
   columnWidths,
   queueThumbnailRequest,
   onToggleRecursiveFolder,
-}: any) => {
+}: {
+  index: number;
+  style: React.CSSProperties;
+  rows: Array<{ type: string; images?: ImageFile[]; path?: string; isExpanded?: boolean; count?: number }>;
+  activePath: string | null;
+  multiSelectedSet: Set<string>;
+  onContextMenu?: (event: React.MouseEvent<HTMLElement>, path: string) => void;
+  onImageClick: (path: string, event: React.MouseEvent<HTMLElement>) => void;
+  onImageDoubleClick: (path: string) => void;
+  thumbnailAspectRatio: ThumbnailAspectRatio;
+  onImageLoad: (path: string) => void;
+  imageRatings: Record<string, number>;
+  baseFolderPath: string;
+  itemWidth: number;
+  itemHeight: number;
+  outerPadding: number;
+  gap: number;
+  isListView: boolean;
+  columnWidths: ColumnWidths;
+  queueThumbnailRequest: (path: string) => void;
+  onToggleRecursiveFolder: (path: string) => void;
+}) => {
   const { t } = useTranslation();
   const row = rows[index];
 
@@ -736,7 +786,7 @@ const RowComponent = ({
   if (row.type === 'footer') return null;
   const shiftedStyle = {
     ...style,
-    transform: (style.transform as string).replace(
+    transform: String(style.transform || '').replace(
       /translateY\(([^)]+)\)/,
       (_: string, y: string) => `translateY(${parseFloat(y) + outerPadding}px)`,
     ),

@@ -1,6 +1,7 @@
 import { ExportPreset } from './ExportImportProperties';
 import { Adjustments, CopyPasteSettings } from '../../utils/adjustments';
 import { ToolType } from '../panel/right/Masks';
+import type { UserPreset } from '../../hooks/usePresets';
 
 export const GLOBAL_KEYS = [
   ' ',
@@ -185,7 +186,7 @@ export enum ThumbnailAspectRatio {
 export interface AppSettings {
   aiConnectorAddress?: string;
   aiProvider?: string;
-  decorations?: any;
+  decorations?: Record<string, unknown>;
   editorPreviewResolution?: number;
   enableZoomHifi?: boolean;
   useFullDpiRendering?: boolean;
@@ -194,8 +195,8 @@ export interface AppSettings {
   livePreviewQuality?: string;
   enableAiTagging?: boolean;
   filterCriteria?: FilterCriteria;
-  lastFolderState?: any;
-  pinnedFolders?: any;
+  lastFolderState?: Record<string, unknown>;
+  pinnedFolders?: Array<{ id: string; name: string; path: string }>;
   lastRootPath: string | null;
   libraryViewMode?: LibraryViewMode;
   sortCriteria?: SortCriteria;
@@ -208,7 +209,7 @@ export interface AppSettings {
   processingBackend?: string;
   linuxGpuOptimization?: boolean;
   exportPresets?: ExportPreset[];
-  myLenses?: any;
+  myLenses?: Array<Record<string, unknown>>;
   enableFolderImageCounts?: boolean;
   displayEditIcon?: boolean;
   linearRawMode?: string;
@@ -265,7 +266,7 @@ export interface FilterCriteria {
 }
 
 export interface Folder {
-  children: any;
+  children: Preset[];
   id?: string | undefined;
   name?: string | undefined;
   imageCount?: number;
@@ -285,12 +286,12 @@ export interface ImageFile {
 export interface Option {
   color?: string;
   disabled?: boolean;
-  icon?: any;
+  icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   isDestructive?: boolean;
   label?: string;
   onClick?(): void;
   onRightClick?(): void;
-  submenu?: any;
+  submenu?: Array<Option>;
   type?: string;
 }
 
@@ -317,11 +318,11 @@ export interface Progress {
 }
 
 export interface SelectedImage {
-  exif: any;
+  exif: Record<string, string | number | boolean | null>;
   height: number;
   isRaw: boolean;
   isReady: boolean;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   original_base64?: string;
   originalUrl: string | null;
   path: string;

@@ -29,10 +29,10 @@ interface BottomBarProps {
   isResizing?: boolean;
   multiSelectedPaths?: Array<string>;
   onClearSelection?(): void;
-  onContextMenu?(event: any, path: string): void;
+  onContextMenu?(event: React.MouseEvent<HTMLElement>, path: string): void;
   onCopy(): void;
   onExportClick?(): void;
-  onImageSelect?(path: string, event: any): void;
+  onImageSelect?(path: string, event: React.MouseEvent<HTMLElement>): void;
   onOpenCopyPasteSettings?(): void;
   onRequestThumbnails?(paths: string[]): void;
   onPaste(): void;
@@ -104,7 +104,7 @@ export default function BottomBar({
   isPasted,
   isPasteDisabled,
   isRatingDisabled = false,
-  isResetDisabled = false,
+  _isResetDisabled = false,
   isResizing,
   multiSelectedPaths = [],
   onClearSelection,
@@ -116,7 +116,7 @@ export default function BottomBar({
   onRequestThumbnails,
   onPaste,
   onRate,
-  onReset,
+  _onReset,
   onZoomChange = () => {},
   rating,
   selectedImage,

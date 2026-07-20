@@ -6,12 +6,14 @@ import { Option as AppOption, OPTION_SEPARATOR } from '../components/ui/AppPrope
 import clsx from 'clsx';
 
 interface ContextMenuProviderProps {
-  children: any;
+  children: React.ReactNode;
 }
 
-interface Option extends AppOption {
-  customComponent?: FC<any>;
-  customProps?: any;
+interface Option extends Omit<AppOption, 'submenu' | 'icon'> {
+  customComponent?: FC<Record<string, unknown>>;
+  customProps?: Record<string, unknown>;
+  icon?: React.ComponentType<{ size?: number } & React.SVGProps<SVGSVGElement>>;
+  submenu?: Array<Option>;
 }
 
 interface MenuItemProps {
@@ -25,19 +27,42 @@ interface SubMenuProps {
   closeSubmenu(path: number[]): void;
   hideContextMenu(): void;
   options: Array<Option>;
-  parentRef: any;
+  parentRef: React.RefObject<HTMLElement | null>;
   parentPath: number[];
 }
 
-const ContextMenuContext = createContext('dark');
+interface MenuState {
+  isVisible: boolean;
+  x: number;
+  y: number;
+  options: Array<Option>;
+}
 
-export const useContextMenu = (): any => {
-  return useContext(ContextMenuContext);
+interface ContextMenuContextValue {
+  activeSubmenu: number[] | null;
+  cancelCloseSubmenu(): void;
+  closeSubmenu(path: number[]): void;
+  hideContextMenu(): void;
+  menuId: number;
+  menuRef: React.RefObject<HTMLDivElement | null>;
+  menuState: MenuState;
+  openSubmenu(path: number[] | null): void;
+  showContextMenu(x: number, y: number, options: Array<Option>): void;
+}
+
+const ContextMenuContext = createContext<ContextMenuContextValue | null>(null);
+
+export const useContextMenu = (): ContextMenuContextValue => {
+  const context = useContext(ContextMenuContext);
+  if (!context) {
+    throw new Error('useContextMenu must be used within a ContextMenuProvider');
+  }
+  return context;
 };
 
 function SubMenu({ cancelCloseSubmenu, closeSubmenu, hideContextMenu, options, parentRef, parentPath }: SubMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [style, setStyle] = useState<any>({ opacity: 0 });
+  const [style, setStyle] = useState<React.CSSProperties>({ opacity: 0 });
   const [safeAreaPath, setSafeAreaPath] = useState<string | null>(null);
 
   const customOption = options.length === 1 && options[0].customComponent ? options[0] : null;
@@ -120,7 +145,7 @@ function SubMenu({ cancelCloseSubmenu, closeSubmenu, hideContextMenu, options, p
         className="fixed z-101"
         exit={{ opacity: 0, scale: 0.95 }}
         initial={{ opacity: 0, scale: 0.95 }}
-        onContextMenu={(e: any) => e.preventDefault()}
+        onContextMenu={(e: React.MouseEvent<HTMLElement>) => e.preventDefault()}
         onMouseEnter={cancelCloseSubmenu}
         onMouseLeave={() => {
           if (!isInteractiveSubmenu) {
@@ -138,7 +163,7 @@ function SubMenu({ cancelCloseSubmenu, closeSubmenu, hideContextMenu, options, p
           {CustomComponent && customOption ? (
             <CustomComponent {...customOption.customProps} hideContextMenu={hideContextMenu} />
           ) : (
-            options.map((option: any, index: number) => (
+            options.map((option: Option, index: number) => (
               <MenuItem hideContextMenu={hideContextMenu} key={index} option={option} path={[...parentPath, index]} />
             ))
           )}
@@ -152,8 +177,8 @@ function SubMenu({ cancelCloseSubmenu, closeSubmenu, hideContextMenu, options, p
 
 function MenuItem({ option, path, hideContextMenu }: MenuItemProps) {
   const { activeSubmenu, openSubmenu, closeSubmenu, cancelCloseSubmenu } = useContextMenu();
-  const itemRef = useRef(null);
-  const hoverTimeoutRef = useRef<any>(null);
+  const itemRef = useRef<HTMLButtonElement | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasInteractiveSubmenu = Boolean(option.submenu?.length === 1 && option.submenu[0].customComponent);
 
   const isSubmenuOpen =
@@ -238,7 +263,7 @@ function MenuItem({ option, path, hideContextMenu }: MenuItemProps) {
             cancelCloseSubmenu={cancelCloseSubmenu}
             closeSubmenu={closeSubmenu}
             hideContextMenu={hideContextMenu}
-            options={option.submenu}
+            options={option.submenu ?? []}
             parentRef={itemRef}
             parentPath={path}
           />
@@ -261,13 +286,13 @@ function ContextMenu() {
           exit={{ opacity: 0, scale: 0.95 }}
           initial={{ opacity: 0, scale: 0.95 }}
           key={menuId}
-          onContextMenu={(e: any) => e.preventDefault()}
+          onContextMenu={(e: React.MouseEvent<HTMLElement>) => e.preventDefault()}
           ref={menuRef}
           style={{ top: y, left: x }}
           transition={{ duration: 0.1, ease: 'easeOut' }}
         >
           <div className="bg-surface/95 backdrop-blur-md rounded-lg shadow-xl p-2 w-64" role="menu">
-            {options.map((option: any, index: number) => (
+            {options.map((option: Option, index: number) => (
               <MenuItem hideContextMenu={hideContextMenu} key={index} option={option} path={[index]} />
             ))}
           </div>
@@ -278,11 +303,11 @@ function ContextMenu() {
 }
 
 export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
-  const [menuState, setMenuState] = useState<any>({ isVisible: false, x: 0, y: 0, options: [] });
+  const [menuState, setMenuState] = useState<MenuState>({ isVisible: false, x: 0, y: 0, options: [] });
   const [activeSubmenu, setActiveSubmenu] = useState<number[] | null>(null);
   const [menuId, setMenuId] = useState<number>(0);
-  const menuRef = useRef<any>(null);
-  const submenuTimeoutRef = useRef<any>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const submenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showContextMenu = useCallback((x: number, y: number, options: Array<Option>) => {
     const menuWidth = 256;
@@ -297,12 +322,12 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
   }, []);
 
   const hideContextMenu = useCallback(() => {
-    setMenuState((prev: any) => ({ ...prev, isVisible: false }));
+    setMenuState((prev: MenuState) => ({ ...prev, isVisible: false }));
     setActiveSubmenu(null);
   }, []);
 
   const openSubmenu = useCallback((path: number[] | null) => {
-    clearTimeout(submenuTimeoutRef.current);
+    if (submenuTimeoutRef.current !== null) clearTimeout(submenuTimeoutRef.current);
     setActiveSubmenu(path);
   }, []);
 
@@ -319,15 +344,15 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
   }, []);
 
   const cancelCloseSubmenu = useCallback(() => {
-    clearTimeout(submenuTimeoutRef.current);
+    if (submenuTimeoutRef.current !== null) clearTimeout(submenuTimeoutRef.current);
   }, []);
 
   useEffect(() => {
-    const handleClickOutside = (event: any) => {
+    const handleClickOutside = (event: MouseEvent) => {
       const menuElements = document.querySelectorAll('[role="menu"]');
       let isClickInside = false;
       menuElements.forEach((menuEl) => {
-        if (menuEl.contains(event.target)) {
+        if (menuEl.contains(event.target as Node)) {
           isClickInside = true;
         }
       });
@@ -356,7 +381,7 @@ export function ContextMenuProvider({ children }: ContextMenuProviderProps) {
     };
   }, [menuState.isVisible, hideContextMenu]);
 
-  const value: any = {
+  const value: ContextMenuContextValue = {
     activeSubmenu,
     cancelCloseSubmenu,
     closeSubmenu,

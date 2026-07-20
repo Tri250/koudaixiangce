@@ -8,7 +8,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { Invokes } from '../components/ui/AppProperties';
+import { Invokes, ImageFile, AppSettings } from '../components/ui/AppProperties';
 import { Status } from '../components/ui/ExportImportProperties';
 
 function handlePermissionError(err: unknown): boolean {
@@ -32,7 +32,7 @@ export function useFileOperations(
   refreshAllFolderTrees: () => Promise<void>,
   handleImageSelect: (path: string) => void,
   handleBackToLibrary: () => void,
-  sortedImageList: any[],
+  sortedImageList: ImageFile[],
 ) {
   const getParentDir = (filePath: string): string => {
     const separator = filePath.includes('/') ? '/' : '\\';
@@ -192,7 +192,7 @@ export function useFileOperations(
           const separator = oldPath.includes('/') ? '/' : '\\';
           const newPath = parentDir ? `${parentDir}${separator}${trimmedNewName}` : trimmedNewName;
 
-          const newAppSettings = { ...appSettings } as any;
+          const newAppSettings = { ...appSettings } as AppSettings & Record<string, unknown>;
           let settingsChanged = false;
 
           if (rootPaths.includes(oldPath)) {
@@ -206,7 +206,7 @@ export function useFileOperations(
             setLibrary({ currentFolderPath: newCurrentPath });
           }
 
-          const currentPins = appSettings?.pinnedFolders || [];
+          const currentPins = (appSettings as Record<string, unknown>).pinnedFolders as string[] || [];
           if (currentPins.includes(oldPath)) {
             const newPins = currentPins
               .map((p: string) => (p === oldPath ? newPath : p))
@@ -216,7 +216,7 @@ export function useFileOperations(
           }
 
           if (settingsChanged) {
-            handleSettingsChange(newAppSettings);
+            handleSettingsChange(newAppSettings as AppSettings);
           }
 
           await refreshAllFolderTrees();
@@ -281,7 +281,7 @@ export function useFileOperations(
     }
   }, []);
 
-  const startImportFiles = useCallback(async (sourcePaths: string[], destinationFolder: string, settings: any) => {
+  const startImportFiles = useCallback(async (sourcePaths: string[], destinationFolder: string, settings: Record<string, unknown>) => {
     if (!sourcePaths || sourcePaths.length === 0 || !destinationFolder) return;
 
     // Set importing state immediately so the UI reflects the in-flight request,
@@ -309,7 +309,7 @@ export function useFileOperations(
   }, []);
 
   const handleStartImport = useCallback(
-    async (settings: any) => {
+    async (settings: Record<string, unknown>) => {
       const { importTargetFolder, importSourcePaths } = useUIStore.getState();
       if (!importTargetFolder) return;
       await startImportFiles(importSourcePaths, importTargetFolder, settings);

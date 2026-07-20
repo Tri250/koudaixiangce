@@ -244,7 +244,7 @@ export default function DenoiseModal({
   );
 
   useEffect(() => {
-    const unlisten = listen('denoise-batch-progress', (e: any) => {
+    const unlisten = listen<{ progress: number; total: number }>('denoise-batch-progress', (e: { payload: { progress: number; total: number } }) => {
       setBatchProgress(e.payload);
     });
     return () => {

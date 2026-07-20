@@ -60,14 +60,18 @@ import {
 
 import ImageProcessingManager from './components/managers/ImageProcessingManager';
 import ImageLoaderManager from './components/managers/ImageLoaderManager';
+import { type FolderTree as FolderTreeNode } from './components/panel/FolderTree';
+import { ImageCacheEntry } from './utils/ImageLRUCache';
+import { AlbumItem, Album } from './components/ui/AppProperties';
+import type { Adjustments } from './utils/adjustments';
 
 
-const insertChildrenIntoTree = (node: any, targetPath: string, newChildren: any[]): any => {
+const insertChildrenIntoTree = (node: FolderTreeNode, targetPath: string, newChildren: FolderTreeNode[]): FolderTreeNode | null => {
   if (!node) return null;
 
   if (node.path === targetPath) {
-    const mergedChildren = newChildren.map((newChild: any) => {
-      const existingChild = node.children?.find((c: any) => c.path === newChild.path);
+    const mergedChildren = newChildren.map((newChild: FolderTreeNode) => {
+      const existingChild = node.children?.find((c: FolderTreeNode) => c.path === newChild.path);
       if (existingChild && existingChild.children && existingChild.children.length > 0) {
         return { ...newChild, children: existingChild.children };
       }
@@ -77,9 +81,12 @@ const insertChildrenIntoTree = (node: any, targetPath: string, newChildren: any[
   }
 
   if (node.children && node.children.length > 0) {
+    const mappedChildren = node.children
+      .map((child: FolderTreeNode) => insertChildrenIntoTree(child, targetPath, newChildren))
+      .filter((child: FolderTreeNode | null): child is FolderTreeNode => child !== null);
     return {
       ...node,
-      children: node.children.map((child: any) => insertChildrenIntoTree(child, targetPath, newChildren)),
+      children: mappedChildren,
     };
   }
 
@@ -166,7 +173,7 @@ function App() {
     selectedImagePathRef.current = selectedImage?.path ?? null;
   }, [selectedImage?.path]);
 
-  const prevAdjustmentsRef = useRef<any>(null);
+  const prevAdjustmentsRef = useRef<Adjustments | null>(null);
 
   const [viewportSize, setViewportSize] = useState<ImageDimensions>(() => {
     if (typeof window === 'undefined') {
@@ -183,7 +190,7 @@ function App() {
   const previewJobIdRef = useRef<number>(0);
   const latestRenderedJobIdRef = useRef<number>(0);
   const currentResRef = useRef<number>(1280);
-  const cachedEditStateRef = useRef<any | null>(null);
+  const cachedEditStateRef = useRef<ImageCacheEntry | null>(null);
 
   const [libraryViewMode, setLibraryViewMode] = useState<LibraryViewMode>(defaultLibraryViewMode);
   const [isResizing, setIsResizing] = useState(false);
@@ -192,9 +199,9 @@ function App() {
 
   const { requestThumbnails, clearThumbnailQueue, markGenerated } = useThumbnails();
 
-  const transformWrapperRef = useRef<any>(null);
+  const transformWrapperRef = useRef<HTMLElement | null>(null);
   const preloadedDataRef = useRef<{
-    trees?: Promise<any>;
+    trees?: Promise<FolderTreeNode[]>;
     images?: Promise<ImageFile[]>;
     rootPaths?: string[];
     currentPath?: string;
@@ -315,9 +322,9 @@ function App() {
       if (currentFolderPath.startsWith('Album: ')) {
         const { activeAlbumId, albumTree } = useLibraryStore.getState();
         if (activeAlbumId) {
-          const findObj = (nodes: any[]): any => {
+          const findObj = (nodes: AlbumItem[]): Album | null => {
             for (const n of nodes) {
-              if (n.id === activeAlbumId) return n;
+              if (n.type === 'album' && n.id === activeAlbumId) return n;
               if (n.type === 'group') {
                 const f = findObj(n.children);
                 if (f) return f;
@@ -464,7 +471,7 @@ function App() {
   }, [activeRightPanel, activeMaskContainerId, activeAiPatchContainerId, setEditor]);
 
   useEffect(() => {
-    const unlisten = listen('ai-connector-status-update', (event: any) => {
+    const unlisten = listen<{ connected: boolean }>('ai-connector-status-update', (event) => {
       setEditor({ isAIConnectorConnected: event.payload.connected });
     });
     invoke(Invokes.CheckAIConnectorStatus);
@@ -546,7 +553,7 @@ function App() {
     checkFullscreen();
     const unlistenPromise = appWindow.onResized(checkFullscreen);
     return () => {
-      unlistenPromise.then((unlisten: any) => unlisten());
+      unlistenPromise.then((unlisten: () => void) => unlisten());
     };
   }, [setUI]);
 
@@ -578,20 +585,24 @@ function App() {
       if (!isExpanding) return;
       try {
         const showCounts = appSettings?.enableFolderImageCounts ?? false;
-        const newChildren: any[] = await invoke(Invokes.GetFolderChildren, {
+        const newChildren: FolderTreeNode[] = await invoke(Invokes.GetFolderChildren, {
           path,
           show_image_counts: showCounts,
         });
         setLibrary((state) => {
           if (!state.expandedFolders.has(path)) return state;
           return {
-            folderTrees: state.folderTrees.map((t: any) => insertChildrenIntoTree(t, path, newChildren)),
+            folderTrees: state.folderTrees
+              .map((t: FolderTreeNode) => insertChildrenIntoTree(t, path, newChildren))
+              .filter((t: FolderTreeNode | null): t is FolderTreeNode => t !== null),
           };
         });
         setLibrary((state) => {
           if (!state.expandedFolders.has(path)) return state;
           return {
-            pinnedFolderTrees: state.pinnedFolderTrees.map((tree) => insertChildrenIntoTree(tree, path, newChildren)),
+            pinnedFolderTrees: state.pinnedFolderTrees
+              .map((tree) => insertChildrenIntoTree(tree, path, newChildren))
+              .filter((t: FolderTreeNode | null): t is FolderTreeNode => t !== null),
           };
         });
       } catch (err) {

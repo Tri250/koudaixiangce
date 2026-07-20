@@ -15,6 +15,7 @@ import {
   Stamp,
   Bandage,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import i18n from 'i18next';
 
 export enum Mask {
@@ -50,7 +51,7 @@ export enum ToolType {
 
 export interface MaskType {
   disabled: boolean;
-  icon: any;
+  icon: LucideIcon;
   id?: string;
   name: string;
   type: Mask;
@@ -62,7 +63,7 @@ export interface SubMask {
   mode: SubMaskMode;
   name?: string;
   opacity: number;
-  parameters?: any;
+  parameters?: Record<string, number | string | boolean | number[] | null>;
   type: Mask;
   visible: boolean;
 }
@@ -97,7 +98,7 @@ export function getSubMaskName(subMask: Pick<SubMask, 'name' | 'type'>) {
   return subMask.name?.trim() || formatMaskTypeName(subMask.type);
 }
 
-export const MASK_ICON_MAP: Record<Mask, any> = {
+export const MASK_ICON_MAP: Record<Mask, LucideIcon> = {
   [Mask.AiDepth]: BringToFront,
   [Mask.AiForeground]: User,
   [Mask.AiSky]: Cloud,
@@ -150,7 +151,7 @@ export const MASK_PANEL_CREATION_TYPES: Array<MaskType> = [
     icon: MoreHorizontal,
     id: 'others',
     name: 'Others',
-    type: null as any,
+    type: null as unknown as Mask,
   },
 ];
 
@@ -244,7 +245,7 @@ export const SUB_MASK_COMPONENT_TYPES: Array<MaskType> = [
     icon: MoreHorizontal,
     id: 'others',
     name: 'Others',
-    type: null as any,
+    type: null as unknown as Mask,
   },
 ];
 

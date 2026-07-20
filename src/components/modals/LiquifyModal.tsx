@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
 import {
   Move,
   Shrink,
@@ -49,7 +48,7 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
     liquifyStrokes,
     addLiquifyStroke,
     undoLiquifyStroke,
-    clearLiquifyStrokes,
+    _clearLiquifyStrokes,
     applyLiquify,
     resetLiquifyMesh,
   } = useRetouching();
@@ -270,7 +269,7 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
                   : 'text-text-secondary hover:bg-card-active hover:text-text-primary',
               )}
               onClick={() => setActiveBrushType(id)}
-              data-tooltip={t(labelKey as any)}
+              data-tooltip={t(labelKey as unknown)}
             >
               <Icon size={18} />
             </button>

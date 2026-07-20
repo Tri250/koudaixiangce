@@ -54,14 +54,14 @@ export interface FolderTree {
 interface FolderTreeProps {
   isResizing: boolean;
   isVisible: boolean;
-  onContextMenu(event: any, path: string | null, isPinned?: boolean): void;
-  onAlbumContextMenu(event: any, item: AlbumItem | null): void;
+  onContextMenu(event: React.MouseEvent<HTMLElement>, path: string | null, isPinned?: boolean): void;
+  onAlbumContextMenu(event: React.MouseEvent<HTMLElement>, item: AlbumItem | null): void;
   onFolderSelect(folder: string): void;
   onSelectAlbum(albumId: string, albumName: string, images: string[]): void;
   onToggleFolder(folder: string): void;
   onOpenFolder(): void;
   setIsVisible(visible: boolean): void;
-  style: any;
+  style: React.CSSProperties;
   isInstantTransition: boolean;
 }
 
@@ -69,7 +69,7 @@ interface TreeNodeProps {
   expandedFolders: Set<string>;
   isExpanded: boolean;
   node: FolderTree;
-  onContextMenu(event: any, path: string, isPinned?: boolean): void;
+  onContextMenu(event: React.MouseEvent<HTMLElement>, path: string, isPinned?: boolean): void;
   onFolderSelect(folder: string): void;
   onToggle(path: string): void;
   selectedPath: string | null;
@@ -84,7 +84,7 @@ interface VisibleProps {
   total: number;
 }
 
-const ALBUM_ICONS: Record<string, React.ElementType> = {
+const ALBUM_ICONS: Record<string, React.ElementType<any>> = {
   plane: Plane,
   mountain: Mountain,
   sun: Sun,
@@ -189,11 +189,11 @@ function FolderSortMenu({
   const { t } = useTranslation();
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: Event) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setIsOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside as EventListener);
+    return () => document.removeEventListener('mousedown', handleClickOutside as EventListener);
   }, [setIsOpen]);
 
   const options = [
@@ -260,7 +260,7 @@ function FolderSortMenu({
                     )}
                     onClick={() => {
                       if (sort.key !== opt.key) {
-                        onChange({ key: opt.key as any, order: sort.order });
+                        onChange({ key: opt.key as FolderTreeSort['key'], order: sort.order });
                       }
                       setIsOpen(false);
                     }}
@@ -308,12 +308,12 @@ function SectionHeader({ title, isOpen, onToggle }: { title: string; isOpen: boo
   );
 }
 
-const getAlbumImageCount = (item: any): number => {
-  if (item.type === 'album' && item.images) {
-    return item.images.length;
+const getAlbumImageCount = (item: AlbumItem): number => {
+  if (item.type === 'album' && (item as Album).images) {
+    return (item as Album).images.length;
   }
   if (item.type === 'group' && item.children) {
-    return item.children.reduce((sum: number, child: any) => sum + getAlbumImageCount(child), 0);
+    return (item as AlbumGroup).children.reduce((sum: number, child: AlbumItem) => sum + getAlbumImageCount(child), 0);
   }
   return 0;
 };
@@ -331,7 +331,7 @@ function AlbumTreeNode({
   expandedGroups: Set<string>;
   onToggle: (id: string) => void;
   onSelectAlbum: (id: string, name: string, images: string[]) => void;
-  onContextMenu: (e: any, item: AlbumItem) => void;
+  onContextMenu: (e: React.MouseEvent<HTMLElement>, item: AlbumItem) => void;
   selectedAlbumId: string | null;
   showImageCounts: boolean;
 }) {
@@ -340,7 +340,7 @@ function AlbumTreeNode({
   const isSelected = item.id === selectedAlbumId;
   const imageCount = getAlbumImageCount(item);
 
-  let ItemIcon: any = isGroup ? (isExpanded ? FolderOpen : Folder) : AlbumIcon;
+  let ItemIcon: React.ElementType = isGroup ? (isExpanded ? FolderOpen : Folder) : AlbumIcon;
   if (item.icon && ALBUM_ICONS[item.icon]) {
     ItemIcon = ALBUM_ICONS[item.icon];
   }
@@ -366,7 +366,7 @@ function AlbumTreeNode({
               transition={{ duration: 0.15 }}
               className="absolute"
             >
-              <ItemIcon size={16} />
+              {React.createElement(ItemIcon, { size: 16 })}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -456,7 +456,7 @@ function TreeNode({
   const isSelected = node.path === selectedPath;
   const isPinned = pinnedFolders.includes(node.path);
 
-  const handleFolderIconClick = (e: any) => {
+  const handleFolderIconClick = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
     if (hasChildren) {
       onToggle(node.path);
@@ -473,7 +473,7 @@ function TreeNode({
     }
   };
 
-  const containerVariants: any = {
+  const containerVariants: Record<string, unknown> = {
     closed: { height: 0, opacity: 0, transition: { duration: 0.2, ease: 'easeInOut' } },
     open: { height: 'auto', opacity: 1, transition: { duration: 0.25, ease: 'easeInOut' } },
   };
@@ -492,7 +492,7 @@ function TreeNode({
   };
 
   const currentFolderIconKey = folderIcons[node.path];
-  let ResolvedIcon: any = isExpanded ? FolderOpen : Folder;
+  let ResolvedIcon: React.ElementType = isExpanded ? FolderOpen : Folder;
   if (currentFolderIconKey && ALBUM_ICONS[currentFolderIconKey]) {
     ResolvedIcon = ALBUM_ICONS[currentFolderIconKey];
   }
@@ -506,7 +506,7 @@ function TreeNode({
           'hover:bg-card-active': !isSelected,
         })}
         onClick={handleNameClick}
-        onContextMenu={(e: any) => onContextMenu(e, node.path, isPinned)}
+        onContextMenu={(e: React.MouseEvent<HTMLElement>) => onContextMenu(e, node.path, isPinned)}
       >
         <div
           className={clsx(
@@ -527,7 +527,7 @@ function TreeNode({
               transition={{ duration: 0.15 }}
               className="absolute"
             >
-              <ResolvedIcon size={16} />
+              {React.createElement(ResolvedIcon, { size: 16 })}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -573,7 +573,7 @@ function TreeNode({
           >
             <div className="py-1">
               <AnimatePresence>
-                {node?.children?.map((childNode: any, index: number) => (
+                {node?.children?.map((childNode: { name: string; path: string; children?: unknown[] }, index: number) => (
                   <motion.div
                     animate="visible"
                     custom={{ index, total: node.children.length }}
@@ -659,7 +659,7 @@ export default function FolderTree({
   const showHeaderButtons = isHovering || isSortMenuOpen;
 
   useEffect(() => {
-    invoke(Invokes.GetAlbums).then((res: any) => useLibraryStore.getState().setLibrary({ albumTree: res }));
+    invoke<Array<AlbumItem>>(Invokes.GetAlbums).then((res: Array<AlbumItem>) => useLibraryStore.getState().setLibrary({ albumTree: res }));
   }, []);
 
   useEffect(() => {
@@ -678,7 +678,7 @@ export default function FolderTree({
     }
   };
 
-  const handleEmptyAreaContextMenu = (e: any) => {
+  const handleEmptyAreaContextMenu = (e: React.MouseEvent<HTMLElement>) => {
     if (e.target === e.currentTarget) {
       onContextMenu(e, null, false);
     }
@@ -699,7 +699,7 @@ export default function FolderTree({
   const filteredTrees = useMemo(() => {
     let base = folderTrees;
     if (isSearching) {
-      base = base.map((tree: any) => filterTree(tree, trimmedQuery)).filter((t: any) => t !== null);
+      base = base.map((tree: FolderTree) => filterTree(tree, trimmedQuery)).filter((t: FolderTree | null) => t !== null);
     }
     return sortFolderTree(base, folderTreeSort);
   }, [folderTrees, trimmedQuery, isSearching, folderTreeSort]);
@@ -715,7 +715,7 @@ export default function FolderTree({
   const searchAutoExpandedFolders = useMemo(() => {
     if (!isSearching) return new Set<string>();
     const newExpanded = new Set<string>();
-    filteredTrees.forEach((t: any) => getAutoExpandedPaths(t, newExpanded));
+    filteredTrees.forEach((t: FolderTree) => getAutoExpandedPaths(t, newExpanded));
     filteredPinnedTrees.forEach((pinned) => getAutoExpandedPaths(pinned, newExpanded));
     return newExpanded;
   }, [isSearching, filteredTrees, filteredPinnedTrees]);
@@ -727,7 +727,7 @@ export default function FolderTree({
   const filteredAlbumTree = useMemo(() => {
     let base = albumTree;
     if (isSearching) {
-      base = base.map((item: any) => filterAlbumTree(item, trimmedQuery)).filter((t: any) => t !== null) as any[];
+      base = base.map((item: AlbumItem) => filterAlbumTree(item, trimmedQuery)).filter((t: AlbumItem | null) => t !== null) as unknown[];
     }
     return base;
   }, [albumTree, trimmedQuery, isSearching]);
@@ -735,7 +735,7 @@ export default function FolderTree({
   const searchAutoExpandedAlbumGroups = useMemo(() => {
     if (!isSearching) return new Set<string>();
     const newExpanded = new Set<string>();
-    filteredAlbumTree.forEach((t: any) => getAutoExpandedAlbumGroups(t, newExpanded));
+    filteredAlbumTree.forEach((t: AlbumItem) => getAutoExpandedAlbumGroups(t, newExpanded));
     return newExpanded;
   }, [isSearching, filteredAlbumTree]);
 
@@ -749,7 +749,7 @@ export default function FolderTree({
       const hasBaseResults = filteredTrees && filteredTrees.length > 0;
       const hasAlbumResults = filteredAlbumTree && filteredAlbumTree.length > 0;
 
-      let newSections = [...openSections];
+      const newSections = [...openSections];
       let changed = false;
 
       if (hasPinnedResults && !newSections.includes('pinned')) {
@@ -963,7 +963,7 @@ export default function FolderTree({
                     >
                       <div className="pt-1 pb-2">
                         <AnimatePresence>
-                          {filteredAlbumTree.map((item: any) => (
+                          {filteredAlbumTree.map((item: AlbumItem) => (
                             <motion.div
                               key={item.id}
                               initial={{ opacity: 0, height: 0, x: -15 }}
@@ -1136,7 +1136,7 @@ export default function FolderTree({
                     >
                       <div className="pt-1">
                         <AnimatePresence>
-                          {filteredTrees.map((tree: any, index: number) => (
+                          {filteredTrees.map((tree: FolderTree, index: number) => (
                             <motion.div
                               key={tree.path}
                               animate="visible"
@@ -1184,7 +1184,7 @@ export default function FolderTree({
                                 as="div"
                                 weight={TextWeights.medium}
                                 className="flex items-center gap-2 p-2 mt-1 rounded-md transition-colors transition-opacity opacity-70 hover:opacity-100 hover:bg-card-active cursor-pointer hover:text-text-primary"
-                                onClick={(e: React.MouseEvent) => {
+                                onClick={(e: React.React.MouseEvent<HTMLElement>) => {
                                   e.stopPropagation();
                                   onOpenFolder();
                                 }}

@@ -61,7 +61,7 @@ export default function NegativeConversionModal({
   const selectedImagePath = targetPaths.length > 0 ? targetPaths[0] : null;
 
   useEffect(() => {
-    const unlisten = listen('negative-batch-progress', (e: any) => {
+    const unlisten = listen<{ progress: number; total: number }>('negative-batch-progress', (e: { payload: { progress: number; total: number } }) => {
       setProgress(e.payload);
     });
     return () => {
@@ -148,7 +148,7 @@ export default function NegativeConversionModal({
           path: selectedImagePath,
           js_adjustments: {},
         })
-          .then((res: any) => {
+          .then((res: unknown) => {
             if (originalRequestCancelled) return;
             if (originalUrlRef.current) {
               URL.revokeObjectURL(originalUrlRef.current);

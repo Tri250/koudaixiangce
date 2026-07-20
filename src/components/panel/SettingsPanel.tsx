@@ -59,9 +59,9 @@ interface ConfirmModalState {
 interface DataActionItemProps {
   buttonAction(): void;
   buttonText: string;
-  description: any;
+  description: React.ReactNode;
   disabled?: boolean;
-  icon: any;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   isProcessing: boolean;
   message: string;
   title: string;
@@ -78,16 +78,16 @@ interface KeybindRowProps {
 }
 
 interface SettingItemProps {
-  children: any;
+  children: React.ReactNode;
   description?: string;
   label: string;
 }
 
 interface SettingsPanelProps {
-  appSettings: any;
+  appSettings: AppSettings;
   onBack(): void;
   onLibraryRefresh(): void;
-  onSettingsChange(settings: any): Promise<void>;
+  onSettingsChange(settings: AppSettings): Promise<void>;
   rootPaths: string[];
 }
 
@@ -171,7 +171,7 @@ const KeybindRow = ({
 
   return (
     <div className="flex justify-between items-center py-2">
-      <Text variant={TextVariants.label}>{t(def.description as any)}</Text>
+      <Text variant={TextVariants.label}>{t(def.description as unknown)}</Text>
       <div className="flex items-center gap-1">
         {isConflicting && <span className="text-yellow-400 text-xs">⚠</span>}
         <button onClick={() => onStartRecording(def.action)} className="flex items-center gap-1 flex-wrap shrink-0">
@@ -681,7 +681,7 @@ export default function SettingsPanel({
     invoke<string[]>('get_lensfun_makers').then(setLensMakers).catch(console.error);
   }, []);
 
-  const handleProcessingSettingChange = async (key: string, value: any) => {
+  const handleProcessingSettingChange = async (key: string, value: unknown) => {
     setProcessingSettings((prev) => ({ ...prev, [key]: value }));
 
     if (
@@ -728,7 +728,7 @@ export default function SettingsPanel({
     setLensModels([]);
     if (maker) {
       invoke('get_lensfun_lenses_for_maker', { maker })
-        .then((l: any) => setLensModels(l))
+        .then((l: Array<{ name: string; models: string[] }>) => setLensModels(l))
         .catch(console.error);
     }
   };
@@ -776,7 +776,7 @@ export default function SettingsPanel({
       }
       setClearMessage(t('settings.data.statuses.sidecarSuccess', { count: totalCount }));
       onLibraryRefresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to clear sidecars:', err);
       setClearMessage(`Error: ${err}`);
     } finally {
@@ -809,7 +809,7 @@ export default function SettingsPanel({
       }
       setAiTagsClearMessage(t('settings.data.statuses.aiSuccess', { count: totalCount }));
       onLibraryRefresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to clear AI tags:', err);
       setAiTagsClearMessage(`Error: ${err}`);
     } finally {
@@ -842,7 +842,7 @@ export default function SettingsPanel({
       }
       setTagsClearMessage(t('settings.data.statuses.allSuccess', { count: totalCount }));
       onLibraryRefresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to clear tags:', err);
       setTagsClearMessage(`Error: ${err}`);
     } finally {
@@ -876,7 +876,7 @@ export default function SettingsPanel({
       await invoke(Invokes.ClearThumbnailCache);
       setCacheClearMessage(t('settings.data.statuses.cacheSuccess'));
       onLibraryRefresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to clear thumbnail cache:', err);
       setCacheClearMessage(`Error: ${err}`);
     } finally {
@@ -1066,7 +1066,7 @@ export default function SettingsPanel({
                   <div className="divide-y divide-border-color/40">
                     <SettingItem label={t('settings.language')} description={t('settings.languageDesc')}>
                       <Dropdown
-                        onChange={(value: any) => onSettingsChange({ ...appSettings, language: value })}
+                        onChange={(value: string) => onSettingsChange({ ...appSettings, language: value })}
                         options={[
                           { value: 'zh-CN', label: '简体中文' },
                           { value: 'zh-TW', label: '繁體中文' },
@@ -1087,15 +1087,15 @@ export default function SettingsPanel({
                     </SettingItem>
                     <SettingItem label={t('settings.general.theme')} description={t('settings.general.themeDesc')}>
                       <Dropdown
-                        onChange={(value: any) => onSettingsChange({ ...appSettings, theme: value })}
-                        options={THEMES.map((theme: ThemeProps) => ({ value: theme.id, label: t(theme.name as any) }))}
+                        onChange={(value: string) => onSettingsChange({ ...appSettings, theme: value })}
+                        options={THEMES.map((theme: ThemeProps) => ({ value: theme.id, label: t(theme.name as unknown) }))}
                         value={appSettings?.theme || DEFAULT_THEME_ID}
                         triggerClassName="bg-bg-primary min-w-[10rem]"
                       />
                     </SettingItem>
                     <SettingItem label={t('settings.general.font')} description={t('settings.general.fontDesc')}>
                       <Dropdown
-                        onChange={(value: any) => onSettingsChange({ ...appSettings, fontFamily: value })}
+                        onChange={(value: string) => onSettingsChange({ ...appSettings, fontFamily: value })}
                         options={fontOptions}
                         value={appSettings?.fontFamily || 'poppins'}
                         triggerClassName="bg-bg-primary min-w-[10rem]"
@@ -1453,7 +1453,7 @@ export default function SettingsPanel({
                                   step={1}
                                   value={appSettings?.aiTagCount ?? 10}
                                   defaultValue={10}
-                                  onChange={(e: any) =>
+                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                                     onSettingsChange({ ...appSettings, aiTagCount: parseInt(e.target.value) })
                                   }
                                 />
@@ -1683,7 +1683,7 @@ export default function SettingsPanel({
                                   label={t('settings.processing.previewRes')}
                                 >
                                   <Dropdown
-                                    onChange={(value: any) =>
+                                    onChange={(value: string) =>
                                       handleProcessingSettingChange('editorPreviewResolution', value)
                                     }
                                     options={resolutions}
@@ -1710,7 +1710,7 @@ export default function SettingsPanel({
                                   label={t('settings.processing.staticPreviewRes')}
                                 >
                                   <Dropdown
-                                    onChange={(value: any) =>
+                                    onChange={(value: string) =>
                                       handleProcessingSettingChange('editorPreviewResolution', value)
                                     }
                                     options={resolutions}
@@ -1723,7 +1723,7 @@ export default function SettingsPanel({
                                   description={t('settings.processing.renderScaleDesc')}
                                 >
                                   <Dropdown
-                                    onChange={(value: any) =>
+                                    onChange={(value: string) =>
                                       handleProcessingSettingChange('highResZoomMultiplier', value)
                                     }
                                     options={zoomMultiplierOptions}
@@ -1785,7 +1785,7 @@ export default function SettingsPanel({
                                 description={t('settings.processing.livePreviewQualityDesc')}
                               >
                                 <Dropdown
-                                  onChange={(value: any) =>
+                                  onChange={(value: string) =>
                                     onSettingsChange({ ...appSettings, livePreviewQuality: value })
                                   }
                                   options={livePreviewQualityOptions}
@@ -1805,7 +1805,7 @@ export default function SettingsPanel({
                         label={t('settings.processing.thumbnailRes')}
                       >
                         <Dropdown
-                          onChange={(value: any) => handleProcessingSettingChange('thumbnailResolution', value)}
+                          onChange={(value: string) => handleProcessingSettingChange('thumbnailResolution', value)}
                           options={thumbnailResolutions}
                           value={processingSettings.thumbnailResolution}
                           triggerClassName="bg-bg-primary min-w-[10rem]"
@@ -1849,7 +1849,7 @@ export default function SettingsPanel({
                       description={t('settings.processing.backendDesc')}
                     >
                       <Dropdown
-                        onChange={(value: any) => handleProcessingSettingChange('processingBackend', value)}
+                        onChange={(value: string) => handleProcessingSettingChange('processingBackend', value)}
                         options={filteredBackendOptions}
                         value={
                           filteredBackendOptions.some((option) => option.value === processingSettings.processingBackend)
@@ -1883,7 +1883,7 @@ export default function SettingsPanel({
                         step={1}
                         value={processingSettings.thumbnailWorkerThreads}
                         defaultValue={4}
-                        onChange={(e: any) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           handleProcessingSettingChange('thumbnailWorkerThreads', parseInt(e.target.value))
                         }
                         fillOrigin="min"
@@ -1900,7 +1900,7 @@ export default function SettingsPanel({
                         step={1}
                         value={processingSettings.imageCacheSize}
                         defaultValue={5}
-                        onChange={(e: any) => handleProcessingSettingChange('imageCacheSize', parseInt(e.target.value))}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleProcessingSettingChange('imageCacheSize', parseInt(e.target.value))}
                         fillOrigin="min"
                       />
                     </SettingItem>
@@ -1944,7 +1944,7 @@ export default function SettingsPanel({
                         step={0.1}
                         value={processingSettings.rawHighlightCompression}
                         defaultValue={2.5}
-                        onChange={(e: any) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           handleProcessingSettingChange('rawHighlightCompression', parseFloat(e.target.value))
                         }
                         fillOrigin="min"
@@ -1961,7 +1961,7 @@ export default function SettingsPanel({
                         step={0.05}
                         value={processingSettings.rawPreprocessingColorNr}
                         defaultValue={0.5}
-                        onChange={(e: any) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           handleProcessingSettingChange('rawPreprocessingColorNr', parseFloat(e.target.value))
                         }
                         fillOrigin="min"
@@ -1978,7 +1978,7 @@ export default function SettingsPanel({
                         step={0.05}
                         value={processingSettings.rawPreprocessingSharpening}
                         defaultValue={0.35}
-                        onChange={(e: any) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           handleProcessingSettingChange('rawPreprocessingSharpening', parseFloat(e.target.value))
                         }
                         fillOrigin="min"
@@ -1989,7 +1989,7 @@ export default function SettingsPanel({
                       description={t('settings.processing.preprocessing.linearRawDesc')}
                     >
                       <Dropdown
-                        onChange={(value: any) => onSettingsChange({ ...appSettings, linearRawMode: value })}
+                        onChange={(value: string) => onSettingsChange({ ...appSettings, linearRawMode: value })}
                         options={linearRawOptions}
                         value={appSettings?.linearRawMode || 'auto'}
                         triggerClassName="bg-bg-primary min-w-[10rem]"
@@ -2034,7 +2034,7 @@ export default function SettingsPanel({
                                 description={t('settings.processing.preprocessing.defaultRawTonemapperDesc')}
                               >
                                 <Dropdown
-                                  onChange={(value: any) =>
+                                  onChange={(value: string) =>
                                     onSettingsChange({ ...appSettings, defaultRawTonemapper: value })
                                   }
                                   options={tonemapperOptions}
@@ -2047,7 +2047,7 @@ export default function SettingsPanel({
                                 description={t('settings.processing.preprocessing.defaultNonRawTonemapperDesc')}
                               >
                                 <Dropdown
-                                  onChange={(value: any) =>
+                                  onChange={(value: string) =>
                                     onSettingsChange({ ...appSettings, defaultNonRawTonemapper: value })
                                   }
                                   options={tonemapperOptions}
@@ -2123,8 +2123,8 @@ export default function SettingsPanel({
                                   onBlur={() =>
                                     onSettingsChange({ ...appSettings, aiConnectorAddress: aiConnectorAddress })
                                   }
-                                  onChange={(e: any) => setAiConnectorAddress(e.target.value)}
-                                  onKeyDown={(e: any) => e.stopPropagation()}
+                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiConnectorAddress(e.target.value)}
+                                  onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => e.stopPropagation()}
                                   placeholder="127.0.0.1:8188"
                                   type="text"
                                   value={aiConnectorAddress}
@@ -2259,11 +2259,11 @@ export default function SettingsPanel({
                             aiVisionApiUrl: (document.getElementById('ai-vision-api-url') as HTMLInputElement)?.value || '',
                           })
                         }
-                        onChange={(e: any) => {
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           const val = e.target.value;
                           onSettingsChange({ ...appSettings, aiVisionApiUrl: val });
                         }}
-                        onKeyDown={(e: any) => e.stopPropagation()}
+                        onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => e.stopPropagation()}
                         placeholder="https://api.openai.com/v1"
                         type="text"
                         value={appSettings?.aiVisionApiUrl || ''}
@@ -2283,11 +2283,11 @@ export default function SettingsPanel({
                             aiVisionApiKey: (document.getElementById('ai-vision-api-key') as HTMLInputElement)?.value || '',
                           })
                         }
-                        onChange={(e: any) => {
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           const val = e.target.value;
                           onSettingsChange({ ...appSettings, aiVisionApiKey: val });
                         }}
-                        onKeyDown={(e: any) => e.stopPropagation()}
+                        onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => e.stopPropagation()}
                         placeholder="sk-..."
                         type="password"
                         value={appSettings?.aiVisionApiKey || ''}
@@ -2307,11 +2307,11 @@ export default function SettingsPanel({
                             aiVisionModel: (document.getElementById('ai-vision-model') as HTMLInputElement)?.value || 'gpt-4o-mini',
                           })
                         }
-                        onChange={(e: any) => {
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           const val = e.target.value;
                           onSettingsChange({ ...appSettings, aiVisionModel: val });
                         }}
-                        onKeyDown={(e: any) => e.stopPropagation()}
+                        onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => e.stopPropagation()}
                         placeholder="gpt-4o-mini"
                         type="text"
                         value={appSettings?.aiVisionModel || 'gpt-4o-mini'}
@@ -2329,7 +2329,7 @@ export default function SettingsPanel({
                           max={1}
                           step={0.1}
                           value={appSettings?.aiRatingStrictness ?? 0.5}
-                          onChange={(e: any) => {
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                             const val = parseFloat(e.target.value);
                             onSettingsChange({ ...appSettings, aiRatingStrictness: val });
                           }}
@@ -2452,7 +2452,7 @@ export default function SettingsPanel({
                           step={0.1}
                           value={appSettings?.zoomSpeedMultiplier ?? 1.0}
                           defaultValue={1.0}
-                          onChange={(e: any) =>
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                             onSettingsChange({ ...appSettings, zoomSpeedMultiplier: parseFloat(e.target.value) })
                           }
                           fillOrigin="min"
@@ -2479,7 +2479,7 @@ export default function SettingsPanel({
                       return (
                         <div key={section.id}>
                           <Text variant={TextVariants.heading} className="mb-2">
-                            {t(section.label as any)}
+                            {t(section.label as unknown)}
                           </Text>
                           <div className="divide-y divide-border-color/40 rounded-xl border border-border-color/50 overflow-hidden">
                             {sectionDefs.map((def) => (

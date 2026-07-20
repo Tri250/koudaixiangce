@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Mask, SubMaskMode, formatMaskTypeName } from '../components/panel/right/Masks';
+import { Mask, SubMask, SubMaskMode, formatMaskTypeName } from '../components/panel/right/Masks';
 import { ImageDimensions } from '../hooks/useImageRenderSize';
 
 export const createSubMask = (
   type: Mask,
   imageDimensions: ImageDimensions,
   mode: SubMaskMode = SubMaskMode.Additive
-) => {
+): SubMask => {
   const rawWidth = imageDimensions?.width ?? 1000;
   const rawHeight = imageDimensions?.height ?? 1000;
   const width = isFinite(rawWidth) && rawWidth > 0 ? rawWidth : 1000;

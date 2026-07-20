@@ -84,7 +84,7 @@ export default function RightPanelSwitcher({
               }`}
               key={id}
               onClick={() => onPanelSelect(id)}
-              data-tooltip={t(title as any)}
+              data-tooltip={t(title as unknown)}
             >
               {activePanel === id && (
                 <motion.div

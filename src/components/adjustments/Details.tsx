@@ -7,7 +7,7 @@ import { TextVariants } from '../../types/typography';
 
 interface DetailsPanelProps {
   adjustments: Adjustments;
-  setAdjustments(adjustments: Partial<Adjustments>): any;
+  setAdjustments(updater: Adjustments | ((prev: Adjustments) => Adjustments)): void;
   appSettings: AppSettings | null;
   isForMask?: boolean;
   onDragStateChange?: (isDragging: boolean) => void;
@@ -41,7 +41,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.sharpness')}
             max={100}
             min={0}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Sharpness, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAdjustmentChange(DetailsAdjustment.Sharpness, e.target.value)}
             step={1}
             value={adjustments.sharpness}
             onDragStateChange={onDragStateChange}
@@ -50,7 +50,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.threshold')}
             max={100}
             min={0}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.SharpnessThreshold, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAdjustmentChange(DetailsAdjustment.SharpnessThreshold, e.target.value)}
             step={1}
             value={adjustments.sharpnessThreshold ?? 15}
             onDragStateChange={onDragStateChange}
@@ -69,7 +69,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.clarity')}
             max={100}
             min={-100}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Clarity, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAdjustmentChange(DetailsAdjustment.Clarity, e.target.value)}
             step={1}
             value={adjustments.clarity}
             onDragStateChange={onDragStateChange}
@@ -78,7 +78,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.dehaze')}
             max={100}
             min={-100}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Dehaze, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAdjustmentChange(DetailsAdjustment.Dehaze, e.target.value)}
             step={1}
             value={adjustments.dehaze}
             onDragStateChange={onDragStateChange}
@@ -87,7 +87,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.structure')}
             max={100}
             min={-100}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Structure, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAdjustmentChange(DetailsAdjustment.Structure, e.target.value)}
             step={1}
             value={adjustments.structure}
             onDragStateChange={onDragStateChange}
@@ -97,7 +97,7 @@ export default function DetailsPanel({
               label={t('adjustments.details.centre')}
               max={100}
               min={0}
-              onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Centré, e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAdjustmentChange(DetailsAdjustment.Centré, e.target.value)}
               step={1}
               value={adjustments.centré}
               onDragStateChange={onDragStateChange}
@@ -115,7 +115,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.luminance')}
             max={100}
             min={isForMask ? -100 : 0}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.LumaNoiseReduction, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAdjustmentChange(DetailsAdjustment.LumaNoiseReduction, e.target.value)}
             step={1}
             value={adjustments.lumaNoiseReduction}
             onDragStateChange={onDragStateChange}
@@ -124,7 +124,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.color')}
             max={100}
             min={isForMask ? -100 : 0}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.ColorNoiseReduction, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAdjustmentChange(DetailsAdjustment.ColorNoiseReduction, e.target.value)}
             step={1}
             value={adjustments.colorNoiseReduction}
             onDragStateChange={onDragStateChange}
@@ -141,7 +141,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.redCyan')}
             max={100}
             min={-100}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.ChromaticAberrationRedCyan, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAdjustmentChange(DetailsAdjustment.ChromaticAberrationRedCyan, e.target.value)}
             step={1}
             value={adjustments.chromaticAberrationRedCyan}
             onDragStateChange={onDragStateChange}
@@ -150,7 +150,7 @@ export default function DetailsPanel({
             label={t('adjustments.details.blueYellow')}
             max={100}
             min={-100}
-            onChange={(e: any) =>
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               handleAdjustmentChange(DetailsAdjustment.ChromaticAberrationBlueYellow, e.target.value)
             }
             step={1}

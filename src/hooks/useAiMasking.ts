@@ -39,7 +39,7 @@ export function useAiMasking() {
   const selectedImagePath = useEditorStore((s) => s.selectedImage?.path);
 
   const updateSubMask = useCallback(
-    (subMaskId: string, updatedData: any) => {
+    (subMaskId: string, updatedData: Record<string, unknown>) => {
       setAdjustments((prev: Adjustments) => ({
         ...prev,
         masks: prev.masks.map((c: MaskContainer) => ({
@@ -65,7 +65,7 @@ export function useAiMasking() {
       )?.id;
       if (!patchId) return;
 
-      setAdjustments((prev: Partial<Adjustments>) => ({
+      setAdjustments((prev) => ({
         ...prev,
         aiPatches: prev.aiPatches?.map((p: AiPatch) => (p.id === patchId ? { ...p, isLoading: true } : p)),
       }));
@@ -74,7 +74,7 @@ export function useAiMasking() {
         const patchDefinitionForBackend = adjustments.aiPatches.find((p: AiPatch) => p.id === patchId);
         if (!patchDefinitionForBackend) return;
 
-        const newPatchDataJson: any = await invoke('generate_manual_cleanup_patch', {
+        const newPatchDataJson: string = await invoke<string>('generate_manual_cleanup_patch', {
           current_adjustments: adjustments,
           patch_definition: patchDefinitionForBackend,
           source_point: [sourceX, sourceY],
@@ -83,7 +83,7 @@ export function useAiMasking() {
         const newPatchData = JSON.parse(newPatchDataJson);
         patchesSentToBackend.delete(patchId);
 
-        setAdjustments((prev: Partial<Adjustments>) => ({
+        setAdjustments((prev) => ({
           ...prev,
           aiPatches: prev.aiPatches?.map((p: AiPatch) =>
             p.id === patchId ? { ...p, patchData: newPatchData, isLoading: false } : p,
@@ -91,7 +91,7 @@ export function useAiMasking() {
         }));
       } catch (err: any) {
         toast.error(i18n.t('errors.ai.cleanupFailed' as any, { message: err.message || String(err) }));
-        setAdjustments((prev: Partial<Adjustments>) => ({
+        setAdjustments((prev) => ({
           ...prev,
           aiPatches: prev.aiPatches?.map((p: AiPatch) => (p.id === patchId ? { ...p, isLoading: false } : p)),
         }));
@@ -169,14 +169,14 @@ export function useAiMasking() {
       if (!patchId) return;
 
       setEditor({ isGeneratingAi: true });
-      setAdjustments((prev: Partial<Adjustments>) => ({
+      setAdjustments((prev) => ({
         ...prev,
         aiPatches: prev.aiPatches?.map((p: AiPatch) => (p.id === patchId ? { ...p, isLoading: true } : p)),
       }));
 
       try {
         const transformAdjustments = getTransformAdjustments(adjustments);
-        const newMaskParams: any = await invoke(Invokes.GenerateAiSubjectMask, {
+        const newMaskParams: Record<string, unknown> = await invoke<Record<string, unknown>>(Invokes.GenerateAiSubjectMask, {
           js_adjustments: transformAdjustments,
           end_point: [endPoint.x, endPoint.y],
           flip_horizontal: adjustments.flipHorizontal,
@@ -191,7 +191,7 @@ export function useAiMasking() {
           ?.find((p: AiPatch) => p.id === patchId)
           ?.subMasks.find((sm: SubMask) => sm.id === subMaskId);
         if (!subMaskToUpdate) return;
-        const finalSubMaskParams: any = { ...subMaskToUpdate.parameters, ...newMaskParams };
+        const finalSubMaskParams: Record<string, unknown> = { ...subMaskToUpdate.parameters, ...newMaskParams };
         const updatedAdjustmentsForBackend = {
           ...adjustments,
           aiPatches: adjustments.aiPatches.map((p: AiPatch) =>
@@ -208,18 +208,18 @@ export function useAiMasking() {
 
         const patchDefinitionForBackend = updatedAdjustmentsForBackend.aiPatches.find((p: AiPatch) => p.id === patchId);
         if (!patchDefinitionForBackend) return;
-        const newPatchDataJson: any = await invoke(Invokes.InvokeGenerativeReplaseWithMaskDef, {
+        const newPatchDataJson = await invoke<unknown>(Invokes.InvokeGenerativeReplaseWithMaskDef, {
           current_adjustments: updatedAdjustmentsForBackend,
           patch_definition: { ...patchDefinitionForBackend, prompt: '' },
           path: selectedImage.path,
           use_fast_inpaint: true,
           token: token || null,
-        });
+        }) as string;
 
         const newPatchData = JSON.parse(newPatchDataJson);
         patchesSentToBackend.delete(patchId);
 
-        setAdjustments((prev: Partial<Adjustments>) => ({
+        setAdjustments((prev) => ({
           ...prev,
           aiPatches: prev.aiPatches?.map((p: AiPatch) =>
             p.id === patchId
@@ -235,9 +235,9 @@ export function useAiMasking() {
           ),
         }));
         setEditor({ activeAiPatchContainerId: null, activeAiSubMaskId: null });
-      } catch (err: any) {
-        toast.error(i18n.t('errors.ai.quickEraseFailed' as any, { message: err.message || String(err) }));
-        setAdjustments((prev: Partial<Adjustments>) => ({
+      } catch (err: unknown) {
+        toast.error(i18n.t('errors.ai.quickEraseFailed' as any, { message: err instanceof Error ? err.message : String(err) }));
+        setAdjustments((prev) => ({
           ...prev,
           aiPatches: prev.aiPatches?.map((p: AiPatch) => (p.id === patchId ? { ...p, isLoading: false } : p)),
         }));
@@ -307,7 +307,7 @@ export function useAiMasking() {
       const subMask = adjustments.aiPatches
         ?.flatMap((p: AiPatch) => p.subMasks)
         .find((sm: SubMask) => sm.id === subMaskId);
-      const mergedParameters = { ...(subMask?.parameters || {}), ...(newParameters as any) };
+      const mergedParameters = { ...(subMask?.parameters || {}), ...newParameters as Record<string, unknown> };
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
@@ -317,7 +317,7 @@ export function useAiMasking() {
     }
   };
 
-  const handleGenerateAiDepthMask = async (subMaskId: string, parameters: any) => {
+  const handleGenerateAiDepthMask = async (subMaskId: string, parameters: Record<string, unknown>) => {
     const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
     if (!selectedImage?.path) return;
     setEditor({ isGeneratingAiMask: true });
@@ -341,7 +341,7 @@ export function useAiMasking() {
       const subMask = adjustments.aiPatches
         ?.flatMap((p: AiPatch) => p.subMasks)
         .find((sm: SubMask) => sm.id === subMaskId);
-      const mergedParameters = { ...(subMask?.parameters || {}), ...(newParameters as any) };
+      const mergedParameters = { ...(subMask?.parameters || {}), ...newParameters as Record<string, unknown> };
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
@@ -369,7 +369,7 @@ export function useAiMasking() {
       const subMask = adjustments.aiPatches
         ?.flatMap((p: AiPatch) => p.subMasks)
         .find((sm: SubMask) => sm.id === subMaskId);
-      const mergedParameters = { ...(subMask?.parameters || {}), ...(newParameters as any) };
+      const mergedParameters = { ...(subMask?.parameters || {}), ...newParameters as Record<string, unknown> };
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
@@ -397,7 +397,7 @@ export function useAiMasking() {
       const subMask = adjustments.aiPatches
         ?.flatMap((p: AiPatch) => p.subMasks)
         .find((sm: SubMask) => sm.id === subMaskId);
-      const mergedParameters = { ...(subMask?.parameters || {}), ...(newParameters as any) };
+      const mergedParameters = { ...(subMask?.parameters || {}), ...newParameters as Record<string, unknown> };
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {

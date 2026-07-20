@@ -532,9 +532,9 @@ export default function PortraitPanel() {
         />
         <Dropdown
           options={[
-            { label: t('editor.portrait.face.catchlightPositions.topLeft' as any), value: 'top-left' },
-            { label: t('editor.portrait.face.catchlightPositions.topRight' as any), value: 'top-right' },
-            { label: t('editor.portrait.face.catchlightPositions.center' as any), value: 'center' },
+            { label: t('editor.portrait.face.catchlightPositions.topLeft' as unknown), value: 'top-left' },
+            { label: t('editor.portrait.face.catchlightPositions.topRight' as unknown), value: 'top-right' },
+            { label: t('editor.portrait.face.catchlightPositions.center' as unknown), value: 'center' },
           ]}
           value={catchlightPosition}
           onChange={setCatchlightPosition}
@@ -874,7 +874,7 @@ export default function PortraitPanel() {
             onClick={() => setActiveTab(id)}
           >
             <Icon size={16} />
-            <span>{t(labelKey as any)}</span>
+            <span>{t(labelKey as unknown)}</span>
           </button>
         ))}
       </div>

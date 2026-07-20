@@ -100,8 +100,8 @@ export default function ColorSpacePanel() {
     const handleAutoDetect = useCallback(async () => {
         try {
             // Get EXIF data from selected image metadata
-            const exifMake = (selectedImage as any)?.exifMake || '';
-            const exifModel = (selectedImage as any)?.exifModel || '';
+            const exifMake = (selectedImage as unknown)?.exifMake || '';
+            const exifModel = (selectedImage as unknown)?.exifModel || '';
             const result = await invoke<{
                 detectedMake: string;
                 detectedModel: string;

@@ -35,7 +35,7 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 
 import { ImageFile, Orientation, Panel, ThumbnailAspectRatio } from '../ui/AppProperties';
 
-const panelVariants: any = {
+const panelVariants: Record<string, unknown> = {
   animate: (direction: number) => ({
     opacity: 1,
     y: 0,
@@ -53,7 +53,7 @@ const panelVariants: any = {
 };
 
 interface EditorViewProps {
-  transformWrapperRef: RefObject<any>;
+  transformWrapperRef: RefObject<HTMLElement | null>;
   isResizing: boolean;
   isCompactPortrait: boolean;
   isCompactLandscape: boolean;
@@ -65,16 +65,16 @@ interface EditorViewProps {
   sortedImageList: ImageFile[];
   createResizeHandler: (stateKey: string, startSize: number) => (e: ReactPointerEvent<HTMLDivElement>) => void;
   handleBackToLibrary: () => void;
-  handleEditorContextMenu: (...args: any) => void;
-  handleThumbnailContextMenu: (...args: any) => void;
-  handleImageClick: (...args: any) => void;
+  handleEditorContextMenu: (event: React.MouseEvent<HTMLElement>) => void;
+  handleThumbnailContextMenu: (event: React.MouseEvent<HTMLElement>, path: string) => void;
+  handleImageClick: (path: string, event: React.MouseEvent<HTMLElement>) => void;
   handleClearSelection: () => void;
   handleCopyAdjustments: () => void;
   handlePasteAdjustments: () => void;
-  handleRate: (...args: any) => void;
+  handleRate: (rating: number, paths?: string[]) => void;
   handleZoomChange: (zoom: number) => void;
   handleRightPanelSelect: (panelId: Panel) => void;
-  requestThumbnails: any;
+  requestThumbnails: (visiblePaths: string[]) => void;
 }
 
 export default function EditorView({

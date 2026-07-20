@@ -12,10 +12,19 @@
  *   const uri = await androidSafSave('output.png', 'image/png');
  */
 
+interface AndroidSafWindow extends Window {
+  __TAURI__?: { platform?: string };
+  __androidSafOpen?: (mimeTypes: string, callbackName: string) => void;
+  __androidSafSave?: (defaultName: string, mimeTypes: string, callbackName: string) => void;
+  [key: string]: unknown;
+}
+
+const androidWindow = window as unknown as AndroidSafWindow;
+
 let callbackCounter = 0;
 
 function isAndroid(): boolean {
-  return !!(window as any).__TAURI__?.platform?.startsWith?.('android')
+  return !!androidWindow.__TAURI__?.platform?.startsWith?.('android')
     || /android/i.test(navigator.userAgent);
 }
 
@@ -32,17 +41,17 @@ export function androidSafOpen(mimeTypes: string = '*/*'): Promise<string | null
     }
 
     const callbackName = `__safOpenCb_${++callbackCounter}`;
-    (window as any)[callbackName] = (uri: string | null) => {
-      delete (window as any)[callbackName];
+    androidWindow[callbackName] = (uri: string | null) => {
+      delete androidWindow[callbackName];
       resolve(uri);
     };
 
     // Call the native method via the JS bridge set up in useAndroidBackHandler
-    if (typeof (window as any).__androidSafOpen === 'function') {
-      (window as any).__androidSafOpen(mimeTypes, callbackName);
+    if (typeof androidWindow.__androidSafOpen === 'function') {
+      androidWindow.__androidSafOpen(mimeTypes, callbackName);
     } else {
       // Fallback: try to invoke Tauri command directly
-      delete (window as any)[callbackName];
+      delete androidWindow[callbackName];
       resolve(null);
     }
   });
@@ -62,15 +71,15 @@ export function androidSafSave(defaultName: string, mimeTypes: string = '*/*'): 
     }
 
     const callbackName = `__safSaveCb_${++callbackCounter}`;
-    (window as any)[callbackName] = (uri: string | null) => {
-      delete (window as any)[callbackName];
+    androidWindow[callbackName] = (uri: string | null) => {
+      delete androidWindow[callbackName];
       resolve(uri);
     };
 
-    if (typeof (window as any).__androidSafSave === 'function') {
-      (window as any).__androidSafSave(defaultName, mimeTypes, callbackName);
+    if (typeof androidWindow.__androidSafSave === 'function') {
+      androidWindow.__androidSafSave(defaultName, mimeTypes, callbackName);
     } else {
-      delete (window as any)[callbackName];
+      delete androidWindow[callbackName];
       resolve(null);
     }
   });

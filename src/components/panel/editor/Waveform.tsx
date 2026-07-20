@@ -7,7 +7,7 @@ import { DisplayMode } from '../../../utils/adjustments';
 
 interface WaveformProps {
   waveformData: WaveformData | null;
-  histogram?: any;
+  histogram?: ChannelConfig;
   displayMode: string;
   setDisplayMode: (mode: string) => void;
   showClipping?: boolean;
@@ -53,7 +53,7 @@ const modeButtons = [
   },
 ];
 
-const HistogramView = ({ histogram }: { histogram: any }) => {
+const HistogramView = ({ histogram }: { histogram: ChannelConfig }) => {
   if (!histogram || !histogram.red || !histogram.green || !histogram.blue) return null;
 
   const redMax = Math.max(...(histogram.red || [0]));
@@ -625,7 +625,7 @@ export default function Waveform({
                   <button
                     key={mode}
                     onClick={() => setDisplayMode(mode)}
-                    data-tooltip={t(tooltip as any)}
+                    data-tooltip={t(tooltip as unknown)}
                     className={`${baseButtonClass} ${displayMode === mode ? textActiveClass : inactiveButtonClass}`}
                   >
                     {displayMode === mode && (

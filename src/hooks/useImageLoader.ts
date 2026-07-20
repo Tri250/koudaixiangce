@@ -7,7 +7,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { Invokes } from '../components/ui/AppProperties';
 import { INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments } from '../utils/adjustments';
 
-export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
+export function useImageLoader(cachedEditStateRef: React.RefObject<unknown>) {
   const selectedImage = useEditorStore((s) => s.selectedImage);
   const adjustments = useEditorStore((s) => s.adjustments);
   const histogram = useEditorStore((s) => s.histogram);
@@ -43,7 +43,7 @@ export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
           useEditorStore.getState().patchesSentToBackend.clear();
           await invoke('clear_session_caches').catch((e) => console.warn('Cache clear failed:', e));
 
-          const metadata: any = await invoke(Invokes.LoadMetadata, { path: selectedImage.path });
+          const metadata: Record<string, unknown> = await invoke<Record<string, unknown>>(Invokes.LoadMetadata, { path: selectedImage.path });
           if (!isEffectActive) return;
 
           let initialAdjusts;
@@ -62,7 +62,7 @@ export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
 
       const loadFullImageData = async () => {
         try {
-          const loadImageResult: any = await invoke(Invokes.LoadImage, { path: selectedImage.path });
+          const loadImageResult: { width: number; height: number } = await invoke<{ width: number; height: number }>(Invokes.LoadImage, { path: selectedImage.path });
           if (!isEffectActive) return;
 
           const { width, height } = loadImageResult;

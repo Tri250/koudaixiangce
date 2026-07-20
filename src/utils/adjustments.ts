@@ -1,6 +1,6 @@
 import { Crop } from 'react-image-crop';
 import { v4 as uuidv4 } from 'uuid';
-import { SubMask, SubMaskMode } from '../components/panel/right/Masks';
+import { SubMask, SubMaskMode, Mask } from '../components/panel/right/Masks';
 
 export enum ActiveChannel {
   Blue = 'blue',
@@ -147,7 +147,7 @@ export interface ParametricCurve {
 }
 
 export interface Adjustments {
-  [index: string]: any;
+  [index: string]: Array<AiPatch> | Array<MaskContainer> | Array<SubMask> | number | string | boolean | null | Array<Coord> | Curves | ParametricCurve | Crop | ColorCalibration | ColorGradingProps | HueSatLum | ParametricCurveSettings | SectionVisibility | Hsl | Record<string, unknown> | undefined;
   aiPatches: Array<AiPatch>;
   aspectRatio: number | null;
   blacks: number;
@@ -238,7 +238,7 @@ export interface AiPatch {
   isLoading: boolean;
   invert: boolean;
   name: string;
-  patchData: any | null;
+  patchData: Record<string, unknown> | null;
   prompt: string;
   subMasks: Array<SubMask>;
   visible: boolean;
@@ -291,7 +291,7 @@ interface Hsl {
 }
 
 export interface MaskAdjustments {
-  [index: string]: any;
+  [index: string]: number | HueSatLum | ColorGradingProps | Curves | ParametricCurve | SectionVisibility | Hsl | Array<string> | boolean | string | null | undefined;
   blacks: number;
   brightness: number;
   clarity: number;
@@ -326,7 +326,7 @@ export interface MaskAdjustments {
 
 export interface MaskContainer {
   adjustments: MaskAdjustments;
-  id?: any;
+  id?: string;
   invert: boolean;
   name: string;
   opacity: number;
@@ -566,7 +566,7 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   whites: 0,
 };
 
-const deepCloneCurves = (curves: any): Curves => ({
+const deepCloneCurves = (curves: Record<string, Coord[]> | null | undefined): Curves => ({
   blue: curves?.blue?.map((p: Coord) => ({ ...p })) || [
     { x: 0, y: 0 },
     { x: 255, y: 255 },
@@ -585,36 +585,38 @@ const deepCloneCurves = (curves: any): Curves => ({
   ],
 });
 
-const deepCloneParametric = (pCurve: any): ParametricCurve => ({
+const deepCloneParametric = (pCurve: Record<string, Partial<ParametricCurveSettings>> | null | undefined): ParametricCurve => ({
   luma: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS, ...(pCurve?.luma || {}) },
   red: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS, ...(pCurve?.red || {}) },
   green: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS, ...(pCurve?.green || {}) },
   blue: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS, ...(pCurve?.blue || {}) },
 });
 
-export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any => {
+export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): Adjustments => {
   if (!loadedAdjustments) {
     return INITIAL_ADJUSTMENTS;
   }
 
-  const normalizeSubMasks = (subMasks: any[]) => {
+  const normalizeSubMasks = (subMasks?: Partial<SubMask>[]): SubMask[] => {
     return (subMasks || []).map((subMask: Partial<SubMask>) => ({
       visible: true,
       mode: SubMaskMode.Additive,
       invert: false,
       opacity: 100,
       ...subMask,
+      id: subMask.id || uuidv4(),
+      type: subMask.type || Mask.Brush,
     }));
   };
 
-  const normalizedMasks = (loadedAdjustments.masks || []).map((maskContainer: MaskContainer) => {
+  const normalizedMasks: MaskContainer[] = (loadedAdjustments.masks || []).map((maskContainer: MaskContainer) => {
     const containerAdjustments = maskContainer.adjustments || {};
-    const normalizedSubMasks = normalizeSubMasks(maskContainer.subMasks);
+    const normalizedSubMasks = normalizeSubMasks(maskContainer.subMasks as Partial<SubMask>[] | undefined);
 
     return {
       ...INITIAL_MASK_CONTAINER,
-      id: maskContainer.id || uuidv4(),
       ...maskContainer,
+      id: maskContainer.id || uuidv4(),
       adjustments: {
         ...INITIAL_MASK_ADJUSTMENTS,
         ...containerAdjustments,
@@ -642,9 +644,15 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
     };
   });
 
-  const normalizedAiPatches = (loadedAdjustments.aiPatches || []).map((patch: any) => ({
+  const normalizedAiPatches: AiPatch[] = (loadedAdjustments.aiPatches || []).map((patch: Partial<AiPatch> & { subMasks?: SubMask[] }) => ({
+    isLoading: patch.isLoading ?? false,
+    invert: patch.invert ?? false,
+    name: patch.name || '',
+    prompt: patch.prompt || '',
     visible: true,
     ...patch,
+    id: patch.id || uuidv4(),
+    patchData: patch.patchData ?? null,
     subMasks: normalizeSubMasks(patch.subMasks),
   }));
 

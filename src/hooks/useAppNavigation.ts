@@ -8,23 +8,24 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { Invokes, LibraryViewMode, ImageFile } from '../components/ui/AppProperties';
-import { INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments } from '../utils/adjustments';
-import { globalImageCache } from '../utils/ImageLRUCache';
+import { Invokes, LibraryViewMode, ImageFile, AlbumItem, AppSettings } from '../components/ui/AppProperties';
+import { INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments, Adjustments } from '../utils/adjustments';
+import { globalImageCache, ImageCacheEntry } from '../utils/ImageLRUCache';
 import { debouncedSave, debouncedSetHistory } from './useEditorActions';
+import type { FolderTree } from '../components/panel/FolderTree';
 
 export interface AppNavigationProps {
   clearThumbnailQueue: () => void;
   refs: {
-    transformWrapperRef: React.RefObject<any>;
-    preloadedDataRef: React.RefObject<any>;
-    cachedEditStateRef: React.RefObject<any>;
+    transformWrapperRef: React.RefObject<HTMLElement | null>;
+    preloadedDataRef: React.RefObject<unknown>;
+    cachedEditStateRef: React.RefObject<unknown>;
     selectedImagePathRef: React.RefObject<string | null>;
     isBackendReadyRef: React.RefObject<boolean>;
     latestRenderedJobIdRef: React.RefObject<number>;
     previewJobIdRef: React.RefObject<number>;
     currentResRef: React.RefObject<number>;
-    prevAdjustmentsRef: React.RefObject<any>;
+    prevAdjustmentsRef: React.RefObject<unknown>;
   };
 }
 
@@ -62,10 +63,10 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
     const { setUI } = useUIStore.getState();
 
     if (selectedImage?.path && cachedEditStateRef.current) {
-      globalImageCache.set(selectedImage.path, cachedEditStateRef.current);
+      globalImageCache.set(selectedImage.path, cachedEditStateRef.current as ImageCacheEntry);
     }
     if (transformWrapperRef.current) {
-      transformWrapperRef.current.resetTransform(0);
+      (transformWrapperRef.current as unknown as { resetTransform: (n: number) => void }).resetTransform(0);
     }
     setEditor({ zoom: 1 });
 
@@ -118,7 +119,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       debouncedSetHistory.cancel();
 
       if (selectedImage?.path && cachedEditStateRef.current) {
-        globalImageCache.set(selectedImage.path, cachedEditStateRef.current);
+        globalImageCache.set(selectedImage.path, cachedEditStateRef.current as ImageCacheEntry);
       }
 
       const cached = globalImageCache.get(path);
@@ -180,26 +181,29 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         isBackendReadyRef.current = false;
         currentResRef.current = Infinity;
 
-        invoke(Invokes.LoadImage, { path })
-          .then((_result: any) => {
+        invoke<unknown>(Invokes.LoadImage, { path })
+          .then((_result) => {
+            const result = _result as Record<string, number>;
             if (selectedImagePathRef.current !== path) return;
             isBackendReadyRef.current = true;
             currentResRef.current = 0;
-            setEditor({ originalSize: { width: _result.width, height: _result.height } });
+            setEditor({ originalSize: { width: result.width, height: result.height } });
           })
-          .catch((err: any) => {
+          .catch((err: unknown) => {
             if (String(err).includes('cancelled')) return;
             console.error('Background load_image failed on cache hit:', err);
             isBackendReadyRef.current = true;
             currentResRef.current = 0;
           });
 
-        invoke(Invokes.LoadMetadata, { path })
-          .then((metadata: any) => {
+        invoke<unknown>(Invokes.LoadMetadata, { path })
+          .then((metadataRaw) => {
+            const metadata = metadataRaw as Record<string, unknown>;
             if (selectedImagePathRef.current !== path) return;
-            let freshAdjustments: any;
-            if (metadata.adjustments && !metadata.adjustments.is_null) {
-              freshAdjustments = normalizeLoadedAdjustments(metadata.adjustments);
+            let freshAdjustments: Adjustments | null;
+            const adj = metadata.adjustments as Record<string, unknown> | undefined;
+            if (adj && !adj.is_null) {
+              freshAdjustments = normalizeLoadedAdjustments(adj);
             } else {
               freshAdjustments = { ...INITIAL_ADJUSTMENTS };
             }
@@ -207,7 +211,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
               setEditor({ adjustments: freshAdjustments });
               resetHistory(freshAdjustments);
               prevAdjustmentsRef.current = { path, adjustments: freshAdjustments };
-              globalImageCache.set(path, { ...(cached as any), adjustments: freshAdjustments } as any);
+              globalImageCache.set(path, { ...(cached as unknown as Record<string, unknown>), adjustments: freshAdjustments } as ImageCacheEntry);
             }
           })
           .catch((err) => console.error('Failed background metadata sync on cache hit:', err));
@@ -219,11 +223,11 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
 
       setEditor({
         selectedImage: {
-          exif: null,
+          exif: null as unknown as Record<string, unknown>,
           height: 0,
           isRaw: false,
           isReady: false,
-          metadata: null,
+          metadata: null as unknown as Record<string, unknown>,
           originalUrl: null,
           path,
           thumbnailUrl: useProcessStore.getState().thumbnails[path],
@@ -293,7 +297,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         if (isNewRoot && path) {
           newExpandedFolders = new Set([path]);
           if (appSettings) {
-            handleSettingsChange({ ...appSettings, lastRootPath: path } as any);
+            handleSettingsChange({ ...appSettings, lastRootPath: path } as typeof appSettings);
           }
         } else if (path && expandParents) {
           const allRoots = [...(rootPaths || []), ...(pinnedFolders || [])].filter(Boolean) as string[];
@@ -338,7 +342,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         if (preloadedImages) {
           files = preloadedImages;
         } else {
-          files = await invoke(command, { path });
+          files = await invoke<unknown>(command, { path }) as ImageFile[];
         }
 
         const initialRatings: Record<string, number> = {};
@@ -356,23 +360,24 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           const paths = files.map((f: ImageFile) => f.path);
 
           if (isExifSortActive) {
-            const exifDataMap: Record<string, any> = await invoke(Invokes.ReadExifForPaths, { paths });
-            const finalImageList = files.map((image) => ({
+            const exifDataMap = await invoke<unknown>(Invokes.ReadExifForPaths, { paths }) as Record<string, Record<string, unknown>>;
+            const finalImageList = files.map((image: ImageFile) => ({
               ...image,
               exif: exifDataMap[image.path] || image.exif || null,
             }));
-            setLibrary({ imageList: finalImageList });
+            setLibrary({ imageList: finalImageList as ImageFile[] });
           } else {
             setLibrary({ imageList: files });
             const currentFolderPath = path;
-            invoke(Invokes.ReadExifForPaths, { paths })
-              .then((exifDataMap: any) => {
+            invoke<unknown>(Invokes.ReadExifForPaths, { paths })
+              .then((exifDataMapRaw) => {
+                const exifDataMap = exifDataMapRaw as Record<string, Record<string, unknown>>;
                 if (useLibraryStore.getState().currentFolderPath !== currentFolderPath) return;
                 setLibrary((state) => ({
                   imageList: state.imageList.map((image) => ({
                     ...image,
                     exif: exifDataMap[image.path] || image.exif || null,
-                  })),
+                  })) as ImageFile[],
                 }));
               })
               .catch((err) => {
@@ -419,7 +424,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       });
 
       try {
-        const files: ImageFile[] = await invoke(Invokes.GetAlbumImages, { paths: imagePaths });
+        const files = await invoke<unknown>(Invokes.GetAlbumImages, { paths: imagePaths }) as ImageFile[];
 
         const initialRatings: Record<string, number> = {};
         files.forEach((f) => {
@@ -463,18 +468,18 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           setLibrary({ rootPaths: newRootPaths });
 
           if (appSettings) {
-            handleSettingsChange({ ...appSettings, rootFolders: newRootPaths } as any);
+            handleSettingsChange({ ...appSettings, rootFolders: newRootPaths } as AppSettings);
           }
 
           setLibrary({ isTreeLoading: true });
           try {
-            const newTree = await invoke(Invokes.GetFolderTree, {
+            const newTree = await invoke<unknown>(Invokes.GetFolderTree, {
               path: selectedPath,
               expanded_folders: [selectedPath],
               show_image_counts:
                 appSettings?.enableFolderImageCounts || appSettings?.folderTreeSort?.key === 'imageCount',
             });
-            setLibrary({ folderTrees: [...folderTrees, newTree] });
+            setLibrary({ folderTrees: [...folderTrees, newTree as FolderTree] });
           } catch (e) {
             toast.error(`Failed to load folder tree: ${e}`);
           } finally {
@@ -494,8 +499,8 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       const { appSettings } = useSettingsStore.getState();
       const { setLibrary } = useLibraryStore.getState();
 
-      const rootFolders = (appSettings as any)?.rootFolders?.length
-        ? (appSettings as any).rootFolders
+      const rootFolders = ((appSettings as Record<string, unknown>)?.rootFolders as string[] | undefined)?.length
+        ? (appSettings as Record<string, unknown>).rootFolders as string[]
         : appSettings?.lastRootPath
           ? [appSettings.lastRootPath]
           : [];
@@ -517,18 +522,19 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       setLibrary({ isTreeLoading: true });
       try {
         let treesData;
-        if (preloadedDataRef.current?.rootPaths?.join() === rootFolders.join() && preloadedDataRef.current.trees) {
-          treesData = await preloadedDataRef.current.trees;
-          preloadedDataRef.current.trees = undefined;
+        const preloaded = preloadedDataRef.current as { rootPaths?: string[]; currentPath?: string; trees?: Promise<unknown>; images?: Promise<unknown> } | null;
+        if (preloaded?.rootPaths?.join() === rootFolders.join() && preloaded.trees) {
+          treesData = await preloaded.trees as FolderTree[];
+          preloaded.trees = undefined;
         } else {
           const expandedArr = folderState?.expandedFolders
             ? Array.from(new Set(folderState.expandedFolders))
             : rootFolders;
-          treesData = await invoke(Invokes.GetPinnedFolderTrees, {
+          treesData = await invoke<unknown>(Invokes.GetPinnedFolderTrees, {
             paths: rootFolders,
             expanded_folders: expandedArr,
             show_image_counts: appSettings?.enableFolderImageCounts || appSettings?.folderTreeSort?.key === 'imageCount',
-          });
+          }) as FolderTree[];
         }
         setLibrary({ folderTrees: treesData });
       } catch (err) {
@@ -538,10 +544,10 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       }
 
       let preloadedImages: ImageFile[] | undefined = undefined;
-      if (preloadedDataRef.current?.currentPath === pathToSelect && preloadedDataRef.current.images) {
+      if (preloaded?.currentPath === pathToSelect && preloaded.images) {
         try {
-          preloadedImages = await preloadedDataRef.current.images;
-          preloadedDataRef.current.images = undefined;
+          preloadedImages = await preloaded.images as ImageFile[];
+          preloaded.images = undefined;
         } catch (e) {
           console.error('Failed to retrieve preloaded images', e);
         }
@@ -551,10 +557,10 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         const activeAlbumId = folderState?.activeAlbumId;
         if (activeAlbumId) {
           try {
-            const albumTree: any = await invoke(Invokes.GetAlbums);
+            const albumTree = await invoke<unknown>(Invokes.GetAlbums) as AlbumItem[];
             setLibrary({ albumTree });
 
-            const findObj = (nodes: any[]): any => {
+            const findObj = (nodes: AlbumItem[]): AlbumItem | null => {
               for (const n of nodes) {
                 if (n.id === activeAlbumId) return n;
                 if (n.type === 'group') {

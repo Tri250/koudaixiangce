@@ -16,7 +16,7 @@ export interface UserPreset {
   preset?: Preset;
 }
 
-function arrayMove(array: any, from: any, to: any) {
+function arrayMove<T>(array: T[], from: number, to: number): T[] {
   const newArray = array.slice();
   const [item] = newArray.splice(from, 1);
   newArray.splice(to, 0, item);
@@ -30,7 +30,7 @@ export function usePresets(currentAdjustments: Adjustments) {
   const loadPresets = useCallback(async () => {
     setIsLoading(true);
     try {
-      const loadedPresets: Array<UserPreset> = await invoke(Invokes.LoadPresets);
+      const loadedPresets = await invoke<unknown>(Invokes.LoadPresets) as Array<UserPreset>;
       setPresets(loadedPresets);
     } catch (error) {
       console.error('Failed to load presets:', error);
@@ -68,7 +68,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     const GEOMETRY_KEYS = ADJUSTMENT_GROUPS.geometry.flatMap((group) => group.keys);
     const MASK_KEYS = ADJUSTMENT_GROUPS.masks.flatMap((group) => group.keys);
 
-    const presetAdjustments: Record<string, any> = {};
+    const presetAdjustments: Partial<Adjustments> = {};
 
     for (const key of COPYABLE_ADJUSTMENT_KEYS) {
       if (!includeMasks && MASK_KEYS.includes(key)) continue;
@@ -89,7 +89,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     }
 
     const newPresetData: Preset = {
-      adjustments: presetAdjustments,
+      adjustments: presetAdjustments as Partial<Adjustments>,
       id: crypto.randomUUID(),
       name: trimmedName,
       includeMasks,
@@ -106,7 +106,7 @@ export function usePresets(currentAdjustments: Adjustments) {
               ...item.folder,
               children: [...item.folder.children, newPresetData],
             },
-          };
+          } as UserPreset;
         }
         return item;
       });
@@ -120,7 +120,7 @@ export function usePresets(currentAdjustments: Adjustments) {
   };
 
   const addFolder = (name: string) => {
-    const newFolder = {
+    const newFolder: UserPreset = {
       folder: {
         id: crypto.randomUUID(),
         name,
@@ -128,7 +128,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       },
     };
 
-    setPresets((currentPresets: Array<any>) => {
+    setPresets((currentPresets: Array<UserPreset>) => {
       const updatedPresets = [...currentPresets];
       const firstPresetIndex = updatedPresets.findIndex((p: UserPreset) => p.preset);
 
@@ -148,11 +148,11 @@ export function usePresets(currentAdjustments: Adjustments) {
     updatedPresets = updatedPresets.map((item: UserPreset) => {
       if (item.folder) {
         return {
-          folder: {
-            ...item.folder,
-            children: item.folder.children.filter((child: any) => child.id !== id),
-          },
-        };
+            folder: {
+              ...item.folder,
+              children: item.folder.children.filter((child: Preset) => child.id !== id),
+            },
+          } as UserPreset;
       }
       return item;
     });
@@ -166,15 +166,15 @@ export function usePresets(currentAdjustments: Adjustments) {
         return { preset: { ...item.preset, name: newName } };
       }
       if (item.folder?.id === id) {
-        return { folder: { ...item.folder, name: newName } };
+        return { folder: { ...item.folder, name: newName } } as UserPreset;
       }
       if (item.folder) {
         return {
           folder: {
             ...item.folder,
-            children: item.folder.children.map((child: any) => (child.id === id ? { ...child, name: newName } : child)),
+            children: item.folder.children.map((child: Preset) => (child.id === id ? { ...child, name: newName } : child)),
           },
-        };
+        } as UserPreset;
       }
       return item;
     });
@@ -189,7 +189,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     includeCropTransform: boolean,
     presetType: 'tool' | 'style',
   ) => {
-    let existingPreset: Preset | null = null;
+    let existingPreset: Preset | undefined;
 
     for (const item of presets) {
       if (item.preset?.id === id) {
@@ -207,7 +207,7 @@ export function usePresets(currentAdjustments: Adjustments) {
 
     if (!existingPreset) return null;
 
-    let newAdjustments: Record<string, any> = { ...existingPreset.adjustments };
+    const newAdjustments: Partial<Adjustments> = { ...existingPreset.adjustments };
     const oldType = existingPreset.presetType || 'style';
 
     const GEOMETRY_KEYS = ADJUSTMENT_GROUPS.geometry.flatMap((group) => group.keys);
@@ -238,7 +238,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       for (const k of GEOMETRY_KEYS) delete newAdjustments[k];
     }
 
-    let updatedPreset: Preset | null = null;
+    let updatedPreset: Preset | undefined;
     const updatedPresets = presets.map((item: UserPreset) => {
       if (item.preset?.id === id) {
         updatedPreset = {
@@ -269,7 +269,7 @@ export function usePresets(currentAdjustments: Adjustments) {
           return child;
         });
         if (found) {
-          return { folder: { ...item.folder, children: newChildren } };
+          return { folder: { ...item.folder, children: newChildren } } as UserPreset;
         }
       }
       return item;
@@ -281,7 +281,7 @@ export function usePresets(currentAdjustments: Adjustments) {
   };
 
   const overwritePreset = (id: string | null) => {
-    let existingPreset: Preset | null = null;
+    let existingPreset: Preset | undefined;
 
     for (const item of presets) {
       if (item.preset?.id === id) {
@@ -312,7 +312,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       false;
     const presetType = existingPreset.presetType || 'style';
 
-    const presetAdjustments: Record<string, any> = {};
+    const presetAdjustments: Partial<Adjustments> = {};
 
     for (const key of COPYABLE_ADJUSTMENT_KEYS) {
       if (!includeMasks && MASK_KEYS.includes(key)) continue;
@@ -332,7 +332,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       }
     }
 
-    let updatedPreset: Preset | null = null;
+    let updatedPreset: Preset | undefined;
     const updatedPresets = presets.map((item: UserPreset) => {
       if (item.preset?.id === id) {
         updatedPreset = {
@@ -361,7 +361,7 @@ export function usePresets(currentAdjustments: Adjustments) {
           return child;
         });
         if (found) {
-          return { folder: { ...item.folder, children: newChildren } };
+          return { folder: { ...item.folder, children: newChildren } } as UserPreset;
         }
       }
       return item;
@@ -374,7 +374,7 @@ export function usePresets(currentAdjustments: Adjustments) {
 
   const duplicatePreset = useCallback(
     (presetId: string | null) => {
-      let presetToDuplicate: Preset | null = null;
+      let presetToDuplicate: Preset | undefined;
       let sourceFolderId = null;
 
       for (const item of presets) {
@@ -383,7 +383,7 @@ export function usePresets(currentAdjustments: Adjustments) {
           break;
         }
         if (item.folder) {
-          const found = item.folder.children.find((p: any) => p.id === presetId);
+          const found = item.folder.children.find((p: Preset) => p.id === presetId);
           if (found) {
             presetToDuplicate = found;
             sourceFolderId = item.folder.id;
@@ -409,10 +409,10 @@ export function usePresets(currentAdjustments: Adjustments) {
       if (sourceFolderId) {
         updatedPresets = presets.map((item: UserPreset) => {
           if (item.folder?.id === sourceFolderId) {
-            const originalIndex = item.folder.children.findIndex((p: any) => p.id === presetId);
+            const originalIndex = item.folder.children.findIndex((p: Preset) => p.id === presetId);
             const newChildren = [...item.folder.children];
             newChildren.splice(originalIndex + 1, 0, newPreset);
-            return { folder: { ...item.folder, children: newChildren } };
+            return { folder: { ...item.folder, children: newChildren } } as UserPreset;
           }
           return item;
         });
@@ -431,7 +431,7 @@ export function usePresets(currentAdjustments: Adjustments) {
 
   const movePreset = useCallback(
     (presetId: string, targetFolderId: string | null, overId = null) => {
-      let presetToMove: Preset | null = null;
+      let presetToMove: Preset | undefined;
       let sourceFolderId = null;
 
       for (const item of presets) {
@@ -440,7 +440,7 @@ export function usePresets(currentAdjustments: Adjustments) {
           break;
         }
         if (item.folder) {
-          const found = item.folder.children.find((p: any) => p.id === presetId);
+          const found = item.folder.children.find((p: Preset) => p.id === presetId);
           if (found) {
             presetToMove = found;
             sourceFolderId = item.folder.id;
@@ -458,7 +458,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       if (sourceFolderId) {
         updatedPresets = updatedPresets.map((item: UserPreset) =>
           item.folder?.id === sourceFolderId
-            ? { folder: { ...item.folder, children: item.folder.children.filter((p: any) => p.id !== presetId) } }
+            ? { folder: { ...item.folder, children: item.folder.children.filter((p: Preset) => p.id !== presetId) } }
             : item,
         );
       } else {
@@ -479,7 +479,7 @@ export function usePresets(currentAdjustments: Adjustments) {
             } else {
               newChildren.push(presetToMove!);
             }
-            return { folder: { ...item.folder, children: newChildren } };
+            return { folder: { ...item.folder, children: newChildren } } as UserPreset;
           }
           return item;
         });
@@ -507,8 +507,8 @@ export function usePresets(currentAdjustments: Adjustments) {
   const reorderItems = useCallback(
     (activeId: string, overId: string) => {
       setPresets((currentPresets: Array<UserPreset>) => {
-        const getIndex = (arr: Array<UserPreset>, id: string) =>
-          arr.findIndex((item: UserPreset) => item.preset?.id === id || item.folder?.id === id || item?.id === id);
+        const getIndex = (arr: Array<UserPreset | Preset>, id: string) =>
+          arr.findIndex((item) => ('preset' in item && item.preset?.id === id) || ('folder' in item && item.folder?.id === id) || ('id' in item && item?.id === id));
 
         const activeRootIndex = getIndex(currentPresets, activeId);
         const overRootIndex = getIndex(currentPresets, overId);
@@ -551,19 +551,19 @@ export function usePresets(currentAdjustments: Adjustments) {
   const sortAllPresetsAlphabetically = useCallback(() => {
     setPresets((currentPresets) => {
       const newPresets: Array<UserPreset> = JSON.parse(JSON.stringify(currentPresets));
-      const sortOptions = { numeric: true, sensitivity: 'base' };
+      const sortOptions = { numeric: true, sensitivity: 'base' as const };
 
       newPresets.forEach((item: UserPreset) => {
         if (item.folder && item.folder.children) {
-          item.folder.children.sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, sortOptions));
+          item.folder.children.sort((a: Preset, b: Preset) => a.name.localeCompare(b.name, undefined, sortOptions));
         }
       });
 
       const folders = newPresets.filter((item: UserPreset) => item.folder);
       const rootPresets = newPresets.filter((item: UserPreset) => item.preset);
 
-      folders.sort((a: any, b: any) => a.folder.name.localeCompare(b.folder.name, undefined, sortOptions));
-      rootPresets.sort((a: any, b: any) => a.preset.name.localeCompare(b.preset.name, undefined, sortOptions));
+      folders.sort((a: UserPreset, b: UserPreset) => a.folder!.name.localeCompare(b.folder!.name, undefined, sortOptions));
+      rootPresets.sort((a: UserPreset, b: UserPreset) => a.preset!.name.localeCompare(b.preset!.name, undefined, sortOptions));
 
       const sortedPresets = [...folders, ...rootPresets];
 
@@ -581,7 +581,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       const previousPresets = [...presets];
       setIsLoading(true);
       try {
-        const updatedPresetList: Array<any> = await invoke(Invokes.HandleImportPresetsFromFile, { file_path: filePath });
+        const updatedPresetList = await invoke<unknown>(Invokes.HandleImportPresetsFromFile, { file_path: filePath }) as Array<UserPreset>;
         if (!Array.isArray(updatedPresetList)) {
           throw new Error('Invalid preset data format');
         }
@@ -607,9 +607,9 @@ export function usePresets(currentAdjustments: Adjustments) {
       const previousPresets = [...presets];
       setIsLoading(true);
       try {
-        const updatedPresetList: Array<UserPreset> = await invoke(Invokes.HandleImportLegacyPresetsFromFile, {
+        const updatedPresetList = await invoke<unknown>(Invokes.HandleImportLegacyPresetsFromFile, {
           file_path: filePath,
-        });
+        }) as Array<UserPreset>;
         if (!Array.isArray(updatedPresetList)) {
           throw new Error('Invalid preset data format');
         }
@@ -626,7 +626,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     [presets, savePresetsToBackend],
   );
 
-  const exportPresetsToFile = useCallback(async (presetsToExport: Array<any>, filePath: string) => {
+  const exportPresetsToFile = useCallback(async (presetsToExport: Array<UserPreset>, filePath: string) => {
     if (!presetsToExport || !Array.isArray(presetsToExport)) {
       console.error('exportPresetsToFile: invalid presetsToExport');
       throw new Error('Invalid presets data');

@@ -7,12 +7,12 @@ import { TextVariants, TextWeights } from '../../types/typography';
 
 interface CollapsibleSectionProps {
   canToggleVisibility?: boolean;
-  children: any;
+  children: React.ReactNode;
   isContentVisible: boolean;
   isOpen: boolean;
-  onContextMenu?: any;
-  onToggle: any;
-  onToggleVisibility?: any;
+  onContextMenu?: (e: React.MouseEvent) => void;
+  onToggle: () => void;
+  onToggleVisibility?: () => void;
   title: string;
 }
 
@@ -30,7 +30,7 @@ export default function CollapsibleSection({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [isHovering, setIsHovering] = useState(false);
-  const hoverTimeoutRef = useRef<any>(null);
+  const hoverTimeoutRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -73,7 +73,7 @@ export default function CollapsibleSection({
     setIsHovering(false);
   };
 
-  const handleVisibilityClick = (e: any) => {
+  const handleVisibilityClick = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
     onToggleVisibility();
   };

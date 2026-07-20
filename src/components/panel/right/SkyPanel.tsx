@@ -274,11 +274,11 @@ export default function SkyPanel() {
                   setSelectedPreset(preset.id);
                   setSkyImagePath(null);
                 }}
-                data-tooltip={t(preset.nameKey as any)}
+                data-tooltip={t(preset.nameKey as unknown)}
               >
                 <div className="w-full h-full flex items-end justify-center pb-1">
                   <span className="text-xs text-white/80 font-medium drop-shadow-md">
-                    {t(preset.nameKey as any)}
+                    {t(preset.nameKey as unknown)}
                   </span>
                 </div>
               </button>

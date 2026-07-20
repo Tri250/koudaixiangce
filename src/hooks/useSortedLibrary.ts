@@ -34,9 +34,9 @@ export const parseFocalLength = (val: string | undefined): number => {
   return isNaN(numVal) ? 0 : numVal;
 };
 
-export function computeSortedLibrary(libraryState: any, settingsState: any): ImageFile[] {
+export function computeSortedLibrary(libraryState: ReturnType<typeof useLibraryStore.getState>, settingsState: ReturnType<typeof useSettingsStore.getState>): ImageFile[] {
   const { imageList, imageRatings, filterCriteria, searchCriteria, sortCriteria } = libraryState;
-  const { appSettings, supportedTypes } = settingsState;
+  const { appSettings: _appSettings, supportedTypes } = settingsState;
 
   const getParentDir = (filePath: string): string => {
     const separator = filePath.includes('/') ? '/' : '\\';
@@ -141,7 +141,7 @@ export function computeSortedLibrary(libraryState: any, settingsState: any): Ima
     return { type: 'normal', value: tag.toLowerCase(), raw: tag };
   });
 
-  const evaluateQuery = (q: any, image: ImageFile) => {
+  const evaluateQuery = (q: { field: string; operator: string; value: string }, image: ImageFile) => {
     const { field, operator, value } = q;
 
     if (['iso', 'aperture', 'f', 'shutter', 's', 'focal', 'mm', 'rating'].includes(field)) {
@@ -198,7 +198,7 @@ export function computeSortedLibrary(libraryState: any, settingsState: any): Ima
 
           let tagsMatch = true;
           if (parsedTags.length > 0) {
-            const evaluateTag = (parsedTag: any) => {
+            const evaluateTag = (parsedTag: { type: string; value?: string; field?: string; operator?: string }) => {
               if (parsedTag.type === 'normal') {
                 return lowerCaseImageTags.some((imgTag) => imgTag.includes(parsedTag.value));
               }
@@ -206,9 +206,9 @@ export function computeSortedLibrary(libraryState: any, settingsState: any): Ima
             };
 
             if (searchMode === 'OR') {
-              tagsMatch = parsedTags.some((pt: any) => evaluateTag(pt));
+              tagsMatch = parsedTags.some((pt: { type: string; value?: string; field?: string; operator?: string }) => evaluateTag(pt));
             } else {
-              tagsMatch = parsedTags.every((pt: any) => evaluateTag(pt));
+              tagsMatch = parsedTags.every((pt: { type: string; value?: string; field?: string; operator?: string }) => evaluateTag(pt));
             }
           }
 

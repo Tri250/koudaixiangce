@@ -48,7 +48,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ theme: newSettings.theme });
     }
 
-    const { searchCriteria: _searchCriteria, ...settingsToSave } = newSettings as any;
+    const { searchCriteria: _searchCriteria, ...settingsToSave } = newSettings as AppSettings & { searchCriteria?: unknown };
     set({ appSettings: newSettings });
 
     try {

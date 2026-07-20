@@ -37,7 +37,7 @@ interface GPSData {
 
 interface MetaDataItemProps {
   label: string;
-  value: any;
+  value: Record<string, unknown>;
 }
 
 const USER_TAG_PREFIX = 'user:';
@@ -450,7 +450,7 @@ export default function MetadataPanel() {
               </Text>
               <div className="flex flex-col gap-2">
                 <div className="grid grid-cols-2 gap-2">
-                  {cameraGridSettings.map((item: any) => {
+                  {cameraGridSettings.map((item: { label: string; value: string }) => {
                     const Icon = CAMERA_ICONS[item.key];
                     return (
                       <div
