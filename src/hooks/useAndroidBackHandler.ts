@@ -174,7 +174,7 @@ export function useAndroidBackHandler() {
     // Memory pressure handler — called from Android onTrimMemory / onLowMemory
     (window as any).__onAndroidMemoryPressure = (level: string) => {
       // Use dynamic import to avoid circular dependency
-      import('../utils/ImageLRUCache').then(({ globalImageCache }) => {
+      import('../utils/ImageLRUCache.js').then(({ globalImageCache }) => {
         if (level === 'critical') {
           globalImageCache.clear();
           console.info('[Android] Critical memory pressure — image cache cleared');
@@ -201,6 +201,73 @@ export function useAndroidBackHandler() {
       }
     };
 
+    // SAF file picker bridge — calls the Android Activity's native SAF methods
+    // Uses Tauri dialog plugin as fallback on platforms where SAF is not available
+    (window as any).__androidSafOpen = (mimeTypes: string, callbackName: string) => {
+      try {
+        const extensions = mimeTypes.split(',').flatMap(m => {
+          if (m.includes('jpeg') || m.includes('jpg')) return ['jpg', 'jpeg'];
+          if (m.includes('png')) return ['png'];
+          if (m.includes('tiff')) return ['tiff', 'tif'];
+          if (m.includes('webp')) return ['webp'];
+          if (m.includes('dng')) return ['dng'];
+          if (m.includes('raw')) return ['raw', 'arw', 'cr2', 'nef', 'orf', 'raf'];
+          return [];
+        });
+        invoke('plugin:dialog|open', {
+          multiple: false,
+          filters: [{ name: 'Images', extensions }]
+        }).then((result: any) => {
+          const path = Array.isArray(result) ? result[0] : result;
+          (window as any)[callbackName]?.(path || null);
+        }).catch(() => {
+          (window as any)[callbackName]?.(null);
+        });
+      } catch (e) {
+        (window as any)[callbackName]?.(null);
+      }
+    };
+
+    (window as any).__androidSafSave = (defaultName: string, mimeTypes: string, callbackName: string) => {
+      try {
+        const extensions = mimeTypes.split(',').flatMap(m => {
+          if (m.includes('jpeg') || m.includes('jpg')) return ['jpg'];
+          if (m.includes('png')) return ['png'];
+          if (m.includes('tiff')) return ['tiff'];
+          if (m.includes('webp')) return ['webp'];
+          return [];
+        });
+        invoke('plugin:dialog|save', {
+          defaultPath: defaultName,
+          filters: [{ name: 'Output', extensions }]
+        }).then((path: any) => {
+          (window as any)[callbackName]?.(path || null);
+        }).catch(() => {
+          (window as any)[callbackName]?.(null);
+        });
+      } catch (e) {
+        (window as any)[callbackName]?.(null);
+      }
+    };
+
+    // Android system dark mode detection — follow system theme on Android
+    const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleDarkModeChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      // Only auto-switch if the user hasn't explicitly set a theme
+      const settings = useSettingsStore.getState();
+      if (settings.theme === 'dark' || settings.theme === 'light') {
+        // If currently using a default dark/light theme, follow system
+        const isSystemDark = e.matches;
+        const currentIsDark = settings.theme === 'dark';
+        if (isSystemDark !== currentIsDark) {
+          settings.setTheme(isSystemDark ? 'dark' : 'light');
+        }
+      }
+    };
+    // Initial check
+    handleDarkModeChange(darkModeMediaQuery);
+    darkModeMediaQuery.addEventListener('change', handleDarkModeChange);
+
     // Periodic sidecar flush every 30 seconds on Android to guard against process kills
     const periodicFlushInterval = setInterval(() => {
       const { selectedImage, adjustments } = useEditorStore.getState();
@@ -217,6 +284,9 @@ export function useAndroidBackHandler() {
       delete (window as any).__getAndroidState;
       delete (window as any).__restoreAndroidState;
       delete (window as any).__onAndroidMemoryPressure;
+      delete (window as any).__androidSafOpen;
+      delete (window as any).__androidSafSave;
+      darkModeMediaQuery.removeEventListener('change', handleDarkModeChange);
       clearInterval(periodicFlushInterval);
     };
   }, []);

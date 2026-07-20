@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufReader, Cursor};
+use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use crate::formats::is_raw_file;
@@ -1315,9 +1315,13 @@ fn write_tiff_with_metadata(image_bytes: &mut Vec<u8>, original_path_str: &str, 
             };
             fields.push(orientation_field);
 
-            let mut writer = exif::Writer::new();
-            writer.add_fields(&fields);
-            exif_bytes = writer.write().map_err(|e| format!("Failed to write EXIF: {}", e))?;
+            let mut writer = exif::experimental::Writer::new();
+            for field in &fields {
+                writer.push_field(field);
+            }
+            let mut exif_cursor = std::io::Cursor::new(Vec::new());
+            writer.write(&mut exif_cursor, true).map_err(|e| format!("Failed to write EXIF: {}", e))?;
+            exif_bytes = exif_cursor.into_inner();
         }
     }
 
@@ -1335,7 +1339,7 @@ fn write_tiff_with_metadata(image_bytes: &mut Vec<u8>, original_path_str: &str, 
 
     let mut result = Vec::new();
 
-    let mut cursor = std::io::Cursor::new(image_bytes);
+    let mut cursor = std::io::Cursor::new(&mut *image_bytes);
     let mut buf = [0; 4];
 
     if cursor.read_exact(&mut buf).is_ok() && &buf == b"II\x2A\x00" {

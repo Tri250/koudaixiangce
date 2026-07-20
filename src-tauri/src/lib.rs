@@ -71,7 +71,7 @@ use base64::{Engine as _, engine::general_purpose};
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, GenericImageView, ImageBuffer, ImageFormat, Luma, RgbImage, Rgba};
 use image_hdr::hdr_merge_images;
-use image_hdr::input::HDRInput;
+use image_hdr::input::{HDRInput, HDRInputList};
 use imageproc::drawing::draw_line_segment_mut;
 use imageproc::edges::canny;
 use imageproc::hough::{LineDetectionOptions, detect_lines};
@@ -822,7 +822,7 @@ fn generate_uncropped_preview(
             Cow::Owned(
                 composite_patches_on_image(&loaded_image.image, &adjustments_clone).unwrap_or_else(
                     |e| {
-                        warn!("Failed to composite patches for uncropped preview: {}", e);
+                        log::warn!("Failed to composite patches for uncropped preview: {}", e);
                         loaded_image.image.as_ref().clone()
                     },
                 ),
@@ -1001,7 +1001,7 @@ fn generate_fullscreen_preview(
         Cow::Owned(
             composite_patches_on_image(&loaded_image.image, &adjustments_clone).unwrap_or_else(
                 |e| {
-                    warn!("Failed to composite patches for fullscreen preview: {}", e);
+                    log::warn!("Failed to composite patches for fullscreen preview: {}", e);
                     loaded_image.image.as_ref().clone()
                 },
             ),
@@ -1485,7 +1485,7 @@ async fn generate_all_community_previews(
             let mask_definitions: Vec<MaskDefinition> = scaled_adjustments
                 .get("masks")
                 .and_then(|m| serde_json::from_value(m.clone()).ok())
-                .unwrap_or_else(|| Vec::new);
+                .unwrap_or_else(|| Vec::new());
 
             let unscaled_crop_offset = js_adjustments
                 .get("crop")
@@ -1624,7 +1624,8 @@ async fn merge_hdr(
         .collect::<Result<Vec<HDRInput>, String>>()?;
 
     log::info!("Starting HDR merge of {} images", images.len());
-    let mut hdr_merged = hdr_merge_images(&mut images).map_err(|e| e.to_string())?;
+    let mut hdr_input_list: HDRInputList = images.into();
+    let mut hdr_merged = hdr_merge_images(&mut hdr_input_list).map_err(|e| e.to_string())?;
     hdr_merged =
         image_hdr::stretch::apply_histogram_stretch(&hdr_merged).map_err(|e| e.to_string())?;
     hdr_merged = apply_linear_to_srgb(hdr_merged);
@@ -2344,7 +2345,7 @@ pub fn run() {
                     };
                     let ort_library_path = resource_path.join(ort_library_name);
                     std::env::set_var("ORT_DYLIB_PATH", &ort_library_path);
-                    info!("Set ORT_DYLIB_PATH to: {}", ort_library_path.display());
+                    log::info!("Set ORT_DYLIB_PATH to: {}", ort_library_path.display());
                 }
             }
 

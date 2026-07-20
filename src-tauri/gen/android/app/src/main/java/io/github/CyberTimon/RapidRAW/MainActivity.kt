@@ -14,15 +14,87 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import android.content.ComponentCallbacks2
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 
 class MainActivity : TauriActivity() {
   private val safeMarginBackgroundColor = Color.rgb(24, 24, 24)
   private var webView: WebView? = null
   private val PERMISSION_REQUEST_CODE = 1001
+  private val SAF_OPEN_REQUEST_CODE = 2001
+  private val SAF_SAVE_REQUEST_CODE = 2002
+
+  // SAF file picker launchers
+  private lateinit var safOpenLauncher: ActivityResultLauncher<Intent>
+  private lateinit var safSaveLauncher: ActivityResultLauncher<Intent>
+
+  // Callbacks for SAF results — called from JS bridge
+  private var safOpenCallback: String? = null
+  private var safSaveCallback: String? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+
+    // Register SAF file pickers
+    safOpenLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+      if (result.resultCode == RESULT_OK && result.data != null) {
+        val uri = result.data?.data
+        if (uri != null) {
+          // Persist permission to access the URI across app restarts
+          contentResolver.takePersistableUriPermission(
+            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+          )
+          val callback = safOpenCallback
+          if (callback != null) {
+            webView?.evaluateJavascript(
+              "if (typeof window.$callback === 'function') { window.$callback('$uri'); }",
+              null
+            )
+            safOpenCallback = null
+          }
+        }
+      } else {
+        val callback = safOpenCallback
+        if (callback != null) {
+          webView?.evaluateJavascript(
+            "if (typeof window.$callback === 'function') { window.$callback(null); }",
+            null
+          )
+          safOpenCallback = null
+        }
+      }
+    }
+
+    safSaveLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+      if (result.resultCode == RESULT_OK && result.data != null) {
+        val uri = result.data?.data
+        if (uri != null) {
+          contentResolver.takePersistableUriPermission(
+            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+          )
+          val callback = safSaveCallback
+          if (callback != null) {
+            webView?.evaluateJavascript(
+              "if (typeof window.$callback === 'function') { window.$callback('$uri'); }",
+              null
+            )
+            safSaveCallback = null
+          }
+        }
+      } else {
+        val callback = safSaveCallback
+        if (callback != null) {
+          webView?.evaluateJavascript(
+            "if (typeof window.$callback === 'function') { window.$callback(null); }",
+            null
+          )
+          safSaveCallback = null
+        }
+      }
+    }
 
     val rootView: View = findViewById(android.R.id.content)
     rootView.setBackgroundColor(safeMarginBackgroundColor)
@@ -203,5 +275,35 @@ class MainActivity : TauriActivity() {
       "if (typeof window.__flushSidecar === 'function') { window.__flushSidecar(); }",
       null
     )
+  }
+
+  // SAF file picker methods — called from JS via __androidSafOpen / __androidSafSave
+  fun openSafFilePicker(mimeTypes: String, callbackName: String) {
+    safOpenCallback = callbackName
+    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+      addCategory(Intent.CATEGORY_OPENABLE)
+      type = mimeTypes.ifEmpty { "*/*" }
+      if (mimeTypes.contains(",")) {
+        // Multiple MIME types: use EXTRA_MIME_TYPES
+        putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.split(",").toTypedArray())
+        type = "*/*"
+      }
+      putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+    }
+    safOpenLauncher.launch(intent)
+  }
+
+  fun saveSafFilePicker(defaultName: String, mimeTypes: String, callbackName: String) {
+    safSaveCallback = callbackName
+    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+      addCategory(Intent.CATEGORY_OPENABLE)
+      type = mimeTypes.ifEmpty { "*/*" }
+      if (mimeTypes.contains(",")) {
+        putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.split(",").toTypedArray())
+        type = "*/*"
+      }
+      putExtra(Intent.EXTRA_TITLE, defaultName.ifEmpty { "output" })
+    }
+    safSaveLauncher.launch(intent)
   }
 }

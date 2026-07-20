@@ -156,8 +156,8 @@ fn analyze_image(
     let focus_crop = imageops::crop_imm(&img, focus_crop_x, focus_crop_y, focus_crop_width, focus_crop_height)
         .to_image();
 
-    let focus_thumbnail = focus_crop.thumbnail(ANALYSIS_DIM, ANALYSIS_DIM);
-    let gray_focus_thumbnail = focus_thumbnail.to_luma8();
+    let focus_thumbnail = imageops::thumbnail(&focus_crop, ANALYSIS_DIM, ANALYSIS_DIM);
+    let gray_focus_thumbnail = image::DynamicImage::ImageRgba8(focus_thumbnail).to_luma8();
 
     let center_focus_metric = calculate_laplacian_variance(&gray_focus_thumbnail);
 

@@ -101,17 +101,19 @@ export default function EditorView({
   handleRightPanelSelect,
   requestThumbnails,
 }: EditorViewProps) {
-  const { selectedImage, adjustments, setAdjustments, canUndo, canRedo, undo, redo } = useEditorStore(
+  const { selectedImage, adjustments, setEditor, history, historyIndex, undo, redo } = useEditorStore(
     useShallow((state) => ({
       selectedImage: state.selectedImage,
       adjustments: state.adjustments,
-      setAdjustments: state.setAdjustments,
-      canUndo: state.past.length > 0,
-      canRedo: state.future.length > 0,
+      setEditor: state.setEditor,
+      history: state.history,
+      historyIndex: state.historyIndex,
       undo: state.undo,
       redo: state.redo,
     })),
   );
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
 
   const {
     isFullScreen,
@@ -322,19 +324,14 @@ export default function EditorView({
             }
           }}
           onRotateLeft={() => {
-            const newSteps = [...(adjustments.orientationSteps || [])];
-            newSteps.push('rotate_left');
-            setAdjustments({ orientationSteps: newSteps });
+            const currentSteps = adjustments.orientationSteps || 0;
+            setEditor({ adjustments: { ...adjustments, orientationSteps: (currentSteps + 3) % 4 } });
           }}
           onFlipHorizontal={() => {
-            const newSteps = [...(adjustments.orientationSteps || [])];
-            newSteps.push('flip_horizontal');
-            setAdjustments({ orientationSteps: newSteps });
+            setEditor({ adjustments: { ...adjustments, flipHorizontal: !adjustments.flipHorizontal } });
           }}
           onFlipVertical={() => {
-            const newSteps = [...(adjustments.orientationSteps || [])];
-            newSteps.push('flip_vertical');
-            setAdjustments({ orientationSteps: newSteps });
+            setEditor({ adjustments: { ...adjustments, flipVertical: !adjustments.flipVertical } });
           }}
           onCrop={() => {
             if (activeRightPanel === Panel.Crop) {

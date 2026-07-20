@@ -2018,30 +2018,25 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
             if (activeRightPanel !== null) {
               setUI({ activeRightPanel: null });
             } else {
-              setUI({ activeRightPanel: Panel.BasicAdjustments });
+              setUI({ activeRightPanel: Panel.Adjustments });
             }
           }}
           onRotateLeft={() => {
-            const newSteps = [...(adjustments.orientationSteps || [])];
-            newSteps.push('rotate_left');
-            setAdjustments({ orientationSteps: newSteps });
+            const currentSteps = adjustments.orientationSteps || 0;
+            setEditor({ adjustments: { ...adjustments, orientationSteps: (currentSteps + 3) % 4 } });
           }}
           onFlipHorizontal={() => {
-            const newSteps = [...(adjustments.orientationSteps || [])];
-            newSteps.push('flip_horizontal');
-            setAdjustments({ orientationSteps: newSteps });
+            setEditor({ adjustments: { ...adjustments, flipHorizontal: !adjustments.flipHorizontal } });
           }}
           onFlipVertical={() => {
-            const newSteps = [...(adjustments.orientationSteps || [])];
-            newSteps.push('flip_vertical');
-            setAdjustments({ orientationSteps: newSteps });
+            setEditor({ adjustments: { ...adjustments, flipVertical: !adjustments.flipVertical } });
           }}
           onCrop={() => {
             if (activeRightPanel === Panel.Crop) {
               setUI({ activeRightPanel: null });
             } else {
               if (!adjustments.crop) {
-                setAdjustments({ crop: { unit: '%', x: 5, y: 5, width: 90, height: 90 } });
+                setEditor({ adjustments: { ...adjustments, crop: { unit: '%', x: 5, y: 5, width: 90, height: 90 } } });
               }
               setUI({ activeRightPanel: Panel.Crop });
             }

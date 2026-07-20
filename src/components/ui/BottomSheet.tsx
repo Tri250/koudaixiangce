@@ -111,7 +111,7 @@ export default function BottomSheet({
           animate={{ y: 0 }}
           exit={{ y: shouldReduceMotion ? 0 : '100%' }}
           transition={shouldReduceMotion ? { duration: 0 } : { type: 'spring', damping: 28, stiffness: 350, mass: 0.8 }}
-          className="fixed bottom-0 left-0 right-0 liquid-glass z-50"
+          className="fixed bottom-0 left-0 right-0 liquid-glass z-50 safe-area-bottom"
           style={{
             height: `${height}px`,
             transition: isDragging ? 'none' : 'height 220ms cubic-bezier(0, 0, 0.2, 1)',

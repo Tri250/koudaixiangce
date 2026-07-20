@@ -50,6 +50,7 @@ import { Adjustments, INITIAL_ADJUSTMENTS, ADJUSTMENT_GROUPS } from '../../../ut
 import { Invokes, OPTION_SEPARATOR, Panel, Preset } from '../../ui/AppProperties';
 import { useEditorStore } from '../../../store/useEditorStore';
 import { useUIStore } from '../../../store/useUIStore';
+import { useLongPress } from '../../../hooks/useLongPress';
 import { useEditorActions } from '../../../hooks/useEditorActions';
 
 interface DroppableFolderItemProps {
@@ -473,6 +474,11 @@ function DraggablePresetItem({
     id: preset.id,
   });
 
+  // Long-press support for mobile context menu
+  const longPress = useLongPress(
+    (pos) => onContextMenu({ clientX: pos.clientX, clientY: pos.clientY, preventDefault: () => {} } as any, { preset }),
+  );
+
   const setCombinedRef = useCallback(
     (node: any) => {
       setDraggableNodeRef(node);
@@ -493,6 +499,7 @@ function DraggablePresetItem({
     <div
       onClick={() => onApply(preset)}
       onContextMenu={(e: any) => onContextMenu(e, { preset })}
+      {...longPress}
       ref={setCombinedRef}
       style={style}
     >
@@ -534,6 +541,11 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
     id: folder.id,
   });
 
+  // Long-press support for mobile context menu
+  const longPress = useLongPress(
+    (pos) => onContextMenu({ clientX: pos.clientX, clientY: pos.clientY, preventDefault: () => {} } as any, { folder }),
+  );
+
   const style = {
     opacity: isDragging ? 0.4 : 1,
     touchAction: 'none',
@@ -550,6 +562,7 @@ function DroppableFolderItem({ folder, onContextMenu, children, onToggle, isExpa
       <div
         className="flex items-center gap-2 p-2 rounded-lg bg-surface cursor-pointer"
         onContextMenu={(e: any) => onContextMenu(e, { folder })}
+        {...longPress}
       >
         <div className="p-1 cursor-grab" ref={setDraggableNodeRef} {...listeners} {...attributes}>
           {isExpanded ? (
