@@ -720,8 +720,7 @@ pub fn write_image_with_metadata(
     keep_metadata: bool,
     strip_gps: bool,
 ) -> Result<(), String> {
-    // FIXME: temporary solution until I find a way to write metadata to TIFF
-    if !keep_metadata || output_format.to_lowercase() == "tiff" {
+    if !keep_metadata {
         return Ok(());
     }
 
@@ -730,7 +729,12 @@ pub fn write_image_with_metadata(
         return Ok(());
     }
 
-    // Skip TIFF sources to avoid potential tag corruption issues
+    let output_lower = output_format.to_lowercase();
+
+    if output_lower == "tiff" || output_lower == "tif" {
+        return write_tiff_with_metadata(image_bytes, original_path_str, strip_gps);
+    }
+
     let original_ext = original_path
         .extension()
         .and_then(|s| s.to_str())
@@ -740,12 +744,11 @@ pub fn write_image_with_metadata(
         return Ok(());
     }
 
-    let file_type = match output_format.to_lowercase().as_str() {
+    let file_type = match output_lower.as_str() {
         "jpg" | "jpeg" => FileExtension::JPEG,
         "png" => FileExtension::PNG {
             as_zTXt_chunk: true,
         },
-        "tiff" => FileExtension::TIFF,
         _ => return Ok(()),
     };
 
@@ -1274,4 +1277,118 @@ pub fn write_rrexif_sidecar(source_path_str: &str, target_image_path: &Path) -> 
     metadata.exif = Some(exif_data);
     save_primary_metadata(target_image_path, &metadata)
         .map_err(|e| format!("Failed to write sidecar: {}", e))
+}
+
+fn write_tiff_with_metadata(image_bytes: &mut Vec<u8>, original_path_str: &str, strip_gps: bool) -> Result<(), String> {
+    let original_path = Path::new(original_path_str);
+
+    let mut exif_bytes: Vec<u8> = Vec::new();
+
+    if let Ok(file) = std::fs::File::open(original_path) {
+        let mut bufreader = std::io::BufReader::new(&file);
+        let exifreader = exif::Reader::new();
+
+        if let Ok(exif_obj) = exifreader.read_from_container(&mut bufreader) {
+            let mut fields: Vec<exif::Field> = exif_obj
+                .fields()
+                .filter(|f| {
+                    if strip_gps {
+                        !matches!(f.tag, exif::Tag::GPSLatitude | exif::Tag::GPSLatitudeRef | exif::Tag::GPSLongitude | exif::Tag::GPSLongitudeRef | exif::Tag::GPSAltitude | exif::Tag::GPSAltitudeRef | exif::Tag::GPSDateStamp | exif::Tag::GPSTimeStamp | exif::Tag::GPSProcessingMethod | exif::Tag::GPSProcessingMethod | exif::Tag::GPSAreaInformation | exif::Tag::GPSDOP | exif::Tag::GPSSpeed | exif::Tag::GPSSpeedRef | exif::Tag::GPSTrack | exif::Tag::GPSTrackRef | exif::Tag::GPSImgDirection | exif::Tag::GPSImgDirectionRef | exif::Tag::GPSDestLatitude | exif::Tag::GPSDestLatitudeRef | exif::Tag::GPSDestLongitude | exif::Tag::GPSDestLongitudeRef | exif::Tag::GPSDestBearing | exif::Tag::GPSDestBearingRef | exif::Tag::GPSDestDistance | exif::Tag::GPSDestDistanceRef | exif::Tag::GPSHPositioningError)
+                    } else {
+                        true
+                    }
+                })
+                .cloned()
+                .collect();
+
+            let software_field = exif::Field {
+                tag: exif::Tag::Software,
+                ifd_num: exif::In::PRIMARY,
+                value: exif::Value::Ascii(vec![b"RapidRAW\0".to_vec()]),
+            };
+            fields.push(software_field);
+
+            let orientation_field = exif::Field {
+                tag: exif::Tag::Orientation,
+                ifd_num: exif::In::PRIMARY,
+                value: exif::Value::Short(vec![1]),
+            };
+            fields.push(orientation_field);
+
+            let mut writer = exif::Writer::new();
+            writer.add_fields(&fields);
+            exif_bytes = writer.write().map_err(|e| format!("Failed to write EXIF: {}", e))?;
+        }
+    }
+
+    if exif_bytes.is_empty() {
+        return Ok(());
+    }
+
+    let tiff_header = &[0x49, 0x49, 0x2A, 0x00];
+    let offset_to_exif = 8u32.to_le_bytes();
+
+    let mut tiff_exif = Vec::new();
+    tiff_exif.extend_from_slice(tiff_header);
+    tiff_exif.extend_from_slice(&offset_to_exif);
+    tiff_exif.extend_from_slice(&exif_bytes);
+
+    let mut result = Vec::new();
+
+    let mut cursor = std::io::Cursor::new(image_bytes);
+    let mut buf = [0; 4];
+
+    if cursor.read_exact(&mut buf).is_ok() && &buf == b"II\x2A\x00" {
+        let mut offset_bytes = [0; 4];
+        if cursor.read_exact(&mut offset_bytes).is_ok() {
+            let ifd_offset = u32::from_le_bytes(offset_bytes) as usize;
+            let _ = cursor.set_position(0);
+            let mut tiff_data = Vec::new();
+            let _ = cursor.read_to_end(&mut tiff_data);
+
+            if ifd_offset < tiff_data.len() {
+                let first_ifd = &tiff_data[ifd_offset..];
+                let mut num_entries_bytes = [0; 2];
+                if first_ifd.len() >= 2 {
+                    num_entries_bytes.copy_from_slice(&first_ifd[0..2]);
+                    let num_entries = u16::from_le_bytes(num_entries_bytes);
+                    let exif_ifd_offset = ifd_offset + 2 + (num_entries as usize) * 12;
+
+                    if exif_ifd_offset + 4 <= tiff_data.len() {
+                        let mut next_ifd_bytes = [0; 4];
+                        next_ifd_bytes.copy_from_slice(&tiff_data[exif_ifd_offset..exif_ifd_offset + 4]);
+                        let next_ifd = u32::from_le_bytes(next_ifd_bytes);
+
+                        let exif_tag_offset = tiff_data.len();
+                        let exif_tag_data = [0x87, 0x69, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01];
+                        let exif_tag_offset_bytes = (exif_tag_offset as u32).to_le_bytes();
+
+                        let mut new_ifd = Vec::new();
+                        new_ifd.extend_from_slice(&num_entries_bytes);
+                        new_ifd.extend_from_slice(&tiff_data[ifd_offset + 2..exif_ifd_offset]);
+                        new_ifd.extend_from_slice(&exif_tag_data);
+                        new_ifd.extend_from_slice(&exif_tag_offset_bytes);
+                        new_ifd.extend_from_slice(&next_ifd_bytes);
+
+                        result.extend_from_slice(&tiff_data[0..ifd_offset]);
+                        result.extend_from_slice(&new_ifd);
+                        result.extend_from_slice(&tiff_exif[8..]);
+                    } else {
+                        result = tiff_data;
+                    }
+                } else {
+                    result = tiff_data;
+                }
+            } else {
+                result = tiff_data;
+            }
+        } else {
+            result = image_bytes.clone();
+        }
+    } else {
+        result = image_bytes.clone();
+    }
+
+    *image_bytes = result;
+    Ok(())
 }

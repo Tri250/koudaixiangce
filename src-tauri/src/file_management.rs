@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::thread;
 
 use anyhow::Result;
+use log::warn;
 use chrono::{DateTime, Utc};
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, GenericImageView, ImageBuffer, Luma};
@@ -2625,7 +2626,7 @@ pub async fn apply_auto_adjustments_to_paths(
                 }
                 Ok(image)
             })()
-            .map_err(|e| eprintln!("Failed to apply auto adjustments to {}: {}", path, e))
+            .map_err(|e| warn!("Failed to apply auto adjustments to {}: {}", path, e))
             .ok();
 
             let result = generate_single_thumbnail_and_cache(
@@ -3021,7 +3022,7 @@ pub fn clear_all_sidecars(root_path: String) -> Result<usize, String> {
             if fs::remove_file(path).is_ok() {
                 deleted_count += 1;
             } else {
-                eprintln!("Failed to delete sidecar file: {:?}", path);
+                warn!("Failed to delete sidecar file: {:?}", path);
             }
         }
     }
@@ -3302,7 +3303,7 @@ pub fn get_cached_or_generate_thumbnail_image(
             if let Ok(image) = image::open(&cache_path) {
                 return Ok(image);
             }
-            eprintln!(
+            warn!(
                 "Could not open cached thumbnail, regenerating: {:?}",
                 cache_path
             );
@@ -3623,7 +3624,7 @@ pub async fn import_files(
             })();
 
             if let Err(e) = import_result {
-                eprintln!("Failed to import {}: {}", source_path_str, e);
+                warn!("Failed to import {}: {}", source_path_str, e);
                 let _ = app_handle.emit(
                     "import-error",
                     serde_json::json!({ "path": source_path_str, "error": e }),

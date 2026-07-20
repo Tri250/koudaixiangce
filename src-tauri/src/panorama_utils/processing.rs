@@ -2,6 +2,7 @@ use crate::panorama_stitching::{BRIEF_DESCRIPTOR_SIZE, Descriptor, Feature, KeyP
 use image::{GrayImage, ImageBuffer, Luma};
 use imageproc::corners::{Corner, corners_fast9};
 use imageproc::filter::gaussian_blur_f32;
+use log::info;
 use nalgebra::{Matrix3, Point2, SVD};
 use rand::prelude::*;
 use rand::rng;
@@ -397,7 +398,7 @@ fn build_integral_images(gray: &GrayImage) -> (Vec<u64>, Vec<u128>) {
 }
 
 pub fn generate_low_detail_mask(gray_full: &GrayImage) -> GrayImage {
-    println!("    - Generating low-detail mask...");
+    info!("    - Generating low-detail mask...");
     let (width, height) = gray_full.dimensions();
     let mut mask = GrayImage::new(width, height);
     let (sat, sat_sq) = build_integral_images(gray_full);

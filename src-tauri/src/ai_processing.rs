@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
+use log::info;
 use image::imageops::{self, FilterType};
 use image::{
     DynamicImage, GenericImageView, GrayImage, ImageBuffer, Luma, Rgb, Rgb32FImage, Rgba, RgbaImage,
@@ -348,7 +349,7 @@ async fn download_and_verify_model(
 
     if !is_valid {
         if dest_path.exists() {
-            println!("Model {} has incorrect hash. Re-downloading.", model_name);
+            info!("Model {} has incorrect hash. Re-downloading.", model_name);
             fs::remove_file(&dest_path)?;
         }
         let _ = app_handle.emit("ai-model-download-start", model_name);
