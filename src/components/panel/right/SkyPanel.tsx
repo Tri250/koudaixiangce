@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -105,6 +105,14 @@ export default function SkyPanel() {
     setStatusMessage(message);
     setStatusType(type);
     statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 4000);
+  }, []);
+
+  // Clear any pending status timeout when the panel unmounts to avoid
+  // scheduling a state update on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    };
   }, []);
 
   const handleDetectSky = useCallback(async () => {

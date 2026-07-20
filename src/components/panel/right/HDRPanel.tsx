@@ -208,7 +208,7 @@ export default function HDRPanel() {
         } finally {
             setIsExportingTiff(false);
         }
-    }, [peakBrightness, adjustments, selectedImage, t]);
+    }, [peakBrightness, adjustments, selectedImage, tiffBitDepth, t]);
 
     const handleGenerateGainMap = useCallback(async () => {
         setIsGeneratingGainMap(true);

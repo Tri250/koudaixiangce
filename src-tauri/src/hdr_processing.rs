@@ -192,12 +192,16 @@ pub fn apply_hdr_tone_mapping(
                     (aces(r_lin), aces(g_lin), aces(b_lin))
                 }
                 "drago" => {
-                    // Drago logarithmic tone mapping
+                    // Drago logarithmic tone mapping.
+                    // Guard inputs against <= 0 because f32::ln(<=0) = NaN,
+                    // which would propagate through the whole image.
                     let log_base: f32 = 2.0;
-                    let lw: f32 = luminance_scale.ln() / log_base.ln();
+                    let safe_lum = luminance_scale.max(1e-6);
+                    let lw: f32 = safe_lum.ln() / log_base.ln();
                     let max_lum: f32 = lw.exp();
                     let drago = |x: f32| -> f32 {
-                        let numerator = (x * 0.01_f32).ln() / log_base.ln();
+                        let safe_x = (x * 0.01_f32).max(1e-6);
+                        let numerator = safe_x.ln() / log_base.ln();
                         (numerator / lw * 0.01_f32).clamp(0.0, 1.0) * max_lum.min(1.0)
                     };
                     (drago(r_lin), drago(g_lin), drago(b_lin))
@@ -314,8 +318,10 @@ pub fn generate_gain_map(
     let gh = (sh + downsample_factor - 1) / downsample_factor;
     let mut gain_map = image::GrayImage::new(gw, gh);
 
-    let log_min = min_gain.ln();
-    let log_max = max_gain.ln();
+    // Guard against <= 0 inputs to f32::ln which would produce NaN and
+    // propagate through the entire gain map.
+    let log_min = min_gain.max(1e-6).ln();
+    let log_max = max_gain.max(1e-6).ln();
     let log_range = (log_max - log_min).max(1e-6);
 
     for gy in 0..gh {
@@ -335,7 +341,7 @@ pub fn generate_gain_map(
 
             // Gain ratio (log scale)
             let gain = if sdr_lum > 1.0 {
-                hdr_lum / sdr_lum
+                (hdr_lum / sdr_lum).max(1e-6)
             } else {
                 1.0
             };

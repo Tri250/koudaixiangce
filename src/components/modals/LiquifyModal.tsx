@@ -110,10 +110,17 @@ export default function LiquifyModal({ isOpen, onClose, imageUrl, imageWidth, im
     canvas.width = imageWidth;
     canvas.height = imageHeight;
     const img = new Image();
+    let cancelled = false;
     img.onload = () => {
+      // Guard against stale loads: if imageUrl changed before this image
+      // finished loading, drawing it would overwrite the newer canvas state.
+      if (cancelled) return;
       ctx.drawImage(img, 0, 0, imageWidth, imageHeight);
     };
     img.src = imageUrl;
+    return () => {
+      cancelled = true;
+    };
   }, [imageUrl, imageWidth, imageHeight]);
 
   // Draw overlay for strokes

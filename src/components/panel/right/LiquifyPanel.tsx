@@ -75,6 +75,14 @@ export default function LiquifyPanel() {
     statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 4000);
   }, []);
 
+  // Clear any pending status timeout when the panel unmounts to avoid
+  // scheduling a state update on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     setEditor({
       liquifyBrushType: activeBrushType,

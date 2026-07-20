@@ -740,7 +740,7 @@ export default function MetadataPanel() {
               </div>
             </div>
 
-            {hasGps && gpsData?.lat && gpsData?.lon && (
+            {hasGps && gpsData.lat !== null && gpsData.lon !== null && (
               <div>
                 <Text variant={TextVariants.heading} className="mb-3">
                   {t('editor.metadata.gps.title')}

@@ -461,8 +461,11 @@ export default function ExportPanel({
       !filenameTemplate.includes('{sequence}') &&
       !filenameTemplate.includes('{original_filename}')
     ) {
+      // Auto-append {sequence} for batch exports so files don't collide.
+      // Only mutate the local variable used for this export — do NOT call
+      // setFilenameTemplate here, otherwise the user's saved template would
+      // be permanently polluted even if they cancel the export dialog.
       finalFilenameTemplate = `${filenameTemplate}_{sequence}`;
-      setFilenameTemplate(finalFilenameTemplate);
     }
 
     const exportSettings: ExportSettings = {
