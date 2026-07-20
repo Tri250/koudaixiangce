@@ -911,7 +911,10 @@
         "title": "衣物精修",
         "wrinkleStrength": "祛褶皱强度",
         "blemishToggle": "祛污渍",
-        "apply": "应用衣物精修"
+        "apply": "应用衣物精修",
+        "detect": "检测人体",
+        "detectedCount": "已检测到 {{count}} 个人体",
+        "noBodyDetected": "未在图片中检测到人体。"
       },
       "lensBlur": {
         "title": "镜头虚化",

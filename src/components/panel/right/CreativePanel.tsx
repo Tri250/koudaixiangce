@@ -66,11 +66,22 @@ async function readFileAsBase64DataUrl(filePath: string): Promise<string> {
 }
 
 function hexToRgbTuple(hex: string): [number, number, number] {
-  const h = hex.replace('#', '');
+  // Bug fix H1: Robust hex parsing with validation.
+  // Invalid hex (short form, non-hex chars, empty string) would produce NaN,
+  // which JSON.stringify converts to null, breaking serde u8 deserialization.
+  const sanitized = (hex || '').replace('#', '').trim();
+  // Support both #RRGGBB (6 chars) and #RGB (3 chars, expanded to RRGGBB)
+  const full = sanitized.length === 3
+    ? sanitized.split('').map((c) => c + c).join('')
+    : sanitized;
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) {
+    // Fallback to white instead of NaN-causing garbage
+    return [255, 255, 255];
+  }
   return [
-    parseInt(h.substring(0, 2), 16),
-    parseInt(h.substring(2, 4), 16),
-    parseInt(h.substring(4, 6), 16),
+    parseInt(full.substring(0, 2), 16),
+    parseInt(full.substring(2, 4), 16),
+    parseInt(full.substring(4, 6), 16),
   ];
 }
 
@@ -103,12 +114,17 @@ function ColorMatchSection() {
     try {
       const sourceAdjustments = getTransformAdjustments(adjustments);
       const referenceImageBase64 = await readFileAsBase64DataUrl(referencePath);
+      // Bug fix M1: Backend ai_match_colors has a strength=1 edge case bug:
+      //   if strength > 1.0 → strength / 100 (correct)
+      //   else → strength (so 1 becomes 1.0 = 100% instead of 0.01)
+      // Pre-normalizing to 0.0-1.0 on the frontend bypasses the buggy branch.
+      const normalizedStrength = Math.max(0, Math.min(1, strength / 100));
       const result = await invoke<{
         temperature?: number;
         tint?: number;
         vibrance?: number;
         saturation?: number;
-      }>('ai_match_colors', { source_adjustments: sourceAdjustments, reference_image_base64: referenceImageBase64, match_method: matchMethod, strength });
+      }>('ai_match_colors', { source_adjustments: sourceAdjustments, reference_image_base64: referenceImageBase64, match_method: matchMethod, strength: normalizedStrength });
       // ai_match_colors returns color adjustment parameters; apply them to
       // the editor adjustments so the GPU preview reflects the match.
       if (result) {
@@ -185,15 +201,22 @@ function FillLightSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
+      // Bug fix H3: Guard against NaN/Infinity sliders. Backend doesn't
+      // validate is_finite(), and NaN would propagate through every pixel
+      // computation, producing a fully black/garbage image.
+      const safeDirection = Number.isFinite(direction) ? direction : 0;
+      const safeIntensity = Number.isFinite(intensity) ? Math.max(0, Math.min(100, intensity)) : 0;
+      const safeSoftness = Number.isFinite(softness) ? Math.max(0, Math.min(100, softness)) : 0;
+      const safeColorTemp = Number.isFinite(colorTemp) ? Math.max(-100, Math.min(100, colorTemp)) : 0;
       const result = await invoke<string>('apply_fill_light', {
         js_adjustments: jsAdjustments,
-        direction,
+        direction: safeDirection,
         // Bug fix #4: Normalize 0-100 values to 0.0-1.0 for the backend
-        intensity: intensity / 100,
-        softness: softness / 100,
+        intensity: safeIntensity / 100,
+        softness: safeSoftness / 100,
         // color_temp slider is -100..100; backend clamps to 0.0-1.0
         // (0 = cool blue, 1 = warm orange), so map -100..100 -> 0..1
-        color_temp: (colorTemp + 100) / 200,
+        color_temp: (safeColorTemp + 100) / 200,
       });
       if (result) {
         setEditor({ retouchingResultUrl: result });
@@ -259,7 +282,6 @@ function SuperResolutionSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
   const setEditor = useEditorStore((s) => s.setEditor);
-  const [scale, setScale] = useState<'2x' | '4x'>('2x');
   const [modelType, setModelType] = useState<'esrgan' | 'real_esrgan'>('real_esrgan');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -267,7 +289,12 @@ function SuperResolutionSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const scaleFactor = scale === '2x' ? 2 : 4;
+      // Bug fix C1: Backend ESRGAN model is `realesrgan_x2plus.onnx` (2x only).
+      // When the model is loaded, scale_factor=4 causes an index-out-of-bounds
+      // panic in process_tile/process_full_image because the model output tensor
+      // is sized for 2x but we read with 4x indices. Restrict to 2x until the
+      // backend implements true 4x (e.g. two-pass 2x) or a 4x model is added.
+      const scaleFactor = 2;
       const result = await invoke<string>('apply_super_resolution', { js_adjustments: jsAdjustments, scale_factor: scaleFactor, model_type: modelType });
       if (result) {
         setEditor({ retouchingResultUrl: result });
@@ -279,25 +306,17 @@ function SuperResolutionSection() {
     } finally {
       setIsProcessing(false);
     }
-  }, [scale, modelType, adjustments, setEditor, t]);
+  }, [modelType, adjustments, setEditor, t]);
 
   return (
     <div className="space-y-3 pt-2">
-      <div className="grid grid-cols-2 gap-2">
-        {(['2x', '4x'] as const).map((s) => (
-          <button
-            key={s}
-            className={clsx(
-              'p-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2',
-              scale === s
-                ? 'text-primary bg-surface ring-1 ring-accent'
-                : 'bg-surface text-text-secondary hover:bg-card-active',
-            )}
-            onClick={() => setScale(s)}
-          >
-            {s}
-          </button>
-        ))}
+      {/* Scale selector: only 2x available (see C1 comment in handleApply) */}
+      <div className="grid grid-cols-1 gap-2">
+        <button
+          className="p-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 text-primary bg-surface ring-1 ring-accent"
+        >
+          2x
+        </button>
       </div>
       <Dropdown
         options={[
@@ -385,18 +404,46 @@ function ClothingSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
   const setEditor = useEditorStore((s) => s.setEditor);
+  const { detectBody, bodyDetections } = useRetouching();
   const [wrinkleStrength, setWrinkleStrength] = useState(50);
   const [blemishToggle, setBlemishToggle] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [hasDetectedBody, setHasDetectedBody] = useState(false);
+
+  const handleDetect = useCallback(async () => {
+    setIsDetecting(true);
+    try {
+      const poses = await detectBody();
+      setHasDetectedBody(true);
+      if (poses.length === 0) {
+        toast.info(t('editor.creative.clothing.noBodyDetected'));
+      } else {
+        toast.success(t('editor.creative.clothing.detectedCount', { count: poses.length }));
+      }
+    } catch (err) {
+      console.error('detect body failed:', err);
+      toast.error(`${t('editor.creative.clothing.detect')} failed: ${err}`);
+    } finally {
+      setIsDetecting(false);
+    }
+  }, [detectBody, t]);
 
   const handleApply = useCallback(async () => {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
+      // Bug fix M2: Pass detected body keypoints instead of empty array.
+      // Empty array makes the backend fall back to "lower 60% is clothing"
+      // heuristic, which incorrectly processes backgrounds and faces.
+      // Flatten all detected poses' keypoints into a single array (backend
+      // expects an array of {x, y, confidence, name} objects).
+      const allKeypoints = (bodyDetections ?? []).flatMap((pose) => pose.keypoints ?? []);
       const result = await invoke<string>('retouch_clothing', {
         js_adjustments: jsAdjustments,
-        body_keypoints: [],
-        remove_wrinkles: wrinkleStrength / 100,
+        body_keypoints: allKeypoints,
+        // Bug fix M4: Clamp wrinkleStrength to [0, 1] and guard against NaN.
+        remove_wrinkles: Number.isFinite(wrinkleStrength) ? Math.max(0, Math.min(1, wrinkleStrength / 100)) : 0,
         remove_stains: blemishToggle,
       });
       if (result) {
@@ -409,10 +456,19 @@ function ClothingSection() {
     } finally {
       setIsProcessing(false);
     }
-  }, [wrinkleStrength, blemishToggle, adjustments, setEditor, t]);
+  }, [wrinkleStrength, blemishToggle, adjustments, setEditor, bodyDetections, t]);
 
   return (
     <div className="space-y-2 pt-2">
+      <Button className="w-full bg-surface" onClick={handleDetect} disabled={isDetecting || isProcessing}>
+        {isDetecting ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+        <span className="ml-2">{t('editor.creative.clothing.detect')}</span>
+      </Button>
+      {hasDetectedBody && (bodyDetections?.length ?? 0) > 0 && (
+        <Text variant={TextVariants.small} color={TextColors.primary}>
+          {t('editor.creative.clothing.detectedCount', { count: bodyDetections.length })}
+        </Text>
+      )}
       <Slider
         label={t('editor.creative.clothing.wrinkleStrength')}
         min={0}
@@ -455,13 +511,17 @@ function LensBlurSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
+      // Bug fix H2: Guard against NaN/Infinity. Backend doesn't validate
+      // focal_point or blur_amount, NaN would produce garbage pixels.
+      const safeBlurAmount = Number.isFinite(blurAmount) ? Math.max(0, Math.min(100, blurAmount)) : 0;
       const result = await invoke<string>('apply_lens_blur', {
         js_adjustments: jsAdjustments,
         blur_type: blurType,
+        // Focal point is always at image center (0.5, 0.5), normalized.
         focal_point: [0.5, 0.5] as [number, number],
         // Bug fix #4: Normalize 0-100 to 0.0-1.0 for the backend
         // (backend uses blur_amount * 20.0 as max pixel radius)
-        blur_amount: blurAmount / 100,
+        blur_amount: safeBlurAmount / 100,
         depth_mask_base64: null,
       });
       if (result) {
@@ -515,9 +575,13 @@ function OldPhotoRestoreSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
+      // Bug fix M5: Guard against NaN. Backend restore_old_photo doesn't
+      // validate denoise_strength; NaN would corrupt the gaussian blur sigma
+      // and produce a black image (NaN clamp returns NaN per Rust docs).
+      const safeDenoise = Number.isFinite(denoiseStrength) ? Math.max(0, Math.min(100, denoiseStrength)) : 0;
       // Bug fix #4: Normalize 0-100 to 0.0-1.0 for the backend
       // (backend uses denoise_strength * 3.0 as gaussian sigma)
-      const result = await invoke<string>('restore_old_photo', { js_adjustments: jsAdjustments, denoise_strength: denoiseStrength / 100, scratch_removal: scratchRemoval, colorize });
+      const result = await invoke<string>('restore_old_photo', { js_adjustments: jsAdjustments, denoise_strength: safeDenoise / 100, scratch_removal: scratchRemoval, colorize });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.oldPhoto.restore'));
@@ -581,8 +645,12 @@ function SeasonalEffectsSection() {
         autumn: 'autumn_leaves',
         winter: 'winter_snow',
       };
+      // Bug fix M7: Guard against NaN. Backend applies clamp(0.0, 1.0) but
+      // f32::clamp(NaN, ...) returns NaN per Rust docs, which then propagates
+      // through every pixel computation and turns the image black.
+      const safeIntensity = Number.isFinite(intensity) ? Math.max(0, Math.min(100, intensity)) : 0;
       // Normalize intensity from 0-100 to 0.0-1.0 for the backend
-      const normalizedIntensity = intensity / 100;
+      const normalizedIntensity = safeIntensity / 100;
       const result = await invoke<string>('apply_seasonal_effect', { js_adjustments: jsAdjustments, effect_type: effectTypeMap[effectType], intensity: normalizedIntensity });
       if (result) {
         setEditor({ retouchingResultUrl: result });
@@ -656,12 +724,18 @@ function PeopleRemovalSection() {
       const poses = await detectBody();
       // Bug fix #5: Compute bounding boxes from detected body keypoints,
       // with 10% padding so the inpaint region fully covers each person.
+      // Bug fix M6: Filter out keypoints with NaN/Infinity x/y (model
+      // sometimes emits NaN for undetected joints); NaN would propagate
+      // through Math.min/Math.max and produce NaN regions that the backend
+      // silently skips (rx.max(0.0) returns NaN when rx is NaN).
       const regions: [number, number, number, number][] = poses
         .map((pose) => {
           const kps = pose.keypoints;
           if (!kps || kps.length === 0) return null;
           // Filter low-confidence keypoints so noise doesn't expand the bbox
-          const confident = kps.filter((k) => k.confidence > 0.3);
+          const confident = kps.filter(
+            (k) => k.confidence > 0.3 && Number.isFinite(k.x) && Number.isFinite(k.y),
+          );
           if (confident.length === 0) return null;
           const xs = confident.map((k) => k.x);
           const ys = confident.map((k) => k.y);
@@ -671,6 +745,8 @@ function PeopleRemovalSection() {
           const maxY = Math.max(...ys);
           const w = maxX - minX;
           const h = maxY - minY;
+          // Skip degenerate (zero-area) boxes
+          if (w <= 0 || h <= 0) return null;
           const padX = w * 0.1;
           const padY = h * 0.1;
           return [minX - padX, minY - padY, w + padX * 2, h + padY * 2] as [number, number, number, number];

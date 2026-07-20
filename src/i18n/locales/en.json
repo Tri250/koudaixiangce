@@ -904,7 +904,10 @@
         "title": "Clothing Retouch",
         "wrinkleStrength": "Wrinkle Removal Strength",
         "blemishToggle": "Remove Stains",
-        "apply": "Apply Clothing Retouch"
+        "apply": "Apply Clothing Retouch",
+        "detect": "Detect Body",
+        "detectedCount": "Detected {{count}} person(s)",
+        "noBodyDetected": "No body detected in the image."
       },
       "lensBlur": {
         "title": "Lens Blur",
