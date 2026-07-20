@@ -77,6 +77,7 @@ pub struct PreviewJob {
     pub compute_waveform: bool,
     pub active_waveform_channel: Option<String>,
     pub responder: tokio::sync::oneshot::Sender<Vec<u8>>,
+    pub generation: usize,
 }
 
 pub struct AnalyticsJob {

@@ -160,6 +160,31 @@ pub fn get_or_init_gpu_context(
         instance_desc.backends = wgpu::Backends::PRIMARY;
     }
 
+    #[cfg(target_os = "linux")]
+    if std::env::var("WGPU_BACKEND").is_err() {
+        if std::env::var("WAYLAND_DISPLAY").is_ok() {
+            let nvidia_detected = std::path::Path::new("/dev/nvidia0").exists()
+                || std::path::Path::new("/dev/nvidiactl").exists();
+            if nvidia_detected {
+                instance_desc.backends = wgpu::Backends::VULKAN;
+                if std::env::var("WGPU_VULKAN_USE_DXGI").is_err() {
+                    unsafe {
+                        std::env::set_var("WGPU_VULKAN_USE_DXGI", "0");
+                    }
+                }
+            } else {
+                instance_desc.backends = wgpu::Backends::GL;
+            }
+        } else {
+            instance_desc.backends = wgpu::Backends::PRIMARY;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    if std::env::var("WGPU_BACKEND").is_err() {
+        instance_desc.backends = wgpu::Backends::METAL;
+    }
+
     let flag_path = state
         .gpu_crash_flag_path
         .lock()
@@ -260,40 +285,64 @@ pub fn get_or_init_gpu_context(
             .find(|f| !f.is_srgb())
             .unwrap_or(swapchain_caps.formats[0]);
 
-        let alpha_mode = if cfg!(target_os = "windows")
-            && swapchain_caps
-                .alpha_modes
-                .contains(&wgpu::CompositeAlphaMode::Opaque)
-        {
+        let has_opaque = swapchain_caps
+            .alpha_modes
+            .contains(&wgpu::CompositeAlphaMode::Opaque);
+        let has_premultiplied = swapchain_caps
+            .alpha_modes
+            .contains(&wgpu::CompositeAlphaMode::PreMultiplied);
+        let has_postmultiplied = swapchain_caps
+            .alpha_modes
+            .contains(&wgpu::CompositeAlphaMode::PostMultiplied);
+        let has_inherit = swapchain_caps
+            .alpha_modes
+            .contains(&wgpu::CompositeAlphaMode::Inherit);
+
+        let alpha_mode = if cfg!(target_os = "windows") && has_opaque {
             wgpu::CompositeAlphaMode::Opaque
-        } else if swapchain_caps
-            .alpha_modes
-            .contains(&wgpu::CompositeAlphaMode::PreMultiplied)
-        {
+        } else if cfg!(target_os = "macos") && has_inherit {
+            wgpu::CompositeAlphaMode::Inherit
+        } else if has_premultiplied {
             wgpu::CompositeAlphaMode::PreMultiplied
-        } else if swapchain_caps
-            .alpha_modes
-            .contains(&wgpu::CompositeAlphaMode::PostMultiplied)
-        {
+        } else if has_postmultiplied {
             wgpu::CompositeAlphaMode::PostMultiplied
+        } else if has_opaque {
+            wgpu::CompositeAlphaMode::Opaque
         } else {
             swapchain_caps.alpha_modes[0]
+        };
+
+        let present_mode = if swapchain_caps
+            .present_modes
+            .contains(&wgpu::PresentMode::AutoVsync)
+        {
+            wgpu::PresentMode::AutoVsync
+        } else if swapchain_caps
+            .present_modes
+            .contains(&wgpu::PresentMode::FifoRelaxed)
+        {
+            wgpu::PresentMode::FifoRelaxed
+        } else {
+            wgpu::PresentMode::Fifo
         };
 
         let size = window
             .inner_size()
             .unwrap_or(tauri::PhysicalSize::new(1280, 720));
-        let config = wgpu::SurfaceConfiguration {
+
+        #[allow(unused_mut)]
+        let mut config = wgpu::SurfaceConfiguration {
             width: size.width.max(1),
             height: size.height.max(1),
             format: swapchain_format,
             color_space: wgpu::SurfaceColorSpace::Auto,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode,
             alpha_mode,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
+
         surface.configure(&device, &config);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {

@@ -55,7 +55,7 @@ fn vs_main(@builtin(vertex_index) id: u32) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (in.uv.x < 0.0 || in.uv.x > 1.0 || in.uv.y < 0.0 || in.uv.y > 1.0) {
-        return transform.bg_secondary;
+        return vec4<f32>(transform.bg_secondary.rgb * transform.bg_secondary.a, transform.bg_secondary.a);
     }
 
     let adjusted_uv = in.uv * (transform.image_size / transform.texture_size);
@@ -69,9 +69,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let nearest_uv = (texel_coords + vec2<f32>(0.5, 0.5)) / transform.texture_size;
 
         let clamped_nearest = clamp(nearest_uv, min_uv, max_uv);
-        return textureSample(tex, samp, clamped_nearest);
+        let color = textureSample(tex, samp, clamped_nearest);
+        return vec4<f32>(color.rgb * color.a, color.a);
     } else {
         let clamped_uv = clamp(adjusted_uv, min_uv, max_uv);
-        return textureSample(tex, samp, clamped_uv);
+        let color = textureSample(tex, samp, clamped_uv);
+        return vec4<f32>(color.rgb * color.a, color.a);
     }
 }

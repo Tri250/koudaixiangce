@@ -605,23 +605,25 @@ fn apply_creative_color(color: vec3<f32>, sat: f32, vib: f32) -> vec3<f32> {
     let c_max = max(processed.r, max(processed.g, processed.b));
     let c_min = min(processed.r, min(processed.g, processed.b));
     let delta = c_max - c_min;
-    if (delta < 0.02) {
+    if (delta < 0.002) {
         return processed;
     }
     let current_sat = delta / max(c_max, 0.001);
+
+    let hsv = rgb_to_hsv(processed);
+    let hue = hsv.x;
+    let skin_center = 25.0;
+    let hue_dist = min(abs(hue - skin_center), 360.0 - abs(hue - skin_center));
+    let is_skin = smoothstep(35.0, 10.0, hue_dist);
+    let skin_dampener = mix(1.0, 0.65, is_skin);
+
     if (vib > 0.0) {
-        let sat_mask = 1.0 - smoothstep(0.4, 0.9, current_sat);
-        let hsv = rgb_to_hsv(processed);
-        let hue = hsv.x;
-        let skin_center = 25.0;
-        let hue_dist = min(abs(hue - skin_center), 360.0 - abs(hue - skin_center));
-        let is_skin = smoothstep(35.0, 10.0, hue_dist);
-        let skin_dampener = mix(1.0, 0.6, is_skin);
-        let amount = vib * sat_mask * skin_dampener * 3.0;
+        let sat_mask = 1.0 - smoothstep(0.3, 0.85, current_sat);
+        let amount = vib * sat_mask * skin_dampener;
         processed = mix(vec3<f32>(luma), processed, 1.0 + amount);
     } else {
-        let desat_mask = 1.0 - smoothstep(0.2, 0.8, current_sat);
-        let amount = vib * desat_mask;
+        let desat_mask = 1.0 - smoothstep(0.15, 0.7, current_sat);
+        let amount = vib * desat_mask * skin_dampener;
         processed = mix(vec3<f32>(luma), processed, 1.0 + amount);
     }
     return processed;

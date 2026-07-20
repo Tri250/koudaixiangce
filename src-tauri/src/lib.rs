@@ -356,7 +356,12 @@ fn process_preview_job(
     roi: Option<(f32, f32, f32, f32)>,
     compute_waveform: bool,
     active_waveform_channel: Option<&str>,
+    job_generation: usize,
 ) -> Result<Vec<u8>, String> {
+    let check_gen = |state: &tauri::State<AppState>| -> bool {
+        state.load_image_generation.load(Ordering::SeqCst) == job_generation
+    };
+
     let fn_start = std::time::Instant::now();
     let context = get_or_init_gpu_context(&state, app_handle)?;
     hydrate_adjustments(&state, &mut adjustments_json);
@@ -371,6 +376,10 @@ fn process_preview_job(
         .ok_or("No original image loaded")?
         .clone();
     drop(loaded_image_guard);
+
+    if !check_gen(&state) {
+        return Err("Image switched during preview".to_string());
+    }
 
     let new_transform_hash = calculate_transform_hash(&adjustments_clone);
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
@@ -452,6 +461,11 @@ fn process_preview_job(
 
         small
     };
+
+    if !check_gen(&state) {
+        drop(cached_preview_lock);
+        return Err("Image switched during preview".to_string());
+    }
 
     *cached_preview_lock = Some(CachedPreview {
         image: Arc::clone(&final_preview_base),
@@ -693,12 +707,22 @@ fn start_preview_worker(app_handle: tauri::AppHandle) {
 
     std::thread::spawn(move || {
         while let Ok(mut job) = rx.recv() {
-            while let Ok(latest_job) = rx.try_recv() {
-                job = latest_job;
+            loop {
+                match rx.try_recv() {
+                    Ok(latest_job) => { job = latest_job; }
+                    Err(_) => break,
+                }
             }
 
             let state = app_handle.state::<AppState>();
+            let current_gen = state.load_image_generation.load(Ordering::SeqCst);
+            if job.generation != current_gen {
+                let _ = job.responder.send(Vec::new());
+                continue;
+            }
+
             let responder = job.responder;
+            let generation = job.generation;
             match process_preview_job(
                 &app_handle,
                 state,
@@ -708,6 +732,7 @@ fn start_preview_worker(app_handle: tauri::AppHandle) {
                 job.roi,
                 job.compute_waveform,
                 job.active_waveform_channel.as_deref(),
+                generation,
             ) {
                 Ok(bytes) => {
                     let _ = responder.send(bytes);
@@ -739,6 +764,7 @@ async fn apply_adjustments(
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         if let Some(worker_tx) = &*tx_guard {
+            let generation = state.load_image_generation.load(Ordering::SeqCst);
             let job = PreviewJob {
                 adjustments: js_adjustments,
                 is_interactive,
@@ -747,6 +773,7 @@ async fn apply_adjustments(
                 compute_waveform,
                 active_waveform_channel,
                 responder: tx,
+                generation,
             };
             worker_tx
                 .send(job)

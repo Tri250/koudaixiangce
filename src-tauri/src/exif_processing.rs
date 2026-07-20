@@ -39,14 +39,29 @@ pub fn truncate_large_exif(value: &str) -> String {
 
 pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
     if !sidecar_path.exists() {
-        return ImageMetadata::default();
+        return try_load_backup_sidecar(sidecar_path);
     }
 
     let Ok(content) = fs::read_to_string(sidecar_path) else {
-        return ImageMetadata::default();
+        return try_load_backup_sidecar(sidecar_path);
     };
 
-    let mut meta = serde_json::from_str::<ImageMetadata>(&content).unwrap_or_default();
+    let parsed = serde_json::from_str::<ImageMetadata>(&content);
+    let mut meta = match parsed {
+        Ok(m) => m,
+        Err(_) => {
+            log::warn!(
+                "Sidecar corrupted, attempting backup recovery: {}",
+                sidecar_path.display()
+            );
+            return try_load_backup_sidecar(sidecar_path);
+        }
+    };
+
+    if meta.version == 0 && content.trim().is_empty() {
+        return ImageMetadata::default();
+    }
+
     let mut healed = false;
 
     if let Some(ref mut exif_map) = meta.exif {
@@ -59,7 +74,7 @@ pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
     }
 
     if healed && let Ok(json) = serde_json::to_string_pretty(&meta) {
-        let _ = fs::write(sidecar_path, json);
+        let _ = atomic_write_sidecar(sidecar_path, &json);
         log::info!(
             "Auto-healed bloated sidecar for: {}",
             sidecar_path.display()
@@ -67,6 +82,41 @@ pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
     }
 
     meta
+}
+
+fn try_load_backup_sidecar(sidecar_path: &Path) -> ImageMetadata {
+    let parent_dir = sidecar_path.parent().unwrap_or_else(|| Path::new("."));
+    let file_stem = sidecar_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("sidecar");
+    let bak_name = format!(".{}.bak", file_stem);
+    let bak_path = parent_dir.join(bak_name);
+
+    if let Ok(content) = fs::read_to_string(&bak_path) {
+        if let Ok(meta) = serde_json::from_str::<ImageMetadata>(&content) {
+            log::info!(
+                "Recovered sidecar from backup: {}",
+                sidecar_path.display()
+            );
+            let _ = atomic_write_sidecar(sidecar_path, &content);
+            return meta;
+        }
+    }
+
+    ImageMetadata::default()
+}
+
+fn atomic_write_sidecar(path: &Path, content: &str) -> std::io::Result<()> {
+    let parent_dir = path.parent().unwrap_or_else(|| Path::new("."));
+    let file_stem = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("sidecar");
+    let tmp_name = format!(".{}.tmp", file_stem);
+    let tmp_path = parent_dir.join(tmp_name);
+    fs::write(&tmp_path, content)?;
+    fs::rename(&tmp_path, path)
 }
 
 fn to_ur64(val: &exif::Rational) -> uR64 {
@@ -1091,7 +1141,25 @@ fn load_primary_metadata(image_path: &Path) -> ImageMetadata {
 fn save_primary_metadata(image_path: &Path, metadata: &ImageMetadata) -> std::io::Result<()> {
     let primary = get_primary_sidecar_path(image_path);
     let json = serde_json::to_string_pretty(metadata).map_err(std::io::Error::other)?;
-    fs::write(&primary, json)
+
+    let parent_dir = primary.parent().unwrap_or_else(|| Path::new("."));
+    let file_stem = primary
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("sidecar");
+
+    let tmp_name = format!(".{}.tmp", file_stem);
+    let tmp_path = parent_dir.join(tmp_name);
+
+    let bak_name = format!(".{}.bak", file_stem);
+    let bak_path = parent_dir.join(bak_name);
+
+    fs::write(&tmp_path, &json)?;
+    fs::rename(&tmp_path, &primary)?;
+
+    let _ = fs::write(&bak_path, json);
+
+    Ok(())
 }
 
 pub fn read_rrexif_sidecar(image_path: &Path) -> Option<HashMap<String, String>> {

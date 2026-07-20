@@ -65,17 +65,23 @@ fn emit_thumbnail_cache_setup_error(app_handle: &AppHandle, path: &str, reason: 
 fn compute_thumbnail_cache_hash(path_str: &str, adjustments_bytes: &[u8]) -> Option<String> {
     let (source_path, _) = parse_virtual_path(path_str);
 
-    let img_mod_time = fs::metadata(&source_path)
-        .ok()?
-        .modified()
-        .ok()?
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?
-        .as_secs();
+    let metadata = fs::metadata(&source_path).ok();
+    let img_mod_time = metadata
+        .as_ref()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs());
+
+    let file_size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
 
     let mut hasher = blake3::Hasher::new();
     hasher.update(path_str.as_bytes());
-    hasher.update(&img_mod_time.to_le_bytes());
+    if let Some(mod_time) = img_mod_time {
+        hasher.update(&mod_time.to_le_bytes());
+    } else {
+        hasher.update(&file_size.to_le_bytes());
+        hasher.update(b"no_mtime");
+    }
     hasher.update(adjustments_bytes);
     Some(hasher.finalize().to_hex().to_string())
 }
@@ -1592,8 +1598,11 @@ fn generate_single_thumbnail_and_cache(
         generate_thumbnail_data(path_str, gpu_context, preloaded_image, app_handle)
         && let Ok(thumb_data) = encode_thumbnail(&thumb_image, target_width)
     {
-        let _ = fs::write(&cache_path, &thumb_data);
-        return Some((cache_path.to_string_lossy().into_owned(), rating, is_edited));
+        let tmp_path = cache_path.with_extension("tmp");
+        if fs::write(&tmp_path, &thumb_data).is_ok() {
+            let _ = fs::rename(&tmp_path, &cache_path);
+            return Some((cache_path.to_string_lossy().into_owned(), rating, is_edited));
+        }
     }
     None
 }

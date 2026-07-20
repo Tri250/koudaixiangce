@@ -88,6 +88,7 @@ const insertChildrenIntoTree = (node: any, targetPath: string, newChildren: any[
 function App() {
   const { t } = useTranslation();
   const COMPACT_EDITOR_MAX_WIDTH = 900;
+  const COMPACT_EDITOR_MAX_HEIGHT_LANDSCAPE = 540;
 
   const { appSettings, theme, osPlatform, handleSettingsChange } = useSettingsStore(
     useShallow((state) => ({
@@ -210,14 +211,23 @@ function App() {
 
   const isAndroid = osPlatform === 'android';
   const isPortraitViewport = viewportSize.width > 0 && viewportSize.height > viewportSize.width;
+  const isLandscapeViewport = viewportSize.width > 0 && viewportSize.width > viewportSize.height;
   const isCompactPortrait =
     viewportSize.width > 0 && viewportSize.width <= COMPACT_EDITOR_MAX_WIDTH && isPortraitViewport;
-  const isAndroidCompact = isAndroid && viewportSize.width > 0 && viewportSize.width <= COMPACT_EDITOR_MAX_WIDTH;
+  const isCompactLandscape =
+    viewportSize.height > 0 &&
+    viewportSize.height <= COMPACT_EDITOR_MAX_HEIGHT_LANDSCAPE &&
+    isLandscapeViewport;
+  const isCompactMode = isCompactPortrait || isCompactLandscape;
+  const isAndroidCompact = isAndroid && isCompactMode;
 
-  const compactEditorPanelMinHeight = 220;
+  const compactEditorPanelMinHeight = isCompactLandscape ? 160 : 220;
   const compactEditorPanelMaxHeight =
     viewportSize.height > 0
-      ? Math.max(compactEditorPanelMinHeight, Math.min(Math.round(viewportSize.height * 0.85), 850))
+      ? Math.max(
+          compactEditorPanelMinHeight,
+          Math.min(Math.round(viewportSize.height * (isCompactLandscape ? 0.6 : 0.85)), isCompactLandscape ? 400 : 850),
+        )
       : 520;
 
   const getDynamicCompactPanelHeight = () => {
@@ -547,9 +557,10 @@ function App() {
 
   const handleToggleFolder = useCallback(
     async (path: string) => {
-      const isExpanding = !expandedFolders.has(path);
+      let isExpanding = false;
       setLibrary((state) => {
         const newSet = new Set(state.expandedFolders);
+        isExpanding = !newSet.has(path);
         if (isExpanding) {
           newSet.add(path);
         } else {
@@ -564,17 +575,23 @@ function App() {
           path,
           show_image_counts: showCounts,
         });
-        setLibrary((state) => ({
-          folderTrees: state.folderTrees.map((t: any) => insertChildrenIntoTree(t, path, newChildren)),
-        }));
-        setLibrary((state) => ({
-          pinnedFolderTrees: state.pinnedFolderTrees.map((tree) => insertChildrenIntoTree(tree, path, newChildren)),
-        }));
+        setLibrary((state) => {
+          if (!state.expandedFolders.has(path)) return state;
+          return {
+            folderTrees: state.folderTrees.map((t: any) => insertChildrenIntoTree(t, path, newChildren)),
+          };
+        });
+        setLibrary((state) => {
+          if (!state.expandedFolders.has(path)) return state;
+          return {
+            pinnedFolderTrees: state.pinnedFolderTrees.map((tree) => insertChildrenIntoTree(tree, path, newChildren)),
+          };
+        });
       } catch (err) {
         toast.error(`Failed to load folder: ${err}`);
       }
     },
-    [expandedFolders, appSettings?.enableFolderImageCounts, setLibrary],
+    [appSettings?.enableFolderImageCounts, setLibrary],
   );
 
   const hasRoots = rootPaths && rootPaths.length > 0;
@@ -674,6 +691,7 @@ function App() {
                   transformWrapperRef={transformWrapperRef}
                   isResizing={isResizing}
                   isCompactPortrait={isCompactPortrait}
+                  isCompactLandscape={isCompactLandscape}
                   isAndroidCompact={isAndroidCompact}
                   isAndroid={isAndroid}
                   compactEditorPanelHeight={compactEditorPanelHeight}

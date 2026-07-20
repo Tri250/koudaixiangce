@@ -12,6 +12,45 @@ use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex as TokioMutex;
 
+fn build_sr_session(model_path: &Path) -> Result<Session> {
+    let mut builder = Session::builder()?.with_intra_threads(4)?;
+
+    #[cfg(target_os = "windows")]
+    {
+        builder = match builder.with_execution_providers([
+            ort::execution_providers::CUDA::default(),
+            ort::execution_providers::TensorRT::default(),
+            ort::execution_providers::DirectML::default(),
+        ]) {
+            Ok(b) => b,
+            Err(_) => builder,
+        };
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = match builder
+            .with_execution_providers([ort::execution_providers::CoreML::default()])
+        {
+            Ok(b) => b,
+            Err(_) => builder,
+        };
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        builder = match builder.with_execution_providers([
+            ort::execution_providers::CUDA::default(),
+            ort::execution_providers::TensorRT::default(),
+        ]) {
+            Ok(b) => b,
+            Err(_) => builder,
+        };
+    }
+
+    Ok(builder.commit_from_file(model_path)?)
+}
+
 const ESRGAN_URL: &str = "https://huggingface.co/CyberTimon/RapidRAW-Models/resolve/main/realesrgan_x2plus.onnx?download=true";
 const ESRGAN_FILENAME: &str = "realesrgan_x2plus.onnx";
 const ESRGAN_SHA256: &str = "c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4";
@@ -119,9 +158,7 @@ pub async fn get_or_init_super_resolution_model(
 
     // Create ONNX session
     let model_path = models_dir.join(ESRGAN_FILENAME);
-    let session = Session::builder()?
-        .with_intra_threads(4)?
-        .commit_from_file(&model_path)?;
+    let session = build_sr_session(&model_path)?;
 
     let sr_model = Arc::new(Mutex::new(session));
 

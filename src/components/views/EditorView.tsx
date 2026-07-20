@@ -55,6 +55,7 @@ interface EditorViewProps {
   transformWrapperRef: RefObject<any>;
   isResizing: boolean;
   isCompactPortrait: boolean;
+  isCompactLandscape: boolean;
   isAndroidCompact: boolean;
   isAndroid: boolean;
   compactEditorPanelHeight: number;
@@ -79,6 +80,7 @@ export default function EditorView({
   transformWrapperRef,
   isResizing,
   isCompactPortrait,
+  isCompactLandscape,
   isAndroidCompact,
   isAndroid,
   compactEditorPanelHeight,
@@ -309,7 +311,12 @@ export default function EditorView({
   }
 
   return (
-    <div className={clsx('flex grow h-full min-h-0', isCompactPortrait ? 'flex-col gap-2' : 'flex-row')}>
+    <div
+      className={clsx(
+        'flex grow h-full min-h-0',
+        isCompactPortrait ? 'flex-col gap-2' : 'flex-row',
+      )}
+    >
       <div className={clsx('flex-1 flex flex-col min-w-0', isCompactPortrait && 'min-h-0')}>
         {editorNode}
         {!isCompactPortrait && editorBottomBarNode}
@@ -329,8 +336,9 @@ export default function EditorView({
                 opacity: isFullScreen ? 0 : 1,
               }
             : {
-                maxWidth: isFullScreen ? '0px' : '1000px',
+                maxWidth: isFullScreen ? '0px' : isCompactLandscape ? '380px' : '1000px',
                 opacity: isFullScreen ? 0 : 1,
+                width: isCompactLandscape ? '380px' : undefined,
               }
         }
       >

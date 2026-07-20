@@ -227,7 +227,77 @@ fn develop_internal(
         }
     };
 
-    Ok((dynamic_image, orientation))
+    let final_image = if !fast_demosaic && !is_linear_format {
+        suppress_edge_artifacts(dynamic_image, 4)
+    } else {
+        dynamic_image
+    };
+
+    Ok((final_image, orientation))
+}
+
+fn suppress_edge_artifacts(img: DynamicImage, border: u32) -> DynamicImage {
+    let mut rgba = img.to_rgba32f();
+    let (w, h) = rgba.dimensions();
+    if w < border * 2 + 1 || h < border * 2 + 1 {
+        return DynamicImage::ImageRgba32F(rgba);
+    }
+
+    let mut result = rgba.clone();
+
+    for y in 0..h {
+        for x in 0..w {
+            let edge_dist_x = if x < border { border - x } else if x >= w - border { x - (w - border - 1) } else { 0 };
+            let edge_dist_y = if y < border { border - y } else if y >= h - border { y - (h - border - 1) } else { 0 };
+            let edge_dist = edge_dist_x.max(edge_dist_y);
+            if edge_dist == 0 {
+                continue;
+            }
+
+            let blend = edge_dist as f32 / border as f32;
+            let blend = blend * blend;
+
+            let mut sum_r = 0.0_f32;
+            let mut sum_g = 0.0_f32;
+            let mut sum_b = 0.0_f32;
+            let mut count = 0.0_f32;
+
+            let kernel = 2;
+            let x_start = x.saturating_sub(kernel);
+            let x_end = (x + kernel).min(w - 1);
+            let y_start = y.saturating_sub(kernel);
+            let y_end = (y + kernel).min(h - 1);
+
+            for ky in y_start..=y_end {
+                for kx in x_start..=x_end {
+                    let p = rgba.get_pixel(kx, ky);
+                    let dx = (kx as i32 - x as i32).abs() as f32;
+                    let dy = (ky as i32 - y as i32).abs() as f32;
+                    let dist = (dx * dx + dy * dy).sqrt().max(0.01);
+                    let weight = 1.0 / dist;
+                    sum_r += p[0] * weight;
+                    sum_g += p[1] * weight;
+                    sum_b += p[2] * weight;
+                    count += weight;
+                }
+            }
+
+            let orig = rgba.get_pixel(x, y);
+            let avg_r = sum_r / count;
+            let avg_g = sum_g / count;
+            let avg_b = sum_b / count;
+
+            let final_pixel = Rgba([
+                orig[0] * (1.0 - blend) + avg_r * blend,
+                orig[1] * (1.0 - blend) + avg_g * blend,
+                orig[2] * (1.0 - blend) + avg_b * blend,
+                orig[3],
+            ]);
+            result.put_pixel(x, y, final_pixel);
+        }
+    }
+
+    DynamicImage::ImageRgba32F(result)
 }
 
 pub fn get_fast_demosaic_scale_factor(
