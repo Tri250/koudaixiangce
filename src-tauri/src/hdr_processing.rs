@@ -1,7 +1,7 @@
 // HDR Processing Module
 // Provides HDR highlight recovery, gain map generation, and Ultra HDR export
 
-use image::{DynamicImage, GenericImageView, Rgb, RgbImage, RgbaImage};
+use image::{DynamicImage, GenericImageView, Rgb, RgbImage};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

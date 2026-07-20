@@ -260,7 +260,7 @@ pub async fn preview_negative_conversion(
             // Cold path: decode + downscale from the geometry cache (if
             // available) or from disk, then compute log_pixels + bounds.
             let image_to_downscale = {
-                let mut geom_cache = state
+                let geom_cache = state
                     .geometry_cache
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());

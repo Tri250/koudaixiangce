@@ -1,4 +1,4 @@
-use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba, RgbaImage};
+use image::{DynamicImage, ImageBuffer, Rgba, RgbaImage};
 use serde_json::Value;
 
 /// Apply hair retouching effects: remove flyaway, color uniform, smooth.

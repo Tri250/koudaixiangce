@@ -1,11 +1,6 @@
-use anyhow;
 use base64::{Engine as _, engine::general_purpose};
-use image::{
-    DynamicImage, GenericImageView, GrayImage, ImageBuffer, ImageFormat, Luma, Rgb, RgbImage, Rgba,
-    RgbaImage,
-};
+use image::{DynamicImage, GenericImageView, GrayImage, Luma, Rgb, RgbImage, RgbaImage};
 use serde::{Deserialize, Serialize};
-use std::io::Cursor;
 
 /// Parameters for sky replacement.
 #[derive(Serialize, Deserialize, Debug, Clone)]

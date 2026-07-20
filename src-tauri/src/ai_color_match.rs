@@ -1,5 +1,5 @@
 use base64::{Engine as _, engine::general_purpose};
-use image::{DynamicImage, GenericImageView, RgbImage};
+use image::{DynamicImage, RgbImage};
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
@@ -248,7 +248,7 @@ pub fn histogram_matching(
         for y in 0..height {
             for x in 0..width {
                 let p = rgb.get_pixel(x, y);
-                let mut out = result.get_pixel_mut(x, y);
+                let out = result.get_pixel_mut(x, y);
                 out[c] = mapping[p[c] as usize];
             }
         }

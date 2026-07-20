@@ -1,6 +1,6 @@
 use anyhow::Result;
 use image::{DynamicImage, GenericImageView, RgbaImage, imageops};
-use ndarray::{Array, Array4, IxDyn};
+use ndarray::{Array, Array4};
 use ort::session::Session;
 use ort::value::Tensor;
 use serde::{Deserialize, Serialize};
@@ -178,7 +178,7 @@ pub async fn get_or_init_super_resolution_model(
         if let Some(state) = state_lock.as_mut() {
             state.super_resolution_model = Some(sr_model.clone());
         } else {
-            let mut new_state = crate::ai_processing::AiState {
+            let new_state = crate::ai_processing::AiState {
                 models: None,
                 denoise_model: None,
                 clip_models: None,
@@ -324,7 +324,7 @@ pub fn apply_super_resolution(
     let mut result = RgbaImage::new(out_w, out_h);
     for y in 0..out_h {
         for x in 0..out_w {
-            let w_idx = (y as usize * out_w as usize + x as usize);
+            let w_idx = y as usize * out_w as usize + x as usize;
             let w = weight_accum[w_idx].max(1.0);
             let base = w_idx * 4;
             let r = (accumulator[base] / w).clamp(0.0, 255.0) as u8;
