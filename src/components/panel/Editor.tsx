@@ -330,6 +330,29 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
     maxScaleRef.current = transformConfig.maxScale;
   }, [transformConfig.minScale, transformConfig.maxScale]);
 
+  // Clean up all timers / animation frames on unmount to prevent
+  // state updates on an unmounted component and leaked RAF callbacks.
+  useEffect(() => {
+    return () => {
+      if (zoomDebounceTimeoutRef.current) {
+        clearTimeout(zoomDebounceTimeoutRef.current);
+        zoomDebounceTimeoutRef.current = null;
+      }
+      if (wheelSnapTimeout.current) {
+        clearTimeout(wheelSnapTimeout.current);
+        wheelSnapTimeout.current = null;
+      }
+      if (physicsFrameId.current) {
+        cancelAnimationFrame(physicsFrameId.current);
+        physicsFrameId.current = null;
+      }
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+        animationFrameId.current = null;
+      }
+    };
+  }, []);
+
   const getTransformBounds = useCallback((scale: number) => {
     const container = imageContainerRef.current;
     if (!container) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };

@@ -57,6 +57,7 @@ export default function NegativeConversionModal({
   const containerRef = useRef<HTMLDivElement>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const originalUrlRef = useRef<string | null>(null);
   const selectedImagePath = targetPaths.length > 0 ? targetPaths[0] : null;
 
   useEffect(() => {
@@ -137,8 +138,10 @@ export default function NegativeConversionModal({
     if (isOpen) {
       setIsMounted(true);
       setIsLoading(true);
-      setTimeout(() => setShow(true), 10);
+      const showTimer = setTimeout(() => setShow(true), 10);
       updatePreview(DEFAULT_PARAMS, true);
+
+      let originalRequestCancelled = false;
 
       if (selectedImagePath) {
         invoke('generate_preview_for_path', {
@@ -146,16 +149,31 @@ export default function NegativeConversionModal({
           js_adjustments: {},
         })
           .then((res: any) => {
+            if (originalRequestCancelled) return;
+            if (originalUrlRef.current) {
+              URL.revokeObjectURL(originalUrlRef.current);
+            }
             const blob = new Blob([new Uint8Array(res)], { type: 'image/jpeg' });
-            setOriginalUrl(URL.createObjectURL(blob));
+            const url = URL.createObjectURL(blob);
+            originalUrlRef.current = url;
+            setOriginalUrl(url);
           })
           .catch(console.error);
       }
+
+      return () => {
+        clearTimeout(showTimer);
+        originalRequestCancelled = true;
+      };
     } else {
       setShow(false);
-      setTimeout(() => {
+      const closeTimer = setTimeout(() => {
         setIsMounted(false);
         setPreviewUrl(null);
+        if (originalUrlRef.current) {
+          URL.revokeObjectURL(originalUrlRef.current);
+          originalUrlRef.current = null;
+        }
         setOriginalUrl(null);
         setParams(DEFAULT_PARAMS);
         setZoom(1);
@@ -163,6 +181,7 @@ export default function NegativeConversionModal({
         setIsLoading(true);
         setProgress(null);
       }, 300);
+      return () => clearTimeout(closeTimer);
     }
   }, [isOpen, selectedImagePath, updatePreview]);
 

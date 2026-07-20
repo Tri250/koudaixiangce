@@ -184,6 +184,16 @@ export default function LibraryGrid(props: any) {
   const requestTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
+    return () => {
+      if (requestTimeoutRef.current) {
+        clearTimeout(requestTimeoutRef.current);
+        requestTimeoutRef.current = null;
+      }
+      requestQueueRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
     const el = libraryContainerRef.current;
     if (gridObserverRef.current) {
       gridObserverRef.current.disconnect();
