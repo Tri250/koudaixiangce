@@ -461,7 +461,9 @@ fn build_single_mask_adjustments(all: &AllAdjustments, mask_index: usize) -> All
         tile_offset_y: all.tile_offset_y,
         mask_atlas_cols: all.mask_atlas_cols,
     };
-    single.mask_adjustments[0] = all.mask_adjustments[mask_index];
+    if mask_index < all.mask_adjustments.len() {
+        single.mask_adjustments[0] = all.mask_adjustments[mask_index];
+    }
     for i in 1..single.mask_adjustments.len() {
         single.mask_adjustments[i] = Default::default();
     }

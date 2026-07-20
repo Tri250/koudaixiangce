@@ -539,13 +539,15 @@ pub fn apply_warp_with_landmarks(
 
 /// Bilinear interpolation sampling from an RGBA image.
 fn sample_bilinear(img: &RgbaImage, x: f32, y: f32, w: u32, h: u32) -> Rgba<u8> {
-    let x0 = x.floor().max(0.0).min((w - 1) as f32) as u32;
-    let y0 = y.floor().max(0.0).min((h - 1) as f32) as u32;
+    let x_clamped = x.clamp(0.0, (w - 1) as f32);
+    let y_clamped = y.clamp(0.0, (h - 1) as f32);
+    let x0 = x_clamped.floor() as u32;
+    let y0 = y_clamped.floor() as u32;
     let x1 = (x0 + 1).min(w - 1);
     let y1 = (y0 + 1).min(h - 1);
 
-    let fx = x - x0 as f32;
-    let fy = y - y0 as f32;
+    let fx = x_clamped - x0 as f32;
+    let fy = y_clamped - y0 as f32;
 
     let p00 = img.get_pixel(x0, y0);
     let p10 = img.get_pixel(x1, y0);

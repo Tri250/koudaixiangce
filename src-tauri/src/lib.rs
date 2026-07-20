@@ -1485,7 +1485,7 @@ async fn generate_all_community_previews(
             let mask_definitions: Vec<MaskDefinition> = scaled_adjustments
                 .get("masks")
                 .and_then(|m| serde_json::from_value(m.clone()).ok())
-                .unwrap_or_else(Vec::new);
+                .unwrap_or_else(|| Vec::new);
 
             let unscaled_crop_offset = js_adjustments
                 .get("crop")
@@ -1624,7 +1624,7 @@ async fn merge_hdr(
         .collect::<Result<Vec<HDRInput>, String>>()?;
 
     log::info!("Starting HDR merge of {} images", images.len());
-    let mut hdr_merged = hdr_merge_images(&mut images.into()).map_err(|e| e.to_string())?;
+    let mut hdr_merged = hdr_merge_images(&mut images).map_err(|e| e.to_string())?;
     hdr_merged =
         image_hdr::stretch::apply_histogram_stretch(&hdr_merged).map_err(|e| e.to_string())?;
     hdr_merged = apply_linear_to_srgb(hdr_merged);

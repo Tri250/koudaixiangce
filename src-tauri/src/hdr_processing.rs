@@ -127,7 +127,7 @@ pub fn recover_highlights(image: &DynamicImage, params: &HDRParams) -> DynamicIm
                             _ => extrapolated,
                         };
 
-                        result.get_pixel_mut(x, y)[c] = final_val.clamp(0.0, 65535.0) as u8;
+                        result.get_pixel_mut(x, y)[c] = final_val.clamp(0.0, 255.0) as u8;
                     }
                 }
             }
@@ -197,12 +197,17 @@ pub fn apply_hdr_tone_mapping(
                     // which would propagate through the whole image.
                     let log_base: f32 = 2.0;
                     let safe_lum = luminance_scale.max(1e-6);
-                    let lw: f32 = safe_lum.ln() / log_base.ln();
-                    let max_lum: f32 = lw.exp();
+                    let bias: f32 = 0.85;
+                    let lw_max: f32 = safe_lum.ln() / log_base.ln();
                     let drago = |x: f32| -> f32 {
-                        let safe_x = (x * 0.01_f32).max(1e-6);
-                        let numerator = safe_x.ln() / log_base.ln();
-                        (numerator / lw * 0.01_f32).clamp(0.0, 1.0) * max_lum.min(1.0)
+                        let safe_x = x.max(1e-6);
+                        let numerator = (safe_x.ln() / log_base.ln()) / lw_max;
+                        let denominator = (1.0 + safe_x).ln() / log_base.ln();
+                        if denominator > 1e-6 {
+                            (numerator / denominator * bias).clamp(0.0, 1.0)
+                        } else {
+                            0.0
+                        }
                     };
                     (drago(r_lin), drago(g_lin), drago(b_lin))
                 }
@@ -464,7 +469,7 @@ pub fn export_hdr_tiff(image: &DynamicImage, output_path: &str) -> anyhow::Resul
     write_entry(&mut data, 273, 4, 1, strip_offset as u32); // StripOffsets
     write_entry(&mut data, 277, 3, 1, 3); // SamplesPerPixel
     write_entry(&mut data, 278, 3, 1, 1); // RowsPerStrip
-    write_entry(&mut data, 279, 3, 1, 1); // StripByteCounts (not used directly)
+    write_entry(&mut data, 279, 4, height, 1); // StripByteCounts: one count per strip (row)
     write_entry(&mut data, 339, 3, 1, 3); // SampleFormat (IEEE float)
     write_entry(&mut data, 284, 3, 1, 1); // PlanarConfiguration (chunky)
 

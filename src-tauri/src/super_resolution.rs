@@ -142,7 +142,7 @@ pub async fn get_or_init_super_resolution_model(
     // Check if model is already loaded
     if let Some(sr_model) = ai_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.super_resolution_model.clone())
     {
@@ -154,7 +154,7 @@ pub async fn get_or_init_super_resolution_model(
     // Double-check after acquiring lock
     if let Some(sr_model) = ai_state_mutex
         .lock()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.super_resolution_model.clone())
     {

@@ -222,7 +222,20 @@ pub async fn save_panorama(
                 DynamicImage::ImageRgba8(panorama_image.to_rgba8()),
             )
         } else if panorama_image.as_rgb32f().is_some() {
-            (format!("{}_Pano.tiff", stem), panorama_image)
+            // Convert 32-bit float HDR to 8-bit SDR for PNG export since the
+            // image crate's TIFF encoder may not handle 32-bit float images correctly.
+            let rgb32f = panorama_image.to_rgb32f();
+            let mut rgb8 = image::RgbImage::new(rgb32f.width(), rgb32f.height());
+            for (x, y, p) in rgb32f.enumerate_pixels() {
+                let r = (p[0].clamp(0.0, 1.0) * 255.0).round() as u8;
+                let g = (p[1].clamp(0.0, 1.0) * 255.0).round() as u8;
+                let b = (p[2].clamp(0.0, 1.0) * 255.0).round() as u8;
+                rgb8.put_pixel(x, y, image::Rgb([r, g, b]));
+            }
+            (
+                format!("{}_Pano.png", stem),
+                DynamicImage::ImageRgb8(rgb8),
+            )
         } else {
             (
                 format!("{}_Pano.png", stem),

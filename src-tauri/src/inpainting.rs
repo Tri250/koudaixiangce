@@ -151,6 +151,10 @@ pub async fn generate_manual_cleanup_patch(
     let offset_x = (source_point_untransformed.0 - center_x).round() as i32;
     let offset_y = (source_point_untransformed.1 - center_y).round() as i32;
 
+    if min_x == img_w_usize || max_x == 0 {
+        return Err("Mask is empty.".to_string());
+    }
+
     let min_x_u32 = min_x as u32;
     let min_y_u32 = min_y as u32;
     let crop_w = (max_x - min_x + 1) as u32;
@@ -575,6 +579,10 @@ pub async fn invoke_generative_replace_with_mask_def(
         {
             max_x = last;
         }
+    }
+
+    if min_x == img_w_usize || max_x == 0 {
+        return Err("Mask is empty.".to_string());
     }
 
     let min_x_u32 = min_x as u32;

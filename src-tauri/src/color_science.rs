@@ -68,10 +68,10 @@ impl ColorConsistencyEngine {
             for x in 0..width {
                 let p = rgb.get_pixel(x, y);
 
-                // Linearize source RGB (remove gamma)
-                let r_lin = srgb_transfer_gamma_to_linear(p[0] as f32 / 255.0);
-                let g_lin = srgb_transfer_gamma_to_linear(p[1] as f32 / 255.0);
-                let b_lin = srgb_transfer_gamma_to_linear(p[2] as f32 / 255.0);
+                // Linearize source RGB (remove gamma) using source profile's gamma
+                let r_lin = gamma_transfer_to_linear(p[0] as f32 / 255.0, self.source_profile.gamma);
+                let g_lin = gamma_transfer_to_linear(p[1] as f32 / 255.0, self.source_profile.gamma);
+                let b_lin = gamma_transfer_to_linear(p[2] as f32 / 255.0, self.source_profile.gamma);
 
                 // Source RGB to XYZ
                 let xyz = mat3_mul_vec(&src_matrix.to_xyz, &[r_lin, g_lin, b_lin]);
@@ -82,10 +82,10 @@ impl ColorConsistencyEngine {
                 // XYZ to target RGB
                 let rgb_target = mat3_mul_vec(&dst_matrix.from_xyz, &xyz_adapted);
 
-                // Apply target gamma
-                let r_out = srgb_transfer_linear_to_gamma(rgb_target[0].clamp(0.0, 1.0));
-                let g_out = srgb_transfer_linear_to_gamma(rgb_target[1].clamp(0.0, 1.0));
-                let b_out = srgb_transfer_linear_to_gamma(rgb_target[2].clamp(0.0, 1.0));
+                // Apply target gamma using target profile's gamma
+                let r_out = gamma_transfer_to_encoded(rgb_target[0].clamp(0.0, 1.0), self.target_profile.gamma);
+                let g_out = gamma_transfer_to_encoded(rgb_target[1].clamp(0.0, 1.0), self.target_profile.gamma);
+                let b_out = gamma_transfer_to_encoded(rgb_target[2].clamp(0.0, 1.0), self.target_profile.gamma);
 
                 result.put_pixel(
                     x,
@@ -131,9 +131,9 @@ impl ColorConsistencyEngine {
         for y in 0..height {
             for x in 0..width {
                 let p = rgb.get_pixel(x, y);
-                let r_lin = srgb_transfer_gamma_to_linear(p[0] as f32 / 255.0);
-                let g_lin = srgb_transfer_gamma_to_linear(p[1] as f32 / 255.0);
-                let b_lin = srgb_transfer_gamma_to_linear(p[2] as f32 / 255.0);
+                let r_lin = gamma_transfer_to_linear(p[0] as f32 / 255.0, self.source_profile.gamma);
+                let g_lin = gamma_transfer_to_linear(p[1] as f32 / 255.0, self.source_profile.gamma);
+                let b_lin = gamma_transfer_to_linear(p[2] as f32 / 255.0, self.source_profile.gamma);
 
                 let xyz = mat3_mul_vec(&src_matrix.to_xyz, &[r_lin, g_lin, b_lin]);
                 let xyz_adapted = mat3_mul_vec(&adaptation, &xyz);
@@ -362,6 +362,32 @@ pub fn srgb_transfer_gamma_to_linear(gamma: f32) -> f32 {
         gamma / 12.92
     } else {
         ((gamma + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+/// Profile-specific gamma transfer: linear to gamma-encoded.
+/// Uses a simple power-law encoding: output = input^(1/gamma)
+/// with a linear segment for very low values to avoid infinite slope at 0.
+pub fn gamma_transfer_to_encoded(linear: f32, gamma: f32) -> f32 {
+    let threshold = 0.0031308;
+    if linear <= threshold {
+        let linear_slope = threshold.powf(1.0 - 1.0 / gamma) / gamma;
+        linear * linear_slope.max(1.0)
+    } else {
+        linear.powf(1.0 / gamma)
+    }
+}
+
+/// Profile-specific gamma transfer: gamma-encoded to linear.
+/// Uses a simple power-law decoding: output = input^gamma
+/// with a linear segment for very low values.
+pub fn gamma_transfer_to_linear(encoded: f32, gamma: f32) -> f32 {
+    let threshold = 0.04045;
+    if encoded <= threshold {
+        let linear_slope = threshold.powf(gamma - 1.0) * gamma;
+        encoded / linear_slope.max(1.0)
+    } else {
+        encoded.powf(gamma)
     }
 }
 

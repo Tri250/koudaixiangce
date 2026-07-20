@@ -671,6 +671,11 @@ fn read_icc_u32(data: &[u8], offset: usize) -> u32 {
     u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
 }
 
+fn read_icc_s15fixed16(data: &[u8], offset: usize) -> f32 {
+    let raw = i32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+    raw as f32 / 65536.0
+}
+
 fn read_icc_string(data: &[u8], offset: usize, size: usize) -> String {
     if offset + size > data.len() {
         return String::new();
@@ -759,13 +764,19 @@ pub fn parse_icc(data: &[u8]) -> anyhow::Result<ICCProfile> {
                 model = Some(read_icc_string(data, tag_offset, tag_size));
             }
             b"chad" => {
-                if tag_size >= 20 {
-                    black_point[0] = read_icc_u32(data, tag_offset + 16) as f32 / 65536.0;
-                    if tag_size >= 24 {
-                        black_point[1] = read_icc_u32(data, tag_offset + 20) as f32 / 65536.0;
-                    }
-                    if tag_size >= 28 {
-                        black_point[2] = read_icc_u32(data, tag_offset + 24) as f32 / 65536.0;
+                // "chad" is the chromatic adaptation matrix, not black point.
+                // It is used for white point adaptation; skip assignment here
+                // and leave black_point as the default [0.0, 0.0, 0.0].
+                // The correct black point tag is "bkpt" (handled below).
+            }
+            b"bkpt" => {
+                if tag_size >= 12 {
+                    let xyz_type = read_icc_u32(data, tag_offset) as u32;
+                    if xyz_type == 0x58595a20 {
+                        // 'XYZ ' type signature
+                        black_point[0] = read_icc_s15fixed16(data, tag_offset + 8) as f32;
+                        black_point[1] = read_icc_s15fixed16(data, tag_offset + 12) as f32;
+                        black_point[2] = read_icc_s15fixed16(data, tag_offset + 16) as f32;
                     }
                 }
             }
