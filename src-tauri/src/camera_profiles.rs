@@ -422,21 +422,10 @@ pub fn find_profile(make: &str, model: &str) -> Option<CameraProfile> {
 /// DCP files are TIFF-based containers with IFD tags specifying
 /// color matrices, tone curves, and look tables.
 pub fn parse_dcp(data: &[u8]) -> anyhow::Result<DCPProfile> {
-    // Minimal DCP parser: read TIFF structure and extract relevant tags.
-    // DCP uses TIFF IFD tags:
-    //   50721 - ColorMatrix1
-    //   50722 - ColorMatrix2
-    //   50725 - ForwardMatrix1
-    //   50778 - CalibrationIlluminant1
-    //   50779 - CalibrationIlluminant2
-    //   50936 - ProfileName
-    //   50937 - ProfileCopyright
-
     if data.len() < 8 {
         anyhow::bail!("DCP file too short");
     }
 
-    // Check TIFF byte order
     let little_endian = match &data[0..2] {
         b"II" => true,
         b"MM" => false,
@@ -451,7 +440,7 @@ pub fn parse_dcp(data: &[u8]) -> anyhow::Result<DCPProfile> {
         }
     };
 
-    let _read_u32 = |offset: usize| -> u32 {
+    let read_u32 = |offset: usize| -> u32 {
         if little_endian {
             u32::from_le_bytes([
                 data[offset],
@@ -469,34 +458,201 @@ pub fn parse_dcp(data: &[u8]) -> anyhow::Result<DCPProfile> {
         }
     };
 
-    // Validate TIFF magic number
     if read_u16(2) != 42 {
         anyhow::bail!("Invalid DCP: bad TIFF magic");
     }
 
-    // Parse IFD entries for color matrices
-    // For a full implementation, we'd iterate all IFD entries.
-    // Here we provide a fallback default profile.
-    let default_profile = CameraProfile {
-        make: "Unknown".into(),
-        model: "Unknown DCP".into(),
-        color_matrix_1: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        color_matrix_2: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        forward_matrix_1: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-        calibration_illuminant_1: 21,
-        calibration_illuminant_2: 17,
+    let first_ifd_offset = read_u32(4) as usize;
+
+    let mut color_matrix_1: Option<Matrix3x3> = None;
+    let mut color_matrix_2: Option<Matrix3x3> = None;
+    let mut forward_matrix_1: Option<Matrix3x3> = None;
+    let mut calibration_illuminant_1: Option<u16> = None;
+    let mut calibration_illuminant_2: Option<u16> = None;
+    let mut tone_curve: Option<Vec<(f32, f32)>> = None;
+    let mut look_table: Option<Vec<f32>> = None;
+    let mut profile_name: Option<String> = None;
+
+    let mut current_ifd = first_ifd_offset;
+
+    while current_ifd != 0 && current_ifd + 2 <= data.len() {
+        let num_entries = read_u16(current_ifd) as usize;
+        let mut entry_offset = current_ifd + 2;
+
+        for _ in 0..num_entries {
+            if entry_offset + 12 > data.len() {
+                break;
+            }
+
+            let tag = read_u16(entry_offset);
+            let tag_type = read_u16(entry_offset + 2);
+            let count = read_u32(entry_offset + 4) as usize;
+            let value_offset = read_u32(entry_offset + 8) as usize;
+
+            match tag {
+                50721 => {
+                    color_matrix_1 = read_matrix3x3(data, value_offset, count, little_endian);
+                }
+                50722 => {
+                    color_matrix_2 = read_matrix3x3(data, value_offset, count, little_endian);
+                }
+                50725 => {
+                    forward_matrix_1 = read_matrix3x3(data, value_offset, count, little_endian);
+                }
+                50778 => {
+                    if count > 0 && value_offset < data.len() {
+                        calibration_illuminant_1 = Some(read_u16(value_offset));
+                    }
+                }
+                50779 => {
+                    if count > 0 && value_offset < data.len() {
+                        calibration_illuminant_2 = Some(read_u16(value_offset));
+                    }
+                }
+                50936 => {
+                    profile_name = read_string(data, value_offset, count);
+                }
+                50981 => {
+                    tone_curve = read_tone_curve(data, value_offset, count, little_endian);
+                }
+                50982 => {
+                    look_table = read_look_table(data, value_offset, count, little_endian);
+                }
+                _ => {}
+            }
+
+            entry_offset += 12;
+        }
+
+        if entry_offset + 4 > data.len() {
+            break;
+        }
+        current_ifd = read_u32(entry_offset) as usize;
+    }
+
+    let profile = CameraProfile {
+        make: profile_name.clone().unwrap_or_else(|| "Unknown".into()),
+        model: profile_name.unwrap_or_else(|| "Unknown DCP".into()),
+        color_matrix_1: color_matrix_1.unwrap_or([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+        color_matrix_2: color_matrix_2.unwrap_or([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+        forward_matrix_1: forward_matrix_1.unwrap_or([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+        calibration_illuminant_1: calibration_illuminant_1.unwrap_or(21),
+        calibration_illuminant_2: calibration_illuminant_2.unwrap_or(17),
         base_exposure_offset: 0.0,
         baseline_exposure: 1.0,
     };
 
-    // TODO: Parse actual IFD entries and populate matrices from TIFF tags
-    // For now, return the identity profile (pass-through)
-
     Ok(DCPProfile {
-        profile: default_profile,
-        tone_curve: vec![(0.0, 0.0), (1.0, 1.0)], // Linear tone curve
-        look_table: vec![1.0],                    // Identity look
+        profile,
+        tone_curve: tone_curve.unwrap_or_else(|| vec![(0.0, 0.0), (1.0, 1.0)]),
+        look_table: look_table.unwrap_or_else(|| vec![1.0]),
     })
+}
+
+fn read_matrix3x3(data: &[u8], offset: usize, count: usize, little_endian: bool) -> Option<Matrix3x3> {
+    if count < 9 || offset + 9 * 4 > data.len() {
+        return None;
+    }
+
+    let mut result = [0.0f32; 9];
+    for i in 0..9 {
+        let byte_offset = offset + i * 4;
+        let raw = if little_endian {
+            u32::from_le_bytes([
+                data[byte_offset],
+                data[byte_offset + 1],
+                data[byte_offset + 2],
+                data[byte_offset + 3],
+            ])
+        } else {
+            u32::from_be_bytes([
+                data[byte_offset],
+                data[byte_offset + 1],
+                data[byte_offset + 2],
+                data[byte_offset + 3],
+            ])
+        };
+        result[i] = f32::from_bits(raw);
+    }
+
+    Some(result)
+}
+
+fn read_string(data: &[u8], offset: usize, count: usize) -> Option<String> {
+    if offset + count > data.len() {
+        return None;
+    }
+
+    let slice = &data[offset..offset + count];
+    let end = slice.iter().position(|&b| b == 0).unwrap_or(count);
+    String::from_utf8_lossy(&slice[..end]).trim().to_string().into()
+}
+
+fn read_tone_curve(data: &[u8], offset: usize, count: usize, little_endian: bool) -> Option<Vec<(f32, f32)>> {
+    if count < 2 || offset + count * 4 > data.len() {
+        return None;
+    }
+
+    let mut result = Vec::new();
+    let num_points = count / 2;
+
+    for i in 0..num_points {
+        let x_offset = offset + i * 8;
+        let y_offset = x_offset + 4;
+
+        if y_offset + 4 > data.len() {
+            break;
+        }
+
+        let x_raw = if little_endian {
+            u32::from_le_bytes([data[x_offset], data[x_offset + 1], data[x_offset + 2], data[x_offset + 3]])
+        } else {
+            u32::from_be_bytes([data[x_offset], data[x_offset + 1], data[x_offset + 2], data[x_offset + 3]])
+        };
+
+        let y_raw = if little_endian {
+            u32::from_le_bytes([data[y_offset], data[y_offset + 1], data[y_offset + 2], data[y_offset + 3]])
+        } else {
+            u32::from_be_bytes([data[y_offset], data[y_offset + 1], data[y_offset + 2], data[y_offset + 3]])
+        };
+
+        result.push((f32::from_bits(x_raw), f32::from_bits(y_raw)));
+    }
+
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
+}
+
+fn read_look_table(data: &[u8], offset: usize, count: usize, little_endian: bool) -> Option<Vec<f32>> {
+    if count == 0 || offset + count * 4 > data.len() {
+        return None;
+    }
+
+    let mut result = Vec::with_capacity(count);
+    for i in 0..count {
+        let byte_offset = offset + i * 4;
+        let raw = if little_endian {
+            u32::from_le_bytes([
+                data[byte_offset],
+                data[byte_offset + 1],
+                data[byte_offset + 2],
+                data[byte_offset + 3],
+            ])
+        } else {
+            u32::from_be_bytes([
+                data[byte_offset],
+                data[byte_offset + 1],
+                data[byte_offset + 2],
+                data[byte_offset + 3],
+            ])
+        };
+        result.push(f32::from_bits(raw));
+    }
+
+    Some(result)
 }
 
 // ============================================================================

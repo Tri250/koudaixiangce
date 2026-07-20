@@ -1,6 +1,7 @@
 use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use image::{DynamicImage, imageops::FilterType};
+use log::{info, warn};
 use ndarray::{Array, Axis};
 use ort::session::Session;
 use ort::value::Tensor;
@@ -262,7 +263,7 @@ pub async fn start_background_indexing(
         .unwrap_or_else(|e| e.into_inner())
         .take()
     {
-        println!("Cancelling previous indexing task.");
+        info!("Cancelling previous indexing task.");
         handle.abort();
     }
 
@@ -287,8 +288,8 @@ pub async fn start_background_indexing(
 
     let task: JoinHandle<()> = tokio::spawn(async move {
         let _ = app_handle_clone.emit("indexing-started", ());
-        println!("Starting background indexing for: {}", folder_path);
-        println!(
+        info!("Starting background indexing for: {}", folder_path);
+        info!(
             "Using {} concurrent threads for AI tagging.",
             max_concurrent_tasks
         );
@@ -306,7 +307,7 @@ pub async fn start_background_indexing(
                 })
                 .collect(),
             Err(e) => {
-                eprintln!("Failed to read directory '{}': {}", folder_path, e);
+                warn!("Failed to read directory '{}': {}", folder_path, e);
                 let _ = app_handle_clone
                     .emit("indexing-error", format!("Failed to read directory: {}", e));
                 *app_handle_clone
@@ -318,7 +319,7 @@ pub async fn start_background_indexing(
             }
         };
 
-        println!(
+        info!(
             "Found {} images to process in {}",
             image_paths.len(),
             folder_path
@@ -362,7 +363,7 @@ pub async fn start_background_indexing(
                                     (*tags_inner).clone(),
                                     ai_tag_count,
                                 ) {
-                                    println!("Found AI tags for {}: {:?}", path_str, ai_tags);
+                                    info!("Found AI tags for {}: {:?}", path_str, ai_tags);
 
                                     let mut existing_tags: HashSet<String> =
                                         metadata.tags.unwrap_or_default().into_iter().collect();
@@ -384,7 +385,7 @@ pub async fn start_background_indexing(
                                 }
                             }
                             Err(e) => {
-                                eprintln!(
+                                warn!(
                                     "Could not get or generate image for tagging {}: {}",
                                     path_str, e
                                 );
@@ -407,7 +408,7 @@ pub async fn start_background_indexing(
             })
             .await;
 
-        println!("Background indexing finished for: {}", folder_path);
+        info!("Background indexing finished for: {}", folder_path);
         let _ = app_handle_clone.emit("indexing-finished", ());
 
         *app_handle_clone
@@ -458,7 +459,7 @@ pub fn add_tag_for_paths(paths: Vec<String>, tag: String) -> Result<(), String> 
                 tags.push(tag_clone.clone());
             }
         }) {
-            eprintln!("Failed to add tag to {}: {}", path, e);
+            warn!("Failed to add tag to {}: {}", path, e);
         }
     });
     Ok(())
@@ -471,7 +472,7 @@ pub fn remove_tag_for_paths(paths: Vec<String>, tag: String) -> Result<(), Strin
         if let Err(e) = modify_tags_for_path(path, |tags| {
             tags.retain(|t| t != &tag_clone);
         }) {
-            eprintln!("Failed to remove tag from {}: {}", path, e);
+            warn!("Failed to remove tag from {}: {}", path, e);
         }
     });
     Ok(())

@@ -1,6 +1,7 @@
 use crate::app_settings::load_settings;
 use image::{GenericImageView, GrayImage, imageops};
 use image_hasher::{HashAlg, HasherConfig};
+use log::warn;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -127,7 +128,8 @@ fn analyze_image(
     hasher: &image_hasher::Hasher,
     settings: &crate::app_settings::AppSettings,
 ) -> Result<ImageAnalysisData, String> {
-    const ANALYSIS_DIM: u32 = 720; // FIXME: How should we calculate good focus if it's downscaled?!?
+    const ANALYSIS_DIM: u32 = 1200;
+    const FOCUS_CROP_RATIO: f64 = 0.4;
 
     if crate::file_management::is_cloud_placeholder(Path::new(path)) {
         return Err(format!("'{}' is stored in iCloud and not downloaded", path));
@@ -139,22 +141,25 @@ fn analyze_image(
         .map_err(|e| e.to_string())?;
 
     let (width, height) = img.dimensions();
+
     let thumbnail = img.thumbnail(ANALYSIS_DIM, ANALYSIS_DIM);
     let gray_thumbnail = thumbnail.to_luma8();
 
     let sharpness_metric = calculate_laplacian_variance(&gray_thumbnail);
     let exposure_metric = calculate_exposure_metric(&gray_thumbnail);
 
-    let (thumb_w, thumb_h) = gray_thumbnail.dimensions();
-    let center_crop = imageops::crop_imm(
-        &gray_thumbnail,
-        thumb_w / 4,
-        thumb_h / 4,
-        thumb_w / 2,
-        thumb_h / 2,
-    )
-    .to_image();
-    let center_focus_metric = calculate_laplacian_variance(&center_crop);
+    let focus_crop_width = (width as f64 * FOCUS_CROP_RATIO) as u32;
+    let focus_crop_height = (height as f64 * FOCUS_CROP_RATIO) as u32;
+    let focus_crop_x = (width - focus_crop_width) / 2;
+    let focus_crop_y = (height - focus_crop_height) / 2;
+
+    let focus_crop = imageops::crop_imm(&img, focus_crop_x, focus_crop_y, focus_crop_width, focus_crop_height)
+        .to_image();
+
+    let focus_thumbnail = focus_crop.thumbnail(ANALYSIS_DIM, ANALYSIS_DIM);
+    let gray_focus_thumbnail = focus_thumbnail.to_luma8();
+
+    let center_focus_metric = calculate_laplacian_variance(&gray_focus_thumbnail);
 
     let normalized_sharpness = ((sharpness_metric + 1.0).log10() / 3.5).min(1.0);
     let normalized_center_focus = ((center_focus_metric + 1.0).log10() / 3.5).min(1.0);
@@ -223,7 +228,7 @@ pub async fn cull_images(
         match res {
             Ok(data) => successful_analyses.push(data),
             Err((path, error)) => {
-                eprintln!("Failed to analyze image {}: {}", path, error);
+                warn!("Failed to analyze image {}: {}", path, error);
                 failed_paths.push(path);
             }
         }

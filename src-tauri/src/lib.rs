@@ -822,7 +822,7 @@ fn generate_uncropped_preview(
             Cow::Owned(
                 composite_patches_on_image(&loaded_image.image, &adjustments_clone).unwrap_or_else(
                     |e| {
-                        eprintln!("Failed to composite patches for uncropped preview: {}", e);
+                        warn!("Failed to composite patches for uncropped preview: {}", e);
                         loaded_image.image.as_ref().clone()
                     },
                 ),
@@ -1001,7 +1001,7 @@ fn generate_fullscreen_preview(
         Cow::Owned(
             composite_patches_on_image(&loaded_image.image, &adjustments_clone).unwrap_or_else(
                 |e| {
-                    eprintln!("Failed to composite patches for fullscreen preview: {}", e);
+                    warn!("Failed to composite patches for fullscreen preview: {}", e);
                     loaded_image.image.as_ref().clone()
                 },
             ),
@@ -2344,7 +2344,7 @@ pub fn run() {
                     };
                     let ort_library_path = resource_path.join(ort_library_name);
                     std::env::set_var("ORT_DYLIB_PATH", &ort_library_path);
-                    println!("Set ORT_DYLIB_PATH to: {}", ort_library_path.display());
+                    info!("Set ORT_DYLIB_PATH to: {}", ort_library_path.display());
                 }
             }
 

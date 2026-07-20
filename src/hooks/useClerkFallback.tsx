@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   ClerkProvider,
   useAuth as clerkUseAuth,
@@ -14,6 +14,7 @@ interface ClerkContextType {
   user: any;
   isSignedIn: boolean;
   signOut: () => Promise<void>;
+  loading: boolean;
 }
 
 const defaultFallback: ClerkContextType = {
@@ -21,17 +22,18 @@ const defaultFallback: ClerkContextType = {
   user: null,
   isSignedIn: false,
   signOut: async () => {},
+  loading: false,
 };
 
 const ClerkContext = createContext<ClerkContextType>(defaultFallback);
 
 function ClerkContextPopulator({ children }: { children: React.ReactNode }) {
   const { getToken } = clerkUseAuth();
-  const { user, isSignedIn } = clerkUseUser();
+  const { user, isSignedIn, isLoaded } = clerkUseUser();
   const { signOut } = clerkUseClerk();
 
   return (
-    <ClerkContext.Provider value={{ getToken, user, isSignedIn: !!isSignedIn, signOut }}>
+    <ClerkContext.Provider value={{ getToken, user, isSignedIn: !!isSignedIn, signOut, loading: !isLoaded }}>
       {children}
     </ClerkContext.Provider>
   );
@@ -39,16 +41,60 @@ function ClerkContextPopulator({ children }: { children: React.ReactNode }) {
 
 const CLERK_PUBLISHABLE_KEY = 'pk_test_YnJpZWYtc2Vhc25haWwtMTIuY2xlcmsuYWNjb3VudHMuZGV2JA';
 
+function AndroidAuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<any>(null);
+  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadAuthState = async () => {
+      try {
+        const storedUser = localStorage.getItem('android_user');
+        const storedToken = localStorage.getItem('android_token');
+        
+        if (storedUser && storedToken) {
+          try {
+            setUser(JSON.parse(storedUser));
+            setIsSignedIn(true);
+          } catch {
+            localStorage.removeItem('android_user');
+            localStorage.removeItem('android_token');
+          }
+        }
+      } catch {
+        console.warn('Failed to load Android auth state');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAuthState();
+  }, []);
+
+  const getToken = useCallback(async () => {
+    return localStorage.getItem('android_token');
+  }, []);
+
+  const signOut = useCallback(async () => {
+    localStorage.removeItem('android_user');
+    localStorage.removeItem('android_token');
+    setUser(null);
+    setIsSignedIn(false);
+  }, []);
+
+  return (
+    <ClerkContext.Provider value={{ getToken, user, isSignedIn, signOut, loading }}>
+      {children}
+    </ClerkContext.Provider>
+  );
+}
+
 export function ClerkProviderFallback({ children }: { children: React.ReactNode }) {
   const osPlatform = useSettingsStore((s) => s.osPlatform);
   const isAndroid = osPlatform === 'android';
 
   if (isAndroid) {
-    return (
-      <ClerkContext.Provider value={defaultFallback}>
-        {children}
-      </ClerkContext.Provider>
-    );
+    return <AndroidAuthProvider>{children}</AndroidAuthProvider>;
   }
 
   return (
@@ -60,12 +106,12 @@ export function ClerkProviderFallback({ children }: { children: React.ReactNode 
 
 export function useClerkAuth() {
   const ctx = useContext(ClerkContext);
-  return { getToken: ctx.getToken };
+  return { getToken: ctx.getToken, loading: ctx.loading };
 }
 
 export function useClerkUser() {
   const ctx = useContext(ClerkContext);
-  return { user: ctx.user, isSignedIn: ctx.isSignedIn };
+  return { user: ctx.user, isSignedIn: ctx.isSignedIn, loading: ctx.loading };
 }
 
 export function useClerkInstance() {
@@ -75,7 +121,13 @@ export function useClerkInstance() {
 
 export function ClerkShowFallback({ when, children }: { when: string; children?: React.ReactNode }) {
   const osPlatform = useSettingsStore((s) => s.osPlatform);
-  if (osPlatform === 'android') return null;
+  const ctx = useContext(ClerkContext);
+
+  if (osPlatform === 'android') {
+    const condition = when === 'authenticated' ? ctx.isSignedIn : !ctx.isSignedIn;
+    return condition ? <>{children}</> : null;
+  }
+
   return <ClerkShow when={when as any}>{children}</ClerkShow>;
 }
 
