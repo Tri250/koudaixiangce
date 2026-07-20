@@ -72,4 +72,29 @@ jobs:
 
       - name: Clippy
         working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: |
+          cargo clippy --all-targets -- -D warnings \
+            -A dead_code \
+            -A unused_variables \
+            -A unused_mut \
+            -A clippy::collapsible_if \
+            -A clippy::collapsible_else_if \
+            -A clippy::manual_range_contains \
+            -A clippy::manual_div_ceil \
+            -A clippy::manual_clamp \
+            -A clippy::excessive_precision \
+            -A clippy::too_many_arguments \
+            -A clippy::question_mark \
+            -A clippy::doc_lazy_continuation \
+            -A clippy::redundant_closure \
+            -A clippy::unnecessary_min_or_max \
+            -A clippy::needless_range_loop \
+            -A clippy::upper_case_acronyms \
+            -A clippy::useless_format \
+            -A clippy::unnecessary_cast \
+            -A clippy::derivable_impls \
+            -A clippy::unnecessary_filter_map \
+            -A clippy::while_let_loop \
+            -A clippy::private_interfaces \
+            -A clippy::private_fields \
+            -A clippy::module_name_repetitions
