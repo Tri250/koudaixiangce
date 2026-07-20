@@ -549,10 +549,14 @@ function App() {
 
   const handleRightPanelSelect = useCallback(
     (panelId: Panel) => {
+      // In Android compact mode, don't close the current panel to prevent BottomSheet from hiding
+      if (isAndroidCompact && useUIStore.getState().activeRightPanel === panelId) {
+        return;
+      }
       setRightPanel(panelId);
       setEditor({ activeMaskId: null, activeAiSubMaskId: null, isWbPickerActive: false });
     },
-    [setRightPanel, setEditor],
+    [setRightPanel, setEditor, isAndroidCompact],
   );
 
   const handleToggleFolder = useCallback(

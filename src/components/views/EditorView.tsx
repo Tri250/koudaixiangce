@@ -290,20 +290,20 @@ export default function EditorView({
           </button>
         </div>
 
-        {/* Bottom sheet panel */}
+        {/* Always-visible horizontal tab bar for Android compact mode */}
+        <div className="shrink-0 border-t border-surface bg-bg-secondary relative z-[60]">
+          <RightPanelSwitcher
+            activePanel={activeRightPanel}
+            onPanelSelect={handleRightPanelSelect}
+            isInstantTransition={isInstantTransition}
+            layout="horizontal"
+          />
+        </div>
+
+        {/* Bottom sheet panel - only for content */}
         <BottomSheet isOpen={!!activeRightPanel && !isFullScreen} defaultHeight={280} minHeight={120}>
-          <div className="flex flex-col h-full">
-            {/* Horizontal tab bar */}
-            <RightPanelSwitcher
-              activePanel={activeRightPanel}
-              onPanelSelect={handleRightPanelSelect}
-              isInstantTransition={isInstantTransition}
-              layout="horizontal"
-            />
-            {/* Panel content */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              {editorRightPanelContent}
-            </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {editorRightPanelContent}
           </div>
         </BottomSheet>
       </div>
