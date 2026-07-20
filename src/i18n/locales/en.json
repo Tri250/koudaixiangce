@@ -933,7 +933,11 @@
       "peopleRemoval": {
         "title": "People Removal",
         "description": "Automatically detect and remove people from the background.",
-        "apply": "Remove People"
+        "apply": "Remove People",
+        "detect": "Detect People",
+        "detectFirst": "Please detect people first before removing.",
+        "detectedCount": "Detected {{count}} person(s)",
+        "noPeopleDetected": "No people detected in the image."
       }
     },
     "hdr": {
