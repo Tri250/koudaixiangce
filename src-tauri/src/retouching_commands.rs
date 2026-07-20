@@ -83,7 +83,7 @@ fn encode_image_to_base64_jpeg(img: &DynamicImage) -> Result<String, String> {
 // P0 Commands
 // ===========================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn detect_faces_in_image(
     js_adjustments: serde_json::Value,
     state: tauri::State<'_, AppState>,
@@ -111,7 +111,7 @@ pub async fn detect_faces_in_image(
     Ok(result)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn detect_body_in_image(
     js_adjustments: serde_json::Value,
     state: tauri::State<'_, AppState>,
@@ -136,7 +136,7 @@ pub async fn detect_body_in_image(
     Ok(result)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_liquify(
     js_adjustments: serde_json::Value,
     strokes: Vec<LiquifyStrokeCommand>,
@@ -173,7 +173,7 @@ pub async fn apply_liquify(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_skin_smoothing(
     js_adjustments: serde_json::Value,
     method: String,
@@ -200,7 +200,7 @@ pub async fn apply_skin_smoothing(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn auto_remove_blemishes(
     js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
@@ -228,7 +228,7 @@ pub async fn auto_remove_blemishes(
 // P1 Commands
 // ===========================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_face_reshape(
     js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
@@ -247,7 +247,7 @@ pub async fn apply_face_reshape(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_body_reshape(
     js_adjustments: serde_json::Value,
     body_keypoints: serde_json::Value,
@@ -266,7 +266,7 @@ pub async fn apply_body_reshape(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn unify_skin_color(
     js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
@@ -285,7 +285,7 @@ pub async fn unify_skin_color(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn replace_sky(
     js_adjustments: serde_json::Value,
     sky_image_base64: String,
@@ -315,7 +315,7 @@ pub async fn replace_sky(
     Ok(result)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn ai_remove_people(
     js_adjustments: serde_json::Value,
     person_regions: Vec<(f64, f64, f64, f64)>,
@@ -342,7 +342,7 @@ pub async fn ai_remove_people(
 // P2 Commands
 // ===========================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn ai_match_colors(
     source_adjustments: serde_json::Value,
     reference_image_base64: String,
@@ -382,7 +382,7 @@ pub async fn ai_match_colors(
     Ok(result)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_fill_light(
     js_adjustments: serde_json::Value,
     direction: f32,
@@ -409,7 +409,7 @@ pub async fn apply_fill_light(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_super_resolution(
     js_adjustments: serde_json::Value,
     scale_factor: u32,
@@ -444,7 +444,7 @@ pub async fn apply_super_resolution(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn process_id_photo(
     js_adjustments: serde_json::Value,
     size: String,
@@ -469,7 +469,7 @@ pub async fn process_id_photo(
     encode_image_to_base64_jpeg(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn retouch_clothing(
     js_adjustments: serde_json::Value,
     body_keypoints: serde_json::Value,
@@ -494,7 +494,7 @@ pub async fn retouch_clothing(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_lens_blur(
     js_adjustments: serde_json::Value,
     blur_type: String,
@@ -525,7 +525,7 @@ pub async fn apply_lens_blur(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn restore_old_photo(
     js_adjustments: serde_json::Value,
     denoise_strength: f32,
@@ -552,7 +552,7 @@ pub async fn restore_old_photo(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_seasonal_effect(
     js_adjustments: serde_json::Value,
     effect_type: String,
@@ -571,7 +571,7 @@ pub async fn apply_seasonal_effect(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn batch_sync_preset(
     image_paths: Vec<String>,
     preset_adjustments: serde_json::Value,
@@ -630,7 +630,7 @@ pub async fn batch_sync_preset(
 // P3 Commands
 // ===========================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn add_eye_catchlight(
     js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
@@ -655,7 +655,7 @@ pub async fn add_eye_catchlight(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn adjust_smile(
     js_adjustments: serde_json::Value,
     face_landmarks: serde_json::Value,
@@ -674,7 +674,7 @@ pub async fn adjust_smile(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn adjust_neck_shoulder(
     js_adjustments: serde_json::Value,
     body_keypoints: serde_json::Value,
@@ -699,7 +699,7 @@ pub async fn adjust_neck_shoulder(
     encode_image_to_base64_png(&result_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_hair_retouch(
     js_adjustments: serde_json::Value,
     params: serde_json::Value,

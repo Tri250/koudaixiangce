@@ -442,7 +442,7 @@ pub fn get_or_load_lut(state: &State<AppState>, path: &str) -> Result<Arc<Lut>, 
     Ok(arc_lut)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn list_luts(app_handle: AppHandle) -> Result<Vec<LutEntry>, String> {
     let data_dir = app_handle
         .path()
@@ -510,7 +510,7 @@ fn combined_lut_list(luts_dir: &Path) -> anyhow::Result<Vec<LutEntry>> {
     Ok(entries)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn import_luts(
     app_handle: AppHandle,
     source_paths: Vec<String>,
@@ -532,7 +532,7 @@ pub fn import_luts(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn remove_lut(app_handle: AppHandle, path: String) -> Result<Vec<LutEntry>, String> {
     let data_dir = app_handle
         .path()
@@ -609,7 +609,7 @@ fn render_lut_swatch(
     ))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn generate_lut_previews(
     lut_paths: Vec<String>,
     size: u32,
@@ -656,7 +656,7 @@ pub fn generate_lut_previews(
     Ok(previews)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn load_and_parse_lut(path: String, state: State<AppState>) -> Result<LutParseResult, String> {
     let lut = parse_lut_file(&path).map_err(|e| e.to_string())?;
     let lut_size = lut.size;

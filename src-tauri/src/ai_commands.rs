@@ -26,7 +26,7 @@ fn encode_to_base64_png(image: &GrayImage) -> Result<String, String> {
     Ok(format!("data:image/png;base64,{}", base64_str))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn generate_ai_foreground_mask(
     js_adjustments: serde_json::Value,
     rotation: f32,
@@ -55,7 +55,7 @@ pub async fn generate_ai_foreground_mask(
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn generate_ai_sky_mask(
     js_adjustments: serde_json::Value,
     rotation: f32,
@@ -106,7 +106,7 @@ pub fn generate_sky_mask_internal(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn generate_ai_depth_mask(
     js_adjustments: serde_json::Value,
     path: String,
@@ -198,7 +198,7 @@ pub async fn generate_ai_depth_mask(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn generate_ai_subject_mask(
     js_adjustments: serde_json::Value,
     path: String,
@@ -350,7 +350,7 @@ pub async fn generate_ai_subject_mask(
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn precompute_ai_subject_mask(
     js_adjustments: serde_json::Value,
     path: String,
@@ -394,7 +394,7 @@ pub async fn precompute_ai_subject_mask(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn check_ai_connector_status(app_handle: tauri::AppHandle) {
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
     let is_connected = if let Some(address) = settings.ai_connector_address {
@@ -409,7 +409,7 @@ pub async fn check_ai_connector_status(app_handle: tauri::AppHandle) {
     );
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn test_ai_connector_connection(address: String) -> Result<(), String> {
     match ai_connector::check_status(&address).await {
         Ok(true) => Ok(()),
@@ -426,7 +426,7 @@ pub struct AiImageAnalysisResult {
     pub reasons: String,
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn analyze_image(
     image_path: String,
     task: String,
@@ -485,7 +485,7 @@ pub async fn analyze_image(
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn analyze_images_batch(
     image_paths: Vec<String>,
     task: String,

@@ -718,7 +718,7 @@ pub fn composite_patches_on_image(
     Ok(composited_image)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn is_image_cached(path: String, state: tauri::State<'_, AppState>) -> bool {
     let (source_path, _) = parse_virtual_path(&path);
     let source_path_str = source_path.to_string_lossy().to_string();
@@ -730,7 +730,7 @@ pub fn is_image_cached(path: String, state: tauri::State<'_, AppState>) -> bool 
         .is_some()
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn load_image(
     path: String,
     state: tauri::State<'_, AppState>,

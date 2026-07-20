@@ -1393,7 +1393,7 @@ pub fn generate_mask_bitmap(
     Some(final_mask)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn generate_mask_overlay(
     mut mask_def: serde_json::Value,
     width: u32,

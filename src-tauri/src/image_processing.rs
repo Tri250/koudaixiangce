@@ -3411,7 +3411,7 @@ pub fn auto_results_to_json(results: &AutoAdjustmentResults) -> serde_json::Valu
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn calculate_auto_adjustments(
     state: tauri::State<AppState>,
 ) -> Result<serde_json::Value, String> {

@@ -179,7 +179,7 @@ fn analyze_image(
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn cull_images(
     paths: Vec<String>,
     settings: CullingSettings,

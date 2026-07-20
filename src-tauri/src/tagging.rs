@@ -250,7 +250,7 @@ pub fn generate_tags_with_clip(
     Ok(final_tags)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn start_background_indexing(
     folder_path: String,
     app_handle: AppHandle,
@@ -449,7 +449,7 @@ fn modify_tags_for_path(
     fs::write(sidecar_path, json_string).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn add_tag_for_paths(paths: Vec<String>, tag: String) -> Result<(), String> {
     paths.par_iter().for_each(|path| {
         let tag_clone = tag.clone();
@@ -464,7 +464,7 @@ pub fn add_tag_for_paths(paths: Vec<String>, tag: String) -> Result<(), String> 
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn remove_tag_for_paths(paths: Vec<String>, tag: String) -> Result<(), String> {
     paths.par_iter().for_each(|path| {
         let tag_clone = tag.clone();
@@ -477,7 +477,7 @@ pub fn remove_tag_for_paths(paths: Vec<String>, tag: String) -> Result<(), Strin
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn clear_ai_tags(root_path: String) -> Result<usize, String> {
     if !Path::new(&root_path).exists() {
         return Err(format!("Root path does not exist: {}", root_path));
@@ -515,7 +515,7 @@ pub fn clear_ai_tags(root_path: String) -> Result<usize, String> {
     Ok(updated_count)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn clear_all_tags(root_path: String) -> Result<usize, String> {
     if !Path::new(&root_path).exists() {
         return Err(format!("Root path does not exist: {}", root_path));

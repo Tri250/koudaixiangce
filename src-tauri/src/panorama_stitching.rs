@@ -52,7 +52,7 @@ pub struct MatchInfo {
     pub inliers: usize,
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn cancel_panorama(state: tauri::State<'_, AppState>) -> Result<(), String> {
     state
         .panorama_cancel_flag
@@ -60,7 +60,7 @@ pub async fn cancel_panorama(state: tauri::State<'_, AppState>) -> Result<(), St
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn stitch_panorama(
     paths: Vec<String>,
     app_handle: tauri::AppHandle,
@@ -147,7 +147,7 @@ pub async fn stitch_panorama(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn save_panorama(
     first_path_str: String,
     app_handle: tauri::AppHandle,

@@ -734,7 +734,7 @@ fn export_adjustments_as_lut(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn export_images(
     paths: Vec<String>,
     output_folder_or_file: String,
@@ -1142,7 +1142,7 @@ pub async fn export_images(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn cancel_export(state: tauri::State<AppState>) -> Result<(), String> {
     // Signal all in-flight spawn_blocking closures to bail out as soon as they
     // reach the next token check. abort() alone cannot stop spawn_blocking.
@@ -1188,7 +1188,7 @@ pub fn cancel_export(state: tauri::State<AppState>) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn estimate_export_sizes(
     paths: Vec<String>,
     export_settings: ExportSettings,

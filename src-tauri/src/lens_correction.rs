@@ -600,7 +600,7 @@ pub fn load_lensfun_db(app_handle: &tauri::AppHandle) -> LensDatabase {
     combined_db
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_lensfun_makers(state: State<AppState>) -> Result<Vec<String>, String> {
     let db_guard = state
         .lens_db
@@ -616,7 +616,7 @@ pub fn get_lensfun_makers(state: State<AppState>) -> Result<Vec<String>, String>
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_lensfun_lenses_for_maker(
     maker: String,
     state: State<AppState>,
@@ -722,7 +722,7 @@ pub fn find_best_lens_match(
     None
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn autodetect_lens(
     maker: String,
     model: String,
@@ -739,7 +739,7 @@ pub fn autodetect_lens(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_lens_distortion_params(
     maker: String,
     model: String,

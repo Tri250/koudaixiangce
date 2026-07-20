@@ -211,7 +211,7 @@ pub fn parse_android_uri<'local>(
     Ok(uri)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn resolve_android_content_uri_name(uri_str: &str) -> Result<String, String> {
     #[cfg(target_os = "android")]
     {

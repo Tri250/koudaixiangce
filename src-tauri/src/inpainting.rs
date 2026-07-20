@@ -13,7 +13,7 @@ use crate::image_processing::apply_linear_to_srgb;
 use crate::mask_generation::{AiPatchDefinition, MaskDefinition, generate_mask_bitmap};
 use crate::resolve_warped_image_for_masks;
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn generate_manual_cleanup_patch(
     patch_definition: AiPatchDefinition,
     current_adjustments: Value,
@@ -323,7 +323,7 @@ pub async fn generate_manual_cleanup_patch(
     Ok(result_json)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn invoke_generative_replace(
     path: String,
     region: serde_json::Value,
@@ -366,7 +366,7 @@ pub async fn invoke_generative_replace(
     .await
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn invoke_generative_replace_with_mask_def(
     path: String,
     patch_definition: AiPatchDefinition,

@@ -227,7 +227,7 @@ pub struct NegativePreviewCache {
     pub height: u32,
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn preview_negative_conversion(
     path: String,
     params: NegativeConversionParams,
@@ -469,7 +469,7 @@ fn run_pipeline_from_log(
     DynamicImage::ImageRgb32F(out_img)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn convert_negatives(
     paths: Vec<String>,
     params: NegativeConversionParams,

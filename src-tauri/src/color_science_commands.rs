@@ -18,7 +18,7 @@ pub fn parse_hex_color(hex: &str) -> Option<(f32, f32, f32)> {
 
 // ---- Color Science Commands ----
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_color_profiles() -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
         let profiles = serde_json::json!([
@@ -34,7 +34,7 @@ pub async fn get_color_profiles() -> Result<serde_json::Value, String> {
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn convert_color_space(
     js_adjustments: serde_json::Value,
     from_space: String,
@@ -95,7 +95,7 @@ pub async fn convert_color_space(
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn soft_proof(
     js_adjustments: serde_json::Value,
     target_color_space: String,
@@ -173,7 +173,7 @@ pub async fn soft_proof(
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn check_out_of_gamut(
     js_adjustments: serde_json::Value,
     target_color_space: String,
@@ -227,7 +227,7 @@ pub async fn check_out_of_gamut(
 
 // ---- HDR Commands ----
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_hdr_highlight_recovery(
     js_adjustments: serde_json::Value,
     mode: String,
@@ -319,7 +319,7 @@ pub async fn apply_hdr_highlight_recovery(
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn generate_gain_map(
     js_adjustments: serde_json::Value,
     sdr_image_base64: String,
@@ -401,7 +401,7 @@ pub async fn generate_gain_map(
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn export_ultra_hdr_jpeg(
     js_adjustments: serde_json::Value,
     sdr_image_base64: String,
@@ -452,7 +452,7 @@ pub async fn export_ultra_hdr_jpeg(
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn export_hdr_tiff(
     js_adjustments: serde_json::Value,
     peak_brightness_nits: f32,
@@ -522,7 +522,7 @@ pub async fn export_hdr_tiff(
 
 // ---- Monochrome Commands ----
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn convert_to_monochrome(
     js_adjustments: serde_json::Value,
     red_weight: f32,
@@ -674,7 +674,7 @@ pub async fn convert_to_monochrome(
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_monochrome_preview(
     js_adjustments: serde_json::Value,
     params: serde_json::Value,
@@ -710,7 +710,7 @@ pub async fn get_monochrome_preview(
 
 // ---- Camera Profile Commands ----
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_camera_profiles() -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
         let profiles = serde_json::json!([
@@ -745,7 +745,7 @@ pub async fn get_camera_profiles() -> Result<serde_json::Value, String> {
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_camera_profile_for_image(
     exif_make: String,
     exif_model: String,
@@ -776,7 +776,7 @@ pub async fn get_camera_profile_for_image(
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn import_dcp_profile(file_path: String) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
         let data =
@@ -813,7 +813,7 @@ pub async fn import_dcp_profile(file_path: String) -> Result<serde_json::Value, 
     .map_err(|e| format!("Task panicked: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn set_camera_color_profile(
     profile_name: String,
     state: tauri::State<'_, crate::app_state::AppState>,

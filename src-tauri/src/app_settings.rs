@@ -549,7 +549,7 @@ pub fn get_settings_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
     Ok(settings_dir.join("settings.json"))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
     let path = get_settings_path(&app_handle)?;
 
@@ -616,7 +616,7 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
     Ok(settings)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Result<(), String> {
     let path = get_settings_path(&app_handle)?;
     let json_string = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;

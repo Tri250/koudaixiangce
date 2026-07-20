@@ -207,7 +207,7 @@ impl DecodedImageCache {
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn clear_image_caches(state: tauri::State<AppState>) {
     if let Ok(mut decoded_cache) = state.decoded_image_cache.lock() {
         decoded_cache.clear();
@@ -226,7 +226,7 @@ pub fn clear_image_caches(state: tauri::State<AppState>) {
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn clear_session_caches(state: tauri::State<AppState>) {
     if let Ok(mut patch_cache) = state.patch_cache.lock() {
         patch_cache.clear();

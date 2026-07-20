@@ -48,7 +48,7 @@ impl Bm3dParams {
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn apply_denoising(
     path: String,
     intensity: f32,
@@ -89,7 +89,7 @@ pub async fn apply_denoising(
     .map_err(|e| format!("Denoising task failed: {}", e))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn batch_denoise_images(
     paths: Vec<String>,
     intensity: f32,
@@ -191,7 +191,7 @@ pub async fn batch_denoise_images(
     .map_err(|e| format!("Batch denoising task failed: {}", e))?
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn save_denoised_image(
     original_path_str: String,
     state: tauri::State<'_, AppState>,

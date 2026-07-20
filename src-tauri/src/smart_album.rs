@@ -72,7 +72,7 @@ fn categorize_tags(all_tags: &[String]) -> (Vec<String>, Vec<String>, Vec<String
 }
 
 /// Evaluate whether an image matches the smart album criteria
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn evaluate_smart_album(
     criteria: SmartAlbumCriteria,
     image_path: String,
@@ -299,7 +299,7 @@ async fn resolve_smart_album_inner(
 }
 
 /// Resolve a smart album to a list of matching image paths
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn resolve_smart_album(
     criteria: SmartAlbumCriteria,
     root_paths: Vec<String>,
@@ -310,7 +310,7 @@ pub async fn resolve_smart_album(
 }
 
 /// Search images across the library with combined criteria
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn search_images(
     criteria: SmartAlbumCriteria,
     root_paths: Vec<String>,
@@ -362,7 +362,7 @@ pub async fn search_images(
 }
 
 /// Save smart albums definition
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn save_smart_albums(
     smart_albums: Vec<SmartAlbum>,
     app_handle: tauri::AppHandle,
@@ -384,7 +384,7 @@ pub fn save_smart_albums(
 }
 
 /// Load smart albums definition
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn load_smart_albums(app_handle: tauri::AppHandle) -> Result<Vec<SmartAlbum>, String> {
     use std::fs;
     use tauri::Manager;
