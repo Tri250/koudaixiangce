@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Sparkles,
   UserMinus,
+  Search,
 } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../ui/Slider';
@@ -28,6 +29,7 @@ import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 import { Adjustments } from '../../../utils/adjustments';
+import { useRetouching } from '../../../hooks/useRetouching';
 
 // ── Helper ────────────────────────────────────────────────────────────
 
@@ -186,9 +188,12 @@ function FillLightSection() {
       const result = await invoke<string>('apply_fill_light', {
         js_adjustments: jsAdjustments,
         direction,
-        intensity,
-        softness,
-        color_temp: colorTemp,
+        // Bug fix #4: Normalize 0-100 values to 0.0-1.0 for the backend
+        intensity: intensity / 100,
+        softness: softness / 100,
+        // color_temp slider is -100..100; backend clamps to 0.0-1.0
+        // (0 = cool blue, 1 = warm orange), so map -100..100 -> 0..1
+        color_temp: (colorTemp + 100) / 200,
       });
       if (result) {
         setEditor({ retouchingResultUrl: result });
@@ -325,7 +330,13 @@ function IdPhotoSection() {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
       const backgroundColor = hexToRgbTuple(bgColor);
-      const result = await invoke<string>('process_id_photo', { js_adjustments: jsAdjustments, size: sizePreset, background_color: backgroundColor });
+      // Bug fix #1: Backend expects '1inch'/'2inch'/'passport', not 'one_inch'/'two_inch'
+      const sizeMap: Record<typeof sizePreset, string> = {
+        one_inch: '1inch',
+        two_inch: '2inch',
+        passport: 'passport',
+      };
+      const result = await invoke<string>('process_id_photo', { js_adjustments: jsAdjustments, size: sizeMap[sizePreset], background_color: backgroundColor });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.idPhoto.process'));
@@ -448,7 +459,9 @@ function LensBlurSection() {
         js_adjustments: jsAdjustments,
         blur_type: blurType,
         focal_point: [0.5, 0.5] as [number, number],
-        blur_amount: blurAmount,
+        // Bug fix #4: Normalize 0-100 to 0.0-1.0 for the backend
+        // (backend uses blur_amount * 20.0 as max pixel radius)
+        blur_amount: blurAmount / 100,
         depth_mask_base64: null,
       });
       if (result) {
@@ -502,7 +515,9 @@ function OldPhotoRestoreSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<string>('restore_old_photo', { js_adjustments: jsAdjustments, denoise_strength: denoiseStrength, scratch_removal: scratchRemoval, colorize });
+      // Bug fix #4: Normalize 0-100 to 0.0-1.0 for the backend
+      // (backend uses denoise_strength * 3.0 as gaussian sigma)
+      const result = await invoke<string>('restore_old_photo', { js_adjustments: jsAdjustments, denoise_strength: denoiseStrength / 100, scratch_removal: scratchRemoval, colorize });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.oldPhoto.restore'));
@@ -558,7 +573,17 @@ function SeasonalEffectsSection() {
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<string>('apply_seasonal_effect', { js_adjustments: jsAdjustments, effect_type: effectType, intensity });
+      // Bug fix #2: Backend expects 'summer_sun'/'autumn_leaves'/'winter_snow',
+      // not 'summer'/'autumn'/'winter'
+      const effectTypeMap: Record<typeof effectType, string> = {
+        sakura: 'sakura',
+        summer: 'summer_sun',
+        autumn: 'autumn_leaves',
+        winter: 'winter_snow',
+      };
+      // Normalize intensity from 0-100 to 0.0-1.0 for the backend
+      const normalizedIntensity = intensity / 100;
+      const result = await invoke<string>('apply_seasonal_effect', { js_adjustments: jsAdjustments, effect_type: effectTypeMap[effectType], intensity: normalizedIntensity });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.seasonal.apply'));
@@ -620,13 +645,65 @@ function PeopleRemovalSection() {
   const { t } = useTranslation();
   const adjustments = useEditorStore((s) => s.adjustments);
   const setEditor = useEditorStore((s) => s.setEditor);
+  const { detectBody } = useRetouching();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectedRegions, setDetectedRegions] = useState<[number, number, number, number][]>([]);
+
+  const handleDetect = useCallback(async () => {
+    setIsDetecting(true);
+    try {
+      const poses = await detectBody();
+      // Bug fix #5: Compute bounding boxes from detected body keypoints,
+      // with 10% padding so the inpaint region fully covers each person.
+      const regions: [number, number, number, number][] = poses
+        .map((pose) => {
+          const kps = pose.keypoints;
+          if (!kps || kps.length === 0) return null;
+          // Filter low-confidence keypoints so noise doesn't expand the bbox
+          const confident = kps.filter((k) => k.confidence > 0.3);
+          if (confident.length === 0) return null;
+          const xs = confident.map((k) => k.x);
+          const ys = confident.map((k) => k.y);
+          const minX = Math.min(...xs);
+          const minY = Math.min(...ys);
+          const maxX = Math.max(...xs);
+          const maxY = Math.max(...ys);
+          const w = maxX - minX;
+          const h = maxY - minY;
+          const padX = w * 0.1;
+          const padY = h * 0.1;
+          return [minX - padX, minY - padY, w + padX * 2, h + padY * 2] as [number, number, number, number];
+        })
+        .filter((r): r is [number, number, number, number] => r !== null);
+      setDetectedRegions(regions);
+      if (regions.length === 0) {
+        toast.info(t('editor.creative.peopleRemoval.noPeopleDetected'));
+      } else {
+        toast.success(t('editor.creative.peopleRemoval.detectedCount', { count: regions.length }));
+      }
+    } catch (err) {
+      console.error('detect people failed:', err);
+      toast.error(`${t('editor.creative.peopleRemoval.detect')} failed: ${err}`);
+    } finally {
+      setIsDetecting(false);
+    }
+  }, [detectBody, t]);
 
   const handleApply = useCallback(async () => {
+    // Bug fix #5: Avoid invoking ai_remove_people with an empty array,
+    // which would silently no-op and mislead the user with a "success" toast.
+    if (detectedRegions.length === 0) {
+      toast.warn(t('editor.creative.peopleRemoval.detectFirst'));
+      return;
+    }
     setIsProcessing(true);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<string>('ai_remove_people', { js_adjustments: jsAdjustments, person_regions: [] });
+      const result = await invoke<string>('ai_remove_people', {
+        js_adjustments: jsAdjustments,
+        person_regions: detectedRegions,
+      });
       if (result) {
         setEditor({ retouchingResultUrl: result });
         toast.success(t('editor.creative.peopleRemoval.apply'));
@@ -637,14 +714,23 @@ function PeopleRemovalSection() {
     } finally {
       setIsProcessing(false);
     }
-  }, [adjustments, setEditor, t]);
+  }, [detectedRegions, adjustments, setEditor, t]);
 
   return (
     <div className="space-y-3 pt-2">
       <Text variant={TextVariants.small} color={TextColors.secondary}>
         {t('editor.creative.peopleRemoval.description')}
       </Text>
-      <Button className="w-full" onClick={handleApply} disabled={isProcessing}>
+      <Button className="w-full bg-surface" onClick={handleDetect} disabled={isDetecting || isProcessing}>
+        {isDetecting ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+        <span className="ml-2">{t('editor.creative.peopleRemoval.detect')}</span>
+      </Button>
+      {detectedRegions.length > 0 && (
+        <Text variant={TextVariants.small} color={TextColors.primary}>
+          {t('editor.creative.peopleRemoval.detectedCount', { count: detectedRegions.length })}
+        </Text>
+      )}
+      <Button className="w-full" onClick={handleApply} disabled={isProcessing || isDetecting || detectedRegions.length === 0}>
         {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <UserMinus size={16} />}
         <span className="ml-2">{t('editor.creative.peopleRemoval.apply')}</span>
       </Button>
@@ -700,6 +786,13 @@ export default function CreativePanel() {
   const [collapsibleState, setCollapsibleState] = useState<Record<SectionKey, boolean>>(
     () => Object.fromEntries(SECTION_KEYS.map((k) => [k, false])) as Record<SectionKey, boolean>,
   );
+
+  // Bug fix #3: Clear retouchingResultUrl when leaving the creative panel
+  useEffect(() => {
+    return () => {
+      setEditor({ retouchingResultUrl: null });
+    };
+  }, [setEditor]);
 
   const handleToggleSection = useCallback((section: SectionKey) => {
     setCollapsibleState((prev) => ({ ...prev, [section]: !prev[section] }));

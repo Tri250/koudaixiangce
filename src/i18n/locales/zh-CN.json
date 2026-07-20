@@ -940,7 +940,11 @@
       "peopleRemoval": {
         "title": "路人消除",
         "description": "自动检测并移除背景中的人物。",
-        "apply": "消除路人"
+        "apply": "消除路人",
+        "detect": "检测路人",
+        "detectFirst": "请先检测路人再执行消除。",
+        "detectedCount": "已检测到 {{count}} 个路人",
+        "noPeopleDetected": "未在图片中检测到路人。"
       }
     },
     "hdr": {

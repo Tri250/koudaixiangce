@@ -192,7 +192,7 @@ export default function EditorView({
         setUI((state) => ({ uiVisibility: { ...state.uiVisibility, filmstrip: value } }))
       }
       showFilmstrip={!isCompactPortrait}
-      showZoomControls={!isAndroid}
+      showZoomControls={isAndroidCompact || !isAndroid}
       thumbnailAspectRatio={thumbnailAspectRatio}
       totalImages={sortedImageList.length}
     />
@@ -290,20 +290,25 @@ export default function EditorView({
           </button>
         </div>
 
-        {/* Bottom sheet panel */}
+        {/* Compact bottom bar for Android: rating, copy/paste, zoom */}
+        <div className="shrink-0 border-t border-surface bg-bg-secondary relative z-[60]">
+          <RightPanelSwitcher
+            activePanel={activeRightPanel}
+            onPanelSelect={handleRightPanelSelect}
+            isInstantTransition={isInstantTransition}
+            layout="horizontal"
+          />
+        </div>
+
+        {/* Bottom bar with rating, copy/paste controls */}
+        <div className="shrink-0 bg-bg-secondary relative z-[60]">
+          {editorBottomBarComponent}
+        </div>
+
+        {/* Bottom sheet panel - only for content */}
         <BottomSheet isOpen={!!activeRightPanel && !isFullScreen} defaultHeight={280} minHeight={120}>
-          <div className="flex flex-col h-full">
-            {/* Horizontal tab bar */}
-            <RightPanelSwitcher
-              activePanel={activeRightPanel}
-              onPanelSelect={handleRightPanelSelect}
-              isInstantTransition={isInstantTransition}
-              layout="horizontal"
-            />
-            {/* Panel content */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              {editorRightPanelContent}
-            </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {editorRightPanelContent}
           </div>
         </BottomSheet>
       </div>

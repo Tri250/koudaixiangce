@@ -6,6 +6,7 @@ import { ClerkProviderFallback } from './hooks/useClerkFallback';
 import { ToastContainer, toast, Slide } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
+import { X } from 'lucide-react';
 
 import TitleBar from './window/TitleBar';
 import FolderTree from './components/panel/FolderTree';
@@ -198,6 +199,8 @@ function App() {
     rootPaths?: string[];
     currentPath?: string;
   }>({});
+
+  const [compactBannerDismissed, setCompactBannerDismissed] = useState(false);
 
   useAppInitialization({
     preloadedDataRef,
@@ -549,10 +552,14 @@ function App() {
 
   const handleRightPanelSelect = useCallback(
     (panelId: Panel) => {
+      // In Android compact mode, don't close the current panel to prevent BottomSheet from hiding
+      if (isAndroidCompact && useUIStore.getState().activeRightPanel === panelId) {
+        return;
+      }
       setRightPanel(panelId);
       setEditor({ activeMaskId: null, activeAiSubMaskId: null, isWbPickerActive: false });
     },
-    [setRightPanel, setEditor],
+    [setRightPanel, setEditor, isAndroidCompact],
   );
 
   const handleToggleFolder = useCallback(
@@ -676,10 +683,17 @@ function App() {
             [hasMainContent && (isFullScreen ? 'p-0 gap-0' : 'p-2 gap-2')],
           )}
         >
-          {isAndroidCompact && selectedImage && (
+          {isAndroidCompact && selectedImage && !compactBannerDismissed && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 text-blue-400 text-xs rounded-md border border-blue-500/20">
               <span className="font-medium">ℹ</span>
               <span>{t('app.compactMode')}</span>
+              <button
+                className="ml-auto p-0.5 rounded hover:bg-blue-500/20 transition-colors"
+                onClick={() => setCompactBannerDismissed(true)}
+                aria-label={t('app.dismiss', 'Dismiss')}
+              >
+                <X size={14} />
+              </button>
             </div>
           )}
           <div className="flex flex-row grow h-full min-h-0">

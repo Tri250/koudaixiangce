@@ -93,12 +93,16 @@ export default function PortraitPanel() {
   const [catchlightIntensity, setCatchlightIntensity] = useState(50);
   const [catchlightPosition, setCatchlightPosition] = useState('top-left');
   const [smileAmount, setSmileAmount] = useState(0);
-  const [neckAdjust, setNeckAdjust] = useState(0);
-  const [shoulderAdjustValue, setShoulderAdjustValue] = useState(0);
   const [isApplying, setIsApplying] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusType, setStatusType] = useState<'success' | 'error'>('success');
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Bug fix #1 & #2: Selected face/body index for multi-detection support
+  const [selectedFaceIndex, setSelectedFaceIndex] = useState(0);
+  const [selectedBodyIndex, setSelectedBodyIndex] = useState(0);
+
+  const setEditor = useEditorStore((s) => s.setEditor);
 
   const showStatus = useCallback((message: string, type: 'success' | 'error') => {
     if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
@@ -107,13 +111,15 @@ export default function PortraitPanel() {
     statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 4000);
   }, []);
 
-  // Clear any pending status timeout when the panel unmounts to avoid
-  // scheduling a state update on an unmounted component.
+  // Clear any pending status timeout and retouching result when the panel
+  // unmounts, so the canvas returns to normal adjustment preview mode.
   useEffect(() => {
     return () => {
       if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+      // Bug fix #16: Clear retouchingResultUrl when leaving the portrait panel
+      setEditor({ retouchingResultUrl: null });
     };
-  }, []);
+  }, [setEditor]);
 
   // Clear status when switching tabs
   useEffect(() => {
@@ -129,14 +135,14 @@ export default function PortraitPanel() {
   }, []);
 
   const handleDetectFaces = useCallback(async () => {
+    setSelectedFaceIndex(0); // Reset selection on new detection
     await detectFaces();
   }, [detectFaces]);
 
   const handleDetectBody = useCallback(async () => {
+    setSelectedBodyIndex(0); // Reset selection on new detection
     await detectBody();
   }, [detectBody]);
-
-  const setEditor = useEditorStore((s) => s.setEditor);
 
   const handleReset = useCallback(() => {
     setFaceParams(DEFAULT_FACE_PARAMS);
@@ -144,6 +150,11 @@ export default function PortraitPanel() {
     setSkinColorUniformStrength(50);
     setBodyParams(DEFAULT_BODY_PARAMS);
     setHairParams(DEFAULT_HAIR_PARAMS);
+    setCatchlightIntensity(50);
+    setCatchlightPosition('top-left');
+    setSmileAmount(0);
+    setSelectedFaceIndex(0);
+    setSelectedBodyIndex(0);
     setEditor({ retouchingResultUrl: null });
     setStatusMessage(null);
   }, [setEditor]);
@@ -155,7 +166,15 @@ export default function PortraitPanel() {
     }
     setIsApplying(true);
     try {
-      const result = await applyFaceReshape(faceDetections[0].landmarks, faceParams);
+      // Bug fix #14: Backend processes from the ORIGINAL image each time,
+      // so applying to multiple faces sequentially would only keep the last
+      // face's result. Apply to the selected face only.
+      const detection = faceDetections[selectedFaceIndex] || faceDetections[0];
+      if (!detection?.landmarks || detection.landmarks.length === 0) {
+        showStatus(t('editor.portrait.face.detectFirst'), 'error');
+        return;
+      }
+      const result = await applyFaceReshape(detection.landmarks, faceParams);
       if (result) {
         showStatus(t('editor.portrait.face.applySuccess'), 'success');
       } else {
@@ -166,7 +185,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, faceParams, applyFaceReshape, showStatus, t]);
+  }, [faceDetections, selectedFaceIndex, faceParams, applyFaceReshape, showStatus, t]);
 
   const handleApplySkinSmoothing = useCallback(async () => {
     setIsApplying(true);
@@ -185,6 +204,7 @@ export default function PortraitPanel() {
   }, [skinParams, applySkinSmoothing, showStatus, t]);
 
   const handleAutoBlemishRemove = useCallback(async () => {
+    // Bug fix #6: Show visual hint when face detection is needed
     if (faceDetections.length === 0) {
       showStatus(t('editor.portrait.face.detectFirst'), 'error');
       return;
@@ -210,6 +230,7 @@ export default function PortraitPanel() {
   }, [applyBlemishRemoval, faceDetections, showStatus, t]);
 
   const handleSkinColorUniform = useCallback(async () => {
+    // Bug fix #7: Show visual hint when face detection is needed
     if (faceDetections.length === 0) {
       showStatus(t('editor.portrait.face.detectFirst'), 'error');
       return;
@@ -241,7 +262,14 @@ export default function PortraitPanel() {
     }
     setIsApplying(true);
     try {
-      const result = await applyBodyReshape(bodyDetections[0].keypoints, bodyParams);
+      // Bug fix #14: Backend processes from the ORIGINAL image each time,
+      // so only apply to the selected body to avoid overwriting results.
+      const detection = bodyDetections[selectedBodyIndex] || bodyDetections[0];
+      if (!detection?.keypoints || detection.keypoints.length === 0) {
+        showStatus(t('editor.portrait.body.detectFirst'), 'error');
+        return;
+      }
+      const result = await applyBodyReshape(detection.keypoints, bodyParams);
       if (result) {
         showStatus(t('editor.portrait.body.applySuccess'), 'success');
       } else {
@@ -252,12 +280,20 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [bodyDetections, bodyParams, applyBodyReshape, showStatus, t]);
+  }, [bodyDetections, selectedBodyIndex, bodyParams, applyBodyReshape, showStatus, t]);
 
   const handleApplyHair = useCallback(async () => {
     setIsApplying(true);
     try {
-      const result = await applyHairRetouch(hairParams as unknown as Record<string, unknown>);
+      // Bug fix #8: Rust backend reads camelCase keys from the params JSON
+      // (see hair_retouching.rs — manually reads removeFlyaway, flyawayStrength, etc.)
+      // so we must pass camelCase keys, not snake_case.
+      const result = await applyHairRetouch({
+        removeFlyaway: hairParams.removeFlyaway,
+        flyawayStrength: hairParams.flyawayStrength,
+        colorUniformStrength: hairParams.colorUniformStrength,
+        smoothStrength: hairParams.smoothStrength,
+      });
       if (result) {
         showStatus(t('editor.portrait.hair.applySuccess'), 'success');
       } else {
@@ -277,7 +313,13 @@ export default function PortraitPanel() {
     }
     setIsApplying(true);
     try {
-      const result = await addEyeCatchlight(faceDetections[0].landmarks, catchlightIntensity, catchlightPosition);
+      // Bug fix #14: Apply to selected face only (backend processes from original image)
+      const detection = faceDetections[selectedFaceIndex] || faceDetections[0];
+      if (!detection?.landmarks) {
+        showStatus(t('editor.portrait.face.detectFirst'), 'error');
+        return;
+      }
+      const result = await addEyeCatchlight(detection.landmarks, catchlightIntensity, catchlightPosition);
       if (result) {
         showStatus(t('editor.portrait.face.applySuccess'), 'success');
       } else {
@@ -288,7 +330,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, catchlightIntensity, catchlightPosition, addEyeCatchlight, showStatus, t]);
+  }, [faceDetections, selectedFaceIndex, catchlightIntensity, catchlightPosition, addEyeCatchlight, showStatus, t]);
 
   const handleApplySmile = useCallback(async () => {
     if (faceDetections.length === 0) {
@@ -297,7 +339,13 @@ export default function PortraitPanel() {
     }
     setIsApplying(true);
     try {
-      const result = await adjustSmile(faceDetections[0].landmarks, smileAmount);
+      // Bug fix #14: Apply to selected face only (backend processes from original image)
+      const detection = faceDetections[selectedFaceIndex] || faceDetections[0];
+      if (!detection?.landmarks) {
+        showStatus(t('editor.portrait.face.detectFirst'), 'error');
+        return;
+      }
+      const result = await adjustSmile(detection.landmarks, smileAmount);
       if (result) {
         showStatus(t('editor.portrait.face.applySuccess'), 'success');
       } else {
@@ -308,7 +356,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, smileAmount, adjustSmile, showStatus, t]);
+  }, [faceDetections, selectedFaceIndex, smileAmount, adjustSmile, showStatus, t]);
 
   const handleApplyNeckShoulder = useCallback(async () => {
     if (bodyDetections.length === 0) {
@@ -317,7 +365,14 @@ export default function PortraitPanel() {
     }
     setIsApplying(true);
     try {
-      const result = await adjustNeckShoulder(bodyDetections[0].keypoints, neckAdjust, shoulderAdjustValue);
+      // Bug fix #5: Use bodyParams.neckAdjust and bodyParams.shoulderAdjust
+      // Bug fix #14: Apply to selected body only (backend processes from original image)
+      const detection = bodyDetections[selectedBodyIndex] || bodyDetections[0];
+      if (!detection?.keypoints) {
+        showStatus(t('editor.portrait.body.detectFirst'), 'error');
+        return;
+      }
+      const result = await adjustNeckShoulder(detection.keypoints, bodyParams.neckAdjust, bodyParams.shoulderAdjust);
       if (result) {
         showStatus(t('editor.portrait.body.applySuccess'), 'success');
       } else {
@@ -328,7 +383,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [bodyDetections, neckAdjust, shoulderAdjustValue, adjustNeckShoulder, showStatus, t]);
+  }, [bodyDetections, selectedBodyIndex, bodyParams.neckAdjust, bodyParams.shoulderAdjust, adjustNeckShoulder, showStatus, t]);
 
   const skinMethodOptions = [
     { label: t('editor.portrait.skin.method.neutralGray'), value: 'neutral_gray' as const },
@@ -351,9 +406,35 @@ export default function PortraitPanel() {
       </Button>
 
       {faceDetections.length > 0 && (
-        <Text variant={TextVariants.small} color={TextColors.success} className="text-center">
-          {t('editor.portrait.face.detectedCount', { count: faceDetections.length })}
-        </Text>
+        <>
+          <Text variant={TextVariants.small} color={TextColors.success} className="text-center">
+            {t('editor.portrait.face.detectedCount', { count: faceDetections.length })}
+          </Text>
+          {/* Bug fix #1: Face selector for multi-face photos */}
+          {faceDetections.length > 1 && (
+            <div className="flex items-center gap-2 p-2 bg-card-active rounded-md">
+              <Text variant={TextVariants.small} className="shrink-0">
+                {t('editor.portrait.face.selectFace', 'Select face')}:
+              </Text>
+              <div className="flex gap-1 overflow-x-auto">
+                {faceDetections.map((_, idx) => (
+                  <button
+                    key={idx}
+                    className={clsx(
+                      'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors shrink-0',
+                      selectedFaceIndex === idx
+                        ? 'bg-accent text-white'
+                        : 'bg-surface text-text-secondary hover:bg-bg-primary',
+                    )}
+                    onClick={() => setSelectedFaceIndex(idx)}
+                  >
+                    {idx + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <Slider
@@ -458,9 +539,10 @@ export default function PortraitPanel() {
           value={catchlightPosition}
           onChange={setCatchlightPosition}
         />
+        {/* Bug fix #3: Button text should say "Apply" not repeat the slider label */}
         <Button className="w-full bg-surface" onClick={handleApplyCatchlight} disabled={isApplying || faceDetections.length === 0}>
           <Sparkles size={16} />
-          <span className="ml-2">{t('editor.portrait.face.eyeCatchlightIntensity')}</span>
+          <span className="ml-2">{t('editor.portrait.face.applyCatchlight', 'Apply Catchlight')}</span>
         </Button>
 
         <div className="h-px bg-surface my-2" />
@@ -474,9 +556,10 @@ export default function PortraitPanel() {
           value={smileAmount}
           onChange={(e) => setSmileAmount(Number(e.target.value))}
         />
+        {/* Bug fix #4: Button text should say "Apply" not repeat the slider label */}
         <Button className="w-full bg-surface" onClick={handleApplySmile} disabled={isApplying || faceDetections.length === 0}>
           <Sparkles size={16} />
-          <span className="ml-2">{t('editor.portrait.face.smileManagement')}</span>
+          <span className="ml-2">{t('editor.portrait.face.applySmile', 'Apply Smile')}</span>
         </Button>
       </CollapsibleSection>
     </div>
@@ -530,6 +613,13 @@ export default function PortraitPanel() {
 
       <div className="h-px bg-surface my-2" />
 
+      {/* Bug fix #6: Add visual hint that face detection is needed */}
+      {faceDetections.length === 0 && (
+        <div className="flex items-center gap-2 p-2 bg-yellow-500/10 text-yellow-400 text-xs rounded-md border border-yellow-500/20 mb-2">
+          <AlertCircle size={14} className="shrink-0" />
+          <span>{t('editor.portrait.skin.needFaceDetection', 'Face detection required for blemish removal')}</span>
+        </div>
+      )}
       <Button className="w-full bg-surface" onClick={handleAutoBlemishRemove} disabled={isApplying}>
         <Sparkles size={16} />
         <span className="ml-2">{t('editor.portrait.skin.autoBlemishRemove')}</span>
@@ -537,6 +627,13 @@ export default function PortraitPanel() {
 
       <div className="h-px bg-surface my-2" />
 
+      {/* Bug fix #7: Add visual hint that face detection is needed */}
+      {faceDetections.length === 0 && (
+        <div className="flex items-center gap-2 p-2 bg-yellow-500/10 text-yellow-400 text-xs rounded-md border border-yellow-500/20 mb-2">
+          <AlertCircle size={14} className="shrink-0" />
+          <span>{t('editor.portrait.skin.needFaceDetectionColor', 'Face detection required for color uniformity')}</span>
+        </div>
+      )}
       <Slider
         label={t('editor.portrait.skin.colorUniformStrength')}
         min={0}
@@ -569,9 +666,35 @@ export default function PortraitPanel() {
       </Button>
 
       {bodyDetections.length > 0 && (
-        <Text variant={TextVariants.small} color={TextColors.success} className="text-center">
-          {t('editor.portrait.body.detectedCount', { count: bodyDetections.length })}
-        </Text>
+        <>
+          <Text variant={TextVariants.small} color={TextColors.success} className="text-center">
+            {t('editor.portrait.body.detectedCount', { count: bodyDetections.length })}
+          </Text>
+          {/* Bug fix #2: Body selector for multi-person photos */}
+          {bodyDetections.length > 1 && (
+            <div className="flex items-center gap-2 p-2 bg-card-active rounded-md">
+              <Text variant={TextVariants.small} className="shrink-0">
+                {t('editor.portrait.body.selectBody', 'Select body')}:
+              </Text>
+              <div className="flex gap-1 overflow-x-auto">
+                {bodyDetections.map((_, idx) => (
+                  <button
+                    key={idx}
+                    className={clsx(
+                      'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors shrink-0',
+                      selectedBodyIndex === idx
+                        ? 'bg-accent text-white'
+                        : 'bg-surface text-text-secondary hover:bg-bg-primary',
+                    )}
+                    onClick={() => setSelectedBodyIndex(idx)}
+                  >
+                    {idx + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <Slider
@@ -642,9 +765,9 @@ export default function PortraitPanel() {
 
       <div className="h-px bg-surface my-2" />
 
-      {/* Neck & Shoulder Fine-tuning */}
+      {/* Bug fix #5: Neck & Shoulder now uses bodyParams state (shared with main sliders above) */}
       <CollapsibleSection
-        title={t('editor.portrait.body.neck') + ' & ' + t('editor.portrait.body.shoulder')}
+        title={t('editor.portrait.body.neck') + ' & ' + t('editor.portrait.body.shoulder') + ' ' + t('editor.portrait.body.fineTune', 'Fine-tune')}
         isOpen={true}
         isContentVisible={true}
         onToggle={() => {}}
@@ -655,16 +778,16 @@ export default function PortraitPanel() {
           min={-100}
           max={100}
           step={1}
-          value={neckAdjust}
-          onChange={(e) => setNeckAdjust(Number(e.target.value))}
+          value={bodyParams.neckAdjust}
+          onChange={(e) => updateBodyParam('neckAdjust', Number(e.target.value))}
         />
         <Slider
           label={t('editor.portrait.body.shoulder')}
           min={-100}
           max={100}
           step={1}
-          value={shoulderAdjustValue}
-          onChange={(e) => setShoulderAdjustValue(Number(e.target.value))}
+          value={bodyParams.shoulderAdjust}
+          onChange={(e) => updateBodyParam('shoulderAdjust', Number(e.target.value))}
         />
         <Button className="w-full bg-surface" onClick={handleApplyNeckShoulder} disabled={isApplying || bodyDetections.length === 0}>
           <Sparkles size={16} />

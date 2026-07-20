@@ -38,7 +38,13 @@ export function useEditorActions() {
         const prev = state.adjustments;
         const newAdjustments = typeof value === 'function' ? value(prev) : { ...prev, ...value };
         debouncedSetHistory(newAdjustments);
-        return { adjustments: newAdjustments };
+        // Bug fix #15: Clear retouchingResultUrl when adjustments change,
+        // so the canvas shows the new adjustment preview instead of being
+        // stuck on a stale retouching result.
+        return {
+          adjustments: newAdjustments,
+          retouchingResultUrl: null,
+        };
       });
     },
     [setEditor],
@@ -142,7 +148,9 @@ export function useEditorActions() {
               selectedImage.width && selectedImage.height ? selectedImage.width / selectedImage.height : null;
             const resetData = { ...INITIAL_ADJUSTMENTS, aspectRatio: aspect, aiPatches: [] };
             resetHistory(resetData);
-            setEditor({ adjustments: resetData });
+            // Bug fix #17: Clear retouchingResultUrl on reset so the canvas
+            // shows the original image, not a stale retouching result.
+            setEditor({ adjustments: resetData, retouchingResultUrl: null });
           }
         })
         .catch((err) => toast.error(`Failed to reset adjustments: ${err}`));
