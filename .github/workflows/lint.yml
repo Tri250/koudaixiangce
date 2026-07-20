@@ -95,6 +95,6 @@ jobs:
             -A clippy::derivable_impls \
             -A clippy::unnecessary_filter_map \
             -A clippy::while_let_loop \
-            -A clippy::private_interfaces \
-            -A clippy::private_fields \
+            -A private_interfaces \
+            -A private_bounds \
             -A clippy::module_name_repetitions
