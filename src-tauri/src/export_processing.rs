@@ -769,6 +769,12 @@ pub async fn export_images(
         .unwrap_or_else(|e| e.into_inner())
         .clear();
 
+    // We need to move `state` into the spawned async task, but the function
+    // signature receives `tauri::State<'_>` which is borrowed. Clone the few
+    // fields we actually need as Arc so the background task owns them.
+    let cancel_token = Arc::clone(&state.export_cancel_token);
+    let task_handle = state.export_task_handle.clone();
+
     let context = get_or_init_gpu_context(&state, &app_handle)?;
     let context = Arc::new(context);
     let progress_counter = Arc::new(AtomicUsize::new(0));
@@ -801,6 +807,11 @@ pub async fn export_images(
         let output_folder_path = std::path::Path::new(&output_folder_or_file);
         let total_paths = paths.len();
         let settings = load_settings(app_handle.clone()).unwrap_or_default();
+
+        // Reset the cancel token at the start of the background task. This
+        // covers the edge case where a previous export set the token to true
+        // but the token reset in the async command raced with task dispatch.
+        cancel_token.store(false, std::sync::atomic::Ordering::SeqCst);
 
         let mut base_path_counts: HashMap<String, usize> = HashMap::new();
         let mut export_items = Vec::with_capacity(total_paths);
@@ -840,8 +851,7 @@ pub async fn export_images(
             // Honor an in-flight cancel request before dispatching a new export unit.
             // spawn_blocking cannot be aborted mid-run, so we check the token here
             // and again at the start of the blocking closure.
-            if state
-                .export_cancel_token
+            if cancel_token
                 .load(std::sync::atomic::Ordering::SeqCst)
             {
                 break;
@@ -875,23 +885,12 @@ pub async fn export_images(
             let current_edit_adjustments = current_edit_adjustments.clone();
             let settings = settings.clone();
 
+            let cancel_token_clone = Arc::clone(&cancel_token);
             let handle = tokio::task::spawn_blocking(move || {
                 // Check cancel token first; abort() cannot stop spawn_blocking,
                 // so we honor the token at the earliest point inside the closure.
-                if app_handle_clone
-                    .state::<AppState>()
-                    .export_cancel_token
+                if cancel_token_clone
                     .load(std::sync::atomic::Ordering::SeqCst)
-                {
-                    return Err("Export cancelled".to_string());
-                }
-
-                if app_handle_clone
-                    .state::<AppState>()
-                    .export_task_handle
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .is_none()
                 {
                     return Err("Export cancelled".to_string());
                 }
@@ -1137,9 +1136,7 @@ pub async fn export_images(
             let _ = app_handle.emit("export-complete", ());
         }
 
-        *app_handle
-            .state::<AppState>()
-            .export_task_handle
+        *task_handle
             .lock()
             .unwrap_or_else(|e| e.into_inner()) = None;
     });
