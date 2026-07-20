@@ -40,14 +40,19 @@ const Dropdown = <T extends React.Key>({
   const selectedOption = options.find((opt) => opt.value === value) || null;
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (dropdownRef.current && !dropdownRef.current.contains(target)) {
         setIsOpen(false);
       }
     };
+    // Listen for both mousedown (desktop) and touchstart (mobile/Android)
+    // so tapping outside the dropdown closes it on touch devices.
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside, { passive: true });
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
   }, []);
 
