@@ -97,59 +97,68 @@ pub fn close_android_closeable(env: &mut JNIEnv<'_>, closeable: &JObject<'_>) {
 pub fn get_android_sdk_version() -> i32 {
     let vm = match unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) } {
         Ok(vm) => vm,
-        Err(_) => return 0,
+        Err(_) => return 24,
     };
     let mut env = match vm.attach_current_thread() {
         Ok(env) => env,
-        Err(_) => return 0,
+        Err(_) => return 24,
     };
 
     env.get_static_field("android/os/Build$VERSION", "SDK_INT", "I")
         .and_then(|v| v.i())
-        .unwrap_or(0)
+        .unwrap_or(24)
 }
 
 #[cfg(target_os = "android")]
-pub fn get_android_cached_lut_path(uri: &str, extension: &str) -> anyhow::Result<PathBuf> {
+fn get_android_external_files_dir() -> Result<PathBuf, String> {
     let vm = unsafe { jni::JavaVM::from_raw(ndk_context::android_context().vm().cast()) }
-        .map_err(|e| anyhow::anyhow!("Failed to access Android JVM: {}", e))?;
+        .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
         .attach_current_thread()
-        .map_err(|e| anyhow::anyhow!("Failed to attach current thread: {}", e))?;
+        .map_err(|e| format!("Failed to attach current thread: {}", e))?;
 
     let context = env
         .new_local_ref(unsafe {
             jni::objects::JObject::from_raw(ndk_context::android_context().context().cast())
         })
-        .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
+        .map_err(|e| map_android_jni_error(&mut env, e))?;
 
-    let dirs_array_obj = env
-        .call_method(&context, "getExternalMediaDirs", "()[Ljava/io/File;", &[])
+    let null_file = JObject::null();
+    let files_dir_obj = env
+        .call_method(
+            &context,
+            "getExternalFilesDir",
+            "(Ljava/lang/String;)Ljava/io/File;",
+            &[(&null_file).into()],
+        )
         .and_then(|v| v.l())
-        .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
+        .map_err(|e| map_android_jni_error(&mut env, e))?;
 
-    if dirs_array_obj.is_null() {
-        return Err(anyhow::anyhow!("External media storage not available"));
+    if files_dir_obj.is_null() {
+        return Err("External files directory is not available".to_string());
     }
 
-    let dirs_array: jni::objects::JObjectArray = dirs_array_obj.into();
-    let dir_file = env
-        .get_object_array_element(&dirs_array, 0)
-        .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
-
     let path_jstring = env
-        .call_method(&dir_file, "getAbsolutePath", "()Ljava/lang/String;", &[])
+        .call_method(&files_dir_obj, "getAbsolutePath", "()Ljava/lang/String;", &[])
         .and_then(|v| v.l())
-        .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
+        .map_err(|e| map_android_jni_error(&mut env, e))?;
 
-    let root_path_str: String = env
+    let path: String = env
         .get_string(&path_jstring.into())
-        .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?
+        .map_err(|e| map_android_jni_error(&mut env, e))?
         .into();
+
+    Ok(PathBuf::from(path))
+}
+
+#[cfg(target_os = "android")]
+pub fn get_android_cached_lut_path(uri: &str, extension: &str) -> anyhow::Result<PathBuf> {
+    let root_path = get_android_external_files_dir()
+        .map_err(|e| anyhow::anyhow!("Failed to get external files directory: {}", e))?;
 
     let hash = blake3::hash(uri.as_bytes());
 
-    let mut path = PathBuf::from(root_path_str);
+    let mut path = root_path;
     path.push(".lut_cache");
 
     if !path.exists() {
@@ -462,7 +471,7 @@ pub fn save_bytes_to_android_media_store(
     relative_path: &str,
     collection_class: &str,
     bytes: &[u8],
-) -> Result<(), String> {
+) -> Result<String, String> {
     let vm = unsafe { JavaVM::from_raw(android_context().vm().cast()) }
         .map_err(|e| format!("Failed to access Android JVM: {}", e))?;
     let mut env = vm
@@ -475,10 +484,13 @@ pub fn save_bytes_to_android_media_store(
 
     let sdk_version = get_android_sdk_version();
     let supports_pending = sdk_version >= 29;
+    let supports_relative_path = sdk_version >= 29;
 
     put_android_content_value_string(&mut env, &content_values, "_display_name", file_name)?;
     put_android_content_value_string(&mut env, &content_values, "mime_type", mime_type)?;
-    put_android_content_value_string(&mut env, &content_values, "relative_path", relative_path)?;
+    if supports_relative_path {
+        put_android_content_value_string(&mut env, &content_values, "relative_path", relative_path)?;
+    }
     if supports_pending {
         put_android_content_value_int(&mut env, &content_values, "is_pending", 1)?;
     }
@@ -507,6 +519,15 @@ pub fn save_bytes_to_android_media_store(
             file_name
         ));
     }
+
+    let item_uri_str = env
+        .call_method(&item_uri, "toString", "()Ljava/lang/String;", &[])
+        .and_then(|v| v.l())
+        .map_err(|e| map_android_jni_error(&mut env, e))?;
+    let item_uri_string: String = env
+        .get_string(&item_uri_str.into())
+        .map_err(|e| map_android_jni_error(&mut env, e))?
+        .into();
 
     let output_stream = env
         .call_method(
@@ -566,7 +587,7 @@ pub fn save_bytes_to_android_media_store(
         .map_err(|e| map_android_jni_error(&mut env, e))?;
     }
 
-    Ok(())
+    Ok(item_uri_string)
 }
 
 #[cfg(target_os = "android")]
