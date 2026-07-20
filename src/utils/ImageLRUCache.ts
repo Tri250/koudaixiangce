@@ -80,6 +80,14 @@ export class ImageLRUCache {
     this.protectedBlobUrls.clear();
   }
 
+  size(): number {
+    return this.cache.size;
+  }
+
+  getOldestKey(): string | undefined {
+    return this.cache.keys().next().value;
+  }
+
   private cleanupEntry(old: ImageCacheEntry, replacement?: ImageCacheEntry): void {
     const revokeIfUnused = (url: string | null) => {
       if (!url?.startsWith('blob:')) return;

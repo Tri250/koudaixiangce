@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GLOBAL_KEYS } from './AppProperties';
+import { useSettingsStore } from '../../store/useSettingsStore';
 
 type SliderChangeEvent =
   | React.ChangeEvent<HTMLInputElement>
@@ -48,6 +49,8 @@ const Slider = ({
   suffix = '',
 }: SliderProps) => {
   const { t } = useTranslation();
+  const osPlatform = useSettingsStore((s) => s.osPlatform);
+  const isAndroid = osPlatform === 'android';
   const [displayValue, setDisplayValue] = useState<number>(value);
   const [isDragging, setIsDragging] = useState(false);
   const animationFrameRef = useRef<number | undefined>(undefined);
@@ -339,6 +342,10 @@ const Slider = ({
     if (disabled) return;
     if (e.touches.length === 0) return;
 
+    if (isAndroid && e.cancelable) {
+      e.preventDefault();
+    }
+
     const touch = e.touches[0];
     suppressTouchChangeRef.current = true;
 
@@ -363,7 +370,16 @@ const Slider = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLInputElement>) => {
-    if (isDragging || !pendingTouchRef.current || e.touches.length === 0) return;
+    if (isDragging || !pendingTouchRef.current || e.touches.length === 0) {
+      if (isAndroid && e.cancelable) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (isAndroid && e.cancelable) {
+      e.preventDefault();
+    }
 
     const touch = e.touches[0];
     const pendingTouch = pendingTouchRef.current;
@@ -492,7 +508,7 @@ const Slider = ({
   const numericValue = typeof value === 'number' && isFinite(value) && !isNaN(value) ? value : 0;
 
   return (
-    <div className="mb-2 group" ref={containerRef}>
+    <div className="mb-2 group" ref={containerRef} style={{ touchAction: 'none' }}>
       <div className="flex justify-between items-center mb-1">
         <div
           className={`grid ${typeof label === 'string' ? 'cursor-pointer' : ''}`}
@@ -548,7 +564,7 @@ const Slider = ({
         </div>
       </div>
 
-      <div className="relative w-full h-5">
+      <div className={`relative w-full ${isAndroid ? 'h-12' : 'h-5'}`}>
         <div
           className={`absolute top-1/2 left-0 w-full h-1.5 -translate-y-1/4 rounded-full pointer-events-none ${
             trackClassName || 'bg-card-active'
@@ -563,10 +579,10 @@ const Slider = ({
         />
         <input
           ref={rangeInputRef}
-          className={`absolute top-1/2 left-0 w-full h-1.5 appearance-none bg-transparent m-0 p-0 slider-input z-10 ${
+          className={`absolute top-1/2 left-0 w-full ${isAndroid ? 'h-12 -translate-y-1/2' : 'h-1.5'} appearance-none bg-transparent m-0 p-0 slider-input z-10 ${
             isDragging ? 'slider-thumb-active' : ''
-          } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-          style={{ margin: 0, touchAction: isDragging ? 'none' : 'pan-y' }}
+          } ${isAndroid ? 'slider-touch-optimized' : ''} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+          style={{ margin: 0, touchAction: 'none' }}
           disabled={disabled}
           max={String(max)}
           min={String(min)}

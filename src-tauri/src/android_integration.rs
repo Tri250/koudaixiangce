@@ -1,5 +1,5 @@
 #[cfg(target_os = "android")]
-use jni::objects::{JObject, JString, JValue};
+use jni::objects::{JObject, JString as AndroidJString, JValue};
 #[cfg(target_os = "android")]
 use jni::{JNIEnv, JavaVM};
 #[cfg(target_os = "android")]
@@ -123,18 +123,18 @@ pub fn get_android_cached_lut_path(uri: &str, extension: &str) -> anyhow::Result
         })
         .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
 
-    let dirs_array_obj = env
-        .call_method(&context, "getExternalMediaDirs", "()[Ljava/io/File;", &[])
-        .and_then(|v| v.l())
-        .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
-
-    if dirs_array_obj.is_null() {
-        return Err(anyhow::anyhow!("External media storage not available"));
-    }
-
-    let dirs_array: jni::objects::JObjectArray = dirs_array_obj.into();
+    // getExternalMediaDirs() is deprecated since Android 11 (API 30).
+    // Use getExternalFilesDir(null) which returns the app-specific external
+    // storage directory, available on all Android versions.
+    let null_arg = JObject::null();
     let dir_file = env
-        .get_object_array_element(&dirs_array, 0)
+        .call_method(
+            &context,
+            "getExternalFilesDir",
+            "(Ljava/lang/String;)Ljava/io/File;",
+            &[(&null_arg).into()],
+        )
+        .and_then(|v| v.l())
         .map_err(|e| anyhow::anyhow!(map_android_jni_error(&mut env, e)))?;
 
     let path_jstring = env
@@ -617,24 +617,19 @@ pub fn get_android_internal_library_root() -> Result<PathBuf, String> {
         .new_local_ref(unsafe { JObject::from_raw(android_context().context().cast()) })
         .map_err(|e| map_android_jni_error(&mut env, e))?;
 
-    let dirs_array_obj = env
-        .call_method(&context, "getExternalMediaDirs", "()[Ljava/io/File;", &[])
+    // getExternalMediaDirs() is deprecated since Android 11 (API 30).
+    // Use getExternalFilesDir(null) which returns the app-specific external
+    // storage directory, available on all Android versions.
+    let null_arg = JObject::null();
+    let dir_file = env
+        .call_method(
+            &context,
+            "getExternalFilesDir",
+            "(Ljava/lang/String;)Ljava/io/File;",
+            &[(&null_arg).into()],
+        )
         .and_then(|v| v.l())
         .map_err(|e| map_android_jni_error(&mut env, e))?;
-
-    if dirs_array_obj.is_null() {
-        return Err("External media storage not available".to_string());
-    }
-
-    let dirs_array: jni::objects::JObjectArray = dirs_array_obj.into();
-
-    let dir_file = env
-        .get_object_array_element(&dirs_array, 0)
-        .map_err(|e| map_android_jni_error(&mut env, e))?;
-
-    if dir_file.is_null() {
-        return Err("Primary external media storage is null".to_string());
-    }
 
     let path_jstring = env
         .call_method(&dir_file, "getAbsolutePath", "()Ljava/lang/String;", &[])
@@ -653,4 +648,38 @@ pub fn get_android_internal_library_root() -> Result<PathBuf, String> {
         fs::create_dir_all(&library_dir).map_err(|e| e.to_string())?;
     }
     Ok(library_dir)
+}
+
+/// Write bytes to a file path on Android. If the path starts with "content://",
+/// uses the MediaStore API; otherwise falls back to std::fs::write.
+#[cfg(target_os = "android")]
+pub fn write_android_file(path: &str, data: &[u8]) -> Result<(), String> {
+    if is_android_content_uri(path) {
+        // For content:// URIs we need to determine mime type and use MediaStore.
+        // This is a fallback — most sidecar files use POSIX paths.
+        return Err(format!(
+            "Cannot write to content:// URI directly. Use save_bytes_to_android_media_store instead: {}",
+            path
+        ));
+    }
+
+    // Regular POSIX path — ensure parent directory exists
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+    }
+
+    std::fs::write(path, data).map_err(|e| format!("Failed to write file {}: {}", path, e))
+}
+
+/// Check if a path is writable on Android. Returns true for regular POSIX paths
+/// that exist in app-specific storage, false for content:// URIs that require
+/// special handling.
+pub fn is_android_writable_path(path: &str) -> bool {
+    if is_android_content_uri(path) {
+        return false;
+    }
+    // App-specific external storage paths are always writable
+    true
 }

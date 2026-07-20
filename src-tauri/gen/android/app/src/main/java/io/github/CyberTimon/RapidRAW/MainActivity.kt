@@ -13,6 +13,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import android.content.ComponentCallbacks2
 
 class MainActivity : TauriActivity() {
   private val safeMarginBackgroundColor = Color.rgb(24, 24, 24)
@@ -46,6 +47,37 @@ class MainActivity : TauriActivity() {
     }
 
     ViewCompat.requestApplyInsets(rootView)
+
+    // Register memory pressure callback to release caches when system is low on memory
+    registerComponentCallbacks(object : ComponentCallbacks2 {
+      override fun onTrimMemory(level: Int) {
+        when (level) {
+          ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
+          ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
+            // Running low: notify JS to clear image caches
+            webView?.evaluateJavascript(
+              "if (typeof window.__onAndroidMemoryPressure === 'function') { window.__onAndroidMemoryPressure('low'); }",
+              null
+            )
+          }
+          ComponentCallbacks2.TRIM_MEMORY_MODERATE,
+          ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
+            // Background and critical: release everything possible
+            webView?.evaluateJavascript(
+              "if (typeof window.__onAndroidMemoryPressure === 'function') { window.__onAndroidMemoryPressure('critical'); }",
+              null
+            )
+          }
+        }
+      }
+      override fun onLowMemory() {
+        webView?.evaluateJavascript(
+          "if (typeof window.__onAndroidMemoryPressure === 'function') { window.__onAndroidMemoryPressure('critical'); }",
+          null
+        )
+      }
+      override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {}
+    })
 
     checkAndRequestPermissions()
   }
@@ -125,7 +157,45 @@ class MainActivity : TauriActivity() {
 
   override fun onSaveInstanceState(outState: Bundle) {
     flushSidecar()
+
+    // Persist critical UI state so the app can restore after process death
+    try {
+      webView?.evaluateJavascript("""
+        (function() {
+          try {
+            var state = {};
+            if (typeof window.__getAndroidState === 'function') {
+              state = window.__getAndroidState();
+            }
+            return JSON.stringify(state);
+          } catch(e) { return '{}'; }
+        })()
+      """) { result ->
+        if (result != null && result != "undefined" && result != "null") {
+          outState.putString("webapp_state", result)
+        }
+      }
+    } catch (e: Exception) {
+      // WebView not available yet, skip
+    }
+
     super.onSaveInstanceState(outState)
+  }
+
+  override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+    super.onRestoreInstanceState(savedInstanceState)
+    val savedState = savedInstanceState.getString("webapp_state")
+    if (!savedState.isNullOrEmpty() && savedState != "{}") {
+      webView?.evaluateJavascript("""
+        (function() {
+          try {
+            if (typeof window.__restoreAndroidState === 'function') {
+              window.__restoreAndroidState($savedState);
+            }
+          } catch(e) {}
+        })()
+      """, null)
+    }
   }
 
   private fun flushSidecar() {

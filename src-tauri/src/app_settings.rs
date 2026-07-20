@@ -502,19 +502,22 @@ impl Default for AppSettings {
             is_waveform_visible: Some(false),
             waveform_height: Some(220),
             active_waveform_channel: Some("luma".to_string()),
-            #[cfg(any(target_os = "linux", target_os = "android"))]
+            #[cfg(target_os = "linux")]
             use_wgpu_renderer: Some(false),
-            #[cfg(not(any(target_os = "linux", target_os = "android")))]
+            #[cfg(not(target_os = "linux"))]
             use_wgpu_renderer: Some(true),
+            #[cfg(target_os = "android")]
+            canvas_input_mode: Some("touch".to_string()),
+            #[cfg(not(target_os = "android"))]
             canvas_input_mode: Some("mouse".to_string()),
             zoom_speed_multiplier: Some(1.0),
             keybinds: HashMap::new(),
             #[cfg(target_os = "android")]
-            thumbnail_worker_threads: Some(2),
+            thumbnail_worker_threads: Some(3),
             #[cfg(not(target_os = "android"))]
             thumbnail_worker_threads: Some(4),
             #[cfg(target_os = "android")]
-            image_cache_size: Some(2),
+            image_cache_size: Some(3),
             #[cfg(not(target_os = "android"))]
             image_cache_size: Some(5),
             tonemapper_override_enabled: Some(false),
@@ -604,11 +607,11 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
         let _ = fs::write(&path, json_string);
     }
 
-    // Platform truth: WGPU display path is disabled on Linux/Android at compile time
+    // Platform truth: WGPU display path is disabled on Linux at compile time
     // (see lib.rs process_preview_job). Force the setting to reflect this so the
     // frontend isWgpuActive checks cannot disagree with backend behavior, even if
     // settings.json was synced from desktop or written by an older version.
-    #[cfg(any(target_os = "linux", target_os = "android"))]
+    #[cfg(target_os = "linux")]
     {
         settings.use_wgpu_renderer = Some(false);
     }

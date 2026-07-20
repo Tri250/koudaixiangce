@@ -10,6 +10,7 @@ import { ImageDimensions, useImageRenderSize } from '../../hooks/useImageRenderS
 import { Adjustments, AiPatch, MaskContainer } from '../../utils/adjustments';
 import { calculateCenteredCrop } from '../../utils/cropUtils';
 import EditorToolbar from './editor/EditorToolbar';
+import MobileEditorToolbar from './editor/MobileEditorToolbar';
 import ImageCanvas from './editor/ImageCanvas';
 import { Mask, SubMask } from './right/Masks';
 import { Panel, TransformState, Invokes } from '../ui/AppProperties';
@@ -1133,7 +1134,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
     const bgSecondaryStr = rootStyle.getPropertyValue('--app-bg-secondary') || 'rgb(35, 35, 35)';
 
     wgpuStateRef.current = {
-      useWgpuRenderer: appSettings?.useWgpuRenderer !== false && !isAndroid,
+      useWgpuRenderer: appSettings?.useWgpuRenderer !== false,
       isReady: selectedImage?.isReady ?? false,
       hasRenderedFirstFrame,
       isCropping,
@@ -1155,12 +1156,6 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   ]);
 
   useEffect(() => {
-    // WGPU display path is disabled on Android/Linux at compile time. Running the
-    // rAF loop here would only spawn 60 fps of no-op IPC (update_wgpu_transform is
-    // a no-op when display=None), wasting battery and CPU on mobile.
-    if (isAndroid) {
-      return;
-    }
     let isEffectActive = true;
     let isInvoking = false;
 
@@ -1304,7 +1299,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
         cancelAnimationFrame(wgpuSyncRef.current);
       }
     };
-  }, [isAndroid]);
+  }, []);
 
   const overlayTriggerHash = useMemo(() => {
     let activeMaskDef: any = null;
@@ -1967,8 +1962,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   // here so the container styling and syncWgpu effect do not assume WGPU is active.
   const isWgpuActive =
     appSettings?.useWgpuRenderer !== false &&
-    hasRenderedFirstFrame &&
-    !isAndroid;
+    hasRenderedFirstFrame;
 
   return (
     <div
@@ -2007,6 +2001,67 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
           goToAdjustmentsHistoryIndex={goToHistoryIndex}
         />
       </div>
+
+      {/* Mobile bottom toolbar for Android — provides touch-friendly alternatives to keyboard shortcuts */}
+      {isAndroid && (
+        <MobileEditorToolbar
+          canRedo={canRedo}
+          canUndo={canUndo}
+          isFullScreen={isFullScreen}
+          showOriginal={showOriginal}
+          activeRightPanel={activeRightPanel}
+          onUndo={undo}
+          onRedo={redo}
+          onToggleShowOriginal={toggleShowOriginal}
+          onToggleFullScreen={handleToggleFullScreen}
+          onToggleRightPanel={() => {
+            if (activeRightPanel !== null) {
+              setUI({ activeRightPanel: null });
+            } else {
+              setUI({ activeRightPanel: Panel.BasicAdjustments });
+            }
+          }}
+          onRotateLeft={() => {
+            const newSteps = [...(adjustments.orientationSteps || [])];
+            newSteps.push('rotate_left');
+            setAdjustments({ orientationSteps: newSteps });
+          }}
+          onFlipHorizontal={() => {
+            const newSteps = [...(adjustments.orientationSteps || [])];
+            newSteps.push('flip_horizontal');
+            setAdjustments({ orientationSteps: newSteps });
+          }}
+          onFlipVertical={() => {
+            const newSteps = [...(adjustments.orientationSteps || [])];
+            newSteps.push('flip_vertical');
+            setAdjustments({ orientationSteps: newSteps });
+          }}
+          onCrop={() => {
+            if (activeRightPanel === Panel.Crop) {
+              setUI({ activeRightPanel: null });
+            } else {
+              if (!adjustments.crop) {
+                setAdjustments({ crop: { unit: '%', x: 5, y: 5, width: 90, height: 90 } });
+              }
+              setUI({ activeRightPanel: Panel.Crop });
+            }
+          }}
+          onZoomIn={() => {
+            const canvas = imageContainerRef.current?.querySelector('canvas');
+            if (canvas) {
+              const scale = canvas.style.transform ? parseFloat(canvas.style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+              canvas.style.transform = `scale(${Math.min(scale * 1.25, 10)})`;
+            }
+          }}
+          onZoomOut={() => {
+            const canvas = imageContainerRef.current?.querySelector('canvas');
+            if (canvas) {
+              const scale = canvas.style.transform ? parseFloat(canvas.style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
+              canvas.style.transform = `scale(${Math.max(scale / 1.25, 0.1)})`;
+            }
+          }}
+        />
+      )}
 
       <div
         className={clsx(

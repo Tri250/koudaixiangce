@@ -66,6 +66,19 @@
   }
 }
 
+@utility slider-touch-optimized {
+  &::-webkit-slider-thumb {
+    width: 44px !important;
+    height: 44px !important;
+    margin-top: -15px !important;
+  }
+
+  &::-moz-range-thumb {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+
 @utility temperature-gradient-track {
   background: linear-gradient(to right, #2d4a74, #3f94b6, #8a8a8a, #c7c549, #c7863c) !important;
 }
@@ -194,6 +207,17 @@
 
   .slider-input.slider-thumb-active::-moz-range-thumb {
     @apply scale-110;
+  }
+
+  .slider-input.slider-touch-optimized::-webkit-slider-thumb {
+    width: 44px !important;
+    height: 44px !important;
+    margin-top: -15px !important;
+  }
+
+  .slider-input.slider-touch-optimized::-moz-range-thumb {
+    width: 44px !important;
+    height: 44px !important;
   }
 
   .temperature-gradient-track {
@@ -457,5 +481,9 @@
 @layer utilities {
   .text-shadow-shiny {
     text-shadow: 0 0 18px rgba(255, 255, 255, 0.3);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }

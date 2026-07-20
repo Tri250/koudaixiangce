@@ -6,6 +6,7 @@ import clsx from 'clsx';
 
 import Editor from '../panel/Editor';
 import BottomBar from '../panel/BottomBar';
+import MobileEditorToolbar from '../panel/editor/MobileEditorToolbar';
 import RightPanelSwitcher from '../panel/right/RightPanelSwitcher';
 import Resizer from '../ui/Resizer';
 import BottomSheet from '../ui/BottomSheet';
@@ -100,9 +101,15 @@ export default function EditorView({
   handleRightPanelSelect,
   requestThumbnails,
 }: EditorViewProps) {
-  const { selectedImage } = useEditorStore(
+  const { selectedImage, adjustments, setAdjustments, canUndo, canRedo, undo, redo } = useEditorStore(
     useShallow((state) => ({
       selectedImage: state.selectedImage,
+      adjustments: state.adjustments,
+      setAdjustments: state.setAdjustments,
+      canUndo: state.past.length > 0,
+      canRedo: state.future.length > 0,
+      undo: state.undo,
+      redo: state.redo,
     })),
   );
 
@@ -289,6 +296,54 @@ export default function EditorView({
             <ArrowLeftRight size={18} />
           </button>
         </div>
+
+        {/* Mobile editor toolbar — touch-friendly undo/redo/orientation/crop/zoom controls */}
+        <MobileEditorToolbar
+          canRedo={canRedo}
+          canUndo={canUndo}
+          isFullScreen={isFullScreen}
+          showOriginal={false}
+          activeRightPanel={activeRightPanel}
+          onUndo={undo}
+          onRedo={redo}
+          onToggleShowOriginal={() => {
+            const el = document.querySelector('.react-transform-wrapper');
+            if (el) {
+              (el as HTMLElement).style.filter =
+                (el as HTMLElement).style.filter === 'grayscale(100%)' ? '' : 'grayscale(100%)';
+            }
+          }}
+          onToggleFullScreen={() => setUI({ isFullScreen: !isFullScreen })}
+          onToggleRightPanel={() => {
+            if (activeRightPanel !== null) {
+              setUI({ activeRightPanel: null });
+            } else {
+              handleRightPanelSelect(Panel.Adjustments);
+            }
+          }}
+          onRotateLeft={() => {
+            const newSteps = [...(adjustments.orientationSteps || [])];
+            newSteps.push('rotate_left');
+            setAdjustments({ orientationSteps: newSteps });
+          }}
+          onFlipHorizontal={() => {
+            const newSteps = [...(adjustments.orientationSteps || [])];
+            newSteps.push('flip_horizontal');
+            setAdjustments({ orientationSteps: newSteps });
+          }}
+          onFlipVertical={() => {
+            const newSteps = [...(adjustments.orientationSteps || [])];
+            newSteps.push('flip_vertical');
+            setAdjustments({ orientationSteps: newSteps });
+          }}
+          onCrop={() => {
+            if (activeRightPanel === Panel.Crop) {
+              setUI({ activeRightPanel: null });
+            } else {
+              handleRightPanelSelect(Panel.Crop);
+            }
+          }}
+        />
 
         {/* Compact bottom bar for Android: rating, copy/paste, zoom */}
         <div className="shrink-0 border-t border-surface bg-bg-secondary relative z-[60]">
