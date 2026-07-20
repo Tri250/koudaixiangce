@@ -241,9 +241,13 @@ export function useRetouching() {
   const applyBlemishRemoval = useCallback(async (faceLandmarks?: FaceLandmark[][], sensitivity?: number): Promise<string | null> => {
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
+      // Bug fix #11: Backend parse_landmarks expects a FLAT FaceLandmark[] array
+      // (single face's landmarks), not FaceLandmark[][]. Flatten all faces'
+      // landmarks into a single array so the backend can process them.
+      const flatLandmarks = (faceLandmarks ?? []).flat();
       const result = await invoke<string>('auto_remove_blemishes', {
         js_adjustments: jsAdjustments,
-        face_landmarks: faceLandmarks ?? [],
+        face_landmarks: flatLandmarks,
         sensitivity: sensitivity ?? 0.5,
       });
       publishRetouchingResult(result);
@@ -260,7 +264,27 @@ export function useRetouching() {
     async (faceLandmarks: FaceLandmark[][], strength: number): Promise<string | null> => {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
-        const result = await invoke<string>('unify_skin_color', { js_adjustments: jsAdjustments, face_landmarks: faceLandmarks, strength });
+        // Bug fix #12: Backend unify_skin_color expects face bounding boxes
+        // in the format [{bbox: [x0, y0, x1, y1]}, ...] or [[x0, y0, x1, y1], ...],
+        // NOT raw landmark point arrays. Extract bboxes from the FaceDetection
+        // objects that contain the landmarks.
+        // Since we only receive landmarks here, derive a bbox from each face's
+        // landmark bounds.
+        const faceBboxes = (faceLandmarks ?? []).map((landmarks) => {
+          if (landmarks.length === 0) return null;
+          const xs = landmarks.map((p) => p.x);
+          const ys = landmarks.map((p) => p.y);
+          const x0 = Math.min(...xs);
+          const y0 = Math.min(...ys);
+          const x1 = Math.max(...xs);
+          const y1 = Math.max(...ys);
+          return [x0, y0, x1, y1];
+        }).filter((b): b is [number, number, number, number] => b !== null);
+        const result = await invoke<string>('unify_skin_color', {
+          js_adjustments: jsAdjustments,
+          face_landmarks: faceBboxes,
+          strength,
+        });
         publishRetouchingResult(result);
         return result;
       } catch (err) {
@@ -310,9 +334,11 @@ export function useRetouching() {
     async (strokes: LiquifyStroke[]): Promise<string | null> => {
       try {
         const jsAdjustments = getTransformAdjustments(adjustments);
-        // Map frontend LiquifyStroke to Rust LiquifyStrokeCommand format
+        // Map frontend LiquifyStroke to Rust LiquifyStrokeCommand format.
+        // The Rust struct uses #[serde(rename_all = "camelCase")], so we must
+        // send camelCase keys (brushType, not brush_type).
         const mappedStrokes = strokes.map((s) => ({
-          brush_type: s.brushType,
+          brushType: s.brushType,
           radius: s.brushSize,
           pressure: s.brushPressure,
           points: s.points.map((p) => [p.x, p.y]),

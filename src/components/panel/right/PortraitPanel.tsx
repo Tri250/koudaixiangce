@@ -102,6 +102,8 @@ export default function PortraitPanel() {
   const [selectedFaceIndex, setSelectedFaceIndex] = useState(0);
   const [selectedBodyIndex, setSelectedBodyIndex] = useState(0);
 
+  const setEditor = useEditorStore((s) => s.setEditor);
+
   const showStatus = useCallback((message: string, type: 'success' | 'error') => {
     if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
     setStatusMessage(message);
@@ -109,13 +111,15 @@ export default function PortraitPanel() {
     statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 4000);
   }, []);
 
-  // Clear any pending status timeout when the panel unmounts to avoid
-  // scheduling a state update on an unmounted component.
+  // Clear any pending status timeout and retouching result when the panel
+  // unmounts, so the canvas returns to normal adjustment preview mode.
   useEffect(() => {
     return () => {
       if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+      // Bug fix #16: Clear retouchingResultUrl when leaving the portrait panel
+      setEditor({ retouchingResultUrl: null });
     };
-  }, []);
+  }, [setEditor]);
 
   // Clear status when switching tabs
   useEffect(() => {
@@ -140,8 +144,6 @@ export default function PortraitPanel() {
     await detectBody();
   }, [detectBody]);
 
-  const setEditor = useEditorStore((s) => s.setEditor);
-
   const handleReset = useCallback(() => {
     setFaceParams(DEFAULT_FACE_PARAMS);
     setSkinParams(DEFAULT_SKIN_PARAMS);
@@ -164,18 +166,16 @@ export default function PortraitPanel() {
     }
     setIsApplying(true);
     try {
-      // Bug fix #1: Apply to all detected faces instead of just the first one
-      const allLandmarks = faceDetections.map((d) => d.landmarks).filter(Boolean);
-      if (allLandmarks.length === 0) {
+      // Bug fix #14: Backend processes from the ORIGINAL image each time,
+      // so applying to multiple faces sequentially would only keep the last
+      // face's result. Apply to the selected face only.
+      const detection = faceDetections[selectedFaceIndex] || faceDetections[0];
+      if (!detection?.landmarks || detection.landmarks.length === 0) {
         showStatus(t('editor.portrait.face.detectFirst'), 'error');
         return;
       }
-      // Apply reshape to each face sequentially
-      let lastResult: string | null = null;
-      for (const landmarks of allLandmarks) {
-        lastResult = await applyFaceReshape(landmarks, faceParams);
-      }
-      if (lastResult) {
+      const result = await applyFaceReshape(detection.landmarks, faceParams);
+      if (result) {
         showStatus(t('editor.portrait.face.applySuccess'), 'success');
       } else {
         showStatus(t('editor.portrait.face.applyFailed'), 'error');
@@ -185,7 +185,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, faceParams, applyFaceReshape, showStatus, t]);
+  }, [faceDetections, selectedFaceIndex, faceParams, applyFaceReshape, showStatus, t]);
 
   const handleApplySkinSmoothing = useCallback(async () => {
     setIsApplying(true);
@@ -262,17 +262,15 @@ export default function PortraitPanel() {
     }
     setIsApplying(true);
     try {
-      // Bug fix #2: Apply to all detected bodies instead of just the first one
-      const allKeypoints = bodyDetections.map((d) => d.keypoints).filter(Boolean);
-      if (allKeypoints.length === 0) {
+      // Bug fix #14: Backend processes from the ORIGINAL image each time,
+      // so only apply to the selected body to avoid overwriting results.
+      const detection = bodyDetections[selectedBodyIndex] || bodyDetections[0];
+      if (!detection?.keypoints || detection.keypoints.length === 0) {
         showStatus(t('editor.portrait.body.detectFirst'), 'error');
         return;
       }
-      let lastResult: string | null = null;
-      for (const keypoints of allKeypoints) {
-        lastResult = await applyBodyReshape(keypoints, bodyParams);
-      }
-      if (lastResult) {
+      const result = await applyBodyReshape(detection.keypoints, bodyParams);
+      if (result) {
         showStatus(t('editor.portrait.body.applySuccess'), 'success');
       } else {
         showStatus(t('editor.portrait.body.applyFailed'), 'error');
@@ -282,17 +280,19 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [bodyDetections, bodyParams, applyBodyReshape, showStatus, t]);
+  }, [bodyDetections, selectedBodyIndex, bodyParams, applyBodyReshape, showStatus, t]);
 
   const handleApplyHair = useCallback(async () => {
     setIsApplying(true);
     try {
-      // Bug fix #8: Properly serialize HairParams for the Rust backend
+      // Bug fix #8: Rust backend reads camelCase keys from the params JSON
+      // (see hair_retouching.rs — manually reads removeFlyaway, flyawayStrength, etc.)
+      // so we must pass camelCase keys, not snake_case.
       const result = await applyHairRetouch({
-        remove_flyaway: hairParams.removeFlyaway,
-        flyaway_strength: hairParams.flyawayStrength,
-        color_uniform_strength: hairParams.colorUniformStrength,
-        smooth_strength: hairParams.smoothStrength,
+        removeFlyaway: hairParams.removeFlyaway,
+        flyawayStrength: hairParams.flyawayStrength,
+        colorUniformStrength: hairParams.colorUniformStrength,
+        smoothStrength: hairParams.smoothStrength,
       });
       if (result) {
         showStatus(t('editor.portrait.hair.applySuccess'), 'success');
@@ -313,14 +313,14 @@ export default function PortraitPanel() {
     }
     setIsApplying(true);
     try {
-      // Apply catchlight to all detected faces
-      let lastResult: string | null = null;
-      for (const detection of faceDetections) {
-        if (detection.landmarks) {
-          lastResult = await addEyeCatchlight(detection.landmarks, catchlightIntensity, catchlightPosition);
-        }
+      // Bug fix #14: Apply to selected face only (backend processes from original image)
+      const detection = faceDetections[selectedFaceIndex] || faceDetections[0];
+      if (!detection?.landmarks) {
+        showStatus(t('editor.portrait.face.detectFirst'), 'error');
+        return;
       }
-      if (lastResult) {
+      const result = await addEyeCatchlight(detection.landmarks, catchlightIntensity, catchlightPosition);
+      if (result) {
         showStatus(t('editor.portrait.face.applySuccess'), 'success');
       } else {
         showStatus(t('editor.portrait.face.applyFailed'), 'error');
@@ -330,7 +330,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, catchlightIntensity, catchlightPosition, addEyeCatchlight, showStatus, t]);
+  }, [faceDetections, selectedFaceIndex, catchlightIntensity, catchlightPosition, addEyeCatchlight, showStatus, t]);
 
   const handleApplySmile = useCallback(async () => {
     if (faceDetections.length === 0) {
@@ -339,14 +339,14 @@ export default function PortraitPanel() {
     }
     setIsApplying(true);
     try {
-      // Apply smile to all detected faces
-      let lastResult: string | null = null;
-      for (const detection of faceDetections) {
-        if (detection.landmarks) {
-          lastResult = await adjustSmile(detection.landmarks, smileAmount);
-        }
+      // Bug fix #14: Apply to selected face only (backend processes from original image)
+      const detection = faceDetections[selectedFaceIndex] || faceDetections[0];
+      if (!detection?.landmarks) {
+        showStatus(t('editor.portrait.face.detectFirst'), 'error');
+        return;
       }
-      if (lastResult) {
+      const result = await adjustSmile(detection.landmarks, smileAmount);
+      if (result) {
         showStatus(t('editor.portrait.face.applySuccess'), 'success');
       } else {
         showStatus(t('editor.portrait.face.applyFailed'), 'error');
@@ -356,7 +356,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [faceDetections, smileAmount, adjustSmile, showStatus, t]);
+  }, [faceDetections, selectedFaceIndex, smileAmount, adjustSmile, showStatus, t]);
 
   const handleApplyNeckShoulder = useCallback(async () => {
     if (bodyDetections.length === 0) {
@@ -366,16 +366,14 @@ export default function PortraitPanel() {
     setIsApplying(true);
     try {
       // Bug fix #5: Use bodyParams.neckAdjust and bodyParams.shoulderAdjust
-      // instead of separate disconnected state
-      const neckVal = bodyParams.neckAdjust;
-      const shoulderVal = bodyParams.shoulderAdjust;
-      let lastResult: string | null = null;
-      for (const detection of bodyDetections) {
-        if (detection.keypoints) {
-          lastResult = await adjustNeckShoulder(detection.keypoints, neckVal, shoulderVal);
-        }
+      // Bug fix #14: Apply to selected body only (backend processes from original image)
+      const detection = bodyDetections[selectedBodyIndex] || bodyDetections[0];
+      if (!detection?.keypoints) {
+        showStatus(t('editor.portrait.body.detectFirst'), 'error');
+        return;
       }
-      if (lastResult) {
+      const result = await adjustNeckShoulder(detection.keypoints, bodyParams.neckAdjust, bodyParams.shoulderAdjust);
+      if (result) {
         showStatus(t('editor.portrait.body.applySuccess'), 'success');
       } else {
         showStatus(t('editor.portrait.body.applyFailed'), 'error');
@@ -385,7 +383,7 @@ export default function PortraitPanel() {
     } finally {
       setIsApplying(false);
     }
-  }, [bodyDetections, bodyParams.neckAdjust, bodyParams.shoulderAdjust, adjustNeckShoulder, showStatus, t]);
+  }, [bodyDetections, selectedBodyIndex, bodyParams.neckAdjust, bodyParams.shoulderAdjust, adjustNeckShoulder, showStatus, t]);
 
   const skinMethodOptions = [
     { label: t('editor.portrait.skin.method.neutralGray'), value: 'neutral_gray' as const },
