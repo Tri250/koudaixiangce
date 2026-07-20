@@ -2537,6 +2537,7 @@ pub fn run() {
             portrait_state: Mutex::new(None),
             portrait_init_lock: TokioMutex::new(()),
             export_task_handle: Mutex::new(None),
+            export_cancel_token: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             exported_output_paths: Mutex::new(Vec::new()),
             hdr_result: Arc::new(Mutex::new(None)),
             panorama_result: Arc::new(Mutex::new(None)),

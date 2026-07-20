@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/useEditorStore';
 import { Adjustments } from '../utils/adjustments';
@@ -111,6 +111,19 @@ export function useRetouching() {
   const [isDetectingBody, setIsDetectingBody] = useState(false);
   const [bodyDetectionError, setBodyDetectionError] = useState<string | null>(null);
 
+  // Current image path — watched so that switching images clears stale
+  // face/body detections. Without this, the previous image's landmarks
+  // remained in `faceDetections`/`bodyDetections` and would be applied to
+  // the new image (different person, different geometry) on the next
+  // "Apply" click.
+  const selectedImagePath = useEditorStore((s) => s.selectedImage?.path);
+  useEffect(() => {
+    setFaceDetections([]);
+    setBodyDetections([]);
+    setFaceDetectionError(null);
+    setBodyDetectionError(null);
+  }, [selectedImagePath]);
+
   // Liquify state — stored in the shared editor store so that
   // LiquifyPanel and LiquifyModal share the same stroke array.
   const liquifyStrokes = useEditorStore((s) => s.liquifyStrokes) as LiquifyStroke[];
@@ -137,9 +150,17 @@ export function useRetouching() {
     setFaceDetectionError(null);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<FaceDetection[]>('detect_faces_in_image', { js_adjustments: jsAdjustments });
-      setFaceDetections(result);
-      return result;
+      // Backend returns { faces, modelLoaded, width, height } — extract the
+      // faces array. Previously this was typed as FaceDetection[], which made
+      // setFaceDetections store the wrapper object; subsequent .map/.length
+      // calls would throw or silently no-op.
+      const result = await invoke<{ faces: FaceDetection[]; modelLoaded: boolean; width: number; height: number }>(
+        'detect_faces_in_image',
+        { js_adjustments: jsAdjustments },
+      );
+      const faces = result?.faces ?? [];
+      setFaceDetections(faces);
+      return faces;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setFaceDetectionError(msg);
@@ -156,9 +177,14 @@ export function useRetouching() {
     setBodyDetectionError(null);
     try {
       const jsAdjustments = getTransformAdjustments(adjustments);
-      const result = await invoke<BodyDetection[]>('detect_body_in_image', { js_adjustments: jsAdjustments });
-      setBodyDetections(result);
-      return result;
+      // Same wrapper shape as face detection: { poses, modelLoaded, ... }.
+      const result = await invoke<{ poses: BodyDetection[]; modelLoaded: boolean; width: number; height: number }>(
+        'detect_body_in_image',
+        { js_adjustments: jsAdjustments },
+      );
+      const poses = result?.poses ?? [];
+      setBodyDetections(poses);
+      return poses;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setBodyDetectionError(msg);

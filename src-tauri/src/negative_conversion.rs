@@ -212,7 +212,7 @@ fn run_pipeline(
 }
 
 #[derive(Debug, Clone)]
-struct NegativePreviewCache {
+pub struct NegativePreviewCache {
     /// Downscaled preview image (RGB32F).
     pub image: DynamicImage,
     /// Pre-computed log-space pixels for the preview (avoids re-computing

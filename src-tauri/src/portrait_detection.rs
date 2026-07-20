@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use image::{DynamicImage, GenericImageView, GrayImage, Luma};
+use image::{DynamicImage, GenericImageView, GrayImage, Luma, Rgb};
 use ndarray::Array;
 use ort::session::Session;
 use ort::value::Tensor;
@@ -85,9 +85,15 @@ pub struct BodyDetectionResult {
 }
 
 /// Portrait detection models held behind `Mutex` for thread-safe access.
+///
+/// Both fields are `Option` so we can distinguish "model has been loaded"
+/// from "still pending". Previously the struct used `Arc::clone(&face_model)`
+/// as a placeholder for `body_pose` (and vice versa), which caused callers to
+/// think a model was ready when it was actually the other model — the body
+/// pose detector would silently run the face landmark model, etc.
 pub struct PortraitModels {
-    pub face_landmark: Arc<Mutex<Session>>,
-    pub body_pose: Arc<Mutex<Session>>,
+    pub face_landmark: Option<Arc<Mutex<Session>>>,
+    pub body_pose: Option<Arc<Mutex<Session>>>,
 }
 
 /// Portrait AI state, stored alongside the main `AiState`.
@@ -247,7 +253,9 @@ pub async fn get_or_init_face_model(
         .as_ref()
         .and_then(|state| state.models.clone())
     {
-        return Ok(Arc::clone(&models.face_landmark));
+        if let Some(face) = models.face_landmark.as_ref() {
+            return Ok(Arc::clone(face));
+        }
     }
 
     let _guard = init_lock.lock().await;
@@ -259,7 +267,9 @@ pub async fn get_or_init_face_model(
         .as_ref()
         .and_then(|state| state.models.clone())
     {
-        return Ok(Arc::clone(&models.face_landmark));
+        if let Some(face) = models.face_landmark.as_ref() {
+            return Ok(Arc::clone(face));
+        }
     }
 
     let models_dir = get_models_dir(app_handle)?;
@@ -287,33 +297,22 @@ pub async fn get_or_init_face_model(
     if let Some(state) = state_lock.as_mut() {
         if let Some(models) = state.models.as_mut() {
             // Body pose model may already be loaded – keep it.
-            let body_pose = Arc::clone(&models.body_pose);
+            let body_pose = models.body_pose.clone();
             *models = Arc::new(PortraitModels {
-                face_landmark: Arc::clone(&face_model),
+                face_landmark: Some(Arc::clone(&face_model)),
                 body_pose,
             });
         } else {
-            // Need a temporary body-pose placeholder – will be replaced on first use.
-            // We re-use the face session file as a placeholder that will be overwritten.
-            // Instead, store None and let body init fill it.
-            // We cannot create a Session without a model file, so we store just the face model
-            // and handle body_pose lazily in its own init.
-            // For simplicity, we'll store the full models struct with face only,
-            // and body_pose will be initialised by get_or_init_body_model.
-            // However we need a Session for body_pose. We'll handle this by
-            // storing models only when both are ready, or using Option inside.
-            // Let's just store the face model for now; body_pose init will
-            // update the struct.
             state.models = Some(Arc::new(PortraitModels {
-                face_landmark: Arc::clone(&face_model),
-                body_pose: Arc::clone(&face_model), // placeholder, overwritten by body init
+                face_landmark: Some(Arc::clone(&face_model)),
+                body_pose: None,
             }));
         }
     } else {
         *state_lock = Some(PortraitState {
             models: Some(Arc::new(PortraitModels {
-                face_landmark: Arc::clone(&face_model),
-                body_pose: Arc::clone(&face_model), // placeholder
+                face_landmark: Some(Arc::clone(&face_model)),
+                body_pose: None,
             })),
         });
     }
@@ -327,30 +326,30 @@ pub async fn get_or_init_body_model(
     portrait_state_mutex: &Mutex<Option<PortraitState>>,
     init_lock: &TokioMutex<()>,
 ) -> Result<Arc<Mutex<Session>>> {
-    // Fast path.
+    // Fast path: only return if body_pose is actually Some (loaded).
     if let Some(models) = portrait_state_mutex
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.models.clone())
     {
-        // Check if body_pose was already properly initialised by verifying
-        // the model file exists (the placeholder shares the face model file).
-        // A production implementation would use Option<Arc<Mutex<Session>>> here.
-        // For now we always re-init body if requested explicitly.
-        let body_pose = Arc::clone(&models.body_pose);
-        return Ok(body_pose);
+        if let Some(body_pose) = models.body_pose.as_ref() {
+            return Ok(Arc::clone(body_pose));
+        }
     }
 
     let _guard = init_lock.lock().await;
 
+    // Re-check after acquiring the lock.
     if let Some(models) = portrait_state_mutex
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .and_then(|state| state.models.clone())
     {
-        return Ok(Arc::clone(&models.body_pose));
+        if let Some(body_pose) = models.body_pose.as_ref() {
+            return Ok(Arc::clone(body_pose));
+        }
     }
 
     let models_dir = get_models_dir(app_handle)?;
@@ -376,27 +375,79 @@ pub async fn get_or_init_body_model(
         .unwrap_or_else(|e| e.into_inner());
     if let Some(state) = state_lock.as_mut() {
         if let Some(models) = state.models.as_mut() {
-            let face_landmark = Arc::clone(&models.face_landmark);
+            let face_landmark = models.face_landmark.clone();
             *models = Arc::new(PortraitModels {
                 face_landmark,
-                body_pose: Arc::clone(&body_model),
+                body_pose: Some(Arc::clone(&body_model)),
             });
         } else {
             state.models = Some(Arc::new(PortraitModels {
-                face_landmark: Arc::clone(&body_model), // placeholder for face
-                body_pose: Arc::clone(&body_model),
+                face_landmark: None,
+                body_pose: Some(Arc::clone(&body_model)),
             }));
         }
     } else {
         *state_lock = Some(PortraitState {
             models: Some(Arc::new(PortraitModels {
-                face_landmark: Arc::clone(&body_model), // placeholder
-                body_pose: Arc::clone(&body_model),
+                face_landmark: None,
+                body_pose: Some(Arc::clone(&body_model)),
             })),
         });
     }
 
     Ok(body_model)
+}
+
+// ---------------------------------------------------------------------------
+// Letterbox resizing helpers
+// ---------------------------------------------------------------------------
+
+/// Resize an image to a fixed square while preserving aspect ratio.
+///
+/// The original image is scaled to fit inside `target × target` and the
+/// remaining area is filled with black pixels (letterbox / pillarbox). This
+/// avoids the aspect-ratio distortion produced by `resize_exact`, which
+/// previously fed skewed faces into the ONNX models and produced misplaced
+/// landmarks on rectangular source images.
+///
+/// Returns `(square_image, scale, pad_x, pad_y)` where:
+///   - `scale` is the uniform scale factor applied to the original image,
+///   - `(pad_x, pad_y)` is the offset of the scaled image inside the square,
+/// so that a point `p` in the original image maps to `p * scale + pad` in the
+/// square, and a normalised coordinate `n ∈ [0, 1]` inside the square maps
+/// back to `(n * target - pad) / scale` in the original image.
+fn letterbox_to_square(
+    image: &DynamicImage,
+    target: u32,
+    fill: Rgb<u8>,
+) -> (image::RgbImage, f32, f32, f32) {
+    let (orig_w, orig_h) = image.dimensions();
+    let target_f = target as f32;
+    let scale = (target_f / orig_w as f32).min(target_f / orig_h as f32);
+    let new_w = ((orig_w as f32) * scale).round() as u32;
+    let new_h = ((orig_h as f32) * scale).round() as u32;
+    let pad_x = ((target - new_w) as f32) * 0.5;
+    let pad_y = ((target - new_h) as f32) * 0.5;
+
+    let resized = image.resize_exact(new_w, new_h, image::imageops::FilterType::Triangle);
+    let mut square = image::RgbImage::from_pixel(target, target, fill);
+    // `overlay` expects integer pixel offsets, not f32.
+    image::imageops::overlay(&mut square, &resized.to_rgb8(), pad_x as i64, pad_y as i64);
+    (square, scale, pad_x, pad_y)
+}
+
+/// Map a normalised `[0, 1]` coordinate inside a letterboxed square back to
+/// pixel coordinates in the original image.
+fn unletterbox(
+    norm_coord: f32,
+    target: u32,
+    scale: f32,
+    pad: f32,
+    orig_size: u32,
+) -> f32 {
+    // square_pixel = norm * target ; original_pixel = (square_pixel - pad) / scale
+    let square_pixel = norm_coord * target as f32;
+    ((square_pixel - pad) / scale).max(0.0).min(orig_size as f32)
 }
 
 // ---------------------------------------------------------------------------
@@ -406,22 +457,24 @@ pub async fn get_or_init_body_model(
 /// Run face landmark detection on an image, returning detected faces with
 /// 468 3D landmarks each.
 ///
-/// The input image is resized to `FACE_LANDMARK_INPUT_SIZE × FACE_LANDMARK_INPUT_SIZE`
-/// before being fed into the ONNX model. Landmark coordinates are mapped back
-/// to the original image dimensions afterwards.
+/// The input image is letterboxed to `FACE_LANDMARK_INPUT_SIZE ×
+/// FACE_LANDMARK_INPUT_SIZE` (aspect ratio preserved) before being fed into
+/// the ONNX model. Landmark coordinates are mapped back to the original
+/// image dimensions afterwards.
 pub fn detect_faces(
     image: &DynamicImage,
     face_session: &Mutex<Session>,
 ) -> Result<Vec<FaceLandmark>> {
     let (orig_width, orig_height) = image.dimensions();
 
-    // Resize to model input size.
-    let resized = image.resize_exact(
+    // Letterbox-resize to the model's square input, preserving aspect ratio.
+    // Previously this used `resize_exact`, which stretched non-square images
+    // and caused landmarks to be misplaced on rectangular inputs.
+    let (rgb, scale, pad_x, pad_y) = letterbox_to_square(
+        image,
         FACE_LANDMARK_INPUT_SIZE,
-        FACE_LANDMARK_INPUT_SIZE,
-        image::imageops::FilterType::Triangle,
+        Rgb([0u8, 0, 0]),
     );
-    let rgb = resized.to_rgb8();
     let raw = rgb.as_raw();
 
     // Build input tensor (1, 3, H, W) float32 normalised to [0,1].
@@ -481,9 +534,15 @@ pub fn detect_faces(
         if base + 2 > lm_slice.len() {
             break;
         }
+        // Model outputs normalised [0, 1] coordinates inside the letterboxed
+        // square. Map them back to original-image pixel space.
+        let nx = lm_slice[base];
+        let ny = lm_slice[base + 1];
+        let px = unletterbox(nx, FACE_LANDMARK_INPUT_SIZE, scale, pad_x, orig_width);
+        let py = unletterbox(ny, FACE_LANDMARK_INPUT_SIZE, scale, pad_y, orig_height);
         landmarks.push(Landmark3D {
-            x: lm_slice[base],
-            y: lm_slice[base + 1],
+            x: px,
+            y: py,
             z: lm_slice[base + 2],
         });
     }
@@ -498,20 +557,7 @@ pub fn detect_faces(
         y_max = y_max.max(lm.y);
     }
 
-    // Scale normalised coords back to pixel space.
-    let scale_x = orig_width as f32;
-    let scale_y = orig_height as f32;
-    let bbox = (
-        x_min * scale_x,
-        y_min * scale_y,
-        x_max * scale_x,
-        y_max * scale_y,
-    );
-
-    for lm in &mut landmarks {
-        lm.x *= scale_x;
-        lm.y *= scale_y;
-    }
+    let bbox = (x_min, y_min, x_max, y_max);
 
     Ok(vec![FaceLandmark {
         landmarks,
@@ -532,12 +578,11 @@ pub fn detect_body_pose(
 ) -> Result<Vec<BodyPose>> {
     let (orig_width, orig_height) = image.dimensions();
 
-    let resized = image.resize_exact(
-        BODY_POSE_INPUT_SIZE,
-        BODY_POSE_INPUT_SIZE,
-        image::imageops::FilterType::Triangle,
-    );
-    let rgb = resized.to_rgb8();
+    // Letterbox-resize to the model's square input, preserving aspect ratio.
+    // Previously this used `resize_exact`, which stretched non-square images
+    // and caused keypoints to be misplaced on rectangular inputs.
+    let (rgb, scale, pad_x, pad_y) =
+        letterbox_to_square(image, BODY_POSE_INPUT_SIZE, Rgb([0u8, 0, 0]));
     let raw = rgb.as_raw();
 
     let sz = BODY_POSE_INPUT_SIZE as usize;
@@ -588,9 +633,6 @@ pub fn detect_body_pose(
 
     // Parse 33 keypoints × 4 floats (y, x, z, visibility) or (x, y, z, visibility).
     // MediaPipe BlazePose outputs: [y, x, z, visibility] per keypoint.
-    let scale_x = orig_width as f32;
-    let scale_y = orig_height as f32;
-
     let mut keypoints = Vec::with_capacity(33);
     for i in 0..33 {
         let base = i * 4;
@@ -598,14 +640,19 @@ pub fn detect_body_pose(
             break;
         }
         // MediaPipe ordering: y, x, z, visibility
-        let y = kp_slice[base];
-        let x = kp_slice[base + 1];
+        let ny = kp_slice[base];
+        let nx = kp_slice[base + 1];
         let z = kp_slice[base + 2];
         let vis = kp_slice[base + 3];
 
+        // Map normalised [0, 1] coords inside the letterboxed square back to
+        // original-image pixel space.
+        let px = unletterbox(nx, BODY_POSE_INPUT_SIZE, scale, pad_x, orig_width);
+        let py = unletterbox(ny, BODY_POSE_INPUT_SIZE, scale, pad_y, orig_height);
+
         keypoints.push(BodyKeypoint {
-            x: x * scale_x,
-            y: y * scale_y,
+            x: px,
+            y: py,
             z,
             confidence: vis,
             name: BODY_KEYPOINT_NAMES
@@ -910,7 +957,15 @@ pub fn detect_faces_compat(
         }));
     };
 
-    let face_session = Arc::clone(&models.face_landmark);
+    let face_session = match models.face_landmark.as_ref() {
+        Some(session) => Arc::clone(session),
+        None => return Ok(serde_json::json!({
+            "faces": [],
+            "modelLoaded": false,
+            "width": width,
+            "height": height
+        })),
+    };
     let detected = detect_faces(image, &face_session)?;
 
     let faces_json: Vec<serde_json::Value> = detected
@@ -920,7 +975,16 @@ pub fn detect_faces_compat(
                 "landmarks": face.landmarks.iter().map(|lm| {
                     serde_json::json!({ "x": lm.x, "y": lm.y, "z": lm.z })
                 }).collect::<Vec<_>>(),
-                "bbox": [face.bbox.0, face.bbox.1, face.bbox.2, face.bbox.3],
+                // Return bbox as { x, y, width, height } to match the frontend
+                // FaceDetection interface. Previously this was an array of
+                // [x_min, y_min, x_max, y_max], which the frontend expected as
+                // an object — parsing silently produced undefined fields.
+                "bbox": {
+                    "x": face.bbox.0,
+                    "y": face.bbox.1,
+                    "width": (face.bbox.2 - face.bbox.0).max(0.0),
+                    "height": (face.bbox.3 - face.bbox.1).max(0.0)
+                },
                 "confidence": face.confidence
             })
         })
@@ -961,7 +1025,15 @@ pub fn detect_body_compat(
         }));
     };
 
-    let body_session = Arc::clone(&models.body_pose);
+    let body_session = match models.body_pose.as_ref() {
+        Some(session) => Arc::clone(session),
+        None => return Ok(serde_json::json!({
+            "poses": [],
+            "modelLoaded": false,
+            "width": width,
+            "height": height
+        })),
+    };
     let detected = detect_body_pose(image, &body_session)?;
 
     let poses_json: Vec<serde_json::Value> = detected

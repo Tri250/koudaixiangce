@@ -133,7 +133,14 @@ pub fn calculate_face_warp_field(
     let (cx, cy) = compute_centroid(landmarks);
 
     // --- Face slimming ---
-    // Move jaw outline landmarks inward toward the face center
+    // The warp is applied via INVERSE mapping (see `apply_warp_with_landmarks`:
+    // `src = dest - displacement`). To make the jaw outline move INWARD
+    // (slimmer face) at positive `face_slimming`, the displacement vector at
+    // each jaw landmark must point OUTWARD (away from the face centre), so
+    // that the inverse warp samples from a point closer to the centre.
+    //
+    // Previously the displacement pointed toward the centre, which under
+    // inverse warping expanded the face — the opposite of "slimming".
     if params.face_slimming.abs() > 0.01 {
         let strength = params.face_slimming / 100.0 * 0.08;
         // Jaw outline: landmarks 0-16 in 68-point model,
@@ -142,8 +149,9 @@ pub fn calculate_face_warp_field(
         for &idx in &jaw_indices {
             if idx < n {
                 let lm = landmarks[idx];
-                let dx = cx - lm.x;
-                let dy = cy - lm.y;
+                // Outward direction (lm − centre), normalised then scaled by distance.
+                let dx = lm.x - cx;
+                let dy = lm.y - cy;
                 let dist = (dx * dx + dy * dy).sqrt().max(1.0);
                 displacements[idx].dx += dx / dist * strength * dist * 0.1;
                 displacements[idx].dy += dy / dist * strength * dist * 0.1;
@@ -172,6 +180,10 @@ pub fn calculate_face_warp_field(
     }
 
     // --- Nose slimming ---
+    // Same inverse-warp reasoning as face slimming: to pull the nose outline
+    // INWARD at positive `nose_slimming`, the displacement must point OUTWARD
+    // (away from the nose centre). Previously it pointed inward, widening
+    // the nose.
     if params.nose_slimming.abs() > 0.01 {
         let strength = params.nose_slimming / 100.0 * 0.05;
         let nose_indices = compute_nose_indices(n);
@@ -179,8 +191,8 @@ pub fn calculate_face_warp_field(
         for &idx in &nose_indices {
             if idx < n {
                 let lm = landmarks[idx];
-                // Move nose outline horizontally toward center
-                let dx = nose_center.0 - lm.x;
+                // Outward horizontal direction (lm − nose centre).
+                let dx = lm.x - nose_center.0;
                 displacements[idx].dx += dx * strength;
             }
         }
@@ -254,11 +266,24 @@ pub fn calculate_face_warp_field(
 
 /// Calculate displacement vectors for body adjustments based on 33 body keypoints.
 ///
-/// Uses COCO-style 33 keypoint body pose to apply body reshaping.
-/// Keypoint indices (COCO 33):
-/// 0: nose, 1-4: eyes, 5-6: ears, 7-8: shoulders, 9-10: elbows,
-/// 11-12: wrists, 13-14: hips, 15-16: knees, 17-18: ankles,
-/// 19-32: hands/feet details
+/// Uses the **MediaPipe Pose 33-keypoint** layout (NOT COCO-18). The detector
+/// in `portrait_detection.rs` outputs MediaPipe-33 keypoints, but this
+/// function previously indexed them as if they were COCO-18 (e.g. shoulders
+/// at 5/6, hips at 11/12). That mismatch meant every body-reshape slider
+/// actually displaced the wrong body parts:
+///
+/// MediaPipe-33 indices used here:
+///   0: nose, 1-6: eyes, 7-8: ears, 9-10: mouth corners,
+///   11-12: shoulders, 13-14: elbows, 15-16: wrists,
+///   17-22: hand details,
+///   23-24: hips, 25-26: knees, 27-28: ankles, 29-32: feet.
+///
+/// Inverse-warp convention: to make a region SLIMMER (positive slim value),
+/// the displacement at each landmark must point OUTWARD (away from the body
+/// centre), so the inverse warp samples from a point closer to the centre.
+/// To make a region WIDER (positive shoulder/hip "enhance" value), the
+/// displacement must point INWARD (toward the centre), so the inverse warp
+/// samples from a point further out.
 pub fn calculate_body_warp_field(
     keypoints: &[Landmark],
     params: &BodyReshapeParams,
@@ -268,39 +293,41 @@ pub fn calculate_body_warp_field(
     let n = keypoints.len();
     let mut displacements = vec![Displacement::default(); n];
 
-    if n < 17 {
+    // Need at least hips (idx 23/24) for any meaningful body work.
+    if n < 25 {
         return displacements;
     }
 
-    // Shoulder midpoint
-    let shoulder_cx = (keypoints[5].x + keypoints[6].x) / 2.0;
-    let shoulder_cy = (keypoints[5].y + keypoints[6].y) / 2.0;
-    // Hip midpoint
-    let hip_cx = (keypoints[11].x + keypoints[12].x) / 2.0;
-    let hip_cy = (keypoints[11].y + keypoints[12].y) / 2.0;
+    // Shoulder midpoint (MediaPipe-33: 11, 12)
+    let shoulder_cx = (keypoints[11].x + keypoints[12].x) / 2.0;
+    let shoulder_cy = (keypoints[11].y + keypoints[12].y) / 2.0;
+    // Hip midpoint (MediaPipe-33: 23, 24)
+    let hip_cx = (keypoints[23].x + keypoints[24].x) / 2.0;
+    let hip_cy = (keypoints[23].y + keypoints[24].y) / 2.0;
 
     // --- Waist slimming ---
+    // Outward displacement at hips → inverse warp samples inward → waist slims.
     if params.waist_slim.abs() > 0.01 {
         let strength = params.waist_slim / 100.0 * 0.08;
-        // Move hip keypoints inward toward the body center line
-        for &idx in &[11usize, 12] {
+        for &idx in &[23usize, 24] {
             if idx < n {
                 let lm = keypoints[idx];
-                let dx = hip_cx - lm.x;
+                let dx = lm.x - hip_cx;
                 displacements[idx].dx += dx * strength;
             }
         }
     }
 
     // --- Shoulder adjustment ---
+    // Positive value = "square shoulder" (wider). Inward displacement at
+    // shoulders → inverse warp samples outward → shoulders widen.
     if params.shoulder_adjust.abs() > 0.01 {
         let strength = params.shoulder_adjust / 100.0 * 0.06;
-        // Move shoulders to create square shoulder look
-        for &idx in &[5usize, 6] {
+        for &idx in &[11usize, 12] {
             if idx < n {
                 let lm = keypoints[idx];
-                let dx = lm.x - shoulder_cx;
-                // Widen or narrow shoulders
+                // Inward horizontal direction (centre − lm).
+                let dx = shoulder_cx - lm.x;
                 displacements[idx].dx += dx * strength;
                 // Adjust vertical position for square look
                 displacements[idx].dy -= strength * (shoulder_cy - lm.y).abs() * 0.3;
@@ -309,69 +336,69 @@ pub fn calculate_body_warp_field(
     }
 
     // --- Neck adjustment ---
+    // Positive value = "swan neck" (slimmer). Use ears (MediaPipe-33: 7, 8)
+    // as a proxy for neck width. Outward displacement → inverse warp samples
+    // inward → neck slims.
     if params.neck_adjust.abs() > 0.01 {
         let strength = params.neck_adjust / 100.0 * 0.05;
-        // Move neck keypoints (between shoulders and head) inward
         let neck_x = shoulder_cx;
-        let neck_y = shoulder_cy;
-        // Ears approximate neck width
-        for &idx in &[3usize, 4] {
+        for &idx in &[7usize, 8] {
             if idx < n {
                 let lm = keypoints[idx];
-                let dx = neck_x - lm.x;
+                let dx = lm.x - neck_x;
                 displacements[idx].dx += dx * strength;
             }
         }
     }
 
     // --- Arm slimming ---
+    // Elbows (13, 14) + wrists (15, 16). Outward displacement → arms slim.
     if params.arm_slim.abs() > 0.01 {
         let strength = params.arm_slim / 100.0 * 0.04;
-        // Move elbow and wrist points toward the arm center line
-        for &idx in &[7usize, 8, 9, 10] {
+        for &idx in &[13usize, 14, 15, 16] {
             if idx < n {
                 let lm = keypoints[idx];
-                // Horizontal movement toward body center
-                let dx = shoulder_cx - lm.x;
+                let dx = lm.x - shoulder_cx;
                 displacements[idx].dx += dx * strength * 0.3;
             }
         }
     }
 
     // --- Upper leg slimming ---
+    // Hips (23, 24) + knees (25, 26). Outward displacement → legs slim.
     if params.upper_leg_slim.abs() > 0.01 {
         let strength = params.upper_leg_slim / 100.0 * 0.06;
-        // Move hip and knee keypoints inward
-        for &idx in &[11usize, 12, 13, 14] {
+        for &idx in &[23usize, 24, 25, 26] {
             if idx < n {
                 let lm = keypoints[idx];
-                let dx = hip_cx - lm.x;
+                let dx = lm.x - hip_cx;
                 displacements[idx].dx += dx * strength * 0.5;
             }
         }
     }
 
     // --- Lower leg slimming ---
-    if params.lower_leg_slim.abs() > 0.01 {
+    // Knees (25, 26) + ankles (27, 28). Need at least 29 keypoints.
+    if params.lower_leg_slim.abs() > 0.01 && n >= 29 {
         let strength = params.lower_leg_slim / 100.0 * 0.05;
-        // Move knee and ankle keypoints inward
-        for &idx in &[13usize, 14, 15, 16] {
+        for &idx in &[25usize, 26, 27, 28] {
             if idx < n {
                 let lm = keypoints[idx];
-                let body_center_x = hip_cx;
-                let dx = body_center_x - lm.x;
+                let dx = lm.x - hip_cx;
                 displacements[idx].dx += dx * strength * 0.3;
             }
         }
     }
 
     // --- Hip adjustment ---
+    // Positive value = hip enhance (wider). Inward displacement at hips →
+    // inverse warp samples outward → hips widen.
     if params.hip_adjust.abs() > 0.01 {
         let strength = params.hip_adjust / 100.0 * 0.06;
-        for &idx in &[11usize, 12] {
+        for &idx in &[23usize, 24] {
             if idx < n {
                 let lm = keypoints[idx];
-                let dx = lm.x - hip_cx;
+                let dx = hip_cx - lm.x;
                 displacements[idx].dx += dx * strength;
             }
         }
@@ -633,11 +660,13 @@ fn compute_nose_indices(n: usize) -> Vec<usize> {
 /// Map to approximate lip indices for a 468-point face mesh.
 fn compute_lip_indices(n: usize) -> Vec<usize> {
     if n >= 468 {
-        // MediaPipe 468 lips
+        // MediaPipe 468 lips (outer + inner outlines). The previous list
+        // accidentally appended the second half of the outer outline a
+        // second time, which doubled the weight of those landmarks in the
+        // RBF interpolation and produced a lopsided lip warp.
         vec![
             61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87,
-            178, 88, 95, 78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402, 317, 14,
-            87, 178, 88, 95,
+            178, 88, 95, 78, 191, 80, 81, 82, 13, 312, 311, 310, 415,
         ]
     } else if n >= 68 {
         // 68-point model: outer lip 48-59, inner lip 60-67
@@ -663,10 +692,11 @@ fn compute_forehead_indices(n: usize) -> Vec<usize> {
 /// Map to approximate eyebrow indices for a 468-point face mesh.
 fn compute_eyebrow_indices(n: usize) -> (Vec<usize>, Vec<usize>) {
     if n >= 468 {
-        // MediaPipe 468 left eyebrow
-        let left = vec![46, 53, 52, 65, 55, 70, 63, 105, 66, 107, 55, 65];
-        // MediaPipe 468 right eyebrow
-        let right = vec![276, 283, 282, 295, 285, 300, 293, 334, 296, 336, 285, 295];
+        // MediaPipe 468 eyebrow outlines. Removed duplicate indices 55/65
+        // (left) and 285/295 (right) which double-weighted those landmarks
+        // in the RBF interpolation.
+        let left = vec![46, 53, 52, 65, 55, 70, 63, 105, 66, 107];
+        let right = vec![276, 283, 282, 295, 285, 300, 293, 334, 296, 336];
         (left, right)
     } else if n >= 68 {
         // 68-point model: left brow 17-21, right brow 22-26
@@ -738,6 +768,12 @@ pub fn reshape_body(
 }
 
 /// Add eye catchlight effect.
+///
+/// `intensity` is in the front-end slider range [0, 100]. We normalise it to
+/// [0, 1] and scale by 255 so that the catchlight brightness varies smoothly
+/// across the slider range. Previously the raw 0–100 value was multiplied by
+/// 100 again (yielding up to 10 000), which saturated to pure white for any
+/// non-zero intensity.
 pub fn add_eye_catchlight(
     image: &DynamicImage,
     face_landmarks: &serde_json::Value,
@@ -751,35 +787,47 @@ pub fn add_eye_catchlight(
     // Find eye centers from landmarks
     let (left_eye_indices, right_eye_indices) = compute_eye_indices(landmarks.len());
 
+    let normalised_intensity = (intensity / 100.0).clamp(0.0, 1.0);
+
     for eye_indices in &[&left_eye_indices, &right_eye_indices] {
+        if eye_indices.is_empty() {
+            continue;
+        }
         let eye_center = compute_centroid_from_indices(&landmarks, eye_indices);
+        // Catchlight is a small bright disc centred at `eye_center + offset`.
         let radius = 5.0f32;
+        let catchlight_x = eye_center.0 + (light_position.0 - 0.5) * radius * 2.0;
+        let catchlight_y = eye_center.1 + (light_position.1 - 0.5) * radius * 2.0;
 
-        for &idx in eye_indices.iter() {
-            if idx < landmarks.len() {
-                let lm = landmarks[idx];
-                // Add catchlight as a bright spot at the light position relative to eye center
-                let catchlight_x = eye_center.0 + (light_position.0 - 0.5) * radius * 2.0;
-                let catchlight_y = eye_center.1 + (light_position.1 - 0.5) * radius * 2.0;
+        // Iterate over a small pixel grid around the catchlight centre rather
+        // than over eye landmark positions. The previous loop only brightened
+        // the (few) landmarks that happened to fall inside `radius`, producing
+        // a sparse, dotted catchlight instead of a continuous disc.
+        let cx0 = (catchlight_x - radius).max(0.0) as u32;
+        let cy0 = (catchlight_y - radius).max(0.0) as u32;
+        let cx1 = ((catchlight_x + radius).ceil() as u32).min(width);
+        let cy1 = ((catchlight_y + radius).ceil() as u32).min(height);
 
-                let dist = ((lm.x - catchlight_x).powi(2) + (lm.y - catchlight_y).powi(2)).sqrt();
+        for py in cy0..cy1 {
+            for px in cx0..cx1 {
+                let dx = px as f32 - catchlight_x;
+                let dy = py as f32 - catchlight_y;
+                let dist = (dx * dx + dy * dy).sqrt();
                 if dist < radius {
-                    let brightness = (1.0 - dist / radius) * intensity * 100.0;
-                    let px = lm.x as u32;
-                    let py = lm.y as u32;
-                    if px < width && py < height {
-                        let p = rgba.get_pixel(px, py);
-                        rgba.put_pixel(
-                            px,
-                            py,
-                            Rgba([
-                                (p[0] as f32 + brightness).min(255.0) as u8,
-                                (p[1] as f32 + brightness).min(255.0) as u8,
-                                (p[2] as f32 + brightness).min(255.0) as u8,
-                                p[3],
-                            ]),
-                        );
-                    }
+                    // Smooth falloff: peak at centre, 0 at the edge.
+                    let falloff = 1.0 - dist / radius;
+                    let brightness = falloff * normalised_intensity * 255.0;
+                    let p = rgba.get_pixel(px, py);
+                    rgba.put_pixel(
+                        px,
+                        py,
+                        Rgba([
+                            (p[0] as f32 + brightness).min(255.0) as u8,
+                            (p[1] as f32 + brightness).min(255.0) as u8,
+                            (p[2] as f32 + brightness).min(255.0) as u8,
+                            p[3],
+                        ]),
+                    );
                 }
             }
         }
@@ -789,6 +837,22 @@ pub fn add_eye_catchlight(
 }
 
 /// Adjust smile by modifying lip landmark positions.
+///
+/// `smile_amount` is in the slider range [-100, 100]. Positive values lift
+/// the mouth corners (smile), negative values drop them (frown).
+///
+/// The previous implementation moved every lip landmark by the same dy,
+/// which produced a vertical translation of the whole mouth rather than a
+/// smile. The fix:
+///   - Mouth corners (MediaPipe-33 indices 61 = left, 291 = right) are
+///     lifted/dropped by the full `smile_amount`.
+///   - Other lip landmarks get a falloff based on their distance from the
+///     mouth centre, so the smile curve looks natural instead of a flat
+///     shift.
+///   - The dy is then NEGATED for the inverse warp (see comment in
+///     `calculate_face_warp_field`): to move a landmark UP visually, the
+///     displacement must point DOWN so `src = dest - disp` samples from
+///     below.
 pub fn adjust_smile(
     image: &DynamicImage,
     face_landmarks: &serde_json::Value,
@@ -799,24 +863,50 @@ pub fn adjust_smile(
         return Ok(image.clone());
     }
 
-    // Move mouth corner landmarks upward/downward to adjust smile
     let n = landmarks.len();
-    let mut modified_landmarks = landmarks.clone();
     let lip_indices = compute_lip_indices(n);
-
-    for &idx in &lip_indices {
-        if idx < n {
-            // Move lip landmarks vertically based on smile amount
-            modified_landmarks[idx].y += smile_amount / 100.0 * 2.0;
-        }
+    if lip_indices.is_empty() {
+        return Ok(image.clone());
     }
 
-    // Apply the warp
+    // Mouth centre x (we only need x for the corner-distance falloff).
+    let (mouth_cx, _mouth_cy) = compute_centroid_from_indices(&landmarks, &lip_indices);
+
+    // Maximum dy (in pixels) applied to mouth corners at |smile_amount| = 100.
+    // Negated because of the inverse-warp convention (see above).
+    let max_dy = -(smile_amount / 100.0) * 8.0;
+
+    // Mouth corner indices in the MediaPipe-468 mesh.
+    let corner_indices: [usize; 2] = [61, 291];
+
+    // Mouth half-width (used to compute the falloff) — distance from centre
+    // to the further corner.
+    let mouth_half_width = corner_indices
+        .iter()
+        .filter_map(|&idx| landmarks.get(idx))
+        .map(|lm| (lm.x - mouth_cx).abs())
+        .fold(0.0_f32, f32::max)
+        .max(1.0);
+
     let mut displacements = vec![Displacement::default(); n];
     for &idx in &lip_indices {
-        if idx < n {
-            displacements[idx].dy = modified_landmarks[idx].y - landmarks[idx].y;
+        if idx >= n {
+            continue;
         }
+        let lm = landmarks[idx];
+        let is_corner = corner_indices.contains(&idx);
+
+        // Falloff: 1.0 at corners, ~0 at mouth centre.
+        let dx_from_centre = (lm.x - mouth_cx).abs() / mouth_half_width;
+        let falloff = if is_corner {
+            1.0
+        } else {
+            dx_from_centre.min(1.0).powi(2)
+        };
+
+        // Positive smile_amount lifts corners UP visually, which under inverse
+        // warp means displacement.dy = negative (sample from below).
+        displacements[idx].dy = max_dy * falloff;
     }
 
     apply_warp_with_landmarks(image, &landmarks, &displacements)

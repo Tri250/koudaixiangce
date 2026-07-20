@@ -240,13 +240,16 @@ pub fn detect_skin_mask(image: &DynamicImage) -> GrayImage {
         }
     }
 
-    // Dilate slightly to avoid hard edges.
-    image::imageops::blur(&mask, 1.5);
+    // Dilate slightly to avoid hard edges. The blur returns a NEW GrayImage —
+    // previously the result was discarded and the original binary mask was
+    // re-quantised below, so the soft edges were lost and skin smoothing
+    // produced visible halos / hard transitions.
+    let blurred = image::imageops::blur(&mask, 1.5);
     // Re-quantise to binary.
     let mut binary = GrayImage::new(width, height);
     for y in 0..height {
         for x in 0..width {
-            let v = mask.get_pixel(x, y)[0];
+            let v = blurred.get_pixel(x, y)[0];
             binary.put_pixel(x, y, Luma([if v > 64 { 255 } else { 0 }]));
         }
     }
@@ -617,10 +620,13 @@ pub fn smooth_skin(
         "frequencyseparation" | "frequency_separation" => SkinSmoothingMethod::FrequencySeparation,
         _ => SkinSmoothingMethod::NeutralGray,
     };
+    // Front-end sliders emit values in [0, 100]; normalise to [0, 1] before
+    // clamping. Without this division any slider value ≥ 1 would saturate to
+    // full strength (1.0), making the entire 1–100 range look identical.
     let params = SkinSmoothingParams {
         method: smoothing_method,
-        strength: strength.clamp(0.0, 1.0),
-        texture_preservation: texture_preservation.clamp(0.0, 1.0),
+        strength: (strength / 100.0).clamp(0.0, 1.0),
+        texture_preservation: (texture_preservation / 100.0).clamp(0.0, 1.0),
         radius: radius.max(1.0),
     };
     let result = apply_skin_smoothing(image, &params);
@@ -670,7 +676,9 @@ pub fn unify_skin_color(
         face_bboxes.push((0.0, 0.0, w as f32, h as f32));
     }
 
-    let result = skin_color_uniform(image, &face_bboxes, strength.clamp(0.0, 1.0));
+    // Front-end slider emits values in [0, 100]; normalise to [0, 1] before
+    // clamping. See `smooth_skin` for the same pattern.
+    let result = skin_color_uniform(image, &face_bboxes, (strength / 100.0).clamp(0.0, 1.0));
     Ok(DynamicImage::ImageRgb8(result))
 }
 

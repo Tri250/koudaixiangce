@@ -112,26 +112,27 @@ pub fn calculate_transform_hash(adjustments: &serde_json::Value) -> u64 {
             is_visible.hash(&mut hasher);
 
             if let Some(patch_data) = patch.get("patchData") {
-                let color_len = patch_data
+                // IMPORTANT: hash the full string content, not just its length.
+                // Two patches with different colors/masks but the same encoded
+                // length would otherwise collide and return a stale cache entry,
+                // making user edits to existing patches silently invisible.
+                let color = patch_data
                     .get("color")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .len();
-                color_len.hash(&mut hasher);
+                    .unwrap_or("");
+                color.hash(&mut hasher);
 
-                let mask_len = patch_data
+                let mask = patch_data
                     .get("mask")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .len();
-                mask_len.hash(&mut hasher);
+                    .unwrap_or("");
+                mask.hash(&mut hasher);
             } else {
-                let data_len = patch
+                let data = patch
                     .get("patchDataBase64")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .len();
-                data_len.hash(&mut hasher);
+                    .unwrap_or("");
+                data.hash(&mut hasher);
             }
 
             if let Some(sub_masks_val) = patch.get("subMasks") {

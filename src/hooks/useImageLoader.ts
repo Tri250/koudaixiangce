@@ -22,8 +22,17 @@ export function useImageLoader(cachedEditStateRef: React.RefObject<any>) {
   const resetHistory = useEditorStore((s) => s.resetHistory);
   const setLibrary = useLibraryStore((s) => s.setLibrary);
   const appSettings = useSettingsStore((s) => s.appSettings);
+  const osPlatform = useSettingsStore((s) => s.osPlatform);
 
-  const isWgpuActive = appSettings?.useWgpuRenderer !== false && selectedImage?.isReady && hasRenderedFirstFrame;
+  // WGPU display path is disabled at compile time on Linux/Android. Even if the
+  // settings file claims useWgpuRenderer=true, the backend will never return
+  // WGPU_RENDER frames on those platforms, so treat WGPU as inactive.
+  const isWgpuActive =
+    appSettings?.useWgpuRenderer !== false &&
+    selectedImage?.isReady &&
+    hasRenderedFirstFrame &&
+    osPlatform !== 'android' &&
+    osPlatform !== 'linux';
 
   useEffect(() => {
     if (selectedImage && !selectedImage.isReady && selectedImage.path) {

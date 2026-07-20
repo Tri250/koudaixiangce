@@ -2376,7 +2376,7 @@ pub async fn apply_adjustments_to_paths(
             .state::<AppState>()
             .lens_db
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone();
 
         paths.par_iter().for_each(|path| {
@@ -2406,7 +2406,20 @@ pub async fn apply_adjustments_to_paths(
             existing_metadata.adjustments = new_adjustments;
 
             if let Ok(json_string) = serde_json::to_string_pretty(&existing_metadata) {
-                let _ = std::fs::write(&sidecar_path, json_string);
+                if let Err(e) = std::fs::write(&sidecar_path, json_string) {
+                    log::error!(
+                        "Failed to persist pasted adjustments to sidecar '{}': {}",
+                        sidecar_path.display(),
+                        e
+                    );
+                    app_handle
+                        .emit("paste-adjustments-error", format!(
+                            "Failed to write metadata to {}: {}",
+                            sidecar_path.display(),
+                            e
+                        ))
+                        .ok();
+                }
             }
 
             if enable_xmp_sync {
@@ -3529,7 +3542,21 @@ pub async fn import_files(
                         .to_os_string();
                     dest_rrexif_name.push(".rrexif");
                     let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
-                    let _ = fs::copy(&source_rrexif, &dest_rrexif);
+                    if let Err(e) = fs::copy(&source_rrexif, &dest_rrexif) {
+                        log::warn!(
+                            "Failed to copy sidecar '{}' to '{}': {}",
+                            source_rrexif.display(),
+                            dest_rrexif.display(),
+                            e
+                        );
+                        app_handle
+                            .emit("import-warning", format!(
+                                "Copied image but failed to copy sidecar metadata for {}: {}",
+                                source_path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default(),
+                                e
+                            ))
+                            .ok();
+                    }
                 }
 
                 if settings.delete_after_import {

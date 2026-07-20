@@ -44,7 +44,14 @@ fn build_ai_session(model_path: &Path) -> Result<Session> {
         };
     }
 
-    #[cfg(target_os = "linux")]
+    // CUDA / TensorRT execution providers are only available when the `ort`
+    // crate is built with the corresponding cargo features (`cuda`,
+    // `tensorrt`). Without those features (the default), referencing
+    // `ort::execution_providers::CUDA` is a compile error. Gate the block
+    // behind an explicit feature check so the project builds out-of-the-box,
+    // and users who want GPU acceleration can enable the features in
+    // Cargo.toml.
+    #[cfg(all(target_os = "linux", feature = "ort-cuda"))]
     {
         builder = match builder.with_execution_providers([
             ort::execution_providers::CUDA::default(),

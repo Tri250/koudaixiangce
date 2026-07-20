@@ -37,7 +37,9 @@ fn build_sr_session(model_path: &Path) -> Result<Session> {
         };
     }
 
-    #[cfg(target_os = "linux")]
+    // See `init_ai_session` in `ai_processing.rs` for why CUDA/TensorRT are
+    // gated behind an explicit cargo feature.
+    #[cfg(all(target_os = "linux", feature = "ort-cuda"))]
     {
         builder = match builder.with_execution_providers([
             ort::execution_providers::CUDA::default(),

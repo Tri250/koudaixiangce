@@ -11,7 +11,7 @@ use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 use std::time::Instant;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::formats::is_raw_file;
 use crate::image_processing::apply_cpu_default_raw_processing;

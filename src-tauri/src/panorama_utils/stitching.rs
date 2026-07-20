@@ -483,7 +483,7 @@ fn find_pairwise_seam_dp_vertical(ctx: &SeamContext) -> Option<Vec<i32>> {
         }
     }
     if first_overlap_row == usize::MAX {
-        return vec![];
+        return None;
     }
 
     for y in (first_overlap_row + 1)..=last_overlap_row {
@@ -525,7 +525,7 @@ fn find_pairwise_seam_dp_vertical(ctx: &SeamContext) -> Option<Vec<i32>> {
         }
     }
     if min_cost == f64::INFINITY {
-        return vec![];
+        return None;
     }
 
     for y in (first_overlap_row..=last_overlap_row).rev() {
@@ -583,7 +583,7 @@ fn find_pairwise_seam_dp_horizontal(ctx: &SeamContext) -> Option<Vec<i32>> {
         }
     }
     if first_overlap_col == usize::MAX {
-        return vec![];
+        return None;
     }
 
     for x in (first_overlap_col + 1)..=last_overlap_col {
@@ -625,7 +625,7 @@ fn find_pairwise_seam_dp_horizontal(ctx: &SeamContext) -> Option<Vec<i32>> {
         }
     }
     if min_cost == f64::INFINITY {
-        return vec![];
+        return None;
     }
 
     for x in (first_overlap_col..=last_overlap_col).rev() {
@@ -640,7 +640,7 @@ fn find_pairwise_seam_dp_horizontal(ctx: &SeamContext) -> Option<Vec<i32>> {
     for x in (last_overlap_col + 1)..out_width as usize {
         seam[x] = seam[last_overlap_col];
     }
-    seam
+    Some(seam)
 }
 
 pub fn warp_image_homography(

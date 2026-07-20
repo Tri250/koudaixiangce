@@ -152,6 +152,7 @@ pub struct AppState {
     pub portrait_state: Mutex<Option<PortraitState>>,
     pub portrait_init_lock: TokioMutex<()>,
     pub export_task_handle: Mutex<Option<JoinHandle<()>>>,
+    pub export_cancel_token: Arc<std::sync::atomic::AtomicBool>,
     pub exported_output_paths: Mutex<Vec<PathBuf>>,
     pub hdr_result: Arc<Mutex<Option<DynamicImage>>>,
     pub panorama_result: Arc<Mutex<Option<DynamicImage>>>,

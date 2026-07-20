@@ -632,7 +632,14 @@ function App() {
   };
 
   const shouldHideFolderTree = isAndroid;
-  const isWgpuActive = appSettings?.useWgpuRenderer !== false && selectedImage?.isReady && hasRenderedFirstFrame;
+  // WGPU display path is disabled at compile time on Linux/Android. Reflect that
+  // here so cached previews are released appropriately when switching images.
+  const isWgpuActive =
+    appSettings?.useWgpuRenderer !== false &&
+    selectedImage?.isReady &&
+    hasRenderedFirstFrame &&
+    osPlatform !== 'android' &&
+    osPlatform !== 'linux';
   const useMacWindowShell = osPlatform === 'macos' && !appSettings?.decorations && !isWindowFullScreen && !isFullScreen;
 
   return (

@@ -1110,7 +1110,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
     const bgSecondaryStr = rootStyle.getPropertyValue('--app-bg-secondary') || 'rgb(35, 35, 35)';
 
     wgpuStateRef.current = {
-      useWgpuRenderer: appSettings?.useWgpuRenderer,
+      useWgpuRenderer: appSettings?.useWgpuRenderer !== false && !isAndroid,
       isReady: selectedImage?.isReady ?? false,
       hasRenderedFirstFrame,
       isCropping,
@@ -1121,6 +1121,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
     };
   }, [
     appSettings?.useWgpuRenderer,
+    isAndroid,
     selectedImage?.isReady,
     hasRenderedFirstFrame,
     isCropping,
@@ -1131,6 +1132,12 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
   ]);
 
   useEffect(() => {
+    // WGPU display path is disabled on Android/Linux at compile time. Running the
+    // rAF loop here would only spawn 60 fps of no-op IPC (update_wgpu_transform is
+    // a no-op when display=None), wasting battery and CPU on mobile.
+    if (isAndroid) {
+      return;
+    }
     let isEffectActive = true;
     let isInvoking = false;
 
@@ -1274,7 +1281,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
         cancelAnimationFrame(wgpuSyncRef.current);
       }
     };
-  }, []);
+  }, [isAndroid]);
 
   const overlayTriggerHash = useMemo(() => {
     let activeMaskDef: any = null;
@@ -1933,7 +1940,12 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
     }
   }
 
-  const isWgpuActive = appSettings?.useWgpuRenderer !== false && hasRenderedFirstFrame;
+  // WGPU display path is disabled at compile time on Linux/Android. Reflect that
+  // here so the container styling and syncWgpu effect do not assume WGPU is active.
+  const isWgpuActive =
+    appSettings?.useWgpuRenderer !== false &&
+    hasRenderedFirstFrame &&
+    !isAndroid;
 
   return (
     <div
@@ -1942,7 +1954,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
         !isInstantTransition && 'transition-all duration-300 ease-in-out',
         isFullScreen
           ? 'rounded-none p-0 gap-0'
-          : clsx('rounded-lg p-2 gap-2', appSettings?.useWgpuRenderer !== false ? 'bg-transparent' : 'bg-bg-secondary'),
+          : clsx('rounded-lg p-2 gap-2', isWgpuActive ? 'bg-transparent' : 'bg-bg-secondary'),
       )}
     >
       <div
@@ -1977,7 +1989,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, transformWrappe
         className={clsx(
           'flex-1 relative overflow-hidden touch-none',
           isFullScreen ? 'rounded-none' : 'rounded-lg',
-          appSettings?.useWgpuRenderer !== false && !isFullScreen && 'ring-[9999px] ring-bg-secondary',
+          isWgpuActive && !isFullScreen && 'ring-[9999px] ring-bg-secondary',
           !isWgpuActive && 'bg-bg-secondary',
         )}
         style={{ cursor: cursorStyle }}

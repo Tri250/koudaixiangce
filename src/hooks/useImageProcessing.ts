@@ -183,13 +183,16 @@ export function useImageProcessing(
           active_waveform_channel: activeWaveformChannelRef.current || null,
         });
 
-        if (newlySentPatches.size > 0) {
-          newlySentPatches.forEach((id) => patchesSentToBackend.add(id));
-        }
-
+        // Mark patches as sent only AFTER we receive a successful (non-empty)
+        // response. If invoke rejects (worker crash, cancel), newlySentPatches
+        // must remain unset so the next flush re-dispatches them; otherwise
+        // the UI would believe the patch was applied and never retry.
         if (currentPath !== selectedImagePathRef.current) return;
 
         if (buffer && buffer.byteLength > 0 && jobId >= latestRenderedJobIdRef.current) {
+          if (newlySentPatches.size > 0) {
+            newlySentPatches.forEach((id) => patchesSentToBackend.add(id));
+          }
           latestRenderedJobIdRef.current = jobId;
 
           const textDecoder = new TextDecoder();
@@ -205,6 +208,15 @@ export function useImageProcessing(
           if (dragging) {
             if (buffer.byteLength < 24) {
               console.warn('Patch buffer too small:', buffer.byteLength);
+              // Clear any stale patch so the canvas does not keep showing a
+              // preview from a previous, now-superseded adjustment frame.
+              setEditor((state) => {
+                if (state.interactivePatch?.url) {
+                  const stale = state.interactivePatch.url;
+                  setTimeout(() => URL.revokeObjectURL(stale), 0);
+                }
+                return state.interactivePatch ? { interactivePatch: null } : state;
+              });
               return;
             }
             const view = new DataView(buffer);
@@ -217,6 +229,13 @@ export function useImageProcessing(
 
             if (fullW === 0 || fullH === 0) {
               console.warn('Invalid patch dimensions: fullW/fullH is zero');
+              setEditor((state) => {
+                if (state.interactivePatch?.url) {
+                  const stale = state.interactivePatch.url;
+                  setTimeout(() => URL.revokeObjectURL(stale), 0);
+                }
+                return state.interactivePatch ? { interactivePatch: null } : state;
+              });
               return;
             }
             const imageBuffer = buffer.slice(24);
@@ -224,9 +243,13 @@ export function useImageProcessing(
             const url = URL.createObjectURL(blob);
 
             setEditor((state) => {
-              if (state.interactivePatch?.url) {
-                const url = state.interactivePatch.url;
-                setTimeout(() => URL.revokeObjectURL(url), 100);
+              // Use a distinct name (prevUrl) so the outer `url` (the new blob URL
+              // we just created) is not shadowed by the previous patch URL we are
+              // about to revoke. Shadowing here previously caused the new URL to
+              // leak and interactivePatch to hold the about-to-be-revoked old URL.
+              const prevUrl = state.interactivePatch?.url;
+              if (prevUrl) {
+                setTimeout(() => URL.revokeObjectURL(prevUrl), 100);
               }
               return {
                 interactivePatch: {
@@ -260,9 +283,9 @@ export function useImageProcessing(
             });
 
             setEditor((state) => {
-              if (state.interactivePatch?.url) {
-                const url = state.interactivePatch.url;
-                setTimeout(() => URL.revokeObjectURL(url), 500);
+              const prevPatchUrl = state.interactivePatch?.url;
+              if (prevPatchUrl) {
+                setTimeout(() => URL.revokeObjectURL(prevPatchUrl), 500);
               }
               return { interactivePatch: null };
             });

@@ -604,6 +604,15 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
         let _ = fs::write(&path, json_string);
     }
 
+    // Platform truth: WGPU display path is disabled on Linux/Android at compile time
+    // (see lib.rs process_preview_job). Force the setting to reflect this so the
+    // frontend isWgpuActive checks cannot disagree with backend behavior, even if
+    // settings.json was synced from desktop or written by an older version.
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        settings.use_wgpu_renderer = Some(false);
+    }
+
     Ok(settings)
 }
 

@@ -1228,9 +1228,17 @@ const ImageCanvas = memo(
     const [isCtrlPressed, setIsCtrlPressed] = useState(false);
     const retainedPatchRef = useRef<typeof interactivePatch>(null);
 
-    const isWgpuActive = appSettings?.useWgpuRenderer !== false && selectedImage?.isReady && hasRenderedFirstFrame;
     const { t } = useTranslation();
     const osPlatform = useOsPlatform();
+    // WGPU display path is disabled at compile time on Linux/Android (see lib.rs
+    // process_preview_job). Reflect that here so SVG <image> elements always render
+    // the JPEG preview returned by the backend on those platforms.
+    const isWgpuActive =
+      appSettings?.useWgpuRenderer !== false &&
+      selectedImage?.isReady &&
+      hasRenderedFirstFrame &&
+      osPlatform !== 'android' &&
+      osPlatform !== 'linux';
     const modifierKey = osPlatform === 'macos' ? 'Cmd' : 'Ctrl';
 
     const manualCleanupStateRef = useRef({

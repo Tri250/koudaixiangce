@@ -395,7 +395,20 @@ fn save_image_with_metadata(
     }
 
     #[cfg(not(target_os = "android"))]
-    fs::write(output_path, image_bytes).map_err(|e| e.to_string())?;
+    {
+        // Atomic write via a sibling temp file + rename, so a crash mid-write
+        // never leaves a truncated file replacing the user's original output.
+        let tmp_path = output_path.with_extension("tmp_export_partial");
+        if let Err(e) = fs::write(&tmp_path, &image_bytes) {
+            // Clean up the partial temp file before bubbling the error.
+            let _ = fs::remove_file(&tmp_path);
+            return Err(format!("Failed to write export file: {}", e));
+        }
+        if let Err(e) = fs::rename(&tmp_path, output_path) {
+            let _ = fs::remove_file(&tmp_path);
+            return Err(format!("Failed to finalize export file: {}", e));
+        }
+    }
 
     Ok(())
 }
@@ -734,6 +747,10 @@ pub async fn export_images(
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    state
+        .export_cancel_token
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
     if state
@@ -820,11 +837,32 @@ pub async fn export_images(
         let mut join_handles = Vec::new();
 
         for (global_index, image_path_str, appearance_count, explicit_vc) in export_items {
-            let permit = semaphore
+            // Honor an in-flight cancel request before dispatching a new export unit.
+            // spawn_blocking cannot be aborted mid-run, so we check the token here
+            // and again at the start of the blocking closure.
+            if state
+                .export_cancel_token
+                .load(std::sync::atomic::Ordering::SeqCst)
+            {
+                break;
+            }
+
+            // The async block spawned by `tokio::spawn` returns `()`, so we
+            // cannot use `?` here. Match explicitly and skip this iteration on
+            // failure instead, emitting a progress event so the front-end can
+            // surface the error.
+            let permit = match semaphore
                 .clone()
                 .acquire_owned()
                 .await
-                .map_err(|e| format!("Failed to acquire semaphore: {}", e))?;
+                .map_err(|e| format!("Failed to acquire semaphore: {}", e))
+            {
+                Ok(p) => p,
+                Err(err) => {
+                    let _ = app_handle.emit("export-error", &err);
+                    continue;
+                }
+            };
 
             let app_handle_clone = app_handle.clone();
             let context_clone = Arc::clone(&context);
@@ -838,6 +876,16 @@ pub async fn export_images(
             let settings = settings.clone();
 
             let handle = tokio::task::spawn_blocking(move || {
+                // Check cancel token first; abort() cannot stop spawn_blocking,
+                // so we honor the token at the earliest point inside the closure.
+                if app_handle_clone
+                    .state::<AppState>()
+                    .export_cancel_token
+                    .load(std::sync::atomic::Ordering::SeqCst)
+                {
+                    return Err("Export cancelled".to_string());
+                }
+
                 if app_handle_clone
                     .state::<AppState>()
                     .export_task_handle
@@ -1105,6 +1153,12 @@ pub async fn export_images(
 
 #[tauri::command]
 pub fn cancel_export(state: tauri::State<AppState>) -> Result<(), String> {
+    // Signal all in-flight spawn_blocking closures to bail out as soon as they
+    // reach the next token check. abort() alone cannot stop spawn_blocking.
+    state
+        .export_cancel_token
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+
     match state
         .export_task_handle
         .lock()
