@@ -709,7 +709,9 @@ fn start_preview_worker(app_handle: tauri::AppHandle) {
         while let Ok(mut job) = rx.recv() {
             loop {
                 match rx.try_recv() {
-                    Ok(latest_job) => { job = latest_job; }
+                    Ok(latest_job) => {
+                        job = latest_job;
+                    }
                     Err(_) => break,
                 }
             }

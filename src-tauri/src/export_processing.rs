@@ -851,9 +851,7 @@ pub async fn export_images(
             // Honor an in-flight cancel request before dispatching a new export unit.
             // spawn_blocking cannot be aborted mid-run, so we check the token here
             // and again at the start of the blocking closure.
-            if cancel_token
-                .load(std::sync::atomic::Ordering::SeqCst)
-            {
+            if cancel_token.load(std::sync::atomic::Ordering::SeqCst) {
                 break;
             }
 
@@ -889,9 +887,7 @@ pub async fn export_images(
             let handle = tokio::task::spawn_blocking(move || {
                 // Check cancel token first; abort() cannot stop spawn_blocking,
                 // so we honor the token at the earliest point inside the closure.
-                if cancel_token_clone
-                    .load(std::sync::atomic::Ordering::SeqCst)
-                {
+                if cancel_token_clone.load(std::sync::atomic::Ordering::SeqCst) {
                     return Err("Export cancelled".to_string());
                 }
 
@@ -1136,9 +1132,7 @@ pub async fn export_images(
             let _ = app_handle.emit("export-complete", ());
         }
 
-        *task_handle
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = None;
+        *task_handle.lock().unwrap_or_else(|e| e.into_inner()) = None;
     });
 
     *state

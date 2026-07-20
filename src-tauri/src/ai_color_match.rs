@@ -1,5 +1,5 @@
 use base64::{Engine as _, engine::general_purpose};
-use image::{DynamicImage, GenericImageView, Rgb, RgbImage, RgbaImage};
+use image::{DynamicImage, GenericImageView, RgbImage};
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 

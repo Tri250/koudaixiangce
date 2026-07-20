@@ -438,16 +438,12 @@ fn letterbox_to_square(
 
 /// Map a normalised `[0, 1]` coordinate inside a letterboxed square back to
 /// pixel coordinates in the original image.
-fn unletterbox(
-    norm_coord: f32,
-    target: u32,
-    scale: f32,
-    pad: f32,
-    orig_size: u32,
-) -> f32 {
+fn unletterbox(norm_coord: f32, target: u32, scale: f32, pad: f32, orig_size: u32) -> f32 {
     // square_pixel = norm * target ; original_pixel = (square_pixel - pad) / scale
     let square_pixel = norm_coord * target as f32;
-    ((square_pixel - pad) / scale).max(0.0).min(orig_size as f32)
+    ((square_pixel - pad) / scale)
+        .max(0.0)
+        .min(orig_size as f32)
 }
 
 // ---------------------------------------------------------------------------
@@ -470,11 +466,8 @@ pub fn detect_faces(
     // Letterbox-resize to the model's square input, preserving aspect ratio.
     // Previously this used `resize_exact`, which stretched non-square images
     // and caused landmarks to be misplaced on rectangular inputs.
-    let (rgb, scale, pad_x, pad_y) = letterbox_to_square(
-        image,
-        FACE_LANDMARK_INPUT_SIZE,
-        Rgb([0u8, 0, 0]),
-    );
+    let (rgb, scale, pad_x, pad_y) =
+        letterbox_to_square(image, FACE_LANDMARK_INPUT_SIZE, Rgb([0u8, 0, 0]));
     let raw = rgb.as_raw();
 
     // Build input tensor (1, 3, H, W) float32 normalised to [0,1].
@@ -959,12 +952,14 @@ pub fn detect_faces_compat(
 
     let face_session = match models.face_landmark.as_ref() {
         Some(session) => Arc::clone(session),
-        None => return Ok(serde_json::json!({
-            "faces": [],
-            "modelLoaded": false,
-            "width": width,
-            "height": height
-        })),
+        None => {
+            return Ok(serde_json::json!({
+                "faces": [],
+                "modelLoaded": false,
+                "width": width,
+                "height": height
+            }));
+        }
     };
     let detected = detect_faces(image, &face_session)?;
 
@@ -1027,12 +1022,14 @@ pub fn detect_body_compat(
 
     let body_session = match models.body_pose.as_ref() {
         Some(session) => Arc::clone(session),
-        None => return Ok(serde_json::json!({
-            "poses": [],
-            "modelLoaded": false,
-            "width": width,
-            "height": height
-        })),
+        None => {
+            return Ok(serde_json::json!({
+                "poses": [],
+                "modelLoaded": false,
+                "width": width,
+                "height": height
+            }));
+        }
     };
     let detected = detect_body_pose(image, &body_session)?;
 

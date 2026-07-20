@@ -15,26 +15,34 @@ use tokio::sync::Mutex as TokioMutex;
 fn build_sr_session(model_path: &Path) -> Result<Session> {
     let mut builder = Session::builder()?.with_intra_threads(4)?;
 
-    #[cfg(target_os = "windows")]
+    #[cfg(all(target_os = "windows", feature = "ort-cuda"))]
     {
         builder = match builder.with_execution_providers([
             ort::execution_providers::CUDA::default(),
             ort::execution_providers::TensorRT::default(),
-            ort::execution_providers::DirectML::default(),
         ]) {
             Ok(b) => b,
             Err(_) => builder,
         };
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "windows", feature = "ort-directml"))]
     {
         builder = match builder
-            .with_execution_providers([ort::execution_providers::CoreML::default()])
+            .with_execution_providers([ort::execution_providers::DirectML::default()])
         {
             Ok(b) => b,
             Err(_) => builder,
         };
+    }
+
+    #[cfg(all(target_os = "macos", feature = "ort-coreml"))]
+    {
+        builder =
+            match builder.with_execution_providers([ort::execution_providers::CoreML::default()]) {
+                Ok(b) => b,
+                Err(_) => builder,
+            };
     }
 
     // See `init_ai_session` in `ai_processing.rs` for why CUDA/TensorRT are

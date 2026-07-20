@@ -5,7 +5,6 @@ use image::{
 };
 use reqwest::{Client, multipart};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;

@@ -88,6 +88,11 @@ include_dir = "0.7.4"
 gtk = "0.18.2"
 webkit2gtk = "=2.0.2"
 
+[features]
+ort-cuda = ["ort/cuda", "ort/tensorrt"]
+ort-directml = ["ort/directml"]
+ort-coreml = ["ort/coreml"]
+
 [build-dependencies]
 tauri-build = { version = "2.6", features = [] }
 sha2 = "0.11"

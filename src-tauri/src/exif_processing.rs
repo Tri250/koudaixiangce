@@ -95,10 +95,7 @@ fn try_load_backup_sidecar(sidecar_path: &Path) -> ImageMetadata {
 
     if let Ok(content) = fs::read_to_string(&bak_path) {
         if let Ok(meta) = serde_json::from_str::<ImageMetadata>(&content) {
-            log::info!(
-                "Recovered sidecar from backup: {}",
-                sidecar_path.display()
-            );
+            log::info!("Recovered sidecar from backup: {}", sidecar_path.display());
             let _ = atomic_write_sidecar(sidecar_path, &content);
             return meta;
         }

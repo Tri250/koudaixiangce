@@ -247,8 +247,20 @@ fn suppress_edge_artifacts(img: DynamicImage, border: u32) -> DynamicImage {
 
     for y in 0..h {
         for x in 0..w {
-            let edge_dist_x = if x < border { border - x } else if x >= w - border { x - (w - border - 1) } else { 0 };
-            let edge_dist_y = if y < border { border - y } else if y >= h - border { y - (h - border - 1) } else { 0 };
+            let edge_dist_x = if x < border {
+                border - x
+            } else if x >= w - border {
+                x - (w - border - 1)
+            } else {
+                0
+            };
+            let edge_dist_y = if y < border {
+                border - y
+            } else if y >= h - border {
+                y - (h - border - 1)
+            } else {
+                0
+            };
             let edge_dist = edge_dist_x.max(edge_dist_y);
             if edge_dist == 0 {
                 continue;

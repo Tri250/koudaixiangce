@@ -1,6 +1,4 @@
 use base64::{Engine as _, engine::general_purpose};
-use serde_json;
-use tauri::{AppHandle, Emitter, Manager};
 
 use crate::app_state::AppState;
 

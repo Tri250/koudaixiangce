@@ -13,7 +13,6 @@ use ort::session::Session;
 use ort::value::Tensor;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sysinfo::System;
 use tauri::Emitter;
 use tauri::Manager;
 use tokenizers::Tokenizer;
@@ -22,26 +21,34 @@ use tokio::sync::Mutex as TokioMutex;
 fn build_ai_session(model_path: &Path) -> Result<Session> {
     let mut builder = Session::builder()?;
 
-    #[cfg(target_os = "windows")]
+    #[cfg(all(target_os = "windows", feature = "ort-cuda"))]
     {
         builder = match builder.with_execution_providers([
             ort::execution_providers::CUDA::default(),
             ort::execution_providers::TensorRT::default(),
-            ort::execution_providers::DirectML::default(),
         ]) {
             Ok(b) => b,
             Err(_) => builder,
         };
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "windows", feature = "ort-directml"))]
     {
         builder = match builder
-            .with_execution_providers([ort::execution_providers::CoreML::default()])
+            .with_execution_providers([ort::execution_providers::DirectML::default()])
         {
             Ok(b) => b,
             Err(_) => builder,
         };
+    }
+
+    #[cfg(all(target_os = "macos", feature = "ort-coreml"))]
+    {
+        builder =
+            match builder.with_execution_providers([ort::execution_providers::CoreML::default()]) {
+                Ok(b) => b,
+                Err(_) => builder,
+            };
     }
 
     // CUDA / TensorRT execution providers are only available when the `ort`

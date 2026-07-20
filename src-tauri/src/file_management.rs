@@ -2413,11 +2413,14 @@ pub async fn apply_adjustments_to_paths(
                         e
                     );
                     app_handle
-                        .emit("paste-adjustments-error", format!(
-                            "Failed to write metadata to {}: {}",
-                            sidecar_path.display(),
-                            e
-                        ))
+                        .emit(
+                            "paste-adjustments-error",
+                            format!(
+                                "Failed to write metadata to {}: {}",
+                                sidecar_path.display(),
+                                e
+                            ),
+                        )
                         .ok();
                 }
             }
@@ -3550,11 +3553,17 @@ pub async fn import_files(
                             e
                         );
                         app_handle
-                            .emit("import-warning", format!(
-                                "Copied image but failed to copy sidecar metadata for {}: {}",
-                                source_path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default(),
-                                e
-                            ))
+                            .emit(
+                                "import-warning",
+                                format!(
+                                    "Copied image but failed to copy sidecar metadata for {}: {}",
+                                    source_path
+                                        .file_name()
+                                        .map(|n| n.to_string_lossy())
+                                        .unwrap_or_default(),
+                                    e
+                                ),
+                            )
                             .ok();
                     }
                 }

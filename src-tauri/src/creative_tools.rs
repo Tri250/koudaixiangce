@@ -1,8 +1,4 @@
-use anyhow;
-use image::{
-    DynamicImage, GenericImageView, GrayImage, ImageBuffer, Luma, Rgb, RgbImage, Rgba, RgbaImage,
-    imageops,
-};
+use image::{DynamicImage, GenericImageView, GrayImage, Luma, Rgba, RgbaImage, imageops};
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
