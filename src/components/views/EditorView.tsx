@@ -192,7 +192,7 @@ export default function EditorView({
         setUI((state) => ({ uiVisibility: { ...state.uiVisibility, filmstrip: value } }))
       }
       showFilmstrip={!isCompactPortrait}
-      showZoomControls={!isAndroid}
+      showZoomControls={isAndroidCompact || !isAndroid}
       thumbnailAspectRatio={thumbnailAspectRatio}
       totalImages={sortedImageList.length}
     />
@@ -290,7 +290,7 @@ export default function EditorView({
           </button>
         </div>
 
-        {/* Always-visible horizontal tab bar for Android compact mode */}
+        {/* Compact bottom bar for Android: rating, copy/paste, zoom */}
         <div className="shrink-0 border-t border-surface bg-bg-secondary relative z-[60]">
           <RightPanelSwitcher
             activePanel={activeRightPanel}
@@ -298,6 +298,11 @@ export default function EditorView({
             isInstantTransition={isInstantTransition}
             layout="horizontal"
           />
+        </div>
+
+        {/* Bottom bar with rating, copy/paste controls */}
+        <div className="shrink-0 bg-bg-secondary relative z-[60]">
+          {editorBottomBarComponent}
         </div>
 
         {/* Bottom sheet panel - only for content */}

@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 interface BottomSheetProps {
@@ -25,7 +25,15 @@ export default function BottomSheet({
   const startHeight = useRef(0);
   const shouldReduceMotion = useReducedMotion();
 
-  const maxH = maxHeight || (typeof window !== 'undefined' ? window.innerHeight * 0.6 : 400);
+  // Increase maxHeight to 75% of viewport for better content visibility on mobile
+  const maxH = maxHeight || (typeof window !== 'undefined' ? window.innerHeight * 0.75 : 400);
+
+  // Reset height to default when sheet opens, so user doesn't get stuck with a previously dragged size
+  useEffect(() => {
+    if (isOpen) {
+      setHeight(Math.min(defaultHeight, maxH));
+    }
+  }, [isOpen, defaultHeight, maxH]);
 
   const handleDragStart = useCallback((clientY: number) => {
     startY.current = clientY;
@@ -45,13 +53,18 @@ export default function BottomSheet({
   }, []);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    // Only handle drag from the drag handle area, not from content
     handleDragStart(e.touches[0].clientY);
   }, [handleDragStart]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
+    // Only preventDefault when actively dragging the handle,
+    // so content scrolling inside the sheet still works
+    if (isDragging) {
+      e.preventDefault();
+    }
     handleDragMove(e.touches[0].clientY);
-  }, [handleDragMove]);
+  }, [handleDragMove, isDragging]);
 
   const handleTouchEnd = useCallback(() => {
     handleDragEnd();
@@ -61,14 +74,34 @@ export default function BottomSheet({
     handleDragStart(e.clientY);
   }, [handleDragStart]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    handleDragMove(e.clientY);
-  }, [handleDragMove]);
+  // Use window-level events for mouse move/up so dragging works even when
+  // cursor leaves the handle area
+  useEffect(() => {
+    if (!isDragging) return;
 
-  const handleMouseUp = useCallback(() => {
-    handleDragEnd();
-  }, [handleDragEnd]);
+    const onMouseMove = (e: MouseEvent) => {
+      handleDragMove(e.clientY);
+    };
+    const onMouseUp = () => {
+      handleDragEnd();
+    };
 
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isDragging, handleDragMove, handleDragEnd]);
+
+  const handleHandleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); // prevent text selection during drag
+    handleDragStart(e.clientY);
+  }, [handleDragStart]);
+
+  // Don't attach onMouseMove/onMouseUp to the handle div directly;
+  // those are handled by the window-level listeners above.
+  // Only onMouseDown (to initiate drag) remains on the handle.
   return (
     <AnimatePresence>
       {isOpen && (
@@ -82,22 +115,20 @@ export default function BottomSheet({
           style={{
             height: `${height}px`,
             transition: isDragging ? 'none' : 'height 220ms cubic-bezier(0, 0, 0.2, 1)',
+            touchAction: isDragging ? 'none' : 'pan-y',
           }}
         >
           {/* Drag handle */}
           <div
-            className="flex justify-center py-3 cursor-grab active:cursor-grabbing select-none"
+            className="flex justify-center py-3 cursor-grab active:cursor-grabbing select-none touch-none"
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+            onMouseDown={handleHandleMouseDown}
           >
             <div className="w-10 h-1 rounded-full bg-text-secondary/30 transition-all duration-200" />
           </div>
-          <div className="overflow-y-auto" style={{ height: `${Math.max(0, height - 28)}px` }}>
+          <div className="overflow-y-auto" style={{ height: `${Math.max(0, height - 32)}px` }}>
             {children}
           </div>
         </motion.div>
