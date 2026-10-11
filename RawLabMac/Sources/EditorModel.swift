@@ -17,8 +17,8 @@ final class EditorModel: ObservableObject {
     @Published var selectedFilmID = "" {
         didSet {
             if !updatingMetadata {
-                if !selectedFilmID.isEmpty && settings.masterRecipeID != nil {
-                    settings.masterRecipeID = nil
+                if settings.masterRecipeID != nil {
+                    settings.clearMasterRecipe()
                 }
                 edited()
             }
@@ -61,11 +61,15 @@ final class EditorModel: ObservableObject {
     var canApplySettings: Bool { file != nil && result != nil && !busy && !exporting && !lookLibraryBusy && !missingFilm && !missingMasterRecipe }
 
     func selectMasterRecipe(_ recipe: MasterRecipe?) {
-        guard settings.masterRecipeID != recipe?.id else { return }
-        settings.masterRecipeID = recipe?.id
-        if recipe != nil {
+        guard recipe != nil || settings.masterRecipeID != nil else { return }
+        updatingMetadata = true
+        if let recipe {
+            settings.applyMasterRecipe(recipe)
             selectedFilmID = ""
+        } else {
+            settings.clearMasterRecipe()
         }
+        updatingMetadata = false
         edited()
     }
 
@@ -376,7 +380,7 @@ final class EditorModel: ObservableObject {
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self.finish(request, neutral: neutral, result: nil, failure: error)
+                    self.finish(request, neutral: nil, result: nil, failure: error)
                 }
             }
         }

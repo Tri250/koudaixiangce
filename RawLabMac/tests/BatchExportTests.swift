@@ -21,6 +21,22 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         var job = BatchExportJob(source: inputs[0], settings: settings, look: nil, lookName: "Velvia")
         job.longEdge = 2048
         let encodedJob = try JSONEncoder().encode(job)
+        var legacyRecipeJob = try JSONSerialization.jsonObject(with: encodedJob) as! [String: Any]
+        var legacyRecipeSettings = legacyRecipeJob["settings"] as! [String: Any]
+        legacyRecipeSettings["masterRecipeID"] = MasterRecipe.hamadaDaylightV2.id
+        legacyRecipeSettings["exposure"] = 0
+        legacyRecipeSettings.removeValue(forKey: "masterRecipeSettingsVersion")
+        legacyRecipeJob["settings"] = legacyRecipeSettings
+        let legacyRecipeJournal = BatchJournal(directory: root.appendingPathComponent("legacy-recipe-journal"))
+        try FileManager.default.createDirectory(at: legacyRecipeJournal.directory, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: legacyRecipeJob).write(to: legacyRecipeJournal.directory.appendingPathComponent("job.json"))
+        let restoredRecipeJob = try legacyRecipeJournal.load()!
+        try check(restoredRecipeJob.settings.exposure == 0.4 && restoredRecipeJob.settings.shadows == 20 &&
+                  restoredRecipeJob.settings.tint == 5,
+                  "unfinished legacy recipe jobs migrate their frozen controls")
+        try legacyRecipeJournal.save(restoredRecipeJob)
+        try check(try legacyRecipeJournal.load()?.settings == restoredRecipeJob.settings,
+                  "reloaded migrated jobs do not apply recipe defaults twice")
         try check(try JSONDecoder().decode(BatchExportJob.self, from: encodedJob).longEdge == 2048,
                   "batch keeps the chosen export size")
         var legacyJob = try JSONSerialization.jsonObject(with: encodedJob) as! [String: Any]

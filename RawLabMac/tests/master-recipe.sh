@@ -10,6 +10,6 @@ swiftc -swift-version 5 -O -sdk "$SDK" \
     "$ROOT/RawLabMac/Sources/MasterRecipe.swift" \
     "$ROOT/RawLabMac/Sources/Adjustments.swift" \
     "$ROOT/RawLabMac/tests/MasterRecipeTests.swift" \
-    -framework Foundation -o "$OUT/master-recipe-tests"
+    -framework Foundation -framework ImageIO -o "$OUT/master-recipe-tests"
 "$OUT/master-recipe-tests"
 rm -rf "$OUT"

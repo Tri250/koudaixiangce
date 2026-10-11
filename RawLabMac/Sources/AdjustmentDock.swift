@@ -43,7 +43,7 @@ struct AdjustmentDock: View {
                             let active = selected == nil && dockCategory == .masterRecipe
                             let changed = model.settings.masterRecipeID != nil
                             VStack(spacing: 5) {
-                                Image(systemName: "wand.and.stars").font(.system(size: 19))
+                                Image(systemName: "photo.stack").font(.system(size: 19))
                                     .frame(width: 40, height: 40)
                                     .background(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
                                     .overlay { Circle().strokeBorder(active ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }

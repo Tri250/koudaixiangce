@@ -111,7 +111,7 @@ struct EditorView: View {
     private var bottomControls: some View {
         VStack(spacing: 0) {
             HStack(spacing: 14) {
-                Text(model.selectedMasterRecipe?.name.map { "\($0) · 大师配方" } ?? model.selectedFilm?.name ?? "中性").font(.caption).foregroundStyle(.secondary)
+                Text(model.selectedMasterRecipe.map { "\($0.name) · 大师配方" } ?? model.selectedFilm?.name ?? "中性").font(.caption).foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle).frame(maxWidth: 160, alignment: .leading)
                 Spacer(minLength: 8)
                 Picker("曝光基准", selection: $model.settings.exposureMode) {
