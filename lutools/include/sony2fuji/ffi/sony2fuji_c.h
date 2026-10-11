@@ -227,6 +227,10 @@ typedef struct sony2fuji_color_look_report {
 // Recipe v1: tone[9], chroma, 8*(hue degrees, chroma scale, lightness),
 // 3*(Oklab a,b) for shadows/midtones/highlights. Exactly 40 finite floats.
 // Compile v2 appends shadowStart, shadowEnd, highlightStart, highlightEnd (44 floats).
+// Compile v3 further appends a row-major 2x2 Oklab chroma matrix and a,b bias (50 floats).
+// The bias is multiplied by 4*input_L*(1-input_L) to preserve black/white endpoints.
+// v3 uses linear-RGB channel clipping; v1/v2 retain their neutral-axis gamut compression.
+// These parameters are already frozen from real images; compilation performs no image analysis.
 // Boundaries use post-curve/hue-lift Oklab L, are in [0,1], with widths >= .05
 // (1e-7 float tolerance), shadowStart <= highlightStart, shadowEnd <= highlightEnd.
 // v1 retains fixed boundaries .2, .6, .4, .8 and its existing behavior.

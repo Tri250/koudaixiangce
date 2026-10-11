@@ -146,6 +146,27 @@ private final class FixtureProtocol: URLProtocol {
         try check(refinedText.contains("shadowEnd") && refinedText.contains("0.45") &&
                   refinedText.contains("80%") && refinedText.contains("default boundaries 0.2, 0.6, 0.4, 0.8"),
                   "Refinement includes actual manual boundaries and states the next recipe reset")
+        _ = try await service.generate(configuration: configuration,key: "test-only-key",images: [prepared,prepared,prepared],
+            instruction: "keep the look",previous: recipe,previousControls: AIColorControls(color: 0.5,tone: 0.25))
+        let controlledRefinement = String(data: FixtureProtocol.lastRequest()!.httpBody!,encoding: .utf8)!
+        try check(controlledRefinement.contains("unscaled base recipe") && controlledRefinement.contains("\\\"color\\\":0.5") &&
+                  controlledRefinement.contains("same independent controls"), "Refinement describes unscaled parameters and the controls applied once")
+        _ = try await service.generate(configuration: configuration, key: "test-only-key",
+            images: [prepared, loaded], instruction: "shared style", previous: nil,
+            target: .referenceStyle, referenceWeights: [0.25,0.75])
+        let referenceRequest = FixtureProtocol.lastRequest()!
+        let referencePayload = try JSONSerialization.jsonObject(with: referenceRequest.httpBody!) as! [String: Any]
+        let messages = referencePayload["messages"] as! [[String: Any]]
+        let parts = messages[1]["content"] as! [[String: Any]]
+        let roles = parts[0]["text"] as! String
+        try check(parts.count == 3 && roles.contains("NO SOURCE") && roles.contains("0.25") && roles.contains("0.75"),
+                  "Reference-only generation has no source role and binds normalized weights to references")
+        _ = try await service.generate(configuration: configuration, key: "test-only-key",
+            images: [prepared], instruction: "refine shared style", previous: recipe, target: .referenceStyle,
+            referenceWeights: [1])
+        let referenceRefinement = String(data: FixtureProtocol.lastRequest()!.httpBody!, encoding: .utf8)!
+        try check(referenceRefinement.contains("NO SOURCE") && !referenceRefinement.contains("Image 2 is the CURRENT CANDIDATE"),
+                  "Reference-only refinement does not require uploading a candidate image")
         FixtureProtocol.reply(Data("{\"error\":\"secret remote contents\"}".utf8), status: 401)
         do {
             _ = try await service.generate(configuration: configuration, key: "test-only-key", images: [prepared, prepared], instruction: "", previous: nil)

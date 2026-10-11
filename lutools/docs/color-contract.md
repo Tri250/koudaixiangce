@@ -155,6 +155,8 @@ a perceptual reference-match score or a proof over every RGB input. Exported
 CUBEs retain the input/output contract and table but omit recipe/model metadata.
 They require a display-sRGB input in other applications and do not reproduce
 RAW exposure, white balance, detail settings or the current strength slider.
+Independent color/tone controls are resolved into the table before baking;
+the overall 0-200% strength slider is not baked.
 
 The AI JSON schema remains version 1 with 40 style parameters. The native
 compiler additionally accepts compile version 2: those same 40 floats followed
@@ -175,6 +177,38 @@ renders both arms at the same strength, and compiles manual edits locally with
 no AI request. Private metadata records the style and region values; sanitized
 export strips both. The resulting CUBE is a static resolved transform, not a
 model that re-estimates boundaries for another photograph.
+
+Compile version 3 accepts the same 44 floats plus a row-major 2x2 Oklab chroma
+matrix (`a00,a01,a10,a11`) and two biases (`a,b`), 50 floats total. Entries must
+be finite, matrix entries in `[-4,4]`, biases in `[-.08,.08]`. The fixed matrix
+acts on input Oklab a/b before the existing style pipeline; bias is multiplied
+by `4*input_L*(1-input_L)` to protect black/white endpoints. This constrained
+rendering does not exactly transport the original Gaussian distribution. Version
+3 clips linear-RGB channels to the unit domain: neutral-axis compression was
+found to amplify very small statistical errors near saturated gamut boundaries
+and fail even near-identity fits. Versions 1/2 retain neutral-axis compression,
+identity chroma matrices and zero bias. The gamut policy is recorded in private
+metadata; channel clipping is not a perceptual gamut mapping or lightness guarantee.
+
+The Mac local baseline estimates per-image display-sRGB/Oklab statistics from
+at most a 256-pixel long-edge proxy, excluding L <= .02 or >= .98. References
+are normalized by user weight rather than pixel count. Means and within-image
+covariances are averaged independently; there is no between-image scatter term
+or claim of a Bures barycenter. The Gaussian OT fit uses the symmetric optimal
+map on covariance matrices regularized by `.95*Sigma + .05*trace(Sigma)/2*I +
+1e-6*I`. Eigenvalue gains are limited to [.25,4], biases to [-.08,.08]. Low
+chroma variance on either side (<1e-7 trace) falls back to identity chroma with
+a diagnostic. Reinhard is a diagonal Oklab engineering variant, not the original
+l-alpha-beta algorithm. The independently controlled nine-knot tone curve is
+endpoint-preserving and conservative, not a full reference histogram match.
+
+Both local methods are source-dependent matching LUTs. The reference-only AI
+mode sends no source/candidate image and estimates a style for neutral sRGB;
+this input boundary is not a guarantee of content/style disentanglement. Public
+export retains only a whitelisted `#RawLabAssetKind:sourceMatch` or
+`#RawLabAssetKind:referenceStyle` label besides the existing contract and table.
+Private metadata stores the base recipe, frozen mapping, independent controls,
+method, target and diagnostics. No spatial or semantic correction is implied.
 
 F-Log/F-Log2/F-Log2C inputs and named display or explicit Log outputs are implemented
 in the CPU, Metal, GLES and D3D11 photo paths. The GPU receives the same input

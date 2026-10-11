@@ -5,13 +5,35 @@ import SwiftUI
 private final class MatchProtocol: URLProtocol {
     static var response = Data()
     static var calls = 0
+    static var imageURLs: [String] = []
+    static var echoPrevious = false
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.calls += 1
+        var body = request.httpBody ?? Data()
+        if let stream = request.httpBodyStream {
+            stream.open(); defer { stream.close() }
+            var buffer = [UInt8](repeating: 0,count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer,maxLength: buffer.count)
+                if count <= 0 { break }; body.append(buffer,count: count)
+            }
+        }
+        var response = Self.response
+        if let payload = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+           let messages = payload["messages"] as? [[String: Any]],
+           let parts = messages.last?["content"] as? [[String: Any]] {
+            Self.imageURLs = parts.compactMap { ($0["image_url"] as? [String: String])?["url"] }
+            if Self.echoPrevious, let text = parts.first?["text"] as? String,
+               let range = text.range(of: "Current recipe to REPLACE, not compose: ") {
+                let recipe = String(text[range.upperBound...].prefix(while: { $0 != "\n" }))
+                response = (try? JSONSerialization.data(withJSONObject: ["choices": [["finish_reason": "stop","message": ["content": recipe]]]])) ?? Data()
+            }
+        }
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
             headerFields: ["Content-Type": "application/json"])!, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.response)
+        client?.urlProtocol(self, didLoad: response)
         client?.urlProtocolDidFinishLoading(self)
     }
     override func stopLoading() {}
@@ -94,7 +116,13 @@ private func check(_ value: @autoclosure () throws -> Bool, _ name: String) thro
         try AIFileExporter.write(source: look.url, destination: exported, protecting: [raw], overwrite: false)
         let publicText = try String(contentsOf: exported, encoding: .utf8)
         try check(!publicText.contains("RawLabRecipe") && !publicText.contains("test-model") &&
-                  publicText.contains("#Gamma:sRGB to sRGB"), "Share export omits private recipe provenance")
+                  publicText.contains("#Gamma:sRGB to sRGB") && publicText.contains("#RawLabAssetKind:sourceMatch"),
+                  "Share export omits private recipe provenance and retains the source-match label")
+        let style = try AIColorLook.compile(recipe: recipe, model: "test-model", target: .referenceStyle)
+        let styleExport = folder.url.appendingPathComponent("reference-style.cube")
+        try AIFileExporter.write(source: style.url, destination: styleExport, protecting: [], overwrite: false)
+        try check(try String(contentsOf: styleExport,encoding: .utf8).contains("#RawLabAssetKind:referenceStyle"),
+                  "Reference-style export has an explicit public asset-kind label")
         let before = try Data(contentsOf: raw)
         do {
             try AIFileExporter.write(source: look.url, destination: raw, protecting: [raw], overwrite: true)
@@ -170,7 +198,7 @@ private func check(_ value: @autoclosure () throws -> Bool, _ name: String) thro
             match.cancelGeneration()
             try await Task.sleep(nanoseconds: 50_000_000)
             try check(!match.isBusy && match.candidate?.url == candidateURL, "Cancellation retains the previous validated candidate")
-            let calls = MatchProtocol.calls
+            var calls = MatchProtocol.calls
             match.updateRegions(regions)
             try check(!match.canApply && !match.canExport, "Pending adaptation cannot apply or export the previous look")
             try await ready(match)
@@ -207,10 +235,30 @@ private func check(_ value: @autoclosure () throws -> Bool, _ name: String) thro
             try check(match.previewStrength == 0.8 && match.candidate?.regions == regions && MatchProtocol.calls == calls &&
                       match.fixedPreview?.image.dataProvider?.data == fixedFrame.image.dataProvider?.data,
                       "Fixed and adapted comparisons use the same rendered strength")
+            match.updateControls(AIColorControls(color: 0.7, tone: 0.3))
+            try check(!match.canApply && !match.canExport, "Pending independent controls block stale apply/export")
+            try await ready(match)
+            try check(match.candidate?.controls == AIColorControls(color: 0.7, tone: 0.3) && MatchProtocol.calls == calls,
+                      "Color and tone controls recompile locally without HTTP")
+            match.updateControls(.full); match.cancelGeneration()
+            try check(match.controls == AIColorControls(color: 0.7, tone: 0.3) && match.canApply,
+                      "Cancellation restores both independent controls")
+            MatchProtocol.echoPrevious = true
+            match.generate(configuration: AIConfiguration(baseURL: "https://fixture.invalid",model: "test"),key: "fixture-key")
+            try await ready(match)
+            MatchProtocol.echoPrevious = false; calls += 1
+            try check(match.candidate?.recipe == fixtureRecipe && match.controls == AIColorControls(color: 0.7,tone: 0.3),
+                      "Echoing the prior base recipe does not apply independent controls twice")
+            match.updateRegions(regions)
+            match.updateControls(.full)
+            try await ready(match)
+            match.updateStrength(0.8)
+            try await ready(match)
             if ProcessInfo.processInfo.environment["RAWLAB_AI_UI"] == "1" {
                 let app = NSApplication.shared
                 app.setActivationPolicy(.regular)
-                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 740),
+                let compact = ProcessInfo.processInfo.environment["RAWLAB_AI_UI_COMPACT"] == "1"
+                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: compact ? 820 : 1000, height: compact ? 640 : 740),
                     styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
                 window.isReleasedWhenClosed = false
                 window.title = "RawLab AI Local Fixture"
@@ -235,6 +283,38 @@ private func check(_ value: @autoclosure () throws -> Bool, _ name: String) thro
             try check(model.settings == original.state.settings && model.selectedFilmID == original.state.filmID && !model.canRestoreAI,
                       "Restore returns to the complete pre-AI edit")
             try await ready(model)
+            let local = try AIColorMatchModel(editor: model, service: AIService(sessionConfiguration: config))
+            await local.prepare()
+            await local.addReferences([reference,reference])
+            try check(local.references.count == 1, "Identical prepared references are not added twice")
+            local.setMethod(.chromaOT)
+            let localFit = try AIColorStatistics.fit(source: AIColorStatistics.analyze(local.source!.image),
+                references: [(AIColorStatistics.analyze(local.references[0].image),1)],method: .chromaOT)
+            print("Local reencoded-reference mapping: \(localFit.mapping.parameters)")
+            local.generateLocal()
+            try await ready(local)
+            try check(local.candidate?.method == .chromaOT && local.candidate?.target == .sourceMatch &&
+                      local.controls == .preserveTone && MatchProtocol.calls == calls,
+                      "Local chroma OT fits real preview pixels without HTTP and defaults to preserved tone")
+            let localURL = local.candidate!.url
+            local.updateControls(AIColorControls(color: 0.5,tone: 0.4))
+            local.cancelGeneration()
+            try check(local.candidate?.url == localURL && local.controls == .preserveTone && local.canApply,
+                      "Local fit remains frozen when an adjustment is cancelled")
+            local.setReferenceWeight(local.references[0].id, 0)
+            try check(local.candidate == nil && !local.canGenerate && !local.canApply,
+                      "Changing a reference weight invalidates the old candidate and zero active references block generation")
+            local.setReferenceWeight(local.references[0].id, 1)
+            local.setMethod(.reinhard); local.generateLocal()
+            try await ready(local)
+            try check(local.candidate?.method == .reinhard && MatchProtocol.calls == calls, "Reinhard uses the same local frozen workflow")
+            local.setMethod(.ai); local.setTarget(.referenceStyle)
+            local.generate(configuration: AIConfiguration(baseURL: "https://fixture.invalid",model: "test"),key: "fixture-key")
+            try await ready(local)
+            try check(local.candidate?.target == .referenceStyle && MatchProtocol.imageURLs ==
+                      ["data:image/jpeg;base64,"+local.references[0].jpeg.base64EncodedString()],
+                      "Reference-only model path uploads references, not the source or candidate")
+            local.close()
             let stale = try model.freezeAIEdit()
             model.settings.exposure += 0.2
             do {

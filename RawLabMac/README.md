@@ -20,7 +20,11 @@ The left pane is the neutral render and the right pane is Velvia. Film selection
 
 在“AI 服务设置”填写兼容的 HTTPS API 地址、模型和自己的 Key。默认 DeepSeek；密钥按服务地址隔离保存在 Keychain。连接测试只读取模型列表，不代表模型支持图片。正式应用不读取仓库 `.env`，该文件仅供显式开发联调。
 
-生成时上传当前照片的中性预览和参考图，继续调整还会上传上一候选预览；不会上传 RAW、路径或拍摄元数据。图像按方向处理、转 sRGB、限制长边 1600 像素与每张 2 MiB，再重新编码。停止会取消网络请求及尚未执行的本地阶段；已进入 LibRaw/ImageIO 的同步调用须等待返回，结果不会应用。
+AI 模式提供“当前素材匹配”和“仅参考风格”。前者上传当前照片中性预览及参考图，继续调整还上传上一候选；后者只上传启用的参考图，不上传当前照片或候选。不会上传 RAW、路径或拍摄元数据。图像按方向处理、转 sRGB、限制长边 1600 像素与每张 2 MiB，再重新编码。停止会取消网络请求及尚未执行的本地阶段；已进入 LibRaw/ImageIO 的同步调用须等待返回，结果不会应用。
+
+“色度 OT”和“Reinhard”在本机计算，不需要 API Key。两者均是 Oklab 统计工程基线，针对当前素材，不是已训练的多参考风格网络。每图先独立统计，再按参考权重聚合图内统计；0 权重排除，重复的准备预览不重复添加。修改参考、权重、方法或生成目标会使旧候选失效，需要重新生成。此聚合不使用组间均值散布，也不声称解决了参考内容与调色风格混淆。
+
+颜色强度与影调强度独立控制（0–100%），整体强度仍为最终 CUBE 与原图混合（0–200%）。本地默认影调强度为 0，保留色度迁移步骤的输入 Oklab L；色域压缩后的显示亮度不保证严格不变。统计、矩阵和曲线在真实预览上冻结；强度和分区调整只重编译固定变换，不重做统计或发送 AI 请求。低信息图像回退或报错，限制增益的情况有诊断，采样门槛不因参考不合适而放宽。
 
 模型返回结构化配方，由本机生成和校验 CUBE，不下载模型提供的 LUT。新外观应用在精确中性显影后的显示 sRGB 域；不改动原有 Log CUBE/DCP 路径。默认 65-grid，必要时尝试 129-grid，采样最大通道误差必须不超过 0.02，否则拒绝候选。此数值不是仿色质量评分。
 
@@ -28,7 +32,9 @@ The left pane is the neutral render and the right pane is Velvia. Film selection
 
 这仍是手动对照实验，未训练 KNN，也未自动预测分区。私有 CUBE 元数据记录风格和四个边界；公共导出只保留最终表值，不是可继续编辑或自动适配新照片的配方。复现实验见 [分区实验报告](../docs/verification-adaptive-tone-regions-2026-10-10.md)。
 
-候选面板和已保存 AI 外观的右键菜单均提供“导出 CUBE”和系统分享。导出是原始 100% 外观，移除配方/模型信息，保留 sRGB 输入输出声明与表值；不包含曝光、白平衡、细节或强度。第三方软件必须把它应用于显示 sRGB 图像，不能直接当作 RAW/Log 输入 LUT。
+候选面板和已保存 AI 外观的右键菜单均提供“导出 CUBE”和系统分享。导出包含已确认的颜色/影调强度及明暗分区，但不包含整体强度滑杆、RAW 曝光、白平衡或细节处理。公开导出移除配方/模型等私有信息，保留 sRGB 声明、表值及 `sourceMatch` / `referenceStyle` 资产类别。仅参考风格表示没有使用当前照片生成，不表示已证明跨内容通用性；本地统计只能导出素材匹配。第三方软件必须把它应用于显示 sRGB 图像，不能直接当作 RAW/Log 输入 LUT。
+
+本轮实现及验证见 [统计基线验证记录](../docs/verification-color-transfer-baselines-2026-10-11.md)。NLUT、CanonCGT 仅完成公开资源静态核验，尚未下载或运行模型；语义蒙版、规范化网络及多参考训练未实现。
 
 The unreleased macOS workflow uses a user-supplied API key, bounded metadata-free previews and a locally validated recipe-to-CUBE compiler. Candidate preview, apply/restore, managed looks, sanitized CUBE export and native file sharing are implemented. These are display-sRGB creative LUTs, not RAW/Log input transforms. See the [verification report](../docs/verification-macos-ai-color-match-2026-10-09.md) for tested scope and remaining GUI/subjective-quality checks.
 

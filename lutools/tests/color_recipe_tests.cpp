@@ -52,6 +52,49 @@ int main() {
     const auto status = sony2fuji_compile_color_look(1, parameters.data(), parameters.size(), path.c_str(), &report);
     check(status == SONY2FUJI_STATUS_OK, "Compile default recipe to display CUBE");
     check(report.grid_size == 65 && report.max_error < 0.00002f, "Default recipe preserves display colors");
+    std::array<float, 50> statistical{};
+    std::copy(parameters.begin(), parameters.end(), statistical.begin());
+    std::copy_n(std::array<float, 10>{.2f,.6f,.4f,.8f,1,0,0,1,0,0}.begin(), 10, statistical.begin()+40);
+    auto acceptsMapping = [&](const std::array<float, 50>& values) {
+        try { sony2fuji::ColorRecipe::fromParameters(3, values.data(), values.size()); return true; }
+        catch (const std::invalid_argument&) { return false; }
+    };
+    check(acceptsMapping(statistical), "Version 3 accepts a frozen chroma mapping");
+    if (acceptsMapping(statistical)) {
+        const auto legacy = sony2fuji::ColorRecipe::fromParameters(1, parameters.data(), 40);
+        const auto neutral = sony2fuji::ColorRecipe::fromParameters(3, statistical.data(), 50);
+        bool same = true;
+        for (int i = 0; i <= 1000; ++i) {
+            const sony2fuji::RGB pixel(i/1000.f, .4f, .8f);
+            same = same && difference(legacy.apply(pixel), neutral.apply(pixel)) < .000002f;
+        }
+        check(same, "Identity chroma mapping preserves legacy colors");
+        auto biased = statistical; biased[48] = .005f;
+        const auto protectedBias = sony2fuji::ColorRecipe::fromParameters(3, biased.data(), 50);
+        const double lightness = .25;
+        const float grayValue = sony2fuji::GammaConverter::applySRGBGamma(float(lightness*lightness*lightness));
+        const sony2fuji::RGB gray(grayValue,grayValue,grayValue);
+        check(std::abs(oklabA(protectedBias.apply(gray))-oklabA(neutral.apply(gray))-.005*4*lightness*(1-lightness)) < 1e-6,
+              "Chroma bias fades toward black and white to avoid near-black gamut discontinuities");
+        statistical[44] = .85f; statistical[47] = .9f; statistical[48] = -.002f;
+        const auto mapped = sony2fuji::ColorRecipe::fromParameters(3, statistical.data(), 50);
+        check(difference(mapped.apply(sony2fuji::RGB(.4f,.6f,.7f)), neutral.apply(sony2fuji::RGB(.4f,.6f,.7f))) > .001f,
+              "Frozen chroma mapping affects the rendered colors");
+        const auto mappedPath = (dir / "statistical.cube").u8string();
+        check(sony2fuji_compile_color_look(3, statistical.data(), 50, mappedPath.c_str(), &report) == SONY2FUJI_STATUS_OK &&
+              report.max_error <= .02f, "Frozen chroma mapping passes the unchanged bake gate");
+        statistical[44] = 4.01f;
+        check(!acceptsMapping(statistical), "Reject excessive chroma matrix gain");
+        statistical[44] = 1; statistical[48] = std::numeric_limits<float>::quiet_NaN();
+        check(!acceptsMapping(statistical), "Reject nonfinite chroma mapping");
+        auto nearIdentity = statistical;
+        std::copy(parameters.begin(),parameters.end(),nearIdentity.begin());
+        const std::array<float,6> small{.9990577f,.0011828635f,.0011828635f,.99992275f,.0005986643f,-.00049589097f};
+        std::copy(small.begin(),small.end(),nearIdentity.begin()+44);
+        const auto nearIdentityPath = (dir / "near-identity-statistics.cube").u8string();
+        check(sony2fuji_compile_color_look(3,nearIdentity.data(),50,nearIdentityPath.c_str(),&report) == SONY2FUJI_STATUS_OK &&
+              report.max_error <= .02f, "Near-identity statistical mapping passes the serialized bake gate");
+    }
     std::array<float, 44> adapted{};
     std::copy(parameters.begin(), parameters.end(), adapted.begin());
     std::copy_n(std::array<float, 4>{.2f, .6f, .4f, .8f}.begin(), 4, adapted.begin()+40);
@@ -181,13 +224,14 @@ int main() {
           "Representative color recipe compiles below strict error gate");
 
     if (std::filesystem::exists(path)) {
-        { std::ofstream append(path, std::ios::app); append << "#Private: secret-key /private/photo.jpg user instruction\n"; }
+        { std::ofstream append(path, std::ios::app); append << "#Private: secret-key /private/photo.jpg user instruction\n#RawLabAssetKind:sourceMatch\n"; }
         const auto exported = (dir / "export.cube").u8string();
         check(sony2fuji_export_color_look(path.c_str(), exported.c_str()) == SONY2FUJI_STATUS_OK, "Export a self-contained display look");
         const auto text = read(exported);
         check(text.find("secret-key") == std::string::npos && text.find("/private/") == std::string::npos &&
               text.find("instruction") == std::string::npos && text.find("#Gamma:sRGB to sRGB") != std::string::npos,
               "Export strips private metadata and preserves the explicit contract");
+        check(text.find("#RawLabAssetKind:sourceMatch") != std::string::npos, "Public export retains the safe asset-kind label");
         auto result = sony2fuji::LUTParser::loadLUTCached(exported);
         bool identical = result && table && result->getSize() == table->getSize() &&
             difference(result->domainMin(), table->domainMin()) == 0 && difference(result->domainMax(), table->domainMax()) == 0;

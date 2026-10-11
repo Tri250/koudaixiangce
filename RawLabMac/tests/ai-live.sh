@@ -11,6 +11,7 @@ swiftc -parse-as-library -swift-version 5 -O -sdk "$SDK" -target "$(uname -m)-ap
     "$ROOT/RawLabMac/Sources/AIColorRecipe.swift" "$ROOT/RawLabMac/Sources/AIService.swift" \
     "$ROOT/RawLabMac/Sources/AISettings.swift" "$ROOT/RawLabMac/Sources/AIImage.swift" \
     "$ROOT/RawLabMac/Sources/AIColorLook.swift" "$ROOT/RawLabMac/Sources/AIFileExporter.swift" \
+    "$ROOT/RawLabMac/Sources/AIColorStatistics.swift" \
     "$ROOT/RawLabMac/tests/AILiveTests.swift" "$ROOT/lutools/build-macos/libsony2fuji_core.a" \
     $(pkg-config --libs libraw opencv4 wavelib) -lc++ -lz -framework AppKit -framework ImageIO -framework Metal -framework Security -o "$OUT/test"
 # 仅此显式开发测试读取 .env；密钥通过子进程环境传入，不进入命令行或输出。

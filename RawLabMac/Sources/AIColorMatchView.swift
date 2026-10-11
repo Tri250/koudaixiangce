@@ -20,6 +20,7 @@ struct AIColorMatchView: View {
         VStack(spacing: 0) {
             header
             Divider()
+            methodPicker
             referenceStrip
             Divider()
             HStack(spacing: 1) {
@@ -46,12 +47,31 @@ struct AIColorMatchView: View {
             Divider()
             footer
         }
-        .frame(minWidth: 820, idealWidth: 1000, maxWidth: 1200, minHeight: showRegions ? 660 : 560, idealHeight: 700, maxHeight: 900)
+        .frame(minWidth: 820, idealWidth: 1000, maxWidth: 1200, minHeight: showRegions ? 740 : 640, idealHeight: 740, maxHeight: 1000)
         .preferredColorScheme(.dark)
         .task { await model.prepare() }
+        .onChange(of: model.fixedCandidate == nil) { _, missing in
+            if missing && comparison == 2 { comparison = 1 }
+        }
         .onDisappear { model.close() }
         .interactiveDismissDisabled(model.phase == .applying)
         .sheet(isPresented: $showSettings) { AISettingsView(settings: settings) }
+    }
+
+    private var methodPicker: some View {
+        HStack(spacing: 16) {
+            Picker("方法", selection: Binding(get: { model.method }, set: model.setMethod)) {
+                ForEach(AIColorMethod.allCases) { Text($0.title).tag($0) }
+            }.pickerStyle(.segmented).frame(width: 260).disabled(model.isBusy)
+            if model.method == .ai {
+                Picker("生成目标", selection: Binding(get: { model.target }, set: model.setTarget)) {
+                    ForEach(AIColorTarget.allCases) { Text($0.title).tag($0) }
+                }.pickerStyle(.segmented).frame(width: 240).disabled(model.isBusy)
+            } else {
+                Label("本地 · 当前素材匹配", systemImage: "lock").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }.padding(.horizontal, 18).frame(height: 40)
     }
 
     private var header: some View {
@@ -79,6 +99,7 @@ struct AIColorMatchView: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 10) {
                     ForEach(model.references) { reference in
+                      VStack(spacing: 4) {
                         ZStack(alignment: .topTrailing) {
                             Image(decorative: reference.image, scale: 1).resizable().scaledToFit()
                                 .frame(width: 88, height: 66).background(.black.opacity(0.15))
@@ -89,10 +110,18 @@ struct AIColorMatchView: View {
                             }.buttonStyle(.plain).help("移除参考图").accessibilityLabel("移除 \(reference.name)")
                                 .disabled(model.isBusy).padding(3)
                         }
+                        HStack(spacing: 4) {
+                            Slider(value: Binding(get: { model.referenceWeight(reference.id) },
+                                set: { model.setReferenceWeight(reference.id, $0) }), in: 0...1, step: 0.05)
+                                .accessibilityLabel("\(reference.name) 参考权重").disabled(model.isBusy)
+                            Text("\(Int((model.referenceWeight(reference.id)*100).rounded()))")
+                                .font(.caption2).monospacedDigit().frame(width: 24, alignment: .trailing)
+                        }.frame(width: 88).help("参考权重；0 表示排除，不参与分析或上传")
+                      }
                     }
                 }
             }.scrollIndicators(.visible)
-        }.padding(.horizontal, 18).frame(height: 86)
+        }.padding(.horizontal, 18).frame(height: 114)
     }
 
     private var controls: some View {
@@ -103,12 +132,16 @@ struct AIColorMatchView: View {
                     Text("\(candidate.report.gridSize)-grid · sRGB").font(.caption).foregroundStyle(.secondary)
                         .help(String(format: "最大采样通道误差 %.5f，门槛 0.02；不是风格匹配分数。", candidate.report.maxError))
                     Spacer()
-                    Text("强度").font(.caption)
+                    Text("整体强度").font(.caption)
                     Slider(value: Binding(get: { model.strength }, set: model.updateStrength), in: 0...2, step: 0.01)
                         .frame(width: 170).disabled(model.isBusy).accessibilityLabel("AI 外观强度")
                     Text("\(Int((model.strength*100).rounded()))%").monospacedDigit().frame(width: 42, alignment: .trailing)
                 }
                 Text(candidate.recipe.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2).help(candidate.recipe.summary)
+                if !candidate.diagnostics.isEmpty {
+                    Text(candidate.diagnostics.joined(separator: " ")).font(.caption).foregroundStyle(.yellow)
+                        .lineLimit(2).help(candidate.diagnostics.joined(separator: "\n"))
+                }
                 DisclosureGroup(isExpanded: $showRegions) {
                     Grid(horizontalSpacing: 24, verticalSpacing: 6) {
                         GridRow {
@@ -131,16 +164,22 @@ struct AIColorMatchView: View {
                     }
                 }
             }
+            HStack(spacing: 24) {
+                controlSlider("颜色强度", key: \.color)
+                controlSlider("影调强度", key: \.tone)
+            }
             HStack(spacing: 12) {
-                TextField("风格要求（可选）", text: $model.instruction, axis: .vertical)
+                if model.method == .ai {
+                  TextField("风格要求（可选）", text: $model.instruction, axis: .vertical)
                     .lineLimit(1...2).textFieldStyle(.roundedBorder).disabled(model.isBusy)
+                } else { Spacer() }
                 if (model.isBusy || model.isPreviewing) && model.phase != .applying {
                     Button("停止", action: model.cancelGeneration)
                 } else if model.source == nil {
                     Button("重试预览") { Task { await model.prepare() } }.disabled(model.isBusy)
                 } else {
-                    Button(model.candidate == nil ? "生成外观" : "继续调整", action: generate)
-                        .disabled(!model.canGenerate || model.instruction.count > 2000)
+                    Button(model.method == .ai ? (model.candidate == nil ? "生成外观" : "继续调整") : "生成匹配", action: generate)
+                        .disabled(!model.canGenerate || (model.method == .ai && model.instruction.count > 2000))
                 }
             }
             if let message = localError ?? model.error {
@@ -153,7 +192,9 @@ struct AIColorMatchView: View {
             } else if model.isBusy && model.candidate != nil {
                 HStack { ProgressView().controlSize(.small); Text(model.phase.title).font(.caption).foregroundStyle(.secondary) }
             }
-            Text("将发送当前照片预览和 \(model.references.count) 张参考图至 \(serviceHost)，不发送 RAW 或拍摄信息。")
+            Text(model.method != .ai ? "本地处理，不上传照片。" :
+                (model.target == .referenceStyle ? "仅发送 \(model.activeReferences.count) 张启用的参考图至 \(serviceHost)，不发送当前照片。" :
+                 "将发送当前照片预览和 \(model.activeReferences.count) 张启用的参考图至 \(serviceHost)，不发送 RAW 或拍摄信息。"))
                 .font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }.padding(.horizontal, 18).padding(.vertical, 12)
     }
@@ -172,7 +213,7 @@ struct AIColorMatchView: View {
                 }.disabled(!model.canExport)
                 AIShareButton(source: candidate.url, name: candidate.recipe.name, owner: candidate.directory,
                               enabled: model.canExport, onError: { localError = $0 }).frame(width: 32, height: 26)
-                Text("原始外观 · 100%").font(.caption).foregroundStyle(.secondary)
+                Text("\(candidate.target.title) · CUBE 100%").font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             Button("取消") { model.close(); dismiss() }.keyboardShortcut(.cancelAction).disabled(model.phase == .applying)
@@ -184,6 +225,16 @@ struct AIColorMatchView: View {
     }
 
     private var serviceHost: String { (try? settings.configuration.normalizedURL().host) ?? "已配置的 AI 服务" }
+    private func controlSlider(_ title: String, key: WritableKeyPath<AIColorControls, Double>) -> some View {
+        HStack(spacing: 8) {
+            Text(title).font(.caption).frame(width: 56, alignment: .leading)
+            Slider(value: Binding(get: { model.controls[keyPath: key] }, set: { value in
+                var controls = model.controls; controls[keyPath: key] = value; model.updateControls(controls)
+            }), in: 0...1, step: 0.01).accessibilityLabel(title).disabled(model.isBusy || model.source == nil)
+            Text("\(Int((model.controls[keyPath: key]*100).rounded()))%")
+                .font(.caption).monospacedDigit().frame(width: 36, alignment: .trailing)
+        }
+    }
     private func regionSlider(_ title: String, key: WritableKeyPath<AIToneRegions, Double>, range: ClosedRange<Double>) -> some View {
         HStack(spacing: 8) {
             Text(title).font(.caption).frame(width: 56, alignment: .leading)
@@ -202,6 +253,7 @@ struct AIColorMatchView: View {
         if panel.runModal() == .OK { Task { await model.addReferences(panel.urls) } }
     }
     private func generate() {
+        if model.method != .ai { localError = nil; model.generateLocal(); return }
         do {
             let config = try settings.configuration.validated()
             guard let key = try settings.keychain.read(config) else { showSettings = true; return }

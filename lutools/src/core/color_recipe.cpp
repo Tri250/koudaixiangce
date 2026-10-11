@@ -38,9 +38,9 @@ bool inGamut(const Linear& p) {
            p.r <= 1+tolerance && p.g <= 1+tolerance && p.b <= 1+tolerance;
 }
 
-RGB encode(Lab lab) {
+RGB encode(Lab lab, bool channelClip) {
     Linear rgb = toLinear(lab);
-    if (!inGamut(rgb)) {
+    if (!channelClip && !inGamut(rgb)) {
         // 线性 RGB 立方体是凸集；沿中性灰方向收敛，避免蓝色附近 Oklab 射线多次进出色域造成跳变。
         const double gray = std::clamp(lab.l*lab.l*lab.l, 0.0, 1.0);
         double scale = 1;
@@ -62,11 +62,11 @@ double smooth(double lo, double hi, double value) {
 }
 
 ColorRecipe ColorRecipe::fromParameters(uint32_t version, const float* values, size_t count) {
-    if (!values || !((version == 1 && count == 40) || (version == 2 && count == 44)))
+    if (!values || !((version == 1 && count == 40) || (version == 2 && count == 44) || (version == 3 && count == 50)))
         throw std::invalid_argument("Invalid color recipe version or shape");
     ColorRecipe recipe;
     std::copy_n(values, 40, recipe.values_.begin());
-    if (version == 2) {
+    if (version >= 2) {
         std::copy_n(values+40, 4, recipe.regions_.begin());
         const auto& r = recipe.regions_;
         for (double value : r)
@@ -75,6 +75,15 @@ ColorRecipe ColorRecipe::fromParameters(uint32_t version, const float* values, s
         // 允许 Float 转换的舍入误差；两条平滑曲线有序才能保证中间调权重非负。
         if (r[1]-r[0] < .05-1e-7 || r[3]-r[2] < .05-1e-7 || r[0] > r[2] || r[1] > r[3])
             throw std::invalid_argument("Invalid tone region ordering or width");
+    }
+    if (version == 3) {
+        recipe.statisticalGamut_ = true;
+        std::copy_n(values+44, 6, recipe.chromaMapping_.begin());
+        for (size_t i = 0; i < recipe.chromaMapping_.size(); ++i) {
+            const double limit = i < 4 ? 4 : .08;
+            if (!std::isfinite(recipe.chromaMapping_[i]) || std::abs(recipe.chromaMapping_[i]) > limit)
+                throw std::invalid_argument("Invalid frozen chroma mapping");
+        }
     }
     for (float value : recipe.values_)
         if (!std::isfinite(value)) throw std::invalid_argument("Nonfinite color recipe");
@@ -100,7 +109,13 @@ ColorRecipe ColorRecipe::fromParameters(uint32_t version, const float* values, s
 }
 
 RGB ColorRecipe::apply(const RGB& displaySrgb) const {
-    const Lab original = toLab(displaySrgb);
+    Lab original = toLab(displaySrgb);
+    const auto& mapping = chromaMapping_;
+    // 固定偏移在端点收敛，避免近黑颜色被常量色偏推到色域边界后出现陡峭变化。
+    const double biasWeight = 4*original.l*(1-original.l);
+    const double a = mapping[0]*original.a + mapping[1]*original.b + mapping[4]*biasWeight;
+    original.b = mapping[2]*original.a + mapping[3]*original.b + mapping[5]*biasWeight;
+    original.a = a;
     const double position = std::clamp(original.l, 0.0, 1.0)*8;
     const int segment = std::min(7, int(position));
     double lightness = values_[segment] + (values_[segment+1]-values_[segment])*(position-segment);
@@ -128,7 +143,9 @@ RGB ColorRecipe::apply(const RGB& displaySrgb) const {
         graded.a += values_[34+i*2]*weights[i]*endpointProtection;
         graded.b += values_[35+i*2]*weights[i]*endpointProtection;
     }
-    return encode(graded);
+    // v3 不沿灰轴重新分配其他通道，避免近边界的轻微统计误差引起不成比例的低通道抬升。
+    // v1/v2 保留原有色域压缩；v3 使用显式的线性 RGB 通道裁切。
+    return encode(graded, statisticalGamut_);
 }
 
 } // namespace sony2fuji

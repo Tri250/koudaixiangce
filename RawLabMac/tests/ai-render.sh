@@ -9,6 +9,7 @@ SDK="${SDKROOT:-/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk}"
 swiftc -parse-as-library -swift-version 5 -O -sdk "$SDK" -target "$(uname -m)-apple-macosx26.0" \
     -import-objc-header "$ROOT/lutools/include/sony2fuji/ffi/sony2fuji_c.h" \
     "$ROOT/RawLabMac/Sources/AIColorRecipe.swift" "$ROOT/RawLabMac/Sources/AIColorLook.swift" \
+    "$ROOT/RawLabMac/Sources/AIColorStatistics.swift" "$ROOT/RawLabMac/Sources/AIImage.swift" \
     "$ROOT/RawLabMac/Sources/Engine.swift" "$ROOT/RawLabMac/Sources/Adjustments.swift" \
     "$ROOT/RawLabMac/Sources/EditPersistence.swift" "$ROOT/RawLabMac/Sources/BatchExport.swift" \
     "$ROOT/RawLabMac/Sources/BatchExportModel.swift" "$ROOT/RawLabMac/Sources/FileLibrary.swift" \

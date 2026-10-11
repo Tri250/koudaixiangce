@@ -97,7 +97,7 @@ struct AIShareButton: NSViewRepresentable {
                               target: context.coordinator, action: #selector(Coordinator.share(_:)))
         button.bezelStyle = .texturedRounded
         button.sendAction(on: .leftMouseDown)
-        button.toolTip = "分享 CUBE · 原始外观 100% · 显示 sRGB"
+        button.toolTip = "分享当前 CUBE · 不含整体强度 · 显示 sRGB"
         button.setAccessibilityLabel("分享 CUBE")
         return button
     }
@@ -112,7 +112,7 @@ struct AIShareButton: NSViewRepresentable {
                        onError: @escaping (String) -> Void) {
         let panel = NSSavePanel()
         panel.title = "导出 CUBE"
-        panel.message = "原始外观 100% · 显示 sRGB 输入/输出 · 不含照片曝光、白平衡与后续调整"
+        panel.message = "颜色、影调及分区已烘焙 · 不含整体强度或曝光/白平衡 · 显示 sRGB 输入/输出"
         panel.allowedContentTypes = [UTType(filenameExtension: "cube") ?? .data]
         panel.allowsOtherFileTypes = false
         panel.nameFieldStringValue = AIColorLook.fileName(name)

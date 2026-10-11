@@ -16,6 +16,8 @@ public:
 private:
     std::array<float, 40> values_{};
     std::array<double, 4> regions_{.2, .6, .4, .8};
+    std::array<double, 6> chromaMapping_{1, 0, 0, 1, 0, 0};
+    bool statisticalGamut_ = false;
 };
 
 } // namespace sony2fuji

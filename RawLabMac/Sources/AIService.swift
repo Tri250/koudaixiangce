@@ -33,21 +33,44 @@ final class AIService {
 
     func generate(configuration: AIConfiguration, key: String, images: [AIImage], instruction: String,
                   previous: AIColorRecipe?, previousStrength: Double = 1,
-                  previousRegions: AIToneRegions = .standard) async throws -> AIColorRecipe {
+                  previousRegions: AIToneRegions = .standard, previousControls: AIColorControls = .full,
+                  target: AIColorTarget = .sourceMatch,
+                  referenceWeights: [Double]? = nil) async throws -> AIColorRecipe {
         try Task.checkCancellation()
         let config = try configuration.validated()
-        let imageRange = previous == nil ? 2...7 : 3...8
+        let imageRange = target == .referenceStyle ? 1...6 : (previous == nil ? 2...7 : 3...8)
         guard imageRange.contains(images.count), images.allSatisfy({ !$0.jpeg.isEmpty && $0.jpeg.count <= AIImage.maxBytes }),
               instruction.count <= 2000 else { throw AIError.message("请提供当前照片和 1-6 张参考图，要求文字最多 2000 字。") }
         let example = AIColorRecipe.identity(name: "Example look", summary: "Brief explanation of color choices")
         let exampleText = String(data: try JSONEncoder().encode(example), encoding: .utf8)!
-        var text = "Image 1 is the SOURCE neutral rendering. "
-        text += previous == nil ? "Images 2 onward are STYLE REFERENCES." : "Image 2 is the CURRENT CANDIDATE. Images 3 onward are STYLE REFERENCES."
+        let offset = target == .referenceStyle ? 0 : (previous == nil ? 1 : 2)
+        let count = images.count-offset
+        let weights = referenceWeights ?? Array(repeating: 1, count: count)
+        guard weights.count == count, weights.allSatisfy({ $0.isFinite && $0 > 0 && $0 <= 1 }) else {
+            throw AIError.message("参考权重与图片数量不一致或无效。")
+        }
+        let total = weights.reduce(0,+)
+        var text: String
+        if target == .referenceStyle {
+            text = "NO SOURCE or CURRENT CANDIDATE image is supplied. Every image is a STYLE REFERENCE. Infer a conservative reusable style for neutral display-sRGB input. Do not compensate for the exposure, white balance or object color proportions of a particular reference. This is an estimate, not guaranteed content-independent style recovery."
+        } else {
+            text = "Image 1 is the SOURCE neutral rendering. "
+            text += previous == nil ? "Images 2 onward are STYLE REFERENCES." : "Image 2 is the CURRENT CANDIDATE. Images 3 onward are STYLE REFERENCES."
+        }
+        text += "\nNormalized reference contributions: " + weights.enumerated().map {
+            "Image \($0.offset+offset+1): \($0.element/total)"
+        }.joined(separator: "; ")
         text += "\nUser color intent: \(instruction.isEmpty ? "Match the shared color style of the references." : instruction)"
         if let previous {
             _ = try previous.validated()
             guard previousStrength.isFinite, (0...2).contains(previousStrength) else { throw AIError.message("候选强度无效。") }
-            text += "\nThe candidate image uses \(Int((previousStrength*100).rounded()))% strength; the current recipe below defines its 100% endpoint."
+            if target == .sourceMatch {
+                text += "\nThe candidate image uses \(Int((previousStrength*100).rounded()))% overall strength."
+            }
+            _ = try previousControls.validated()
+            text += "\nThe current recipe below is the unscaled base recipe. Candidate independent color/tone controls: "
+                + String(data: try JSONEncoder().encode(previousControls),encoding: .utf8)!
+            text += "\nThe replacement base recipe will use these same independent controls once. Do not bake their attenuation into the returned recipe."
             text += "\nCurrent recipe to REPLACE, not compose: " + String(data: try JSONEncoder().encode(previous), encoding: .utf8)!
             _ = try previousRegions.validated()
             text += "\nCandidate toning boundaries (post-curve/hue-lift Oklab L): " + String(data: try JSONEncoder().encode(previousRegions), encoding: .utf8)!
@@ -147,8 +170,8 @@ final class AIService {
     Positive a adds red/magenta, positive b adds yellow; negative a green/cyan, negative b blue. Toning fades at black and white.
     Start conservatively, especially near saturated colors: aggressive chroma boosts and hue changes can fail the strict LUT sampling-error gate.
     Preserve natural skin and neutral objects where consistent with references, but do not claim semantic masks or perfect matching.
-    Multiple references are equally relevant style examples, not a pixel histogram to average. Briefly note conflicts in summary.
-    On refinement, replace the previous recipe relative to the same neutral SOURCE; never multiply recipes together.
+    References have explicit normalized contribution weights. Do not average their pixel histograms or interpret scene colors as certain editing intent. Briefly note conflicts in summary.
+    On refinement, replace the previous recipe relative to neutral input; never multiply recipes together.
     Only the exact fields in the example are allowed. All numbers must be finite numeric JSON values.
     """
 }

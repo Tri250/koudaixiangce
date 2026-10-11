@@ -5,12 +5,29 @@ import ImageIO
     static func main() throws {
         setbuf(stdout, nil)
         guard CommandLine.arguments.count == 3 else { throw RenderError.failed("Pass RAW and display CUBE fixtures") }
-        let raw = URL(fileURLWithPath: CommandLine.arguments[1]), cube = URL(fileURLWithPath: CommandLine.arguments[2])
+        let raw = URL(fileURLWithPath: CommandLine.arguments[1])
+        var cube = URL(fileURLWithPath: CommandLine.arguments[2])
         let original = try OriginalFileIdentity(raw)
         let directory = try AITemporaryDirectory()
         let cpu = try RenderEngine(gpuMode: SONY2FUJI_GPU_OFF)
         let gpu = try RenderEngine(gpuMode: SONY2FUJI_GPU_FORCE)
         var settings = Adjustments(); settings.exposure = 0.35
+        var localLook: AIColorLook?
+        if CommandLine.arguments[2] == "--local-ot" {
+            var teacherRecipe = AIColorRecipe.identity(name: "Controlled color teacher",summary: "Known global fixture, not inferred style")
+            teacherRecipe.chroma = 0.9; teacherRecipe.toning[0].a = -0.002; teacherRecipe.toning[2].b = 0.003
+            let teacher = try AIColorLook.compile(recipe: teacherRecipe,model: "test-only")
+            guard let sourceFrame = try cpu.render(raw,settings: settings,lut: nil,edge: 500),
+                  let targetFrame = try cpu.render(raw,settings: settings,lut: teacher.url,edge: 500) else {
+                throw RenderError.failed("Missing statistics fixture")
+            }
+            let fit = try AIColorStatistics.fit(source: AIColorStatistics.analyze(sourceFrame.image),
+                references: [(AIColorStatistics.analyze(targetFrame.image),1)],method: .chromaOT)
+            let look = try AIColorLook.compile(recipe: fit.recipe,model: "local-regression",mapping: fit.mapping,
+                controls: AIColorControls(color: 0.7,tone: 0.4),method: .chromaOT,diagnostics: fit.diagnostics)
+            localLook = look; cube = look.url
+            print("PASS: real preview statistics frozen and baked; grid=\(look.report.gridSize), max RGB error=\(look.report.maxError)")
+        }
         for strength in [0.0, 1.0, 2.0] {
             settings.strength = strength
             guard let a = try cpu.render(raw, settings: settings, lut: cube, edge: 500),
@@ -61,6 +78,7 @@ import ImageIO
             }
         }
         guard try OriginalFileIdentity(raw) == original else { throw RenderError.failed("Original RAW was modified") }
+        withExtendedLifetime(localLook) {}
         print("PASS: original RAW unchanged")
     }
 }

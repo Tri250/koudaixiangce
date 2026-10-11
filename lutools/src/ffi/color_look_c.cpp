@@ -142,6 +142,15 @@ extern "C" sony2fuji_status sony2fuji_export_color_look(const char* source, cons
         if (!lut || lut->inputTransfer() != sony2fuji::LUTTransfer::SRGB) return SONY2FUJI_STATUS_UNSUPPORTED;
         Staging staging(path);
         auto out = writer(staging.file, lut->getSize(), lut->domainMin(), lut->domainMax());
+        // 仅复制两个公开的资产类别，不透传名称、配方、模型或其他私有注释。
+        std::ifstream metadata(input);
+        std::string line;
+        while (std::getline(metadata, line)) {
+            if (line == "#RawLabAssetKind:sourceMatch" || line == "#RawLabAssetKind:referenceStyle") {
+                out << line << '\n';
+                break;
+            }
+        }
         for (int b = 0; b < lut->getSize(); ++b) for (int g = 0; g < lut->getSize(); ++g) for (int r = 0; r < lut->getSize(); ++r) {
             const auto p = lut->getValue(r,g,b);
             out << p.r << ' ' << p.g << ' ' << p.b << '\n';

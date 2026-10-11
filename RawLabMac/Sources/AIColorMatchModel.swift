@@ -66,6 +66,10 @@ final class AIColorWorker {
     @Published private(set) var baseline: RenderedImage?
     @Published private(set) var source: AIImage?
     @Published private(set) var references: [AIImage] = []
+    @Published private(set) var referenceWeights: [UUID: Double] = [:]
+    @Published private(set) var method = AIColorMethod.ai
+    @Published private(set) var target = AIColorTarget.sourceMatch
+    @Published private(set) var controls = AIColorControls.full
     @Published private(set) var candidate: AIColorLook?
     @Published private(set) var preview: RenderedImage?
     @Published private(set) var fixedCandidate: AIColorLook?
@@ -87,8 +91,9 @@ final class AIColorWorker {
 
     var isBusy: Bool { phase != .idle && phase != .closed }
     var isCurrent: Bool { phase != .closed && editor?.isCurrentAIEdit(snapshot) == true }
-    private var previewMatches: Bool { candidate?.regions == regions && preview != nil && previewStrength == strength }
-    var canGenerate: Bool { !isBusy && !isPreviewing && source != nil && !references.isEmpty && isCurrent && (candidate == nil || previewMatches) }
+    private var previewMatches: Bool { candidate?.regions == regions && candidate?.controls == controls && preview != nil && previewStrength == strength }
+    var activeReferences: [AIImage] { references.filter { referenceWeight($0.id) > 0 } }
+    var canGenerate: Bool { !isBusy && !isPreviewing && source != nil && !activeReferences.isEmpty && isCurrent && (candidate == nil || previewMatches) }
     var canApply: Bool { !isBusy && !isPreviewing && previewMatches && isCurrent }
     var canExport: Bool { canApply }
     var protectedSources: [URL] { [snapshot.file] + references.compactMap(\.sourceURL) + (editor?.films.map(\.url) ?? []) }
@@ -132,7 +137,10 @@ final class AIColorWorker {
             do {
                 let image = try await worker.perform(cancellation: cancellation) { try AIImage.load(url) }
                 guard accepts(token) else { return }
+                if references.contains(where: { $0.jpeg == image.jpeg }) { continue }
+                invalidateCandidate()
                 references.append(image)
+                referenceWeights[image.id] = 1
             } catch {
                 guard accepts(token) else { return }
                 if error is CancellationError { break }
@@ -146,25 +154,52 @@ final class AIColorWorker {
 
     func removeReference(_ id: UUID) {
         guard !isBusy, phase != .closed else { return }
+        invalidateCandidate()
         references.removeAll { $0.id == id }
+        referenceWeights.removeValue(forKey: id)
+    }
+
+    func referenceWeight(_ id: UUID) -> Double { referenceWeights[id] ?? 1 }
+    func setReferenceWeight(_ id: UUID, _ value: Double) {
+        guard !isBusy, phase != .closed, references.contains(where: { $0.id == id }), value.isFinite,
+              (0...1).contains(value), value != referenceWeight(id) else { return }
+        invalidateCandidate(); referenceWeights[id] = value
+    }
+    func setMethod(_ value: AIColorMethod) {
+        guard !isBusy, phase != .closed, method != value else { return }
+        method = value
+        if method != .ai { target = .sourceMatch }
+        invalidateCandidate()
+    }
+    func setTarget(_ value: AIColorTarget) {
+        guard !isBusy, phase != .closed, method == .ai, target != value else { return }
+        target = value; invalidateCandidate()
+    }
+    private func invalidateCandidate() {
+        previewID = UUID(); previewTask?.cancel(); isPreviewing = false
+        candidate = nil; preview = nil; fixedCandidate = nil; fixedPreview = nil
+        controls = method == .ai ? .full : .preserveTone
+        regions = .standard; strength = 1; previewStrength = 1; error = nil
     }
 
     func generate(configuration: AIConfiguration, key: String) {
+        guard method == .ai else { generateLocal(); return }
         guard canGenerate, let source else {
             error = isCurrent ? "请等待预览完成并添加参考图。" : "照片或调整已变化，请关闭面板后重新开始。"
             return
         }
         let token = UUID(); operationID = token
         generationTask?.cancel()
-        let references = self.references, intent = instruction, previous = candidate?.recipe
+        let references = activeReferences, weights = activeReferences.map { referenceWeight($0.id) }
+        let intent = instruction, previous = candidate?.recipe, target = target, controls = controls
         let priorImage = preview?.image, priorStrength = previewStrength
         let priorRegions = candidate?.regions ?? .standard
         phase = .requesting; error = nil
         generationTask = Task { [weak self] in
             guard let self else { return }
             do {
-                var images = [source]
-                if let priorImage, previous != nil {
+                var images = target == .referenceStyle ? [] : [source]
+                if target == .sourceMatch, let priorImage, previous != nil {
                     let image = try await self.worker.perform { try AIImage.prepare(priorImage, name: "Candidate") }
                     images.append(image)
                 }
@@ -172,26 +207,73 @@ final class AIColorWorker {
                 guard self.accepts(token) else { return }
                 try self.requireCurrent()
                 let recipe = try await self.service.generate(configuration: configuration, key: key, images: images,
-                    instruction: intent, previous: previous, previousStrength: priorStrength, previousRegions: priorRegions)
+                    instruction: intent, previous: previous, previousStrength: priorStrength, previousRegions: priorRegions,
+                    previousControls: controls, target: target, referenceWeights: weights)
                 guard self.accepts(token) else { return }
                 try self.requireCurrent()
                 self.phase = .compiling
-                let look = try await self.worker.perform { try AIColorLook.compile(recipe: recipe, model: configuration.model) }
+                let look = try await self.worker.perform { try AIColorLook.compile(recipe: recipe, model: configuration.model, controls: controls, target: target) }
                 guard self.accepts(token) else { return }
                 try self.requireCurrent()
                 self.phase = .rendering
                 let frame = try await self.worker.render(file: self.snapshot.file, settings: self.snapshot.state.settings.aiBaseline, look: look.url)
                 guard self.accepts(token) else { return }
                 try self.requireCurrent()
-                self.candidate = look; self.preview = frame
-                self.fixedCandidate = look; self.fixedPreview = frame; self.regions = .standard
-                self.strength = 1; self.previewStrength = 1; self.phase = .idle
+                self.installCandidate(look, frame: frame)
             } catch {
                 guard self.accepts(token) else { return }
                 self.phase = .idle
                 if !(error is CancellationError) { self.error = error.localizedDescription }
             }
         }
+    }
+
+    func generateLocal() {
+        guard method != .ai, canGenerate, let source else { return }
+        let token = UUID(); operationID = token
+        let cancellation = AIWorkCancellation(); localCancellation = cancellation
+        let method = method, controls = controls
+        let references = activeReferences.map { ($0, referenceWeight($0.id)) }
+        generationTask?.cancel(); phase = .compiling; error = nil
+        generationTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let look = try await self.worker.perform(cancellation: cancellation) {
+                    let stats = try AIColorStatistics.analyze(source.image)
+                    var targets: [(AIColorStatistics.Statistics, Double)] = []
+                    for (reference, weight) in references {
+                        try cancellation.check()
+                        targets.append((try AIColorStatistics.analyze(reference.image),weight))
+                    }
+                    let fit = try AIColorStatistics.fit(source: stats, references: targets, method: method)
+                    try cancellation.check()
+                    return try AIColorLook.compile(recipe: fit.recipe, model: "local-\(method.rawValue)-1", mapping: fit.mapping,
+                        controls: controls, method: method, diagnostics: fit.diagnostics)
+                }
+                guard self.accepts(token) else { return }
+                try self.requireCurrent(); self.phase = .rendering
+                let frame = try await self.worker.render(file: self.snapshot.file, settings: self.snapshot.state.settings.aiBaseline,
+                                                        look: look.url, cancellation: cancellation)
+                guard self.accepts(token) else { return }
+                try self.requireCurrent(); self.installCandidate(look, frame: frame)
+            } catch {
+                guard self.accepts(token) else { return }
+                self.phase = .idle
+                if !(error is CancellationError) { self.error = error.localizedDescription }
+            }
+        }
+    }
+    private func installCandidate(_ look: AIColorLook, frame: RenderedImage) {
+        candidate = look; preview = frame; fixedCandidate = look; fixedPreview = frame
+        controls = look.controls; regions = .standard
+        strength = 1; previewStrength = 1; phase = .idle
+    }
+
+    func updateControls(_ value: AIColorControls) {
+        guard !isBusy, isCurrent else { return }
+        do { controls = try value.validated() }
+        catch { self.error = error.localizedDescription; return }
+        refreshPreview()
     }
 
     func updateStrength(_ value: Double) {
@@ -209,7 +291,7 @@ final class AIColorWorker {
 
     private func refreshPreview() {
         guard let candidate, let fixedCandidate else { return }
-        let value = strength, regions = regions
+        let value = strength, regions = regions, controls = controls
         let token = UUID(); previewID = token
         previewTask?.cancel(); isPreviewing = true
         var settings = snapshot.state.settings.aiBaseline; settings.strength = value
@@ -219,16 +301,27 @@ final class AIColorWorker {
             do {
                 try await Task.sleep(nanoseconds: 150_000_000)
                 let look: AIColorLook
-                if regions == .standard { look = fixedCandidate }
-                else if regions == candidate.regions { look = candidate }
+                if regions == .standard && controls == fixedCandidate.controls { look = fixedCandidate }
+                else if regions == candidate.regions && controls == candidate.controls { look = candidate }
                 else {
                     look = try await self.worker.perform {
-                        try AIColorLook.compile(recipe: fixedCandidate.recipe, model: fixedCandidate.model, regions: regions)
+                        try AIColorLook.compile(recipe: fixedCandidate.recipe, model: fixedCandidate.model, regions: regions,
+                            mapping: fixedCandidate.mapping, controls: controls, method: fixedCandidate.method,
+                            target: fixedCandidate.target, diagnostics: fixedCandidate.diagnostics)
                     }
                 }
                 try Task.checkCancellation()
                 let frame = try await self.worker.render(file: file, settings: settings, look: look.url)
-                let fixedFrame = regions == .standard ? frame : try await self.worker.render(file: file, settings: settings, look: fixedCandidate.url)
+                let fixedFrame: RenderedImage
+                if regions == .standard { fixedFrame = frame }
+                else {
+                    let fixed = controls == fixedCandidate.controls ? fixedCandidate : try await self.worker.perform {
+                        try AIColorLook.compile(recipe: fixedCandidate.recipe, model: fixedCandidate.model,
+                            mapping: fixedCandidate.mapping, controls: controls, method: fixedCandidate.method,
+                            target: fixedCandidate.target, diagnostics: fixedCandidate.diagnostics)
+                    }
+                    fixedFrame = try await self.worker.render(file: file, settings: settings, look: fixed.url)
+                }
                 guard self.previewID == token, self.phase != .closed else { return }
                 try self.requireCurrent()
                 self.candidate = look; self.preview = frame; self.fixedPreview = fixedFrame
@@ -260,6 +353,8 @@ final class AIColorWorker {
         generationTask = nil; previewTask = nil
         isPreviewing = false; strength = previewStrength; phase = .idle
         regions = candidate?.regions ?? .standard
+        controls = candidate?.controls ?? (method == .ai ? .full : .preserveTone)
+        error = nil
     }
 
     func close() {
