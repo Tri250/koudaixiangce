@@ -223,6 +223,9 @@ extension ContentView {
                 .padding(.horizontal, 12)
             }
             .frame(height: toolHeight)
+            .onGeometryChange(for: CGFloat.self) { geometry in geometry.size.width } action: { _ in
+                proxy.scrollTo(selectedAdjustment?.rawValue ?? "film", anchor: .center)
+            }
             .onChange(of: selectedAdjustment) { _, adjustment in
                 proxy.scrollTo(adjustment?.rawValue ?? "film", anchor: .center)
             }
@@ -232,7 +235,11 @@ extension ContentView {
 
     @ViewBuilder
     var valuePanel: some View {
-        if selectedAdjustment == .vignette {
+        if selectedAdjustment == .hsl {
+            HSLMixer(settings: Binding(get: { settings.hsl }, set: { settings.hsl = $0 }),
+                     onEditingChanged: setSliderEditing)
+                .disabled(!viewModel.hasImage || editingLocked)
+        } else if selectedAdjustment == .vignette {
             IOSPhotoEffectsControls(effect: .vignette, settings: Binding(
                 get: { settings.photoEffects },
                 set: { settings.photoEffects = $0 }
@@ -261,6 +268,11 @@ extension ContentView {
                 HStack {
                     Text(adjustment.title).font(.subheadline)
                     Spacer()
+                    if adjustment == .exposure {
+                        Button(action: autoExposure) { Label("自动", systemImage: "wand.and.stars") }
+                            .font(.caption).disabled(autoExposing || viewModel.isBusy)
+                            .accessibilityIdentifier("exposure.auto")
+                    }
                     Text(adjustment.valueLabel(for: adjustment.value(from: settings)))
                         .font(.subheadline.weight(.semibold)).monospacedDigit()
                         .foregroundStyle(adjustmentProgress(adjustment) == 0 ? Color.secondary : .yellow)
@@ -282,6 +294,11 @@ extension ContentView {
                         DefaultValueMarker(range: adjustment.range, value: adjustment.value(from: .default))
                             .frame(height: 4).offset(y: 5).allowsHitTesting(false)
                     }
+                if adjustment == .exposure, viewModel.sourceKind == .raw {
+                    Picker("曝光基准", selection: $settings.exposureMode) {
+                        ForEach(RawExposureMode.allCases) { Text($0.title).tag($0) }
+                    }.pickerStyle(.menu).accessibilityIdentifier("exposure.mode")
+                }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 12)

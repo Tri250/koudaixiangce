@@ -9,6 +9,18 @@ struct EditorPresentationTests {
 
     static func main() {
         var settings = RawSettings.default
+        check(!EditorLayoutPolicy.usesSidePanel(width: 834, height: 1100, accessibility: false), "Portrait iPad keeps a wide photo above the adjustment region")
+        check(EditorLayoutPolicy.usesSidePanel(width: 1100, height: 834, accessibility: false), "Landscape iPad separates photo and adjustment regions")
+        check(!EditorLayoutPolicy.usesSidePanel(width: 500, height: 900, accessibility: false), "Narrow iPad windows use compact layout")
+        check(!EditorLayoutPolicy.usesSidePanel(width: 1100, height: 834, accessibility: true), "Accessibility text uses scrollable stacked layout")
+        check(settings.exposureMode == .preview, "New photos match embedded-preview exposure")
+        check(settings.hsl.isIdentity, "HSL defaults to exact identity")
+        settings.hsl.set(.saturation, channel: 0, value: -60)
+        check(AdjustmentKind.hsl.progress(in: settings) != 0, "HSL edits mark the color tool as changed")
+        AdjustmentKind.hsl.reset(in: &settings)
+        check(settings.hsl.isIdentity, "HSL reset clears every channel")
+        let legacyColor = try! JSONDecoder().decode(RawSettings.self, from: Data("{}".utf8))
+        check(legacyColor.exposureMode == .scene && legacyColor.hsl.isIdentity, "Legacy edits retain scene exposure and identity HSL")
         check(!settings.denoise.enabled && settings.denoise.luma == 0 && settings.denoise.chroma == 46 && settings.denoise.coarse == 50,
               "Denoise defaults off and retains luminance texture")
         settings.denoise.apply(.clean)
@@ -84,7 +96,7 @@ struct EditorPresentationTests {
               AdjustmentKind.temperature.progress(in: settings) < 0.1,
               "Positive progress uses the upper half of the expanded temperature range")
         settings.exposure = -1
-        check(AdjustmentKind.exposure.progress(in: settings) == -0.5,
+        check(AdjustmentKind.exposure.progress(in: settings) == -0.25,
               "Negative exposure travels counterclockwise")
         settings.lutStrength = 0
         check(AdjustmentKind.strength.progress(in: settings) == -1,

@@ -19,6 +19,8 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         let store = try EditPersistence(directory: directory)
         var settings = Adjustments()
         settings.exposure = 0.75
+        settings.exposureMode = .sensor
+        settings.setHSL(.hue, channel: 5, value: 40)
         settings.rawNoiseReduction = 2
         settings.setEffect(.vignetteAmount, to: -40)
         settings.setEffect(.vignetteFeather, to: 70)

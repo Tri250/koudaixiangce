@@ -118,12 +118,25 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
     jint edge, jboolean interactive, jboolean png, jint longEdge,
     jboolean denoiseEnabled, jfloat luma, jfloat chroma, jfloat coarse, jint displayChromaDenoise,
     jfloat vignetteAmount, jfloat vignetteMidpoint, jfloat vignetteRoundness, jfloat vignetteFeather,
-    jfloat vignetteHighlights, jfloat grainAmount, jfloat grainSize, jfloat grainRoughness) {
+    jfloat vignetteHighlights, jfloat grainAmount, jfloat grainSize, jfloat grainRoughness,
+    jint exposureMode, jfloatArray hslValues) {
     try {
         std::lock_guard<std::mutex> lock(sessionsMutex);
         const auto found = sessions.find(id);
         if (found == sessions.end()) throw std::invalid_argument("Processor is closed");
         auto* session = found->second.get();
+        check(sony2fuji_session_set_raw_exposure_mode(session, static_cast<sony2fuji_raw_exposure_mode>(exposureMode)));
+        if (!hslValues || env->GetArrayLength(hslValues) != 24) throw std::invalid_argument("Invalid HSL values");
+        float hslData[24];
+        env->GetFloatArrayRegion(hslValues, 0, 24, hslData);
+        if (env->ExceptionCheck()) return nullptr;
+        sony2fuji_hsl_config hsl{};
+        hsl.version = SONY2FUJI_HSL_CONFIG_VERSION;
+        hsl.struct_size = sizeof(hsl);
+        std::copy(hslData, hslData+8, hsl.hue);
+        std::copy(hslData+8, hslData+16, hsl.saturation);
+        std::copy(hslData+16, hslData+24, hsl.lightness);
+        check(sony2fuji_session_set_hsl(session, &hsl));
         UtfChars in(env, input), film(env, lut), out(env, output);
         auto request = rawlab::makeRequest(in.chars, film.chars, out.chars, strength,
             exposure, customWb, temperature, tint, highlights, shadows, contrast,
@@ -171,4 +184,26 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
         throwJava(env, "java/io/IOException", "RAW processing failed");
     }
     return nullptr;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_rawlab_android_NativeProcessor_nativeAutoExposure(JNIEnv* env, jobject, jlong id,
+    jstring input, jboolean customWb, jfloat temperature, jfloat tint, jint exposureMode) {
+    try {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        const auto found = sessions.find(id);
+        if (found == sessions.end()) throw std::invalid_argument("Processor is closed");
+        UtfChars in(env, input);
+        auto request = rawlab::makeRequest(in.chars, nullptr, nullptr, 0, 0, customWb,
+            temperature, tint, 0, 0, 0, 0, 0, 0, 1, false);
+        check(sony2fuji_session_set_raw_exposure_mode(found->second.get(), static_cast<sony2fuji_raw_exposure_mode>(exposureMode)));
+        float ev = 0;
+        const auto status = sony2fuji_session_estimate_auto_exposure(found->second.get(), &request, &ev);
+        if (status == SONY2FUJI_STATUS_OUT_OF_MEMORY) throw std::bad_alloc();
+        check(status);
+        return ev;
+    } catch (const std::bad_alloc&) { throwJava(env, "java/lang/OutOfMemoryError", "Not enough memory to meter this RAW"); }
+    catch (const std::exception& error) { throwJava(env, "java/io/IOException", error.what()); }
+    catch (...) { throwJava(env, "java/io/IOException", "Automatic exposure failed"); }
+    return 0;
 }

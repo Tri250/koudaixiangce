@@ -33,6 +33,14 @@ internal static class Native
         public float VignetteAmount,VignetteMidpoint,VignetteRoundness,VignetteFeather,VignetteHighlights;
         public float GrainAmount,GrainSize,GrainRoughness;
     }
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct HslConfig
+    {
+        public uint Version, StructSize;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst=8)] public float[] Hue;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst=8)] public float[] Saturation;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst=8)] public float[] Lightness;
+    }
     internal sealed class Session : SafeHandleZeroOrMinusOneIsInvalid
     {
         public Session() : base(true) { Check(sony2fuji_session_create(out var value)); SetHandle(value); }
@@ -47,6 +55,8 @@ internal static class Native
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] private static extern int sony2fuji_session_create(out IntPtr session);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] private static extern int sony2fuji_session_destroy(IntPtr session);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_raw_exposure_mode(Session session,int mode);
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_hsl(Session session,ref HslConfig config);
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_estimate_auto_exposure(Session session,ref Request request,out float exposure);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_gpu_config(Session session,ref GpuConfig config);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_get_last_backend(Session session);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_interactive_preview(Session session,int enabled);

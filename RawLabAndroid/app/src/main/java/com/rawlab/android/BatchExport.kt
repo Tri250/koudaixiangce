@@ -519,22 +519,24 @@ internal object SettingsCodec {
         settings.effects.vignetteAmount, settings.effects.vignetteMidpoint, settings.effects.vignetteRoundness,
         settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
         settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-    ).joinToString("|")
+    ).plus(settings.exposureMode).plus(settings.hsl.packed().toList()).joinToString("|")
 
     fun decode(value: String): EditSettings {
         val fields = value.split('|')
-        require(fields.size == 12 || fields.size == 16 || fields.size == 25)
+        require(fields.size in listOf(12, 16, 25, 50))
         return EditSettings(film = fields[0], strength = fields[1].toFloat(), exposure = fields[2].toFloat(),
             highlights = fields[3].toFloat(), shadows = fields[4].toFloat(), contrast = fields[5].toFloat(),
             toneCurve = fields[6].toFloat(), saturation = fields[7].toFloat(), customWb = fields[8].toBoolean(),
             temperature = fields[9].toFloat(), tint = fields[10].toFloat(), sharpening = fields[11].toFloat(),
             denoise = if (fields.size == 16) DenoiseSettings(fields[12].toBoolean(), fields[13].toFloat(),
                 fields[14].toFloat(), fields[15].toFloat())
-            else if (fields.size == 25) DenoiseSettings(fields[12].toBoolean(), fields[13].toFloat(),
+            else if (fields.size >= 25) DenoiseSettings(fields[12].toBoolean(), fields[13].toFloat(),
                 fields[14].toFloat(), fields[15].toFloat())
             else DenoiseSettings(),
-            displayChromaDenoise = if (fields.size == 25) parseChromaMode(fields[16]) else 0,
-            effects = if (fields.size == 25) PhotoEffectsSettings(
+            displayChromaDenoise = if (fields.size >= 25) parseChromaMode(fields[16]) else 0,
+            exposureMode = if (fields.size == 50) parseChromaMode(fields[25]) else 0,
+            hsl = if (fields.size == 50) HslSettings(fields.drop(26).map(String::toFloat)) else HslSettings(),
+            effects = if (fields.size >= 25) PhotoEffectsSettings(
                 vignetteAmount = fields[17].toFloat(), vignetteMidpoint = fields[18].toFloat(),
                 vignetteRoundness = fields[19].toFloat(), vignetteFeather = fields[20].toFloat(),
                 vignetteHighlights = fields[21].toFloat(), grainAmount = fields[22].toFloat(),

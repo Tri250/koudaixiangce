@@ -140,6 +140,21 @@ struct ProcessorExportTests {
         stronger.lutStrength = 2
         let doubled = try processor.processBuffer(buffer: buffer, settings: stronger, previewLongEdge: nil, lutURL: lut)
         check(normal.data != doubled.data, "iOS buffer processing actually renders 200 percent differently from 100")
+        var hsl = RawSettings.default
+        for channel in 0..<8 { hsl.hsl.set(.saturation, channel: channel, value: -100) }
+        let neutral = try processor.processBuffer(buffer: buffer, settings: .default, previewLongEdge: nil, lutURL: nil)
+        let hslPreview = try processor.processBuffer(buffer: buffer, settings: hsl, previewLongEdge: 3, lutURL: nil)
+        let hslExport = try processor.processBuffer(buffer: buffer, settings: hsl, previewLongEdge: nil, lutURL: nil)
+        check(hslPreview.data == hslExport.data && hslExport.data != neutral.data,
+              "iOS HSL reaches native processing with preview/export parity")
+        let hslCPU = try cpuProcessor.processBuffer(buffer: buffer, settings: hsl, previewLongEdge: nil, lutURL: nil)
+        let hslGPU = try forcedProcessor.processBuffer(buffer: buffer, settings: hsl, previewLongEdge: nil, lutURL: nil)
+        check(Self.maximumDifference(hslGPU.data, hslCPU.data) <= 2,
+              "iOS HSL Force succeeds on Metal and matches the CPU reference")
+        let rasterEV = try processor.autoExposure(url: nil, buffer: buffer, settings: .default)
+        hsl.exposure = 3
+        check(try processor.autoExposure(url: nil, buffer: buffer, settings: hsl) == rasterEV && (-4...4).contains(rasterEV),
+              "iOS raster Auto returns absolute EV independent of HSL and current exposure")
         let jpeg = try processor.makeJPEGData(from: doubled, sourceURL: original, orientation: .right, quality: 0.92)
         let fields = properties(jpeg)
         let exif = fields[kCGImagePropertyExifDictionary] as! [CFString: Any]
@@ -161,6 +176,15 @@ struct ProcessorExportTests {
             return
         }
         let standardRaw = try processor.processRaw(url: raw, settings: .default, previewLongEdge: 128, lutURL: lut)
+        let rawEV = try processor.autoExposure(url: raw, buffer: nil, settings: .default)
+        var autoSettings = RawSettings.default
+        autoSettings.exposure = rawEV
+        check(try processor.autoExposure(url: raw, buffer: nil, settings: autoSettings) == rawEV && (-4...4).contains(rawEV),
+              "iOS RAW Auto returns a bounded idempotent exposure")
+        hsl.exposure = 0
+        let hslRaw = try processor.processRaw(url: raw, settings: hsl, previewLongEdge: nil, lutURL: lut, exportLongEdge: 128)
+        check(max(hslRaw.buffer.width, hslRaw.buffer.height) <= 128,
+              "iOS HSL final RAW export honors the requested size")
         let strongRaw = try processor.processRaw(url: raw, settings: stronger, previewLongEdge: 128, lutURL: lut)
         check(standardRaw.buffer.data != strongRaw.buffer.data, "iOS RAW processing also passes through 200 percent")
         var cameraTemperature = RawSettings.default
@@ -181,6 +205,12 @@ struct ProcessorExportTests {
                                                   lutURL: lut, exportLongEdge: 128)
         check(max(limitedRaw.buffer.width, limitedRaw.buffer.height) <= 128,
               "iOS RAW final export honors the long-edge cap")
+        check(hslRaw.buffer.data != limitedRaw.buffer.data,
+              "iOS HSL changes actual final RAW export pixels")
+        let hslRawCPU = try cpuProcessor.processRaw(url: raw, settings: hsl, previewLongEdge: nil, lutURL: lut, exportLongEdge: 128)
+        let hslRawGPU = try forcedProcessor.processRaw(url: raw, settings: hsl, previewLongEdge: nil, lutURL: lut, exportLongEdge: 128)
+        check(Self.maximumDifference(hslRawGPU.buffer.data, hslRawCPU.buffer.data) <= 2,
+              "iOS HSL final RAW export uses Force Metal with CPU parity")
         let rawJPEG = try processor.makeJPEGData(from: strongRaw.buffer, sourceURL: raw,
                                                 orientation: strongRaw.orientation, quality: 0.92)
         let rawFields = properties(rawJPEG)

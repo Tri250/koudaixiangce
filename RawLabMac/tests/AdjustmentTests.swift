@@ -22,6 +22,13 @@ struct AdjustmentTests {
             request.shadows == 0 && request.tone_curve == 0 && request.sharpening == 0,
             "Default controls preserve the previous C request")
         var settings=Adjustments()
+        check(settings.exposureMode == .preview && settings.hslSettings.isIdentity, "New photos start with preview exposure and identity HSL")
+        settings.setHSL(.saturation, channel: 0, value: -60)
+        check(!settings.isDefault(.color), "HSL participates in color default detection")
+        let restoredHSL = try JSONDecoder().decode(Adjustments.self, from: JSONEncoder().encode(settings))
+        check(restoredHSL.hslSettings == settings.hslSettings, "HSL round-trips in saved edits")
+        settings.reset(.color)
+        check(settings.hslSettings.isIdentity, "Color reset clears HSL")
         settings.exposure=1.25; settings.exposureMode = .preview; settings.strength=0.4
         settings.contrast=25; settings.highlights = -60; settings.shadows=40; settings.toneCurve=30
         settings.saturation = -20; settings.sharpening=75
@@ -33,7 +40,7 @@ struct AdjustmentTests {
         check(settings.isDefault(.tone) && settings.saturation == -20 && settings.sharpening == 75 &&
             settings.exposure == 1.25 && settings.strength == 0.4, "Tone group reset preserves other groups")
         settings.reset(.input)
-        check(settings.exposureMode == .scene && settings.exposure == 0 && settings.saturation == -20,
+        check(settings.exposureMode == .preview && settings.exposure == 0 && settings.saturation == -20,
             "Input reset restores exposure mode without resetting color")
         for group in AdjustmentGroup.allCases { settings.reset(group) }
         check(settings == Adjustments(), "All group resets restore defaults")

@@ -37,11 +37,13 @@ private sealed interface Work {
         val gpuMode: Int, val importing: Boolean = false, val restored: Boolean = false) : Work
     data class Export(val photo: ImportedPhoto, val edits: EditSettings, val destination: Uri?, val png: Boolean,
         val longEdge: Int?, val gpuMode: Int) : Work
+    data class AutoExposure(val photo: ImportedPhoto, val edits: EditSettings) : Work
 }
 private sealed interface WorkResult {
     data class Preview(val request: Work.Preview, val pair: PreviewPair) : WorkResult
     data class MissingLook(val photo: ImportedPhoto, val edits: EditSettings) : WorkResult
     data object Export : WorkResult
+    data class AutoExposure(val request: Work.AutoExposure, val exposure: Float) : WorkResult
 }
 private sealed interface LookWork {
     data object Load : LookWork
@@ -128,6 +130,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             } finally { output.delete() }
             WorkResult.Export
         }
+        is Work.AutoExposure -> WorkResult.AutoExposure(work, engine().autoExposure(work.photo.file, work.edits))
     } }
 
     private fun performLook(work: LookWork): LookResult = synchronized(storage) { try {
@@ -183,6 +186,12 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         saveState = if (request.restored && saved == EditSaveState.SAVED) EditSaveState.RESTORED else saved)
                 }
                 WorkResult.Export -> mutable.value = mutable.value.copy(operation = Operation.NONE, message = text(R.string.export_done))
+                is WorkResult.AutoExposure -> {
+                    val current = mutable.value
+                    if (current.photo?.identity == value.request.photo.identity && current.edits == value.request.edits) {
+                        edit(current.edits.copy(exposure = value.exposure))
+                    }
+                }
             }
             fadeSaveNotice()
         }, { error ->
@@ -289,6 +298,12 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun retry() { edit(mutable.value.edits) }
+    fun autoExposure() {
+        val current = mutable.value
+        if (!current.controlsEnabled || current.preview == null || current.rendering) return
+        mutable.value = current.copy(rendering = true, exact = false, error = null)
+        currentRevision = queue.submit(Work.AutoExposure(current.photo!!, current.edits))
+    }
     fun retrySave() {
         val photo = mutable.value.photo
         if (photo != null) mutable.value = mutable.value.copy(saveState = persist(photo, mutable.value.edits))

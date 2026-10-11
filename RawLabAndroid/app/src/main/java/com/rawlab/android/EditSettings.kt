@@ -19,8 +19,11 @@ data class EditSettings(
     val sharpening: Float = 0f,
     val effects: PhotoEffectsSettings = PhotoEffectsSettings(),
     val displayChromaDenoise: Int = 0,
+    val exposureMode: Int = 1,
+    val hsl: HslSettings = HslSettings(),
 ) {
     init {
+        require(exposureMode in 0..2)
         require(strength.isFinite() && strength in 0f..2f)
         require(exposure.isFinite() && exposure in -4f..4f)
         require(highlights.isFinite() && highlights in -1f..1f)
@@ -37,6 +40,21 @@ data class EditSettings(
 }
 
 enum class DenoisePreset { DETAIL, CLEAN, CUSTOM }
+
+class HslSettings(values: List<Float> = List(24) { 0f }) {
+    private val values = values.toList()
+    init { require(this.values.size == 24 && this.values.all { it.isFinite() && it in -100f..100f }) }
+    val isIdentity get() = values.all { it == 0f }
+    fun packed() = values.toFloatArray()
+    fun value(axis: Int, channel: Int) = values[axis * 8 + channel]
+    fun withValue(axis: Int, channel: Int, value: Float): HslSettings {
+        require(axis in 0..2 && channel in 0..7)
+        if (!value.isFinite()) return this
+        return HslSettings(values.toMutableList().also { it[axis * 8 + channel] = value.coerceIn(-100f, 100f) })
+    }
+    override fun equals(other: Any?) = other is HslSettings && values == other.values
+    override fun hashCode() = values.hashCode()
+}
 
 data class DenoiseSettings(val enabled: Boolean = false, val luma: Float = 0f,
     val chroma: Float = 46f, val coarse: Float = 50f) {

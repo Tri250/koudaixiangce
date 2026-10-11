@@ -123,7 +123,7 @@ enum PhotoEffectParameter: String, CaseIterable, Identifiable {
 }
 
 struct Adjustments: Equatable, Codable {
-    var exposureMode = ExposureMode.scene
+    var exposureMode = ExposureMode.preview
     var exposure = 0.0
     var temperature = 6500.0
     var tint = 0.0
@@ -142,9 +142,44 @@ struct Adjustments: Equatable, Codable {
     // nil 保留旧算法语义，显式启用或选择预设后才迁移。
     var waveletNoiseReduction: WaveletDenoiseSettings?
     var photoEffects: PhotoEffectsSettings?
+    var hsl: HSLSettings?
     private(set) var supportsRawNoiseReduction = false
 
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        exposureMode = try values.decodeIfPresent(ExposureMode.self, forKey: .exposureMode) ?? .scene
+        exposure = try values.decodeIfPresent(Double.self, forKey: .exposure) ?? 0
+        temperature = try values.decodeIfPresent(Double.self, forKey: .temperature) ?? 6500
+        tint = try values.decodeIfPresent(Double.self, forKey: .tint) ?? 0
+        whiteBalanceMode = try values.decodeIfPresent(WhiteBalanceMode.self, forKey: .whiteBalanceMode) ?? .asShot
+        asShotWhiteBalance = try values.decodeIfPresent(WhiteBalance.self, forKey: .asShotWhiteBalance)
+        strength = try values.decodeIfPresent(Double.self, forKey: .strength) ?? 1
+        contrast = try values.decodeIfPresent(Double.self, forKey: .contrast) ?? 0
+        highlights = try values.decodeIfPresent(Double.self, forKey: .highlights) ?? 0
+        shadows = try values.decodeIfPresent(Double.self, forKey: .shadows) ?? 0
+        toneCurve = try values.decodeIfPresent(Double.self, forKey: .toneCurve) ?? 0
+        saturation = try values.decodeIfPresent(Double.self, forKey: .saturation) ?? 0
+        sharpening = try values.decodeIfPresent(Double.self, forKey: .sharpening) ?? 0
+        rawNoiseReduction = try values.decodeIfPresent(Double.self, forKey: .rawNoiseReduction) ?? 0
+        chromaNoiseReduction = try values.decodeIfPresent(Double.self, forKey: .chromaNoiseReduction)
+        waveletNoiseReduction = try values.decodeIfPresent(WaveletDenoiseSettings.self, forKey: .waveletNoiseReduction)
+        photoEffects = try values.decodeIfPresent(PhotoEffectsSettings.self, forKey: .photoEffects)
+        hsl = try values.decodeIfPresent(HSLSettings.self, forKey: .hsl)
+        supportsRawNoiseReduction = try values.decodeIfPresent(Bool.self, forKey: .supportsRawNoiseReduction) ?? false
+        guard hslSettings.isValid else {
+            throw DecodingError.dataCorruptedError(forKey: .hsl, in: values, debugDescription: "Invalid HSL parameters")
+        }
+    }
+
     var effectSettings: PhotoEffectsSettings { photoEffects ?? PhotoEffectsSettings() }
+    var hslSettings: HSLSettings { hsl ?? HSLSettings() }
+    mutating func setHSL(_ axis: HSLAxis, channel: Int, value: Double) {
+        var state = hslSettings
+        state.set(axis, channel: channel, value: value)
+        hsl = state.isIdentity ? nil : state
+    }
     var vignetteAmount: Double {
         get { effectSettings.vignetteAmount }
         set { setEffect(.vignetteAmount, to: newValue) }
@@ -255,13 +290,15 @@ struct Adjustments: Equatable, Codable {
         for parameter in group.parameters {
             set(parameter, to: parameter.spec(for: self).defaultValue)
         }
-        if group == .input { exposureMode = .scene; resetWhiteBalance() }
+        if group == .input { exposureMode = .preview; resetWhiteBalance() }
+        if group == .color { hsl = nil }
         if group == .effects { photoEffects = nil }
     }
 
     func isDefault(_ group: AdjustmentGroup) -> Bool {
         group.parameters.allSatisfy { self[keyPath: $0.spec.keyPath] == $0.spec(for: self).defaultValue }
-            && (group != .input || exposureMode == .scene)
+            && (group != .input || exposureMode == .preview)
+            && (group != .color || hslSettings.isIdentity)
             && (group != .detail || !isDenoiseEnabled)
             && (group != .effects || effectSettings == PhotoEffectsSettings())
     }

@@ -18,6 +18,10 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         try Data("existing".utf8).write(to: existing)
         var settings = Adjustments(); settings.exposure = 0.75
         settings.waveletNoiseReduction = WaveletDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100)
+        settings.exposureMode = .sensor
+        var hsl = HSLSettings()
+        hsl.set(.saturation, channel: 5, value: -65)
+        settings.hsl = hsl
         var job = BatchExportJob(source: inputs[0], settings: settings, look: nil, lookName: "Velvia")
         job.longEdge = 2048
         let encodedJob = try JSONEncoder().encode(job)
@@ -32,12 +36,15 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         try check(job.items.allSatisfy { !$0.selected }, "candidates start unselected")
         for index in job.items.indices { job.items[index].selected = true }
         settings.exposure = -1
+        settings.hsl = nil
+        settings.exposureMode = .scene
         let journal = BatchJournal(directory: root.appendingPathComponent("journal"))
         var calls: [String] = []
         try BatchExportRunner.run(job: &job, journal: journal, scope: .unfinished, shouldCancel: { false }) { input, snapshot, _, destination in
             calls.append(input.lastPathComponent)
             try check(snapshot.exposure == 0.75, "snapshot must not follow live edits")
             try check(snapshot.waveletSettings == WaveletDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100), "batch keeps frozen denoise settings")
+            try check(snapshot.hslSettings == hsl && snapshot.exposureMode == .sensor, "batch keeps frozen HSL and exposure baseline")
             if input == inputs[1] { throw Failure(message: "invalid RAW") }
             try Data("rendered".utf8).write(to: destination)
         }
@@ -54,6 +61,8 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         }
         try check(calls == ["bad.ARW"], "retry must never repeat successful targets")
         try check(try journal.load()?.items.allSatisfy { $0.status == .succeeded } == true, "completion is journaled")
+        try check(try journal.load()?.settings.hslSettings == hsl && journal.load()?.settings.exposureMode == .sensor,
+                  "journal preserves HSL and exposure baseline")
         var cancelled = BatchExportJob(source: inputs[0], settings: settings, look: nil, lookName: "Neutral")
         cancelled.outputDirectory = output
         cancelled.items = try inputs.map { try BatchExportItem(url: $0) }

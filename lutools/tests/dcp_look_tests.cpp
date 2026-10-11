@@ -259,12 +259,12 @@ void photoTests(const fs::path& root) {
 
 #ifdef SONY2FUJI_ENABLE_METAL
 bool metal(const std::shared_ptr<const DcpLook>& look, const sony2fuji::ImageData& input, sony2fuji::ImageData& output,
-           const sony2fuji::PhotoEffectsOptions& effects = {}) {
+           const sony2fuji::PhotoEffectsOptions& effects = {}, const sony2fuji::HslOptions& hsl = {}) {
     sony2fuji_request request{};
     request.brightness = request.contrast = request.saturation = request.lut_strength = 1;
     request.temperature = 6500;
     return sony2fuji::renderPhotoMetal(input, sony2fuji::ColorSpace::sRGB, request, nullptr, RGB(1, 1, 1),
-                                     input.width, input.height, output, look, effects);
+                                     input.width, input.height, output, look, effects, 0, false, hsl);
 }
 
 void metalTests(const fs::path& root) {
@@ -297,6 +297,7 @@ void metalTests(const fs::path& root) {
         }
         sony2fuji::PhotoEffectsOptions effects;
         effects.vignetteAmount = -50; effects.grainAmount = 80;
+        const auto gpuProfile = output;
         auto expectedEffects = output;
         sony2fuji::applyPhotoEffects(expectedEffects, effects);
         check(metal(look, input, output, effects), "DCP and photo effects execute together on Metal");
@@ -307,6 +308,30 @@ void metalTests(const fs::path& root) {
                                 double(std::abs(a.g - b.g)), double(std::abs(a.b - b.b))});
         }
         check(maximum <= 5e-5, "DCP effects follow profile stages with CPU-equivalent pixels");
+        sony2fuji::HslOptions hsl;
+        hsl.hue[0] = 70; hsl.saturation[5] = -60; hsl.lightness[7] = 20;
+        auto expectedHsl = sony2fuji::ImageData(input.width, input.height);
+        for (size_t i = 0; i < input.pixels.size(); ++i) expectedHsl.pixels[i] = look->apply(input.pixels[i]);
+        sony2fuji::applyHsl(expectedHsl, hsl);
+        sony2fuji::applyPhotoEffects(expectedHsl, effects);
+        auto stageReference = gpuProfile;
+        sony2fuji::applyHsl(stageReference, hsl);
+        sony2fuji::applyPhotoEffects(stageReference, effects);
+        check(metal(look, input, output, effects, hsl), "DCP, HSL and effects execute together on Metal");
+        maximum = 0;
+        double stageMaximum = 0;
+        for (size_t i = 0; i < output.pixels.size(); ++i) {
+            const auto a = output.pixels[i], b = expectedHsl.pixels[i];
+            const auto reference = stageReference.pixels[i];
+            maximum = std::max({maximum, double(std::abs(a.r - b.r)),
+                                double(std::abs(a.g - b.g)), double(std::abs(a.b - b.b))});
+            stageMaximum = std::max({stageMaximum, double(std::abs(a.r - reference.r)),
+                                    double(std::abs(a.g - reference.g)), double(std::abs(a.b - reference.b))});
+        }
+        std::cout << "DCP HSL max float difference=" << maximum << " stage=" << stageMaximum << '\n';
+        check(stageMaximum <= 5e-5, "Metal HSL/effects stages match their CPU reference");
+        // Float DCP rounding propagates through the nonlinear HSL stage.
+        check(maximum <= 1e-4, "DCP HSL precedes effects within the combined float tolerance");
     }
 }
 #endif
