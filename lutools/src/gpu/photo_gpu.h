@@ -6,6 +6,7 @@
 #include "sony2fuji/dcp_look.h"
 #include "sony2fuji/ffi/sony2fuji_c.h"
 #include "core/photo_effects.h"
+#include "core/photo_color.h"
 
 #include <cstdint>
 #include <memory>
@@ -24,7 +25,8 @@ bool renderPhotoMetal(
     const std::shared_ptr<const DcpLook>& dcp = {},
     const PhotoEffectsOptions& effects = {},
     int chromaDenoise = 0,
-    bool preserveSourceResolution = false
+    bool preserveSourceResolution = false,
+    const HslOptions& hsl = {}
 );
 
 } // namespace sony2fuji

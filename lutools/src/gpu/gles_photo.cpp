@@ -250,11 +250,11 @@ GlesPhotoRenderer::~GlesPhotoRenderer() = default;
 bool GlesPhotoRenderer::render(const ImageData& input, ColorSpace inputSpace,
     const sony2fuji_request& request, const std::shared_ptr<LUT3D>& lut,
     const RGB& relativeWB, uint32_t width, uint32_t height, uint64_t revision, ImageData& output,
-    const PhotoEffectsOptions& effects, int chromaDenoise, bool preserveSourceResolution) {
+    const PhotoEffectsOptions& effects, int chromaDenoise, bool preserveSourceResolution, const HslOptions& hsl) {
     if (input.width <= 0 || input.height <= 0 || width == 0 || height == 0 ||
         width > INT32_MAX || height > INT32_MAX || uint64_t(width) * height > INT32_MAX ||
         input.pixels.size() != size_t(input.width) * input.height ||
-        !effects.valid() || chromaDenoise < 0 || chromaDenoise > 2) return false;
+        !effects.valid() || !hsl.valid() || chromaDenoise < 0 || chromaDenoise > 2) return false;
     try {
         if (!impl_) { impl_ = std::make_unique<Impl>(); impl_->initialize(); }
         auto& context = *impl_;
@@ -269,6 +269,10 @@ bool GlesPhotoRenderer::render(const ImageData& input, ColorSpace inputSpace,
         glUniform4f(context.uniform("tone"), std::clamp(request.contrast, 0.f, 2.f), std::clamp(request.saturation, 0.f, 2.f),
             std::clamp(request.highlights, -1.f, 1.f), std::clamp(request.shadows, -1.f, 1.f));
         glUniform1f(context.uniform("curve"), request.tone_curve);
+        glUniform1i(context.uniform("hslActive"), hsl.active());
+        glUniform4fv(context.uniform("hslHue[0]"), 2, hsl.hue.data());
+        glUniform4fv(context.uniform("hslSaturation[0]"), 2, hsl.saturation.data());
+        glUniform4fv(context.uniform("hslLightness[0]"), 2, hsl.lightness.data());
         context.setLut(request.lut_strength > 0 ? lut : nullptr);
         if (effects.active() || chromaDenoise != 0 || request.noise_reduction > 0 || request.sharpening > 0 || preserveSourceResolution) {
             context.cachedRevision = 0;

@@ -7,6 +7,8 @@ struct AdjustmentRow: View {
     var specOverride: AdjustmentSpec?
     var whiteBalanceMode: Binding<WhiteBalanceMode>?
     var onEditingChanged: (Bool) -> Void = { _ in }
+    var onAuto: (() -> Void)?
+    var autoBusy = false
     @State private var draft = ""
     @State private var invalid = false
     @FocusState private var editing: Bool
@@ -23,6 +25,11 @@ struct AdjustmentRow: View {
                     Text(spec.title).lineLimit(1)
                 }
                 Spacer(minLength: 4)
+                if let onAuto {
+                    Button(action: onAuto) { Label("自动", systemImage: "wand.and.stars") }
+                        .controlSize(.small).disabled(autoBusy)
+                        .accessibilityIdentifier("exposure.auto").help("自动调整曝光")
+                }
                 TextField(spec.title, text: $draft)
                     .textFieldStyle(.roundedBorder).controlSize(.small)
                     .multilineTextAlignment(.trailing).monospacedDigit()

@@ -2,6 +2,13 @@
 
 ## RAW Input
 
+The C API session and CLI keep their scene-mode default for compatibility. New
+photo settings in all four native clients instead select `preview` (embedded
+preview matching); a full/input-group reset also selects `preview`. Restoring a
+saved exposure mode never replaces it with the new default. Older saved records
+without an exposure-mode field retain `scene`, preserving their previous pixels.
+The scene-mode 0 EV baseline described below applies when that mode is selected.
+
 LibRaw performs black subtraction, active-area crop, white balance, demosaic and highlight blending in camera channels. WB must precede demosaic: the earlier no-auto-scale path produced a measurable difference from LibRaw's normal WB-before-demosaic processing. Histogram auto-bright, content-dependent maximum adjustment and integer output-color conversion remain disabled. `highlight=2` retains maximum-normalized WB before 16-bit demosaic and blends clipped highlight chroma after demosaic, before our camera matrix and LUT. The former `highlight=1` unclip mode preserved false magenta in saturated DSC06251 car-body highlights. Blending is not darktable's opposed-chroma reconstruction and cannot recover lost sensor detail; bright colors can become less saturated. We recover green-normalized camera RGB as `image16 / (65535 * post_scale_pre_mul[1])`, then apply the camera-to-sRGB matrix in float. Matrix negatives and values above 1 survive; we do not globally clamp scene RGB to 1. This is not an all-float demosaic: quantization and LibRaw's treatment of sensor-overrange values remain. The raw source is never written.
 
 Default 0 EV is a declared scene-development baseline: **+0.7 EV plus valid DNG BaselineExposure**. The +0.7 is a workflow starting point, inspired by darktable's scene defaults, NOT sensor calibration or a claim that every camera needs this exact offset. DNG metadata is applied once (DJI fixture: +0.35, total +1.05 EV; Sony without that tag: +0.7 EV). Missing/sentinel/non-finite/out-of-range metadata falls back to zero metadata offset. User +1 EV still doubles the linear input. The default never decodes or meters the embedded JPEG. We deliberately do not undo a photographer's EXIF ExposureBiasValue, and do not invent undocumented camera-specific dynamic-range compensation.
@@ -30,12 +37,61 @@ sample-limited validation are documented in the RAW compatibility report.
 2. Run optional linear-sRGB wavelet denoising, then apply relative white balance and `2^exposure_ev * brightness` in linear sRGB. Custom RAW WB multipliers are applied once, during decode.
 3. Generate the neutral reference with a fixed log-logistic display curve, then sRGB encode. For positive x the linear display value is `1 / (1 + ((1-g)/g) * (g/x)^1.5)`, with `g=0.1845`; black is 0 and highlights approach 1 smoothly. This independently implemented mathematical subset follows the same curve family as darktable sigmoid, but does not reproduce its primaries adjustment, hue-preservation or full default pipeline.
 4. For a film CUBE: start from the un-tonemapped linear input, transform to its declared F-Gamut or F-Gamut C and encode F-Log, F-Log2 or F-Log2C, then interpolate the CUBE. Named display outputs bypass the neutral curve. Explicit Log outputs are decoded back to linear BT.709/sRGB, then rendered with the neutral display curve. A compiled DCP `.rlook` instead evaluates its preserved matrix/HSV/tone stages directly from common linear sRGB, without F-Log2, an RGB CUBE or an extra neutral curve. Log encoding itself never normalizes exposure, and there is no linear clamp at 1 before it.
-5. Blend neutral and film outputs in the same display-encoded RGB convention. Strength 0 is continuous with the no-LUT rendering. Contrast, saturation and curves follow, then optional display-chroma denoising, detail adjustments, vignette and grain, and final resizing.
+5. Blend neutral and film outputs in the same display-encoded RGB convention. Strength 0 is continuous with the no-LUT rendering. Contrast, saturation and curves follow, then HSL, optional display-chroma denoising, detail adjustments, vignette and grain, and final resizing.
 6. Write RGB/RGBA preview, JPEG or actual 16-bit PNG. PNG includes an sRGB chunk. Photo outputs use an sRGB display interpretation; the film-simulation names alone do not establish camera-to-camera colorimetric equivalence or a measured display EOTF. JPEG consumers must use this sRGB interpretation.
 
 When sharpening is enabled, the early preview downsample is skipped. The fixed pixel-radius filter runs at source resolution before the final preview resize, matching its export footprint. At zero sharpening the existing fast preview path remains unchanged. Mac's contrast/saturation controls use percent offsets from the core's identity value 1; highlight signs are reversed at the UI boundary so positive values consistently brighten. All six output adjustments default to an identity result.
 
 The film output interpretation is a declared application convention. It is not a claim that Fujifilm's short LUT overview specifies every viewing parameter. No guessed extra gamma is applied to an already rendered film LUT output.
+
+### HSL Mixer
+
+`sony2fuji_session_set_hsl` takes a versioned 104-byte configuration without
+changing request v2. Hue, saturation and lightness each have eight values in
+red/orange/yellow/green/aqua/blue/purple/magenta order, all in [-100,100]. Clients
+set the complete configuration on every render and freeze it in batch snapshots.
+Invalid/nonfinite values leave the session's previous configuration intact.
+
+HSL runs on display-encoded sRGB, after existing tone/color adjustments and
+before chroma denoising, detail and effects. Circular hue centers are
+0/30/60/120/180/240/270/300 degrees. Smoothstep interpolation mixes the adjacent
+channels. Hue shifts by 0.3 degrees per control unit, saturation multiplies by
+`1 + value/100`, and lightness adds `value/200`; saturation/lightness clamp to
+[0,1]. Achromatic pixels remain unchanged. A zero configuration is an exact
+bypass. These controls are an application convention, not a Lightroom match.
+RGB/HSL conversion follows the standard definition in
+[CSS Color](https://www.w3.org/TR/css-color-4/#hsl-to-rgb).
+
+HSL executes in the Metal, GLES or D3D11 photo shader after tone/color and before
+chroma filtering, detail and effects. Metal also supports HSL with native DCP
+looks; GLES/D3D11 retain their existing CPU-only native-DCP fallback. GPU Auto
+uses the complete photo GPU pipeline when available and falls back on failure;
+GPU Force requires real platform-GPU success, never a hidden CPU HSL stage.
+Identity HSL bypasses exactly. RAW upload caches retain only linear input, not
+the current HSL result, so HSL changes do not reuse stale display pixels.
+
+CPU remains the reference. GPU tests compare every HSL axis/channel, mixed
+extremes, hue wrap, resized previews and final output within two RGB8 code values.
+The combined Metal native-DCP/HSL/effects float test allows 1e-4 for propagated
+DCP rounding, while the isolated HSL/effects stage stays within 5e-5. HSL does
+not alter exposure metering or camera white balance.
+
+### Automatic Exposure
+
+`sony2fuji_session_estimate_auto_exposure` is an additive, non-rendering operation.
+It returns an absolute user EV in [-4,4], not a delta to the current EV. It uses
+the selected RAW baseline and camera-space WB, or an explicitly tagged raster
+buffer. RAW metering always uses the exact decode, not an interactive proxy or
+the embedded preview pixels. The current user EV, LUT, HSL and output adjustments
+do not enter the calculation.
+
+The estimator samples at most 256x256 linear-sRGB luminance values, targets a
+median of 0.1845 and constrains positive boosts using the 99.5th percentile and a
+linear highlight target of 4. It is a bounded starting-point heuristic, not a
+scene-understanding algorithm or a promise of unclipped sensor highlights.
+All-black/unusable input returns UNSUPPORTED without changing the caller's EV.
+The operation does not apply its result to the session. Clients meter off the
+UI thread and discard results when the photo or captured settings changed.
 
 ### Vignette and Film Grain
 

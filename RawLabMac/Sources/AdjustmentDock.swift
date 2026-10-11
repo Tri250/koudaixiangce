@@ -4,32 +4,52 @@ struct AdjustmentDock: View {
     @ObservedObject var model: EditorModel
     @Binding var selected: AdjustmentParameter?
     let resetVersion: Int
+    @State private var hslSelected = false
 
     var body: some View {
         VStack(spacing: 8) {
             GeometryReader { geometry in
                 ScrollView(.horizontal) {
                     HStack(spacing: 6) {
-                        Button { selected = nil } label: {
+                        Button { selected = nil; hslSelected = false } label: {
                             VStack(spacing: 5) {
                                 Image(systemName: "film").font(.system(size: 19))
                                     .frame(width: 40, height: 40)
-                                    .background(selected == nil ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
-                                    .overlay { Circle().strokeBorder(selected == nil ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
+                                    .background(selected == nil && !hslSelected ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                                    .overlay { Circle().strokeBorder(selected == nil && !hslSelected ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
                                 Text("胶片").font(.system(size: 11))
                                 Color.clear.frame(width: 3, height: 3)
                             }.frame(width: 56, height: 70)
-                                .foregroundStyle(selected == nil ? Color.yellow : Color.primary)
+                                .foregroundStyle(selected == nil && !hslSelected ? Color.yellow : Color.primary)
                         }.buttonStyle(.plain).help("选择胶片模拟").accessibilityLabel("胶片")
                             .accessibilityValue(model.selectedFilm?.name ?? "中性")
-                            .accessibilityAddTraits(selected == nil ? .isSelected : [])
+                            .accessibilityAddTraits(selected == nil && !hslSelected ? .isSelected : [])
                         ForEach([AdjustmentParameter.strength] + AdjustmentParameter.photoTools) { parameter in tool(parameter) }
+                        Button { hslSelected = true } label: {
+                            VStack(spacing: 5) {
+                                Image(systemName: "slider.horizontal.3").font(.system(size: 19))
+                                    .frame(width: 40, height: 40)
+                                    .background(hslSelected ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                                    .overlay { Circle().strokeBorder(hslSelected ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
+                                Text("HSL").font(.system(size: 11))
+                                Circle().fill(model.settings.hslSettings.isIdentity ? Color.clear : Color.yellow).frame(width: 3, height: 3)
+                            }.frame(width: 56, height: 70)
+                        }.buttonStyle(.plain).accessibilityLabel("HSL").accessibilityIdentifier("tool.hsl")
+                            .accessibilityAddTraits(hslSelected ? .isSelected : [])
+                            .help("色相、饱和度和明度").disabled(model.result == nil)
                     }.padding(.horizontal, 12).padding(.top, 4)
                         .frame(minWidth: max(710, geometry.size.width))
                 }.scrollIndicators(.hidden)
             }.frame(height: 76)
             Group {
-                if selected == .denoiseMode {
+                if hslSelected {
+                    ScrollView(.vertical) {
+                        HSLMixer(settings: Binding(get: { model.settings.hslSettings }, set: { model.settings.hsl = $0.isIdentity ? nil : $0 }),
+                                 onEditingChanged: model.setInteracting)
+                            .frame(maxWidth: 540).disabled(model.result == nil)
+                            .frame(maxWidth: .infinity)
+                    }
+                } else if selected == .denoiseMode {
                     DenoiseControls(model: model)
                         .id(resetVersion)
                         .frame(maxWidth: 560).padding(.horizontal, 16)
@@ -49,7 +69,8 @@ struct AdjustmentDock: View {
                             if mode == .asShot { model.settings.resetWhiteBalance() }
                             else { model.settings.whiteBalanceMode = mode }
                         }
-                    ) : nil, onEditingChanged: model.setInteracting)
+                    ) : nil, onEditingChanged: model.setInteracting,
+                    onAuto: parameter == .exposure ? model.autoExposure : nil, autoBusy: model.autoExposing)
                     .id("\(parameter.rawValue).\(resetVersion)")
                     .frame(maxWidth: 360).padding(.horizontal, 24)
                     .disabled(parameter == .strength && model.selectedFilm == nil)
@@ -68,11 +89,11 @@ struct AdjustmentDock: View {
         let value = model.settings[keyPath: spec.keyPath]
         let changed = parameter.isPhotoEffect ? !model.settings.isEffectDefault(parameter) :
             (parameter == .denoiseMode ? model.settings.isDenoiseEnabled : value != spec.defaultValue)
-        let active = selected == parameter
+        let active = selected == parameter && !hslSelected
         let progress = parameter == .denoiseMode ? (changed ? 1.0 : 0.0) : spec.progress(for: value)
         let valueText = parameter == .denoiseMode ?
             model.settings.denoiseSummary : "\(spec.text(value)) \(spec.unit)"
-        return Button { selected = parameter } label: {
+        return Button { selected = parameter; hslSelected = false } label: {
             VStack(spacing: 5) {
                 ZStack {
                     Circle().fill(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04))

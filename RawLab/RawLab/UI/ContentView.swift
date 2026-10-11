@@ -17,6 +17,8 @@ struct ContentView: View {
     @State var isImporting = false
     @State var isSaving = false
     @State var isAdjustingSlider = false
+    @State var autoExposing = false
+    @State var settingsRevision = UUID()
     @State var selectedPhotoItem: PhotosPickerItem?
     @State private var checkedBatchRecovery = false
     @State var showingBatchExport = false
@@ -33,7 +35,8 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
-                let landscape = geometry.size.width > geometry.size.height && !dynamicTypeSize.isAccessibilitySize
+                let landscape = EditorLayoutPolicy.usesSidePanel(width: geometry.size.width, height: geometry.size.height,
+                                                                 accessibility: dynamicTypeSize.isAccessibilitySize)
                 let layout = landscape ? AnyLayout(HStackLayout(spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
                 layout {
                     previewSection
@@ -45,7 +48,7 @@ struct ContentView: View {
                         }
                         .accessibilityIdentifier("editor.panel")
                         .frame(width: landscape ? min(360, geometry.size.width * 0.44) : nil,
-                               height: landscape ? nil : min(panelHeight + (selectedAdjustment == nil ? 32 : selectedAdjustment == .noiseReduction ? 80 : 0),
+                               height: landscape ? nil : min(panelHeight + (selectedAdjustment == nil ? 32 : selectedAdjustment == .hsl ? 120 : selectedAdjustment == .noiseReduction ? 80 : 0),
                                                             geometry.size.height * 0.6))
                         .background(Color(.secondarySystemBackground))
                     }
@@ -81,6 +84,7 @@ struct ContentView: View {
             Text(viewModel.statusMessage ?? "")
         }
         .onChange(of: settings) { _, newValue in
+            settingsRevision = UUID()
             if viewModel.consumeRestoredSettings(newValue) { return }
             showingBefore = false
             viewModel.queueSettingsSave(newValue)

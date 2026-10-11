@@ -33,6 +33,7 @@ public partial class BatchExportWindow : Window
         var state = job.Settings.Restore();
         SourceSummary.Text = $"曝光  {state[Parameter.Exposure]:+0.00;-0.00;0.00} EV\n白平衡  {(state.CameraWhiteBalance ? "拍摄时设置" : "自定义")}\n曝光基准  {new[] { "标准显影", "匹配内嵌预览", "传感器基准" }[state.ExposureMode]}";
         AllSettings.Text = string.Join("\n", ParameterSpec.All.Select(spec => $"{spec.Title}  {(spec.Id is Parameter.Temperature or Parameter.Tint && state.CameraWhiteBalance ? "按每张照片" : state[spec.Id].ToString("F" + spec.Decimals) + spec.Unit)}"));
+        AllSettings.Text += $"\nHSL  {(state.Hsl.IsIdentity ? "未调整" : "已调整")}";
         ready = true; Refresh();
         AllSettings.Text += $"\n降噪  {(state.Denoise.Enabled ? "开启" : "关闭")}\n亮度降噪  {state.Denoise.Luma:F0}\n色彩降噪  {state.Denoise.Chroma:F0}\n粗颗粒降噪  {state.Denoise.Coarse:F0}";
         var effects = state.Effects;

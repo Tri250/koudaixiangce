@@ -93,6 +93,38 @@ struct Sony2FujiProcessor {
     // Public API
     // =========================================================================
 
+    func autoExposure(url: URL?, buffer: Buffer?, settings: RawSettings) throws -> Double {
+        let session = try createSession()
+        defer { destroySession(session) }
+        let mode = sony2fuji_raw_exposure_mode(rawValue: UInt32(settings.exposureMode.rawValue))
+        guard sony2fuji_session_set_raw_exposure_mode(session, mode) == SONY2FUJI_STATUS_OK else {
+            throw ProcessorError.processFailed("Invalid exposure mode.")
+        }
+        var request = makeBaseRequest(settings: settings, inputType: url == nil ? SONY2FUJI_INPUT_BUFFER : SONY2FUJI_INPUT_RAW)
+        request.input_type = url == nil ? SONY2FUJI_INPUT_BUFFER : SONY2FUJI_INPUT_RAW
+        var ev: Float = 0
+        let status: sony2fuji_status
+        if let url {
+            status = url.path.withCString { path in
+                request.input_path = path
+                return sony2fuji_session_estimate_auto_exposure(session, &request, &ev)
+            }
+        } else if let buffer {
+            request.input_width = UInt32(buffer.width)
+            request.input_height = UInt32(buffer.height)
+            request.input_pixel_format = buffer.pixelFormat
+            request.input_color_space = SONY2FUJI_COLOR_SRGB
+            status = buffer.data.withUnsafeBytes { bytes in
+                request.input_pixels = bytes.baseAddress
+                return sony2fuji_session_estimate_auto_exposure(session, &request, &ev)
+            }
+        } else { throw ProcessorError.rasterDecodeFailed }
+        guard status == SONY2FUJI_STATUS_OK else {
+            throw ProcessorError.processFailed("无法自动调整曝光：\(statusMessage(status))")
+        }
+        return Double(ev)
+    }
+
     func processRaw(
         url: URL,
         settings: RawSettings,

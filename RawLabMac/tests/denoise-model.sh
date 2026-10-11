@@ -9,7 +9,7 @@ trap 'rm -rf "$OUT"' EXIT
 swiftc -swift-version 5 -O -sdk "$SDK" -target "$(uname -m)-apple-macosx26.0" \
   -import-objc-header "$ROOT/lutools/include/sony2fuji/ffi/sony2fuji_c.h" \
   "$ROOT/RawLabMac/Sources/Engine.swift" "$ROOT/Shared/ExportMetadata.swift" \
-  "$ROOT/RawLabMac/Sources/Adjustments.swift" "$ROOT/RawLabMac/Sources/EditorModel.swift" \
+  "$ROOT/RawLabMac/Sources/Adjustments.swift" "$ROOT/Shared/HSLSettings.swift" "$ROOT/Shared/HSLNative.swift" "$ROOT/RawLabMac/Sources/EditorModel.swift" \
   "$ROOT/RawLabMac/Sources/EditPersistence.swift" "$ROOT/RawLabMac/Sources/BatchExport.swift" \
   "$ROOT/RawLabMac/Sources/BatchExportModel.swift" \
   "$ROOT/RawLabMac/Sources/ExportSizePicker.swift" \

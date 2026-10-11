@@ -122,12 +122,16 @@
               <Button x:Name="DenoiseCategory" Click="DenoiseCategoryClicked" Style="{StaticResource ToolButton}" ToolTip="降噪" AutomationProperties.Name="降噪">
                 <StackPanel><Grid Width="40" Height="40"><local:AdjustmentRing x:Name="DenoiseCategoryRing"/><local:EditorIcon Kind="Adjust" Width="20" Height="20"/></Grid><TextBlock Text="降噪" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/></StackPanel>
               </Button>
+              <Button x:Name="HslCategory" Click="HslCategoryClicked" Style="{StaticResource ToolButton}" ToolTip="HSL" AutomationProperties.Name="HSL">
+                <StackPanel><Grid Width="40" Height="40"><local:AdjustmentRing x:Name="HslCategoryRing"/><local:EditorIcon Kind="Adjust" Width="20" Height="20"/></Grid><TextBlock Text="HSL" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/></StackPanel>
+              </Button>
             </StackPanel></ScrollViewer>
             <WrapPanel x:Name="ParameterPanel" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,5">
               <TextBlock x:Name="ParameterTitle" Width="65" VerticalAlignment="Center" FontWeight="SemiBold"/>
               <Slider x:Name="ValueSlider" Width="210" Minimum="0" Maximum="1" ValueChanged="SliderChanged" AutomationProperties.Name="调整值"/>
               <TextBox x:Name="ValueText" Width="78" Margin="10,0,3,0" LostKeyboardFocus="ValueCommitted" KeyDown="ValueKeyDown" AutomationProperties.Name="调整数值" Typography.NumeralAlignment="Tabular"/>
               <TextBlock x:Name="ParameterUnit" Width="24" VerticalAlignment="Center"/>
+              <Button x:Name="AutoExposureButton" Click="AutoExposureClicked" ToolTip="自动调整曝光" AutomationProperties.Name="自动曝光" Padding="8,3" Style="{StaticResource QuietButton}"><StackPanel Orientation="Horizontal"><local:EditorIcon Kind="Adjust" Width="18" Height="18"/><TextBlock Text="自动" Margin="5,0,0,0"/></StackPanel></Button>
               <Button x:Name="ResetParameterButton" Click="ResetParameterClicked" ToolTip="重置当前参数" AutomationProperties.Name="重置当前参数" Padding="8,3" Style="{StaticResource QuietButton}"><local:EditorIcon Kind="Reset" Width="18" Height="18"/></Button>
               <Button x:Name="ResetGroupButton" Content="重置分组" Click="ResetGroupClicked" Padding="8,3" Style="{StaticResource QuietButton}"/>
             </WrapPanel>
@@ -135,6 +139,7 @@
               <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" VerticalContentAlignment="Center"><StackPanel x:Name="FilmStrip" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"/></ScrollViewer>
             </DockPanel>
             <local:DenoisePanel x:Name="DenoiseEditor" Grid.Row="2" Visibility="Collapsed" VerticalAlignment="Center"/>
+            <ScrollViewer x:Name="HslSurface" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><local:HslPanel x:Name="HslEditor"/></ScrollViewer>
             <ScrollViewer x:Name="PhotoEffectsSurface" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
               <local:PhotoEffectsPanel x:Name="PhotoEffectsEditor" VerticalAlignment="Center"/>
             </ScrollViewer>

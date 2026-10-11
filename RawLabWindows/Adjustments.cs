@@ -26,7 +26,8 @@ public sealed record ParameterSpec(Parameter Id, string Title, string Group, dou
 public sealed class Adjustments
 {
     private double[] values = [100,0,6500,0,0,0,0,0,0,0];
-    public int ExposureMode { get; set; }
+    public int ExposureMode { get; set; } = 1;
+    public HslSettings Hsl { get; set; } = new();
     public DenoiseSettings Denoise { get; set; } = new();
     public PhotoEffectsSettings Effects { get; set; } = new();
     private int displayChromaDenoise;
@@ -44,7 +45,7 @@ public sealed class Adjustments
     public double this[Parameter id] => values[(int)id];
     public Adjustments Clone() { var copy = (Adjustments)MemberwiseClone(); copy.values = (double[])values.Clone(); return copy; }
     public AdjustmentSnapshot Capture() => new((double[])values.Clone(), ExposureMode, CameraWhiteBalance, AsShot?.Temperature, AsShot?.Tint,
-        Denoise, Effects, DisplayChromaDenoise);
+        Denoise, Effects, DisplayChromaDenoise, Hsl);
     public static Adjustments FromSnapshot(AdjustmentSnapshot snapshot)
     {
         if (snapshot.Values.Length != ParameterSpec.All.Length || snapshot.ExposureMode is < 0 or > 2 ||
@@ -59,6 +60,7 @@ public sealed class Adjustments
         return new Adjustments {
             Denoise = denoise,
             Effects = effects,
+            Hsl = snapshot.Hsl ?? new HslSettings(),
             DisplayChromaDenoise = snapshot.DisplayChromaDenoise,
             values = (double[])snapshot.Values.Clone(), ExposureMode = snapshot.ExposureMode,
             CameraWhiteBalance = snapshot.CameraWhiteBalance,
@@ -104,11 +106,12 @@ public sealed class Adjustments
     public void ResetGroup(string group)
     {
         foreach (var spec in ParameterSpec.All.Where(p => p.Group == group)) Reset(spec.Id);
-        if (group == "输入") { ExposureMode = 0; ResetWhiteBalance(); }
+        if (group == "输入") { ExposureMode = 1; ResetWhiteBalance(); }
+        if (group == "色彩") Hsl = new();
         if (group == "细节") { Denoise = new(); DisplayChromaDenoise = 0; }
         if (group == "效果") Effects = new();
     }
-    public void ResetAll() { foreach (var spec in ParameterSpec.All) Reset(spec.Id); ExposureMode = 0; ResetWhiteBalance(); Denoise = new(); Effects = new(); DisplayChromaDenoise = 0; }
+    public void ResetAll() { foreach (var spec in ParameterSpec.All) Reset(spec.Id); ExposureMode = 1; ResetWhiteBalance(); Denoise = new(); Effects = new(); Hsl = new(); DisplayChromaDenoise = 0; }
     internal Native.Request Request(string path, string? lut, int edge, string? output, int? longEdge = null)
     {
         if (longEdge is { } requested && !ExportSize.IsValid(requested))

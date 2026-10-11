@@ -58,6 +58,27 @@ final class RenderEngine {
 
     var lastBackend: sony2fuji_render_backend { sony2fuji_session_get_last_backend(session) }
 
+    func autoExposure(_ url: URL, settings: Adjustments) throws -> Double {
+        guard sony2fuji_session_set_raw_exposure_mode(session, settings.exposureMode.core) == SONY2FUJI_STATUS_OK else {
+            throw RenderError.failed("无效的曝光基准")
+        }
+        var request = sony2fuji_request()
+        request.version = SONY2FUJI_REQUEST_VERSION
+        request.struct_size = UInt32(MemoryLayout<sony2fuji_request>.size)
+        request.input_type = SONY2FUJI_INPUT_RAW
+        request.wb_mode = SONY2FUJI_WB_CAMERA
+        request.wb_mul = (1,1,1,1)
+        settings.apply(to: &request)
+        request.output_target = SONY2FUJI_TARGET_BUFFER
+        var ev: Float = 0
+        let status = url.path.withCString { path in
+            request.input_path = path
+            return sony2fuji_session_estimate_auto_exposure(session, &request, &ev)
+        }
+        guard status == SONY2FUJI_STATUS_OK else { throw RenderError.failed("无法自动调整曝光：\(String(cString: sony2fuji_status_message(status)))") }
+        return Double(ev)
+    }
+
     func render(_ url: URL, settings: Adjustments, lut: URL?, edge: Int?, output: URL? = nil, interactive: Bool = false, exportLongEdge: Int? = nil) throws -> RenderedImage? {
         if let exportLongEdge, !(1...65535).contains(exportLongEdge) {
             throw RenderError.failed("导出长边必须为 1-65535 像素。")
@@ -67,6 +88,11 @@ final class RenderEngine {
         }
         guard sony2fuji_session_set_raw_exposure_mode(session, settings.exposureMode.core) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed("无效的曝光基准")
+        }
+        guard settings.hslSettings.isValid else { throw RenderError.failed("无效的 HSL 参数") }
+        var hslConfig = settings.hslSettings.nativeConfig
+        guard sony2fuji_session_set_hsl(session, &hslConfig) == SONY2FUJI_STATUS_OK else {
+            throw RenderError.failed("无效的 HSL 参数")
         }
         let wavelet = settings.waveletNoiseReduction
         var effectsConfig = settings.photoEffectsConfig

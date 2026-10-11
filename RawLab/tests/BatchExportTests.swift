@@ -23,6 +23,8 @@ struct BatchExportTests {
         settings.denoise = RawDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100)
         settings.photoEffects.vignetteMidpoint = 62
         settings.photoEffects.grainSize = 60
+        settings.exposureMode = .sensor
+        settings.hsl.set(.hue, channel: 3, value: 32)
         let source = BatchSourceSnapshot(identity: PhotoIdentity(resourceIdentifier: "source"),
                                           sourceURL: sourceURL, displayName: "source.ARW", settings: settings)
         let targets = (1...6).map { index in
@@ -46,6 +48,8 @@ struct BatchExportTests {
         check(reopenedJob?.source.settings.denoise == settings.denoise, "journal preserves denoise settings")
         check(reopenedJob?.source.settings.photoEffects == settings.photoEffects,
               "journal preserves photo effects auxiliary values")
+        check(reopenedJob?.source.settings.hsl == settings.hsl && reopenedJob?.source.settings.exposureMode == .sensor,
+              "journal preserves HSL and the exposure baseline")
         check(pendingJobs.contains(where: { $0.id == job.id }), "pending journal is recoverable after interruption")
         var renderCount = 0
         var writeCount = 0
@@ -56,6 +60,8 @@ struct BatchExportTests {
                                             check(settings.denoise == source.settings.denoise, "batch uses frozen denoise settings")
                                             check(settings.photoEffects == source.settings.photoEffects,
                                                   "batch uses frozen photo effects settings")
+                                            check(settings.hsl == source.settings.hsl && settings.exposureMode == .sensor,
+                                                  "batch uses frozen HSL and exposure baseline")
                                             return Data("\(target.id):\(settings.exposure)".utf8)
                                         }, write: { data, name, target, _ in
                                             writeCount += 1

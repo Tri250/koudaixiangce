@@ -31,7 +31,8 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
             settings.denoise.enabled, settings.denoise.luma, settings.denoise.chroma, settings.denoise.coarse,
             settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
             settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
-            settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness))
+            settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
+            settings.exposureMode, settings.hsl.packed()))
     }
 
     @Synchronized
@@ -46,8 +47,15 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
             settings.denoise.enabled, settings.denoise.luma, settings.denoise.chroma, settings.denoise.coarse,
             settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
             settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
-            settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness)
+            settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
+            settings.exposureMode, settings.hsl.packed())
         ExportMetadata.preserve(input, output)
+    }
+
+    @Synchronized
+    fun autoExposure(input: File, settings: EditSettings): Float {
+        check(handle != 0L) { "Processor is closed" }
+        return nativeAutoExposure(handle, input.path, settings.customWb, settings.temperature, settings.tint, settings.exposureMode)
     }
 
     @Synchronized
@@ -58,13 +66,16 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
     private external fun nativeCreate(mode: Int): Long
     private external fun nativeSetGpuMode(handle: Long, mode: Int)
     private external fun nativeDestroy(handle: Long)
+    private external fun nativeAutoExposure(handle: Long, input: String, customWb: Boolean,
+        temperature: Float, tint: Float, exposureMode: Int): Float
     private external fun nativeProcess(handle: Long, input: String, lut: String?, output: String?,
         strength: Float, exposure: Float, customWb: Boolean, temperature: Float, tint: Float,
         highlights: Float, shadows: Float, contrast: Float, toneCurve: Float, saturation: Float, sharpening: Float,
         edge: Int, interactive: Boolean, png: Boolean, longEdge: Int,
         denoiseEnabled: Boolean, luma: Float, chroma: Float, coarse: Float, displayChromaDenoise: Int,
         vignetteAmount: Float, vignetteMidpoint: Float, vignetteRoundness: Float, vignetteFeather: Float,
-        vignetteHighlights: Float, grainAmount: Float, grainSize: Float, grainRoughness: Float): NativeFrame?
+        vignetteHighlights: Float, grainAmount: Float, grainSize: Float, grainRoughness: Float,
+        exposureMode: Int, hsl: FloatArray): NativeFrame?
 
     companion object {
         const val CPU = 0

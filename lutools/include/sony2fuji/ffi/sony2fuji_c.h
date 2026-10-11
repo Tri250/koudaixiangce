@@ -191,6 +191,17 @@ typedef struct sony2fuji_photo_effects_config {
     float grain_roughness;     // 0..100; default 50.
 } sony2fuji_photo_effects_config;
 
+#define SONY2FUJI_HSL_CONFIG_VERSION 1
+#define SONY2FUJI_HSL_CHANNELS 8
+typedef struct sony2fuji_hsl_config {
+    uint32_t version;
+    uint32_t struct_size;
+    // Red, orange, yellow, green, aqua, blue, purple, magenta; -100..100.
+    float hue[SONY2FUJI_HSL_CHANNELS];        // +/-30 degrees at full scale.
+    float saturation[SONY2FUJI_HSL_CHANNELS]; // Relative saturation percent.
+    float lightness[SONY2FUJI_HSL_CHANNELS];  // +/-0.5 display-HSL lightness.
+} sony2fuji_hsl_config;
+
 // ============================================================================
 // Opaque Session
 // ============================================================================
@@ -265,6 +276,21 @@ sony2fuji_status sony2fuji_session_set_wavelet_denoise(
 // Fixed grain is reproducible. Wavelet/chroma denoising can precede effects.
 sony2fuji_status sony2fuji_session_set_photo_effects(
     sony2fuji_session* session, const sony2fuji_photo_effects_config* config
+);
+
+// Display-sRGB mixer after tone/color and before denoise/detail/effects.
+// Additive API: request v2 is unchanged. Zero is an exact bypass. Active HSL
+// uses the platform photo GPU when available. Auto falls back on GPU failure;
+// Force requires GPU success, as with the other photo adjustments.
+sony2fuji_status sony2fuji_session_set_hsl(
+    sony2fuji_session* session, const sony2fuji_hsl_config* config
+);
+
+// One-shot absolute user EV in [-4,4], not a delta from current exposure.
+// Meters exact RAW/current WB and exposure mode, or a tagged raster buffer,
+// before user EV/LUT/display controls. Errors leave exposure_ev unchanged.
+sony2fuji_status sony2fuji_session_estimate_auto_exposure(
+    sony2fuji_session* session, const sony2fuji_request* request, float* exposure_ev
 );
 
 // Capability of the last successfully decoded RAW: 0 unsupported, 1 supported.

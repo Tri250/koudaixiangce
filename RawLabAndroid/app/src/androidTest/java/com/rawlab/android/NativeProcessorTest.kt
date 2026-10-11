@@ -15,6 +15,37 @@ import java.nio.ByteOrder
 
 @RunWith(AndroidJUnit4::class)
 class NativeProcessorTest {
+    @Test fun hslAndAutomaticExposureReachTheSharedCore() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val input = File(instrumentation.targetContext.cacheDir, "hsl-auto-test.dng")
+        instrumentation.context.assets.open("sample.RAW").use { from -> input.outputStream().use { from.copyTo(it) } }
+        try {
+            NativeProcessor(NativeProcessor.CPU).use { processor ->
+                val settings = EditSettings()
+                val identity = processor.preview(input, null, settings, 200, false)
+                val hsl = HslSettings(List(24) { if (it in 8..15) -100f else 0f })
+                val edited = settings.copy(hsl = hsl)
+                val cpu = processor.preview(input, null, edited, 200, false)
+                assertFalse(identity.pixels.contentEquals(cpu.pixels))
+                processor.setGpuMode(NativeProcessor.AUTO)
+                val automatic = processor.preview(input, null, edited, 200, false)
+                assertEquals(2, automatic.backend)
+                assertTrue(cpu.pixels.indices.maxOf { kotlin.math.abs((cpu.pixels[it].toInt() and 255) - (automatic.pixels[it].toInt() and 255)) } <= 2)
+                processor.setGpuMode(NativeProcessor.FORCE)
+                val forced = processor.preview(input, null, edited, 200, false)
+                assertEquals(2, forced.backend)
+                assertArrayEquals(automatic.pixels, forced.pixels)
+                val reset = processor.preview(input, null, settings, 200, false)
+                assertEquals(2, reset.backend)
+                assertTrue(identity.pixels.indices.maxOf { kotlin.math.abs((identity.pixels[it].toInt() and 255) - (reset.pixels[it].toInt() and 255)) } <= 2)
+                assertArrayEquals(forced.pixels, processor.preview(input, null, edited, 200, false).pixels)
+                val ev = processor.autoExposure(input, settings)
+                assertTrue(ev.isFinite() && ev in -4f..4f)
+                assertEquals(ev, processor.autoExposure(input, edited.copy(exposure = 3f)))
+                for (mode in 0..2) assertTrue(processor.autoExposure(input, settings.copy(exposureMode = mode)).isFinite())
+            }
+        } finally { input.delete() }
+    }
     @Test fun photoEffectsAndDisplayChromaReachPreviewAndExport() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext

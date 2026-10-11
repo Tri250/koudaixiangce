@@ -24,6 +24,7 @@ class EditPersistenceTest {
         try {
             val identity = PhotoIdentity("content://media/external/images/media/7")
             val changed = EditSettings(film = "velvia", exposure = .75f, contrast = .25f,
+                exposureMode = 2, hsl = HslSettings().withValue(1, 0, -60f),
                 highlights = .25f, customWb = true, temperature = 4200f,
                 denoise = DenoiseSettings(true, 10f, 72f, 100f), displayChromaDenoise = 2,
                 effects = PhotoEffectsSettings(vignetteAmount = -40f, vignetteMidpoint = 20f,
@@ -31,6 +32,14 @@ class EditPersistenceTest {
             EditStore(directory).save(identity, changed)
             val reopened = EditStore(directory)
             assertEquals(changed, reopened.load(identity))
+            val file = File(directory, "edits.properties")
+            val properties = java.util.Properties().also { file.inputStream().use(it::load) }
+            val key = properties.stringPropertyNames().first { it.endsWith(".values") }
+            properties.setProperty(key, properties.getProperty(key).split(',').take(24).joinToString(","))
+            file.outputStream().use { properties.store(it, null) }
+            val legacy = EditStore(directory).load(identity)!!
+            assertEquals(0, legacy.exposureMode)
+            assertTrue(legacy.hsl.isIdentity)
             assertNull(reopened.load(PhotoIdentity("content://media/external/images/media/8")))
             reopened.reset(identity)
             assertNull(EditStore(directory).load(identity))
