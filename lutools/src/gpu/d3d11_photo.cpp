@@ -147,6 +147,7 @@ bool D3D11PhotoRenderer::render(const ImageData& input, ColorSpace inputSpace,
     const sony2fuji_request& request, const std::shared_ptr<LUT3D>& lut,
     const RGB& wb, uint32_t width, uint32_t height, uint64_t revision, ImageData& output,
     const PhotoEffectsOptions& effects, int chromaDenoise, bool preserveSourceResolution, const HslOptions& hsl) {
+    if (lut && lut->inputTransfer() == LUTTransfer::SRGB) return false;
     if (input.width<=0 || input.height<=0 || width==0 || height==0 || width>65535 || height>65535 ||
         input.pixels.size()!=static_cast<size_t>(input.width)*input.height || !effects.valid() || !hsl.valid() ||
         chromaDenoise < 0 || chromaDenoise > 2) return false;

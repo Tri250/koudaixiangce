@@ -10,6 +10,20 @@ enum WhiteBalanceMode: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 }
 
+enum ExposureMode: String, CaseIterable, Identifiable, Codable {
+    case scene = "标准显影"
+    case preview = "匹配内嵌预览"
+    case sensor = "传感器基准"
+    var id: String { rawValue }
+    var core: sony2fuji_raw_exposure_mode {
+        switch self {
+        case .scene: return SONY2FUJI_EXPOSURE_SCENE
+        case .preview: return SONY2FUJI_EXPOSURE_PREVIEW
+        case .sensor: return SONY2FUJI_EXPOSURE_SENSOR
+        }
+    }
+}
+
 enum RawNoiseReductionLevel: Double, CaseIterable, Identifiable {
     case off = 0, light = 1, full = 2
     var id: Double { rawValue }
@@ -144,35 +158,10 @@ struct Adjustments: Equatable, Codable {
     var photoEffects: PhotoEffectsSettings?
     var hsl: HSLSettings?
     private(set) var supportsRawNoiseReduction = false
+    var masterRecipeID: String? = nil
+    private var masterRecipeSettingsVersion: Int? = 2
 
-    init() {}
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        exposureMode = try values.decodeIfPresent(ExposureMode.self, forKey: .exposureMode) ?? .scene
-        exposure = try values.decodeIfPresent(Double.self, forKey: .exposure) ?? 0
-        temperature = try values.decodeIfPresent(Double.self, forKey: .temperature) ?? 6500
-        tint = try values.decodeIfPresent(Double.self, forKey: .tint) ?? 0
-        whiteBalanceMode = try values.decodeIfPresent(WhiteBalanceMode.self, forKey: .whiteBalanceMode) ?? .asShot
-        asShotWhiteBalance = try values.decodeIfPresent(WhiteBalance.self, forKey: .asShotWhiteBalance)
-        strength = try values.decodeIfPresent(Double.self, forKey: .strength) ?? 1
-        contrast = try values.decodeIfPresent(Double.self, forKey: .contrast) ?? 0
-        highlights = try values.decodeIfPresent(Double.self, forKey: .highlights) ?? 0
-        shadows = try values.decodeIfPresent(Double.self, forKey: .shadows) ?? 0
-        toneCurve = try values.decodeIfPresent(Double.self, forKey: .toneCurve) ?? 0
-        saturation = try values.decodeIfPresent(Double.self, forKey: .saturation) ?? 0
-        sharpening = try values.decodeIfPresent(Double.self, forKey: .sharpening) ?? 0
-        rawNoiseReduction = try values.decodeIfPresent(Double.self, forKey: .rawNoiseReduction) ?? 0
-        chromaNoiseReduction = try values.decodeIfPresent(Double.self, forKey: .chromaNoiseReduction)
-        waveletNoiseReduction = try values.decodeIfPresent(WaveletDenoiseSettings.self, forKey: .waveletNoiseReduction)
-        photoEffects = try values.decodeIfPresent(PhotoEffectsSettings.self, forKey: .photoEffects)
-        hsl = try values.decodeIfPresent(HSLSettings.self, forKey: .hsl)
-        supportsRawNoiseReduction = try values.decodeIfPresent(Bool.self, forKey: .supportsRawNoiseReduction) ?? false
-        guard hslSettings.isValid else {
-            throw DecodingError.dataCorruptedError(forKey: .hsl, in: values, debugDescription: "Invalid HSL parameters")
-        }
-    }
-
+    var masterRecipe: MasterRecipe? { MasterRecipe.recipe(for: masterRecipeID) }
     var effectSettings: PhotoEffectsSettings { photoEffects ?? PhotoEffectsSettings() }
     var hslSettings: HSLSettings { hsl ?? HSLSettings() }
     mutating func setHSL(_ axis: HSLAxis, channel: Int, value: Double) {
@@ -269,19 +258,53 @@ struct Adjustments: Equatable, Codable {
         }
     }
 
+    var usesAsShotWhiteBalance: Bool {
+        whiteBalanceMode == .asShot ||
+            (masterRecipe == nil && temperature == asShotWhiteBalance?.temperature && tint == asShotWhiteBalance?.tint)
+    }
+
+    mutating func applyMasterRecipe(_ recipe: MasterRecipe) {
+        masterRecipeID = recipe.id
+        strength = 1
+        exposure = recipe.exposureDelta
+        shadows = recipe.shadowsDelta
+        highlights = recipe.highlightsDelta
+        contrast = recipe.contrastDelta
+        saturation = recipe.saturationDelta
+        tint = recipe.tintDelta
+    }
+
+    mutating func clearMasterRecipe() {
+        guard masterRecipe != nil else { masterRecipeID = nil; return }
+        let cameraWB = usesAsShotWhiteBalance
+        let offset = tint
+        masterRecipeID = nil
+        if cameraWB && (offset == 0 || asShotWhiteBalance == nil) {
+            resetWhiteBalance()
+        } else {
+            tint = min(150, max(-150, (asShotWhiteBalance?.tint ?? 0) + offset))
+            whiteBalanceMode = .custom
+        }
+    }
+
     func apply(to request: inout sony2fuji_request) {
-        request.exposure_ev = Float(exposure)
+        let recipeActive = masterRecipe != nil
+        let scale = recipeActive ? strength : 1
+        let tintOffset = recipeActive ? tint * scale : 0
+        request.exposure_ev = Float(exposure * scale)
         request.brightness = 1
-        let cameraWB = whiteBalanceMode == .asShot ||
-            (temperature == asShotWhiteBalance?.temperature && tint == asShotWhiteBalance?.tint)
-        request.wb_mode = cameraWB ? SONY2FUJI_WB_CAMERA : SONY2FUJI_WB_TEMPERATURE
-        request.temperature = cameraWB ? 6500 : Float(temperature)
-        request.tint = cameraWB ? 0 : Float(tint)
-        request.contrast = Float(1 + contrast / 100)
-        request.saturation = Float(1 + saturation / 100)
+        let cameraWB = usesAsShotWhiteBalance
+        let effectiveTemp = cameraWB ? (asShotWhiteBalance?.temperature ?? 6500) : temperature
+        let effectiveTint = recipeActive ? (asShotWhiteBalance?.tint ?? 0) + tintOffset : tint
+        let temperatureWB = !cameraWB || tintOffset != 0
+        request.wb_mode = temperatureWB ? SONY2FUJI_WB_TEMPERATURE : SONY2FUJI_WB_CAMERA
+        request.temperature = temperatureWB ? Float(effectiveTemp) : 6500
+        request.tint = temperatureWB ? Float(recipeActive ? min(150, max(-150, effectiveTint)) : effectiveTint) : 0
+        request.contrast = Float(1 + contrast * scale / 100)
+        request.saturation = Float(1 + saturation * scale / 100)
         // The core's positive highlight value compresses light; UI positive brightens.
-        request.highlights = Float(-highlights / 100)
-        request.shadows = Float(shadows / 100)
+        request.highlights = Float(-highlights * scale / 100)
+        request.shadows = Float(shadows * scale / 100)
         request.tone_curve = Float(toneCurve / 100)
         request.sharpening = Float(sharpening / 100)
     }
@@ -290,6 +313,7 @@ struct Adjustments: Equatable, Codable {
         for parameter in group.parameters {
             set(parameter, to: parameter.spec(for: self).defaultValue)
         }
+        if group == .film { clearMasterRecipe() }
         if group == .input { exposureMode = .preview; resetWhiteBalance() }
         if group == .color { hsl = nil }
         if group == .effects { photoEffects = nil }
@@ -301,16 +325,20 @@ struct Adjustments: Equatable, Codable {
             && (group != .color || hslSettings.isIdentity)
             && (group != .detail || !isDenoiseEnabled)
             && (group != .effects || effectSettings == PhotoEffectsSettings())
+            && (group != .film || masterRecipeID == nil)
     }
 
     mutating func resolveWhiteBalance(_ camera: WhiteBalance?) {
         asShotWhiteBalance = camera
-        if whiteBalanceMode == .asShot { resetWhiteBalance() }
+        if whiteBalanceMode == .asShot {
+            if masterRecipe != nil { temperature = camera?.temperature ?? 6500 }
+            else { resetWhiteBalance() }
+        }
     }
 
     mutating func resetWhiteBalance() {
         temperature = asShotWhiteBalance?.temperature ?? 6500
-        tint = asShotWhiteBalance?.tint ?? 0
+        tint = masterRecipe != nil ? 0 : (asShotWhiteBalance?.tint ?? 0)
         whiteBalanceMode = .asShot
     }
 
@@ -322,6 +350,12 @@ struct Adjustments: Equatable, Codable {
     mutating func set(_ parameter: AdjustmentParameter, to value: Double) {
         self[keyPath: parameter.spec.keyPath] = value
         if parameter.isWhiteBalance {
+            if masterRecipe != nil {
+                if parameter == .temperature {
+                    whiteBalanceMode = temperature == asShotWhiteBalance?.temperature ? .asShot : .custom
+                }
+                return
+            }
             whiteBalanceMode = temperature == asShotWhiteBalance?.temperature && tint == asShotWhiteBalance?.tint ? .asShot : .custom
         }
     }
@@ -335,6 +369,49 @@ struct Adjustments: Equatable, Codable {
     }
 
     var isDefault: Bool { AdjustmentGroup.allCases.allSatisfy { isDefault($0) } }
+}
+
+extension Adjustments {
+    init(from decoder: Decoder) throws {
+        self.init()
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        exposureMode = try values.decodeIfPresent(ExposureMode.self, forKey: .exposureMode) ?? .scene
+        exposure = try values.decodeIfPresent(Double.self, forKey: .exposure) ?? 0
+        temperature = try values.decodeIfPresent(Double.self, forKey: .temperature) ?? 6500
+        tint = try values.decodeIfPresent(Double.self, forKey: .tint) ?? 0
+        whiteBalanceMode = try values.decodeIfPresent(WhiteBalanceMode.self, forKey: .whiteBalanceMode) ?? .asShot
+        asShotWhiteBalance = try values.decodeIfPresent(WhiteBalance.self, forKey: .asShotWhiteBalance)
+        strength = try values.decodeIfPresent(Double.self, forKey: .strength) ?? 1
+        contrast = try values.decodeIfPresent(Double.self, forKey: .contrast) ?? 0
+        highlights = try values.decodeIfPresent(Double.self, forKey: .highlights) ?? 0
+        shadows = try values.decodeIfPresent(Double.self, forKey: .shadows) ?? 0
+        toneCurve = try values.decodeIfPresent(Double.self, forKey: .toneCurve) ?? 0
+        saturation = try values.decodeIfPresent(Double.self, forKey: .saturation) ?? 0
+        sharpening = try values.decodeIfPresent(Double.self, forKey: .sharpening) ?? 0
+        rawNoiseReduction = try values.decodeIfPresent(Double.self, forKey: .rawNoiseReduction) ?? 0
+        chromaNoiseReduction = try values.decodeIfPresent(Double.self, forKey: .chromaNoiseReduction)
+        waveletNoiseReduction = try values.decodeIfPresent(WaveletDenoiseSettings.self, forKey: .waveletNoiseReduction)
+        photoEffects = try values.decodeIfPresent(PhotoEffectsSettings.self, forKey: .photoEffects)
+        hsl = try values.decodeIfPresent(HSLSettings.self, forKey: .hsl)
+        supportsRawNoiseReduction = try values.decodeIfPresent(Bool.self, forKey: .supportsRawNoiseReduction) ?? false
+        guard hslSettings.isValid else {
+            throw DecodingError.dataCorruptedError(forKey: .hsl, in: values, debugDescription: "Invalid HSL parameters")
+        }
+        masterRecipeID = try values.decodeIfPresent(String.self, forKey: .masterRecipeID)
+        let version = try values.decodeIfPresent(Int.self, forKey: .masterRecipeSettingsVersion)
+        if version == nil, let recipe = masterRecipe {
+            // 旧记录只保存基础值；一次性合入预设，之后由新规则整体缩放这些当前值。
+            let cameraWB = whiteBalanceMode == .asShot ||
+                (temperature == asShotWhiteBalance?.temperature && tint == asShotWhiteBalance?.tint)
+            exposure += recipe.exposureDelta
+            shadows += recipe.shadowsDelta
+            highlights += recipe.highlightsDelta
+            contrast += recipe.contrastDelta
+            saturation += recipe.saturationDelta
+            tint = (cameraWB ? 0 : tint - (asShotWhiteBalance?.tint ?? 0)) + recipe.tintDelta
+            if cameraWB { whiteBalanceMode = .asShot }
+        }
+    }
 }
 
 enum AdjustmentGroup: String, CaseIterable, Identifiable {
@@ -402,7 +479,7 @@ enum AdjustmentParameter: String, CaseIterable, Identifiable {
     func spec(for settings: Adjustments) -> AdjustmentSpec {
         var value = spec
         if self == .temperature { value.defaultValue = settings.asShotWhiteBalance?.temperature ?? 6500 }
-        if self == .tint { value.defaultValue = settings.asShotWhiteBalance?.tint ?? 0 }
+        if self == .tint { value.defaultValue = settings.masterRecipe != nil ? 0 : (settings.asShotWhiteBalance?.tint ?? 0) }
         return value
     }
     static let photoTools: [Self] = [.exposure, .highlights, .shadows, .contrast, .toneCurve,
@@ -464,14 +541,15 @@ struct PhotoViewport: Equatable {
 struct PhotoEditState: Codable, Equatable {
     var settings: Adjustments
     var filmID: String
+    var masterRecipeID: String? = nil
 }
 
 struct PhotoEditSession {
     private var edits: [URL: PhotoEditState] = [:]
-    mutating func save(_ url: URL, settings: Adjustments, filmID: String) {
-        edits[url.standardizedFileURL] = PhotoEditState(settings: settings, filmID: filmID)
+    mutating func save(_ url: URL, settings: Adjustments, filmID: String, masterRecipeID: String? = nil) {
+        edits[url.standardizedFileURL] = PhotoEditState(settings: settings, filmID: filmID, masterRecipeID: masterRecipeID)
     }
     func state(for url: URL, defaultFilmID: String) -> PhotoEditState {
-        edits[url.standardizedFileURL] ?? PhotoEditState(settings: Adjustments(), filmID: defaultFilmID)
+        edits[url.standardizedFileURL] ?? PhotoEditState(settings: Adjustments(), filmID: defaultFilmID, masterRecipeID: nil)
     }
 }

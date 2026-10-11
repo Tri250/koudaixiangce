@@ -15,7 +15,7 @@ fi
 RAWLAB_ARCH="$ARCH" bash "$ROOT/RawLabMac/build-wavelet-dependency.sh"
 cmake -S "$ROOT/lutools" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="$ARCH" -DCMAKE_OSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" -DSONY2FUJI_ENABLE_GPU=ON -DSONY2FUJI_ENABLE_CHROMA_DENOISE=ON -DSONY2FUJI_ENABLE_OPENMP=OFF -DBUILD_SHARED_LIB=OFF -DBUILD_TESTING=ON
 cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu)"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/LUTs" "$APP/Contents/Resources/FilmIcons" "$APP/Contents/Frameworks"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/LUTs" "$APP/Contents/Resources/MasterRecipes" "$APP/Contents/Resources/MasterRecipeIcons" "$APP/Contents/Resources/FilmIcons" "$APP/Contents/Frameworks"
 mkdir -p "$APP/Contents/Resources/Licenses"
 cp "$ROOT/LICENSE" "$APP/Contents/Resources/Licenses/RawLab-GPL-3.0.txt"
 cp "$ROOT/docs/licensing.md" "$APP/Contents/Resources/Licenses/RawLab-Licensing.md"
@@ -45,6 +45,10 @@ for lut in "$ROOT"/lutools/flog-2-new/*.cube; do
     case "$lut" in *FLog2-709*|*to_WDR*) continue ;; esac
     cp "$lut" "$APP/Contents/Resources/LUTs/"
 done
+if [ -d "$ROOT/RawLabMac/Resources/MasterRecipes" ]; then
+    cp -R "$ROOT/RawLabMac/Resources/MasterRecipes/." "$APP/Contents/Resources/MasterRecipes/"
+fi
+cp "$ROOT"/RawLabMac/Resources/MasterRecipeIcons/*.png "$APP/Contents/Resources/MasterRecipeIcons/"
 for artwork in "$ROOT"/RawLabMac/Resources/FilmIcons/*; do
     case "$artwork" in
         *.png|*.jpg|*.jpeg) cp "$artwork" "$APP/Contents/Resources/FilmIcons/" ;;

@@ -5,7 +5,7 @@ source "$ROOT/RawLabMac/tests/native-env.sh"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}"
 SDK="${SDKROOT:-/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk}"
 OUT="$(mktemp -d /tmp/rawlab-adjustments.XXXXXX)"
-SOURCES=("$ROOT/RawLabMac/Sources/Engine.swift" "$ROOT/Shared/ExportMetadata.swift")
+SOURCES=("$ROOT/RawLabMac/Sources/Engine.swift" "$ROOT/Shared/ExportMetadata.swift" "$ROOT/RawLabMac/Sources/MasterRecipe.swift")
 if [ -f "$ROOT/RawLabMac/Sources/Adjustments.swift" ]; then
     SOURCES+=("$ROOT/RawLabMac/Sources/Adjustments.swift" "$ROOT/Shared/HSLSettings.swift" "$ROOT/Shared/HSLNative.swift")
 fi

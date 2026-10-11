@@ -198,7 +198,12 @@ Phuket are accepted as display output. Explicit `F-Log`, `F-Log2` or `F-Log2C`
 outputs instead receive Log decoding and neutral display rendering. This makes
 technical gamut conversions usable in PHOTO without mistaking Log values for
 display RGB. JPEG/PNG outputs are still display-sRGB, never Log intermediates.
-Missing/incompatible declarations and sRGB-input creative LUTs remain rejected.
+Missing/incompatible declarations remain rejected. Display-sRGB creative CUBEs
+declare `#Gamma:sRGB to sRGB` and `#Gamut:ITU-R BT.709 to ITU-R BT.709`.
+Their input is the neutral display-sRGB result from step 3, not F-Log or scene
+linear RGB. CPU and Metal support this path; GLES/D3D11 return to CPU in Auto
+and reject Force until their shaders support display input. HSL retains its
+normal post-blend stage and is not baked into these creative tables.
 This validates declarations, not the table's actual transfer behavior;
 `OutputTransfer` comments are not interpreted. Custom named display LUTs must
 match the application's sRGB convention. Generic mathematical CUBE application

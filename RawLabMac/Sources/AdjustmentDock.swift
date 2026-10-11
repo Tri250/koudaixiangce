@@ -6,24 +6,58 @@ struct AdjustmentDock: View {
     let resetVersion: Int
     @State private var hslSelected = false
 
+    enum DockCategory: Equatable {
+        case film
+        case masterRecipe
+    }
+
+    @State private var dockCategory: DockCategory = .film
+
     var body: some View {
         VStack(spacing: 8) {
             GeometryReader { geometry in
                 ScrollView(.horizontal) {
                     HStack(spacing: 6) {
-                        Button { selected = nil; hslSelected = false } label: {
+                        Button {
+                            selected = nil
+                            hslSelected = false
+                            dockCategory = .film
+                        } label: {
+                            let active = selected == nil && !hslSelected && dockCategory == .film
+                            let changed = !model.selectedFilmID.isEmpty
                             VStack(spacing: 5) {
                                 Image(systemName: "film").font(.system(size: 19))
                                     .frame(width: 40, height: 40)
-                                    .background(selected == nil && !hslSelected ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
-                                    .overlay { Circle().strokeBorder(selected == nil && !hslSelected ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
+                                    .background(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                                    .overlay { Circle().strokeBorder(active ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
                                 Text("胶片").font(.system(size: 11))
-                                Color.clear.frame(width: 3, height: 3)
+                                Circle().fill(changed ? Color.yellow : Color.clear).frame(width: 3, height: 3)
                             }.frame(width: 56, height: 70)
-                                .foregroundStyle(selected == nil && !hslSelected ? Color.yellow : Color.primary)
+                                .foregroundStyle(active ? Color.yellow : Color.primary)
                         }.buttonStyle(.plain).help("选择胶片模拟").accessibilityLabel("胶片")
                             .accessibilityValue(model.selectedFilm?.name ?? "中性")
-                            .accessibilityAddTraits(selected == nil && !hslSelected ? .isSelected : [])
+                            .accessibilityAddTraits(selected == nil && !hslSelected && dockCategory == .film ? .isSelected : [])
+
+                        Button {
+                            selected = nil
+                            hslSelected = false
+                            dockCategory = .masterRecipe
+                        } label: {
+                            let active = selected == nil && !hslSelected && dockCategory == .masterRecipe
+                            let changed = model.settings.masterRecipeID != nil
+                            VStack(spacing: 5) {
+                                Image(systemName: "photo.stack").font(.system(size: 19))
+                                    .frame(width: 40, height: 40)
+                                    .background(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                                    .overlay { Circle().strokeBorder(active ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
+                                Text("大师配方").font(.system(size: 11))
+                                Circle().fill(changed ? Color.yellow : Color.clear).frame(width: 3, height: 3)
+                            }.frame(width: 56, height: 70)
+                                .foregroundStyle(active ? Color.yellow : Color.primary)
+                        }.buttonStyle(.plain).help("选择大师配方").accessibilityLabel("大师配方")
+                            .accessibilityValue(model.settings.masterRecipe?.name ?? "无配方")
+                            .accessibilityAddTraits(selected == nil && !hslSelected && dockCategory == .masterRecipe ? .isSelected : [])
+
                         ForEach([AdjustmentParameter.strength] + AdjustmentParameter.photoTools) { parameter in tool(parameter) }
                         Button { hslSelected = true } label: {
                             VStack(spacing: 5) {
@@ -38,7 +72,7 @@ struct AdjustmentDock: View {
                             .accessibilityAddTraits(hslSelected ? .isSelected : [])
                             .help("色相、饱和度和明度").disabled(model.result == nil)
                     }.padding(.horizontal, 12).padding(.top, 4)
-                        .frame(minWidth: max(710, geometry.size.width))
+                        .frame(minWidth: max(780, geometry.size.width))
                 }.scrollIndicators(.hidden)
             }.frame(height: 76)
             Group {
@@ -73,8 +107,10 @@ struct AdjustmentDock: View {
                     onAuto: parameter == .exposure ? model.autoExposure : nil, autoBusy: model.autoExposing)
                     .id("\(parameter.rawValue).\(resetVersion)")
                     .frame(maxWidth: 360).padding(.horizontal, 24)
-                    .disabled(parameter == .strength && model.selectedFilm == nil)
+                    .disabled(parameter == .strength && model.selectedFilm == nil && model.settings.masterRecipe == nil)
                     .disabled(parameter.isWhiteBalance && model.settings.asShotWhiteBalance == nil)
+                } else if dockCategory == .masterRecipe {
+                    MasterRecipeDock(model: model)
                 } else {
                     FilmDock(model: model)
                 }
