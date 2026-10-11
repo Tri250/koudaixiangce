@@ -44,12 +44,14 @@ struct MasterRecipeTests {
             applied.exposure = 2; applied.shadows = -60; applied.highlights = 80
             applied.contrast = 75; applied.saturation = 50; applied.tint = 100
             applied.temperature = 8000; applied.sharpening = 75
+            applied.setHSL(.saturation, channel: 5, value: -35)
+            let originalHSL = applied.hslSettings
             applied.applyMasterRecipe(entry)
             check(applied.exposure == entry.exposureDelta && applied.shadows == entry.shadowsDelta &&
                   applied.highlights == entry.highlightsDelta && applied.contrast == entry.contrastDelta &&
                   applied.saturation == entry.saturationDelta && applied.tint == entry.tintDelta,
                   "\(entry.id): preset overwrites all six corresponding controls")
-            check(applied.temperature == 8000 && applied.sharpening == 75,
+            check(applied.temperature == 8000 && applied.sharpening == 75 && applied.hslSettings == originalHSL,
                   "\(entry.id): unrelated controls are preserved")
             for strength in [0.0, 0.5, 1.0, 2.0] {
                 applied.strength = strength
@@ -77,6 +79,7 @@ struct MasterRecipeTests {
         legacyBase.masterRecipeID = recipe.id
         legacyBase.exposure = 0.25; legacyBase.shadows = 10; legacyBase.highlights = 5
         legacyBase.contrast = 10; legacyBase.saturation = 3
+        legacyBase.setHSL(.hue, channel: 0, value: 25)
         legacyBase.resolveWhiteBalance(WhiteBalance(temperature: 6500, tint: 10))
         var legacyPayload = try JSONSerialization.jsonObject(with: JSONEncoder().encode(legacyBase)) as! [String: Any]
         legacyPayload.removeValue(forKey: "masterRecipeSettingsVersion")
@@ -87,6 +90,8 @@ struct MasterRecipeTests {
               "Legacy additive recipe records fold all six preset controls without double-counting camera tint")
         check(migrated.masterRecipeID == recipe.id && migrated.strength == 1,
               "Legacy migration preserves recipe selection and strength")
+        check(migrated.hslSettings == legacyBase.hslSettings,
+              "Legacy recipe migration preserves independently saved HSL")
         let migratedAgain = try JSONDecoder().decode(Adjustments.self, from: JSONEncoder().encode(migrated))
         check(migratedAgain == migrated, "Migrated recipe records are not migrated a second time")
         legacyPayload["whiteBalanceMode"] = WhiteBalanceMode.custom.rawValue

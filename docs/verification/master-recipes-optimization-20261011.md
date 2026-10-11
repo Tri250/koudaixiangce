@@ -72,3 +72,13 @@ Billy、CineStill、Jungraphy、RK、Samalive 的灰轴颜色仍触发通用偏�
 PR 的无照片 UI 截图来自隔离程序中的生产 `FilmDock` 和 `MasterRecipeDock`，而非完整编辑器截图。上方为溢出列表，下方包含可完全容纳的胶片列表及紧凑配方列表；按钮行属于验证程序。
 
 ![Native selector verification](../screenshots/master-recipe-pickers.png)
+
+## 与 development 整合
+
+交付时目标分支已更新至 `17cc79dd85b662213459d6b77be9cdb73b96de0a`，包含 PR #18 的 HSL 和自动曝光。隔离分支合入该版本，保留新照片/输入重置的 `preview` 默认、缺少曝光字段的旧记录继续使用 `scene`，并将 HSL 的可选解码、合法性检查与配方单次迁移合并。配方不覆盖 HSL，自动曝光仍作为当前曝光控制值参与用户确认的整体强度缩放。
+
+Metal 主机与 shader 同步保留 display-sRGB 输入标记及 HSL 数组，参数大小 `288`、HSL 数组偏移 `192`；GLES/D3D11 的 HSL 签名和 sRGB Auto CPU 回退保留。共享 C request v2 未变化。iOS/Android/Windows/Shared 相对目标分支无新增差异，本轮不重复声称其平台硬件验收。
+
+整合后构建及 bundle 检查通过，CTest 为 `15/15`。`master-recipe.sh`、`adjustments.sh`（DJI DNG）、`edit-model.sh`、`edit-memory.sh`、`batch-export.sh`、`horizontal-picker.sh` 均重新通过。旧配方与独立 HSL 同时保存/迁移，以及两种 RAW 的 display-sRGB 配方叠加 HSL、冷 WB primer 后恢复 HSL、下一次中性渲染清除 HSL 均有回归覆盖。
+
+整合后的 `master-recipe-render.sh <DJI DNG> <Sony ARW>` 完整矩阵通过：14 配方、四档强度、CPU/强制 Metal、单张/冻结批量 JPEG 与 16-bit PNG 像素对照；包含上述 HSL、缺失输入和 inode 更换回归。两个原始 RAW 的身份信息未变化。

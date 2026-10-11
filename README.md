@@ -18,6 +18,9 @@ film looks do not promise an exact match to in-camera JPEGs.
 
 - RAW development with exposure, camera-space white balance, tone, color and
   sharpening controls.
+- New RAW edits start with embedded-preview exposure matching. One-shot Auto
+  exposure and an eight-channel HSL mixer are shared across all four clients;
+  existing saved exposure baselines are preserved.
 - Built-in film looks with 0-200% strength, compatible CUBE/RLOOK imports and
   neutral-versus-edited comparison.
 - Linear-light wavelet denoising with separate luma, chroma and coarse-chroma
@@ -31,7 +34,8 @@ film looks do not promise an exact match to in-camera JPEGs.
   Readable capture metadata is retained, while output size and orientation are
   updated.
 - Metal, Direct3D 11 and OpenGL ES processing where supported, with automatic CPU
-  fallback. RAW decoding and file encoding remain CPU operations.
+  fallback. HSL runs in the platform photo GPU pipeline; RAW decoding and file
+  encoding remain CPU operations.
 - A shared C++17 core, command-line tools and a desktop LUT preparation utility.
 
 ## Platforms
@@ -41,7 +45,7 @@ film looks do not promise an exact match to in-camera JPEGs.
 | Windows | Windows 10/11, x64 |
 | macOS | macOS 15+, Apple Silicon or Intel |
 | Android | Android 8.0+, ARM64 or x86_64 |
-| iOS | iOS 18+, iPhone; the downloadable IPA requires re-signing |
+| iOS | iOS 18+, iPhone and iPad; the downloadable IPA requires re-signing |
 
 ## Downloads and Documentation
 

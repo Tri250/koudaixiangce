@@ -29,6 +29,8 @@ final class EditorModel: ObservableObject {
     @Published private(set) var neutral: RenderedImage?
     @Published private(set) var result: RenderedImage?
     @Published private(set) var busy = false
+    @Published private(set) var autoExposing = false
+    private var editRevision = UUID()
     @Published private(set) var exporting = false
     @Published private(set) var lookLibraryBusy = false
     @Published var error: String?
@@ -101,6 +103,7 @@ final class EditorModel: ObservableObject {
     deinit { debounceTimer?.cancel(); saveWork?.cancel() }
 
     private func edited() {
+        editRevision = UUID()
         guard file != nil else { return }
         dirty = true
         saveStatus = ""
@@ -203,6 +206,7 @@ final class EditorModel: ObservableObject {
         guard !exporting else { return }
         if file == url && result != nil { return }
         guard saveEdits() else { return }
+        editRevision = UUID()
         scheduler.setInteracting(false)
         var restored: PhotoEditState?
         do { restored = try editStore?.state(for: url) }
@@ -225,6 +229,24 @@ final class EditorModel: ObservableObject {
         clearSaveStatusLater()
         schedule()
     }
+    func autoExposure() {
+        guard let file, result != nil, !autoExposing, !exporting else { return }
+        let snapshot = settings, revision = editRevision
+        autoExposing = true
+        queue.async { [weak self] in
+            let result = Result { try RenderEngine().autoExposure(file, settings: snapshot) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.autoExposing = false
+                guard self.file == file, self.editRevision == revision, self.settings == snapshot else { return }
+                switch result {
+                case .success(let ev): self.settings.exposure = ev
+                case .failure(let error): self.error = error.localizedDescription
+                }
+            }
+        }
+    }
+
     func importLUT() {
         guard !lookLibraryBusy, !exporting else { return }
         let panel = NSOpenPanel()

@@ -15,7 +15,7 @@ swiftc -swift-version 5 -O -sdk "$SDK" \
     -import-objc-header "$ROOT/lutools/include/sony2fuji/ffi/sony2fuji_c.h" \
     "$ROOT/RawLabMac/Sources/Engine.swift" \
     "$ROOT/Shared/ExportMetadata.swift" \
-    "$ROOT/RawLabMac/Sources/Adjustments.swift" "$ROOT/RawLabMac/Sources/MasterRecipe.swift" \
+    "$ROOT/RawLabMac/Sources/Adjustments.swift" "$ROOT/RawLabMac/Sources/MasterRecipe.swift" "$ROOT/Shared/HSLSettings.swift" "$ROOT/Shared/HSLNative.swift" \
     "$ROOT/RawLabMac/Sources/RenderScheduling.swift" \
     "$ROOT/RawLabMac/Sources/LookLibrary.swift" \
     "$ROOT/RawLabMac/Sources/EditorModel.swift" \

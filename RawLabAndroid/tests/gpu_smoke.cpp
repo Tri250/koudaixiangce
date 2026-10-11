@@ -144,6 +144,37 @@ int main(int argc, char** argv) {
             std::remove(path.c_str());
         }
     }
+    sony2fuji_hsl_config hsl{SONY2FUJI_HSL_CONFIG_VERSION, sizeof(hsl), {}, {}, {}};
+    for (int axis = 0; axis < 3; ++axis) for (int channel = 0; channel < 8; ++channel) {
+        hsl = {SONY2FUJI_HSL_CONFIG_VERSION, sizeof(hsl), {}, {}, {}};
+        auto* values = axis == 0 ? hsl.hue : axis == 1 ? hsl.saturation : hsl.lightness;
+        values[channel] = axis == 0 ? 100 : axis == 1 ? -100 : 25;
+        for (Session* session : {&cpu, &forced, &automatic})
+            require(sony2fuji_session_set_hsl(session->value, &hsl) == SONY2FUJI_STATUS_OK, "HSL setter");
+        auto single = request;
+        single.lut_path = nullptr; single.sharpening = 0;
+        single.contrast = single.saturation = 1; single.highlights = single.shadows = single.tone_curve = 0;
+        compare(render(cpu, single, false), render(forced, single, true), "HSL-only axis " + std::to_string(axis) + " channel " + std::to_string(channel));
+    }
+    for (int channel = 0; channel < 8; ++channel) {
+        hsl.hue[channel] = channel % 2 == 0 ? -40 : 70;
+        hsl.saturation[channel] = channel % 2 == 0 ? 35 : -60;
+        hsl.lightness[channel] = channel % 2 == 0 ? -15 : 20;
+    }
+    for (Session* session : {&cpu, &forced, &automatic})
+        sony2fuji_session_set_hsl(session->value, &hsl);
+    const std::vector<uint8_t> wrapPixels{230,20,21, 230,21,20, 220,20,20,
+        20,220,220, 20,20,220, 180,20,220, 0,0,0, 128,128,128, 255,255,255};
+    auto wrap = request;
+    wrap.input_pixels = wrapPixels.data(); wrap.input_width = wrap.target_width = 9;
+    wrap.input_height = wrap.target_height = 1;
+    wrap.lut_path = nullptr; wrap.contrast = wrap.saturation = 1;
+    wrap.highlights = wrap.shadows = wrap.tone_curve = 0;
+    compare(render(cpu, wrap, false), render(forced, wrap, true), "HSL red wrap and achromatic pixels");
+    compare(render(cpu, request, false), render(forced, request, true), "HSL tone/LUT FINAL");
+    auto hslPreview = request;
+    hslPreview.intent = SONY2FUJI_INTENT_PREVIEW;
+    compare(render(cpu, hslPreview, false), render(automatic, hslPreview, true), "HSL tone/LUT Auto preview");
     std::remove(cube.c_str());
 
     sony2fuji_photo_effects_config effects{SONY2FUJI_PHOTO_EFFECTS_CONFIG_VERSION, sizeof(effects),

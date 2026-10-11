@@ -1,5 +1,11 @@
 import Foundation
 
+enum EditorLayoutPolicy {
+    static func usesSidePanel(width: Double, height: Double, accessibility: Bool) -> Bool {
+        !accessibility && width >= 600 && width > height
+    }
+}
+
 struct FilmPresentation {
     static let artworkNames = [
         "ACROS": "acros", "ASTIA": "astia", "CLASSIC-CHROME": "classic-chrome",

@@ -97,6 +97,27 @@ private func manualSettings(_ recipe: MasterRecipe, camera: WhiteBalance, streng
             guard let camera = reference.asShotWhiteBalance else {
                 throw RenderError.failed("Fixture must expose calibrated as-shot white balance")
             }
+            var combined = Adjustments()
+            combined.setHSL(.hue, channel: 0, value: 45)
+            combined.setHSL(.saturation, channel: 5, value: -60)
+            combined.setHSL(.lightness, channel: 3, value: 25)
+            combined.applyMasterRecipe(.hamadaDaylightV2)
+            var combinedManual = manualSettings(.hamadaDaylightV2, camera: camera, strength: 1)
+            combinedManual.hsl = combined.hsl
+            let combinedLUT = MasterRecipe.hamadaDaylightV2.lutURL()!
+            let combinedReference = try cpu.render(input, settings: combinedManual, lut: combinedLUT, edge: 128)!
+            let combinedColdEngine = try RenderEngine(gpuMode: SONY2FUJI_GPU_OFF)
+            let combinedActual = try combinedColdEngine.render(input, settings: combined, lut: combinedLUT, edge: 128)!
+            try check(pixels(combinedActual) == pixels(combinedReference),
+                      "\(input.lastPathComponent): recipe WB primer preserves independent HSL")
+            let combinedGPU = try metal.render(input, settings: combined, lut: combinedLUT, edge: 128)!
+            let combinedDifference = zip(pixels(combinedGPU), pixels(combinedReference))
+                .map { abs(Int($0.0) - Int($0.1)) }.max() ?? 0
+            try check(combinedDifference <= 2 && metal.lastBackend == SONY2FUJI_BACKEND_METAL,
+                      "\(input.lastPathComponent): display-sRGB recipe plus HSL has forced Metal parity")
+            let clearedHSL = try cpu.render(input, settings: Adjustments(), lut: nil, edge: 128)!
+            try check(pixels(clearedHSL) == pixels(reference),
+                      "\(input.lastPathComponent): subsequent neutral render clears prior HSL")
             var recipeOutputs = Set<Data>()
             for recipe in MasterRecipe.allRecipes {
                 guard let lut = recipe.lutURL() else { throw RenderError.failed("Missing LUT: \(recipe.id)") }

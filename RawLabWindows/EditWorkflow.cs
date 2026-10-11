@@ -31,6 +31,7 @@ public partial class MainWindow
 
     private void MarkEdited()
     {
+        ++editRevision;
         if (!ready || syncing || file == null) return;
         editDirty = true;
         if (RetrySave.Visibility != Visibility.Visible) SaveState.Text = "";

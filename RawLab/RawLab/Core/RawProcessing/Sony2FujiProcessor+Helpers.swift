@@ -38,6 +38,13 @@ extension Sony2FujiProcessor {
     }
 
     func configureSession(_ session: OpaquePointer, settings: RawSettings, interactive: Bool) throws {
+        let exposureMode = sony2fuji_raw_exposure_mode(rawValue: UInt32(settings.exposureMode.rawValue))
+        guard sony2fuji_session_set_raw_exposure_mode(session, exposureMode) == SONY2FUJI_STATUS_OK,
+              settings.hsl.isValid else { throw ProcessorError.processFailed("Invalid exposure mode or HSL parameters.") }
+        var hsl = settings.hsl.nativeConfig
+        guard sony2fuji_session_set_hsl(session, &hsl) == SONY2FUJI_STATUS_OK else {
+            throw ProcessorError.processFailed("Invalid HSL parameters.")
+        }
         var config = sony2fuji_gpu_config()
         config.version = SONY2FUJI_GPU_CONFIG_VERSION
         config.struct_size = UInt32(MemoryLayout<sony2fuji_gpu_config>.size)

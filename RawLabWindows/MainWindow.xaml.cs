@@ -35,6 +35,8 @@ public partial class MainWindow : Window
     private bool compare=true,clipping,choosingFilm,choosingDenoise,choosingPhotoEffects,swipe;
     private PhotoEffectTool selectedEffect=PhotoEffectTool.Vignette;
     private bool renderFailed;
+    private bool choosingHsl,autoExposing;
+    private long editRevision;
     private int? exportLongEdge;
     private PhotoInfo? photoInfo;
     private PhotoInfoMode photoInfoMode;
@@ -88,6 +90,10 @@ public partial class MainWindow : Window
             if(!ready || syncing || exporting)return;
             settings.Effects=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
         };
+        HslEditor.Changed+=(value,dragging)=>{
+            if(!ready || syncing || exporting)return;
+            settings.Hsl=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
+        };
         ValueSlider.AddHandler(Thumb.DragStartedEvent,new DragStartedEventHandler((_,_)=>{interacting=true;}));
         ValueSlider.AddHandler(Thumb.DragCompletedEvent,new DragCompletedEventHandler((_,_)=>{interacting=false; Schedule();}));
         ready=true; RefreshControls();
@@ -118,7 +124,7 @@ public partial class MainWindow : Window
             var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=spec.Title,FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=spec.Title};
             AutomationProperties.SetName(button,spec.Title);
-            button.Click+=(_,_)=>{choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;selectedParameter=spec.Id;RefreshControls();};
+            button.Click+=(_,_)=>{choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;selectedParameter=spec.Id;RefreshControls();};
             Tools.Children.Add(button); toolButtons[spec.Id]=(button,ring);
         }
         foreach(var (tool,title,icon) in new[] {
@@ -130,12 +136,13 @@ public partial class MainWindow : Window
             var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=title,FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=tool==PhotoEffectTool.Vignette ? "Vignette / 暗角" : "Grain / 颗粒"};
             AutomationProperties.SetName(button,tool.ToString());
-            button.Click+=(_,_)=>{if(exporting)return;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
+            button.Click+=(_,_)=>{if(exporting)return;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
             Tools.Children.Add(button); effectToolButtons[tool]=(button,ring);
         }
     }
-    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;RefreshControls(); }
-    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;RefreshControls(); }
+    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingHsl=false;choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;RefreshControls(); }
+    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingHsl=false;choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;RefreshControls(); }
+    private void HslCategoryClicked(object sender,RoutedEventArgs e) { choosingHsl=true;choosingDenoise=choosingFilm=choosingPhotoEffects=false;RefreshControls(); }
     private void BuildFilms()
     {
         FilmStrip.Children.Clear(); filmButtons.Clear();
@@ -171,7 +178,13 @@ public partial class MainWindow : Window
             var canAdjust=file!=null && !exporting && !choosingFilm && !choosingPhotoEffects && (selectedParameter!=Parameter.Strength || lut!=null) && (selectedParameter is not(Parameter.Temperature or Parameter.Tint) || settings.AsShot!=null);
             ValueSlider.IsEnabled=ValueText.IsEnabled=canAdjust;
             FilmPanel.Visibility=choosingFilm ? Visibility.Visible : Visibility.Collapsed;
-            ParameterPanel.Visibility=choosingFilm || choosingDenoise || choosingPhotoEffects ? Visibility.Collapsed : Visibility.Visible;
+            ParameterPanel.Visibility=choosingFilm || choosingDenoise || choosingPhotoEffects || choosingHsl ? Visibility.Collapsed : Visibility.Visible;
+            HslSurface.Visibility=choosingHsl ? Visibility.Visible : Visibility.Collapsed;
+            HslEditor.IsEnabled=file!=null && !exporting;HslEditor.Refresh(settings.Hsl);
+            HslCategory.Tag=choosingHsl ? "selected" : null;
+            HslCategoryRing.Selected=choosingHsl;HslCategoryRing.Progress=settings.Hsl.IsIdentity ? 0 : 1;HslCategoryRing.InvalidateVisual();
+            AutoExposureButton.Visibility=selectedParameter==Parameter.Exposure ? Visibility.Visible : Visibility.Collapsed;
+            AutoExposureButton.IsEnabled=file!=null && result!=null && !autoExposing && !exporting && !scheduler.Busy;
             DenoiseEditor.Visibility=choosingDenoise ? Visibility.Visible : Visibility.Collapsed;
             DenoiseEditor.IsEnabled=file!=null && !exporting;DenoiseEditor.Refresh(settings.Denoise);
             PhotoEffectsSurface.Visibility=choosingPhotoEffects ? Visibility.Visible : Visibility.Collapsed;
@@ -195,7 +208,7 @@ public partial class MainWindow : Window
             AsShotButton.IsEnabled=file!=null && !exporting && settings.AsShot!=null;
             foreach(var (id,controls) in toolButtons)
             {
-                var selected=!choosingFilm && !choosingDenoise && !choosingPhotoEffects && id==selectedParameter;
+                var selected=!choosingHsl && !choosingFilm && !choosingDenoise && !choosingPhotoEffects && id==selectedParameter;
                 controls.Button.Tag=selected ? "selected" : null;
                 controls.Ring.Selected=selected;
                 var p=ParameterSpec.All[(int)id]; var origin=p.Position(settings.Default(id)); var offset=p.Position(settings[id])-origin;
@@ -377,6 +390,20 @@ public partial class MainWindow : Window
     private void ResetParameterClicked(object sender,RoutedEventArgs e) { settings.Reset(selectedParameter);MarkEdited();RefreshControls();Schedule(); }
     private void ResetGroupClicked(object sender,RoutedEventArgs e) { settings.ResetGroup(ParameterSpec.All[(int)selectedParameter].Group);MarkEdited();RefreshControls();Schedule(); }
     private void ResetAllClicked(object sender,RoutedEventArgs e) { settings.ResetAll();MarkEdited();RefreshControls();Schedule(); }
+    private async void AutoExposureClicked(object sender,RoutedEventArgs e)
+    {
+        if(file==null || result==null || autoExposing || exporting)return;
+        var path=file;var snapshot=settings.Clone();var revision=editRevision;var photoRevision=openRevision;
+        autoExposing=true;RefreshControls();
+        try
+        {
+            var ev=await Task.Run(()=>{using var meter=new RenderEngine();return meter.AutoExposure(path,snapshot);});
+            if(closing || file!=path || openRevision!=photoRevision || editRevision!=revision || !snapshot.Capture().SameAs(settings.Capture()))return;
+            settings.Set(Parameter.Exposure,ev);MarkEdited();Schedule();
+        }
+        catch(Exception error) {if(!closing && file==path && openRevision==photoRevision && editRevision==revision)Report(error);}
+        finally {autoExposing=false;if(!closing)RefreshControls();}
+    }
     private void AsShotClicked(object sender,RoutedEventArgs e) { settings.ResetWhiteBalance();MarkEdited();RefreshControls();Schedule(); }
     private void OpenClicked(object sender,RoutedEventArgs e)
     {

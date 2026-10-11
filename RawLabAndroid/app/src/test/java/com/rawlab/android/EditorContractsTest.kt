@@ -7,6 +7,22 @@ import java.util.concurrent.TimeUnit
 import java.util.Collections
 
 class EditorContractsTest {
+    @Test fun colorControlsPreserveDefaultsCopiesAndLegacyRecords() {
+        assertEquals(1, EditSettings().exposureMode)
+        val values = MutableList(24) { 0f }
+        values[8] = -55f
+        val hsl = HslSettings(values)
+        values[8] = 0f
+        assertEquals(-55f, hsl.value(1, 0))
+        val edited = EditSettings(exposureMode = 2, hsl = hsl)
+        assertEquals(edited, SettingsCodec.decode(SettingsCodec.encode(edited)))
+        assertEquals(1, edited.reset().exposureMode)
+        assertTrue(edited.reset().hsl.isIdentity)
+        val legacy = SettingsCodec.encode(EditSettings()).split('|').take(25).joinToString("|")
+        assertEquals(0, SettingsCodec.decode(legacy).exposureMode)
+        assertTrue(SettingsCodec.decode(legacy).hsl.isIdentity)
+        assertThrows(IllegalArgumentException::class.java) { HslSettings(List(24) { Float.NaN }) }
+    }
     @Test fun filmStrengthSupportsTwoHundredPercentWithNeutralDefault() {
         assertEquals(1f, EditSettings().strength)
         assertEquals(2f, EditSettings(strength = 2f).strength)

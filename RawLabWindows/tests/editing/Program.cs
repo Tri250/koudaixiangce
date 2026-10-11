@@ -10,6 +10,11 @@ try
     var b = Path.Combine(root, "b", "same.ARW");
     foreach (var path in new[] { a, b }) { Directory.CreateDirectory(Path.GetDirectoryName(path)!); File.WriteAllText(path, path); }
     var state = new Adjustments(); state.ResolveWhiteBalance((5200, 8)); state.Set(Parameter.Temperature, 6000); state.Set(Parameter.Exposure, .75);
+    Check(state.ExposureMode == 1 && state.Hsl.IsIdentity, "new photos use preview exposure and identity HSL");
+    state.Hsl = state.Hsl.WithValue(1, 0, -60);
+    var frozenHsl = state.Capture();
+    state.Hsl = state.Hsl.WithValue(1, 0, 20);
+    Check(frozenHsl.Restore().Hsl.Value(1, 0) == -60 && !frozenHsl.SameAs(state.Capture()), "HSL snapshots freeze values and detect edits");
     state.SetEffect(PhotoEffectParameter.VignetteAmount, -40);
     state.SetEffect(PhotoEffectParameter.GrainAmount, 65);
     state.DisplayChromaDenoise = 1;

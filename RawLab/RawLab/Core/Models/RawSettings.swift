@@ -181,6 +181,18 @@ enum RawWhiteBalanceMode: String, Codable, CaseIterable, Equatable {
     static var asShot: Self { .camera }
 }
 
+enum RawExposureMode: Int, Codable, CaseIterable, Identifiable {
+    case scene = 0, preview = 1, sensor = 2
+    var id: Int { rawValue }
+    var title: String {
+        switch self {
+        case .scene: return "标准显影"
+        case .preview: return "匹配内嵌预览"
+        case .sensor: return "传感器基准"
+        }
+    }
+}
+
 struct RawSettings: Codable, Equatable {
     static let lutStrengthRange: ClosedRange<Double> = 0...2
     static let temperatureRange: ClosedRange<Double> = 2000...50000
@@ -188,6 +200,8 @@ struct RawSettings: Codable, Equatable {
 
     var denoise = RawDenoiseSettings()
     var photoEffects = PhotoEffectsSettings()
+    var hsl = HSLSettings()
+    var exposureMode = RawExposureMode.preview
     var displayChromaDenoise = 0 {
         didSet { displayChromaDenoise = Self.clampedDisplayChromaDenoise(displayChromaDenoise) }
     }
@@ -208,7 +222,7 @@ struct RawSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case exposure, contrast, saturation, temperature, tint, highlights, shadows
         case toneCurve, noiseReduction, sharpening, lutID, lutStrength, whiteBalanceMode
-        case denoise, photoEffects, displayChromaDenoise
+        case denoise, photoEffects, displayChromaDenoise, exposureMode, hsl
     }
 
     var clampedLUTStrength: Float {
@@ -269,6 +283,11 @@ struct RawSettings: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        exposureMode = RawExposureMode(rawValue: try values.decodeIfPresent(Int.self, forKey: .exposureMode) ?? 0) ?? .scene
+        hsl = try values.decodeIfPresent(HSLSettings.self, forKey: .hsl) ?? HSLSettings()
+        guard hsl.isValid else {
+            throw DecodingError.dataCorruptedError(forKey: .hsl, in: values, debugDescription: "Invalid HSL parameters")
+        }
         exposure = try values.decodeIfPresent(Double.self, forKey: .exposure) ?? 0
         contrast = try values.decodeIfPresent(Double.self, forKey: .contrast) ?? 1
         saturation = try values.decodeIfPresent(Double.self, forKey: .saturation) ?? 1

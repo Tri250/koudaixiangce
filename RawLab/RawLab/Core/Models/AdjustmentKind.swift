@@ -8,6 +8,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
     case contrast
     case toneCurve
     case saturation
+    case hsl
     case temperature
     case tint
     case noiseReduction
@@ -33,6 +34,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             return "S 曲线"
         case .saturation:
             return "饱和度"
+        case .hsl: return "HSL"
         case .temperature:
             return "色温"
         case .tint:
@@ -64,6 +66,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             return "waveform.path.ecg"
         case .saturation:
             return "drop"
+        case .hsl: return "slider.horizontal.3"
         case .temperature:
             return "thermometer"
         case .tint:
@@ -84,7 +87,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .strength:
             return RawSettings.lutStrengthRange
         case .exposure:
-            return -2...2
+            return -4...4
         case .contrast:
             return 0.5...1.5
         case .highlights:
@@ -95,6 +98,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             return -1...1
         case .saturation:
             return 0...2
+        case .hsl: return -100...100
         case .temperature:
             return RawSettings.temperatureRange
         case .tint:
@@ -134,6 +138,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             return 0.05
         case .vignette, .grain:
             return 1
+        case .hsl: return 1
         }
     }
 
@@ -153,6 +158,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             return settings.toneCurve
         case .saturation:
             return settings.saturation
+        case .hsl: return settings.hsl.progress * 100
         case .temperature:
             return settings.temperature
         case .tint:
@@ -184,6 +190,8 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             settings.toneCurve = value
         case .saturation:
             settings.saturation = value
+        case .hsl:
+            if value == 0 { settings.hsl.reset() }
         case .temperature:
             settings.temperature = value
         case .tint:
@@ -216,6 +224,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             return String(format: "%.0f", value)
         case .vignette, .grain:
             return String(format: "%+.0f", value)
+        case .hsl: return "HSL"
         }
     }
 

@@ -38,7 +38,7 @@ struct RawLabMacApp: App {
                 let report: [String: Any] = ["input": input.path, "width": rendered.image.width,
                     "height": rendered.image.height, "film": film.name, "filmCount": Film.bundled().count,
                     "baselineEV": rendered.baselineEV, "metadataEV": rendered.metadataEV,
-                    "previewMatchEV": matched.baselineEV, "exposureMode": ExposureMode.scene.rawValue,
+                    "previewMatchEV": matched.baselineEV, "exposureMode": Adjustments().exposureMode.rawValue,
                     "highlights": rendered.highlights, "shadows": rendered.shadows, "pngBits": png[24]]
                 try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted,.sortedKeys])
                     .write(to: output.appendingPathComponent("result.json"))

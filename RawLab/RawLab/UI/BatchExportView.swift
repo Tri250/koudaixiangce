@@ -87,6 +87,8 @@ struct BatchExportView: View {
     private var settingsSection: some View {
         VStack(spacing: 0) {
             settingRow("曝光补偿", value: String(format: "%+.2f EV", model.job.source.settings.exposure))
+            settingRow("曝光基准", value: model.job.source.settings.exposureMode.title)
+            settingRow("HSL", value: model.job.source.settings.hsl.isIdentity ? "未调整" : "已调整")
             settingRow("白平衡", value: model.job.source.settings.whiteBalanceMode == .camera ? "拍摄时设置" : "自定义")
             DisclosureGroup("全部调整") {
                 VStack(spacing: 0) {

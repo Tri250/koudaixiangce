@@ -11,7 +11,7 @@ xcrun --sdk iphonesimulator clang++ -std=c++17 -target "$TARGET" -isysroot "$SDK
 xcrun --sdk iphonesimulator swiftc -swift-version 5 -O -sdk "$SDK" -target "$TARGET" \
     -import-objc-header "$ROOT/RawLab/RawLab/Support/RawLab-Bridging-Header.h" \
     -Xcc -I"$ROOT/lutools/include" \
-    "$ROOT/RawLab/RawLab/Core/Models/RawSettings.swift" \
+    "$ROOT/RawLab/RawLab/Core/Models/RawSettings.swift" "$ROOT/Shared/HSLSettings.swift" "$ROOT/Shared/HSLNative.swift" \
     "$ROOT/RawLab/RawLab/Core/Models/ExportSize.swift" \
     "$ROOT/RawLab/RawLab/Core/RawProcessing/Sony2FujiProcessor.swift" \
     "$ROOT/RawLab/RawLab/Core/RawProcessing/Sony2FujiProcessor+Helpers.swift" \
