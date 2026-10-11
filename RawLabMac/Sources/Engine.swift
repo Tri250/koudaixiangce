@@ -2,19 +2,6 @@ import AppKit
 import ImageIO
 import Foundation
 
-enum ExposureMode: String, CaseIterable, Identifiable, Codable {
-    case scene = "标准显影"
-    case preview = "匹配内嵌预览"
-    case sensor = "传感器基准"
-    var id: String { rawValue }
-    var core: sony2fuji_raw_exposure_mode {
-        switch self {
-        case .scene: return SONY2FUJI_EXPOSURE_SCENE
-        case .preview: return SONY2FUJI_EXPOSURE_PREVIEW
-        case .sensor: return SONY2FUJI_EXPOSURE_SENSOR
-        }
-    }
-}
 
 struct RenderedImage {
     let image: CGImage

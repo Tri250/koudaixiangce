@@ -5,27 +5,59 @@ struct AdjustmentDock: View {
     @Binding var selected: AdjustmentParameter?
     let resetVersion: Int
 
+    enum DockCategory: Equatable {
+        case film
+        case masterRecipe
+    }
+
+    @State private var dockCategory: DockCategory = .film
+
     var body: some View {
         VStack(spacing: 8) {
             GeometryReader { geometry in
                 ScrollView(.horizontal) {
                     HStack(spacing: 6) {
-                        Button { selected = nil } label: {
+                        Button {
+                            selected = nil
+                            dockCategory = .film
+                        } label: {
+                            let active = selected == nil && dockCategory == .film
+                            let changed = !model.selectedFilmID.isEmpty
                             VStack(spacing: 5) {
                                 Image(systemName: "film").font(.system(size: 19))
                                     .frame(width: 40, height: 40)
-                                    .background(selected == nil ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
-                                    .overlay { Circle().strokeBorder(selected == nil ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
+                                    .background(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                                    .overlay { Circle().strokeBorder(active ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
                                 Text("胶片").font(.system(size: 11))
-                                Color.clear.frame(width: 3, height: 3)
+                                Circle().fill(changed ? Color.yellow : Color.clear).frame(width: 3, height: 3)
                             }.frame(width: 56, height: 70)
-                                .foregroundStyle(selected == nil ? Color.yellow : Color.primary)
+                                .foregroundStyle(active ? Color.yellow : Color.primary)
                         }.buttonStyle(.plain).help("选择胶片模拟").accessibilityLabel("胶片")
                             .accessibilityValue(model.selectedFilm?.name ?? "中性")
-                            .accessibilityAddTraits(selected == nil ? .isSelected : [])
+                            .accessibilityAddTraits(selected == nil && dockCategory == .film ? .isSelected : [])
+
+                        Button {
+                            selected = nil
+                            dockCategory = .masterRecipe
+                        } label: {
+                            let active = selected == nil && dockCategory == .masterRecipe
+                            let changed = model.settings.masterRecipeID != nil
+                            VStack(spacing: 5) {
+                                Image(systemName: "wand.and.stars").font(.system(size: 19))
+                                    .frame(width: 40, height: 40)
+                                    .background(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                                    .overlay { Circle().strokeBorder(active ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
+                                Text("大师配方").font(.system(size: 11))
+                                Circle().fill(changed ? Color.yellow : Color.clear).frame(width: 3, height: 3)
+                            }.frame(width: 56, height: 70)
+                                .foregroundStyle(active ? Color.yellow : Color.primary)
+                        }.buttonStyle(.plain).help("选择大师配方").accessibilityLabel("大师配方")
+                            .accessibilityValue(model.settings.masterRecipe?.name ?? "无配方")
+                            .accessibilityAddTraits(selected == nil && dockCategory == .masterRecipe ? .isSelected : [])
+
                         ForEach([AdjustmentParameter.strength] + AdjustmentParameter.photoTools) { parameter in tool(parameter) }
                     }.padding(.horizontal, 12).padding(.top, 4)
-                        .frame(minWidth: max(710, geometry.size.width))
+                        .frame(minWidth: max(780, geometry.size.width))
                 }.scrollIndicators(.hidden)
             }.frame(height: 76)
             Group {
@@ -52,8 +84,10 @@ struct AdjustmentDock: View {
                     ) : nil, onEditingChanged: model.setInteracting)
                     .id("\(parameter.rawValue).\(resetVersion)")
                     .frame(maxWidth: 360).padding(.horizontal, 24)
-                    .disabled(parameter == .strength && model.selectedFilm == nil)
+                    .disabled(parameter == .strength && model.selectedFilm == nil && model.settings.masterRecipe == nil)
                     .disabled(parameter.isWhiteBalance && model.settings.asShotWhiteBalance == nil)
+                } else if dockCategory == .masterRecipe {
+                    MasterRecipeDock(model: model)
                 } else {
                     FilmDock(model: model)
                 }
