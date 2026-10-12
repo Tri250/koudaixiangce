@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -39,8 +40,17 @@ fun HslControls(settings: HslSettings, enabled: Boolean, onEdit: (HslSettings, B
                 { value, dragging -> onEdit(settings.withValue(axis, channel, value), dragging) },
                 { onEdit(settings.withValue(axis, channel, 0f), false) })
         }
-        IconButton(onClick = { onEdit(HslSettings(), false) }, enabled = enabled && !settings.isIdentity) {
-            Icon(Icons.Outlined.Refresh, stringResource(R.string.hsl_reset))
+        Row {
+            IconButton(onClick = {
+                var reset = settings
+                for (axis in 0..2) reset = reset.withValue(axis, channel, 0f)
+                onEdit(reset, false)
+            }, enabled = enabled && (0..2).any { settings.value(it, channel) != 0f }) {
+                Icon(Icons.Outlined.Refresh, stringResource(R.string.hsl_reset_channel))
+            }
+            IconButton(onClick = { onEdit(HslSettings(), false) }, enabled = enabled && !settings.isIdentity) {
+                Icon(Icons.Outlined.RestartAlt, stringResource(R.string.hsl_reset))
+            }
         }
     }
 }

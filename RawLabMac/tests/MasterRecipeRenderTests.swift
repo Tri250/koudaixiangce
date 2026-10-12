@@ -26,6 +26,7 @@ private func manualSettings(_ recipe: MasterRecipe, camera: WhiteBalance, streng
     settings.highlights = recipe.highlightsDelta * strength
     settings.contrast = recipe.contrastDelta * strength
     settings.saturation = recipe.saturationDelta * strength
+    settings.hsl = recipe.hsl.scaled(by: strength)
     if strength != 0 {
         settings.whiteBalanceMode = .custom
         settings.temperature = camera.temperature
@@ -97,11 +98,28 @@ private func manualSettings(_ recipe: MasterRecipe, camera: WhiteBalance, streng
             guard let camera = reference.asShotWhiteBalance else {
                 throw RenderError.failed("Fixture must expose calibrated as-shot white balance")
             }
+            var zeroHSL = Adjustments()
+            zeroHSL.applyMasterRecipe(.hamadaDaylightV2)
+            zeroHSL.setHSL(.hue, channel: 0, value: 40)
+            zeroHSL.setHSL(.saturation, channel: 5, value: -40)
+            zeroHSL.strength = 0
+            let zeroHSLResult = try cpu.render(input, settings: zeroHSL,
+                                              lut: MasterRecipe.hamadaDaylightV2.lutURL()!, edge: 128)!
+            try check(pixels(zeroHSLResult) == pixels(reference),
+                      "\(input.lastPathComponent): zero recipe strength bypasses manually edited HSL too")
+            var oldZeroPayload = try JSONSerialization.jsonObject(with: JSONEncoder().encode(zeroHSL)) as! [String: Any]
+            oldZeroPayload["masterRecipeSettingsVersion"] = 2
+            let oldZero = try JSONDecoder().decode(Adjustments.self, from: JSONSerialization.data(withJSONObject: oldZeroPayload))
+            var oldZeroReference = Adjustments(); oldZeroReference.hsl = zeroHSL.hsl
+            let independentReference = try cpu.render(input, settings: oldZeroReference, lut: nil, edge: 128)!
+            let oldZeroResult = try cpu.render(input, settings: oldZero, lut: MasterRecipe.hamadaDaylightV2.lutURL()!, edge: 128)!
+            try check(pixels(oldZeroResult) == pixels(independentReference),
+                      "\(input.lastPathComponent): old zero-strength recipe records preserve independent HSL pixels")
             var combined = Adjustments()
+            combined.applyMasterRecipe(.hamadaDaylightV2)
             combined.setHSL(.hue, channel: 0, value: 45)
             combined.setHSL(.saturation, channel: 5, value: -60)
             combined.setHSL(.lightness, channel: 3, value: 25)
-            combined.applyMasterRecipe(.hamadaDaylightV2)
             var combinedManual = manualSettings(.hamadaDaylightV2, camera: camera, strength: 1)
             combinedManual.hsl = combined.hsl
             let combinedLUT = MasterRecipe.hamadaDaylightV2.lutURL()!
@@ -109,12 +127,24 @@ private func manualSettings(_ recipe: MasterRecipe, camera: WhiteBalance, streng
             let combinedColdEngine = try RenderEngine(gpuMode: SONY2FUJI_GPU_OFF)
             let combinedActual = try combinedColdEngine.render(input, settings: combined, lut: combinedLUT, edge: 128)!
             try check(pixels(combinedActual) == pixels(combinedReference),
-                      "\(input.lastPathComponent): recipe WB primer preserves independent HSL")
+                      "\(input.lastPathComponent): recipe WB primer preserves the current HSL controls")
             let combinedGPU = try metal.render(input, settings: combined, lut: combinedLUT, edge: 128)!
             let combinedDifference = zip(pixels(combinedGPU), pixels(combinedReference))
                 .map { abs(Int($0.0) - Int($0.1)) }.max() ?? 0
             try check(combinedDifference <= 2 && metal.lastBackend == SONY2FUJI_BACKEND_METAL,
                       "\(input.lastPathComponent): display-sRGB recipe plus HSL has forced Metal parity")
+            for strength in [0.5, 2.0] {
+                combined.strength = strength
+                var explicitHSL = manualSettings(.hamadaDaylightV2, camera: camera, strength: strength)
+                explicitHSL.hsl = combined.hslSettings.scaled(by: strength)
+                let expectedHSL = try cpu.render(input, settings: explicitHSL, lut: combinedLUT, edge: 128)!
+                let actualHSL = try combinedColdEngine.render(input, settings: combined, lut: combinedLUT, edge: 128)!
+                let gpuHSL = try metal.render(input, settings: combined, lut: combinedLUT, edge: 128)!
+                let difference = zip(pixels(gpuHSL), pixels(expectedHSL)).map { abs(Int($0.0) - Int($0.1)) }.max() ?? 0
+                try check(pixels(actualHSL) == pixels(expectedHSL) && difference <= 2 &&
+                          metal.lastBackend == SONY2FUJI_BACKEND_METAL,
+                          "\(input.lastPathComponent): \(Int(strength * 100))% manually edited HSL scales, clamps and matches Metal")
+            }
             let clearedHSL = try cpu.render(input, settings: Adjustments(), lut: nil, edge: 128)!
             try check(pixels(clearedHSL) == pixels(reference),
                       "\(input.lastPathComponent): subsequent neutral render clears prior HSL")

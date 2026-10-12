@@ -100,8 +100,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val photo = storage.import(work.uri)
             val restored = editStore?.load(photo.identity)
             try {
-                if (restored != null && runCatching { storage.filmPath(restored.film) }.isFailure) {
-                    engine().preview(photo.file, null, restored.copy(film = "neutral"), 256, false)
+                if (restored != null && runCatching { storage.lookPath(restored) }.isFailure) {
+                    engine().preview(photo.file, null, restored.copy(film = "neutral", recipeID = null), 256, false)
                     WorkResult.MissingLook(photo, restored)
                 } else perform(Work.Preview(photo, restored ?: EditSettings(), false, work.gpuMode,
                     importing = true, restored = restored != null))
@@ -116,7 +116,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 original = null
                 original = work.photo.file to native.preview(work.photo.file, null, EditSettings(), 1600, false).bitmap()
             }
-            val lut = storage.filmPath(work.edits.film)
+            val lut = storage.lookPath(work.edits)
             val film = native.preview(work.photo.file, lut, work.edits, edge, work.interactive)
             WorkResult.Preview(work, PreviewPair(original!!.second, film.bitmap(), film.temperature, film.tint))
         }
@@ -124,7 +124,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val output = storage.temporaryOutput(work.png)
             try {
                 engine().setGpuMode(work.gpuMode)
-                engine().export(work.photo.file, storage.filmPath(work.edits.film), work.edits, output, work.png, work.longEdge)
+                engine().export(work.photo.file, storage.lookPath(work.edits), work.edits, output, work.png, work.longEdge)
                 if (work.destination == null) storage.saveAlbum(output, work.png)
                 else storage.saveDocument(output, work.destination, work.photo.uri)
             } finally { output.delete() }
@@ -173,7 +173,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         mutable.value.photo?.file?.takeIf { it != request.photo.file }?.delete()
                     }
                     val settings = if (!request.edits.customWb && value.pair.temperature.isFinite())
-                        request.edits.copy(temperature = value.pair.temperature.coerceIn(2000f, 50000f), tint = value.pair.tint.coerceIn(-150f, 150f))
+                        request.edits.copy(temperature = value.pair.temperature.coerceIn(2000f, 50000f),
+                            tint = if (request.edits.recipeID == null) value.pair.tint.coerceIn(-150f, 150f) else request.edits.tint)
                     else request.edits
                     val saved = when {
                         request.importing -> if (editStore == null) EditSaveState.FAILED else if (request.restored) EditSaveState.RESTORED else EditSaveState.NONE

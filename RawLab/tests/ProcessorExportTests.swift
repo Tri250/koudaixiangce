@@ -176,6 +176,36 @@ struct ProcessorExportTests {
             return
         }
         let standardRaw = try processor.processRaw(url: raw, settings: .default, previewLongEdge: 128, lutURL: lut)
+        if ProcessInfo.processInfo.environment["RAWLAB_TEST_MASTER_RECIPES"] == "1" {
+            let neutral = try cpuProcessor.processRaw(url: raw, settings: .default, previewLongEdge: 128, lutURL: nil)
+            let camera = neutral.rawWhiteBalance!
+            for recipe in MasterRecipe.allRecipes {
+                let recipeLut = root.appendingPathComponent("RawLabMac/Resources/MasterRecipes/\(recipe.lutFileName)")
+                for strength in [0.0, 0.5, 1.0, 2.0] {
+                    var current = RawSettings.default
+                    current.applyMasterRecipe(recipe); current.lutStrength = strength
+                    current.hsl.set(.hue, channel: 7, value: 37)
+                    var manual = current
+                    manual.masterRecipeID = nil
+                    manual.exposure *= strength; manual.highlights *= strength; manual.shadows *= strength
+                    manual.contrast = 1 + (current.contrast - 1) * strength
+                    manual.saturation = 1 + (current.saturation - 1) * strength
+                    manual.hsl = current.hsl.scaled(by: strength)
+                    manual.temperature = camera.temperature; manual.tint = min(150, max(-150, camera.tint + current.tint * strength))
+                    manual.whiteBalanceMode = strength == 0 ? .camera : .custom
+                    let actual = try cpuProcessor.processRaw(url: raw, settings: current, previewLongEdge: 128, lutURL: recipeLut)
+                    let expected = try cpuProcessor.processRaw(url: raw, settings: manual, previewLongEdge: 128, lutURL: recipeLut)
+                    check(actual.buffer.data == expected.buffer.data, "\(recipe.id) \(strength): explicit manual RAW parity")
+                    let gpu = try forcedProcessor.processRaw(url: raw, settings: current, previewLongEdge: 128, lutURL: recipeLut)
+                    check(maximumDifference(actual.buffer.data, gpu.buffer.data) <= 2, "\(recipe.id): CPU/Force Metal parity")
+                    if strength == 0 { check(actual.buffer.data == neutral.buffer.data, "\(recipe.id): zero is neutral") }
+                    let frozen = try JSONDecoder().decode(RawSettings.self, from: JSONEncoder().encode(current))
+                    let final = try cpuProcessor.processRaw(url: raw, settings: frozen, previewLongEdge: nil, lutURL: recipeLut, exportLongEdge: 128)
+                    let single = try cpuProcessor.processRaw(url: raw, settings: current, previewLongEdge: nil, lutURL: recipeLut, exportLongEdge: 128)
+                    check(final.buffer.data == single.buffer.data, "\(recipe.id): frozen settings match single final export")
+                }
+            }
+        }
         let rawEV = try processor.autoExposure(url: raw, buffer: nil, settings: .default)
         var autoSettings = RawSettings.default
         autoSettings.exposure = rawEV

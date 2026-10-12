@@ -3,6 +3,46 @@
 Release history is kept here rather than in the project READMEs. Detailed
 release notes include assets, installation requirements and validation limits.
 
+## [Unreleased]
+
+### Added
+
+- Fourteen master recipes on macOS, iOS, Android and Windows, with shared
+  calibrated parameters, style artwork and editable HSL presets.
+- An eight-channel HSL mixer, one-shot automatic exposure and selectable RAW
+  exposure baselines on all four clients. New RAW edits default to matching the
+  embedded camera preview; saved exposure modes remain unchanged.
+- iPad support with window-size-driven portrait and landscape editor layouts.
+
+### Changed
+
+- Applying a recipe replaces exposure, shadows, highlights, contrast,
+  saturation, tint and all 24 HSL values. Strength scales the current values
+  and LUT together from 0 to 200%; other adjustments remain independent.
+- Refine all fourteen creative LUTs using reference-assisted, style-preserving
+  calibration, with additional constrained HSL refinements where accepted.
+- Present recipe artwork above its name and secondary description, without an
+  outer frame. Mobile film/recipe lists use direct dragging; desktop overflow
+  lists provide left/right buttons that disappear when all items fit.
+- Preserve recipe identity, manual edits and strength in edit memory and frozen
+  batch jobs; resolve camera-relative recipe tint separately for each target RAW.
+
+### Fixed
+
+- Align iOS highlight direction, percentage ranges, sharpening maximum and
+  slider steps with macOS while retaining old native stored values.
+- Keep existing macOS recipe records and frozen jobs compatible with their
+  independently saved HSL until a recipe is explicitly reapplied.
+- Invalidate macOS RAW/WB caches when a file is replaced at the same path with
+  unchanged size and modification time.
+
+These are verified development changes, not a new published version. Version
+and build identifiers have not been advanced.
+
+See the [Chinese update notes](docs/releases/master-recipes-update.md),
+[cross-platform verification](docs/verification/cross-platform-master-recipes-20261011.md)
+and [recipe HSL calibration](docs/verification/master-recipes-hsl-20261011.md).
+
 ## [0.5.1] - 2026-10-10
 
 ### Added

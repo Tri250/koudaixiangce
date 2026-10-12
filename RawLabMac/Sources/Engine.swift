@@ -121,7 +121,7 @@ final class RenderEngine {
             throw RenderError.failed("无效的曝光基准")
         }
         guard settings.hslSettings.isValid else { throw RenderError.failed("无效的 HSL 参数") }
-        var hslConfig = settings.hslSettings.nativeConfig
+        var hslConfig = settings.renderHSLSettings.nativeConfig
         guard sony2fuji_session_set_hsl(session, &hslConfig) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed("无效的 HSL 参数")
         }

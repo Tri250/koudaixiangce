@@ -17,6 +17,7 @@ public sealed class HslSettings : IEquatable<HslSettings>
         this.values = (double[])values.Clone();
     }
     public double Value(int axis, int channel) => values[axis * 8 + channel];
+    public HslSettings Scaled(double strength) => new(values.Select(value => Math.Clamp(value * strength, -100, 100)).ToArray());
     public HslSettings WithValue(int axis, int channel, double value)
     {
         if (axis is < 0 or > 2 || channel is < 0 or > 7 || !double.IsFinite(value))

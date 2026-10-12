@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var didAutoLoadSample = false
     @State var showingBefore = false
     @State var selectedAdjustment: AdjustmentKind? = .exposure
+    @State var choosingMasterRecipe = false
     @State var adjustmentsExpanded = true
     @State var histogramExpanded = false
     @State var isImporting = false

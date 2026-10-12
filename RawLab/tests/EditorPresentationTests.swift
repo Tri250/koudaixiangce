@@ -9,6 +9,37 @@ struct EditorPresentationTests {
 
     static func main() {
         var settings = RawSettings.default
+        check(AdjustmentKind.contrast.range == -100...100 && AdjustmentKind.sharpening.range == 0...200,
+              "iOS contrast and sharpening expose the full Mac ranges")
+        AdjustmentKind.highlights.setValue(25, in: &settings)
+        check(settings.highlights == -0.25 && AdjustmentKind.highlights.value(from: settings) == 25,
+              "positive iOS highlights brighten with unchanged native storage")
+        settings = .default
+        check(MasterRecipe.allRecipes.count == 14, "All fourteen shared master recipes load")
+        for recipe in MasterRecipe.allRecipes {
+            var preset = RawSettings.default
+            preset.temperature = 8000; preset.sharpening = 0.75
+            preset.hsl.set(.hue, channel: 7, value: 90)
+            preset.applyMasterRecipe(recipe)
+            check(preset.hsl == recipe.hsl && preset.highlights == -recipe.highlightsDelta / 100 &&
+                  preset.contrast == 1 + recipe.contrastDelta / 100 && preset.exposure == recipe.exposureDelta,
+                  "\(recipe.id): preset overwrites six native controls and HSL")
+            check(preset.temperature == 8000 && preset.sharpening == 0.75, "Unrelated iOS controls survive recipe application")
+            preset.hsl.set(.hue, channel: 7, value: 37)
+            preset.hsl.set(.saturation, channel: 5, value: -80)
+            for strength in [0.0, 0.5, 1.0, 2.0] {
+                preset.lutStrength = strength
+                let effective = preset.renderedRecipe(cameraTemperature: 5000, cameraTint: 8)
+                check(effective.exposure == preset.exposure * strength && effective.highlights == preset.highlights * strength &&
+                      effective.hsl.hue[7] == 37 * strength && effective.hsl.saturation[5] == max(-100, -80 * strength),
+                      "Recipe scales current iOS controls and fractional HSL")
+                let restored = try! JSONDecoder().decode(RawSettings.self, from: JSONEncoder().encode(preset))
+                check(restored == preset && restored.renderedRecipe(cameraTemperature: 5000, cameraTint: 8) == effective,
+                      "Recipe and manual HSL edits survive restoration")
+            }
+        }
+        check(AdjustmentKind.exposure.step == 0.05 && AdjustmentKind.temperature.step == 10 &&
+              AdjustmentKind.shadows.step == 1 && AdjustmentKind.saturation.step == 1, "iOS steps match Mac")
         check(!EditorLayoutPolicy.usesSidePanel(width: 834, height: 1100, accessibility: false), "Portrait iPad keeps a wide photo above the adjustment region")
         check(EditorLayoutPolicy.usesSidePanel(width: 1100, height: 834, accessibility: false), "Landscape iPad separates photo and adjustment regions")
         check(!EditorLayoutPolicy.usesSidePanel(width: 500, height: 900, accessibility: false), "Narrow iPad windows use compact layout")

@@ -1,4 +1,7 @@
 <resources>
+    <string name="master_recipes">大师配方</string>
+    <string name="no_recipe">无配方</string>
+    <string name="hsl_reset_channel">重置当前颜色</string>
     <string name="hsl">HSL</string>
     <string name="auto_exposure">自动</string>
     <string name="exposure_scene">标准显影</string>

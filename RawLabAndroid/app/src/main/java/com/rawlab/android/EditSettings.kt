@@ -21,6 +21,7 @@ data class EditSettings(
     val displayChromaDenoise: Int = 0,
     val exposureMode: Int = 1,
     val hsl: HslSettings = HslSettings(),
+    val recipeID: String? = null,
 ) {
     init {
         require(exposureMode in 0..2)
@@ -37,6 +38,18 @@ data class EditSettings(
         require(displayChromaDenoise in 0..2)
     }
     fun reset() = EditSettings(film = film)
+    val recipeScale get() = if (recipeID == null) 1f else strength
+    val renderHsl get() = hsl.scaled(recipeScale)
+    fun applyRecipe(recipe: MasterRecipe) = copy(film = "neutral", recipeID = recipe.id, strength = 1f,
+        exposure = recipe.exposure, shadows = recipe.shadows, highlights = recipe.highlights,
+        contrast = recipe.contrast, saturation = recipe.saturation, tint = recipe.tint, hsl = recipe.hsl)
+    fun selectFilm(id: String, cameraTint: Float? = null): EditSettings {
+        if (recipeID == null) return copy(film = id)
+        val independent = if (!customWb && (tint == 0f || cameraTint == null))
+            copy(recipeID = null, tint = cameraTint ?: 0f)
+        else copy(recipeID = null, customWb = true, tint = ((cameraTint ?: 0f) + tint).coerceIn(-150f, 150f))
+        return independent.copy(film = id)
+    }
 }
 
 enum class DenoisePreset { DETAIL, CLEAN, CUSTOM }
@@ -46,6 +59,7 @@ class HslSettings(values: List<Float> = List(24) { 0f }) {
     init { require(this.values.size == 24 && this.values.all { it.isFinite() && it in -100f..100f }) }
     val isIdentity get() = values.all { it == 0f }
     fun packed() = values.toFloatArray()
+    fun scaled(strength: Float) = HslSettings(values.map { (it * strength).coerceIn(-100f, 100f) })
     fun value(axis: Int, channel: Int) = values[axis * 8 + channel]
     fun withValue(axis: Int, channel: Int, value: Float): HslSettings {
         require(axis in 0..2 && channel in 0..7)

@@ -10,6 +10,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -192,12 +193,14 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
     onAutoExposure: () -> Unit) {
     val titles = listOf(R.string.film, R.string.strength, R.string.exposure, R.string.highlights, R.string.shadows,
         R.string.contrast, R.string.tone_curve, R.string.saturation, R.string.temperature, R.string.tint, R.string.sharpening,
-        R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl)
+        R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl, R.string.master_recipes)
     val icons = listOf(Icons.Outlined.PhotoFilter, Icons.Outlined.Tune, Icons.Outlined.Exposure, Icons.Outlined.WbSunny,
         Icons.Outlined.DarkMode, Icons.Outlined.Contrast, Icons.Outlined.ShowChart, Icons.Outlined.WaterDrop,
         Icons.Outlined.Thermostat, Icons.Outlined.Palette, Icons.Outlined.Deblur, Icons.Outlined.Grain,
-        Icons.Outlined.Circle, Icons.Outlined.Grain, Icons.Outlined.Tune)
+        Icons.Outlined.Circle, Icons.Outlined.Grain, Icons.Outlined.Tune, Icons.Outlined.PhotoLibrary)
     val edits = state.edits
+    val context = LocalContext.current
+    val recipes = remember(context) { MasterRecipe.load(context) }
     val calibrated = state.preview?.temperature?.isFinite() == true
     var menuLookId by remember { mutableStateOf<String?>(null) }
     var renameLookId by remember { mutableStateOf<String?>(null) }
@@ -209,10 +212,10 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                 Icon(Icons.Outlined.Compare, stringResource(R.string.compare))
             }
             if (expanded && (tool == 8 || tool == 9)) {
-                TextButton(onClick = { onEdit(edits.copy(customWb = false), false) }, enabled = state.controlsEnabled && calibrated,
+                TextButton(onClick = { onEdit(edits.copy(customWb = false, tint = if (edits.recipeID == null) state.preview?.tint ?: 0f else 0f), false) }, enabled = state.controlsEnabled && calibrated,
                     modifier = Modifier.weight(1f)) { Text(stringResource(R.string.as_shot), maxLines = 1) }
             } else {
-                Text(state.looks.firstOrNull { it.id == edits.film }?.name ?: edits.film, Modifier.weight(1f),
+                Text(recipes.firstOrNull { it.id == edits.recipeID }?.name ?: state.looks.firstOrNull { it.id == edits.film }?.name ?: edits.film, Modifier.weight(1f),
                     maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
             }
             ToolIcon(Icons.Outlined.RestartAlt, R.string.reset, state.controlsEnabled, onReset)
@@ -245,7 +248,7 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                     val artwork = if (builtIn?.file != null) assetBitmap("artwork/${look.id}.png") else null
                     Box(Modifier.width(76.dp)) {
                         Column(Modifier.fillMaxWidth().selectable(selected = edits.film == look.id, enabled = state.controlsEnabled,
-                            role = Role.RadioButton, onClick = { onEdit(edits.copy(film = look.id), false) }),
+                            role = Role.RadioButton, onClick = { onEdit(edits.selectFilm(look.id, state.preview?.tint), false) }),
                             horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(Modifier.size(64.dp).border(if (edits.film == look.id) 2.dp else 0.dp,
                                 if (edits.film == look.id) MaterialTheme.colorScheme.primary else Color.Transparent).padding(3.dp), contentAlignment = Alignment.Center) {
@@ -273,7 +276,7 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                     }
                 }
             }
-            1 -> NumericControl(R.string.strength, edits.strength * 100, 0f..200f, "%", state.controlsEnabled,
+            1 -> NumericControl(R.string.strength, edits.strength * 100, 0f..200f, "%", state.controlsEnabled && (edits.film != "neutral" || edits.recipeID != null),
                 { value, dragging -> onEdit(edits.copy(strength = value / 100), dragging) }, { onEdit(edits.copy(strength = 1f), false) })
             2 -> Column {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -313,10 +316,12 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                 else {
                     if (tool == 8) NumericControl(R.string.temperature, edits.temperature, 2000f..50000f, "K", state.controlsEnabled,
                         { value, dragging -> onEdit(edits.copy(customWb = true, temperature = value), dragging) },
-                        { onEdit(edits.copy(customWb = false), false) }, reciprocal = true)
+                        { onEdit(edits.copy(temperature = state.preview?.temperature ?: 6500f,
+                            customWb = edits.recipeID == null && edits.tint != state.preview?.tint), false) }, reciprocal = true)
                     else NumericControl(R.string.tint, edits.tint, -150f..150f, "", state.controlsEnabled,
-                        { value, dragging -> onEdit(edits.copy(customWb = true, tint = value), dragging) },
-                        { onEdit(edits.copy(customWb = false), false) })
+                        { value, dragging -> onEdit(edits.copy(customWb = if (edits.recipeID == null) true else edits.customWb, tint = value), dragging) },
+                        { onEdit(edits.copy(tint = if (edits.recipeID == null) state.preview?.tint ?: 0f else 0f,
+                            customWb = edits.customWb && edits.temperature != state.preview?.temperature), false) })
                 }
             }
             11 -> DenoiseControls(edits.denoise, state.controlsEnabled) { value, dragging ->
@@ -329,12 +334,15 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                 onEdit(edits.copy(effects = value), dragging)
             }
             14 -> HslControls(edits.hsl, state.controlsEnabled) { value, dragging -> onEdit(edits.copy(hsl = value), dragging) }
+            15 -> MasterRecipePicker(recipes, edits.recipeID, state.controlsEnabled) { recipe ->
+                onEdit(if (recipe == null) edits.selectFilm("neutral", state.preview?.tint) else edits.applyRecipe(recipe), false)
+            }
             10 -> NumericControl(R.string.sharpening, edits.sharpening * 100, 0f..200f, "%", state.controlsEnabled,
                 { value, dragging -> onEdit(edits.copy(sharpening = value / 100), dragging) }, { onEdit(edits.copy(sharpening = 0f), false) })
         }
         }
         LazyRow(Modifier.fillMaxWidth().height(64.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
-            items(titles.size) { index ->
+            items(listOf(0, 15) + (1 until 15).toList(), key = { it }) { index ->
                 val title = titles[index]
                 val color = if (tool == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 Column(Modifier.width(76.dp).fillMaxHeight().selectable(tool == index, enabled = state.controlsEnabled, role = Role.Tab,
@@ -383,7 +391,9 @@ internal fun NumericControl(label: Int, value: Float, range: ClosedFloatingPoint
         val sliderRange = if (reciprocal) (-1f / range.start)..(-1f / range.endInclusive) else range
         Slider(modifier = Modifier.testTag("adjustment-slider").semantics { stateDescription = "$formatted $unit" },
             value = if (reciprocal) -1f / value else value, onValueChange = {
-            latestValue = if (reciprocal) (-1f / it).coerceIn(range) else it
+            val raw = if (reciprocal) (-1f / it).coerceIn(range) else it
+            val step = when (label) { R.string.exposure -> .05f; R.string.temperature -> 10f; else -> 1f }
+            latestValue = (kotlin.math.round(raw / step) * step).coerceIn(range)
             onValue(latestValue, true)
         }, onValueChangeFinished = { onValue(latestValue, false) }, valueRange = sliderRange, enabled = enabled)
     }
@@ -395,6 +405,28 @@ internal fun NumericControl(label: Int, value: Float, range: ClosedFloatingPoint
                 supportingText = { if (parsed == null) Text(stringResource(R.string.invalid_value)) })
         }, confirmButton = { TextButton(onClick = { parsed?.let { onValue(it, false) }; editing = false }, enabled = parsed != null) { Text(stringResource(R.string.confirm)) } },
         dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } })
+}
+
+@Composable
+internal fun MasterRecipePicker(recipes: List<MasterRecipe>, selected: String?, enabled: Boolean, onSelect: (MasterRecipe?) -> Unit) {
+    val list = rememberLazyListState()
+    LazyRow(state = list, modifier = Modifier.fillMaxWidth().testTag("master-recipe-choices"), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(listOf<MasterRecipe?>(null) + recipes, key = { it?.id ?: "neutral" }) { recipe ->
+            val artwork = recipe?.let { assetBitmap("MasterRecipeIcons/${it.id}.png") }
+            Column(Modifier.width(112.dp).selectable(selected == recipe?.id, enabled = enabled,
+                role = Role.RadioButton, onClick = { onSelect(recipe) }), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
+                    if (artwork != null) Image(artwork.asImageBitmap(), null, Modifier.fillMaxSize())
+                    else Icon(Icons.Outlined.Image, null, Modifier.size(32.dp))
+                }
+                Text(recipe?.name ?: stringResource(R.string.no_recipe), Modifier.heightIn(min = 22.dp), maxLines = 2,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (selected == recipe?.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                Text(recipe?.subtitle ?: "中性直出", Modifier.heightIn(min = 36.dp), maxLines = 2,
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
 
 @Composable

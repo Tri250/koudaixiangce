@@ -41,6 +41,29 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         try legacyRecipeJournal.save(restoredRecipeJob)
         try check(try legacyRecipeJournal.load()?.settings == restoredRecipeJob.settings,
                   "reloaded migrated jobs do not apply recipe defaults twice")
+        var recipeSettings = Adjustments()
+        recipeSettings.applyMasterRecipe(.hamadaDaylightV2)
+        recipeSettings.setHSL(.hue, channel: 0, value: 37)
+        recipeSettings.strength = 0.5
+        let hslJob = BatchExportJob(source: inputs[0], settings: recipeSettings, look: nil, lookName: "Hamada")
+        let hslJournal = BatchJournal(directory: root.appendingPathComponent("hsl-journal"))
+        try hslJournal.save(hslJob)
+        recipeSettings.applyMasterRecipe(.jungraphyNeon)
+        let frozenHSLJob = try hslJournal.load()!
+        try check(frozenHSLJob.settings.hslSettings.value(.hue, channel: 0) == 37 &&
+                  frozenHSLJob.settings.renderHSLSettings.value(.hue, channel: 0) == 18.5,
+                  "new recipe jobs freeze visible HSL and its strength semantics, not static defaults")
+        var v2Job = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hslJob)) as! [String: Any]
+        var v2Settings = v2Job["settings"] as! [String: Any]
+        v2Settings["masterRecipeSettingsVersion"] = 2
+        v2Job["settings"] = v2Settings
+        try JSONSerialization.data(withJSONObject: v2Job).write(to: hslJournal.directory.appendingPathComponent("job.json"))
+        let oldHSLJob = try hslJournal.load()!
+        try check(oldHSLJob.settings.renderHSLSettings.value(.hue, channel: 0) == 37,
+                  "unfinished version two jobs retain formerly independent HSL")
+        try hslJournal.save(oldHSLJob)
+        try check(try hslJournal.load()?.settings == oldHSLJob.settings,
+                  "legacy HSL job behavior survives another journal round-trip")
         try check(try JSONDecoder().decode(BatchExportJob.self, from: encodedJob).longEdge == 2048,
                   "batch keeps the chosen export size")
         var legacyJob = try JSONSerialization.jsonObject(with: encodedJob) as! [String: Any]

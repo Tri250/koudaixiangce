@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        AB2000000000000000000001 /* master-recipes.json in Resources */ = {isa = PBXBuildFile; fileRef = AB2000000000000000000011; };
+        AB2000000000000000000002 /* MasterRecipes in Resources */ = {isa = PBXBuildFile; fileRef = AB2000000000000000000012; };
+        AB2000000000000000000003 /* MasterRecipeIcons in Resources */ = {isa = PBXBuildFile; fileRef = AB2000000000000000000013; };
         AB1900000000000000000001 /* HSLSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000011; };
         AB1900000000000000000002 /* HSLMixer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000012; };
         AB1900000000000000000003 /* HSLNative.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000013; };
@@ -66,6 +69,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+        AB2000000000000000000011 /* master-recipes.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "../Shared/master-recipes.json"; sourceTree = SOURCE_ROOT; };
+        AB2000000000000000000012 /* MasterRecipes */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "../RawLabMac/Resources/MasterRecipes"; sourceTree = SOURCE_ROOT; };
+        AB2000000000000000000013 /* MasterRecipeIcons */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "../RawLabMac/Resources/MasterRecipeIcons"; sourceTree = SOURCE_ROOT; };
         AB1900000000000000000011 /* HSLSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HSLSettings.swift; path = "../Shared/HSLSettings.swift"; sourceTree = SOURCE_ROOT; };
         AB1900000000000000000012 /* HSLMixer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HSLMixer.swift; path = "../Shared/HSLMixer.swift"; sourceTree = SOURCE_ROOT; };
         AB1900000000000000000013 /* HSLNative.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HSLNative.swift; path = "../Shared/HSLNative.swift"; sourceTree = SOURCE_ROOT; };
@@ -276,6 +282,9 @@
 		55B1D2570BE3466BB45F7CD5 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+                AB2000000000000000000011,
+                AB2000000000000000000012,
+                AB2000000000000000000013,
 				AB1500000000000000000001 /* FLog2_to_ACROS_65grid_V.1.00.cube */,
 				AB1500000000000000000002 /* FLog2_to_ASTIA_65grid_V.1.00.cube */,
 				AB1500000000000000000003 /* FLog2_to_CLASSIC-CHROME_65grid_V.1.00.cube */,
@@ -404,6 +413,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                AB2000000000000000000001,
+                AB2000000000000000000002,
+                AB2000000000000000000003,
 				AB1400000000000000000001 /* FLog2_to_ACROS_65grid_V.1.00.cube in Resources */,
 				AB1400000000000000000002 /* FLog2_to_ASTIA_65grid_V.1.00.cube in Resources */,
 				AB1400000000000000000003 /* FLog2_to_CLASSIC-CHROME_65grid_V.1.00.cube in Resources */,

@@ -5,6 +5,52 @@ final class EditorUITests: XCTestCase {
     private let seedPhotoBase = "DJI_20250602164503_0444_D"
     private var verifiedSeedPickerIndex: Int?
 
+    func testMasterRecipeControls() {
+        let app = XCUIApplication()
+        app.launch()
+        importPhoto(in: app)
+        let toolbar = app.scrollViews.containing(.button, identifier: "tool.masterRecipe").allElementsBoundByIndex.min { $0.frame.height < $1.frame.height }!
+        for _ in 0..<3 where !app.buttons["tool.masterRecipe"].isHittable { toolbar.swipeRight() }
+        app.buttons["tool.masterRecipe"].tap()
+        XCTAssertTrue(app.buttons["recipe.hamada_daylight_v2"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["向左滚动大师配方"].exists)
+        XCTAssertFalse(app.buttons["向右滚动大师配方"].exists)
+        let recipes = app.scrollViews["masterRecipe.choices"]
+        func visible(_ id: String) -> Bool {
+            let frame = app.buttons[id].frame
+            return frame.width > 0 && recipes.frame.insetBy(dx: 8, dy: 0).contains(CGPoint(x: frame.midX, y: frame.midY))
+        }
+        for _ in 0..<10 {
+            if visible("recipe.jungraphy_neon") { break }
+            recipes.swipeLeft()
+        }
+        XCTAssertTrue(visible("recipe.jungraphy_neon"))
+        for _ in 0..<10 {
+            if visible("recipe.hamada_daylight_v2") { break }
+            recipes.swipeRight()
+        }
+        XCTAssertTrue(visible("recipe.hamada_daylight_v2"))
+        let recipeFrame = app.buttons["recipe.hamada_daylight_v2"].frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: recipeFrame.midX, dy: recipeFrame.midY)).tap()
+        XCTAssertEqual(app.buttons["tool.masterRecipe"].value as? String, "滨田英明")
+        capture("master-recipes-portrait")
+        for _ in 0..<8 {
+            let frame = app.buttons["tool.hsl"].frame
+            if frame.width > 0 && toolbar.frame.insetBy(dx: 8, dy: 0).contains(CGPoint(x: frame.midX, y: frame.midY)) { break }
+            let start = toolbar.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+            let end = toolbar.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
+            start.press(forDuration: 0.1, thenDragTo: end)
+        }
+        let hsl = app.buttons["tool.hsl"]
+        let hslFrame = hsl.frame
+        XCTAssertTrue(toolbar.frame.contains(CGPoint(x: hslFrame.midX, y: hslFrame.midY)))
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: hslFrame.midX, dy: hslFrame.midY)).tap()
+        XCTAssertTrue(app.buttons["hsl.channel.4"].waitForExistence(timeout: 10))
+        app.buttons["hsl.channel.4"].tap()
+        XCTAssertTrue(app.staticTexts["+4"].exists && app.staticTexts["-1"].exists, app.debugDescription)
+        capture("master-recipe-hsl-portrait")
+    }
+
     func testEditMemoryAndBatchWorkflow() {
         let app = XCUIApplication()
         app.launch()

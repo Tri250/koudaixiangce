@@ -159,11 +159,16 @@ struct Adjustments: Equatable, Codable {
     var hsl: HSLSettings?
     private(set) var supportsRawNoiseReduction = false
     var masterRecipeID: String? = nil
-    private var masterRecipeSettingsVersion: Int? = 2
+    private var masterRecipeSettingsVersion: Int? = 3
 
     var masterRecipe: MasterRecipe? { MasterRecipe.recipe(for: masterRecipeID) }
     var effectSettings: PhotoEffectsSettings { photoEffects ?? PhotoEffectsSettings() }
     var hslSettings: HSLSettings { hsl ?? HSLSettings() }
+    var renderHSLSettings: HSLSettings {
+        // 旧编辑及冻结批量保留独立 HSL；重新应用预设后才采用整体强度。
+        let scalesHSL = masterRecipe != nil && (masterRecipeSettingsVersion ?? 2) >= 3
+        return hslSettings.scaled(by: scalesHSL ? strength : 1)
+    }
     mutating func setHSL(_ axis: HSLAxis, channel: Int, value: Double) {
         var state = hslSettings
         state.set(axis, channel: channel, value: value)
@@ -265,6 +270,7 @@ struct Adjustments: Equatable, Codable {
 
     mutating func applyMasterRecipe(_ recipe: MasterRecipe) {
         masterRecipeID = recipe.id
+        masterRecipeSettingsVersion = 3
         strength = 1
         exposure = recipe.exposureDelta
         shadows = recipe.shadowsDelta
@@ -272,9 +278,11 @@ struct Adjustments: Equatable, Codable {
         contrast = recipe.contrastDelta
         saturation = recipe.saturationDelta
         tint = recipe.tintDelta
+        hsl = recipe.hsl.isIdentity ? nil : recipe.hsl
     }
 
     mutating func clearMasterRecipe() {
+        masterRecipeSettingsVersion = 3
         guard masterRecipe != nil else { masterRecipeID = nil; return }
         let cameraWB = usesAsShotWhiteBalance
         let offset = tint
@@ -399,6 +407,7 @@ extension Adjustments {
         }
         masterRecipeID = try values.decodeIfPresent(String.self, forKey: .masterRecipeID)
         let version = try values.decodeIfPresent(Int.self, forKey: .masterRecipeSettingsVersion)
+        masterRecipeSettingsVersion = masterRecipeID == nil ? 3 : (version ?? 2)
         if version == nil, let recipe = masterRecipe {
             // 旧记录只保存基础值；一次性合入预设，之后由新规则整体缩放这些当前值。
             let cameraWB = whiteBalanceMode == .asShot ||

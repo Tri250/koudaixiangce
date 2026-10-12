@@ -268,7 +268,7 @@ enum BatchInputStore {
 
     static func prepare(_ job: inout BatchExportJob, look: URL?, root: URL? = nil) throws {
         job.source.sourceURL = try copy(job.source.sourceURL, identity: job.source.identity, jobID: job.id, root: root)
-        if job.source.settings.lutID != nil {
+        if job.source.settings.hasLook {
             guard let look, FileManager.default.isReadableFile(atPath: look.path) else {
                 throw BatchExportError.global("所选外观不可用，请重新选择外观。")
             }

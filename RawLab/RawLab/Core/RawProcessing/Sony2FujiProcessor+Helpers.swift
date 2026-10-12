@@ -88,6 +88,27 @@ extension Sony2FujiProcessor {
         guard previewStatus == SONY2FUJI_STATUS_OK else { throw ProcessorError.processFailed(statusMessage(previewStatus)) }
     }
 
+    func prepareRecipe(_ settings: RawSettings, session: OpaquePointer, url: URL?) throws -> RawSettings {
+        guard settings.masterRecipeID != nil else { return settings }
+        guard let url else { return settings.renderedRecipe(cameraTemperature: 6500, cameraTint: 0) }
+        if settings.whiteBalanceMode == .camera && settings.tint * settings.recipeScale == 0 {
+            return settings.renderedRecipe(cameraTemperature: settings.temperature, cameraTint: 0)
+        }
+        // 相机基线必须来自本次目标 RAW，而非源照片的保存记录。
+        var neutral = RawSettings.default
+        neutral.exposureMode = settings.exposureMode
+        try configureSession(session, settings: neutral, interactive: false)
+        var request = makeBaseRequest(settings: neutral, inputType: SONY2FUJI_INPUT_RAW)
+        request.preview_long_edge = 32
+        var buffer = sony2fuji_buffer()
+        defer { sony2fuji_release_buffer(&buffer) }
+        let status = processRaw(session: session, request: &request, inputPath: url.path, lutPath: nil, outBuffer: &buffer)
+        guard status == SONY2FUJI_STATUS_OK, let camera = readRawWhiteBalance(from: session), camera.isCalibrated else {
+            throw ProcessorError.processFailed("此 RAW 无法解析拍摄白平衡，不能应用配方色调。")
+        }
+        return settings.renderedRecipe(cameraTemperature: camera.temperature, cameraTint: camera.tint)
+    }
+
     func makeBaseRequest(settings: RawSettings, inputType: sony2fuji_input_type) -> sony2fuji_request {
         var request = sony2fuji_request()
         request.version = SONY2FUJI_REQUEST_VERSION
@@ -254,7 +275,7 @@ extension Sony2FujiProcessor {
         let status = sony2fuji_session_get_raw_white_balance(session, &temperature, &tint)
         guard status == SONY2FUJI_STATUS_OK else { return nil }
         return Sony2FujiProcessor.RawWhiteBalance(
-            temperature: Double(temperature), tint: Double(tint), isCalibrated: true
+            temperature: Double(temperature).rounded(), tint: Double(tint).rounded(), isCalibrated: true
         )
     }
 }
