@@ -18,9 +18,52 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         try Data("existing".utf8).write(to: existing)
         var settings = Adjustments(); settings.exposure = 0.75
         settings.waveletNoiseReduction = WaveletDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100)
+        settings.exposureMode = .sensor
+        var hsl = HSLSettings()
+        hsl.set(.saturation, channel: 5, value: -65)
+        settings.hsl = hsl
         var job = BatchExportJob(source: inputs[0], settings: settings, look: nil, lookName: "Velvia")
         job.longEdge = 2048
         let encodedJob = try JSONEncoder().encode(job)
+        var legacyRecipeJob = try JSONSerialization.jsonObject(with: encodedJob) as! [String: Any]
+        var legacyRecipeSettings = legacyRecipeJob["settings"] as! [String: Any]
+        legacyRecipeSettings["masterRecipeID"] = MasterRecipe.hamadaDaylightV2.id
+        legacyRecipeSettings["exposure"] = 0
+        legacyRecipeSettings.removeValue(forKey: "masterRecipeSettingsVersion")
+        legacyRecipeJob["settings"] = legacyRecipeSettings
+        let legacyRecipeJournal = BatchJournal(directory: root.appendingPathComponent("legacy-recipe-journal"))
+        try FileManager.default.createDirectory(at: legacyRecipeJournal.directory, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: legacyRecipeJob).write(to: legacyRecipeJournal.directory.appendingPathComponent("job.json"))
+        let restoredRecipeJob = try legacyRecipeJournal.load()!
+        try check(restoredRecipeJob.settings.exposure == 0.4 && restoredRecipeJob.settings.shadows == 20 &&
+                  restoredRecipeJob.settings.tint == 5,
+                  "unfinished legacy recipe jobs migrate their frozen controls")
+        try legacyRecipeJournal.save(restoredRecipeJob)
+        try check(try legacyRecipeJournal.load()?.settings == restoredRecipeJob.settings,
+                  "reloaded migrated jobs do not apply recipe defaults twice")
+        var recipeSettings = Adjustments()
+        recipeSettings.applyMasterRecipe(.hamadaDaylightV2)
+        recipeSettings.setHSL(.hue, channel: 0, value: 37)
+        recipeSettings.strength = 0.5
+        let hslJob = BatchExportJob(source: inputs[0], settings: recipeSettings, look: nil, lookName: "Hamada")
+        let hslJournal = BatchJournal(directory: root.appendingPathComponent("hsl-journal"))
+        try hslJournal.save(hslJob)
+        recipeSettings.applyMasterRecipe(.jungraphyNeon)
+        let frozenHSLJob = try hslJournal.load()!
+        try check(frozenHSLJob.settings.hslSettings.value(.hue, channel: 0) == 37 &&
+                  frozenHSLJob.settings.renderHSLSettings.value(.hue, channel: 0) == 18.5,
+                  "new recipe jobs freeze visible HSL and its strength semantics, not static defaults")
+        var v2Job = try JSONSerialization.jsonObject(with: JSONEncoder().encode(hslJob)) as! [String: Any]
+        var v2Settings = v2Job["settings"] as! [String: Any]
+        v2Settings["masterRecipeSettingsVersion"] = 2
+        v2Job["settings"] = v2Settings
+        try JSONSerialization.data(withJSONObject: v2Job).write(to: hslJournal.directory.appendingPathComponent("job.json"))
+        let oldHSLJob = try hslJournal.load()!
+        try check(oldHSLJob.settings.renderHSLSettings.value(.hue, channel: 0) == 37,
+                  "unfinished version two jobs retain formerly independent HSL")
+        try hslJournal.save(oldHSLJob)
+        try check(try hslJournal.load()?.settings == oldHSLJob.settings,
+                  "legacy HSL job behavior survives another journal round-trip")
         try check(try JSONDecoder().decode(BatchExportJob.self, from: encodedJob).longEdge == 2048,
                   "batch keeps the chosen export size")
         var legacyJob = try JSONSerialization.jsonObject(with: encodedJob) as! [String: Any]
@@ -32,12 +75,15 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         try check(job.items.allSatisfy { !$0.selected }, "candidates start unselected")
         for index in job.items.indices { job.items[index].selected = true }
         settings.exposure = -1
+        settings.hsl = nil
+        settings.exposureMode = .scene
         let journal = BatchJournal(directory: root.appendingPathComponent("journal"))
         var calls: [String] = []
         try BatchExportRunner.run(job: &job, journal: journal, scope: .unfinished, shouldCancel: { false }) { input, snapshot, _, destination in
             calls.append(input.lastPathComponent)
             try check(snapshot.exposure == 0.75, "snapshot must not follow live edits")
             try check(snapshot.waveletSettings == WaveletDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100), "batch keeps frozen denoise settings")
+            try check(snapshot.hslSettings == hsl && snapshot.exposureMode == .sensor, "batch keeps frozen HSL and exposure baseline")
             if input == inputs[1] { throw Failure(message: "invalid RAW") }
             try Data("rendered".utf8).write(to: destination)
         }
@@ -54,6 +100,8 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         }
         try check(calls == ["bad.ARW"], "retry must never repeat successful targets")
         try check(try journal.load()?.items.allSatisfy { $0.status == .succeeded } == true, "completion is journaled")
+        try check(try journal.load()?.settings.hslSettings == hsl && journal.load()?.settings.exposureMode == .sensor,
+                  "journal preserves HSL and exposure baseline")
         var cancelled = BatchExportJob(source: inputs[0], settings: settings, look: nil, lookName: "Neutral")
         cancelled.outputDirectory = output
         cancelled.items = try inputs.map { try BatchExportItem(url: $0) }

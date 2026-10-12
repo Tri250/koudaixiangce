@@ -104,6 +104,7 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
         EditorScreen(state, onAlbum = { album = true }, onFile = { openFile.launch(arrayOf("*/*")) },
             onEdit = model::edit, onReset = model::reset, onRetry = model::retry,
             onSaveRetry = model::retrySave,
+            onAutoExposure = model::autoExposure,
             onExport = {
                 exportSizeKey = ExportSizeChoice.ORIGINAL.key
                 exportCustomSize = ""

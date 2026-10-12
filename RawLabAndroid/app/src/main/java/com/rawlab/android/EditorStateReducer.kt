@@ -15,7 +15,7 @@ internal object EditorStateReducer {
     }
 
     fun lookImported(current: EditorState, look: ManagedLook): EditorMutation {
-        val edits = current.edits.copy(film = look.id)
+        val edits = current.edits.selectFilm(look.id, current.preview?.tint)
         val hasPhoto = current.photo != null
         val state = current.copy(
             looks = current.looks.filterNot { it.id == look.id } + LookChoice(look.id, look.name, managed = true),

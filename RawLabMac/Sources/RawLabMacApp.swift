@@ -16,20 +16,22 @@ struct RawLabMacApp: App {
                 guard let film = Film.bundled().first(where: { $0.name == "PROVIA" }) else {
                     throw RenderError.failed("PROVIA resource missing")
                 }
-                let neutral = try engine.render(input, settings: Adjustments(), lut: nil, edge: 1200)!
-                let rendered = try engine.render(input, settings: Adjustments(), lut: film.url, edge: 1200)!
+                var sceneSettings = Adjustments()
+                sceneSettings.exposureMode = .scene
+                let neutral = try engine.render(input, settings: sceneSettings, lut: nil, edge: 1200)!
+                let rendered = try engine.render(input, settings: sceneSettings, lut: film.url, edge: 1200)!
                 var matchedSettings = Adjustments()
                 matchedSettings.exposureMode = .preview
                 let matched = try engine.render(input, settings: matchedSettings, lut: film.url, edge: 1200)!
-                let restored = try engine.render(input, settings: Adjustments(), lut: film.url, edge: 1200)!
+                let restored = try engine.render(input, settings: sceneSettings, lut: film.url, edge: 1200)!
                 guard restored.histogram == rendered.histogram,
                       restored.baselineEV == rendered.baselineEV,
                       abs(matched.baselineEV-rendered.baselineEV) > 0.01 else {
                     throw RenderError.failed("Exposure mode cache isolation failed")
                 }
-                _ = try engine.render(input, settings: Adjustments(), lut: nil, edge: nil, output: output.appendingPathComponent("neutral.jpg"))
-                _ = try engine.render(input, settings: Adjustments(), lut: film.url, edge: nil, output: output.appendingPathComponent("PROVIA.png"))
-                _ = try engine.render(input, settings: Adjustments(), lut: film.url, edge: nil, output: output.appendingPathComponent("PROVIA.jpg"))
+                _ = try engine.render(input, settings: sceneSettings, lut: nil, edge: nil, output: output.appendingPathComponent("neutral.jpg"))
+                _ = try engine.render(input, settings: sceneSettings, lut: film.url, edge: nil, output: output.appendingPathComponent("PROVIA.png"))
+                _ = try engine.render(input, settings: sceneSettings, lut: film.url, edge: nil, output: output.appendingPathComponent("PROVIA.jpg"))
                 guard neutral.histogram != rendered.histogram, rendered.image.width > 0 else {
                     throw RenderError.failed("Film transform produced no change")
                 }
@@ -38,7 +40,7 @@ struct RawLabMacApp: App {
                 let report: [String: Any] = ["input": input.path, "width": rendered.image.width,
                     "height": rendered.image.height, "film": film.name, "filmCount": Film.bundled().count,
                     "baselineEV": rendered.baselineEV, "metadataEV": rendered.metadataEV,
-                    "previewMatchEV": matched.baselineEV, "exposureMode": ExposureMode.scene.rawValue,
+                    "previewMatchEV": matched.baselineEV, "exposureMode": sceneSettings.exposureMode.rawValue,
                     "highlights": rendered.highlights, "shadows": rendered.shadows, "pngBits": png[24]]
                 try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted,.sortedKeys])
                     .write(to: output.appendingPathComponent("result.json"))

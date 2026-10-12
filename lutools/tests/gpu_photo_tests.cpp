@@ -196,6 +196,8 @@ void compareForcedCase(sony2fuji_session* cpuSession, sony2fuji_session* gpuSess
     sony2fuji_buffer cpu{}, gpu{};
     const auto cpuStatus = sony2fuji_process(cpuSession, &request, &cpu);
     const auto gpuStatus = sony2fuji_process(gpuSession, &request, &gpu);
+    if (cpuStatus != SONY2FUJI_STATUS_OK || gpuStatus != SONY2FUJI_STATUS_OK)
+        std::cerr << name << " CPU status=" << cpuStatus << " GPU status=" << gpuStatus << '\n';
 #ifdef SONY2FUJI_ENABLE_D3D11
     const auto expectedBackend = SONY2FUJI_BACKEND_D3D11;
 #else
@@ -365,6 +367,62 @@ int main() {
     }
     std::filesystem::remove(effectsPath);
 #endif
+    sony2fuji_photo_effects_config noEffects{1, sizeof(noEffects), 0, 50, 0, 50, 0, 0, 25, 50};
+    for (auto* target : {session, forced}) sony2fuji_session_set_photo_effects(target, &noEffects);
+    sony2fuji_hsl_config hsl{SONY2FUJI_HSL_CONFIG_VERSION, sizeof(hsl), {}, {}, {}};
+    const auto hslLutPath = makePhotoLUT("FLog2", "HSL");
+    const auto hslLutUtf8 = hslLutPath.u8string();
+    auto hslRequest = baseRequest(ramp, 17, 13);
+    for (size_t axis = 0; axis < 3; ++axis) for (size_t channel = 0; channel < 8; ++channel) {
+        hsl = {SONY2FUJI_HSL_CONFIG_VERSION, sizeof(hsl), {}, {}, {}};
+        auto* values = axis == 0 ? hsl.hue : axis == 1 ? hsl.saturation : hsl.lightness;
+        values[channel] = axis == 0 ? 100 : axis == 1 ? -100 : 25;
+        for (auto* target : {session, forced}) sony2fuji_session_set_hsl(target, &hsl);
+        compareForcedCase(session, forced, hslRequest, "HSL-only axis " + std::to_string(axis) + " channel " + std::to_string(channel));
+    }
+    for (size_t channel = 0; channel < 8; ++channel) {
+        hsl.hue[channel] = channel % 2 == 0 ? -100 : 100;
+        hsl.saturation[channel] = channel % 2 == 0 ? 100 : -100;
+        hsl.lightness[channel] = channel % 2 == 0 ? -100 : 100;
+    }
+    for (auto* target : {session, forced}) sony2fuji_session_set_hsl(target, &hsl);
+    const std::vector<unsigned char> wrapPixels{230,20,21, 230,21,20, 220,20,20,
+        20,220,220, 20,20,220, 180,20,220, 0,0,0, 128,128,128, 255,255,255};
+    compareForcedCase(session, forced, baseRequest(wrapPixels, 9, 1), "HSL red wrap and achromatic pixels");
+    const std::vector<unsigned char> nearGrayPixels{230,229,229, 229,230,229,
+        229,229,230, 225,224,225};
+    auto nearGray = baseRequest(nearGrayPixels, 4, 1);
+    nearGray.exposure_ev = 4;
+    compareForcedCase(session, forced, nearGray, "HSL near-gray lightness remains stable");
+    for (bool film : {false, true}) for (bool preview : {false, true}) {
+        hslRequest.lut_path = film ? hslLutUtf8.c_str() : nullptr;
+        hslRequest.lut_strength = film ? 1.2f : 0;
+        hslRequest.contrast = 1.2f; hslRequest.saturation = .8f;
+        hslRequest.intent = preview ? SONY2FUJI_INTENT_PREVIEW : SONY2FUJI_INTENT_FINAL;
+        hslRequest.target_width = 9; hslRequest.target_height = 7;
+        compareForcedCase(session, forced, hslRequest, "HSL extremes, film " + std::to_string(film) + " preview " + std::to_string(preview));
+    }
+    for (size_t channel = 0; channel < 8; ++channel) {
+        hsl.hue[channel] = channel % 2 == 0 ? -40 : 70;
+        hsl.saturation[channel] = channel % 2 == 0 ? 35 : -60;
+        hsl.lightness[channel] = channel % 2 == 0 ? -15 : 20;
+    }
+    sony2fuji_photo_effects_config combinedEffects{1, sizeof(combinedEffects), -65, 35, -37, 60, 80, 70, 25, 50};
+    for (auto* target : {session, forced}) {
+        sony2fuji_session_set_hsl(target, &hsl);
+        sony2fuji_session_set_photo_effects(target, &combinedEffects);
+        sony2fuji_session_set_chroma_denoise(target, 2);
+    }
+    hslRequest.noise_reduction = .4f; hslRequest.sharpening = .7f;
+    compareForcedCase(session, forced, hslRequest, "HSL before chroma/detail/effects and final resize");
+    hsl = {SONY2FUJI_HSL_CONFIG_VERSION, sizeof(hsl), {}, {}, {}};
+    for (auto* target : {session, forced}) {
+        sony2fuji_session_set_hsl(target, &hsl);
+        sony2fuji_session_set_photo_effects(target, &noEffects);
+        sony2fuji_session_set_chroma_denoise(target, 0);
+    }
+    compareForcedCase(session, forced, baseline, "HSL reset restores the existing GPU path");
+    std::filesystem::remove(hslLutPath);
     sony2fuji_session_destroy(forced);
 
     sony2fuji_session_destroy(session);

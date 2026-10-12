@@ -2,19 +2,6 @@ import AppKit
 import ImageIO
 import Foundation
 
-enum ExposureMode: String, CaseIterable, Identifiable, Codable {
-    case scene = "标准显影"
-    case preview = "匹配内嵌预览"
-    case sensor = "传感器基准"
-    var id: String { rawValue }
-    var core: sony2fuji_raw_exposure_mode {
-        switch self {
-        case .scene: return SONY2FUJI_EXPOSURE_SCENE
-        case .preview: return SONY2FUJI_EXPOSURE_PREVIEW
-        case .sensor: return SONY2FUJI_EXPOSURE_SENSOR
-        }
-    }
-}
 
 struct RenderedImage {
     let image: CGImage
@@ -40,11 +27,34 @@ enum RenderError: LocalizedError {
     }
 }
 
+struct RawWhiteBalanceCacheKey: Equatable {
+    let file: URL
+    let modified: Date?
+    let size: UInt64?
+    let fileNumber: UInt64
+
+    init(_ url: URL) throws {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        file = url.standardizedFileURL
+        modified = attributes[.modificationDate] as? Date
+        size = (attributes[.size] as? NSNumber)?.uint64Value
+        fileNumber = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0
+    }
+}
+
 final class RenderEngine {
     private var session: OpaquePointer?
     private let gpuMode: sony2fuji_gpu_mode
+    private var whiteBalanceCache: (key: RawWhiteBalanceCacheKey, value: WhiteBalance?)?
     init(gpuMode: sony2fuji_gpu_mode = SONY2FUJI_GPU_AUTO) throws {
         self.gpuMode = gpuMode
+        try resetSession()
+    }
+
+    private func resetSession() throws {
+        sony2fuji_session_destroy(session)
+        session = nil
+        whiteBalanceCache = nil
         guard sony2fuji_session_create(&session) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed("无法创建处理会话")
         }
@@ -58,15 +68,62 @@ final class RenderEngine {
 
     var lastBackend: sony2fuji_render_backend { sony2fuji_session_get_last_backend(session) }
 
+    func autoExposure(_ url: URL, settings: Adjustments) throws -> Double {
+        guard sony2fuji_session_set_raw_exposure_mode(session, settings.exposureMode.core) == SONY2FUJI_STATUS_OK else {
+            throw RenderError.failed("无效的曝光基准")
+        }
+        var request = sony2fuji_request()
+        request.version = SONY2FUJI_REQUEST_VERSION
+        request.struct_size = UInt32(MemoryLayout<sony2fuji_request>.size)
+        request.input_type = SONY2FUJI_INPUT_RAW
+        request.wb_mode = SONY2FUJI_WB_CAMERA
+        request.wb_mul = (1,1,1,1)
+        settings.apply(to: &request)
+        request.output_target = SONY2FUJI_TARGET_BUFFER
+        var ev: Float = 0
+        let status = url.path.withCString { path in
+            request.input_path = path
+            return sony2fuji_session_estimate_auto_exposure(session, &request, &ev)
+        }
+        guard status == SONY2FUJI_STATUS_OK else { throw RenderError.failed("无法自动调整曝光：\(String(cString: sony2fuji_status_message(status)))") }
+        return Double(ev)
+    }
+
     func render(_ url: URL, settings: Adjustments, lut: URL?, edge: Int?, output: URL? = nil, interactive: Bool = false, exportLongEdge: Int? = nil) throws -> RenderedImage? {
         if let exportLongEdge, !(1...65535).contains(exportLongEdge) {
             throw RenderError.failed("导出长边必须为 1-65535 像素。")
+        }
+        let key = try? RawWhiteBalanceCacheKey(url)
+        if let key, let cached = whiteBalanceCache, cached.key.file == key.file,
+           cached.key.fileNumber != key.fileNumber {
+            // 原生 RAW 缓存只按路径、大小、时间识别文件，inode 更换时需同时重建会话。
+            try resetSession()
+        }
+        var settings = settings
+        if settings.masterRecipe != nil,
+           settings.tint * settings.strength != 0 || !settings.usesAsShotWhiteBalance {
+            let camera: WhiteBalance?
+            if let key, let cache = whiteBalanceCache, cache.key == key {
+                camera = cache.value
+            } else {
+                // 拍摄白平衡属于当前 RAW，不能沿用批量任务或恢复记录里的源照片元数据。
+                camera = try render(url, settings: Adjustments(), lut: nil, edge: 32)?.asShotWhiteBalance
+            }
+            guard let camera else {
+                throw RenderError.failed("此 RAW 无法解析拍摄白平衡，不能应用配方色调。")
+            }
+            settings.resolveWhiteBalance(camera)
         }
         guard sony2fuji_session_set_interactive_preview(session, interactive && output == nil ? 1 : 0) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed("无效的预览模式")
         }
         guard sony2fuji_session_set_raw_exposure_mode(session, settings.exposureMode.core) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed("无效的曝光基准")
+        }
+        guard settings.hslSettings.isValid else { throw RenderError.failed("无效的 HSL 参数") }
+        var hslConfig = settings.renderHSLSettings.nativeConfig
+        guard sony2fuji_session_set_hsl(session, &hslConfig) == SONY2FUJI_STATUS_OK else {
+            throw RenderError.failed("无效的 HSL 参数")
         }
         let wavelet = settings.waveletNoiseReduction
         var effectsConfig = settings.photoEffectsConfig
@@ -153,6 +210,7 @@ final class RenderEngine {
         var noiseReductionSupported: Int32 = 0
         _ = sony2fuji_session_get_raw_noise_reduction_support(session, &noiseReductionSupported)
         let cameraWhiteBalance = calibrated ? WhiteBalance(temperature: Double(temperature).rounded(), tint: Double(tint).rounded()) : nil
+        whiteBalanceCache = key.map { ($0, cameraWhiteBalance) }
         let width = Int(buffer.width), height = Int(buffer.height)
         let data = Data(bytes: pointer, count: buffer.size_bytes)
         let space = CGColorSpace(name: CGColorSpace.sRGB)!

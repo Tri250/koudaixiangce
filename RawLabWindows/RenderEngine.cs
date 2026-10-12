@@ -14,7 +14,7 @@ internal sealed class RenderEngine : IDisposable
     private int gpuMode;
     private sealed record Stamp(string Path,long Length,long Time);
     private sealed record PreviewKey(Native.Request Request,DenoiseSettings Denoise,PhotoEffectsSettings Effects,int DisplayChromaDenoise,
-        int ExposureMode,int Mode,bool Compare,bool Clipping,Stamp Raw,Stamp? Lut);
+        int ExposureMode,HslSettings Hsl,int Mode,bool Compare,bool Clipping,Stamp Raw,Stamp? Lut);
     private PreviewKey? previewKey;
     private (Stamp Raw,Stamp? Lut)? sourceStamp;
     private (Stamp Raw,int Edge,RenderedImage Frame)? original;
@@ -28,6 +28,14 @@ internal sealed class RenderEngine : IDisposable
     public RenderEngine(int gpuMode=1) => SetGpuMode(gpuMode);
     public void SetGpuMode(int mode) { var config=new Native.GpuConfig{Version=1,StructSize=12,Mode=mode};Native.Check(Native.sony2fuji_session_set_gpu_config(session,ref config));gpuMode=mode; }
     public void Dispose() {previews.Clear();original=null;session.Dispose();}
+    public double AutoExposure(string path, Adjustments settings)
+    {
+        settings = PrepareRecipe(path, settings);
+        Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
+        var request=settings.Request(path,null,0,null);
+        Native.Check(Native.sony2fuji_session_estimate_auto_exposure(session,ref request,out var ev));
+        return ev;
+    }
     public PreviewFrame RenderPreview(string path,Adjustments settings,string? lut,int edge,bool interactive,bool compare,bool clipping)
     {
         static Stamp FileStamp(string file) {var info=new FileInfo(file);return new(info.FullName,info.Length,info.LastWriteTimeUtc.Ticks);}
@@ -39,7 +47,7 @@ internal sealed class RenderEngine : IDisposable
         {session.Dispose();session=new();SetGpuMode(gpuMode);}
         sourceStamp=(rawStamp,lutStamp);
         var key=new PreviewKey(settings.Request(path,lut,2000,null),settings.Denoise,settings.Effects,settings.DisplayChromaDenoise,
-            settings.ExposureMode,gpuMode,compare,clipping,rawStamp,lutStamp);
+            settings.ExposureMode,settings.Hsl,gpuMode,compare,clipping,rawStamp,lutStamp);
         if(previewKey!=key){previews.Clear();previewKey=key;}
         var cacheEdge=interactive && original?.Edge==0 ? 0 : interactive && edge==1000 ? 2000 : edge;
         if(previews.TryGetValue(cacheEdge,out var cached)) {
@@ -68,7 +76,10 @@ internal sealed class RenderEngine : IDisposable
     }
     public RenderedImage? Render(string path, Adjustments settings, string? lut, int edge, bool interactive = false, string? output = null, bool statistics = true, bool clipping = true, int? longEdge = null)
     {
+        settings = PrepareRecipe(path, settings);
         Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
+        var hsl=settings.RenderHsl.NativeConfig();
+        Native.Check(Native.sony2fuji_session_set_hsl(session,ref hsl));
         Native.Check(Native.sony2fuji_session_set_interactive_preview(session,interactive && output == null ? 1 : 0));
         var denoise=settings.Denoise.NativeConfig();
         Native.Check(Native.sony2fuji_session_set_wavelet_denoise(session,ref denoise));
@@ -99,6 +110,17 @@ internal sealed class RenderEngine : IDisposable
                 calibrated ? (Math.Round(temperature),Math.Round(tint)) : null,LastBackend);
         }
         finally { Native.sony2fuji_release_buffer(ref buffer); Native.sony2fuji_release_buffer(ref mask); }
+    }
+    private Adjustments PrepareRecipe(string path, Adjustments settings)
+    {
+        if (settings.MasterRecipeID == null || (settings.CameraWhiteBalance && settings[Parameter.Tint] * settings[Parameter.Strength] == 0)) return settings;
+        // 配方色调属于目标 RAW 的拍摄白平衡，不沿用冻结来源的相机值。
+        var neutral = new Adjustments { ExposureMode = settings.ExposureMode };
+        var camera = Render(path, neutral, null, 32, statistics: false, clipping: false)?.WhiteBalance
+            ?? throw new InvalidOperationException("此 RAW 无法解析拍摄白平衡，不能应用配方色调。");
+        var prepared = settings.Clone();
+        prepared.ResolveWhiteBalance(camera);
+        return prepared;
     }
     private static unsafe BitmapSource Bitmap(Native.Buffer buffer,bool opaque=true)
     {

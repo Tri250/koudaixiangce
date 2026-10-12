@@ -1,4 +1,23 @@
 <resources>
+    <string name="master_recipes">大师配方</string>
+    <string name="no_recipe">无配方</string>
+    <string name="hsl_reset_channel">重置当前颜色</string>
+    <string name="hsl">HSL</string>
+    <string name="auto_exposure">自动</string>
+    <string name="exposure_scene">标准显影</string>
+    <string name="exposure_preview">匹配内嵌预览</string>
+    <string name="exposure_sensor">传感器基准</string>
+    <string name="hsl_hue">色相</string>
+    <string name="hsl_lightness">明度</string>
+    <string name="hsl_reset">重置 HSL</string>
+    <string name="hsl_red">红</string>
+    <string name="hsl_orange">橙</string>
+    <string name="hsl_yellow">黄</string>
+    <string name="hsl_green">绿</string>
+    <string name="hsl_aqua">青</string>
+    <string name="hsl_blue">蓝</string>
+    <string name="hsl_purple">紫</string>
+    <string name="hsl_magenta">洋红</string>
     <string name="app_name">RawLab</string>
     <string name="about_rawlab">关于 RawLab</string>
     <string name="app_version">版本 %1$s</string>

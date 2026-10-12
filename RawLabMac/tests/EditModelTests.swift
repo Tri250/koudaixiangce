@@ -17,6 +17,34 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
                         editDirectory: root.appendingPathComponent("edits"),
                         batchDirectory: root.appendingPathComponent("batch"))
         }
+        let selection = model()
+        selection.settings.exposure = 2
+        selection.settings.shadows = -60
+        selection.settings.highlights = 80
+        selection.settings.contrast = 75
+        selection.settings.saturation = 50
+        selection.settings.set(.temperature, to: 8000)
+        selection.settings.set(.tint, to: 100)
+        selection.settings.sharpening = 75
+        selection.settings.setEffect(.grainAmount, to: 40)
+        selection.selectedFilmID = "PROVIA"
+        selection.selectMasterRecipe(.hamadaDaylightV2)
+        try check(selection.settings.masterRecipeID == MasterRecipe.hamadaDaylightV2.id && selection.selectedFilmID.isEmpty,
+                  "selecting a recipe clears film selection without clearing the recipe")
+        try check(selection.settings.exposure == 0.4 && selection.settings.shadows == 20 &&
+                  selection.settings.highlights == -15 && selection.settings.contrast == -15 &&
+                  selection.settings.saturation == -8 && selection.settings.tint == 5,
+                  "applying a recipe overwrites its six adjustment fields")
+        try check(selection.settings.temperature == 8000 && selection.settings.sharpening == 75 &&
+                  selection.settings.grainAmount == 40, "applying a recipe preserves unrelated adjustments")
+        selection.settings.exposure = 1
+        selection.selectMasterRecipe(.hamadaDaylightV2)
+        try check(selection.settings.exposure == 0.4, "explicitly reapplying the same recipe overwrites manual changes")
+        selection.selectedFilmID = ""
+        try check(selection.settings.masterRecipeID == nil, "selecting neutral clears an active recipe")
+        selection.selectMasterRecipe(.hamadaDaylightV2)
+        selection.selectedFilmID = "PROVIA"
+        try check(selection.settings.masterRecipeID == nil, "selecting a film clears an active recipe")
         let first = model()
         first.open(a)
         first.settings.exposure = 0.75
@@ -26,6 +54,37 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         let second = model()
         second.open(a)
         try check(second.settings.exposure == 0.75, "editor must restore from disk")
+        let legacyDirectory = root.appendingPathComponent("legacy-edits")
+        let legacyStore = try EditPersistence(directory: legacyDirectory)
+        var legacySettings = Adjustments()
+        legacySettings.masterRecipeID = MasterRecipe.hamadaDaylightV2.id
+        try legacyStore.save(a, state: PhotoEditState(settings: legacySettings, filmID: "",
+                                                     masterRecipeID: legacySettings.masterRecipeID))
+        let legacyFile = legacyDirectory.appendingPathComponent("edits.json")
+        var legacyRegistry = try JSONSerialization.jsonObject(with: Data(contentsOf: legacyFile)) as! [String: Any]
+        var records = legacyRegistry["records"] as! [String: [String: Any]]
+        let recordKey = try OriginalFileIdentity(a).path
+        var record = records[recordKey]!
+        var state = record["state"] as! [String: Any]
+        var oldSettings = state["settings"] as! [String: Any]
+        oldSettings.removeValue(forKey: "masterRecipeSettingsVersion")
+        state["settings"] = oldSettings; record["state"] = state
+        records[recordKey] = record; legacyRegistry["records"] = records
+        try JSONSerialization.data(withJSONObject: legacyRegistry).write(to: legacyFile)
+        func legacyModel() -> EditorModel {
+            EditorModel(lookDirectory: root.appendingPathComponent("looks"), editDirectory: legacyDirectory,
+                        batchDirectory: root.appendingPathComponent("legacy-batch"))
+        }
+        let migratedEditor = legacyModel()
+        migratedEditor.open(a)
+        try check(migratedEditor.settings.exposure == 0.4 && migratedEditor.settings.shadows == 20 &&
+                  migratedEditor.settings.tint == 5 && migratedEditor.selectedFilmID.isEmpty,
+                  "actual EditorModel restoration migrates an old recipe record")
+        migratedEditor.settings.exposure = 0.71
+        try check(migratedEditor.saveEdits(), "migrated editor state saves")
+        let migratedRestart = legacyModel(); migratedRestart.open(a)
+        try check(migratedRestart.settings.exposure == 0.71 && migratedRestart.settings.tint == 5,
+                  "editor restart retains migrated manual changes without applying preset deltas twice")
         second.settings.resetAll()
         try check(second.saveEdits(), "reset must save")
         let third = model(); third.open(a)
@@ -37,7 +96,39 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         try check(applied.settings.exposure == 1.25 && third.file == a && third.settings.exposure == 1.25,
                   "context action persists target settings without opening the target or changing the source")
         try check(try Data(contentsOf: b) == originalB, "apply settings leaves RAW bytes intact")
+        let preset = model()
+        preset.open(a)
+        preset.selectMasterRecipe(.hamadaDaylightV2)
+        preset.settings.exposure = 0.6
+        preset.settings.setHSL(.hue, channel: 0, value: 37)
+        preset.settings.strength = 0.5
+        try check(preset.saveEdits(), "preset adjustments save successfully")
+        let restoredPreset = model()
+        restoredPreset.open(a)
+        try check(restoredPreset.settings.masterRecipeID == MasterRecipe.hamadaDaylightV2.id &&
+                  restoredPreset.settings.exposure == 0.6 && restoredPreset.settings.shadows == 20 &&
+                  restoredPreset.settings.tint == 5 && restoredPreset.settings.hslSettings.value(.hue, channel: 0) == 37 &&
+                  restoredPreset.settings.renderHSLSettings.value(.hue, channel: 0) == 18.5,
+                  "restoring a preset keeps later manual edits instead of reapplying preset defaults")
         let blocked = root.appendingPathComponent("blocked")
+        for recipe in MasterRecipe.allRecipes {
+            let catalogModel = model()
+            catalogModel.open(a)
+            catalogModel.selectMasterRecipe(recipe)
+            try check(catalogModel.settings.masterRecipeID == recipe.id && catalogModel.selectedFilmID.isEmpty &&
+                      catalogModel.settings.tint == recipe.tintDelta && catalogModel.settings.contrast == recipe.contrastDelta &&
+                      catalogModel.settings.hslSettings == recipe.hsl,
+                      "\(recipe.id): EditorModel applies the catalog entry and clears film")
+            catalogModel.settings.exposure = 0.63
+            catalogModel.settings.setHSL(.saturation, channel: 4, value: -37)
+            try check(catalogModel.saveEdits(), "\(recipe.id): recipe saves")
+            let restored = model()
+            restored.open(a)
+            try check(restored.settings.masterRecipeID == recipe.id && restored.settings.exposure == 0.63 &&
+                      restored.settings.saturation == recipe.saturationDelta &&
+                      restored.settings.hslSettings.value(.saturation, channel: 4) == -37,
+                      "\(recipe.id): editor restoration preserves the recipe and manual change")
+        }
         try Data().write(to: blocked)
         let failing = EditorModel(lookDirectory: root.appendingPathComponent("looks"),
                                   editDirectory: blocked, batchDirectory: root.appendingPathComponent("batch2"))

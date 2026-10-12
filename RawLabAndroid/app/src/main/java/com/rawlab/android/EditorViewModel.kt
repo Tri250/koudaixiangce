@@ -37,11 +37,13 @@ private sealed interface Work {
         val gpuMode: Int, val importing: Boolean = false, val restored: Boolean = false) : Work
     data class Export(val photo: ImportedPhoto, val edits: EditSettings, val destination: Uri?, val png: Boolean,
         val longEdge: Int?, val gpuMode: Int) : Work
+    data class AutoExposure(val photo: ImportedPhoto, val edits: EditSettings) : Work
 }
 private sealed interface WorkResult {
     data class Preview(val request: Work.Preview, val pair: PreviewPair) : WorkResult
     data class MissingLook(val photo: ImportedPhoto, val edits: EditSettings) : WorkResult
     data object Export : WorkResult
+    data class AutoExposure(val request: Work.AutoExposure, val exposure: Float) : WorkResult
 }
 private sealed interface LookWork {
     data object Load : LookWork
@@ -98,8 +100,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val photo = storage.import(work.uri)
             val restored = editStore?.load(photo.identity)
             try {
-                if (restored != null && runCatching { storage.filmPath(restored.film) }.isFailure) {
-                    engine().preview(photo.file, null, restored.copy(film = "neutral"), 256, false)
+                if (restored != null && runCatching { storage.lookPath(restored) }.isFailure) {
+                    engine().preview(photo.file, null, restored.copy(film = "neutral", recipeID = null), 256, false)
                     WorkResult.MissingLook(photo, restored)
                 } else perform(Work.Preview(photo, restored ?: EditSettings(), false, work.gpuMode,
                     importing = true, restored = restored != null))
@@ -114,7 +116,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 original = null
                 original = work.photo.file to native.preview(work.photo.file, null, EditSettings(), 1600, false).bitmap()
             }
-            val lut = storage.filmPath(work.edits.film)
+            val lut = storage.lookPath(work.edits)
             val film = native.preview(work.photo.file, lut, work.edits, edge, work.interactive)
             WorkResult.Preview(work, PreviewPair(original!!.second, film.bitmap(), film.temperature, film.tint))
         }
@@ -122,12 +124,13 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val output = storage.temporaryOutput(work.png)
             try {
                 engine().setGpuMode(work.gpuMode)
-                engine().export(work.photo.file, storage.filmPath(work.edits.film), work.edits, output, work.png, work.longEdge)
+                engine().export(work.photo.file, storage.lookPath(work.edits), work.edits, output, work.png, work.longEdge)
                 if (work.destination == null) storage.saveAlbum(output, work.png)
                 else storage.saveDocument(output, work.destination, work.photo.uri)
             } finally { output.delete() }
             WorkResult.Export
         }
+        is Work.AutoExposure -> WorkResult.AutoExposure(work, engine().autoExposure(work.photo.file, work.edits))
     } }
 
     private fun performLook(work: LookWork): LookResult = synchronized(storage) { try {
@@ -170,7 +173,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         mutable.value.photo?.file?.takeIf { it != request.photo.file }?.delete()
                     }
                     val settings = if (!request.edits.customWb && value.pair.temperature.isFinite())
-                        request.edits.copy(temperature = value.pair.temperature.coerceIn(2000f, 50000f), tint = value.pair.tint.coerceIn(-150f, 150f))
+                        request.edits.copy(temperature = value.pair.temperature.coerceIn(2000f, 50000f),
+                            tint = if (request.edits.recipeID == null) value.pair.tint.coerceIn(-150f, 150f) else request.edits.tint)
                     else request.edits
                     val saved = when {
                         request.importing -> if (editStore == null) EditSaveState.FAILED else if (request.restored) EditSaveState.RESTORED else EditSaveState.NONE
@@ -183,6 +187,12 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                         saveState = if (request.restored && saved == EditSaveState.SAVED) EditSaveState.RESTORED else saved)
                 }
                 WorkResult.Export -> mutable.value = mutable.value.copy(operation = Operation.NONE, message = text(R.string.export_done))
+                is WorkResult.AutoExposure -> {
+                    val current = mutable.value
+                    if (current.photo?.identity == value.request.photo.identity && current.edits == value.request.edits) {
+                        edit(current.edits.copy(exposure = value.exposure))
+                    }
+                }
             }
             fadeSaveNotice()
         }, { error ->
@@ -289,6 +299,12 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun retry() { edit(mutable.value.edits) }
+    fun autoExposure() {
+        val current = mutable.value
+        if (!current.controlsEnabled || current.preview == null || current.rendering) return
+        mutable.value = current.copy(rendering = true, exact = false, error = null)
+        currentRevision = queue.submit(Work.AutoExposure(current.photo!!, current.edits))
+    }
     fun retrySave() {
         val photo = mutable.value.photo
         if (photo != null) mutable.value = mutable.value.copy(saveState = persist(photo, mutable.value.edits))

@@ -31,6 +31,7 @@ public partial class MainWindow
 
     private void MarkEdited()
     {
+        ++editRevision;
         if (!ready || syncing || file == null) return;
         editDirty = true;
         if (RetrySave.Visibility != Visibility.Visible) SaveState.Text = "";
@@ -53,6 +54,7 @@ public partial class MainWindow
 
     internal string? CurrentLookIdentity()
     {
+        if (settings.Recipe is {} recipe) return "recipe:" + recipe.Id;
         if (lut != null && StringComparer.OrdinalIgnoreCase.Equals(Path.GetDirectoryName(lut), Path.Combine(AppContext.BaseDirectory, "LUTs")))
             return "builtin:" + Path.GetFileName(lut);
         return lut;
@@ -74,9 +76,10 @@ public partial class MainWindow
         var saved = editStore?.Find(input);
         settings = saved?.Settings.Restore() ?? new Adjustments();
         lut = saved == null ? films.FirstOrDefault(f => f.Name == "PROVIA")?.Path : saved.Look;
+        if (settings.Recipe is {} recipe) lut = recipe.LutPath;
         if (lut?.StartsWith("builtin:", StringComparison.Ordinal) == true)
             lut = Path.Combine(AppContext.BaseDirectory, "LUTs", Path.GetFileName(lut[8..]));
-        if (lut != null && !films.Any(f => StringComparer.OrdinalIgnoreCase.Equals(f.Path, lut)))
+        if (settings.MasterRecipeID == null && lut != null && !films.Any(f => StringComparer.OrdinalIgnoreCase.Equals(f.Path, lut)))
         {
             films.Add(new(Path.GetFileNameWithoutExtension(lut), lut, null)); BuildFilms();
         }
@@ -114,7 +117,7 @@ public partial class MainWindow
         {
             if (batchWindow != null) { batchWindow.Close(); batchWindow = null; }
             if (previous != null) batchJournal.Discard(previous);
-            var job = BatchJob.Create(file, settings.Capture(), lut, films.FirstOrDefault(f => f.Path == lut)?.Name ?? "中性");
+            var job = BatchJob.Create(file, settings.Capture(), lut, settings.Recipe?.Name ?? films.FirstOrDefault(f => f.Path == lut)?.Name ?? "中性");
             batchJournal.FreezeLook(job); batchJournal.Save(job); previousBatch = job;
             ShowBatch(job);
         }

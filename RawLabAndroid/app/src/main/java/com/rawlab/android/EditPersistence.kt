@@ -49,7 +49,7 @@ class EditStore(private val directory: File) {
             val storedFilm = properties.getProperty("record.$encoded.film", "neutral")
             val film = runCatching { String(Base64.getUrlDecoder().decode(storedFilm), StandardCharsets.UTF_8) }
                 .getOrDefault(storedFilm)
-            records[identity] = decode(properties.getProperty(key), film)
+            records[identity] = decode(properties.getProperty(key), film).copy(recipeID = properties.getProperty("record.$encoded.recipe"))
         }
     }
 
@@ -59,6 +59,7 @@ class EditStore(private val directory: File) {
             val encoded = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(identity.value.toByteArray(StandardCharsets.UTF_8))
             properties.setProperty("record.$encoded.values", encode(settings))
+            settings.recipeID?.let { properties.setProperty("record.$encoded.recipe", it) }
             properties.setProperty("record.$encoded.film", Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(settings.film.toByteArray(StandardCharsets.UTF_8)))
         }
@@ -81,21 +82,23 @@ class EditStore(private val directory: File) {
         settings.effects.vignetteAmount, settings.effects.vignetteMidpoint, settings.effects.vignetteRoundness,
         settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
         settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-    ).joinToString(",")
+    ).plus(settings.exposureMode).plus(settings.hsl.packed().toList()).joinToString(",")
 
     private fun decode(values: String, film: String): EditSettings {
         val fields = values.split(',').map(String::toFloat)
-        require(fields.size == 11 || fields.size == 15 || fields.size == 24)
+        require(fields.size in listOf(11, 15, 24, 49))
         return EditSettings(film = film, strength = fields[0], exposure = fields[1],
             highlights = fields[2], shadows = fields[3], contrast = fields[4], toneCurve = fields[5],
             saturation = fields[6], customWb = fields[7] != 0f, temperature = fields[8], tint = fields[9],
             sharpening = fields[10], denoise = if (fields.size == 15)
                 DenoiseSettings(fields[11] != 0f, fields[12], fields[13], fields[14])
-            else if (fields.size == 24)
+            else if (fields.size >= 24)
                 DenoiseSettings(fields[11] != 0f, fields[12], fields[13], fields[14])
             else DenoiseSettings(),
-            displayChromaDenoise = if (fields.size == 24) parseChromaMode(fields[15]) else 0,
-            effects = if (fields.size == 24) PhotoEffectsSettings(
+            displayChromaDenoise = if (fields.size >= 24) parseChromaMode(fields[15]) else 0,
+            exposureMode = if (fields.size == 49) parseChromaMode(fields[24]) else 0,
+            hsl = if (fields.size == 49) HslSettings(fields.drop(25)) else HslSettings(),
+            effects = if (fields.size >= 24) PhotoEffectsSettings(
                 vignetteAmount = fields[16], vignetteMidpoint = fields[17], vignetteRoundness = fields[18],
                 vignetteFeather = fields[19], vignetteHighlights = fields[20], grainAmount = fields[21],
                 grainSize = fields[22], grainRoughness = fields[23],

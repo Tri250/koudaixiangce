@@ -14,12 +14,23 @@ final class EditorModel: ObservableObject {
     @Published var settings = Adjustments() { didSet { if !updatingMetadata && oldValue != settings { edited() } } }
     private var updatingMetadata = false
     @Published var films = Film.bundled()
-    @Published var selectedFilmID = "" { didSet { if !updatingMetadata { edited() } } }
+    @Published var selectedFilmID = "" {
+        didSet {
+            if !updatingMetadata {
+                if settings.masterRecipeID != nil {
+                    settings.clearMasterRecipe()
+                }
+                edited()
+            }
+        }
+    }
     @Published var fullResolution = false { didSet { schedule() } }
     @Published private(set) var file: URL?
     @Published private(set) var neutral: RenderedImage?
     @Published private(set) var result: RenderedImage?
     @Published private(set) var busy = false
+    @Published private(set) var autoExposing = false
+    private var editRevision = UUID()
     @Published private(set) var exporting = false
     @Published private(set) var lookLibraryBusy = false
     @Published var error: String?
@@ -43,8 +54,26 @@ final class EditorModel: ObservableObject {
     private var dirty = false
     private var lookLibrary: LookLibrary?
     var selectedFilm: Film? { films.first { $0.id == selectedFilmID } }
+    var selectedMasterRecipe: MasterRecipe? { settings.masterRecipe }
     var missingFilm: Bool { !selectedFilmID.isEmpty && (selectedFilm == nil || !FileManager.default.isReadableFile(atPath: selectedFilm!.url.path)) }
-    var canApplySettings: Bool { file != nil && result != nil && !busy && !exporting && !lookLibraryBusy && !missingFilm }
+    var missingMasterRecipe: Bool {
+        guard let recipe = selectedMasterRecipe else { return false }
+        return recipe.lutURL() == nil
+    }
+    var canApplySettings: Bool { file != nil && result != nil && !busy && !exporting && !lookLibraryBusy && !missingFilm && !missingMasterRecipe }
+
+    func selectMasterRecipe(_ recipe: MasterRecipe?) {
+        guard recipe != nil || settings.masterRecipeID != nil else { return }
+        updatingMetadata = true
+        if let recipe {
+            settings.applyMasterRecipe(recipe)
+            selectedFilmID = ""
+        } else {
+            settings.clearMasterRecipe()
+        }
+        updatingMetadata = false
+        edited()
+    }
 
     init(lookDirectory: URL = LookLibrary.defaultDirectory,
          editDirectory: URL = EditPersistence.defaultDirectory,
@@ -74,6 +103,7 @@ final class EditorModel: ObservableObject {
     deinit { debounceTimer?.cancel(); saveWork?.cancel() }
 
     private func edited() {
+        editRevision = UUID()
         guard file != nil else { return }
         dirty = true
         saveStatus = ""
@@ -92,7 +122,7 @@ final class EditorModel: ObservableObject {
             let filmID = selectedFilm.map { film in
                 film.managedID ?? "builtin:\(film.url.lastPathComponent)"
             } ?? selectedFilmID
-            try editStore!.save(file, state: PhotoEditState(settings: settings, filmID: filmID))
+            try editStore!.save(file, state: PhotoEditState(settings: settings, filmID: filmID, masterRecipeID: settings.masterRecipeID))
             dirty = false; saveError = nil; saveStatus = "调整已保存"
             clearSaveStatusLater()
             return true
@@ -110,14 +140,14 @@ final class EditorModel: ObservableObject {
     }
 
     @discardableResult func applyCurrentSettings(to urls: [URL]) throws -> Int {
-        guard file != nil, !exporting, !lookLibraryBusy, !missingFilm else {
+        guard file != nil, !exporting, !lookLibraryBusy, !missingFilm, !missingMasterRecipe else {
             throw RenderError.failed("当前照片的设置尚不可用。")
         }
         let targets = Array(Set(urls.map { $0.resolvingSymlinksInPath().standardizedFileURL }))
         guard !targets.isEmpty else { return 0 }
         let filmID = selectedFilm.map { $0.managedID ?? "builtin:\($0.url.lastPathComponent)" } ?? selectedFilmID
         if editStore == nil { editStore = try EditPersistence(directory: editDirectory) }
-        try editStore!.save(targets, state: PhotoEditState(settings: settings, filmID: filmID))
+        try editStore!.save(targets, state: PhotoEditState(settings: settings, filmID: filmID, masterRecipeID: settings.masterRecipeID))
         status = "已将当前设置应用到 \(targets.count) 张照片"
         return targets.count
     }
@@ -137,7 +167,7 @@ final class EditorModel: ObservableObject {
     }
 
     func prepareBatch() -> Bool {
-        guard !busy, !exporting, !lookLibraryBusy, result != nil, !missingFilm, let file else { return false }
+        guard !busy, !exporting, !lookLibraryBusy, result != nil, !missingFilm, !missingMasterRecipe, let file else { return false }
         if batch?.validating == true || batch?.previewing == true { return true }
         if let batch, batch.job.started && batch.job.succeededCount < batch.job.selectedCount {
             let alert = NSAlert()
@@ -148,9 +178,11 @@ final class EditorModel: ObservableObject {
         }
         do {
             if let batch { try batchJournal.discard(batch.job) }
-            var job = BatchExportJob(source: file, settings: settings, look: nil, lookName: selectedFilm?.name ?? "中性")
+            let lookURL = settings.masterRecipe?.lutURL() ?? selectedFilm?.url
+            let lookName = settings.masterRecipe?.name ?? selectedFilm?.name ?? "中性"
+            var job = BatchExportJob(source: file, settings: settings, look: nil, lookName: lookName)
             job.longEdge = exportLongEdge
-            job.look = try batchJournal.snapshotLook(selectedFilm?.url, for: job.id)
+            job.look = try batchJournal.snapshotLook(lookURL, for: job.id)
             try batchJournal.save(job)
             attachBatch(job)
             return true
@@ -174,6 +206,7 @@ final class EditorModel: ObservableObject {
         guard !exporting else { return }
         if file == url && result != nil { return }
         guard saveEdits() else { return }
+        editRevision = UUID()
         scheduler.setInteracting(false)
         var restored: PhotoEditState?
         do { restored = try editStore?.state(for: url) }
@@ -181,14 +214,39 @@ final class EditorModel: ObservableObject {
         file = url; neutral = nil; result = nil; error = nil; status = ""
         updatingMetadata = true
         settings = restored?.settings ?? Adjustments()
+        if let masterRecipeID = restored?.masterRecipeID {
+            settings.masterRecipeID = masterRecipeID
+        }
         let filmID = restored?.filmID ?? films.first(where: { $0.name == "PROVIA" })?.id ?? ""
-        selectedFilmID = films.first(where: { $0.id == filmID || "builtin:\($0.url.lastPathComponent)" == filmID })?.id ?? filmID
+        if settings.masterRecipeID != nil {
+            selectedFilmID = ""
+        } else {
+            selectedFilmID = films.first(where: { $0.id == filmID || "builtin:\($0.url.lastPathComponent)" == filmID })?.id ?? filmID
+        }
         updatingMetadata = false
         dirty = false
         saveStatus = restored == nil ? "" : "已恢复上次调整"
         clearSaveStatusLater()
         schedule()
     }
+    func autoExposure() {
+        guard let file, result != nil, !autoExposing, !exporting else { return }
+        let snapshot = settings, revision = editRevision
+        autoExposing = true
+        queue.async { [weak self] in
+            let result = Result { try RenderEngine().autoExposure(file, settings: snapshot) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.autoExposing = false
+                guard self.file == file, self.editRevision == revision, self.settings == snapshot else { return }
+                switch result {
+                case .success(let ev): self.settings.exposure = ev
+                case .failure(let error): self.error = error.localizedDescription
+                }
+            }
+        }
+    }
+
     func importLUT() {
         guard !lookLibraryBusy, !exporting else { return }
         let panel = NSOpenPanel()
@@ -296,13 +354,14 @@ final class EditorModel: ObservableObject {
     }
     private func schedule(forceExact: Bool) {
         guard let file else { return }
-        guard !missingFilm else {
+        guard !missingFilm, !missingMasterRecipe else {
             result = nil
-            error = "上次使用的外观不可用，请重新选择或导入外观。"
+            error = missingMasterRecipe ? "大师配方外观文件不可用。" : "上次使用的外观不可用，请重新选择或导入外观。"
             return
         }
         let interactive = scheduler.interacting && !forceExact
-        let work = RenderWork(file: file, settings: settings, lut: selectedFilm?.url,
+        let effectiveLUT = settings.masterRecipe?.lutURL() ?? selectedFilm?.url
+        let work = RenderWork(file: file, settings: settings, lut: effectiveLUT,
                               edge: interactive ? 1000 : (fullResolution ? nil : 2000),
                               pass: interactive ? .interactive : .exact)
         _ = scheduler.submit(work, fileID: file.standardizedFileURL.path, pass: work.pass)
@@ -356,7 +415,7 @@ final class EditorModel: ObservableObject {
         let sameFile = request.value.file.standardizedFileURL == file?.standardizedFileURL
         switch completion {
         case .publishInteractive, .publishExact:
-            guard sameFile, !missingFilm else { break }
+            guard sameFile, !missingFilm, !missingMasterRecipe else { break }
             if let failure {
                 if completion == .publishExact || scheduler.latest?.id == request.id {
                     self.result = nil
@@ -386,17 +445,18 @@ final class EditorModel: ObservableObject {
         busy = workerActive || scheduler.isBusy
     }
     func export(png: Bool) {
-        guard !busy, !exporting, !lookLibraryBusy, !missingFilm, result != nil, let file else { return }
+        guard !busy, !exporting, !lookLibraryBusy, !missingFilm, !missingMasterRecipe, result != nil, let file else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [png ? .png : .jpeg]
+        let lookName = settings.masterRecipe?.name ?? selectedFilm?.name ?? "neutral"
         panel.nameFieldStringValue = file.deletingPathExtension().lastPathComponent + "-" +
-            (selectedFilm?.name ?? "neutral") + (png ? ".png" : ".jpg")
+            lookName + (png ? ".png" : ".jpg")
         let sizePicker = NSHostingView(rootView: ExportSizeAccessory(model: self).padding(12).frame(width: 360))
         sizePicker.frame = NSRect(x: 0, y: 0, width: 360, height: 110)
         panel.accessoryView = sizePicker
         guard panel.runModal() == .OK, let output = panel.url else { return }
         exporting = true
-        let settings = settings, lut = selectedFilm?.url, longEdge = exportLongEdge
+        let settings = settings, lut = settings.masterRecipe?.lutURL() ?? selectedFilm?.url, longEdge = exportLongEdge
         queue.async { [weak self] in
             guard let self else { return }
             do {

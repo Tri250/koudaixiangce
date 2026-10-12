@@ -13,12 +13,15 @@ RawLab 用于显影相机 RAW 文件、应用兼容的富士胶片模拟 LUT 和
 ## 主要功能
 
 - RAW 显影，支持曝光、相机空间白平衡、明暗、色彩和锐化调整。
+- 四端新照片默认使用“匹配内嵌预览”曝光基准，提供一次性自动曝光和八色 HSL 调整；保留旧照片已保存的曝光基准。
 - 内置胶片外观，强度范围为 0-200%，支持兼容 CUBE/RLOOK 导入及原图与调整效果对比。
+- 四端统一提供 14 个大师配方与风格图标。应用配方覆盖六项调色及全部 24 项 HSL，0-200% 强度整体缩放当前配方参数、HSL 和 LUT；编辑记录与冻结批量任务保留手动修改，并按目标 RAW 解析拍摄白平衡。
+- 移动端胶片与配方列表直接拖动，桌面端提供溢出滚动按钮；iPad 自适应横竖屏布局。iOS 参数范围、步进与高光方向和 macOS 对齐，保留旧记录的原生成片效果。
 - 四端提供一致的暗角、固定种子颗粒及线性光域小波降噪，可分别调整亮度、色度和粗层色斑；共享降噪与效果内核使用 Metal、GLES 3.1 和 D3D11 加速。
 - 逐照片本机编辑记忆和可恢复的批量导出，任务固定参数，支持取消和失败重试，不改写 RAW。
 - 照片信息叠层、缩放和平移，支持原始尺寸或指定长边导出；桌面文件树可定位照片，并经确认应用当前设置。
 - Windows、macOS 和 Android 导出 JPEG 与 16-bit PNG，iOS 导出 JPEG；保留可读取的拍摄元数据，更新成片尺寸和方向。
-- 在支持的平台使用 Metal、Direct3D 11 或 OpenGL ES，并保留自动 CPU 回退。RAW 解码和文件编码仍在 CPU 执行。
+- 在支持的平台使用 Metal、Direct3D 11 或 OpenGL ES，HSL 接入平台 GPU 显影链路，并保留 GPU 失败时的自动 CPU 回退。RAW 解码和文件编码仍在 CPU 执行。
 - 共享 C++17 核心、命令行工具及桌面 LUT 准备工具。
 
 ## 支持平台
@@ -28,11 +31,12 @@ RawLab 用于显影相机 RAW 文件、应用兼容的富士胶片模拟 LUT 和
 | Windows | Windows 10/11，x64 |
 | macOS | macOS 15+，Apple Silicon 或 Intel |
 | Android | Android 8.0+，ARM64 或 x86_64 |
-| iOS | iOS 18+，iPhone；下载的 IPA 需要自行重新签名 |
+| iOS | iOS 18+，iPhone 和 iPad；下载的 IPA 需要自行重新签名 |
 
 ## 下载与文档
 
 - [下载最新版本](https://github.com/dancancer/RawLab/releases/latest)
+- [v0.6.0 发布说明（构建 10）](releases/v0.6.0.md)
 - [安装与分发说明](installation.md)
 - [更新日志](../CHANGELOG.md)
 - [Windows 客户端](../RawLabWindows/README.md)

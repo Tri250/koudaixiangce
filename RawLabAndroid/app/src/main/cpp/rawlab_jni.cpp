@@ -5,6 +5,8 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <algorithm>
+#include <cmath>
 
 static_assert(sizeof(sony2fuji_photo_effects_config) == 40,
     "Photo effects config ABI must remain a versioned 40-byte struct");
@@ -38,6 +40,29 @@ struct Buffer {
     sony2fuji_buffer value{};
     ~Buffer() { sony2fuji_release_buffer(&value); }
 };
+void prepareRecipeWb(sony2fuji_session* session, const char* input, bool active, float strength,
+    bool& custom, float& temperature, float& tint) {
+    if (!active || (!custom && tint * strength == 0)) return;
+    // 临时显影只解析目标 RAW 的拍摄白平衡，随后正式请求重设完整配置。
+    sony2fuji_hsl_config hsl{SONY2FUJI_HSL_CONFIG_VERSION, sizeof(sony2fuji_hsl_config)};
+    sony2fuji_wavelet_denoise_config denoise{SONY2FUJI_WAVELET_DENOISE_CONFIG_VERSION, sizeof(sony2fuji_wavelet_denoise_config)};
+    sony2fuji_photo_effects_config effects{SONY2FUJI_PHOTO_EFFECTS_CONFIG_VERSION, sizeof(sony2fuji_photo_effects_config)};
+    check(sony2fuji_session_set_hsl(session, &hsl));
+    check(sony2fuji_session_set_wavelet_denoise(session, &denoise));
+    check(sony2fuji_session_set_photo_effects(session, &effects));
+    check(sony2fuji_session_set_chroma_denoise(session, 0));
+    check(sony2fuji_session_set_interactive_preview(session, 0));
+    auto neutral = rawlab::makeRequest(input, nullptr, nullptr, 0, 0, false, 6500, 0, 32, false);
+    Buffer buffer;
+    check(sony2fuji_process(session, &neutral, &buffer.value));
+    float cameraTemperature = 0, cameraTint = 0;
+    check(sony2fuji_session_get_raw_white_balance(session, &cameraTemperature, &cameraTint));
+    if (!std::isfinite(cameraTemperature) || !std::isfinite(cameraTint))
+        throw std::runtime_error("Cannot resolve target RAW white balance for master recipe");
+    if (!custom) temperature = std::round(cameraTemperature);
+    tint = std::clamp(std::round(cameraTint) + tint * strength, -150.0f, 150.0f);
+    custom = true;
+}
 }
 
 extern "C" JNIEXPORT jintArray JNICALL
@@ -118,17 +143,39 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
     jint edge, jboolean interactive, jboolean png, jint longEdge,
     jboolean denoiseEnabled, jfloat luma, jfloat chroma, jfloat coarse, jint displayChromaDenoise,
     jfloat vignetteAmount, jfloat vignetteMidpoint, jfloat vignetteRoundness, jfloat vignetteFeather,
-    jfloat vignetteHighlights, jfloat grainAmount, jfloat grainSize, jfloat grainRoughness) {
+    jfloat vignetteHighlights, jfloat grainAmount, jfloat grainSize, jfloat grainRoughness,
+    jint exposureMode, jfloatArray hslValues, jboolean recipeActive) {
     try {
         std::lock_guard<std::mutex> lock(sessionsMutex);
         const auto found = sessions.find(id);
         if (found == sessions.end()) throw std::invalid_argument("Processor is closed");
         auto* session = found->second.get();
+        check(sony2fuji_session_set_raw_exposure_mode(session, static_cast<sony2fuji_raw_exposure_mode>(exposureMode)));
         UtfChars in(env, input), film(env, lut), out(env, output);
+        bool effectiveCustom = customWb;
+        prepareRecipeWb(session, in.chars, recipeActive, strength, effectiveCustom, temperature, tint);
+        if (!hslValues || env->GetArrayLength(hslValues) != 24) throw std::invalid_argument("Invalid HSL values");
+        float hslData[24];
+        env->GetFloatArrayRegion(hslValues, 0, 24, hslData);
+        if (env->ExceptionCheck()) return nullptr;
+        sony2fuji_hsl_config hsl{};
+        hsl.version = SONY2FUJI_HSL_CONFIG_VERSION;
+        hsl.struct_size = sizeof(hsl);
+        std::copy(hslData, hslData+8, hsl.hue);
+        std::copy(hslData+8, hslData+16, hsl.saturation);
+        std::copy(hslData+16, hslData+24, hsl.lightness);
+        check(sony2fuji_session_set_hsl(session, &hsl));
         auto request = rawlab::makeRequest(in.chars, film.chars, out.chars, strength,
-            exposure, customWb, temperature, tint, highlights, shadows, contrast,
+            exposure, effectiveCustom, temperature, tint, highlights, shadows, contrast,
             toneCurve, saturation, sharpening, edge, png,
             longEdge < 0 ? 0u : static_cast<uint32_t>(longEdge));
+        if (recipeActive) {
+            request.exposure_ev *= strength;
+            request.highlights *= strength;
+            request.shadows *= strength;
+            request.contrast = 1 + contrast * strength;
+            request.saturation = 1 + saturation * strength;
+        }
         check(sony2fuji_session_set_interactive_preview(session, interactive && !out.chars));
         sony2fuji_wavelet_denoise_config denoise{SONY2FUJI_WAVELET_DENOISE_CONFIG_VERSION,
             sizeof(sony2fuji_wavelet_denoise_config), denoiseEnabled ? 1 : 0, luma, chroma, coarse};
@@ -155,6 +202,7 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
         if (env->ExceptionCheck()) return nullptr;
         float kelvin = NAN, wbTint = NAN;
         sony2fuji_session_get_raw_white_balance(session, &kelvin, &wbTint);
+        kelvin = std::round(kelvin); wbTint = std::round(wbTint);
         auto type = env->FindClass("com/rawlab/android/NativeFrame");
         if (!type) return nullptr;
         auto constructor = env->GetMethodID(type, "<init>", "(II[BFFI)V");
@@ -171,4 +219,29 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
         throwJava(env, "java/io/IOException", "RAW processing failed");
     }
     return nullptr;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_rawlab_android_NativeProcessor_nativeAutoExposure(JNIEnv* env, jobject, jlong id,
+    jstring input, jboolean customWb, jfloat temperature, jfloat tint, jint exposureMode, jboolean recipeActive, jfloat strength) {
+    try {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        const auto found = sessions.find(id);
+        if (found == sessions.end()) throw std::invalid_argument("Processor is closed");
+        UtfChars in(env, input);
+        check(sony2fuji_session_set_raw_exposure_mode(found->second.get(), static_cast<sony2fuji_raw_exposure_mode>(exposureMode)));
+        bool effectiveCustom = customWb;
+        prepareRecipeWb(found->second.get(), in.chars, recipeActive, strength, effectiveCustom, temperature, tint);
+        auto request = rawlab::makeRequest(in.chars, nullptr, nullptr, 0, 0, effectiveCustom,
+            temperature, tint, 0, 0, 0, 0, 0, 0, 1, false);
+        check(sony2fuji_session_set_raw_exposure_mode(found->second.get(), static_cast<sony2fuji_raw_exposure_mode>(exposureMode)));
+        float ev = 0;
+        const auto status = sony2fuji_session_estimate_auto_exposure(found->second.get(), &request, &ev);
+        if (status == SONY2FUJI_STATUS_OUT_OF_MEMORY) throw std::bad_alloc();
+        check(status);
+        return ev;
+    } catch (const std::bad_alloc&) { throwJava(env, "java/lang/OutOfMemoryError", "Not enough memory to meter this RAW"); }
+    catch (const std::exception& error) { throwJava(env, "java/io/IOException", error.what()); }
+    catch (...) { throwJava(env, "java/io/IOException", "Automatic exposure failed"); }
+    return 0;
 }

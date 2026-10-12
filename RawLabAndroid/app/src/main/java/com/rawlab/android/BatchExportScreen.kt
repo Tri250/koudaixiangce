@@ -296,6 +296,8 @@ private fun SettingsSummary(settings: EditSettings) {
         SettingLine("胶片", settings.film)
         SettingLine("强度", String.format("%.0f%%", settings.strength * 100))
         SettingLine("曝光", String.format("%+.2f EV", settings.exposure))
+        SettingLine("曝光基准", listOf("标准显影", "匹配内嵌预览", "传感器基准")[settings.exposureMode])
+        SettingLine("HSL", if (settings.hsl.isIdentity) "未调整" else "已调整")
         SettingLine("高光", String.format("%+.0f%%", settings.highlights * 100))
         SettingLine("阴影", String.format("%+.0f%%", settings.shadows * 100))
         SettingLine("对比度", String.format("%+.0f%%", settings.contrast * 100))

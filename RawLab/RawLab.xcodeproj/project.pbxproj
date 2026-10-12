@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        AB2000000000000000000001 /* master-recipes.json in Resources */ = {isa = PBXBuildFile; fileRef = AB2000000000000000000011; };
+        AB2000000000000000000002 /* MasterRecipes in Resources */ = {isa = PBXBuildFile; fileRef = AB2000000000000000000012; };
+        AB2000000000000000000003 /* MasterRecipeIcons in Resources */ = {isa = PBXBuildFile; fileRef = AB2000000000000000000013; };
+        AB1900000000000000000001 /* HSLSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000011; };
+        AB1900000000000000000002 /* HSLMixer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000012; };
+        AB1900000000000000000003 /* HSLNative.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1900000000000000000013; };
 		AB1800000000000000000001 /* PhotoZoomGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1800000000000000000011 /* PhotoZoomGeometry.swift */; };
 		AB1800000000000000000002 /* ZoomablePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1800000000000000000012 /* ZoomablePhoto.swift */; };
 		AB1700000000000000000001 /* ExportMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1700000000000000000002 /* ExportMetadata.swift */; };
@@ -63,6 +69,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+        AB2000000000000000000011 /* master-recipes.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "../Shared/master-recipes.json"; sourceTree = SOURCE_ROOT; };
+        AB2000000000000000000012 /* MasterRecipes */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "../RawLabMac/Resources/MasterRecipes"; sourceTree = SOURCE_ROOT; };
+        AB2000000000000000000013 /* MasterRecipeIcons */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "../RawLabMac/Resources/MasterRecipeIcons"; sourceTree = SOURCE_ROOT; };
+        AB1900000000000000000011 /* HSLSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HSLSettings.swift; path = "../Shared/HSLSettings.swift"; sourceTree = SOURCE_ROOT; };
+        AB1900000000000000000012 /* HSLMixer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HSLMixer.swift; path = "../Shared/HSLMixer.swift"; sourceTree = SOURCE_ROOT; };
+        AB1900000000000000000013 /* HSLNative.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HSLNative.swift; path = "../Shared/HSLNative.swift"; sourceTree = SOURCE_ROOT; };
 		AB1800000000000000000011 /* PhotoZoomGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoZoomGeometry.swift; sourceTree = "<group>"; };
 		AB1800000000000000000012 /* ZoomablePhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomablePhoto.swift; sourceTree = "<group>"; };
 		AB1700000000000000000002 /* ExportMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ExportMetadata.swift; path = "../Shared/ExportMetadata.swift"; sourceTree = SOURCE_ROOT; };
@@ -182,6 +194,9 @@
 			isa = PBXGroup;
 			children = (
 				AB1700000000000000000002 /* ExportMetadata.swift */,
+                AB1900000000000000000011 /* HSLSettings.swift */,
+                AB1900000000000000000012 /* HSLMixer.swift */,
+                AB1900000000000000000013 /* HSLNative.swift */,
 				AB1700000000000000000004 /* PhotoInformation.swift */,
 				8F3A1B2C3D4E5F6789012346 /* Core/RawProcessing/Sony2FujiProcessor.swift */,
 				8F3A1B2C3D4E5F6789012350 /* Core/RawProcessing/Sony2FujiProcessor+Helpers.swift */,
@@ -267,6 +282,9 @@
 		55B1D2570BE3466BB45F7CD5 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+                AB2000000000000000000011,
+                AB2000000000000000000012,
+                AB2000000000000000000013,
 				AB1500000000000000000001 /* FLog2_to_ACROS_65grid_V.1.00.cube */,
 				AB1500000000000000000002 /* FLog2_to_ASTIA_65grid_V.1.00.cube */,
 				AB1500000000000000000003 /* FLog2_to_CLASSIC-CHROME_65grid_V.1.00.cube */,
@@ -395,6 +413,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                AB2000000000000000000001,
+                AB2000000000000000000002,
+                AB2000000000000000000003,
 				AB1400000000000000000001 /* FLog2_to_ACROS_65grid_V.1.00.cube in Resources */,
 				AB1400000000000000000002 /* FLog2_to_ASTIA_65grid_V.1.00.cube in Resources */,
 				AB1400000000000000000003 /* FLog2_to_CLASSIC-CHROME_65grid_V.1.00.cube in Resources */,
@@ -434,6 +455,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				AB1700000000000000000001 /* ExportMetadata.swift in Sources */,
+                AB1900000000000000000001 /* HSLSettings.swift in Sources */,
+                AB1900000000000000000002 /* HSLMixer.swift in Sources */,
+                AB1900000000000000000003 /* HSLNative.swift in Sources */,
 				AB1700000000000000000003 /* PhotoInformation.swift in Sources */,
 				AB1200000000000000000001 /* EditorComponents.swift in Sources */,
 				AB1800000000000000000001 /* PhotoZoomGeometry.swift in Sources */,
@@ -476,7 +500,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = RawLab;
 			};
 			name = Debug;
@@ -491,7 +515,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = RawLab;
 			};
 			name = Release;
@@ -567,7 +591,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_OBJC_BRIDGING_HEADER = RawLab/Support/RawLab-Bridging-Header.h;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -590,7 +614,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_OBJC_BRIDGING_HEADER = RawLab/Support/RawLab-Bridging-Header.h;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};

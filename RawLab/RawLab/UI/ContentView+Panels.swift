@@ -194,22 +194,26 @@ extension ContentView {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
-                    Button { selectedAdjustment = nil } label: {
-                        AdjustmentToolLabel(title: "胶片", symbol: "film", selected: selectedAdjustment == nil,
+                    Button { choosingMasterRecipe = false; selectedAdjustment = nil } label: {
+                        AdjustmentToolLabel(title: "胶片", symbol: "film", selected: selectedAdjustment == nil && !choosingMasterRecipe,
                                             progress: 0, width: toolWidth, height: toolHeight)
                     }
                     .accessibilityValue(selectedFilmName)
-                    .accessibilityAddTraits(selectedAdjustment == nil ? .isSelected : [])
+                    .accessibilityAddTraits(selectedAdjustment == nil && !choosingMasterRecipe ? .isSelected : [])
                     .accessibilityIdentifier("tool.film")
                     .id("film")
+                    Button { choosingMasterRecipe = true; selectedAdjustment = nil } label: {
+                        AdjustmentToolLabel(title: "大师配方", symbol: "photo.stack", selected: choosingMasterRecipe,
+                                            progress: settings.masterRecipeID == nil ? 0 : 1, width: toolWidth, height: toolHeight)
+                    }.accessibilityIdentifier("tool.masterRecipe").accessibilityValue(settings.masterRecipe?.name ?? "无配方")
                     ForEach(AdjustmentKind.allCases) { adjustment in
-                        Button { selectedAdjustment = adjustment } label: {
+                        Button { choosingMasterRecipe = false; selectedAdjustment = adjustment } label: {
                             AdjustmentToolLabel(title: adjustment.title, symbol: adjustment.iconName,
                                                 selected: selectedAdjustment == adjustment,
                                                 progress: adjustmentProgress(adjustment),
                                                 width: toolWidth, height: toolHeight)
                         }
-                        .disabled(adjustment == .strength && settings.lutID == nil)
+                        .disabled(adjustment == .strength && !settings.hasLook)
                         .accessibilityValue(adjustment.valueLabel(for: adjustment.value(from: settings)))
                         .accessibilityAddTraits(selectedAdjustment == adjustment ? .isSelected : [])
                         .accessibilityIdentifier("tool.\(adjustment.rawValue)")
@@ -223,6 +227,9 @@ extension ContentView {
                 .padding(.horizontal, 12)
             }
             .frame(height: toolHeight)
+            .onGeometryChange(for: CGFloat.self) { geometry in geometry.size.width } action: { _ in
+                proxy.scrollTo(selectedAdjustment?.rawValue ?? "film", anchor: .center)
+            }
             .onChange(of: selectedAdjustment) { _, adjustment in
                 proxy.scrollTo(adjustment?.rawValue ?? "film", anchor: .center)
             }
@@ -232,7 +239,13 @@ extension ContentView {
 
     @ViewBuilder
     var valuePanel: some View {
-        if selectedAdjustment == .vignette {
+        if choosingMasterRecipe {
+            masterRecipePanel
+        } else if selectedAdjustment == .hsl {
+            HSLMixer(settings: Binding(get: { settings.hsl }, set: { settings.hsl = $0 }),
+                     onEditingChanged: setSliderEditing)
+                .disabled(!viewModel.hasImage || editingLocked)
+        } else if selectedAdjustment == .vignette {
             IOSPhotoEffectsControls(effect: .vignette, settings: Binding(
                 get: { settings.photoEffects },
                 set: { settings.photoEffects = $0 }
@@ -261,6 +274,11 @@ extension ContentView {
                 HStack {
                     Text(adjustment.title).font(.subheadline)
                     Spacer()
+                    if adjustment == .exposure {
+                        Button(action: autoExposure) { Label("自动", systemImage: "wand.and.stars") }
+                            .font(.caption).disabled(autoExposing || viewModel.isBusy)
+                            .accessibilityIdentifier("exposure.auto")
+                    }
                     Text(adjustment.valueLabel(for: adjustment.value(from: settings)))
                         .font(.subheadline.weight(.semibold)).monospacedDigit()
                         .foregroundStyle(adjustmentProgress(adjustment) == 0 ? Color.secondary : .yellow)
@@ -282,10 +300,15 @@ extension ContentView {
                         DefaultValueMarker(range: adjustment.range, value: adjustment.value(from: .default))
                             .frame(height: 4).offset(y: 5).allowsHitTesting(false)
                     }
+                if adjustment == .exposure, viewModel.sourceKind == .raw {
+                    Picker("曝光基准", selection: $settings.exposureMode) {
+                        ForEach(RawExposureMode.allCases) { Text($0.title).tag($0) }
+                    }.pickerStyle(.menu).accessibilityIdentifier("exposure.mode")
+                }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 12)
-                .disabled(!viewModel.hasImage || editingLocked || (adjustment == .strength && settings.lutID == nil))
+                .disabled(!viewModel.hasImage || editingLocked || (adjustment == .strength && !settings.hasLook))
                 }
         } else {
             filmPanel(imageSize: filmSize)
@@ -348,7 +371,7 @@ extension ContentView {
                     set: { value in
                         var updated = settings
                         updated.tint = min(max(value.rounded(), RawSettings.tintRange.lowerBound), RawSettings.tintRange.upperBound)
-                        updated.whiteBalanceMode = .custom
+                        if updated.masterRecipeID == nil { updated.whiteBalanceMode = .custom }
                         applySettingsChange(updated)
                     }
                 ), format: .number.precision(.fractionLength(0)))
@@ -362,9 +385,9 @@ extension ContentView {
                 Slider(value: adjustmentBinding(.tint), in: RawSettings.tintRange, step: 1,
                        onEditingChanged: setSliderEditing)
                     .frame(minHeight: 44)
-                    .disabled(settings.whiteBalanceMode == .camera || viewModel.rawWhiteBalance == nil)
+                    .disabled((settings.whiteBalanceMode == .camera && settings.masterRecipeID == nil) || viewModel.rawWhiteBalance == nil)
             }
-            .disabled(settings.whiteBalanceMode == .camera || viewModel.rawWhiteBalance == nil)
+            .disabled((settings.whiteBalanceMode == .camera && settings.masterRecipeID == nil) || viewModel.rawWhiteBalance == nil)
             if let whiteBalance = viewModel.rawWhiteBalance {
                 Text(settings.whiteBalanceMode == .camera
                      ? String(format: "拍摄时：%.0f K · 色调 %+.0f", whiteBalance.temperature, whiteBalance.tint)
@@ -409,9 +432,47 @@ extension ContentView {
         .disabled(!viewModel.hasImage || editingLocked || viewModel.isLoadingLUTs)
     }
 
+    var masterRecipePanel: some View {
+        let recipes = MasterRecipe.allRecipes
+        let tileWidth = max(120, filmSize + 40)
+        return ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    masterRecipeButton(nil, width: tileWidth).id("neutral")
+                    ForEach(recipes) { recipe in masterRecipeButton(recipe, width: tileWidth).id(recipe.id) }
+                }
+                .padding(.horizontal, 16)
+            }
+            .onAppear { proxy.scrollTo(settings.masterRecipeID ?? "neutral", anchor: .center) }
+        }.buttonStyle(.plain).accessibilityIdentifier("masterRecipe.choices")
+    }
+
+    func masterRecipeButton(_ recipe: MasterRecipe?, width: CGFloat) -> some View {
+        Button {
+            var updated = settings
+            if let recipe { updated.applyMasterRecipe(recipe) }
+            else { updated.clearMasterRecipe(cameraTint: viewModel.rawWhiteBalance?.tint); updated.lutID = nil }
+            applySettingsChange(updated)
+        } label: {
+            VStack(spacing: 4) {
+                Group {
+                    if let url = recipe?.artworkURL(), let image = UIImage(contentsOfFile: url.path) {
+                        Image(uiImage: image).resizable().scaledToFit()
+                    } else { Image(systemName: "circle.lefthalf.filled").font(.title) }
+                }.frame(width: filmSize, height: filmSize)
+                Text(recipe?.name ?? "无配方").font(.caption).lineLimit(2).frame(height: 32)
+                    .foregroundStyle(settings.masterRecipeID == recipe?.id ? Color.yellow : Color.primary)
+                Text(recipe?.subtitle ?? "中性直出").font(.caption2).foregroundStyle(.secondary).lineLimit(2).frame(height: 32)
+            }.frame(width: width)
+        }.disabled(!viewModel.hasImage || editingLocked)
+            .accessibilityLabel(recipe?.name ?? "无配方").accessibilityIdentifier("recipe.\(recipe?.id ?? "neutral")")
+            .accessibilityAddTraits(settings.masterRecipeID == recipe?.id ? .isSelected : [])
+    }
+
     func filmButton(name: String, id: String?, imageSize: CGFloat) -> some View {
         Button {
             var updated = settings
+            updated.clearMasterRecipe(cameraTint: viewModel.rawWhiteBalance?.tint)
             updated.lutID = id
             applySettingsChange(updated)
         } label: {

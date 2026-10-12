@@ -24,6 +24,8 @@ struct EditMemoryTests {
         let store = try EditPersistence(directory: root)
         var changed = RawSettings.default
         changed.exposure = 0.75
+        changed.exposureMode = .sensor
+        changed.hsl.set(.saturation, channel: 0, value: -60)
         changed.whiteBalanceMode = .custom
         changed.temperature = 4250
         changed.denoise = RawDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100)
@@ -33,6 +35,8 @@ struct EditMemoryTests {
 
         let reopened = try EditPersistence(directory: root)
         check(reopened.state(for: first)?.settings.exposure == 0.75, "edit survives restart")
+        check(reopened.state(for: first)?.settings.hsl == changed.hsl && reopened.state(for: first)?.settings.exposureMode == .sensor,
+              "HSL and the selected exposure mode survive restart")
         check(reopened.state(for: first)?.settings.denoise == changed.denoise, "denoise survives restart")
         check(reopened.state(for: first)?.settings.photoEffects == changed.photoEffects,
               "photo effects auxiliary values survive restart even when amount is zero")
@@ -42,9 +46,12 @@ struct EditMemoryTests {
         legacy.removeValue(forKey: "denoise")
         legacy.removeValue(forKey: "photoEffects")
         legacy.removeValue(forKey: "displayChromaDenoise")
+        legacy.removeValue(forKey: "hsl")
+        legacy.removeValue(forKey: "exposureMode")
         let legacySettings = try JSONDecoder().decode(RawSettings.self, from: JSONSerialization.data(withJSONObject: legacy))
         check(legacySettings.denoise == RawDenoiseSettings(), "older records default to disabled denoise")
         check(legacySettings.photoEffects == PhotoEffectsSettings(), "older records default to disabled photo effects")
+        check(legacySettings.hsl.isIdentity && legacySettings.exposureMode == .scene, "legacy records preserve scene exposure and no HSL")
 
         try store.save(sameNameA, state: PhotoEditState(settings: changed))
         var other = RawSettings.default

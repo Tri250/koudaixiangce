@@ -5,6 +5,52 @@ final class EditorUITests: XCTestCase {
     private let seedPhotoBase = "DJI_20250602164503_0444_D"
     private var verifiedSeedPickerIndex: Int?
 
+    func testMasterRecipeControls() {
+        let app = XCUIApplication()
+        app.launch()
+        importPhoto(in: app)
+        let toolbar = app.scrollViews.containing(.button, identifier: "tool.masterRecipe").allElementsBoundByIndex.min { $0.frame.height < $1.frame.height }!
+        for _ in 0..<3 where !app.buttons["tool.masterRecipe"].isHittable { toolbar.swipeRight() }
+        app.buttons["tool.masterRecipe"].tap()
+        XCTAssertTrue(app.buttons["recipe.hamada_daylight_v2"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["向左滚动大师配方"].exists)
+        XCTAssertFalse(app.buttons["向右滚动大师配方"].exists)
+        let recipes = app.scrollViews["masterRecipe.choices"]
+        func visible(_ id: String) -> Bool {
+            let frame = app.buttons[id].frame
+            return frame.width > 0 && recipes.frame.insetBy(dx: 8, dy: 0).contains(CGPoint(x: frame.midX, y: frame.midY))
+        }
+        for _ in 0..<10 {
+            if visible("recipe.jungraphy_neon") { break }
+            recipes.swipeLeft()
+        }
+        XCTAssertTrue(visible("recipe.jungraphy_neon"))
+        for _ in 0..<10 {
+            if visible("recipe.hamada_daylight_v2") { break }
+            recipes.swipeRight()
+        }
+        XCTAssertTrue(visible("recipe.hamada_daylight_v2"))
+        let recipeFrame = app.buttons["recipe.hamada_daylight_v2"].frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: recipeFrame.midX, dy: recipeFrame.midY)).tap()
+        XCTAssertEqual(app.buttons["tool.masterRecipe"].value as? String, "滨田英明")
+        capture("master-recipes-portrait")
+        for _ in 0..<8 {
+            let frame = app.buttons["tool.hsl"].frame
+            if frame.width > 0 && toolbar.frame.insetBy(dx: 8, dy: 0).contains(CGPoint(x: frame.midX, y: frame.midY)) { break }
+            let start = toolbar.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+            let end = toolbar.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
+            start.press(forDuration: 0.1, thenDragTo: end)
+        }
+        let hsl = app.buttons["tool.hsl"]
+        let hslFrame = hsl.frame
+        XCTAssertTrue(toolbar.frame.contains(CGPoint(x: hslFrame.midX, y: hslFrame.midY)))
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: hslFrame.midX, dy: hslFrame.midY)).tap()
+        XCTAssertTrue(app.buttons["hsl.channel.4"].waitForExistence(timeout: 10))
+        app.buttons["hsl.channel.4"].tap()
+        XCTAssertTrue(app.staticTexts["+4"].exists && app.staticTexts["-1"].exists, app.debugDescription)
+        capture("master-recipe-hsl-portrait")
+    }
+
     func testEditMemoryAndBatchWorkflow() {
         let app = XCUIApplication()
         app.launch()
@@ -80,6 +126,59 @@ final class EditorUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
+    }
+
+    func testHSLAndAutoExposureAdaptiveLayout() {
+        let app = XCUIApplication()
+        app.launch()
+        importPhoto(in: app)
+        app.buttons["tool.exposure"].tap()
+        let auto = app.buttons["exposure.auto"]
+        XCTAssertTrue(auto.waitForExistence(timeout: 10))
+        expectation(for: NSPredicate { _, _ in auto.isEnabled }, evaluatedWith: app)
+        waitForExpectations(timeout: 120)
+        auto.tap()
+        expectation(for: NSPredicate { _, _ in auto.isEnabled }, evaluatedWith: app)
+        waitForExpectations(timeout: 120)
+        let first = app.buttons["tool.exposure"].value as? String
+        auto.tap()
+        expectation(for: NSPredicate { _, _ in auto.isEnabled }, evaluatedWith: app)
+        waitForExpectations(timeout: 120)
+        XCTAssertEqual(app.buttons["tool.exposure"].value as? String, first, "Auto assigns an absolute EV")
+        capture("auto-exposure-portrait")
+        let strips = app.scrollViews.containing(.button, identifier: "tool.hsl").allElementsBoundByIndex
+        let strip = strips.min { $0.frame.height < $1.frame.height }!
+        for _ in 0..<8 {
+            let frame = app.buttons["tool.hsl"].frame
+            if frame.width > 0 && strip.frame.insetBy(dx: 8, dy: 0).contains(CGPoint(x: frame.midX, y: frame.midY)) { break }
+            let left = frame.midX > strip.frame.midX
+            let start = strip.coordinate(withNormalizedOffset: CGVector(dx: left ? 0.8 : 0.2, dy: 0.5))
+            let end = strip.coordinate(withNormalizedOffset: CGVector(dx: left ? 0.4 : 0.6, dy: 0.5))
+            start.press(forDuration: 0.1, thenDragTo: end)
+        }
+        let hslFrame = app.buttons["tool.hsl"].frame
+        XCTAssertTrue(strip.frame.contains(CGPoint(x: hslFrame.midX, y: hslFrame.midY)), app.debugDescription)
+        // SwiftUI's clipped tool strip can omit an AX activation point for a visible button.
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: hslFrame.midX, dy: hslFrame.midY)).tap()
+        let saturation = app.sliders["hsl.saturation"]
+        XCTAssertTrue(saturation.waitForExistence(timeout: 10))
+        let panel = app.scrollViews["editor.panel"]
+        for _ in 0..<3 where !saturation.isHittable { panel.swipeUp() }
+        XCTAssertTrue(saturation.isHittable)
+        saturation.adjust(toNormalizedSliderPosition: 0.2)
+        capture("hsl-portrait")
+        XCTAssertLessThanOrEqual(panel.frame.maxX, app.frame.maxX)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(panel.waitForExistence(timeout: 10))
+        let visibleTools = app.scrollViews.containing(.button, identifier: "tool.hsl").allElementsBoundByIndex
+        let rotatedStrip = visibleTools.min { $0.frame.height < $1.frame.height }!
+        let selectedTool = app.buttons["tool.hsl"].frame
+        XCTAssertTrue(rotatedStrip.frame.contains(CGPoint(x: selectedTool.midX, y: selectedTool.midY)),
+                      "Rotation keeps the selected tool visible")
+        capture("hsl-landscape")
+        for _ in 0..<3 where !saturation.isHittable { panel.swipeUp() }
+        XCTAssertTrue(saturation.isHittable)
+        XCTAssertTrue(app.buttons["editor.export"].exists)
     }
 
     func testPhotoEffectsControls() {

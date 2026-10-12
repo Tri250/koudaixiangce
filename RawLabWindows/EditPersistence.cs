@@ -11,13 +11,16 @@ public sealed record AdjustmentSnapshot(
     double? AsShotTint,
     DenoiseSettings? Denoise = null,
     PhotoEffectsSettings? Effects = null,
-    int DisplayChromaDenoise = 0)
+    int DisplayChromaDenoise = 0,
+    HslSettings? Hsl = null,
+    string? MasterRecipeID = null)
 {
     public Adjustments Restore() => Adjustments.FromSnapshot(this);
-    public bool SameAs(AdjustmentSnapshot other) => ExposureMode == other.ExposureMode && CameraWhiteBalance == other.CameraWhiteBalance &&
+    public bool SameAs(AdjustmentSnapshot other) => MasterRecipeID == other.MasterRecipeID && ExposureMode == other.ExposureMode && CameraWhiteBalance == other.CameraWhiteBalance &&
         AsShotTemperature == other.AsShotTemperature && AsShotTint == other.AsShotTint && Values.SequenceEqual(other.Values) &&
         (Denoise ?? new()) == (other.Denoise ?? new()) &&
-        (Effects ?? new()) == (other.Effects ?? new()) && DisplayChromaDenoise == other.DisplayChromaDenoise;
+        (Effects ?? new()) == (other.Effects ?? new()) && DisplayChromaDenoise == other.DisplayChromaDenoise &&
+        (Hsl ?? new()).Equals(other.Hsl ?? new());
     public AdjustmentSnapshot Copy() => this with { Values = (double[])Values.Clone() };
 }
 

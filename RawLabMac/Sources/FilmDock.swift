@@ -4,46 +4,42 @@ struct FilmDock: View {
     @ObservedObject var model: EditorModel
     var body: some View {
         GeometryReader { geometry in
-            let imageSize = max(32, min(96, geometry.size.height - 44))
-            let itemHeight = max(66, geometry.size.height - 6)
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) {
-                        filmButton(name: "中性", id: "", imageSize: imageSize, height: itemHeight)
-                        ForEach(model.films) { film in
-                            filmButton(name: film.name, id: film.id, imageSize: imageSize, height: itemHeight,
-                                       isCustom: film.managedID != nil)
-                                .contextMenu {
-                                    if film.managedID != nil {
-                                        Text("用户外观 · \(film.url.pathExtension.uppercased())")
-                                        Button("重命名…", systemImage: "pencil") { model.renameLookPanel(film) }
-                                            .disabled(model.lookLibraryBusy || model.exporting)
-                                        Button("移除外观…", systemImage: "trash", role: .destructive) { model.removeLookPanel(film) }
-                                            .disabled(model.lookLibraryBusy || model.exporting)
-                                    }
+            let itemHeight = max(66, geometry.size.height - 16)
+            let imageSize = max(32, min(96, itemHeight - 34))
+            HorizontalPicker(selectedID: model.selectedFilmID, name: "胶片") {
+                HStack(spacing: 8) {
+                    filmButton(name: "中性", id: "", imageSize: imageSize, height: itemHeight)
+                    ForEach(model.films) { film in
+                        filmButton(name: film.name, id: film.id, imageSize: imageSize, height: itemHeight,
+                                   isCustom: film.managedID != nil)
+                            .contextMenu {
+                                if film.managedID != nil {
+                                    Text("用户外观 · \(film.url.pathExtension.uppercased())")
+                                    Button("重命名…", systemImage: "pencil") { model.renameLookPanel(film) }
+                                        .disabled(model.lookLibraryBusy || model.exporting)
+                                    Button("移除外观…", systemImage: "trash", role: .destructive) { model.removeLookPanel(film) }
+                                        .disabled(model.lookLibraryBusy || model.exporting)
                                 }
-                        }
-                        Button(action: model.importLUT) {
-                            VStack(spacing: 5) {
-                                Group {
-                                    if model.lookLibraryBusy { ProgressView().controlSize(.small) }
-                                    else { Image(systemName: "plus.circle").font(.system(size: 26)) }
-                                }.frame(height: imageSize)
-                                Text("导入外观").font(.system(size: 11))
-                            }.frame(width: max(88, imageSize + 12), height: itemHeight)
-                                .contentShape(Rectangle())
-                        }.buttonStyle(.plain).help("导入外观…").disabled(model.lookLibraryBusy || model.exporting)
-                    }.padding(.horizontal, 16).frame(minWidth: geometry.size.width)
-                }.scrollIndicators(.visible)
-                    .onAppear { proxy.scrollTo(model.selectedFilmID, anchor: .center) }
-                    .onChange(of: model.selectedFilmID) { _, id in proxy.scrollTo(id, anchor: .center) }
+                            }
+                    }
+                    Button(action: model.importLUT) {
+                        VStack(spacing: 5) {
+                            Group {
+                                if model.lookLibraryBusy { ProgressView().controlSize(.small) }
+                                else { Image(systemName: "plus.circle").font(.system(size: 26)) }
+                            }.frame(height: imageSize)
+                            Text("导入外观").font(.system(size: 11))
+                        }.frame(width: max(88, imageSize + 12), height: itemHeight)
+                            .contentShape(Rectangle())
+                    }.buttonStyle(.plain).help("导入外观…").disabled(model.lookLibraryBusy || model.exporting)
+                }.scrollTargetLayout().padding(.horizontal, 16)
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity).tint(.yellow)
     }
 
     private func filmButton(name: String, id: String, imageSize: CGFloat, height: CGFloat,
                             isCustom: Bool = false) -> some View {
-        let selected = model.selectedFilmID == id
+        let selected = model.settings.masterRecipeID == nil && model.selectedFilmID == id
         return Button { model.selectedFilmID = id } label: {
             VStack(spacing: 5) {
                 FilmPackageImage(name: name, neutral: id.isEmpty, isCustom: isCustom)

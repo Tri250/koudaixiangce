@@ -20,6 +20,9 @@ val prepareAssets by tasks.registering(Sync::class) {
         exclude("*FLog2-709*", "*WDR*")
     }
     from(repo.resolve("RawLabMac/Resources/FilmIcons")) { into("artwork"); include("*.png") }
+    from(repo.resolve("Shared/master-recipes.json"))
+    from(repo.resolve("RawLabMac/Resources/MasterRecipes")) { into("MasterRecipes"); include("*.cube") }
+    from(repo.resolve("RawLabMac/Resources/MasterRecipeIcons")) { into("MasterRecipeIcons"); include("*.png") }
     from(repo.resolve("RawLabMac/Resources")) { include("AppIcon.png") }
     from(repo.resolve("lutools/third_party")) { into("licenses"); include("*LICENSE*") }
     from(repo.resolve("RawLabMac/Resources/Licenses")) {
@@ -51,8 +54,8 @@ android {
         applicationId = "com.rawlab.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.5.1"
+        versionCode = 10
+        versionName = "0.6.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", "-DANDROID_STL=c++_shared") } }

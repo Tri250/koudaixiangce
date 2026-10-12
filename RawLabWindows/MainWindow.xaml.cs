@@ -35,6 +35,8 @@ public partial class MainWindow : Window
     private bool compare=true,clipping,choosingFilm,choosingDenoise,choosingPhotoEffects,swipe;
     private PhotoEffectTool selectedEffect=PhotoEffectTool.Vignette;
     private bool renderFailed;
+    private bool choosingHsl,autoExposing;
+    private long editRevision;
     private int? exportLongEdge;
     private PhotoInfo? photoInfo;
     private PhotoInfoMode photoInfoMode;
@@ -79,7 +81,7 @@ public partial class MainWindow : Window
             films.Add(new(name,path,artwork.TryGetValue(name,out var icon) ? Path.Combine(AppContext.BaseDirectory,"FilmIcons",icon+".png") : null));
         }
         lut=films.FirstOrDefault(f=>f.Name=="PROVIA")?.Path;
-        BuildTools(); BuildFilms();
+        BuildTools(); BuildFilms(); BuildMasterRecipes();
         DenoiseEditor.Changed+=(value,dragging)=>{
             if(!ready || syncing || exporting)return;
             settings.Denoise=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
@@ -87,6 +89,10 @@ public partial class MainWindow : Window
         PhotoEffectsEditor.Changed+=(value,dragging)=>{
             if(!ready || syncing || exporting)return;
             settings.Effects=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
+        };
+        HslEditor.Changed+=(value,dragging)=>{
+            if(!ready || syncing || exporting)return;
+            settings.Hsl=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
         };
         ValueSlider.AddHandler(Thumb.DragStartedEvent,new DragStartedEventHandler((_,_)=>{interacting=true;}));
         ValueSlider.AddHandler(Thumb.DragCompletedEvent,new DragCompletedEventHandler((_,_)=>{interacting=false; Schedule();}));
@@ -118,7 +124,7 @@ public partial class MainWindow : Window
             var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=spec.Title,FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=spec.Title};
             AutomationProperties.SetName(button,spec.Title);
-            button.Click+=(_,_)=>{choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;selectedParameter=spec.Id;RefreshControls();};
+            button.Click+=(_,_)=>{choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;selectedParameter=spec.Id;RefreshControls();};
             Tools.Children.Add(button); toolButtons[spec.Id]=(button,ring);
         }
         foreach(var (tool,title,icon) in new[] {
@@ -130,12 +136,13 @@ public partial class MainWindow : Window
             var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=title,FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=tool==PhotoEffectTool.Vignette ? "Vignette / 暗角" : "Grain / 颗粒"};
             AutomationProperties.SetName(button,tool.ToString());
-            button.Click+=(_,_)=>{if(exporting)return;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
+            button.Click+=(_,_)=>{if(exporting)return;choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
             Tools.Children.Add(button); effectToolButtons[tool]=(button,ring);
         }
     }
-    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;RefreshControls(); }
-    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;RefreshControls(); }
+    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;RefreshControls(); }
+    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;RefreshControls(); }
+    private void HslCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=true;choosingDenoise=choosingFilm=choosingPhotoEffects=false;RefreshControls(); }
     private void BuildFilms()
     {
         FilmStrip.Children.Clear(); filmButtons.Clear();
@@ -147,7 +154,7 @@ public partial class MainWindow : Window
             stack.Children.Add(new TextBlock{Text=film.Name,FontSize=11,Width=80,Height=30,TextWrapping=TextWrapping.Wrap,TextAlignment=TextAlignment.Center,Margin=new Thickness(0,5,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("FilmButton"),ToolTip=film.Path ?? "中性显影"};
             AutomationProperties.SetName(button,film.Name);
-            button.Click+=(_,_)=>{if(exporting)return;lut=film.Path;MarkEdited();RefreshControls();Schedule();};
+            button.Click+=(_,_)=>{if(exporting)return;settings.ClearMasterRecipe();lut=film.Path;MarkEdited();RefreshControls();Schedule();};
             FilmStrip.Children.Add(button); filmButtons[film.Path ?? ""]=button;
         }
         var importContent=new StackPanel();
@@ -171,7 +178,16 @@ public partial class MainWindow : Window
             var canAdjust=file!=null && !exporting && !choosingFilm && !choosingPhotoEffects && (selectedParameter!=Parameter.Strength || lut!=null) && (selectedParameter is not(Parameter.Temperature or Parameter.Tint) || settings.AsShot!=null);
             ValueSlider.IsEnabled=ValueText.IsEnabled=canAdjust;
             FilmPanel.Visibility=choosingFilm ? Visibility.Visible : Visibility.Collapsed;
-            ParameterPanel.Visibility=choosingFilm || choosingDenoise || choosingPhotoEffects ? Visibility.Collapsed : Visibility.Visible;
+            MasterRecipePanel.Visibility=choosingRecipes ? Visibility.Visible : Visibility.Collapsed;
+            MasterRecipeCategoryRing.Selected=choosingRecipes;MasterRecipeCategoryRing.Progress=settings.MasterRecipeID==null ? 0 : 1;MasterRecipeCategoryRing.InvalidateVisual();
+            foreach(var pair in recipeButtons)pair.Value.Foreground=pair.Key==(settings.MasterRecipeID ?? "") ? Brushes.Gold : (Brush)FindResource("Foreground");
+            ParameterPanel.Visibility=choosingRecipes || choosingFilm || choosingDenoise || choosingPhotoEffects || choosingHsl ? Visibility.Collapsed : Visibility.Visible;
+            HslSurface.Visibility=choosingHsl ? Visibility.Visible : Visibility.Collapsed;
+            HslEditor.IsEnabled=file!=null && !exporting;HslEditor.Refresh(settings.Hsl);
+            HslCategory.Tag=choosingHsl ? "selected" : null;
+            HslCategoryRing.Selected=choosingHsl;HslCategoryRing.Progress=settings.Hsl.IsIdentity ? 0 : 1;HslCategoryRing.InvalidateVisual();
+            AutoExposureButton.Visibility=selectedParameter==Parameter.Exposure ? Visibility.Visible : Visibility.Collapsed;
+            AutoExposureButton.IsEnabled=file!=null && result!=null && !autoExposing && !exporting && !scheduler.Busy;
             DenoiseEditor.Visibility=choosingDenoise ? Visibility.Visible : Visibility.Collapsed;
             DenoiseEditor.IsEnabled=file!=null && !exporting;DenoiseEditor.Refresh(settings.Denoise);
             PhotoEffectsSurface.Visibility=choosingPhotoEffects ? Visibility.Visible : Visibility.Collapsed;
@@ -195,14 +211,14 @@ public partial class MainWindow : Window
             AsShotButton.IsEnabled=file!=null && !exporting && settings.AsShot!=null;
             foreach(var (id,controls) in toolButtons)
             {
-                var selected=!choosingFilm && !choosingDenoise && !choosingPhotoEffects && id==selectedParameter;
+                var selected=!choosingRecipes && !choosingHsl && !choosingFilm && !choosingDenoise && !choosingPhotoEffects && id==selectedParameter;
                 controls.Button.Tag=selected ? "selected" : null;
                 controls.Ring.Selected=selected;
                 var p=ParameterSpec.All[(int)id]; var origin=p.Position(settings.Default(id)); var offset=p.Position(settings[id])-origin;
                 controls.Ring.Progress=offset==0 ? 0 : offset/(offset<0 ? origin : 1-origin); controls.Ring.InvalidateVisual();
             }
             foreach(var pair in filmButtons)pair.Value.Tag=pair.Key==(lut ?? "") ? "selected" : null;
-            var filmName=films.FirstOrDefault(f=>f.Path==lut)?.Name ?? "中性";
+            var filmName=settings.Recipe?.Name ?? films.FirstOrDefault(f=>f.Path==lut)?.Name ?? "中性";
             ActiveFilm.Text=filmName;FilmLabelText.Text=lut==null ? "调整后" : filmName;ActiveFilm.ToolTip=filmName;
             NeutralLabel.Visibility=FilmLabel.Visibility=compare && result!=null ? Visibility.Visible : Visibility.Collapsed;
             CompareButton.Tag=compare ? "selected" : null;
@@ -375,8 +391,22 @@ public partial class MainWindow : Window
     private void ExposureModeChanged(object sender,SelectionChangedEventArgs e) { if(!ready || syncing || exporting)return;settings.ExposureMode=ExposureMode.SelectedIndex;MarkEdited();Schedule(); }
     private void GpuModeChanged(object sender,SelectionChangedEventArgs e) { if(ready && !exporting)Schedule(); }
     private void ResetParameterClicked(object sender,RoutedEventArgs e) { settings.Reset(selectedParameter);MarkEdited();RefreshControls();Schedule(); }
-    private void ResetGroupClicked(object sender,RoutedEventArgs e) { settings.ResetGroup(ParameterSpec.All[(int)selectedParameter].Group);MarkEdited();RefreshControls();Schedule(); }
-    private void ResetAllClicked(object sender,RoutedEventArgs e) { settings.ResetAll();MarkEdited();RefreshControls();Schedule(); }
+    private void ResetGroupClicked(object sender,RoutedEventArgs e) { var group=ParameterSpec.All[(int)selectedParameter].Group;if(group=="胶片" && settings.MasterRecipeID!=null){settings.ClearMasterRecipe();lut=null;}settings.ResetGroup(group);MarkEdited();RefreshControls();Schedule(); }
+    private void ResetAllClicked(object sender,RoutedEventArgs e) { if(settings.MasterRecipeID!=null)lut=null;settings.ResetAll();MarkEdited();RefreshControls();Schedule(); }
+    private async void AutoExposureClicked(object sender,RoutedEventArgs e)
+    {
+        if(file==null || result==null || autoExposing || exporting)return;
+        var path=file;var snapshot=settings.Clone();var revision=editRevision;var photoRevision=openRevision;
+        autoExposing=true;RefreshControls();
+        try
+        {
+            var ev=await Task.Run(()=>{using var meter=new RenderEngine();return meter.AutoExposure(path,snapshot);});
+            if(closing || file!=path || openRevision!=photoRevision || editRevision!=revision || !snapshot.Capture().SameAs(settings.Capture()))return;
+            settings.Set(Parameter.Exposure,ev);MarkEdited();Schedule();
+        }
+        catch(Exception error) {if(!closing && file==path && openRevision==photoRevision && editRevision==revision)Report(error);}
+        finally {autoExposing=false;if(!closing)RefreshControls();}
+    }
     private void AsShotClicked(object sender,RoutedEventArgs e) { settings.ResetWhiteBalance();MarkEdited();RefreshControls();Schedule(); }
     private void OpenClicked(object sender,RoutedEventArgs e)
     {
@@ -391,6 +421,7 @@ public partial class MainWindow : Window
         if(dialog.ShowDialog(this)!=true)return;
         foreach(var path in dialog.FileNames)
         {
+            settings.ClearMasterRecipe();
             if(!films.Any(f=>f.Path==path))films.Add(new(Path.GetFileNameWithoutExtension(path),path,null));
             lut=path;
         }

@@ -60,8 +60,12 @@ struct PhotoParams {
     uint32_t inputIsFLog;
     uint32_t outputIsLog;
     uint32_t outputIsFLog;
+    uint32_t inputIsSRGB;
+    uint32_t hslEnabled;
+    float hslHue[8], hslSaturation[8], hslLightness[8];
 };
-static_assert(sizeof(PhotoParams) == 184, "Photo Metal parameter layout");
+static_assert(sizeof(PhotoParams) == 288, "Photo Metal parameter layout");
+static_assert(offsetof(PhotoParams, hslHue) == 192, "HSL Metal options offset");
 
 struct PhotoEffectsParams {
     uint32_t width, height;
@@ -142,6 +146,9 @@ struct Params {
     uint inputIsFLog;
     uint outputIsLog;
     uint outputIsFLog;
+    uint inputIsSRGB;
+    uint hslEnabled;
+    float hslHue[8], hslSaturation[8], hslLightness[8];
 };
 
 inline float3 lerp3(float3 a, float3 b, float t) {
@@ -398,9 +405,12 @@ kernel void baseAndLUT(
         destination[gid] = packed_float3(base);
         return;
     }
-    float3 gamut = lutMatrixRGB(value, params);
-    float3 filmInput = float3(encodeLog(gamut.r, params.inputIsFLog != 0u),
-        encodeLog(gamut.g, params.inputIsFLog != 0u), encodeLog(gamut.b, params.inputIsFLog != 0u));
+    float3 filmInput = base;
+    if (params.inputIsSRGB == 0u) {
+        float3 gamut = lutMatrixRGB(value, params);
+        filmInput = float3(encodeLog(gamut.r, params.inputIsFLog != 0u),
+            encodeLog(gamut.g, params.inputIsFLog != 0u), encodeLog(gamut.b, params.inputIsFLog != 0u));
+    }
     float3 film = applyLUT(lut, filmInput, params);
     if (params.outputIsLog != 0u) {
         film = float3(neutralDisplay(decodeLog(film.r, params.outputIsFLog != 0u)),
@@ -408,6 +418,41 @@ kernel void baseAndLUT(
             neutralDisplay(decodeLog(film.b, params.outputIsFLog != 0u)));
     }
     destination[gid] = packed_float3(lerp3(base, film, params.lutStrength));
+}
+
+inline float3 applyHsl(float3 pixel, constant Params& params) {
+    if (params.hslEnabled == 0u) return pixel;
+    float maximum = max(pixel.r, max(pixel.g, pixel.b));
+    float minimum = min(pixel.r, min(pixel.g, pixel.b));
+    float delta = maximum - minimum;
+    if (delta <= 1e-6f) return pixel;
+    float hue = maximum == pixel.r ? 60.0f * (pixel.g - pixel.b) / delta :
+        maximum == pixel.g ? 60.0f * ((pixel.b - pixel.r) / delta + 2.0f) :
+        60.0f * ((pixel.r - pixel.g) / delta + 4.0f);
+    if (hue < 0.0f) hue += 360.0f;
+    const float centers[9] = {0,30,60,120,180,240,270,300,360};
+    uint lower = 0u;
+    while (lower < 7u && hue >= centers[lower + 1u]) ++lower;
+    uint upper = (lower + 1u) % 8u;
+    float blend = (hue - centers[lower]) / (centers[lower + 1u] - centers[lower]);
+    blend = blend * blend * (3.0f - 2.0f * blend);
+    float dh = params.hslHue[lower] * (1.0f - blend) + params.hslHue[upper] * blend;
+    float ds = params.hslSaturation[lower] * (1.0f - blend) + params.hslSaturation[upper] * blend;
+    float dl = params.hslLightness[lower] * (1.0f - blend) + params.hslLightness[upper] * blend;
+    float colorWeight = clamp(delta * 255.0f, 0.0f, 1.0f);
+    dl *= colorWeight * colorWeight * (3.0f - 2.0f * colorWeight);
+    if (dh == 0.0f && ds == 0.0f && dl == 0.0f) return pixel;
+    float lightness = clamp((maximum + minimum) * 0.5f, 0.0f, 1.0f);
+    float saturation = delta / max(1e-6f, 1.0f - abs(2.0f * lightness - 1.0f));
+    hue = fmod(hue + dh * 0.3f + 360.0f, 360.0f);
+    saturation = clamp(saturation * (1.0f + ds * 0.01f), 0.0f, 1.0f);
+    lightness = clamp(lightness + dl * 0.005f, 0.0f, 1.0f);
+    float chroma = (1.0f - abs(2.0f * lightness - 1.0f)) * saturation;
+    float x = chroma * (1.0f - abs(fmod(hue / 60.0f, 2.0f) - 1.0f));
+    float3 rgb = hue < 60.0f ? float3(chroma,x,0) : hue < 120.0f ? float3(x,chroma,0) :
+        hue < 180.0f ? float3(0,chroma,x) : hue < 240.0f ? float3(0,x,chroma) :
+        hue < 300.0f ? float3(x,0,chroma) : float3(chroma,0,x);
+    return rgb + (lightness - chroma * 0.5f);
 }
 
 kernel void toneAdjustments(
@@ -421,7 +466,7 @@ kernel void toneAdjustments(
     }
     float3 pixel = float3(source[gid]);
     if (params.toneEnabled == 0u) {
-        destination[gid] = packed_float3(pixel);
+        destination[gid] = packed_float3(applyHsl(pixel, params));
         return;
     }
     float highlights = clamp(params.highlights, -1.0f, 1.0f);
@@ -457,7 +502,7 @@ kernel void toneAdjustments(
             luminance + (pixel.b - luminance) * saturation
         );
     }
-    destination[gid] = packed_float3(pixel);
+    destination[gid] = packed_float3(applyHsl(pixel, params));
 }
 
 kernel void noiseReduction(
@@ -726,7 +771,8 @@ PhotoParams makeParams(
     const sony2fuji_request& request,
     const RGB& relativeWB,
     const CachedLUT* cachedLUT,
-    float lutStrength
+    float lutStrength,
+    const sony2fuji::HslOptions& hsl = {}
 ) {
     PhotoParams params{};
     params.srcWidth = srcWidth;
@@ -766,7 +812,12 @@ PhotoParams makeParams(
     params.toneCurve = request.tone_curve;
     params.noiseReduction = request.noise_reduction;
     params.sharpening = request.sharpening;
+    params.hslEnabled = hsl.active();
+    std::copy(hsl.hue.begin(), hsl.hue.end(), params.hslHue);
+    std::copy(hsl.saturation.begin(), hsl.saturation.end(), params.hslSaturation);
+    std::copy(hsl.lightness.begin(), hsl.lightness.end(), params.hslLightness);
     if (cachedLUT) {
+        params.inputIsSRGB = cachedLUT->owner->inputTransfer() == sony2fuji::LUTTransfer::SRGB;
         params.inputIsFLog = cachedLUT->owner->inputTransfer() == sony2fuji::LUTTransfer::FLog;
         params.outputIsLog = cachedLUT->owner->outputTransfer() != sony2fuji::LUTTransfer::Display;
         params.outputIsFLog = cachedLUT->owner->outputTransfer() == sony2fuji::LUTTransfer::FLog;
@@ -852,7 +903,8 @@ bool renderPhotoMetalImpl(
     const std::shared_ptr<const DcpLook>& dcp,
     const sony2fuji::PhotoEffectsOptions& effects,
     int chromaDenoise,
-    bool preserveSourceResolution
+    bool preserveSourceResolution,
+    const sony2fuji::HslOptions& hsl
 ) {
     if (input.width <= 0 || input.height <= 0 || targetWidth == 0 || targetHeight == 0 ||
         input.pixels.size() != static_cast<size_t>(input.width) * input.height ||
@@ -863,7 +915,7 @@ bool renderPhotoMetalImpl(
         !std::isfinite(request.tone_curve) || !std::isfinite(request.noise_reduction) ||
         !std::isfinite(request.sharpening) || !std::isfinite(request.lut_strength) ||
         !std::isfinite(relativeWB.r) || !std::isfinite(relativeWB.g) ||
-        !std::isfinite(relativeWB.b) || !effects.valid() || chromaDenoise < 0 || chromaDenoise > 2) {
+        !std::isfinite(relativeWB.b) || !effects.valid() || !hsl.valid() || chromaDenoise < 0 || chromaDenoise > 2) {
         return false;
     }
     size_t inputCount = 0;
@@ -907,7 +959,11 @@ bool renderPhotoMetalImpl(
         } else {
             toSRGB = ColorConverter::getConversionMatrix(inputSpace, ColorSpace::sRGB);
         }
-        toFGamut = sony2fuji::photoLUTInputMatrix(useLUT ? lut->inputTransfer() : sony2fuji::LUTTransfer::FLog2);
+        if (useLUT && lut->inputTransfer() == sony2fuji::LUTTransfer::SRGB) {
+            toFGamut = ColorConverter::Matrix3x3{{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}};
+        } else {
+            toFGamut = sony2fuji::photoLUTInputMatrix(useLUT ? lut->inputTransfer() : sony2fuji::LUTTransfer::FLog2);
+        }
     } catch (...) {
         return false;
     }
@@ -961,7 +1017,7 @@ bool renderPhotoMetalImpl(
 
     const PhotoParams params = makeParams(
         processingWidth, processingHeight, targetWidth, targetHeight, toSRGB, toFGamut,
-        request, relativeWB, useLUT ? &cachedLUT : nullptr, lutStrength
+        request, relativeWB, useLUT ? &cachedLUT : nullptr, lutStrength, hsl
     );
     id<MTLBuffer> paramsBuffer = makeParamsBuffer(context.device, params);
     if (!paramsBuffer) {
@@ -1058,7 +1114,8 @@ bool renderPhotoMetal(
     const std::shared_ptr<const DcpLook>& dcp,
     const PhotoEffectsOptions& effects,
     int chromaDenoise,
-    bool preserveSourceResolution
+    bool preserveSourceResolution,
+    const HslOptions& hsl
 ) {
     bool result = false;
     @try {
@@ -1066,7 +1123,7 @@ bool renderPhotoMetal(
             try {
                 result = renderPhotoMetalImpl(
                     input, inputSpace, request, lut, relativeWB,
-                    targetWidth, targetHeight, output, dcp, effects, chromaDenoise, preserveSourceResolution
+                    targetWidth, targetHeight, output, dcp, effects, chromaDenoise, preserveSourceResolution, hsl
                 );
             } catch (...) {
                 result = false;
@@ -1096,7 +1153,8 @@ bool renderPhotoMetal(
     const std::shared_ptr<const DcpLook>&,
     const PhotoEffectsOptions&,
     int,
-    bool
+    bool,
+    const HslOptions&
 ) {
     return false;
 }

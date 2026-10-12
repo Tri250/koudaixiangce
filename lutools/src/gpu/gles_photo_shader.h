@@ -28,6 +28,10 @@ uniform vec3 domainMin;
 uniform vec3 domainMax;
 uniform vec4 tone; // contrast, saturation, highlights, shadows
 uniform float curve;
+uniform bool hslActive;
+uniform vec4 hslHue[2];
+uniform vec4 hslSaturation[2];
+uniform vec4 hslLightness[2];
 
 vec3 readPixel(uvec2 xy) {
     uint i = ((xy.y - sourceStartRow) * sourceSize.x + xy.x) * 3u;
@@ -78,6 +82,41 @@ float toneCurve(float x) {
     if (x <= 0.75) return mix(points.y, points.z, (x - 0.5) * 4.0);
     return mix(points.z, 1.0, (x - 0.75) * 4.0);
 }
+vec3 applyHsl(vec3 pixel) {
+    if (!hslActive) return pixel;
+    float maximum = max(pixel.r, max(pixel.g, pixel.b));
+    float minimum = min(pixel.r, min(pixel.g, pixel.b));
+    float delta = maximum - minimum;
+    if (delta <= 1e-6) return pixel;
+    float hue = maximum == pixel.r ? 60.0 * (pixel.g - pixel.b) / delta :
+        maximum == pixel.g ? 60.0 * ((pixel.b - pixel.r) / delta + 2.0) :
+        60.0 * ((pixel.r - pixel.g) / delta + 4.0);
+    if (hue < 0.0) hue += 360.0;
+    const float centers[9] = float[9](0.0,30.0,60.0,120.0,180.0,240.0,270.0,300.0,360.0);
+    int lower = 0;
+    while (lower < 7 && hue >= centers[lower + 1]) ++lower;
+    int upper = (lower + 1) % 8;
+    float blend = (hue - centers[lower]) / (centers[lower + 1] - centers[lower]);
+    blend = blend * blend * (3.0 - 2.0 * blend);
+    float dh = hslHue[lower / 4][lower % 4] * (1.0 - blend) + hslHue[upper / 4][upper % 4] * blend;
+    float ds = hslSaturation[lower / 4][lower % 4] * (1.0 - blend) + hslSaturation[upper / 4][upper % 4] * blend;
+    float dl = hslLightness[lower / 4][lower % 4] * (1.0 - blend) + hslLightness[upper / 4][upper % 4] * blend;
+    float colorWeight = clamp(delta * 255.0, 0.0, 1.0);
+    dl *= colorWeight * colorWeight * (3.0 - 2.0 * colorWeight);
+    if (dh == 0.0 && ds == 0.0 && dl == 0.0) return pixel;
+    float lightness = clamp((maximum + minimum) * 0.5, 0.0, 1.0);
+    float saturation = delta / max(1e-6, 1.0 - abs(2.0 * lightness - 1.0));
+    hue = mod(hue + dh * 0.3 + 360.0, 360.0);
+    saturation = clamp(saturation * (1.0 + ds * 0.01), 0.0, 1.0);
+    lightness = clamp(lightness + dl * 0.005, 0.0, 1.0);
+    float chroma = (1.0 - abs(2.0 * lightness - 1.0)) * saturation;
+    float x = chroma * (1.0 - abs(mod(hue / 60.0, 2.0) - 1.0));
+    vec3 rgb = hue < 60.0 ? vec3(chroma,x,0) : hue < 120.0 ? vec3(x,chroma,0) :
+        hue < 180.0 ? vec3(0,chroma,x) : hue < 240.0 ? vec3(0,x,chroma) :
+        hue < 300.0 ? vec3(x,0,chroma) : vec3(chroma,0,x);
+    return rgb + (lightness - chroma * 0.5);
+}
+
 vec3 evaluate(vec3 inputColor) {
     vec3 linear = (toSrgb * inputColor) * exposureWB;
     vec3 pixel = vec3(neutral(linear.r), neutral(linear.g), neutral(linear.b));
@@ -100,7 +139,7 @@ vec3 evaluate(vec3 inputColor) {
         float luminance = dot(pixel, vec3(0.2126, 0.7152, 0.0722));
         pixel = vec3(luminance) + (pixel - luminance) * tone.y;
     }
-    return pixel;
+    return applyHsl(pixel);
 }
 void main() {
     uint i = gl_GlobalInvocationID.x;

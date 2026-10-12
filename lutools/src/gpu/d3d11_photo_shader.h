@@ -3,7 +3,7 @@ namespace sony2fuji {
 inline constexpr const char* kD3DPhotoShader = R"hlsl(
 cbuffer Params : register(b0) {
     uint4 dimensions; // source width/height, destination width/height
-    uint4 control; // stage, count, use LUT, LUT size
+    uint4 control; // stage, HSL active, use LUT, LUT size
     float4 toSrgb[3];
     float4 toFilm[3];
     float4 exposureStrength;
@@ -12,6 +12,7 @@ cbuffer Params : register(b0) {
     float4 domainLow;
     float4 domainHigh;
     uint4 logTransfer; // input is F-Log, output is Log, output is F-Log, unused
+    float4 hslHue[2], hslSaturation[2], hslLightness[2];
 };
 StructuredBuffer<float3> source : register(t0);
 StructuredBuffer<float3> film : register(t1);
@@ -53,6 +54,41 @@ float curve(float x) {
     if(x<=.75)return lerp(p.y,p.z,(x-.5)*4);
     return lerp(p.z,1,(x-.75)*4);
 }
+float3 applyHsl(float3 pixel) {
+    if (control.y == 0) return pixel;
+    float maximum = max(pixel.r, max(pixel.g, pixel.b));
+    float minimum = min(pixel.r, min(pixel.g, pixel.b));
+    float delta = maximum - minimum;
+    if (delta <= 1e-6) return pixel;
+    float hue = maximum == pixel.r ? 60.0 * (pixel.g - pixel.b) / delta :
+        maximum == pixel.g ? 60.0 * ((pixel.b - pixel.r) / delta + 2.0) :
+        60.0 * ((pixel.r - pixel.g) / delta + 4.0);
+    if (hue < 0.0) hue += 360.0;
+    const float centers[9] = {0,30,60,120,180,240,270,300,360};
+    uint lower = 0;
+    while (lower < 7 && hue >= centers[lower + 1]) ++lower;
+    uint upper = (lower + 1) % 8;
+    float blend = (hue - centers[lower]) / (centers[lower + 1] - centers[lower]);
+    blend = blend * blend * (3.0 - 2.0 * blend);
+    float dh = hslHue[lower / 4][lower % 4] * (1.0 - blend) + hslHue[upper / 4][upper % 4] * blend;
+    float ds = hslSaturation[lower / 4][lower % 4] * (1.0 - blend) + hslSaturation[upper / 4][upper % 4] * blend;
+    float dl = hslLightness[lower / 4][lower % 4] * (1.0 - blend) + hslLightness[upper / 4][upper % 4] * blend;
+    float colorWeight = clamp(delta * 255.0, 0.0, 1.0);
+    dl *= colorWeight * colorWeight * (3.0 - 2.0 * colorWeight);
+    if (dh == 0.0 && ds == 0.0 && dl == 0.0) return pixel;
+    float lightness = saturate((maximum + minimum) * 0.5);
+    float saturation = delta / max(1e-6, 1.0 - abs(2.0 * lightness - 1.0));
+    hue = fmod(hue + dh * 0.3 + 360.0, 360.0);
+    saturation = saturate(saturation * (1.0 + ds * 0.01));
+    lightness = saturate(lightness + dl * 0.005);
+    float chroma = (1.0 - abs(2.0 * lightness - 1.0)) * saturation;
+    float x = chroma * (1.0 - abs(fmod(hue / 60.0, 2.0) - 1.0));
+    float3 rgb = hue < 60.0 ? float3(chroma,x,0) : hue < 120.0 ? float3(x,chroma,0) :
+        hue < 180.0 ? float3(0,chroma,x) : hue < 240.0 ? float3(0,x,chroma) :
+        hue < 300.0 ? float3(x,0,chroma) : float3(chroma,0,x);
+    return rgb + (lightness - chroma * 0.5);
+}
+
 float3 evaluate(float3 inputColor) {
     float3 scene=float3(dot(toSrgb[0].xyz,inputColor),dot(toSrgb[1].xyz,inputColor),dot(toSrgb[2].xyz,inputColor))*exposureStrength.xyz;
     float3 pixel=float3(neutral(scene.r),neutral(scene.g),neutral(scene.b));
@@ -73,7 +109,7 @@ float3 evaluate(float3 inputColor) {
         pixel=(pixel-.5)*tone.x+.5;float light=dot(pixel,float3(.2126,.7152,.0722));
         pixel=light+(pixel-light)*tone.y;
     }
-    return pixel;
+    return applyHsl(pixel);
 }
 float3 readPixel(uint2 p) { return source[p.y*dimensions.x+p.x]; }
 float3 resize(uint2 xy) {

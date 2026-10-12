@@ -181,6 +181,18 @@ enum RawWhiteBalanceMode: String, Codable, CaseIterable, Equatable {
     static var asShot: Self { .camera }
 }
 
+enum RawExposureMode: Int, Codable, CaseIterable, Identifiable {
+    case scene = 0, preview = 1, sensor = 2
+    var id: Int { rawValue }
+    var title: String {
+        switch self {
+        case .scene: return "标准显影"
+        case .preview: return "匹配内嵌预览"
+        case .sensor: return "传感器基准"
+        }
+    }
+}
+
 struct RawSettings: Codable, Equatable {
     static let lutStrengthRange: ClosedRange<Double> = 0...2
     static let temperatureRange: ClosedRange<Double> = 2000...50000
@@ -188,6 +200,8 @@ struct RawSettings: Codable, Equatable {
 
     var denoise = RawDenoiseSettings()
     var photoEffects = PhotoEffectsSettings()
+    var hsl = HSLSettings()
+    var exposureMode = RawExposureMode.preview
     var displayChromaDenoise = 0 {
         didSet { displayChromaDenoise = Self.clampedDisplayChromaDenoise(displayChromaDenoise) }
     }
@@ -204,11 +218,42 @@ struct RawSettings: Codable, Equatable {
     var lutID: String?
     var lutStrength: Double
     var whiteBalanceMode: RawWhiteBalanceMode
+    var masterRecipeID: String?
+    var hasLook: Bool { lutID != nil || masterRecipeID != nil }
+    var masterRecipe: MasterRecipe? { MasterRecipe.recipe(for: masterRecipeID) }
+    var recipeScale: Double { masterRecipeID == nil ? 1 : Double(clampedLUTStrength) }
+    mutating func applyMasterRecipe(_ recipe: MasterRecipe) {
+        masterRecipeID = recipe.id; lutID = nil; lutStrength = 1
+        exposure = recipe.exposureDelta; shadows = recipe.shadowsDelta / 100
+        highlights = -recipe.highlightsDelta / 100
+        contrast = 1 + recipe.contrastDelta / 100; saturation = 1 + recipe.saturationDelta / 100
+        tint = recipe.tintDelta; hsl = recipe.hsl
+    }
+    mutating func clearMasterRecipe(cameraTint: Double?) {
+        guard masterRecipeID != nil else { return }
+        masterRecipeID = nil
+        if whiteBalanceMode == .camera && (tint == 0 || cameraTint == nil) { tint = cameraTint ?? 0 }
+        else { tint = min(150, max(-150, (cameraTint ?? 0) + tint)); whiteBalanceMode = .custom }
+    }
+    func renderedRecipe(cameraTemperature: Double, cameraTint: Double) -> RawSettings {
+        guard masterRecipeID != nil else { return self }
+        var result = self
+        let scale = recipeScale
+        result.exposure *= scale; result.shadows *= scale; result.highlights *= scale
+        result.contrast = 1 + (contrast - 1) * scale; result.saturation = 1 + (saturation - 1) * scale
+        result.hsl = hsl.scaled(by: scale)
+        if whiteBalanceMode == .camera { result.temperature = cameraTemperature }
+        result.tint = min(150, max(-150, cameraTint + tint * scale))
+        if tint * scale != 0 { result.whiteBalanceMode = .custom }
+        result.masterRecipeID = nil
+        return result
+    }
 
     enum CodingKeys: String, CodingKey {
         case exposure, contrast, saturation, temperature, tint, highlights, shadows
         case toneCurve, noiseReduction, sharpening, lutID, lutStrength, whiteBalanceMode
-        case denoise, photoEffects, displayChromaDenoise
+        case denoise, photoEffects, displayChromaDenoise, exposureMode, hsl
+        case masterRecipeID
     }
 
     var clampedLUTStrength: Float {
@@ -269,6 +314,11 @@ struct RawSettings: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        exposureMode = RawExposureMode(rawValue: try values.decodeIfPresent(Int.self, forKey: .exposureMode) ?? 0) ?? .scene
+        hsl = try values.decodeIfPresent(HSLSettings.self, forKey: .hsl) ?? HSLSettings()
+        guard hsl.isValid else {
+            throw DecodingError.dataCorruptedError(forKey: .hsl, in: values, debugDescription: "Invalid HSL parameters")
+        }
         exposure = try values.decodeIfPresent(Double.self, forKey: .exposure) ?? 0
         contrast = try values.decodeIfPresent(Double.self, forKey: .contrast) ?? 1
         saturation = try values.decodeIfPresent(Double.self, forKey: .saturation) ?? 1
@@ -280,6 +330,7 @@ struct RawSettings: Codable, Equatable {
         noiseReduction = try values.decodeIfPresent(Double.self, forKey: .noiseReduction) ?? 0
         sharpening = try values.decodeIfPresent(Double.self, forKey: .sharpening) ?? 0
         lutID = try values.decodeIfPresent(String.self, forKey: .lutID)
+        masterRecipeID = try values.decodeIfPresent(String.self, forKey: .masterRecipeID)
         lutStrength = try values.decodeIfPresent(Double.self, forKey: .lutStrength) ?? 1
         whiteBalanceMode = try values.decodeIfPresent(RawWhiteBalanceMode.self, forKey: .whiteBalanceMode) ?? .camera
         denoise = try values.decodeIfPresent(RawDenoiseSettings.self, forKey: .denoise) ?? RawDenoiseSettings()
@@ -302,7 +353,7 @@ struct RawSettings: Codable, Equatable {
         var result = self
         if whiteBalanceMode == .camera {
             result.temperature = cameraTemperature
-            result.tint = cameraTint
+            if masterRecipeID == nil { result.tint = cameraTint }
         }
         result.whiteBalanceMode = .custom
         return result
@@ -321,6 +372,48 @@ struct RawSettings: Codable, Equatable {
         let reciprocalRange = (1 / temperatureRange.upperBound)...(1 / temperatureRange.lowerBound)
         let reciprocal = reciprocalRange.upperBound -
             clamped * (reciprocalRange.upperBound - reciprocalRange.lowerBound)
-        return min(max((1 / reciprocal).rounded(), temperatureRange.lowerBound), temperatureRange.upperBound)
+        return min(max(((1 / reciprocal) / 10).rounded() * 10, temperatureRange.lowerBound), temperatureRange.upperBound)
+    }
+}
+
+struct MasterRecipe: Codable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let subtitle: String
+    let summary: String
+    let lutFileName: String
+    let exposureDelta: Double
+    let shadowsDelta: Double
+    let highlightsDelta: Double
+    let contrastDelta: Double
+    let saturationDelta: Double
+    let tintDelta: Double
+    let hsl: HSLSettings
+    static let allRecipes: [MasterRecipe] = {
+        let paths = [Bundle.main.url(forResource: "master-recipes", withExtension: "json"),
+                     ProcessInfo.processInfo.environment["RAWLAB_MASTER_RECIPE_CATALOG"].map { URL(fileURLWithPath: $0) },
+                     URL(fileURLWithPath: "Shared/master-recipes.json"),
+                     URL(fileURLWithPath: "../Shared/master-recipes.json")].compactMap { $0 }
+        guard let path = paths.first(where: { FileManager.default.fileExists(atPath: $0.path) }),
+              let data = try? Data(contentsOf: path), let recipes = try? JSONDecoder().decode([MasterRecipe].self, from: data),
+              recipes.count == 14, Set(recipes.map(\.id)).count == 14, recipes.allSatisfy({ $0.hsl.isValid }) else {
+            preconditionFailure("Missing or invalid master recipe catalog")
+        }
+        return recipes
+    }()
+    static func recipe(for id: String?) -> MasterRecipe? {
+        guard let id else { return nil }
+        return allRecipes.first { $0.id == id }
+    }
+    func lutURL() -> URL? {
+        Bundle.main.url(forResource: lutFileName, withExtension: nil, subdirectory: "MasterRecipes")
+            ?? existingFile("RawLabMac/Resources/MasterRecipes/" + lutFileName)
+    }
+    func artworkURL() -> URL? {
+        Bundle.main.url(forResource: id, withExtension: "png", subdirectory: "MasterRecipeIcons")
+            ?? existingFile("RawLabMac/Resources/MasterRecipeIcons/" + id + ".png")
+    }
+    private func existingFile(_ path: String) -> URL? {
+        FileManager.default.fileExists(atPath: path) ? URL(fileURLWithPath: path) : nil
     }
 }

@@ -140,6 +140,21 @@ struct ProcessorExportTests {
         stronger.lutStrength = 2
         let doubled = try processor.processBuffer(buffer: buffer, settings: stronger, previewLongEdge: nil, lutURL: lut)
         check(normal.data != doubled.data, "iOS buffer processing actually renders 200 percent differently from 100")
+        var hsl = RawSettings.default
+        for channel in 0..<8 { hsl.hsl.set(.saturation, channel: channel, value: -100) }
+        let neutral = try processor.processBuffer(buffer: buffer, settings: .default, previewLongEdge: nil, lutURL: nil)
+        let hslPreview = try processor.processBuffer(buffer: buffer, settings: hsl, previewLongEdge: 3, lutURL: nil)
+        let hslExport = try processor.processBuffer(buffer: buffer, settings: hsl, previewLongEdge: nil, lutURL: nil)
+        check(hslPreview.data == hslExport.data && hslExport.data != neutral.data,
+              "iOS HSL reaches native processing with preview/export parity")
+        let hslCPU = try cpuProcessor.processBuffer(buffer: buffer, settings: hsl, previewLongEdge: nil, lutURL: nil)
+        let hslGPU = try forcedProcessor.processBuffer(buffer: buffer, settings: hsl, previewLongEdge: nil, lutURL: nil)
+        check(Self.maximumDifference(hslGPU.data, hslCPU.data) <= 2,
+              "iOS HSL Force succeeds on Metal and matches the CPU reference")
+        let rasterEV = try processor.autoExposure(url: nil, buffer: buffer, settings: .default)
+        hsl.exposure = 3
+        check(try processor.autoExposure(url: nil, buffer: buffer, settings: hsl) == rasterEV && (-4...4).contains(rasterEV),
+              "iOS raster Auto returns absolute EV independent of HSL and current exposure")
         let jpeg = try processor.makeJPEGData(from: doubled, sourceURL: original, orientation: .right, quality: 0.92)
         let fields = properties(jpeg)
         let exif = fields[kCGImagePropertyExifDictionary] as! [CFString: Any]
@@ -161,6 +176,45 @@ struct ProcessorExportTests {
             return
         }
         let standardRaw = try processor.processRaw(url: raw, settings: .default, previewLongEdge: 128, lutURL: lut)
+        if ProcessInfo.processInfo.environment["RAWLAB_TEST_MASTER_RECIPES"] == "1" {
+            let neutral = try cpuProcessor.processRaw(url: raw, settings: .default, previewLongEdge: 128, lutURL: nil)
+            let camera = neutral.rawWhiteBalance!
+            for recipe in MasterRecipe.allRecipes {
+                let recipeLut = root.appendingPathComponent("RawLabMac/Resources/MasterRecipes/\(recipe.lutFileName)")
+                for strength in [0.0, 0.5, 1.0, 2.0] {
+                    var current = RawSettings.default
+                    current.applyMasterRecipe(recipe); current.lutStrength = strength
+                    current.hsl.set(.hue, channel: 7, value: 37)
+                    var manual = current
+                    manual.masterRecipeID = nil
+                    manual.exposure *= strength; manual.highlights *= strength; manual.shadows *= strength
+                    manual.contrast = 1 + (current.contrast - 1) * strength
+                    manual.saturation = 1 + (current.saturation - 1) * strength
+                    manual.hsl = current.hsl.scaled(by: strength)
+                    manual.temperature = camera.temperature; manual.tint = min(150, max(-150, camera.tint + current.tint * strength))
+                    manual.whiteBalanceMode = strength == 0 ? .camera : .custom
+                    let actual = try cpuProcessor.processRaw(url: raw, settings: current, previewLongEdge: 128, lutURL: recipeLut)
+                    let expected = try cpuProcessor.processRaw(url: raw, settings: manual, previewLongEdge: 128, lutURL: recipeLut)
+                    check(actual.buffer.data == expected.buffer.data, "\(recipe.id) \(strength): explicit manual RAW parity")
+                    let gpu = try forcedProcessor.processRaw(url: raw, settings: current, previewLongEdge: 128, lutURL: recipeLut)
+                    check(maximumDifference(actual.buffer.data, gpu.buffer.data) <= 2, "\(recipe.id): CPU/Force Metal parity")
+                    if strength == 0 { check(actual.buffer.data == neutral.buffer.data, "\(recipe.id): zero is neutral") }
+                    let frozen = try JSONDecoder().decode(RawSettings.self, from: JSONEncoder().encode(current))
+                    let final = try cpuProcessor.processRaw(url: raw, settings: frozen, previewLongEdge: nil, lutURL: recipeLut, exportLongEdge: 128)
+                    let single = try cpuProcessor.processRaw(url: raw, settings: current, previewLongEdge: nil, lutURL: recipeLut, exportLongEdge: 128)
+                    check(final.buffer.data == single.buffer.data, "\(recipe.id): frozen settings match single final export")
+                }
+            }
+        }
+        let rawEV = try processor.autoExposure(url: raw, buffer: nil, settings: .default)
+        var autoSettings = RawSettings.default
+        autoSettings.exposure = rawEV
+        check(try processor.autoExposure(url: raw, buffer: nil, settings: autoSettings) == rawEV && (-4...4).contains(rawEV),
+              "iOS RAW Auto returns a bounded idempotent exposure")
+        hsl.exposure = 0
+        let hslRaw = try processor.processRaw(url: raw, settings: hsl, previewLongEdge: nil, lutURL: lut, exportLongEdge: 128)
+        check(max(hslRaw.buffer.width, hslRaw.buffer.height) <= 128,
+              "iOS HSL final RAW export honors the requested size")
         let strongRaw = try processor.processRaw(url: raw, settings: stronger, previewLongEdge: 128, lutURL: lut)
         check(standardRaw.buffer.data != strongRaw.buffer.data, "iOS RAW processing also passes through 200 percent")
         var cameraTemperature = RawSettings.default
@@ -181,6 +235,12 @@ struct ProcessorExportTests {
                                                   lutURL: lut, exportLongEdge: 128)
         check(max(limitedRaw.buffer.width, limitedRaw.buffer.height) <= 128,
               "iOS RAW final export honors the long-edge cap")
+        check(hslRaw.buffer.data != limitedRaw.buffer.data,
+              "iOS HSL changes actual final RAW export pixels")
+        let hslRawCPU = try cpuProcessor.processRaw(url: raw, settings: hsl, previewLongEdge: nil, lutURL: lut, exportLongEdge: 128)
+        let hslRawGPU = try forcedProcessor.processRaw(url: raw, settings: hsl, previewLongEdge: nil, lutURL: lut, exportLongEdge: 128)
+        check(Self.maximumDifference(hslRawGPU.buffer.data, hslRawCPU.buffer.data) <= 2,
+              "iOS HSL final RAW export uses Force Metal with CPU parity")
         let rawJPEG = try processor.makeJPEGData(from: strongRaw.buffer, sourceURL: raw,
                                                 orientation: strongRaw.orientation, quality: 0.92)
         let rawFields = properties(rawJPEG)

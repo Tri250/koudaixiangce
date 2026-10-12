@@ -1,8 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cmp "$ROOT/Shared/master-recipes.json" "${1:-$ROOT/build/RawLab Mac.app}/Contents/Resources/master-recipes.json"
 APP="${1:-$ROOT/build/RawLab Mac.app}"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}"
+for asset in "$ROOT"/RawLabMac/Resources/MasterRecipes/*.cube "$ROOT"/RawLabMac/Resources/MasterRecipeIcons/*.png; do
+    directory=$(basename "$(dirname "$asset")")
+    cmp "$asset" "$APP/Contents/Resources/$directory/$(basename "$asset")" || {
+        echo "FAIL: missing or stale recipe asset $(basename "$asset")"; exit 1;
+    }
+done
 for notice in RawLab-GPL-3.0.txt RawLab-Licensing.md; do
     test -f "$APP/Contents/Resources/Licenses/$notice"
 done
