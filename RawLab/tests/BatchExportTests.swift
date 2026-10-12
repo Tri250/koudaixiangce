@@ -20,6 +20,8 @@ struct BatchExportTests {
         let sourceURL = root.appendingPathComponent("source.ARW")
         try Data("source".utf8).write(to: sourceURL)
         var settings = RawSettings.default
+        settings.applyMasterRecipe(MasterRecipe.allRecipes[0])
+        settings.lutStrength = 0.5
         settings.denoise = RawDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100)
         settings.photoEffects.vignetteMidpoint = 62
         settings.photoEffects.grainSize = 60
@@ -39,6 +41,8 @@ struct BatchExportTests {
         let reopenedJob = try journal.load(id: job.id)
         let pendingJobs = try journal.pendingJobs()
         check(reopenedJob?.targets.count == 6, "journal round-trips the selected rows")
+        check(reopenedJob?.source.settings.masterRecipeID == settings.masterRecipeID && reopenedJob?.source.settings.lutStrength == 0.5,
+              "journal freezes master recipe identity and strength without reinjecting defaults")
         check(reopenedJob?.longEdge == 3000, "journal freezes the selected export long edge")
         var oldJournal = try JSONSerialization.jsonObject(with: JSONEncoder().encode(job)) as! [String: Any]
         oldJournal.removeValue(forKey: "longEdge")
@@ -128,7 +132,7 @@ struct BatchExportTests {
         let oldContainer = root.appendingPathComponent("old-container")
         let oldStore = try BatchJournalStore(directory: oldContainer)
         var moved = BatchExportJob(source: source, targets: [targets[0]])
-        try BatchInputStore.prepare(&moved, look: nil, root: oldContainer)
+        try BatchInputStore.prepare(&moved, look: MasterRecipe.allRecipes[0].lutURL(), root: oldContainer)
         moved.targets[0].sourceURL = try BatchInputStore.copy(targets[0].sourceURL, identity: targets[0].identity, jobID: moved.id, root: oldContainer)
         let look = oldContainer.appendingPathComponent(moved.id.uuidString).appendingPathComponent("look.cube")
         try Data("look".utf8).write(to: look)

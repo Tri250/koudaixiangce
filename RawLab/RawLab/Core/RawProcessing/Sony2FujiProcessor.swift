@@ -96,6 +96,7 @@ struct Sony2FujiProcessor {
     func autoExposure(url: URL?, buffer: Buffer?, settings: RawSettings) throws -> Double {
         let session = try createSession()
         defer { destroySession(session) }
+        let settings = try prepareRecipe(settings, session: session, url: url)
         let mode = sony2fuji_raw_exposure_mode(rawValue: UInt32(settings.exposureMode.rawValue))
         guard sony2fuji_session_set_raw_exposure_mode(session, mode) == SONY2FUJI_STATUS_OK else {
             throw ProcessorError.processFailed("Invalid exposure mode.")
@@ -149,6 +150,7 @@ struct Sony2FujiProcessor {
         }
         let session = try createSession()
         defer { destroySession(session) }
+        let settings = try prepareRecipe(settings, session: session, url: url)
         try configureSession(session, settings: settings,
                              interactive: interactive && previewLongEdge != nil && exportLongEdge == nil)
 
@@ -190,6 +192,7 @@ struct Sony2FujiProcessor {
         }
         let session = try createSession()
         defer { destroySession(session) }
+        let settings = try prepareRecipe(settings, session: session, url: nil)
         try configureSession(session, settings: settings,
                              interactive: interactive && previewLongEdge != nil && exportLongEdge == nil)
 

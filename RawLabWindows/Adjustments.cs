@@ -30,6 +30,29 @@ public sealed class Adjustments
     public HslSettings Hsl { get; set; } = new();
     public DenoiseSettings Denoise { get; set; } = new();
     public PhotoEffectsSettings Effects { get; set; } = new();
+    public string? MasterRecipeID { get; private set; }
+    public MasterRecipe? Recipe => MasterRecipeID == null ? null : MasterRecipe.Find(MasterRecipeID);
+    public HslSettings RenderHsl => Hsl.Scaled(MasterRecipeID == null ? 1 : this[Parameter.Strength] / 100);
+    public void ApplyMasterRecipe(MasterRecipe recipe)
+    {
+        MasterRecipeID = recipe.Id;
+        values[0] = 100;
+        values[(int)Parameter.Exposure] = recipe.ExposureDelta;
+        values[(int)Parameter.Shadows] = recipe.ShadowsDelta;
+        values[(int)Parameter.Highlights] = recipe.HighlightsDelta;
+        values[(int)Parameter.Contrast] = recipe.ContrastDelta;
+        values[(int)Parameter.Saturation] = recipe.SaturationDelta;
+        values[(int)Parameter.Tint] = recipe.TintDelta;
+        Hsl = recipe.Hsl.Settings();
+    }
+    public void ClearMasterRecipe()
+    {
+        if (MasterRecipeID == null) return;
+        var offset = this[Parameter.Tint];
+        MasterRecipeID = null;
+        if (CameraWhiteBalance && (offset == 0 || AsShot == null)) ResetWhiteBalance();
+        else { values[(int)Parameter.Tint] = Math.Clamp((AsShot?.Tint ?? 0) + offset, -150, 150); CameraWhiteBalance = false; }
+    }
     private int displayChromaDenoise;
     public int DisplayChromaDenoise
     {
@@ -45,7 +68,7 @@ public sealed class Adjustments
     public double this[Parameter id] => values[(int)id];
     public Adjustments Clone() { var copy = (Adjustments)MemberwiseClone(); copy.values = (double[])values.Clone(); return copy; }
     public AdjustmentSnapshot Capture() => new((double[])values.Clone(), ExposureMode, CameraWhiteBalance, AsShot?.Temperature, AsShot?.Tint,
-        Denoise, Effects, DisplayChromaDenoise, Hsl);
+        Denoise, Effects, DisplayChromaDenoise, Hsl, MasterRecipeID);
     public static Adjustments FromSnapshot(AdjustmentSnapshot snapshot)
     {
         if (snapshot.Values.Length != ParameterSpec.All.Length || snapshot.ExposureMode is < 0 or > 2 ||
@@ -61,22 +84,31 @@ public sealed class Adjustments
             Denoise = denoise,
             Effects = effects,
             Hsl = snapshot.Hsl ?? new HslSettings(),
+            MasterRecipeID = snapshot.MasterRecipeID,
             DisplayChromaDenoise = snapshot.DisplayChromaDenoise,
             values = (double[])snapshot.Values.Clone(), ExposureMode = snapshot.ExposureMode,
             CameraWhiteBalance = snapshot.CameraWhiteBalance,
             AsShot = snapshot.AsShotTemperature is {} temperature && snapshot.AsShotTint is {} tint ? (temperature, tint) : null
         };
     }
-    public double Default(Parameter id) => id == Parameter.Strength ? 100 : id == Parameter.Temperature ? AsShot?.Temperature ?? 6500 : id == Parameter.Tint ? AsShot?.Tint ?? 0 : 0;
+    public double Default(Parameter id) => id == Parameter.Strength ? 100 : id == Parameter.Temperature ? AsShot?.Temperature ?? 6500 : id == Parameter.Tint ? (MasterRecipeID == null ? AsShot?.Tint ?? 0 : 0) : 0;
     public void Set(Parameter id, double value)
     {
         if (!double.IsFinite(value)) throw new ArgumentOutOfRangeException(nameof(value));
         var spec = ParameterSpec.All[(int)id];
         values[(int)id] = Math.Clamp(value, spec.Min, spec.Max);
+        if (MasterRecipeID != null) { if (id == Parameter.Temperature) CameraWhiteBalance = AsShot?.Temperature == value; return; }
         if (id is Parameter.Temperature or Parameter.Tint)
             CameraWhiteBalance = AsShot is { } wb && this[Parameter.Temperature] == wb.Temperature && this[Parameter.Tint] == wb.Tint;
     }
-    public void ResolveWhiteBalance((double Temperature, double Tint)? wb) { AsShot = wb; if (CameraWhiteBalance) ResetWhiteBalance(); }
+    public void ResolveWhiteBalance((double Temperature, double Tint)? wb)
+    {
+        AsShot = wb;
+        if (CameraWhiteBalance) {
+            if (MasterRecipeID != null) values[2] = wb?.Temperature ?? 6500;
+            else ResetWhiteBalance();
+        }
+    }
     public void ResetWhiteBalance() { values[2] = Default(Parameter.Temperature); values[3] = Default(Parameter.Tint); CameraWhiteBalance = true; }
     public void Reset(Parameter id) => Set(id, Default(id));
     public double EffectDefault(PhotoEffectParameter id) => PhotoEffectSpec.For(id).DefaultValue;
@@ -111,20 +143,24 @@ public sealed class Adjustments
         if (group == "细节") { Denoise = new(); DisplayChromaDenoise = 0; }
         if (group == "效果") Effects = new();
     }
-    public void ResetAll() { foreach (var spec in ParameterSpec.All) Reset(spec.Id); ExposureMode = 1; ResetWhiteBalance(); Denoise = new(); Effects = new(); Hsl = new(); DisplayChromaDenoise = 0; }
+    public void ResetAll() { MasterRecipeID = null; foreach (var spec in ParameterSpec.All) Reset(spec.Id); ExposureMode = 1; ResetWhiteBalance(); Denoise = new(); Effects = new(); Hsl = new(); DisplayChromaDenoise = 0; }
     internal Native.Request Request(string path, string? lut, int edge, string? output, int? longEdge = null)
     {
         if (longEdge is { } requested && !ExportSize.IsValid(requested))
             throw new ArgumentOutOfRangeException(nameof(longEdge), "导出长边必须在 1 到 65535 像素之间。");
         var limitedFinal = output != null && longEdge.HasValue;
+        var scale = MasterRecipeID == null ? 1 : this[Parameter.Strength] / 100;
+        var tintOffset = MasterRecipeID == null ? 0 : this[Parameter.Tint] * scale;
+        var temperatureWb = !CameraWhiteBalance || tintOffset != 0;
+        var tint = MasterRecipeID == null ? this[Parameter.Tint] : Math.Clamp((AsShot?.Tint ?? 0) + tintOffset, -150, 150);
         return new Native.Request {
             Version=2, StructSize=(uint)System.Runtime.InteropServices.Marshal.SizeOf<Native.Request>(), InputPath=path,
             LutPath=lut, LutStrength=lut == null ? 0 : (float)this[Parameter.Strength]/100,
-            WbMode=CameraWhiteBalance ? 0 : 3, Wb0=1,Wb1=1,Wb2=1,Wb3=1,
-            ExposureEv=(float)this[Parameter.Exposure], Brightness=1, Contrast=1+(float)this[Parameter.Contrast]/100,
-            Saturation=1+(float)this[Parameter.Saturation]/100, Temperature=CameraWhiteBalance ? 6500 : (float)this[Parameter.Temperature],
-            Tint=CameraWhiteBalance ? 0 : (float)this[Parameter.Tint], Highlights=-(float)this[Parameter.Highlights]/100,
-            Shadows=(float)this[Parameter.Shadows]/100,ToneCurve=(float)this[Parameter.ToneCurve]/100,Sharpening=(float)this[Parameter.Sharpening]/100,
+            WbMode=temperatureWb ? 3 : 0, Wb0=1,Wb1=1,Wb2=1,Wb3=1,
+            ExposureEv=(float)(this[Parameter.Exposure]*scale), Brightness=1, Contrast=1+(float)(this[Parameter.Contrast]*scale)/100,
+            Saturation=1+(float)(this[Parameter.Saturation]*scale)/100, Temperature=temperatureWb ? (float)this[Parameter.Temperature] : 6500,
+            Tint=temperatureWb ? (float)tint : 0, Highlights=-(float)(this[Parameter.Highlights]*scale)/100,
+            Shadows=(float)(this[Parameter.Shadows]*scale)/100,ToneCurve=(float)this[Parameter.ToneCurve]/100,Sharpening=(float)this[Parameter.Sharpening]/100,
             // SizeMode 4 is the shared final long-edge contract. PreviewLongEdge
             // remains independent and is never used to size an export.
             SizeMode=limitedFinal ? 4 : 3,LongEdge=limitedFinal ? (uint)longEdge!.Value : 0,

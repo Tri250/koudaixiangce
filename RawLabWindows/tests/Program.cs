@@ -35,6 +35,7 @@ static class Program
     {
         try
         {
+            if(args.Length==3 && args[0]=="--master-recipes") { MasterRecipeChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--photo-features") { PhotoFeatureChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--denoise") { DenoiseChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--interactions") { InteractionChecks.Run(args[1],args[2]);return 0; }
@@ -87,7 +88,8 @@ static class Program
                     Check(Pixels(strong.Image).Zip(Pixels(cpuStrength.Render(unicodeRaw,settings,unicodeLut,800)!.Image),(x,y)=>Math.Abs(x-y)).Max()<=2,
                         "200% film CPU/Direct3D 11 parity");
                 settings.Reset(Parameter.Strength);
-                Check(Math.Abs(rendered.Baseline-.7)<.001 && rendered.WhiteBalance!=null,"Scene baseline and calibrated as-shot WB");
+                Check(float.IsFinite(rendered.Baseline) && rendered.WhiteBalance!=null,"Selected exposure baseline and calibrated as-shot WB");
+                Check(Math.Abs(engine.Render(unicodeRaw,new Adjustments { ExposureMode=0 },null,32,statistics:false,clipping:false)!.Baseline-.7)<.001,"Explicit scene mode keeps the declared baseline");
                 Check(rendered.Histogram.Take(256).Sum(x=>(long)x)==rendered.Image.PixelWidth*rendered.Image.PixelHeight,"Native histogram counts each pixel");
                 var lean=engine.Render(unicodeRaw,settings,unicodeLut,800,clipping:false)!;
                 Check(lean.Clipping==null && lean.Histogram.SequenceEqual(rendered.Histogram) && lean.Shadows==rendered.Shadows && lean.Highlights==rendered.Highlights && Pixels(lean.Image).SequenceEqual(Pixels(rendered.Image)),"Optional clipping mask preserves pixels and exact statistics");
@@ -167,6 +169,7 @@ static class Program
             var app=new App();app.InitializeComponent();app.ShutdownMode=ShutdownMode.OnExplicitShutdown;
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
             var window=new MainWindow {Width=1440,Height=920};
+            window.Show();
             var folder=new LibraryEntry(Path.GetDirectoryName(raw)!,true);
             window.Files.ItemsSource=new[]{folder};
             var loading=folder.Load();PumpUntil(()=>loading.IsCompleted,TimeSpan.FromSeconds(30));loading.GetAwaiter().GetResult();
@@ -188,6 +191,26 @@ static class Program
             window.OpenFile(raw);Check(Math.Abs(window.ValueSlider.Value-.625)<.001,"Photo switch restores its own exposure");
             window.ValueSlider.Value=.5;PumpUntil(()=>window.ExportPng.IsEnabled,TimeSpan.FromMinutes(3));
             Check(window.BackendLabel.Text.Contains("Direct3D 11"),"WPF reports actual GPU backend");
+            foreach(var picker in new[] {
+                (Category:window.FilmCategory,Strip:window.FilmStrip,Scroller:window.FilmScroller,Left:window.FilmScrollLeft,Right:window.FilmScrollRight),
+                (Category:window.MasterRecipeCategory,Strip:window.RecipeStrip,Scroller:window.RecipeScroller,Left:window.RecipeScrollLeft,Right:window.RecipeScrollRight) })
+            {
+                picker.Category.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Width=1000;window.Measure(new Size(1000,920));window.Arrange(new Rect(0,0,1000,920));window.UpdateLayout();
+                picker.Scroller.ScrollToLeftEnd();window.UpdateLayout();
+                PumpUntil(()=>picker.Left.Visibility==Visibility.Visible && !picker.Left.IsEnabled && picker.Right.IsEnabled,TimeSpan.FromSeconds(5));
+                Console.WriteLine($"Picker {System.Windows.Automation.AutomationProperties.GetName(picker.Category)}: window={window.ActualWidth}, extent={picker.Scroller.ExtentWidth}, viewport={picker.Scroller.ViewportWidth}, offset={picker.Scroller.HorizontalOffset}, left={picker.Left.Visibility}/{picker.Left.IsEnabled}/{picker.Left.ActualWidth}, right={picker.Right.Visibility}/{picker.Right.IsEnabled}/{picker.Right.ActualWidth}");
+                Check(picker.Left.Visibility==Visibility.Visible && !picker.Left.IsEnabled && picker.Right.IsEnabled,"Overflow picker has reachable desktop scroll controls");
+                picker.Right.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                PumpUntil(()=>picker.Scroller.HorizontalOffset>1,TimeSpan.FromSeconds(5));
+                Check(picker.Left.IsEnabled,"Desktop picker button scrolls content and enables return");
+                var items=picker.Strip.Children.Cast<UIElement>().ToArray();
+                picker.Strip.Children.Clear();picker.Strip.Children.Add(items[0]);window.UpdateLayout();
+                PumpUntil(()=>picker.Left.Visibility==Visibility.Collapsed && picker.Right.Visibility==Visibility.Collapsed,TimeSpan.FromSeconds(5));
+                Check(picker.Left.Visibility==Visibility.Collapsed && picker.Right.Visibility==Visibility.Collapsed,"Picker hides both buttons when the complete list fits");
+                picker.Strip.Children.Clear();foreach(var item in items)picker.Strip.Children.Add(item);window.UpdateLayout();
+            }
+            window.Width=1440;window.Measure(new Size(1440,920));window.Arrange(new Rect(0,0,1440,920));window.UpdateLayout();
             var strengthButton=window.Tools.Children.OfType<Button>().Single(button=>
                 System.Windows.Automation.AutomationProperties.GetName(button)=="强度");
             strengthButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -196,8 +219,7 @@ static class Program
             window.ValueSlider.Value=1;
             Check(window.ValueText.Text=="200" && !window.ExportPng.IsEnabled,"WPF film slider reaches 200% and invalidates stale export");
             PumpUntil(()=>window.ExportPng.IsEnabled,TimeSpan.FromMinutes(3));
-            // Render the content independently of a hidden HWND; rendering the
-            // unshown Window itself produces a transparent bitmap on Windows.
+            // Capture the client area independently of window chrome.
             var content=(FrameworkElement)window.Content;window.Content=null;
             content.Measure(new Size(1440,920));content.Arrange(new Rect(0,0,1440,920));content.UpdateLayout();
             var screenshot=new RenderTargetBitmap(1440,920,96,96,PixelFormats.Pbgra32);screenshot.Render(content);

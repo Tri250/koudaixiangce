@@ -20,6 +20,8 @@ xcrun --sdk iphonesimulator swiftc -swift-version 5 -O -sdk "$SDK" -target "$TAR
     -F "$APP/Frameworks" -framework sony2fuji -lc++ \
     -Xlinker -rpath -Xlinker "$APP/Frameworks" -o "$OUT/processor-export"
 if [[ -n "${RAWLAB_TEST_RAW:-}" ]]; then
+    SIMCTL_CHILD_RAWLAB_MASTER_RECIPE_CATALOG="$ROOT/Shared/master-recipes.json" \
+        SIMCTL_CHILD_RAWLAB_TEST_MASTER_RECIPES="${RAWLAB_TEST_MASTER_RECIPES:-0}" \
     SIMCTL_CHILD_RAWLAB_TEST_RAW="$RAWLAB_TEST_RAW" \
         xcrun simctl spawn "$DEVICE" "$OUT/processor-export" "$ROOT" "$OUT"
 else

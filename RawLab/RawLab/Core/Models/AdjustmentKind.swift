@@ -89,15 +89,15 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .exposure:
             return -4...4
         case .contrast:
-            return 0.5...1.5
+            return -100...100
         case .highlights:
-            return -1...1
+            return -100...100
         case .shadows:
-            return -1...1
+            return -100...100
         case .toneCurve:
-            return -1...1
+            return -100...100
         case .saturation:
-            return 0...2
+            return -100...100
         case .hsl: return -100...100
         case .temperature:
             return RawSettings.temperatureRange
@@ -106,7 +106,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .noiseReduction:
             return 0...1
         case .sharpening:
-            return 0...1.5
+            return 0...200
         case .vignette:
             return PhotoEffectsSettings.vignetteAmountRange
         case .grain:
@@ -119,23 +119,23 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .strength:
             return 0.01
         case .exposure:
-            return 0.1
+            return 0.05
         case .contrast:
-            return 0.05
+            return 1
         case .highlights, .shadows:
-            return 0.05
+            return 1
         case .toneCurve:
-            return 0.02
+            return 1
         case .saturation:
-            return 0.05
+            return 1
         case .temperature:
-            return 100
+            return 10
         case .tint:
             return 1
         case .noiseReduction:
             return 0.05
         case .sharpening:
-            return 0.05
+            return 1
         case .vignette, .grain:
             return 1
         case .hsl: return 1
@@ -149,15 +149,15 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .exposure:
             return settings.exposure
         case .contrast:
-            return settings.contrast
+            return (settings.contrast - 1) * 100
         case .highlights:
-            return settings.highlights
+            return -settings.highlights * 100
         case .shadows:
-            return settings.shadows
+            return settings.shadows * 100
         case .toneCurve:
-            return settings.toneCurve
+            return settings.toneCurve * 100
         case .saturation:
-            return settings.saturation
+            return (settings.saturation - 1) * 100
         case .hsl: return settings.hsl.progress * 100
         case .temperature:
             return settings.temperature
@@ -166,7 +166,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .noiseReduction:
             return settings.denoise.enabled ? 1 : 0
         case .sharpening:
-            return settings.sharpening
+            return settings.sharpening * 100
         case .vignette:
             return settings.photoEffects.vignetteAmount
         case .grain:
@@ -181,15 +181,15 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .exposure:
             settings.exposure = value
         case .contrast:
-            settings.contrast = value
+            settings.contrast = 1 + value / 100
         case .highlights:
-            settings.highlights = value
+            settings.highlights = -value / 100
         case .shadows:
-            settings.shadows = value
+            settings.shadows = value / 100
         case .toneCurve:
-            settings.toneCurve = value
+            settings.toneCurve = value / 100
         case .saturation:
-            settings.saturation = value
+            settings.saturation = 1 + value / 100
         case .hsl:
             if value == 0 { settings.hsl.reset() }
         case .temperature:
@@ -200,7 +200,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             settings.noiseReduction = 0
             settings.denoise = RawDenoiseSettings(enabled: value > 0)
         case .sharpening:
-            settings.sharpening = value
+            settings.sharpening = value / 100
         case .vignette:
             settings.photoEffects.vignetteAmount = value
         case .grain:
@@ -213,11 +213,13 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .strength:
             return String(format: "%.0f%%", value * 100)
         case .exposure:
-            return String(format: "%+.1f EV", value)
-        case .contrast, .saturation, .noiseReduction, .sharpening:
+            return String(format: "%+.2f EV", value)
+        case .contrast, .saturation, .sharpening:
+            return String(format: "%+.0f%%", value)
+        case .noiseReduction:
             return String(format: "%.2f", value)
         case .highlights, .shadows, .toneCurve:
-            return String(format: "%+.2f", value)
+            return String(format: "%+.0f%%", value)
         case .temperature:
             return String(format: "%.0fK", value)
         case .tint:

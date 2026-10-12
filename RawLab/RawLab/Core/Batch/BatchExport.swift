@@ -20,7 +20,7 @@ final class BatchExportModel: ObservableObject {
 
     init(source: BatchSourceSnapshot, editor: RawEditorViewModel) {
         var source = source
-        source.lookName = editor.availableLUTs.first { $0.id == source.settings.lutID }?.name ?? "中性"
+        source.lookName = source.settings.masterRecipe?.name ?? editor.availableLUTs.first { $0.id == source.settings.lutID }?.name ?? "中性"
         job = BatchExportJob(source: source, targets: [])
         do { journalStore = try BatchJournalStore.appStore() }
         catch { journalStore = nil; validationMessage = "无法保存批量任务：\(error.localizedDescription)" }
@@ -124,7 +124,7 @@ final class BatchExportModel: ObservableObject {
     private func run(failuresOnly: Bool) {
         guard canStart, let journalStore else { return }
         var snapshot = job.recovered(assetExists: PhotoLibraryBatchWriter.assetExists)
-        guard snapshot.source.settings.lutID == nil ||
+        guard !snapshot.source.settings.hasLook ||
                 snapshot.source.lookURL.map({ FileManager.default.isReadableFile(atPath: $0.path) }) == true else {
             validationMessage = "任务外观不可用，请放弃此任务并重新创建。"
             return
@@ -215,7 +215,7 @@ final class BatchExportModel: ObservableObject {
         guard !isRunning, !isPreparing else { throw BatchExportError.target("请等待当前任务完成。") }
         let snapshot = job.source
         return try await perform {
-            if snapshot.settings.lutID != nil && snapshot.lookURL.map({ FileManager.default.isReadableFile(atPath: $0.path) }) != true {
+            if snapshot.settings.hasLook && snapshot.lookURL.map({ FileManager.default.isReadableFile(atPath: $0.path) }) != true {
                 throw BatchExportError.global("任务外观不可用。")
             }
             let processor = Sony2FujiProcessor()

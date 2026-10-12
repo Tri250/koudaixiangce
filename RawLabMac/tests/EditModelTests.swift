@@ -100,12 +100,15 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         preset.open(a)
         preset.selectMasterRecipe(.hamadaDaylightV2)
         preset.settings.exposure = 0.6
+        preset.settings.setHSL(.hue, channel: 0, value: 37)
+        preset.settings.strength = 0.5
         try check(preset.saveEdits(), "preset adjustments save successfully")
         let restoredPreset = model()
         restoredPreset.open(a)
         try check(restoredPreset.settings.masterRecipeID == MasterRecipe.hamadaDaylightV2.id &&
                   restoredPreset.settings.exposure == 0.6 && restoredPreset.settings.shadows == 20 &&
-                  restoredPreset.settings.tint == 5,
+                  restoredPreset.settings.tint == 5 && restoredPreset.settings.hslSettings.value(.hue, channel: 0) == 37 &&
+                  restoredPreset.settings.renderHSLSettings.value(.hue, channel: 0) == 18.5,
                   "restoring a preset keeps later manual edits instead of reapplying preset defaults")
         let blocked = root.appendingPathComponent("blocked")
         for recipe in MasterRecipe.allRecipes {
@@ -113,14 +116,17 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
             catalogModel.open(a)
             catalogModel.selectMasterRecipe(recipe)
             try check(catalogModel.settings.masterRecipeID == recipe.id && catalogModel.selectedFilmID.isEmpty &&
-                      catalogModel.settings.tint == recipe.tintDelta && catalogModel.settings.contrast == recipe.contrastDelta,
+                      catalogModel.settings.tint == recipe.tintDelta && catalogModel.settings.contrast == recipe.contrastDelta &&
+                      catalogModel.settings.hslSettings == recipe.hsl,
                       "\(recipe.id): EditorModel applies the catalog entry and clears film")
             catalogModel.settings.exposure = 0.63
+            catalogModel.settings.setHSL(.saturation, channel: 4, value: -37)
             try check(catalogModel.saveEdits(), "\(recipe.id): recipe saves")
             let restored = model()
             restored.open(a)
             try check(restored.settings.masterRecipeID == recipe.id && restored.settings.exposure == 0.63 &&
-                      restored.settings.saturation == recipe.saturationDelta,
+                      restored.settings.saturation == recipe.saturationDelta &&
+                      restored.settings.hslSettings.value(.saturation, channel: 4) == -37,
                       "\(recipe.id): editor restoration preserves the recipe and manual change")
         }
         try Data().write(to: blocked)

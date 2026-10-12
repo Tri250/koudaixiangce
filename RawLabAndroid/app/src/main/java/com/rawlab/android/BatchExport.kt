@@ -337,7 +337,7 @@ class BatchExportModel(
         running = scope.launch(Dispatchers.IO) {
             try {
                 val materialized = configured
-                if (!materialized.source.sourceFile.isFile || (materialized.source.settings.film != "neutral" && materialized.source.lookFile?.isFile != true)) {
+                if (!materialized.source.sourceFile.isFile || ((materialized.source.settings.film != "neutral" || materialized.source.settings.recipeID != null) && materialized.source.lookFile?.isFile != true)) {
                     throw BatchGlobalFailure("任务来源或外观文件不可用，请重新创建批量任务。")
                 }
                 val journal = BatchJournal(journalRoot)
@@ -418,7 +418,7 @@ class BatchExportModel(
         val sourceCopy = inputFile(job.id, sourceIdentity, job.source.displayName)
         val look = synchronized(storage) {
             if (!sourceCopy.exists()) job.source.sourceFile.copyTo(sourceCopy)
-            storage.filmPath(job.source.settings.film)?.let { original ->
+            storage.lookPath(job.source.settings)?.let { original ->
                 File(journalRoot, "${job.id}/look.${original.extension}").also { original.copyTo(it, overwrite = true) }
             }
         }
@@ -519,11 +519,11 @@ internal object SettingsCodec {
         settings.effects.vignetteAmount, settings.effects.vignetteMidpoint, settings.effects.vignetteRoundness,
         settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
         settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-    ).plus(settings.exposureMode).plus(settings.hsl.packed().toList()).joinToString("|")
+    ).plus(settings.exposureMode).plus(settings.hsl.packed().toList()).plus(settings.recipeID ?: "").joinToString("|")
 
     fun decode(value: String): EditSettings {
         val fields = value.split('|')
-        require(fields.size in listOf(12, 16, 25, 50))
+        require(fields.size in listOf(12, 16, 25, 50, 51))
         return EditSettings(film = fields[0], strength = fields[1].toFloat(), exposure = fields[2].toFloat(),
             highlights = fields[3].toFloat(), shadows = fields[4].toFloat(), contrast = fields[5].toFloat(),
             toneCurve = fields[6].toFloat(), saturation = fields[7].toFloat(), customWb = fields[8].toBoolean(),
@@ -534,8 +534,9 @@ internal object SettingsCodec {
                 fields[14].toFloat(), fields[15].toFloat())
             else DenoiseSettings(),
             displayChromaDenoise = if (fields.size >= 25) parseChromaMode(fields[16]) else 0,
-            exposureMode = if (fields.size == 50) parseChromaMode(fields[25]) else 0,
-            hsl = if (fields.size == 50) HslSettings(fields.drop(26).map(String::toFloat)) else HslSettings(),
+            exposureMode = if (fields.size >= 50) parseChromaMode(fields[25]) else 0,
+            hsl = if (fields.size >= 50) HslSettings(fields.subList(26, 50).map(String::toFloat)) else HslSettings(),
+            recipeID = if (fields.size == 51) fields[50].ifEmpty { null } else null,
             effects = if (fields.size >= 25) PhotoEffectsSettings(
                 vignetteAmount = fields[17].toFloat(), vignetteMidpoint = fields[18].toFloat(),
                 vignetteRoundness = fields[19].toFloat(), vignetteFeather = fields[20].toFloat(),

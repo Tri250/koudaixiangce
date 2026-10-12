@@ -114,6 +114,18 @@ class PhotoStorage(
         }
         return destination
     }
+    fun lookPath(settings: EditSettings): File? {
+        val id = settings.recipeID ?: return filmPath(settings.film)
+        val recipe = MasterRecipe.load(context).first { it.id == id }
+        val destination = File(directory, recipe.lutFileName)
+        if (!destination.exists()) {
+            directory.mkdirs()
+            try {
+                context.assets.open("MasterRecipes/${recipe.lutFileName}").use { input -> destination.outputStream().use { input.copyTo(it) } }
+            } catch (error: Throwable) { destination.delete(); throw error }
+        }
+        return destination
+    }
 
     fun temporaryOutput(png: Boolean): File {
         directory.mkdirs()

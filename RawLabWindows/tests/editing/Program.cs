@@ -5,6 +5,35 @@ var root = Path.Combine(Path.GetTempPath(), "rawlab-edit-" + Guid.NewGuid());
 Directory.CreateDirectory(root);
 try
 {
+    Check(typeof(Adjustments).GetProperty("MasterRecipeID") != null, "master recipes must be part of persisted adjustments");
+    Check(MasterRecipe.All.Count == 14, "all fourteen shared recipes load");
+    foreach (var recipe in MasterRecipe.All) {
+        var preset = new Adjustments(); preset.ResolveWhiteBalance((5000, 8));
+        preset.Set(Parameter.Temperature, 8000); preset.Set(Parameter.Sharpening, 75);
+        preset.Hsl = preset.Hsl.WithValue(0, 7, 90); preset.ApplyMasterRecipe(recipe);
+        Check(preset.Hsl.Equals(recipe.Hsl.Settings()) && preset[Parameter.Exposure] == recipe.ExposureDelta &&
+              preset[Parameter.Highlights] == recipe.HighlightsDelta && preset[Parameter.Tint] == recipe.TintDelta,
+              recipe.Id + " overwrites visible settings and HSL");
+        Check(preset[Parameter.Temperature] == 8000 && preset[Parameter.Sharpening] == 75, "unrelated settings survive");
+        preset.Hsl = preset.Hsl.WithValue(0, 7, 37).WithValue(1, 5, -80);
+        var originalHsl = preset.Hsl;
+        foreach (var strength in new[] { 0.0, .5, 1, 2 }) {
+            preset.Set(Parameter.Strength, strength * 100);
+            var request = preset.Request("fixture.ARW", "look.cube", 64, null);
+            Check(Math.Abs(request.ExposureEv - recipe.ExposureDelta * strength) < 1e-5 &&
+                  Math.Abs(request.Highlights + recipe.HighlightsDelta * strength / 100) < 1e-5 &&
+                  Math.Abs(request.Contrast - (1 + recipe.ContrastDelta * strength / 100)) < 1e-5,
+                  "recipe strength scales current controls");
+            Check(preset.RenderHsl.Value(0, 7) == 37 * strength &&
+                  preset.RenderHsl.Value(1, 5) == Math.Max(-100, -80 * strength) && preset.Hsl.Equals(originalHsl),
+                  "HSL scaling preserves fractions and limits without changing visible values");
+            var restoredRecipe = System.Text.Json.JsonSerializer.Deserialize<AdjustmentSnapshot>(
+                System.Text.Json.JsonSerializer.Serialize(preset.Capture()))!.Restore();
+            Check(restoredRecipe.MasterRecipeID == recipe.Id && restoredRecipe.RenderHsl.Equals(preset.RenderHsl), "recipe snapshot roundtrip");
+        }
+        preset.ClearMasterRecipe();
+        Check(preset.MasterRecipeID == null && preset.RenderHsl.Equals(originalHsl), "ordinary HSL remains independent of strength");
+    }
     FeatureRegressionChecks.Run(Check);
     var a = Path.Combine(root, "a", "same.ARW");
     var b = Path.Combine(root, "b", "same.ARW");

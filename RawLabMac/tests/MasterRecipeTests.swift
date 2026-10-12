@@ -31,6 +31,13 @@ struct MasterRecipeTests {
                            "iwona_fairy_tale", "cinestill_800t", "wilson_lee_golden", "luizclas_portrait",
                            "ivan_ivanchenko_twilight", "jungraphy_neon"]
         check(MasterRecipe.allRecipes.map(\.id) == expectedIDs, "All fourteen recipe IDs are registered in stable order")
+        let catalogURL = URL(fileURLWithPath: "Shared/master-recipes.json")
+        if let data = try? Data(contentsOf: catalogURL),
+           let shared = try? JSONDecoder().decode([MasterRecipe].self, from: data) {
+            check(shared == MasterRecipe.allRecipes, "All platforms share the exact fourteen recipe definitions")
+        } else {
+            check(false, "Shared master recipe catalog exists and decodes")
+        }
         for entry in MasterRecipe.allRecipes {
             check(entry.lutURL() != nil, "\(entry.id): LUT resolves")
             if let artwork = entry.artworkURL(),
@@ -51,8 +58,16 @@ struct MasterRecipeTests {
                   applied.highlights == entry.highlightsDelta && applied.contrast == entry.contrastDelta &&
                   applied.saturation == entry.saturationDelta && applied.tint == entry.tintDelta,
                   "\(entry.id): preset overwrites all six corresponding controls")
-            check(applied.temperature == 8000 && applied.sharpening == 75 && applied.hslSettings == originalHSL,
+            check(applied.temperature == 8000 && applied.sharpening == 75,
                   "\(entry.id): unrelated controls are preserved")
+            check(applied.hslSettings != originalHSL,
+                  "\(entry.id): preset replaces corresponding HSL controls")
+            check(entry.hsl.isValid && applied.hslSettings == entry.hsl,
+                  "\(entry.id): all three HSL axes use the visible preset values")
+            applied.setHSL(.hue, channel: 7, value: 37)
+            applied.setHSL(.saturation, channel: 5, value: -61)
+            applied.setHSL(.lightness, channel: 3, value: 19)
+            let editedHSL = applied.hslSettings
             for strength in [0.0, 0.5, 1.0, 2.0] {
                 applied.strength = strength
                 var scaled = sony2fuji_request()
@@ -64,6 +79,15 @@ struct MasterRecipeTests {
                       abs(Double(scaled.saturation) - (1 + entry.saturationDelta * strength / 100)) < 1e-5 &&
                       abs(Double(scaled.tint) - entry.tintDelta * strength) < 1e-5,
                       "\(entry.id): \(Int(strength * 100))% scales all six parameters")
+                let renderedHSL = applied.renderHSLSettings
+                for axis in HSLAxis.allCases {
+                    for channel in 0..<8 {
+                        let expected = min(100, max(-100, editedHSL.value(axis, channel: channel) * strength))
+                        check(renderedHSL.value(axis, channel: channel) == expected,
+                              "\(entry.id): \(Int(strength * 100))% scales \(axis.rawValue) channel \(channel) without rounding")
+                    }
+                }
+                check(applied.hslSettings == editedHSL, "\(entry.id): rendering does not rewrite visible HSL")
             }
             applied.exposure = 0.63
             let restored = try JSONDecoder().decode(Adjustments.self, from: JSONEncoder().encode(applied))
@@ -102,6 +126,32 @@ struct MasterRecipeTests {
         customLegacy.apply(to: &customRequest)
         check(customRequest.temperature == 8000 && customRequest.tint == 55 && customLegacy.tint == 45,
               "Legacy custom WB is converted from absolute tint to a camera-relative recipe offset")
+
+        var oldHSL = Adjustments()
+        oldHSL.applyMasterRecipe(recipe)
+        oldHSL.setHSL(.saturation, channel: 5, value: -80)
+        oldHSL.strength = 0.5
+        var versionTwo = try JSONSerialization.jsonObject(with: JSONEncoder().encode(oldHSL)) as! [String: Any]
+        versionTwo["masterRecipeSettingsVersion"] = 2
+        let legacyHSL = try JSONDecoder().decode(Adjustments.self, from: JSONSerialization.data(withJSONObject: versionTwo))
+        check(legacyHSL.hslSettings == oldHSL.hslSettings && legacyHSL.renderHSLSettings == oldHSL.hslSettings,
+              "Version two records retain their independent HSL pixels and visible values")
+        let legacyHSLAgain = try JSONDecoder().decode(Adjustments.self, from: JSONEncoder().encode(legacyHSL))
+        check(legacyHSLAgain == legacyHSL, "Version two HSL compatibility survives save and reload")
+        var legacyZero = legacyHSL
+        legacyZero.strength = 0
+        check(legacyZero.renderHSLSettings == oldHSL.hslSettings,
+              "Old zero-strength records retain formerly independent HSL")
+        legacyZero.applyMasterRecipe(recipe)
+        check(legacyZero.hslSettings == recipe.hsl && legacyZero.strength == 1,
+              "Explicit reapplication adopts the new HSL preset semantics")
+        legacyZero.setHSL(.lightness, channel: 3, value: 80)
+        legacyZero.strength = 2
+        check(legacyZero.renderHSLSettings.value(.lightness, channel: 3) == 100,
+              "Two hundred percent clamps HSL at the native range")
+        legacyZero.clearMasterRecipe()
+        check(legacyZero.renderHSLSettings == legacyZero.hslSettings,
+              "Clearing the recipe leaves visible HSL unscaled")
 
         // 2. Adjustments and strength scaling verification
         var settings = Adjustments()

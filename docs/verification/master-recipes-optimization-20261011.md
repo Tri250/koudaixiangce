@@ -2,6 +2,8 @@
 
 日期：2026-10-11。范围：旧快照 `b175b2837c3fe8661bd5b34eed49cfe07b647b8a` 的隔离修复工作树，macOS，全部 14 个配方。优化期间未提交或推送；后续用户已授权向 `development` 提交 PR 并合并。原工作区、NAS 原图、原始 RAW、已有模型代码和 checkpoint 均未修改。
 
+本文保留此前 LUT 优化及 PR #19 的验收记录。后续显式 HSL 配方参数、整体缩放和参考校准见 [HSL 配方校准](master-recipes-hsl-20261011.md)；下文“配方不覆盖 HSL”仅描述此前版本。
+
 ## 方法与来源
 
 - 按用户本次指定使用 `master/color-grading-masters` 的 13 组、703 张成片参考，以及既有批准 manifest 中滨田的明亮日光组。没有真实同内容 before/after 配对。

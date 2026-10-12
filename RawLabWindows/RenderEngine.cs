@@ -30,6 +30,7 @@ internal sealed class RenderEngine : IDisposable
     public void Dispose() {previews.Clear();original=null;session.Dispose();}
     public double AutoExposure(string path, Adjustments settings)
     {
+        settings = PrepareRecipe(path, settings);
         Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
         var request=settings.Request(path,null,0,null);
         Native.Check(Native.sony2fuji_session_estimate_auto_exposure(session,ref request,out var ev));
@@ -75,8 +76,9 @@ internal sealed class RenderEngine : IDisposable
     }
     public RenderedImage? Render(string path, Adjustments settings, string? lut, int edge, bool interactive = false, string? output = null, bool statistics = true, bool clipping = true, int? longEdge = null)
     {
+        settings = PrepareRecipe(path, settings);
         Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
-        var hsl=settings.Hsl.NativeConfig();
+        var hsl=settings.RenderHsl.NativeConfig();
         Native.Check(Native.sony2fuji_session_set_hsl(session,ref hsl));
         Native.Check(Native.sony2fuji_session_set_interactive_preview(session,interactive && output == null ? 1 : 0));
         var denoise=settings.Denoise.NativeConfig();
@@ -108,6 +110,17 @@ internal sealed class RenderEngine : IDisposable
                 calibrated ? (Math.Round(temperature),Math.Round(tint)) : null,LastBackend);
         }
         finally { Native.sony2fuji_release_buffer(ref buffer); Native.sony2fuji_release_buffer(ref mask); }
+    }
+    private Adjustments PrepareRecipe(string path, Adjustments settings)
+    {
+        if (settings.MasterRecipeID == null || (settings.CameraWhiteBalance && settings[Parameter.Tint] * settings[Parameter.Strength] == 0)) return settings;
+        // 配方色调属于目标 RAW 的拍摄白平衡，不沿用冻结来源的相机值。
+        var neutral = new Adjustments { ExposureMode = settings.ExposureMode };
+        var camera = Render(path, neutral, null, 32, statistics: false, clipping: false)?.WhiteBalance
+            ?? throw new InvalidOperationException("此 RAW 无法解析拍摄白平衡，不能应用配方色调。");
+        var prepared = settings.Clone();
+        prepared.ResolveWhiteBalance(camera);
+        return prepared;
     }
     private static unsafe BitmapSource Bitmap(Native.Buffer buffer,bool opaque=true)
     {

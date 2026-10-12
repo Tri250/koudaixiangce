@@ -20,6 +20,9 @@ val prepareAssets by tasks.registering(Sync::class) {
         exclude("*FLog2-709*", "*WDR*")
     }
     from(repo.resolve("RawLabMac/Resources/FilmIcons")) { into("artwork"); include("*.png") }
+    from(repo.resolve("Shared/master-recipes.json"))
+    from(repo.resolve("RawLabMac/Resources/MasterRecipes")) { into("MasterRecipes"); include("*.cube") }
+    from(repo.resolve("RawLabMac/Resources/MasterRecipeIcons")) { into("MasterRecipeIcons"); include("*.png") }
     from(repo.resolve("RawLabMac/Resources")) { include("AppIcon.png") }
     from(repo.resolve("lutools/third_party")) { into("licenses"); include("*LICENSE*") }
     from(repo.resolve("RawLabMac/Resources/Licenses")) {

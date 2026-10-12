@@ -12,7 +12,7 @@ enum HSLAxis: String, CaseIterable, Identifiable {
     }
 }
 
-struct HSLSettings: Codable, Equatable {
+struct HSLSettings: Codable, Equatable, Hashable {
     static let channelNames = ["红", "橙", "黄", "绿", "青", "蓝", "紫", "洋红"]
     private(set) var hue = [Double](repeating: 0, count: 8)
     private(set) var saturation = [Double](repeating: 0, count: 8)
@@ -45,5 +45,13 @@ struct HSLSettings: Codable, Equatable {
         if let channel {
             for axis in HSLAxis.allCases { set(axis, channel: channel, value: 0) }
         } else { self = HSLSettings() }
+    }
+
+    func scaled(by strength: Double) -> HSLSettings {
+        var result = self
+        result.hue = hue.map { min(100, max(-100, $0 * strength)) }
+        result.saturation = saturation.map { min(100, max(-100, $0 * strength)) }
+        result.lightness = lightness.map { min(100, max(-100, $0 * strength)) }
+        return result
     }
 }

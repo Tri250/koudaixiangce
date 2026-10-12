@@ -32,7 +32,7 @@ extension ContentView {
     var editingLocked: Bool { isImporting || isSaving || batchModel?.isRunning == true }
     var editorBusy: Bool { viewModel.isBusy || viewModel.isLoadingLUTs || editingLocked }
     var selectedFilmName: String {
-        viewModel.availableLUTs.first { $0.id == settings.lutID }?.name ?? (settings.lutID == nil ? "中性" : "外观不可用")
+        settings.masterRecipe?.name ?? viewModel.availableLUTs.first { $0.id == settings.lutID }?.name ?? (settings.lutID == nil ? "中性" : "外观不可用")
     }
 
     var currentPreviewImage: UIImage? {
@@ -50,6 +50,7 @@ extension ContentView {
     }
 
     func adjustmentProgress(_ adjustment: AdjustmentKind) -> Double {
+        if adjustment == .tint && settings.masterRecipeID != nil { return settings.tint / 150 }
         if viewModel.sourceKind == .raw,
            adjustment == .temperature || adjustment == .tint {
             guard settings.whiteBalanceMode == .custom, let camera = viewModel.rawWhiteBalance else { return 0 }
@@ -89,11 +90,11 @@ extension ContentView {
         Binding(
             get: { adjustment.value(from: settings) },
             set: { value in
-                var updated = viewModel.sourceKind == .raw && (adjustment == .temperature || adjustment == .tint)
+                var updated = viewModel.sourceKind == .raw && (adjustment == .temperature || (adjustment == .tint && settings.masterRecipeID == nil))
                     ? manualWhiteBalanceSettings : settings
                 adjustment.setValue(value, in: &updated)
                 if viewModel.sourceKind == .raw,
-                   adjustment == .temperature || adjustment == .tint {
+                   (adjustment == .temperature || adjustment == .tint) && !(updated.masterRecipeID != nil && adjustment == .tint) {
                     updated.whiteBalanceMode = .custom
                 }
                 applySettingsChange(updated)
@@ -106,10 +107,14 @@ extension ContentView {
         adjustment.reset(in: &updated)
         if viewModel.sourceKind == .raw,
            adjustment == .temperature || adjustment == .tint {
-            updated.whiteBalanceMode = .camera
             if let whiteBalance = viewModel.rawWhiteBalance {
-                updated.temperature = whiteBalance.temperature
-                updated.tint = whiteBalance.tint
+                if adjustment == .temperature { updated.temperature = whiteBalance.temperature }
+                else { updated.tint = updated.masterRecipeID == nil ? whiteBalance.tint : 0 }
+                if updated.masterRecipeID != nil {
+                    if adjustment == .temperature { updated.whiteBalanceMode = .camera }
+                } else {
+                    updated.whiteBalanceMode = updated.temperature == whiteBalance.temperature && updated.tint == whiteBalance.tint ? .camera : .custom
+                }
             }
         }
         applySettingsChange(updated)
@@ -121,12 +126,12 @@ extension ContentView {
            settings.whiteBalanceMode == .camera,
            let whiteBalance = viewModel.rawWhiteBalance {
             updated.temperature = whiteBalance.temperature
-            updated.tint = whiteBalance.tint
+            if updated.masterRecipeID == nil { updated.tint = whiteBalance.tint }
         }
         updated.whiteBalanceMode = mode
         if mode == .camera, let whiteBalance = viewModel.rawWhiteBalance {
             updated.temperature = whiteBalance.temperature
-            updated.tint = whiteBalance.tint
+            updated.tint = updated.masterRecipeID == nil ? whiteBalance.tint : 0
         }
         applySettingsChange(updated)
     }
@@ -141,6 +146,7 @@ extension ContentView {
     }
 
     var displayedTint: Double {
+        if settings.masterRecipeID != nil { return settings.tint }
         if viewModel.sourceKind == .raw,
            settings.whiteBalanceMode == .camera,
            let whiteBalance = viewModel.rawWhiteBalance {
