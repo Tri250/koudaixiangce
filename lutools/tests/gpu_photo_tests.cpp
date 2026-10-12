@@ -389,6 +389,11 @@ int main() {
     const std::vector<unsigned char> wrapPixels{230,20,21, 230,21,20, 220,20,20,
         20,220,220, 20,20,220, 180,20,220, 0,0,0, 128,128,128, 255,255,255};
     compareForcedCase(session, forced, baseRequest(wrapPixels, 9, 1), "HSL red wrap and achromatic pixels");
+    const std::vector<unsigned char> nearGrayPixels{230,229,229, 229,230,229,
+        229,229,230, 225,224,225};
+    auto nearGray = baseRequest(nearGrayPixels, 4, 1);
+    nearGray.exposure_ev = 4;
+    compareForcedCase(session, forced, nearGray, "HSL near-gray lightness remains stable");
     for (bool film : {false, true}) for (bool preview : {false, true}) {
         hslRequest.lut_path = film ? hslLutUtf8.c_str() : nullptr;
         hslRequest.lut_strength = film ? 1.2f : 0;

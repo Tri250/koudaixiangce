@@ -3,7 +3,7 @@
 Release history is kept here rather than in the project READMEs. Detailed
 release notes include assets, installation requirements and validation limits.
 
-## [Unreleased]
+## [0.6.0] - 2026-10-12
 
 ### Added
 
@@ -29,6 +29,10 @@ release notes include assets, installation requirements and validation limits.
 
 ### Fixed
 
+- Fade hue-dependent HSL lightness offsets near gray consistently on CPU,
+  Metal, GLES and D3D11, preventing tiny color differences from becoming
+  brightness speckles under strong HSL settings.
+
 - Align iOS highlight direction, percentage ranges, sharpening maximum and
   slider steps with macOS while retaining old native stored values.
 - Keep existing macOS recipe records and frozen jobs compatible with their
@@ -36,10 +40,12 @@ release notes include assets, installation requirements and validation limits.
 - Invalidate macOS RAW/WB caches when a file is replaced at the same path with
   unchanged size and modification time.
 
-These are verified development changes, not a new published version. Version
-and build identifiers have not been advanced.
+Version `0.6.0`, build `10`, with all clients rebuilt from the release source.
 
-See the [Chinese update notes](docs/releases/master-recipes-update.md),
+See the [v0.6.0 release notes](docs/releases/v0.6.0.md),
+[source rebuild instructions](docs/releases/v0.6.0-source.md),
+[release verification](docs/verification-v0.6.0.md),
+[Chinese update notes](docs/releases/master-recipes-update.md),
 [cross-platform verification](docs/verification/cross-platform-master-recipes-20261011.md)
 and [recipe HSL calibration](docs/verification/master-recipes-hsl-20261011.md).
 
@@ -165,6 +171,7 @@ Windows uses Direct3D 11, Mac uses Metal, and Android uses GLES, with automatic 
 
 See [macOS v0.1 release notes](docs/releases/v0.1.md).
 
+[0.6.0]: https://github.com/dancancer/RawLab/releases/tag/v0.6.0
 [0.5.0]: https://github.com/dancancer/RawLab/releases/tag/v0.5.0
 [0.2.1]: https://github.com/dancancer/RawLab/releases/tag/v0.2.1
 [0.1]: https://github.com/dancancer/RawLab/releases/tag/v0.1

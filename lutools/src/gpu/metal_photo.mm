@@ -439,6 +439,8 @@ inline float3 applyHsl(float3 pixel, constant Params& params) {
     float dh = params.hslHue[lower] * (1.0f - blend) + params.hslHue[upper] * blend;
     float ds = params.hslSaturation[lower] * (1.0f - blend) + params.hslSaturation[upper] * blend;
     float dl = params.hslLightness[lower] * (1.0f - blend) + params.hslLightness[upper] * blend;
+    float colorWeight = clamp(delta * 255.0f, 0.0f, 1.0f);
+    dl *= colorWeight * colorWeight * (3.0f - 2.0f * colorWeight);
     if (dh == 0.0f && ds == 0.0f && dl == 0.0f) return pixel;
     float lightness = clamp((maximum + minimum) * 0.5f, 0.0f, 1.0f);
     float saturation = delta / max(1e-6f, 1.0f - abs(2.0f * lightness - 1.0f));
