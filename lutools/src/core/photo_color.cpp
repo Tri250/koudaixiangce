@@ -40,7 +40,11 @@ RGB applyHsl(const RGB& pixel, const HslOptions& options) {
     const auto value = [&](const std::array<float,8>& values) {
         return values[lower]*(1-blend) + values[upper]*blend;
     };
-    const float dh = value(options.hue), ds = value(options.saturation), dl = value(options.lightness);
+    const float dh = value(options.hue), ds = value(options.saturation);
+    float dl = value(options.lightness);
+    // 近灰色的色相不稳定，避免浮点误差被放大为分色明度跳变。
+    const float colorWeight = std::clamp(delta * 255.f, 0.f, 1.f);
+    dl *= colorWeight * colorWeight * (3 - 2 * colorWeight);
     if (dh == 0 && ds == 0 && dl == 0) return pixel;
     float lightness = std::clamp((maximum+minimum)*.5f, 0.0f, 1.0f);
     float saturation = delta / std::max(1e-6f, 1-std::abs(2*lightness-1));

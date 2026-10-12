@@ -73,6 +73,8 @@ float3 applyHsl(float3 pixel) {
     float dh = hslHue[lower / 4][lower % 4] * (1.0 - blend) + hslHue[upper / 4][upper % 4] * blend;
     float ds = hslSaturation[lower / 4][lower % 4] * (1.0 - blend) + hslSaturation[upper / 4][upper % 4] * blend;
     float dl = hslLightness[lower / 4][lower % 4] * (1.0 - blend) + hslLightness[upper / 4][upper % 4] * blend;
+    float colorWeight = clamp(delta * 255.0, 0.0, 1.0);
+    dl *= colorWeight * colorWeight * (3.0 - 2.0 * colorWeight);
     if (dh == 0.0 && ds == 0.0 && dl == 0.0) return pixel;
     float lightness = saturate((maximum + minimum) * 0.5);
     float saturation = delta / max(1e-6, 1.0 - abs(2.0 * lightness - 1.0));

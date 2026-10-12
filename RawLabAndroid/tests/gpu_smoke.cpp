@@ -24,10 +24,13 @@ struct Session {
     ~Session() { sony2fuji_session_destroy(value); }
 };
 
-std::vector<uint8_t> render(Session& session, const sony2fuji_request& request, bool gpu) {
+std::vector<uint8_t> render(Session& session, const sony2fuji_request& request, bool gpu,
+    uint32_t* width = nullptr, uint32_t* height = nullptr) {
     sony2fuji_buffer output{};
     require(sony2fuji_process(session.value, &request, &output) == SONY2FUJI_STATUS_OK, "render");
     std::vector<uint8_t> pixels(static_cast<uint8_t*>(output.data), static_cast<uint8_t*>(output.data) + output.size_bytes);
+    if (width) *width = output.width;
+    if (height) *height = output.height;
     sony2fuji_release_buffer(&output);
     require(sony2fuji_session_get_last_backend(session.value) == (gpu ? SONY2FUJI_BACKEND_GLES : SONY2FUJI_BACKEND_CPU), "actual backend");
     return pixels;
@@ -171,6 +174,13 @@ int main(int argc, char** argv) {
     wrap.lut_path = nullptr; wrap.contrast = wrap.saturation = 1;
     wrap.highlights = wrap.shadows = wrap.tone_curve = 0;
     compare(render(cpu, wrap, false), render(forced, wrap, true), "HSL red wrap and achromatic pixels");
+    const std::vector<uint8_t> nearGrayPixels{230,229,229, 229,230,229,
+        229,229,230, 225,224,225};
+    auto nearGray = wrap;
+    nearGray.input_pixels = nearGrayPixels.data();
+    nearGray.input_width = nearGray.target_width = 4;
+    nearGray.sharpening = 0; nearGray.exposure_ev = 4;
+    compare(render(cpu, nearGray, false), render(forced, nearGray, true), "HSL near-gray lightness remains stable");
     compare(render(cpu, request, false), render(forced, request, true), "HSL tone/LUT FINAL");
     auto hslPreview = request;
     hslPreview.intent = SONY2FUJI_INTENT_PREVIEW;
@@ -203,42 +213,52 @@ int main(int argc, char** argv) {
     request.intent = SONY2FUJI_INTENT_PREVIEW; request.preview_long_edge = 1600;
     request.size_mode = SONY2FUJI_SIZE_NATIVE;
     request.output_target = SONY2FUJI_TARGET_BUFFER; request.output_format = SONY2FUJI_OUTPUT_RGBA8;
-    compare(render(cpu, request, false), render(forced, request, true), "RAW preview");
+    compare(render(cpu, request, false), render(forced, request, true), "RAW combined HSL/effects/wavelet/chroma preview");
+    // 基础 RAW/代理测试不继承上面的持久化滤镜状态。
+    for (Session* completed : {&cpu, &forced}) {
+        sony2fuji_session_destroy(completed->value);
+        completed->value = nullptr;
+    }
+    Session rawCPU(SONY2FUJI_GPU_OFF), rawGPU(SONY2FUJI_GPU_FORCE);
+    compare(render(rawCPU, request, false), render(rawGPU, request, true), "RAW preview");
     for (float exposure : {-1.f, .7f}) {
         request.exposure_ev = exposure;
-        compare(render(cpu, request, false), render(forced, request, true), "cached RAW exposure");
+        compare(render(rawCPU, request, false), render(rawGPU, request, true), "cached RAW exposure");
     }
     request.exposure_ev = 0;
-    const auto cpuMs = benchmark(cpu, request, false);
-    const auto gpuMs = benchmark(forced, request, true);
+    const auto cpuMs = benchmark(rawCPU, request, false);
+    const auto gpuMs = benchmark(rawGPU, request, true);
     std::cout << "BENCH warm 1600px CPU_ms=" << cpuMs << " GLES_ms=" << gpuMs << " speedup=" << cpuMs / gpuMs << std::endl;
     request.wb_mode = SONY2FUJI_WB_TEMPERATURE; request.temperature = 4200; request.tint = 12;
-    sony2fuji_session_set_interactive_preview(cpu.value, 1);
-    sony2fuji_session_set_interactive_preview(forced.value, 1);
-    const auto proxyCpu = render(cpu, request, false), proxyGpu = render(forced, request, true);
+    sony2fuji_session_set_interactive_preview(rawCPU.value, 1);
+    sony2fuji_session_set_interactive_preview(rawGPU.value, 1);
+    const auto proxyCpu = render(rawCPU, request, false), proxyGpu = render(rawGPU, request, true);
     compare(proxyCpu, proxyGpu, "WB interactive RAW");
-    sony2fuji_session_set_interactive_preview(cpu.value, 0);
-    sony2fuji_session_set_interactive_preview(forced.value, 0);
-    const auto exactCpu = render(cpu, request, false), exactGpu = render(forced, request, true);
+    sony2fuji_session_set_interactive_preview(rawCPU.value, 0);
+    sony2fuji_session_set_interactive_preview(rawGPU.value, 0);
+    const auto exactCpu = render(rawCPU, request, false), exactGpu = render(rawGPU, request, true);
     compare(exactCpu, exactGpu, "WB exact RAW after proxy");
     require(proxyGpu != exactGpu, "proxy cache cannot supply exact render");
     request.wb_mode = SONY2FUJI_WB_CAMERA; request.temperature = 6500; request.tint = 0;
     request.intent = SONY2FUJI_INTENT_FINAL;
-    compare(render(cpu, request, false), render(forced, request, true), "native full-resolution pixels");
+    uint32_t nativeWidth = 0, nativeHeight = 0;
+    const auto nativeGPU = render(rawGPU, request, true, &nativeWidth, &nativeHeight);
+    compare(render(rawCPU, request, false), nativeGPU, "native full-resolution pixels");
     request.output_target = SONY2FUJI_TARGET_FILE; request.output_format = SONY2FUJI_OUTPUT_PNG;
     const std::string out = "full-gpu.png";
     request.output_path = out.c_str();
     const auto start = std::chrono::steady_clock::now();
-    require(sony2fuji_process(forced.value, &request, nullptr) == SONY2FUJI_STATUS_OK, "full native 16-bit PNG GPU export");
-    require(sony2fuji_session_get_last_backend(forced.value) == SONY2FUJI_BACKEND_GLES, "export actually used GLES");
+    require(sony2fuji_process(rawGPU.value, &request, nullptr) == SONY2FUJI_STATUS_OK, "full native 16-bit PNG GPU export");
+    require(sony2fuji_session_get_last_backend(rawGPU.value) == SONY2FUJI_BACKEND_GLES, "export actually used GLES");
     std::cout << "BENCH GPU native PNG_ms=" << std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count() << std::endl;
     unsigned char header[26]{};
     std::ifstream file(out, std::ios::binary); file.read(reinterpret_cast<char*>(header), sizeof(header));
     auto dimension = [&](int offset) { return (uint32_t(header[offset]) << 24) | (uint32_t(header[offset + 1]) << 16) | (uint32_t(header[offset + 2]) << 8) | header[offset + 3]; };
-    require(dimension(16) == 7008 && dimension(20) == 4672 && header[24] == 16, "native dimensions and bit depth");
+    require(dimension(16) == nativeWidth && dimension(20) == nativeHeight && header[24] == 16,
+        "native dimensions and bit depth");
     const std::string cpuOut = "full-cpu.png";
     request.output_path = cpuOut.c_str();
     const auto cpuStart = std::chrono::steady_clock::now();
-    require(sony2fuji_process(cpu.value, &request, nullptr) == SONY2FUJI_STATUS_OK, "CPU native PNG export baseline");
+    require(sony2fuji_process(rawCPU.value, &request, nullptr) == SONY2FUJI_STATUS_OK, "CPU native PNG export baseline");
     std::cout << "BENCH CPU native PNG_ms=" << std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cpuStart).count() << std::endl;
 }

@@ -110,6 +110,44 @@ static void hslSession() {
     sony2fuji_session_destroy(session);
 }
 
+static void hslNearGrayContinuity() {
+    HslOptions options;
+    for (size_t channel = 0; channel < 8; ++channel) {
+        options.hue[channel] = channel % 2 == 0 ? -100 : 100;
+        options.saturation[channel] = channel % 2 == 0 ? 100 : -100;
+        options.lightness[channel] = channel % 2 == 0 ? -100 : 100;
+    }
+    for (float level : {.02f, .25f, .5f, .98f}) {
+        for (float epsilon : {0.f, 5e-7f, 2e-6f, 1e-5f, 1e-4f}) {
+            for (const RGB pixel : {RGB(level + epsilon, level, level),
+                     RGB(level, level + epsilon, level), RGB(level, level, level + epsilon)}) {
+                const auto adjusted = applyHsl(pixel, options);
+                assert(std::abs(adjusted.r - pixel.r) < 1.f / 255);
+                assert(std::abs(adjusted.g - pixel.g) < 1.f / 255);
+                assert(std::abs(adjusted.b - pixel.b) < 1.f / 255);
+            }
+        }
+    }
+    options = {};
+    options.lightness[0] = 40;
+    for (float spread : {.5f / 255, 1.f / 255, 2.f / 255}) {
+        const RGB pixel(.2f + spread, .2f, .2f);
+        const auto adjusted = applyHsl(pixel, options);
+        const float sourceLightness = .2f + spread * .5f;
+        const float weight = spread < 1.f / 255 ? .5f : 1.f;
+        const float lightness = (std::max({adjusted.r, adjusted.g, adjusted.b}) +
+            std::min({adjusted.r, adjusted.g, adjusted.b})) * .5f;
+        assert(std::abs(lightness - (sourceLightness + .2f * weight)) < 1e-5f);
+    }
+    options.lightness[0] = 60;
+    const float boundary = 1.f / 255;
+    const auto below = applyHsl(RGB(.4f + boundary - 1e-7f, .4f, .4f), options);
+    const auto above = applyHsl(RGB(.4f + boundary + 1e-7f, .4f, .4f), options);
+    assert(std::abs(below.r - above.r) < 1e-5f);
+    assert(std::abs(below.g - above.g) < 1e-5f);
+    assert(std::abs(below.b - above.b) < 1e-5f);
+}
+
 static void autoExposure() {
     sony2fuji_session* session = nullptr;
     assert(sony2fuji_session_create(&session) == SONY2FUJI_STATUS_OK);
@@ -176,7 +214,7 @@ static void rawExposure(const char* path) {
 }
 
 int main(int argc, char** argv) {
-    hslAlgorithm(); hslSession(); autoExposure();
+    hslAlgorithm(); hslNearGrayContinuity(); hslSession(); autoExposure();
     if (argc > 1) rawExposure(argv[1]);
     else std::cout << "Real RAW fixture not supplied; RAW coverage skipped\n";
     std::cout << "HSL and automatic exposure tests passed\n";

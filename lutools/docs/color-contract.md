@@ -59,6 +59,12 @@ channels. Hue shifts by 0.3 degrees per control unit, saturation multiplies by
 `1 + value/100`, and lightness adds `value/200`; saturation/lightness clamp to
 [0,1]. Achromatic pixels remain unchanged. A zero configuration is an exact
 bypass. These controls are an application convention, not a Lightroom match.
+For RGB channel spreads below one RGB8 code value (`1/255`), hue-dependent
+lightness offsets fade with `smoothstep(0,1/255,max(rgb)-min(rgb))`. Hue is
+ill-conditioned near gray; applying a full lightness offset there amplified
+CPU/GPU floating-point differences into visible brightness speckles. This fade
+is shared by CPU and all three GPU backends, leaves hue/saturation controls
+unchanged and becomes exactly one at or above `1/255`.
 RGB/HSL conversion follows the standard definition in
 [CSS Color](https://www.w3.org/TR/css-color-4/#hsl-to-rgb).
 
