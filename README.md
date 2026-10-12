@@ -23,6 +23,13 @@ film looks do not promise an exact match to in-camera JPEGs.
   existing saved exposure baselines are preserved.
 - Built-in film looks with 0-200% strength, compatible CUBE/RLOOK imports and
   neutral-versus-edited comparison.
+- Fourteen master recipes with style artwork and matching controls across all
+  clients. Applying a recipe replaces six adjustments and all 24 HSL values;
+  0-200% strength scales the current recipe controls, HSL and LUT together.
+  Saved edits and frozen batches preserve manual changes and per-target RAW WB.
+- Drag-only mobile film/recipe lists and desktop overflow buttons, plus adaptive
+  iPad portrait/landscape layouts. iOS adjustment ranges, steps and highlight
+  direction match macOS without changing older saved rendering values.
 - Linear-light wavelet denoising with separate luma, chroma and coarse-chroma
   controls, plus matching vignette and deterministic grain on all four clients.
   Metal, GLES 3.1 and D3D11 accelerate the shared denoising and effects kernels.
@@ -50,6 +57,7 @@ film looks do not promise an exact match to in-camera JPEGs.
 ## Downloads and Documentation
 
 - [Download the latest release](https://github.com/dancancer/RawLab/releases/latest)
+- [v0.6.0 release notes (build 10)](docs/releases/v0.6.0.md)
 - [Installation and distribution notes](docs/installation.md)
 - [Changelog](CHANGELOG.md)
 - [Windows client](RawLabWindows/README.md)

@@ -16,9 +16,11 @@ The left pane is the neutral render and the right pane is Velvia. Film selection
 
 ## 构建和启动 / Build and Launch
 
-预编译版本：[GitHub Release v0.5.1](https://github.com/dancancer/RawLab/releases/tag/v0.5.1)。按芯片下载 [Apple Silicon arm64](https://github.com/dancancer/RawLab/releases/download/v0.5.1/RawLab-Mac-0.5.1-macOS15-arm64.zip) 或 [Intel x86_64](https://github.com/dancancer/RawLab/releases/download/v0.5.1/RawLab-Mac-0.5.1-macOS15-x86_64.zip)，解压后可将 `RawLab Mac.app` 放入 Applications。两版均以 macOS 15.0 为最低版本；采用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证，macOS 可能阻止默认打开。尚未在 macOS 15 真机验证；Intel 版在 Rosetta 下测试。
+v0.6.0 构建 10 提供 14 个优化后的大师配方、八色 HSL 与一键自动曝光。应用配方覆盖六项调色及全部 HSL；0-200% 强度一起缩放当前调整与 LUT，保存和批量导出保留手动改动。配方以风格图片、下方名称和较弱说明呈现；胶片和配方列表仅在溢出时显示左右滚动按钮。详细更新见[发布说明](../docs/releases/v0.6.0.md)和[发布验收](../docs/verification-v0.6.0.md)。
 
-Prebuilt apps: [GitHub Release v0.5.1](https://github.com/dancancer/RawLab/releases/tag/v0.5.1). Choose [Apple Silicon arm64](https://github.com/dancancer/RawLab/releases/download/v0.5.1/RawLab-Mac-0.5.1-macOS15-arm64.zip) or [Intel x86_64](https://github.com/dancancer/RawLab/releases/download/v0.5.1/RawLab-Mac-0.5.1-macOS15-x86_64.zip), extract the ZIP and move `RawLab Mac.app` to Applications. Both target macOS 15.0 or later. They are ad-hoc signed, without Developer ID signing or notarization, so macOS may block opening them. macOS 15 hardware testing is pending; Intel testing used Rosetta.
+预编译版本：[GitHub Release v0.6.0](https://github.com/dancancer/RawLab/releases/tag/v0.6.0)。按芯片下载 [Apple Silicon arm64](https://github.com/dancancer/RawLab/releases/download/v0.6.0/RawLab-Mac-0.6.0-macOS15-arm64.zip) 或 [Intel x86_64](https://github.com/dancancer/RawLab/releases/download/v0.6.0/RawLab-Mac-0.6.0-macOS15-x86_64.zip)，解压后可将 `RawLab Mac.app` 放入 Applications。两版均以 macOS 15.0 为最低版本；采用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证，macOS 可能阻止默认打开。尚未在 macOS 15 真机验证；Intel 版在 Rosetta 下测试。
+
+Prebuilt apps: [GitHub Release v0.6.0](https://github.com/dancancer/RawLab/releases/tag/v0.6.0). Choose [Apple Silicon arm64](https://github.com/dancancer/RawLab/releases/download/v0.6.0/RawLab-Mac-0.6.0-macOS15-arm64.zip) or [Intel x86_64](https://github.com/dancancer/RawLab/releases/download/v0.6.0/RawLab-Mac-0.6.0-macOS15-x86_64.zip), extract the ZIP and move `RawLab Mac.app` to Applications. Both target macOS 15.0 or later. They are ad-hoc signed, without Developer ID signing or notarization, so macOS may block opening them. macOS 15 hardware testing is pending; Intel testing used Rosetta.
 
 构建 6 新增应用菜单“关于 RawLab”和“检查更新”。“关于”包含 GitHub 仓库、作者小红书主页及自动检测开关；启动后每 24 小时最多后台检查一次，手动检查不受间隔限制。发现新版本后打开官方发布页，不自动替换应用。
 
