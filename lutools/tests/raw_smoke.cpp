@@ -8,6 +8,18 @@
 #include <filesystem>
 #include <limits>
 #include <memory>
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+#include <dng_host.h>
+#include <cstring>
+
+void enableJXL(LibRaw& raw, dng_host& host) {
+    const char* decoder = raw.unpack_function_name();
+    if (decoder && std::strcmp(decoder, "jxl_dng_load_raw_placeholder()") == 0) {
+        raw.set_dng_host(&host);
+        raw.imgdata.rawparams.options |= LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL;
+    }
+}
+#endif
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_JPEG
 #define STBI_NO_STDIO
@@ -64,11 +76,17 @@ void saveProof(const ImageData& image, const std::filesystem::path& path, bool s
 
 int main(int argc, char** argv) {
     if (argc != 2 && argc != 4) return 2;
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+    dng_host metadataHost;
+#endif
     auto metadataOwner = std::make_unique<LibRaw>();
     auto& metadata = *metadataOwner;
     metadata.imgdata.params.use_camera_wb=1;
     metadata.imgdata.params.use_camera_matrix=1;
     metadata.open_file(argv[1]);
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+    enableJXL(metadata, metadataHost);
+#endif
     for (const auto& crop : metadata.imgdata.sizes.raw_inset_crops)
         std::cout << "inset " << crop.cleft << ',' << crop.ctop << ' ' << crop.cwidth << 'x' << crop.cheight << '\n';
     RAWProcessor raw;
@@ -83,13 +101,20 @@ int main(int argc, char** argv) {
         std::cerr << "Default RAW exposure is not metadata-based\n"; return 1;
     }
     {
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+        dng_host referenceHost;
+#endif
         auto referenceOwner = std::make_unique<LibRaw>();
         auto& reference = *referenceOwner;
         auto& p=reference.imgdata.params;
         p.use_camera_wb=1; p.use_camera_matrix=1; p.output_color=0;
         p.no_auto_bright=1; p.no_auto_scale=0; p.adjust_maximum_thr=0; p.highlight=2;
         p.gamm[0]=p.gamm[1]=1;
-        if (reference.open_file(argv[1]) || reference.unpack()) return 1;
+        if (reference.open_file(argv[1])) return 1;
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+        enableJXL(reference, referenceHost);
+#endif
+        if (reference.unpack()) return 1;
         if (reference.error_count() != 0) {
             std::cerr << "RAW decoder reported corrupt data despite successful unpack\n";
             return 1;

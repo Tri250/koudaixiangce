@@ -1,0 +1,79 @@
+"""Regenerate synthetic 16-bit LinearRaw DNG fixtures; requires cjxl only."""
+import struct
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+def write_dng(path, pixels, compression, opcodes=None):
+    width, height = 32, 24
+    matrix = (32406, 10000, -15372, 10000, -4986, 10000,
+              -9689, 10000, 18758, 10000, 415, 10000,
+              557, 10000, -2040, 10000, 10570, 10000)
+    tags = {
+        254: (4, 1, struct.pack("<I", 0)),
+        256: (4, 1, struct.pack("<I", width)),
+        257: (4, 1, struct.pack("<I", height)),
+        258: (3, 3, struct.pack("<3H", 16, 16, 16)),
+        259: (3, 1, struct.pack("<H", compression)),
+        262: (3, 1, struct.pack("<H", 34892)),
+        271: (2, 7, b"RawLab\0"),
+        272: (2, 10, b"Synthetic\0"),
+        273: (4, 1, b"\0" * 4),
+        274: (3, 1, struct.pack("<H", 6)),
+        277: (3, 1, struct.pack("<H", 3)),
+        278: (4, 1, struct.pack("<I", height)),
+        279: (4, 1, struct.pack("<I", len(pixels))),
+        284: (3, 1, struct.pack("<H", 1)),
+        50706: (1, 4, bytes((1, 7, 0, 0))),
+        50707: (1, 4, bytes((1, 7, 0, 0))),
+        50708: (2, 24, b"RawLab synthetic linear\0"),
+        50717: (4, 3, struct.pack("<3I", 65535, 65535, 65535)),
+        50721: (10, 9, struct.pack("<18i", *matrix)),
+        50728: (5, 3, struct.pack("<6I", 1, 1, 1, 1, 1, 1)),
+        50778: (3, 1, struct.pack("<H", 21)),
+        50829: (4, 4, struct.pack("<4I", 0, 0, height, width)),
+    }
+    if opcodes:
+        tags[51009] = (7, len(opcodes), opcodes)
+    data_start = 8 + 2 + 12 * len(tags) + 4
+    extra = bytearray()
+    entries = bytearray()
+    pixel_offset = data_start + sum(len(value) + len(value) % 2
+                                    for _, _, value in tags.values() if len(value) > 4)
+    tags[273] = (4, 1, struct.pack("<I", pixel_offset))
+    for tag, (kind, count, value) in sorted(tags.items()):
+        if len(value) > 4:
+            location = struct.pack("<I", data_start + len(extra))
+            extra.extend(value)
+            if len(extra) % 2:
+                extra.append(0)
+        else:
+            location = value.ljust(4, b"\0")
+        entries.extend(struct.pack("<HHI", tag, kind, count) + location)
+    path.write_bytes(b"II\x2a\0" + struct.pack("<I", 8) + struct.pack("<H", len(tags)) +
+                     entries + b"\0" * 4 + extra + pixels)
+
+
+def main():
+    output = Path(sys.argv[1])
+    output.mkdir(parents=True, exist_ok=True)
+    samples = [value for y in range(24) for x in range(32)
+               for value in (2048 + x * 700, 4096 + y * 800, 8192 + (x + y) * 300)]
+    with tempfile.TemporaryDirectory() as temporary:
+        ppm, jxl = Path(temporary) / "pixels.ppm", Path(temporary) / "pixels.jxl"
+        ppm.write_bytes(b"P6\n32 24\n65535\n" + struct.pack(f">{len(samples)}H", *samples))
+        subprocess.run(["cjxl", str(ppm), str(jxl), "-d", "0", "-e", "1", "--container=1"], check=True)
+        write_dng(output / "linear-jxl.dng", jxl.read_bytes(), 52546)
+        area = struct.pack(">8I", 0, 0, 24, 32, 0, 3, 1, 1)
+        gain = struct.pack(">2I4dI12f", 2, 2, 1, 1, 0, 0, 3, *([2.0] * 12))
+        payload = area + gain
+        opcodes = struct.pack(">5I", 1, 9, 0x01030000, 0, len(payload)) + payload
+        write_dng(output / "linear-jxl-gain.dng", jxl.read_bytes(), 52546, opcodes)
+    write_dng(output / "linear-uncompressed.dng", struct.pack(f"<{len(samples)}H", *samples), 1)
+    write_dng(output / "linear-doubled.dng", struct.pack(f"<{len(samples)}H", *(value * 2 for value in samples)), 1)
+
+
+if __name__ == "__main__":
+    main()

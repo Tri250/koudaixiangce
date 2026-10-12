@@ -48,7 +48,7 @@ python3 RawLabWindows/build-remote.py \
 
 首次连接前，通过可信控制台核对 SSH 主机公钥并保存到 `known-hosts` 文件。脚本强制校验主机密钥，只使用指定私钥；不要提交私钥或关闭校验。
 
-脚本发送当前已跟踪及未忽略的新源文件，包含尚未提交的改动，排除 RAW 样片和忽略的构建产物。Windows 工作目录为 `C:/RawLabBuild/workspace`，保留依赖和编译缓存，只清理上次清单中已从本次源码删除的文件。请勿让多个任务同时使用这个工作目录。远程编译自包含 x64 包并取回 `build/windows-remote/<timestamp>/RawLab-Windows.zip`，同目录保留完整 `build.log`。
+脚本发送当前已跟踪及未忽略的新源文件，包含尚未提交的改动，排除个人 RAW 样片和忽略的构建产物；仅白名单中的四个合成 DNG 回归 fixture 随源码发送。Windows 工作目录为 `C:/RawLabBuild/workspace`，保留依赖和编译缓存，只清理上次清单中已从本次源码删除的文件。请勿让多个任务同时使用这个工作目录。远程编译自包含 x64 包并取回 `build/windows-remote/<timestamp>/RawLab-Windows.zip`，同目录保留完整 `build.log`。
 
 `--test --raw /path/to/sample.ARW` 会另外上传指定样片并执行原有完整测试。编译不要求 GPU，但完整 GPU 测试要求实际 Direct3D 11 执行；仅有虚拟机编译结果或显示适配器名称，不能据此声明 GPU 通过。未使用 `--test` 时不运行完整测试。
 

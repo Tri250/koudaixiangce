@@ -31,6 +31,18 @@ keeps OpenMP enabled but adds eight bytes per active sensor pixel during X-Trans
 demosaic (about 304 MiB for a 40 MP image). Camera-specific corrections and their
 sample-limited validation are documented in the RAW compatibility report.
 
+JPEG XL DNG (compression 52546) uses the pinned Adobe DNG SDK 1.7.1 through
+LibRaw, with a per-processor host whose lifetime exceeds LibRaw's. Only this
+decoder receives the SDK host. Required Stage2/Stage3 opcode lists are applied
+through `LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL`; LibRaw then develops
+the decoded camera channels using the existing exposure and color pipeline.
+Other RAW/DNG formats retain their previous decoder paths. SDK and LibRaw must
+share the same platform and `qDNGThreadSafe` definitions to preserve SDK class
+layout, including on iOS/Android. XMP editing and the SDK validator are not
+included. Synthetic lossless 16-bit LinearRaw fixtures compare JXL with the
+same uncompressed pixels, including a required Stage2 GainMap, orientation,
+WB reload and decoder reuse.
+
 ## Rendering Order
 
 1. Decode RAW to linear RGB with the selected exposure baseline, or inverse-sRGB-decode an explicitly tagged raster buffer. Buffer inputs receive neither RAW metadata nor the +0.7 baseline.
