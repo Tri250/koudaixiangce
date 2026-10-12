@@ -18,6 +18,54 @@ function(replace_libraw relative before after)
     file(WRITE "${path}" "${source}")
 endfunction()
 
+# SDK 的平台和类布局开关必须与调用方一致，不能把 iOS 强制当成 macOS。
+replace_libraw(libraw/libraw_datastream.h [=[
+#if defined LIBRAW_WIN32_CALLS
+#define qWinOS 1
+#define qMacOS 0
+#elif defined(__APPLE__)
+#define qWinOS 0
+#define qMacOS 1
+#else
+/* define OS types for DNG here */
+#endif
+#define qDNGXMPDocOps 0
+#define qDNGUseLibJPEG 1
+#define qDNGXMPFiles 0
+#define qDNGExperimental 1
+#define qDNGThreadSafe 1
+]=] [=[
+#if !(defined(qMacOS) || defined(qWinOS) || defined(qiPhone) || defined(qAndroid) || defined(qLinux))
+#if defined LIBRAW_WIN32_CALLS
+#define qWinOS 1
+#define qMacOS 0
+#elif defined(__APPLE__)
+#define qWinOS 0
+#define qMacOS 1
+#endif
+#endif
+#ifndef qDNGXMPDocOps
+#define qDNGXMPDocOps 0
+#endif
+#ifndef qDNGUseLibJPEG
+#define qDNGUseLibJPEG 1
+#endif
+#ifndef qDNGXMPFiles
+#define qDNGXMPFiles 0
+#endif
+#ifndef qDNGExperimental
+#define qDNGExperimental 1
+#endif
+#ifndef qDNGThreadSafe
+#define qDNGThreadSafe 1
+#endif
+]=])
+
+# JPEG XL 没有备用解码器，SDK 失败必须中止，不能回落到占位器或使用半解码数据。
+replace_libraw(src/decoders/unpack.cpp
+    "      try_dngsdk();"
+    "      const int dng_result = try_dngsdk();\n      if (load_raw == &LibRaw::jxl_dng_load_raw_placeholder && dng_result != LIBRAW_SUCCESS)\n        throw LIBRAW_EXCEPTION_DECODE_RAW;")
+
 configure_file("${CMAKE_CURRENT_LIST_DIR}/../third_party/rawspeed-camera-calibration.inc"
     "${LIBRAW_SOURCE_DIR}/src/tables/rawlab_camera_calibration.inc" COPYONLY)
 replace_libraw(src/tables/colordata.cpp

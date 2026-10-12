@@ -13,6 +13,9 @@
 #include <fstream>
 #include <array>
 #include <zlib.h>
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+#include <dng_host.h>
+#endif
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #ifdef _WIN32
@@ -50,7 +53,10 @@ public:
         if (ret != LIBRAW_SUCCESS) {
             std::cerr << "无法打开 RAW 文件: " << libraw_strerror(ret) << std::endl;
             invalidateState();
-            return ErrorCode::FileNotFound;
+            if (ret == LIBRAW_FILE_UNSUPPORTED) return ErrorCode::InvalidFormat;
+            if (ret == LIBRAW_IO_ERROR) return ErrorCode::FileNotFound;
+            if (ret == LIBRAW_UNSUFFICIENT_MEMORY || ret == LIBRAW_MEMPOOL_OVERFLOW) return ErrorCode::OutOfMemory;
+            return ErrorCode::ProcessingError;
         }
 
         sourceReady_ = true;
@@ -275,6 +281,18 @@ private:
         params.use_auto_wb = autoWB ? 1 : 0;
         const int openResult = openRawFile(*rawProcessor_, filepath_);
         if (openResult != LIBRAW_SUCCESS) return openResult;
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+        // 仅 JPEG XL 使用 SDK，其他 RAW 保留现有解码和白平衡路径。
+        const char* decoder = rawProcessor_->unpack_function_name();
+        if (decoder && std::strcmp(decoder, "jxl_dng_load_raw_placeholder()") == 0) {
+            if (!dngHost_) dngHost_ = std::make_unique<dng_host>();
+            rawProcessor_->set_dng_host(dngHost_.get());
+            rawProcessor_->imgdata.rawparams.options |= LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL;
+        } else {
+            rawProcessor_->set_dng_host(nullptr);
+            rawProcessor_->imgdata.rawparams.options &= ~LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL;
+        }
+#endif
         const int unpackResult = rawProcessor_->unpack();
         if (unpackResult != LIBRAW_SUCCESS) return unpackResult;
         // 部分解码器只记录损坏计数却返回成功，不能继续导出损坏的像素。
@@ -322,6 +340,10 @@ private:
         return ErrorCode::Success;
     }
 
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+    // LibRaw 的 SDK 图像释放依赖 host，host 必须比 LibRaw 活得更久。
+    std::unique_ptr<dng_host> dngHost_;
+#endif
     std::unique_ptr<LibRaw> rawProcessor_;
     std::string filepath_;
     std::string cameraMake_;
