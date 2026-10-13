@@ -118,6 +118,97 @@ bool checkChannelLevels(const std::string& directory) {
     return valid;
 }
 
+#if defined(SONY2FUJI_ENABLE_DNGSDK) && defined(SONY2FUJI_ENABLE_LENSFUN)
+bool checkLensStage3(const std::string& directory) {
+    RAWProcessOptions on;
+    on.applyBaselineExposure = false;
+    on.lensDatabase = LensCorrectionDatabase::load(directory + "/lenses.xml");
+    on.lensCorrection.distortion = on.lensCorrection.tca = true;
+    auto off = on;
+    off.lensCorrection.distortion = off.lensCorrection.tca = false;
+    const auto stage3 = directory + "/linear-jxl-stage3-lens.dng";
+    const auto jxl = directory + "/linear-jxl-lens.dng";
+    const auto plain = directory + "/linear-lens.dng";
+    RAWProcessor reused;
+    ImageData baseline, corrected, restored, customBaseline, customCorrected;
+    auto same = [](const ImageData& a, const ImageData& b) {
+        return comparePixels(a, b, 1e-7f, a.width, a.height);
+    };
+    auto embedded = [&]() {
+        const auto report = reused.getLensCorrectionReport();
+        return report.state == LensCorrectionState::EmbeddedGeometry &&
+            !report.appliedDistortion && !report.appliedTCA;
+    };
+    if (reused.loadFile(stage3) != ErrorCode::Success ||
+        reused.process(off, baseline) != ErrorCode::Success ||
+        reused.process(on, corrected) != ErrorCode::Success || !embedded() ||
+        !same(corrected, baseline)) return false;
+    const auto warpedBaseline = baseline;
+    auto custom = on;
+    custom.useCameraWhiteBalance = false;
+    custom.useCustomWhiteBalance = true;
+    custom.customWhiteBalance[0] = 1.2f;
+    custom.customWhiteBalance[2] = .8f;
+    auto customOff = custom;
+    customOff.lensCorrection = off.lensCorrection;
+    if (reused.process(customOff, customBaseline) != ErrorCode::Success ||
+        reused.process(custom, customCorrected) != ErrorCode::Success || !embedded() ||
+        !same(customCorrected, customBaseline) ||
+        reused.process(on, restored) != ErrorCode::Success || !embedded() ||
+        !same(restored, baseline)) return false;
+    std::cout << "PASS Actual SDK Stage3 warp skips Lens through WB reload\n";
+    if (reused.loadFile(jxl) != ErrorCode::Success ||
+        reused.process(off, baseline) != ErrorCode::Success ||
+        reused.process(on, corrected) != ErrorCode::Success) return false;
+    if (warpedBaseline.width == baseline.width && warpedBaseline.height == baseline.height) {
+        float warpDifference = 0;
+        for (size_t i = 0; i < baseline.pixels.size(); ++i)
+            warpDifference = std::max(warpDifference, std::abs(warpedBaseline.pixels[i].r - baseline.pixels[i].r));
+        if (warpDifference <= 1e-6f) return false;
+        std::cout << "PASS SDK Stage3 changes actual geometry, maximum difference=" << warpDifference << '\n';
+    }
+    const auto report = reused.getLensCorrectionReport();
+    if (report.state != LensCorrectionState::Matched || !report.appliedDistortion ||
+        !report.appliedTCA || report.metadata.embeddedGeometry) {
+        std::cerr << "Lens fixture state=" << int(report.state) << " camera=" << report.metadata.cameraModel
+                  << " lens=" << report.metadata.lensModel << " focal=" << report.metadata.focalLength << '\n';
+        return false;
+    }
+    if (corrected.width != baseline.width || corrected.height != baseline.height) return false;
+    float difference = 0;
+    for (size_t i = 0; i < corrected.pixels.size(); ++i)
+        difference = std::max(difference, std::abs(corrected.pixels[i].r - baseline.pixels[i].r));
+    if (difference <= 1e-6f || reused.loadFile(plain) != ErrorCode::Success ||
+        reused.process(on, restored) != ErrorCode::Success ||
+        reused.getLensCorrectionReport().state != LensCorrectionState::Matched ||
+        !same(restored, corrected)) return false;
+    std::cout << "PASS Stage3 -> JXL/plain reuse retains actual distortion and TCA\n";
+    sony2fuji_session* session = nullptr;
+    if (sony2fuji_session_create(&session) != SONY2FUJI_STATUS_OK) return false;
+    sony2fuji_lens_correction_config lens{SONY2FUJI_LENS_CORRECTION_CONFIG_VERSION, sizeof(lens), 1, 1, 1, nullptr};
+    bool valid = sony2fuji_session_set_lens_database(session, (directory + "/lenses.xml").c_str()) == SONY2FUJI_STATUS_OK &&
+        sony2fuji_session_set_lens_correction(session, &lens) == SONY2FUJI_STATUS_OK;
+    for (const auto& path : {stage3, jxl, plain, stage3}) {
+        sony2fuji_request request{};
+        request.version = SONY2FUJI_REQUEST_VERSION; request.struct_size = sizeof(request);
+        request.input_type = SONY2FUJI_INPUT_RAW; request.input_path = path.c_str();
+        request.output_target = SONY2FUJI_TARGET_BUFFER; request.output_format = SONY2FUJI_OUTPUT_RGB8;
+        request.size_mode = SONY2FUJI_SIZE_NATIVE;
+        request.brightness = request.contrast = request.saturation = 1;
+        sony2fuji_buffer output{};
+        sony2fuji_lens_report state{};
+        valid = sony2fuji_process(session, &request, &output) == SONY2FUJI_STATUS_OK &&
+            sony2fuji_session_get_lens_report(session, &state) == SONY2FUJI_STATUS_OK && valid;
+        valid = (path == stage3 ? state.state == SONY2FUJI_LENS_EMBEDDED_GEOMETRY && !state.applied_distortion && !state.applied_tca
+                               : state.state == SONY2FUJI_LENS_MATCHED && state.applied_distortion && state.applied_tca) && valid;
+        sony2fuji_release_buffer(&output);
+    }
+    sony2fuji_session_destroy(session);
+    std::cout << (valid ? "PASS" : "FAIL") << " C ABI Lens/SDK Stage3 state remains input-specific\n";
+    return valid;
+}
+#endif
+
 bool checkCameraWBRoundTrip(const std::string& path) {
     sony2fuji_session* session = nullptr;
     if (sony2fuji_session_create(&session) != SONY2FUJI_STATUS_OK) return false;
@@ -260,6 +351,9 @@ int main(int argc, char** argv) {
     const bool channelLevels = checkChannelLevels(directory);
     const bool cameraRoundTrip = checkCameraWBRoundTrip(directory + "/linear-jxl-channel-levels.dng");
     if (!channelLevels || !cameraRoundTrip) return 1;
+#if defined(SONY2FUJI_ENABLE_DNGSDK) && defined(SONY2FUJI_ENABLE_LENSFUN)
+    if (!checkLensStage3(directory)) return 1;
+#endif
 #ifdef SONY2FUJI_ENABLE_DNGSDK
     if (!rejectSDKOutOfMemory(jxl)) return 1;
 #endif

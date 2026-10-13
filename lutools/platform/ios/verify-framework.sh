@@ -12,6 +12,16 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
             exit 1
         fi
     done
+    test -f "$(dirname "$binary")/Lensfun/mil-sony.xml"
+    lens_xml=("$(dirname "$binary")/Lensfun/"*.xml)
+    if [ "$(find "$(dirname "$binary")/Lensfun" -type f -name '*.xml' | wc -l)" -ne "${#lens_xml[@]}" ]; then
+        echo "FAIL: $slice Lensfun database must be a flat XML snapshot" >&2
+        exit 1
+    fi
+    for notice in lgpl-3.0.txt database-CC-BY-SA-3.0.txt GLib-COPYING PCRE2-LICENCE proxy-libintl-COPYING; do
+        test -f "$(dirname "$binary")/Licenses/lensfun/$notice"
+    done
+    nm -gU "$binary" | grep -F '_sony2fuji_session_set_lens_correction' >/dev/null
     dependencies="$(otool -L "$binary")"
     if printf '%s\n' "$dependencies" | sed -n '/^[[:space:]]/p' | grep -Ev '(@rpath/sony2fuji.framework/sony2fuji|/usr/lib/|/System/Library/)' | grep .; then
         echo "FAIL: $slice has a non-system runtime dependency" >&2

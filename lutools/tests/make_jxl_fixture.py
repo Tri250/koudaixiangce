@@ -7,7 +7,8 @@ from pathlib import Path
 
 
 def write_dng(path, pixels, compression, opcodes=None, stage1=None, active_area=None,
-              default_crop=None, black_levels=None, white_levels=(65535, 65535, 65535)):
+              default_crop=None, black_levels=None, white_levels=(65535, 65535, 65535),
+              stage3=None, lens_metadata=False):
     width, height = 32, 24
     matrix = (32406, 10000, -15372, 10000, -4986, 10000,
               -9689, 10000, 18758, 10000, 415, 10000,
@@ -46,11 +47,43 @@ def write_dng(path, pixels, compression, opcodes=None, stage1=None, active_area=
         tags[50720] = (4, 2, struct.pack("<2I", *default_crop[2:]))
     if opcodes:
         tags[51009] = (7, len(opcodes), opcodes)
+    if stage3:
+        tags[51022] = (7, len(stage3), stage3)
+    if lens_metadata:
+        model = b"Test Camera\0"
+        tags[272] = (2, len(model), model)
+        tags[34665] = (4, 1, b"\0" * 4)
     data_start = 8 + 2 + 12 * len(tags) + 4
+    exif = bytearray()
+    if lens_metadata:
+        lens = b"Test 24mm f/2.8\0"
+        exif_tags = {
+            33437: (5, 1, struct.pack("<2I", 28, 10)),
+            37386: (5, 1, struct.pack("<2I", 24, 1)),
+            41989: (3, 1, struct.pack("<H", 24)),
+            42035: (2, 7, b"RawLab\0"),
+            42036: (2, len(lens), lens),
+        }
+        exif_offset = data_start + sum(len(value) + len(value) % 2
+                                       for _, _, value in tags.values() if len(value) > 4)
+        tags[34665] = (4, 1, struct.pack("<I", exif_offset))
+        exif_data_start = exif_offset + 2 + 12 * len(exif_tags) + 4
+        exif_extra = bytearray()
+        exif_entries = bytearray()
+        for tag, (kind, count, value) in sorted(exif_tags.items()):
+            if len(value) > 4:
+                location = struct.pack("<I", exif_data_start + len(exif_extra))
+                exif_extra.extend(value)
+                if len(exif_extra) % 2:
+                    exif_extra.append(0)
+            else:
+                location = value.ljust(4, b"\0")
+            exif_entries.extend(struct.pack("<HHI", tag, kind, count) + location)
+        exif = struct.pack("<H", len(exif_tags)) + exif_entries + b"\0" * 4 + exif_extra
     extra = bytearray()
     entries = bytearray()
     pixel_offset = data_start + sum(len(value) + len(value) % 2
-                                    for _, _, value in tags.values() if len(value) > 4)
+                                    for _, _, value in tags.values() if len(value) > 4) + len(exif)
     tags[273] = (4, 1, struct.pack("<I", pixel_offset))
     for tag, (kind, count, value) in sorted(tags.items()):
         if len(value) > 4:
@@ -62,7 +95,7 @@ def write_dng(path, pixels, compression, opcodes=None, stage1=None, active_area=
             location = value.ljust(4, b"\0")
         entries.extend(struct.pack("<HHI", tag, kind, count) + location)
     path.write_bytes(b"II\x2a\0" + struct.pack("<I", 8) + struct.pack("<H", len(tags)) +
-                     entries + b"\0" * 4 + extra + pixels)
+                     entries + b"\0" * 4 + extra + exif + pixels)
 
 
 def main():
@@ -78,6 +111,12 @@ def main():
         write_dng(output / "linear-jxl.dng", jxl.read_bytes(), 52546)
         write_dng(output / "linear-jxl-channel-levels.dng", jxl.read_bytes(), 52546,
                   black_levels=black, white_levels=white)
+        write_dng(output / "linear-jxl-lens.dng", jxl.read_bytes(), 52546, lens_metadata=True)
+        # Required Stage3 WarpRectilinear uses the SDK's serialized opcode format.
+        warp = struct.pack(">I8d", 1, 1, -0.08, 0, 0, 0, 0, 0.5, 0.5)
+        stage3 = struct.pack(">5I", 1, 1, 0x01030000, 0, len(warp)) + warp
+        write_dng(output / "linear-jxl-stage3-lens.dng", jxl.read_bytes(), 52546,
+                  stage3=stage3, lens_metadata=True)
         area = struct.pack(">8I", 0, 0, 24, 32, 0, 3, 1, 1)
         gain = struct.pack(">2I4dI12f", 2, 2, 1, 1, 0, 0, 3, *([2.0] * 12))
         payload = area + gain
@@ -94,6 +133,8 @@ def main():
         unknown = struct.pack(">5I", 1, 0xFFFFFFFF, 0x01030000, 0, 0)
         write_dng(output / "linear-jxl-required-unknown.dng", jxl.read_bytes(), 52546, stage1=unknown)
     write_dng(output / "linear-uncompressed.dng", struct.pack(f"<{len(samples)}H", *samples), 1)
+    write_dng(output / "linear-lens.dng", struct.pack(f"<{len(samples)}H", *samples), 1,
+              lens_metadata=True)
     write_dng(output / "linear-channel-levels.dng", struct.pack(f"<{len(samples)}H", *samples), 1,
               black_levels=black, white_levels=white)
     normalized = [((value - black[c]) * 65535 + (white[c] - black[c]) // 2) // (white[c] - black[c])

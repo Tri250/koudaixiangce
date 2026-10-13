@@ -46,9 +46,10 @@ struct ProcessorExportTests {
     static func main() throws {
         let root = URL(fileURLWithPath: CommandLine.arguments[1])
         let output = URL(fileURLWithPath: CommandLine.arguments[2])
-        let processor = Sony2FujiProcessor()
-        let cpuProcessor = Sony2FujiProcessor(gpuMode: SONY2FUJI_GPU_OFF)
-        let forcedProcessor = Sony2FujiProcessor(gpuMode: SONY2FUJI_GPU_FORCE)
+        let lensDatabase = root.appendingPathComponent("lutools/third_party/lensfun/version_1")
+        let processor = Sony2FujiProcessor(lensDatabaseURL: lensDatabase)
+        let cpuProcessor = Sony2FujiProcessor(gpuMode: SONY2FUJI_GPU_OFF, lensDatabaseURL: lensDatabase)
+        let forcedProcessor = Sony2FujiProcessor(gpuMode: SONY2FUJI_GPU_FORCE, lensDatabaseURL: lensDatabase)
         var random: UInt32 = 8171
         var noisy = Data(count: 256 * 256 * 4)
         for i in 0..<(256 * 256) {
@@ -239,6 +240,38 @@ struct ProcessorExportTests {
             return
         }
         let standardRaw = try processor.processRaw(url: raw, settings: .default, previewLongEdge: 128, lutURL: lut)
+        let lensOff = try cpuProcessor.processRaw(url: raw, settings: .default, previewLongEdge: 180, lutURL: nil)
+        var unselectedLens = RawSettings.default
+        unselectedLens.lensCorrection = LensCorrectionSettings(distortion: true, mode: .manual)
+        let unselected = try cpuProcessor.processRaw(url: raw, settings: unselectedLens, previewLongEdge: 180, lutURL: nil)
+        check(unselected.lensInfo?.state == SONY2FUJI_LENS_NO_LENS && unselected.buffer.data == lensOff.buffer.data,
+              "iOS manual mode without selection reports a skipped correction, never auto")
+        guard let candidate = lensOff.lensInfo?.candidates.first(where: { $0.isMatch && $0.hasDistortion }) else {
+            fatalError("Lens regression requires a RAW with a matching distortion calibration")
+        }
+        var lensSettings = RawSettings.default
+        lensSettings.lensCorrection = LensCorrectionSettings(distortion: true, tca: true, mode: .manual, profileID: candidate.id)
+        let lensOn = try cpuProcessor.processRaw(url: raw, settings: lensSettings, previewLongEdge: 180, lutURL: nil)
+        check(lensOn.lensInfo?.appliedDistortion == true && lensOn.lensInfo?.appliedTCA == candidate.hasTCA,
+              "iOS manual lens calibration reaches camera-channel processing")
+        check(lensOn.buffer.width == lensOff.buffer.width && lensOn.buffer.height == lensOff.buffer.height && lensOn.buffer.data != lensOff.buffer.data,
+              "iOS lens auto crop changes geometry while preserving output dimensions")
+        let lensGpu = try forcedProcessor.processRaw(url: raw, settings: lensSettings, previewLongEdge: 180, lutURL: nil)
+        check(maximumDifference(lensOn.buffer.data, lensGpu.buffer.data) <= 2, "iOS corrected RAW CPU/Force Metal parity")
+        var lensAuto = lensSettings; lensAuto.lensCorrection?.mode = .automatic
+        let autoLens = try cpuProcessor.processRaw(url: raw, settings: lensAuto, previewLongEdge: 180, lutURL: nil)
+        if lensOff.lensInfo!.candidates.filter(\.isMatch).count == 1 {
+            check(autoLens.buffer.data == lensOn.buffer.data, "iOS automatic and manual unique matching agree")
+        } else { check(autoLens.lensInfo?.state == SONY2FUJI_LENS_AMBIGUOUS, "iOS automatic matching never guesses") }
+        check(try cpuProcessor.processRaw(url: raw, settings: .default, previewLongEdge: 180, lutURL: nil).buffer.data == lensOff.buffer.data,
+              "iOS lens reset restores exact baseline")
+        lensSettings.applyMasterRecipe(MasterRecipe.allRecipes[0]); lensSettings.tint = 20
+        var manualRecipe = lensSettings; manualRecipe.masterRecipeID = nil
+        manualRecipe.temperature = lensOff.rawWhiteBalance!.temperature
+        manualRecipe.tint = lensOff.rawWhiteBalance!.tint + 20; manualRecipe.whiteBalanceMode = .custom
+        check(try cpuProcessor.autoExposure(url: raw, buffer: nil, settings: lensSettings) ==
+              cpuProcessor.autoExposure(url: raw, buffer: nil, settings: manualRecipe),
+              "iOS automatic exposure restores lens correction after recipe neutral processing")
         if ProcessInfo.processInfo.environment["RAWLAB_TEST_MASTER_RECIPES"] == "1" {
             let neutral = try cpuProcessor.processRaw(url: raw, settings: .default, previewLongEdge: 128, lutURL: nil)
             let camera = neutral.rawWhiteBalance!

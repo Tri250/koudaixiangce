@@ -12,7 +12,7 @@ import java.io.File
 
 enum class Operation { NONE, IMPORT, IMPORT_LOOK, PICK_EXPORT, EXPORT }
 enum class EditSaveState { NONE, RESTORED, SAVED, FAILED }
-data class PreviewPair(val neutral: Bitmap, val result: Bitmap, val temperature: Float, val tint: Float)
+data class PreviewPair(val neutral: Bitmap, val result: Bitmap, val temperature: Float, val tint: Float, val lens: LensInfo? = null)
 data class EditorState(
     val photo: ImportedPhoto? = null,
     val edits: EditSettings = EditSettings(),
@@ -92,7 +92,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         refreshPendingBatch()
     }
 
-    private fun engine() = processor ?: NativeProcessor().also { processor = it }
+    private fun engine() = processor ?: NativeProcessor(lensDatabase = storage.lensDatabase()).also { processor = it }
 
     // 托管文件从解析路径到 native 读取完成期间不能被另一队列删除。
     private fun perform(work: Work): WorkResult = synchronized(storage) { when (work) {
@@ -118,7 +118,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             }
             val lut = storage.lookPath(work.edits)
             val film = native.preview(work.photo.file, lut, work.edits, edge, work.interactive)
-            WorkResult.Preview(work, PreviewPair(original!!.second, film.bitmap(), film.temperature, film.tint))
+            WorkResult.Preview(work, PreviewPair(original!!.second, film.bitmap(), film.temperature, film.tint, film.lens))
         }
         is Work.Export -> {
             val output = storage.temporaryOutput(work.format)

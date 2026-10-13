@@ -1,5 +1,17 @@
 RawLab Android uses the repository's shared Sony2Fuji C++ core.
 
+Lens correction statically links Lensfun 0.3.4 (LGPL-3.0-or-later), GLib 2.84.4
+(LGPL-2.1-or-later), PCRE2 10.44 (BSD), proxy-libintl (LGPL-2.0-or-later) and
+GNU libiconv/libcharset 1.18 (LGPL-2.1-or-later) into librawlab-jni.so.
+Original license texts and attribution are in assets/licenses/lensfun.
+The unmodified offline DB1 snapshot (2026-10-12) is CC BY-SA 3.0, separate from
+the library license; it ships in assets/Lensfun. Sources and SHA256 pins:
+lutools/cmake/lens-dependencies.json. Build: lutools/cmake/build-lens-dependencies.py.
+https://lensfun.github.io/ and https://gitlab.gnome.org/GNOME/glib
+https://github.com/PCRE2Project/pcre2 and https://github.com/frida/proxy-libintl
+https://www.gnu.org/software/libiconv/
+
+
 OpenCV 4.12.0 (core/imgproc): https://github.com/opencv/opencv/tree/4.12.0
 Apache 2.0; see OpenCV-LICENSE.txt.
 wavelib: https://github.com/rafat/wavelib, BSD 3-Clause; see wavelib-LICENSE.txt.

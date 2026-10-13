@@ -43,6 +43,12 @@ struct sony2fuji_session {
     sony2fuji::WaveletDenoiseOptions wavelet_denoise;
     sony2fuji::PhotoEffectsOptions photo_effects;
     sony2fuji::HslOptions hsl;
+    sony2fuji::LensCorrectionOptions lens_correction;
+    std::shared_ptr<sony2fuji::LensCorrectionDatabase> lens_database;
+    bool lens_database_tried = false;
+    uint64_t lens_database_revision = 0;
+    sony2fuji::LensCorrectionReport lens_report;
+    sony2fuji::LensCorrectionReport raw_lens_report;
     sony2fuji::ImageData wavelet_cache;
     std::string wavelet_key;
     sony2fuji::WaveletDenoiseOptions wavelet_cache_options;
@@ -77,6 +83,39 @@ namespace {
 
 bool isEmptyString(const char* value) {
     return value == nullptr || value[0] == '\0';
+}
+
+void ensureLensDatabase(sony2fuji_session* session) {
+    if (!session->lens_database_tried) {
+        session->lens_database_tried = true;
+        session->lens_database = sony2fuji::LensCorrectionDatabase::load();
+    }
+}
+
+template<size_t N> void copyLensText(char (&destination)[N], const std::string& source) {
+    const size_t length = std::min(N - 1, source.size());
+    std::copy_n(source.data(), length, destination);
+    destination[length] = 0;
+}
+
+sony2fuji_lens_profile lensProfile(const sony2fuji::LensProfile& profile) {
+    sony2fuji_lens_profile result{};
+    copyLensText(result.id, profile.id); copyLensText(result.maker, profile.maker); copyLensText(result.model, profile.model);
+    result.has_distortion = profile.hasDistortion; result.has_tca = profile.hasTCA; result.is_match = profile.isMatch;
+    return result;
+}
+
+sony2fuji_lens_report lensReport(const sony2fuji::LensCorrectionReport& report) {
+    sony2fuji_lens_report result{};
+    result.state = static_cast<sony2fuji_lens_state>(report.state);
+    copyLensText(result.camera_make, report.metadata.cameraMake);
+    copyLensText(result.camera_model, report.metadata.cameraModel);
+    copyLensText(result.lens_model, report.metadata.lensModel);
+    result.focal_length = report.metadata.focalLength;
+    result.profile = lensProfile(report.profile);
+    result.applied_distortion = report.appliedDistortion; result.applied_tca = report.appliedTCA;
+    result.crop_scale = report.cropScale;
+    return result;
 }
 
 
@@ -732,6 +771,15 @@ sony2fuji_status loadRawImage(
     for (float multiplier : request.wb_mul) key += ":" + std::to_string(multiplier);
     if (request.wb_mode == SONY2FUJI_WB_TEMPERATURE)
         key += ":" + std::to_string(request.temperature) + ":" + std::to_string(request.tint);
+    std::string lensKey;
+    if (session->lens_correction.active()) {
+        ensureLensDatabase(session);
+        lensKey = ":lens:" + std::to_string(session->lens_database_revision) + ":" +
+            std::to_string(session->lens_correction.distortion) + ":" + std::to_string(session->lens_correction.tca) + ":" +
+            std::to_string(session->lens_correction.autoCrop) + ":" + session->lens_correction.profileID;
+    }
+    key += lensKey;
+    const std::string previewExposureKey = fileKey + lensKey;
     // A full-quality cache can serve a proxy, but never the reverse. Non-WB
     // sliders should not trigger another demosaic just because dragging began.
     const std::string exactKey = key + ":exact";
@@ -741,7 +789,7 @@ sony2fuji_status loadRawImage(
         session->wavelet_key.clear();
         const bool anchoredPreview = session->raw_exposure_mode == SONY2FUJI_EXPOSURE_PREVIEW &&
             request.wb_mode == SONY2FUJI_WB_TEMPERATURE;
-        if (anchoredPreview && session->preview_exposure_key != fileKey) {
+        if (anchoredPreview && session->preview_exposure_key != previewExposureKey) {
             auto reference = request;
             reference.wb_mode = SONY2FUJI_WB_CAMERA;
             const auto status = loadRawImage(session, reference, image, space, is_linear);
@@ -761,6 +809,8 @@ sony2fuji_status loadRawImage(
         options.rawNoiseReduction = session->raw_noise_reduction;
         options.outputLinear = true;
         options.outputAdobe = true;
+        options.lensDatabase = session->lens_database;
+        options.lensCorrection = session->lens_correction;
         options.matchEmbeddedPreviewExposure = session->raw_exposure_mode == SONY2FUJI_EXPOSURE_PREVIEW && !anchoredPreview;
         options.applyBaselineExposure = session->raw_exposure_mode != SONY2FUJI_EXPOSURE_SENSOR && !anchoredPreview;
         if (anchoredPreview) options.exposure = session->preview_camera_ev;
@@ -777,6 +827,7 @@ sony2fuji_status loadRawImage(
             return mapError(result);
         }
         session->raw_cache = std::move(decoded);
+        session->raw_lens_report = processor.getLensCorrectionReport();
 #if defined(SONY2FUJI_ENABLE_GLES) || defined(SONY2FUJI_ENABLE_D3D11)
         ++session->raw_revision;
 #endif
@@ -786,10 +837,11 @@ sony2fuji_status loadRawImage(
         session->metadata_ev = processor.getMetadataExposureEV();
         session->calibrated_wb = processor.getAsShotWhiteBalance(session->as_shot_temperature,session->as_shot_tint);
         if (session->raw_exposure_mode == SONY2FUJI_EXPOSURE_PREVIEW && request.wb_mode == SONY2FUJI_WB_CAMERA) {
-            session->preview_exposure_key = fileKey;
+            session->preview_exposure_key = previewExposureKey;
             session->preview_camera_ev = session->baseline_ev;
         }
     }
+    session->lens_report = session->raw_lens_report;
     if (copyImage) image = session->raw_cache;
     else { image.width = session->raw_cache.width; image.height = session->raw_cache.height; }
     *space = SONY2FUJI_COLOR_ADOBE_RGB;
@@ -969,6 +1021,68 @@ sony2fuji_status sony2fuji_session_create(sony2fuji_session** out_session) {
 
 sony2fuji_status sony2fuji_session_destroy(sony2fuji_session* session) {
     delete session;
+    return SONY2FUJI_STATUS_OK;
+}
+
+sony2fuji_status sony2fuji_session_set_lens_database(sony2fuji_session* session, const char* path) {
+    if (!session) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    if (!sony2fuji::LensCorrectionDatabase::available()) return SONY2FUJI_STATUS_UNSUPPORTED;
+    try {
+        auto database = sony2fuji::LensCorrectionDatabase::load(path ? path : "");
+        if (!database) return SONY2FUJI_STATUS_IO_ERROR;
+        session->lens_database = std::move(database);
+        session->lens_database_tried = true;
+        ++session->lens_database_revision;
+        session->raw_key.clear();
+        return SONY2FUJI_STATUS_OK;
+    } catch (const std::bad_alloc&) { return SONY2FUJI_STATUS_OUT_OF_MEMORY; }
+    catch (...) { return SONY2FUJI_STATUS_IO_ERROR; }
+}
+
+sony2fuji_status sony2fuji_session_set_lens_correction(sony2fuji_session* session, const sony2fuji_lens_correction_config* config) {
+    if (!session || !config || config->version != SONY2FUJI_LENS_CORRECTION_CONFIG_VERSION || config->struct_size != sizeof(*config) ||
+        (config->distortion != 0 && config->distortion != 1) || (config->tca != 0 && config->tca != 1) ||
+        (config->auto_crop != 0 && config->auto_crop != 1)) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    if ((config->distortion || config->tca) && !sony2fuji::LensCorrectionDatabase::available()) return SONY2FUJI_STATUS_UNSUPPORTED;
+    try {
+        std::string profile = config->profile_id ? config->profile_id : "";
+        if (profile.size() >= sizeof(sony2fuji_lens_profile::id)) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+        session->lens_correction = {config->distortion != 0, config->tca != 0, config->auto_crop != 0, std::move(profile)};
+        return SONY2FUJI_STATUS_OK;
+    } catch (const std::bad_alloc&) { return SONY2FUJI_STATUS_OUT_OF_MEMORY; }
+}
+
+sony2fuji_status sony2fuji_session_inspect_lens(sony2fuji_session* session, const char* input_path,
+    sony2fuji_lens_report* report, sony2fuji_lens_profile* profiles, uint32_t capacity, uint32_t* count) {
+    if (!session || isEmptyString(input_path) || !report || !count || (!profiles && capacity != 0)) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    *count = 0; *report = {};
+    try {
+        sony2fuji::LensMetadata metadata;
+        const auto status = sony2fuji::RAWProcessor::readLensMetadata(input_path, metadata);
+        if (status != sony2fuji::ErrorCode::Success) return mapError(status);
+        ensureLensDatabase(session);
+        sony2fuji::LensCorrectionReport inspected;
+        inspected.metadata = metadata;
+        if (!session->lens_database) {
+            inspected.state = session->lens_correction.active() ? sony2fuji::LensCorrectionState::NoDatabase : sony2fuji::LensCorrectionState::Off;
+            *report = lensReport(inspected); return SONY2FUJI_STATUS_OK;
+        }
+        inspected = session->lens_database->inspect(metadata, session->lens_correction);
+        *report = lensReport(inspected);
+        const auto catalog = session->lens_database->profiles(metadata);
+        *count = static_cast<uint32_t>(catalog.size());
+        if (profiles) {
+            if (capacity < catalog.size()) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+            for (size_t i = 0; i < catalog.size(); ++i) profiles[i] = lensProfile(catalog[i]);
+        }
+        return SONY2FUJI_STATUS_OK;
+    } catch (const std::bad_alloc&) { return SONY2FUJI_STATUS_OUT_OF_MEMORY; }
+    catch (...) { return SONY2FUJI_STATUS_PROCESSING_ERROR; }
+}
+
+sony2fuji_status sony2fuji_session_get_lens_report(sony2fuji_session* session, sony2fuji_lens_report* report) {
+    if (!session || !report) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    *report = lensReport(session->lens_report);
     return SONY2FUJI_STATUS_OK;
 }
 
@@ -1170,6 +1284,10 @@ static sony2fuji_status processImpl(
     sony2fuji_request local = *request;
     local.lut_strength = clampFloat(local.lut_strength, 0.0f, 2.0f);
     session->last_backend = SONY2FUJI_BACKEND_CPU;
+    if (local.input_type != SONY2FUJI_INPUT_RAW) {
+        session->lens_report = {};
+        if (session->lens_correction.active()) session->lens_report.state = sony2fuji::LensCorrectionState::UnsupportedInput;
+    }
     const bool waveletActive = session->wavelet_denoise.active();
     const bool effectsActive = session->photo_effects.active();
     const bool hslActive = session->hsl.active();

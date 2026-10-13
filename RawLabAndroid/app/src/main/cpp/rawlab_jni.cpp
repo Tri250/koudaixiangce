@@ -5,6 +5,8 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
+#include <string>
 #include <algorithm>
 #include <cmath>
 
@@ -92,6 +94,92 @@ void prepareRecipeWb(sony2fuji_session* session, const char* input, bool active,
     tint = std::clamp(std::round(cameraTint) + tint * strength, -150.0f, 150.0f);
     custom = true;
 }
+}
+
+namespace {
+sony2fuji_session* sessionFor(jlong id) {
+    const auto found = sessions.find(id);
+    if (found == sessions.end()) throw std::invalid_argument("Processor is closed");
+    return found->second.get();
+}
+jobjectArray strings(JNIEnv* env, const std::vector<std::string>& values) {
+    auto type = env->FindClass("java/lang/String");
+    if (!type) return nullptr;
+    auto constructor = env->GetMethodID(type, "<init>", "([BLjava/lang/String;)V");
+    auto charset = env->NewStringUTF("UTF-8");
+    if (!constructor || !charset) return nullptr;
+    auto result = env->NewObjectArray(static_cast<jsize>(values.size()), type, nullptr);
+    if (!result) return nullptr;
+    for (size_t i = 0; i < values.size() && !env->ExceptionCheck(); ++i) {
+        auto bytes = env->NewByteArray(static_cast<jsize>(values[i].size()));
+        if (!bytes) return nullptr;
+        env->SetByteArrayRegion(bytes, 0, static_cast<jsize>(values[i].size()), reinterpret_cast<const jbyte*>(values[i].data()));
+        auto value = env->NewObject(type, constructor, bytes, charset);
+        if (!value) return nullptr;
+        env->SetObjectArrayElement(result, static_cast<jsize>(i), value);
+        env->DeleteLocalRef(value);
+        env->DeleteLocalRef(bytes);
+    }
+    return env->ExceptionCheck() ? nullptr : result;
+}
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_rawlab_android_NativeProcessor_nativeSetLensDatabase(JNIEnv* env, jobject, jlong id, jstring path) {
+    try {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        UtfChars directory(env, path);
+        check(sony2fuji_session_set_lens_database(sessionFor(id), directory.chars));
+    } catch (const std::exception& error) { throwJava(env, "java/io/IOException", error.what()); }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_rawlab_android_NativeProcessor_nativeSetLensCorrection(JNIEnv* env, jobject, jlong id,
+    jboolean distortion, jboolean tca, jboolean crop, jbyteArray profile) {
+    try {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        if (!profile) throw std::invalid_argument("Missing lens profile ID");
+        std::string value(static_cast<size_t>(env->GetArrayLength(profile)), '\0');
+        env->GetByteArrayRegion(profile, 0, static_cast<jsize>(value.size()), reinterpret_cast<jbyte*>(value.data()));
+        if (env->ExceptionCheck()) return;
+        sony2fuji_lens_correction_config config{SONY2FUJI_LENS_CORRECTION_CONFIG_VERSION,
+            sizeof(config), distortion ? 1 : 0, tca ? 1 : 0, crop ? 1 : 0, value.c_str()};
+        check(sony2fuji_session_set_lens_correction(sessionFor(id), &config));
+    } catch (const std::exception& error) { throwJava(env, "java/lang/IllegalArgumentException", error.what()); }
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_com_rawlab_android_NativeProcessor_nativeLensProfiles(JNIEnv* env, jobject, jlong id, jstring input) {
+    try {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        auto* session = sessionFor(id);
+        UtfChars path(env, input);
+        sony2fuji_lens_report report{};
+        uint32_t count = 0;
+        check(sony2fuji_session_inspect_lens(session, path.chars, &report, nullptr, 0, &count));
+        std::vector<sony2fuji_lens_profile> profiles(count);
+        check(sony2fuji_session_inspect_lens(session, path.chars, &report, profiles.data(), count, &count));
+        std::vector<std::string> values;
+        values.reserve(static_cast<size_t>(count) * 6);
+        for (const auto& profile : profiles) {
+            values.insert(values.end(), {profile.id, profile.maker, profile.model,
+                profile.has_distortion ? "1" : "0", profile.has_tca ? "1" : "0", profile.is_match ? "1" : "0"});
+        }
+        return strings(env, values);
+    } catch (const std::exception& error) { throwJava(env, "java/io/IOException", error.what()); }
+    return nullptr;
+}
+
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_com_rawlab_android_NativeProcessor_nativeLensReport(JNIEnv* env, jobject, jlong id) {
+    try {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        sony2fuji_lens_report report{};
+        check(sony2fuji_session_get_lens_report(sessionFor(id), &report));
+        return strings(env, {std::to_string(report.state), report.lens_model, report.profile.model,
+            report.applied_distortion ? "1" : "0", report.applied_tca ? "1" : "0", std::to_string(report.crop_scale)});
+    } catch (const std::exception& error) { throwJava(env, "java/io/IOException", error.what()); }
+    return nullptr;
 }
 
 extern "C" JNIEXPORT jintArray JNICALL

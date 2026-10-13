@@ -15,6 +15,42 @@ import java.nio.ByteOrder
 
 @RunWith(AndroidJUnit4::class)
 class NativeProcessorTest {
+    @Test fun lensCorrectionReachesPreviewExportAndReset() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val input = File(context.cacheDir, "lens-test.RAW")
+        val output = File(context.cacheDir, "lens-test.png")
+        instrumentation.context.assets.open("sample.RAW").use { from -> input.outputStream().use { from.copyTo(it) } }
+        try {
+            NativeProcessor(NativeProcessor.CPU, PhotoStorage(context).lensDatabase()).use { processor ->
+                val off = processor.preview(input, null, EditSettings(), 300, false)
+                val unselected = processor.preview(input, null,
+                    EditSettings(lens = LensSettings(distortion = true, manual = true)), 300, false)
+                assertEquals(4, unselected.lens!!.state)
+                assertArrayEquals(off.pixels, unselected.pixels)
+                val candidate = off.lens!!.candidates.first { it.isMatch && it.hasDistortion }
+                val settings = EditSettings(lens = LensSettings(true, true, true, true, candidate.id))
+                val corrected = processor.preview(input, null, settings, 300, false)
+                assertTrue(corrected.lens!!.appliedDistortion)
+                assertEquals(candidate.hasTca, corrected.lens!!.appliedTca)
+                assertEquals(off.width, corrected.width); assertEquals(off.height, corrected.height)
+                assertFalse(off.pixels.contentEquals(corrected.pixels))
+                processor.setGpuMode(NativeProcessor.FORCE)
+                val gpu = processor.preview(input, null, settings, 300, false)
+                assertEquals(2, gpu.backend)
+                assertTrue(corrected.pixels.indices.maxOf { kotlin.math.abs((corrected.pixels[it].toInt() and 255) - (gpu.pixels[it].toInt() and 255)) } <= 2)
+                processor.setGpuMode(NativeProcessor.CPU)
+                val automatic = processor.preview(input, null, settings.copy(lens = settings.lens.copy(manual = false)), 300, false)
+                if (off.lens!!.candidates.count { it.isMatch } == 1) assertArrayEquals(corrected.pixels, automatic.pixels)
+                else assertEquals(5, automatic.lens!!.state)
+                val reset = processor.preview(input, null, EditSettings(), 300, false)
+                assertArrayEquals(off.pixels, reset.pixels); assertEquals(0, reset.lens!!.state)
+                processor.export(input, null, settings, output, true, 300)
+                assertEquals(16, output.readBytes()[24].toInt())
+            }
+        } finally { input.delete(); output.delete() }
+    }
+
     @Test fun hslAndAutomaticExposureReachTheSharedCore() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val input = File(instrumentation.targetContext.cacheDir, "hsl-auto-test.dng")

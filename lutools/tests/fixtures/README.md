@@ -40,5 +40,15 @@ LibRaw identification or left behind when changing decoders.
 The native suite also uses the SDK's `DNG_SetSimulateMemoryFull` diagnostic hook
 to assert OutOfMemory on initial load, white-balance reload and the C ABI.
 
+`linear-jxl-lens.dng` and `linear-lens.dng` add synthetic camera/lens/focal EXIF
+that matches `lenses.xml`, with identical JXL/uncompressed samples.
+`linear-jxl-stage3-lens.dng` adds a required Stage3 WarpRectilinear opcode
+(one shared plane, radial coefficients 1/-0.08/0/0, zero tangential terms,
+center 0.5/0.5). Tests require exact Lens-off/on identity after this actual SDK
+warp, including WB reload, while JXL without Stage3 and ordinary DNG must still
+apply the synthetic distortion/TCA calibration. Reusing a decoder/session must
+not retain the previous input's Stage3 warning or Lens report. These fixtures
+are generated data, not lens calibration photographs.
+
 Regenerate with `python3 lutools/tests/make_jxl_fixture.py lutools/tests/fixtures`
 using `cjxl` 0.11.1. No encoder is needed to run the native regression tests.

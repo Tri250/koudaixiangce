@@ -136,6 +136,59 @@ enum PhotoEffectParameter: String, CaseIterable, Identifiable {
     var defaultValue: Double { PhotoEffectsSettings()[keyPath: keyPath] }
 }
 
+enum LensProfileMode: String, Codable, CaseIterable {
+    case automatic, manual
+}
+
+struct LensCorrectionSettings: Equatable, Codable {
+    var distortion = false
+    var tca = false
+    var autoCrop = true
+    var mode = LensProfileMode.automatic
+    var profileID: String?
+    var isEnabled: Bool { distortion || tca }
+    var coreProfileID: String {
+        mode == .automatic ? "" : (profileID ?? "__rawlab_manual_selection_required__")
+    }
+}
+
+struct LensCandidate: Identifiable, Equatable {
+    let id: String
+    let maker: String
+    let model: String
+    let hasDistortion: Bool
+    let hasTCA: Bool
+    let isMatch: Bool
+    var title: String { model.localizedCaseInsensitiveContains(maker) ? model : "\(maker) \(model)" }
+}
+
+struct LensInfo: Equatable {
+    let state: sony2fuji_lens_state
+    let detectedLens: String
+    let selectedLens: String
+    let focalLength: Float
+    let appliedDistortion: Bool
+    let appliedTCA: Bool
+    let cropScale: Float
+    let candidates: [LensCandidate]
+    var message: String {
+        switch state {
+        case SONY2FUJI_LENS_OFF: return "镜头校正已关闭"
+        case SONY2FUJI_LENS_MATCHED:
+            let applied = [appliedDistortion ? "畸变" : nil, appliedTCA ? "横向色差" : nil].compactMap { $0 }
+            return applied.isEmpty ? "已匹配镜头" : "已校正\(applied.joined(separator: "、"))"
+        case SONY2FUJI_LENS_NO_DATABASE: return "镜头数据库不可用"
+        case SONY2FUJI_LENS_NO_CAMERA: return "未找到机身或传感器尺寸信息"
+        case SONY2FUJI_LENS_AMBIGUOUS: return "有多个匹配镜头，请手动选择"
+        case SONY2FUJI_LENS_NO_CALIBRATION: return "此镜头没有所选校正的标定数据"
+        case SONY2FUJI_LENS_MISSING_FOCAL_LENGTH: return "照片缺少有效焦距，未应用校正"
+        case SONY2FUJI_LENS_EMBEDDED_GEOMETRY: return "DNG 已执行内嵌 Stage3 处理，未叠加镜头校正"
+        case SONY2FUJI_LENS_UNSUPPORTED_INPUT: return "此输入不支持所选镜头校正"
+        default: return "未匹配镜头，请手动选择"
+        }
+    }
+}
+
 struct Adjustments: Equatable, Codable {
     var exposureMode = ExposureMode.preview
     var exposure = 0.0
@@ -157,6 +210,7 @@ struct Adjustments: Equatable, Codable {
     var waveletNoiseReduction: WaveletDenoiseSettings?
     var photoEffects: PhotoEffectsSettings?
     var hsl: HSLSettings?
+    var lensCorrection: LensCorrectionSettings?
     private(set) var supportsRawNoiseReduction = false
     var masterRecipeID: String? = nil
     private var masterRecipeSettingsVersion: Int? = 3
@@ -174,6 +228,7 @@ struct Adjustments: Equatable, Codable {
         state.set(axis, channel: channel, value: value)
         hsl = state.isIdentity ? nil : state
     }
+    var lensSettings: LensCorrectionSettings { lensCorrection ?? LensCorrectionSettings() }
     var vignetteAmount: Double {
         get { effectSettings.vignetteAmount }
         set { setEffect(.vignetteAmount, to: newValue) }
@@ -325,6 +380,7 @@ struct Adjustments: Equatable, Codable {
         if group == .input { exposureMode = .preview; resetWhiteBalance() }
         if group == .color { hsl = nil }
         if group == .effects { photoEffects = nil }
+        if group == .lens { lensCorrection = nil }
     }
 
     func isDefault(_ group: AdjustmentGroup) -> Bool {
@@ -334,6 +390,7 @@ struct Adjustments: Equatable, Codable {
             && (group != .detail || !isDenoiseEnabled)
             && (group != .effects || effectSettings == PhotoEffectsSettings())
             && (group != .film || masterRecipeID == nil)
+            && (group != .lens || lensSettings == LensCorrectionSettings())
     }
 
     mutating func resolveWhiteBalance(_ camera: WhiteBalance?) {
@@ -401,6 +458,7 @@ extension Adjustments {
         waveletNoiseReduction = try values.decodeIfPresent(WaveletDenoiseSettings.self, forKey: .waveletNoiseReduction)
         photoEffects = try values.decodeIfPresent(PhotoEffectsSettings.self, forKey: .photoEffects)
         hsl = try values.decodeIfPresent(HSLSettings.self, forKey: .hsl)
+        lensCorrection = try values.decodeIfPresent(LensCorrectionSettings.self, forKey: .lensCorrection)
         supportsRawNoiseReduction = try values.decodeIfPresent(Bool.self, forKey: .supportsRawNoiseReduction) ?? false
         guard hslSettings.isValid else {
             throw DecodingError.dataCorruptedError(forKey: .hsl, in: values, debugDescription: "Invalid HSL parameters")
@@ -424,7 +482,7 @@ extension Adjustments {
 }
 
 enum AdjustmentGroup: String, CaseIterable, Identifiable {
-    case film = "胶片模拟", input = "输入调整", tone = "明暗", color = "色彩", detail = "细节", effects = "效果"
+    case film = "胶片模拟", input = "输入调整", tone = "明暗", color = "色彩", detail = "细节", effects = "效果", lens = "镜头校正"
     var id: String { rawValue }
     var parameters: [AdjustmentParameter] {
         switch self {
@@ -434,6 +492,7 @@ enum AdjustmentGroup: String, CaseIterable, Identifiable {
         case .color: return [.saturation]
         case .detail: return [.denoiseMode, .sharpening]
         case .effects: return [.vignetteAmount, .grainAmount]
+        case .lens: return []
         }
     }
 }

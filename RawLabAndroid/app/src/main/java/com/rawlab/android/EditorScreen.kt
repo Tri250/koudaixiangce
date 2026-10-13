@@ -193,11 +193,11 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
     onAutoExposure: () -> Unit) {
     val titles = listOf(R.string.film, R.string.strength, R.string.exposure, R.string.highlights, R.string.shadows,
         R.string.contrast, R.string.tone_curve, R.string.saturation, R.string.temperature, R.string.tint, R.string.sharpening,
-        R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl, R.string.master_recipes)
+        R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl, R.string.master_recipes, R.string.lens)
     val icons = listOf(Icons.Outlined.PhotoFilter, Icons.Outlined.Tune, Icons.Outlined.Exposure, Icons.Outlined.WbSunny,
         Icons.Outlined.DarkMode, Icons.Outlined.Contrast, Icons.Outlined.ShowChart, Icons.Outlined.WaterDrop,
         Icons.Outlined.Thermostat, Icons.Outlined.Palette, Icons.Outlined.Deblur, Icons.Outlined.Grain,
-        Icons.Outlined.Circle, Icons.Outlined.Grain, Icons.Outlined.Tune, Icons.Outlined.PhotoLibrary)
+        Icons.Outlined.Circle, Icons.Outlined.Grain, Icons.Outlined.Tune, Icons.Outlined.PhotoLibrary, Icons.Outlined.CenterFocusStrong)
     val edits = state.edits
     val context = LocalContext.current
     val recipes = remember(context) { MasterRecipe.load(context) }
@@ -334,6 +334,9 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                 onEdit(edits.copy(effects = value), dragging)
             }
             14 -> HslControls(edits.hsl, state.controlsEnabled) { value, dragging -> onEdit(edits.copy(hsl = value), dragging) }
+            16 -> LensControls(edits.lens, state.preview?.lens, state.controlsEnabled) { value ->
+                onEdit(edits.copy(lens = value), false)
+            }
             15 -> MasterRecipePicker(recipes, edits.recipeID, state.controlsEnabled) { recipe ->
                 onEdit(if (recipe == null) edits.selectFilm("neutral", state.preview?.tint) else edits.applyRecipe(recipe), false)
             }
@@ -342,7 +345,7 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
         }
         }
         LazyRow(Modifier.fillMaxWidth().height(64.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
-            items(listOf(0, 15) + (1 until 15).toList(), key = { it }) { index ->
+            items(listOf(0, 15) + (1 until 15).toList() + listOf(16), key = { it }) { index ->
                 val title = titles[index]
                 val color = if (tool == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 Column(Modifier.width(76.dp).fillMaxHeight().selectable(tool == index, enabled = state.controlsEnabled, role = Role.Tab,

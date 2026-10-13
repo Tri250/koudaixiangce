@@ -1,4 +1,5 @@
 #include "core/rendered_dng.h"
+#include "sony2fuji/ffi/sony2fuji_c.h"
 
 #include <tiffio.h>
 
@@ -251,6 +252,75 @@ void testRejectsInvalidInput(const std::filesystem::path& directory) {
     check(!std::filesystem::exists(output), "invalid DNG inputs do not create output");
 }
 
+#ifdef TEST_LENS_SDK_DNG
+void testLensSdkDng(const std::filesystem::path& directory) {
+    const auto fixtures = std::filesystem::path(TEST_SOURCE_DIR) / "tests/fixtures";
+    sony2fuji_session* session = nullptr;
+    check(sony2fuji_session_create(&session) == SONY2FUJI_STATUS_OK,
+          "Lens/SDK/DNG combination creates a C session");
+    if (!session) return;
+    sony2fuji_lens_correction_config lens{
+        SONY2FUJI_LENS_CORRECTION_CONFIG_VERSION, sizeof(lens), 1, 1, 1, nullptr};
+    sony2fuji_gpu_config gpu{SONY2FUJI_GPU_CONFIG_VERSION, sizeof(gpu), SONY2FUJI_GPU_OFF};
+    check(sony2fuji_session_set_lens_database(session, (fixtures / "lenses.xml").string().c_str()) == SONY2FUJI_STATUS_OK &&
+          sony2fuji_session_set_lens_correction(session, &lens) == SONY2FUJI_STATUS_OK &&
+          sony2fuji_session_set_gpu_config(session, &gpu) == SONY2FUJI_STATUS_OK,
+          "Lens/SDK/DNG combination configures real profiles and CPU");
+
+    for (const auto* name : {"linear-jxl-stage3-lens.dng", "linear-jxl-lens.dng"}) {
+        const auto input = (fixtures / name).string();
+        const auto output = (directory / name).string();
+        const bool stage3 = std::string(name).find("stage3") != std::string::npos;
+        sony2fuji_request request{};
+        request.version = SONY2FUJI_REQUEST_VERSION; request.struct_size = sizeof(request);
+        request.input_type = SONY2FUJI_INPUT_RAW; request.input_path = input.c_str();
+        request.output_target = SONY2FUJI_TARGET_BUFFER; request.output_format = SONY2FUJI_OUTPUT_RGB8;
+        request.size_mode = SONY2FUJI_SIZE_NATIVE; request.intent = SONY2FUJI_INTENT_FINAL;
+        request.brightness = request.contrast = request.saturation = 1;
+        sony2fuji_buffer buffer{};
+        bool valid = sony2fuji_process(session, &request, &buffer) == SONY2FUJI_STATUS_OK && buffer.data;
+        request.output_target = SONY2FUJI_TARGET_FILE; request.output_format = SONY2FUJI_OUTPUT_DNG;
+        request.output_path = output.c_str();
+        valid = sony2fuji_process(session, &request, nullptr) == SONY2FUJI_STATUS_OK && valid;
+        sony2fuji_lens_report report{};
+        valid = sony2fuji_session_get_lens_report(session, &report) == SONY2FUJI_STATUS_OK && valid;
+        valid = (stage3 ? report.state == SONY2FUJI_LENS_EMBEDDED_GEOMETRY && !report.applied_distortion && !report.applied_tca
+                        : report.state == SONY2FUJI_LENS_MATCHED && report.applied_distortion && report.applied_tca) && valid;
+
+        TIFF* tif = TIFFOpen(output.c_str(), "r");
+        uint32_t width = 0, height = 0;
+        uint16_t bits = 0, samples = 0, format = 0;
+        valid = tif && valid;
+        if (tif) {
+            valid = TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width) && width == buffer.width &&
+                TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height) && height == buffer.height &&
+                TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bits) && bits == 32 &&
+                TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samples) && samples == 3 &&
+                TIFFGetField(tif, TIFFTAG_SAMPLEFORMAT, &format) && format == SAMPLEFORMAT_IEEEFP && valid;
+            std::vector<float> row(static_cast<size_t>(width) * 3);
+            double maximumError = 0;
+            for (uint32_t y = 0; y < height && valid; ++y) {
+                valid = TIFFReadScanline(tif, row.data(), y, 0) >= 0;
+                if (!valid) break;
+                const auto* expected = static_cast<const uint8_t*>(buffer.data) + y * buffer.stride_bytes;
+                for (size_t x = 0; x < row.size(); ++x) {
+                    const double linear = row[x];
+                    if (!std::isfinite(linear) || linear < 0 || linear > 1) { valid = false; break; }
+                    const double encoded = linear <= .0031308 ? 12.92 * linear : 1.055 * std::pow(linear, 1.0 / 2.4) - .055;
+                    maximumError = std::max(maximumError, std::abs(encoded * 255 - expected[x]));
+                }
+            }
+            valid = maximumError <= 1.0 && valid;
+            std::cout << "Lens/SDK/DNG " << name << " maximum RGB8 error=" << maximumError << '\n';
+            TIFFClose(tif);
+        }
+        check(valid, std::string(name) + ": FINAL DNG pixels and post-file Lens state match the buffer");
+        sony2fuji_release_buffer(&buffer);
+    }
+    sony2fuji_session_destroy(session);
+}
+#endif
+
 void testAtomicStorage(const std::filesystem::path& directory) {
     using sony2fuji::ErrorCode;
 
@@ -333,6 +403,9 @@ int main() {
     const auto directory = testDirectory();
     testRenderedDng(directory);
     testRejectsInvalidInput(directory);
+#ifdef TEST_LENS_SDK_DNG
+    testLensSdkDng(directory);
+#endif
     testAtomicStorage(directory);
 #ifndef _WIN32
     testMidwriteFailure(directory);

@@ -19,6 +19,7 @@ final class RawEditorViewModel: ObservableObject {
     @Published var availableLUTs: [LUTOption] = []
     @Published var isLoadingLUTs = false
     @Published var rawWhiteBalance: Sony2FujiProcessor.RawWhiteBalance?
+    @Published var lensInfo: LensInfo?
     @Published var editSaveState: EditSaveState = .idle
 
     enum EditSaveState: Equatable {

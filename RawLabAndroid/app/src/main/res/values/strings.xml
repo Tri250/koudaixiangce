@@ -1,4 +1,5 @@
 <resources>
+    <string name="lens">镜头</string>
     <string name="master_recipes">大师配方</string>
     <string name="no_recipe">无配方</string>
     <string name="hsl_reset_channel">重置当前颜色</string>

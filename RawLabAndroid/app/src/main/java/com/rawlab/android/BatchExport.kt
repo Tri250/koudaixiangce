@@ -367,7 +367,7 @@ class BatchExportModel(
                     throw BatchGlobalFailure("任务来源或外观文件不可用，请重新创建批量任务。")
                 }
                 val journal = BatchJournal(journalRoot)
-                val processor = NativeProcessor()
+                val processor = NativeProcessor(lensDatabase = storage.lensDatabase())
                 val result = try {
                     val render: (BatchTarget, EditSettings) -> File = { target, settings ->
                         val temporary = File.createTempFile("render-", format.suffix, context.filesDir)
@@ -431,7 +431,7 @@ class BatchExportModel(
         if (!destination.exists()) {
             val input = resolver.openInputStream(uri) ?: throw IOException("无法读取文件")
             try { input.use { source -> destination.outputStream().use { source.copyTo(it) } }
-                NativeProcessor().use { it.preview(destination, null, EditSettings(), 256, false) }
+                NativeProcessor(lensDatabase = storage.lensDatabase()).use { it.preview(destination, null, EditSettings(), 256, false) }
             } catch (error: Exception) { destination.delete(); throw error }
         }
         return BatchTarget(identity, destination, name, uri.toString())
@@ -489,7 +489,7 @@ class BatchExportModel(
     suspend fun preview(target: BatchTarget): android.graphics.Bitmap = withContext(Dispatchers.IO) {
         val source = mutable.value.job.source
         // 效果查看先限长再降噪，避免处理整张 RAW；最终导出仍保留完整质量。
-        NativeProcessor().use { it.preview(target.sourceFile, source.lookFile, source.settings, 1280, true).bitmap() }
+        NativeProcessor(lensDatabase = storage.lensDatabase()).use { it.preview(target.sourceFile, source.lookFile, source.settings, 1280, true).bitmap() }
     }
 
     private fun reconcile(job: BatchJob): BatchJob {
@@ -548,11 +548,13 @@ internal object SettingsCodec {
         settings.effects.vignetteAmount, settings.effects.vignetteMidpoint, settings.effects.vignetteRoundness,
         settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
         settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-    ).plus(settings.exposureMode).plus(settings.hsl.packed().toList()).plus(settings.recipeID ?: "").joinToString("|")
+    ).plus(settings.exposureMode).plus(settings.hsl.packed().toList()).plus(settings.recipeID ?: "")
+        .plus(java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(settings.lens.encode().toByteArray(Charsets.UTF_8)))
+        .joinToString("|")
 
     fun decode(value: String): EditSettings {
         val fields = value.split('|')
-        require(fields.size in listOf(12, 16, 25, 50, 51))
+        require(fields.size in listOf(12, 16, 25, 50, 51, 52))
         return EditSettings(film = fields[0], strength = fields[1].toFloat(), exposure = fields[2].toFloat(),
             highlights = fields[3].toFloat(), shadows = fields[4].toFloat(), contrast = fields[5].toFloat(),
             toneCurve = fields[6].toFloat(), saturation = fields[7].toFloat(), customWb = fields[8].toBoolean(),
@@ -565,7 +567,8 @@ internal object SettingsCodec {
             displayChromaDenoise = if (fields.size >= 25) parseChromaMode(fields[16]) else 0,
             exposureMode = if (fields.size >= 50) parseChromaMode(fields[25]) else 0,
             hsl = if (fields.size >= 50) HslSettings(fields.subList(26, 50).map(String::toFloat)) else HslSettings(),
-            recipeID = if (fields.size == 51) fields[50].ifEmpty { null } else null,
+            recipeID = if (fields.size >= 51) fields[50].ifEmpty { null } else null,
+            lens = if (fields.size == 52) LensSettings.decode(String(java.util.Base64.getUrlDecoder().decode(fields[51]), Charsets.UTF_8)) else LensSettings(),
             effects = if (fields.size >= 25) PhotoEffectsSettings(
                 vignetteAmount = fields[17].toFloat(), vignetteMidpoint = fields[18].toFloat(),
                 vignetteRoundness = fields[19].toFloat(), vignetteFeather = fields[20].toFloat(),

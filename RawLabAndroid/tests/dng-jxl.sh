@@ -24,7 +24,7 @@ trap '"$ADB" -s "$SERIAL" shell rm -rf "$REMOTE" >/dev/null 2>&1 || true; rm -rf
 unzip -p "$APK" "lib/$ABI/libc++_shared.so" > "$LOCAL/libc++_shared.so"
 "$ADB" -s "$SERIAL" shell mkdir -p "$REMOTE"
 "$ADB" -s "$SERIAL" push "$RUNTIME/rawlab_dng_tests" "$LIBRARY/libraw.so" "$LOCAL/libc++_shared.so" "$REMOTE/" >/dev/null
-"$ADB" -s "$SERIAL" push "$ROOT/lutools/tests/fixtures/"*.dng "$REMOTE/" >/dev/null
+"$ADB" -s "$SERIAL" push "$ROOT/lutools/tests/fixtures/"*.dng "$ROOT/lutools/tests/fixtures/lenses.xml" "$REMOTE/" >/dev/null
 ARGS=(--fixtures "$REMOTE")
 if [ "$#" -ge 3 ]; then
     "$ADB" -s "$SERIAL" push "$3" "$REMOTE/external.dng" >/dev/null

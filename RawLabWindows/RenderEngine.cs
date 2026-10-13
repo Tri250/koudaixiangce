@@ -5,7 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace RawLab.Windows;
-internal sealed record RenderedImage(BitmapSource Image, BitmapSource? Clipping, uint[] Histogram, double Shadows, double Highlights, float Baseline, (double Temperature,double Tint)? WhiteBalance, int Backend);
+internal sealed record RenderedImage(BitmapSource Image, BitmapSource? Clipping, uint[] Histogram, double Shadows, double Highlights, float Baseline, (double Temperature,double Tint)? WhiteBalance, int Backend, LensInfo? Lens = null);
 internal sealed record PreviewFrame(RenderedImage Neutral,RenderedImage Result);
 internal sealed record EmbeddedPreview(BitmapSource? Image,int Width,int Height);
 internal sealed class RenderEngine : IDisposable
@@ -14,7 +14,10 @@ internal sealed class RenderEngine : IDisposable
     private int gpuMode;
     private sealed record Stamp(string Path,long Length,long Time);
     private sealed record PreviewKey(Native.Request Request,DenoiseSettings Denoise,PhotoEffectsSettings Effects,int DisplayChromaDenoise,
-        int ExposureMode,HslSettings Hsl,int Mode,bool Compare,bool Clipping,Stamp Raw,Stamp? Lut);
+        int ExposureMode,HslSettings Hsl,LensSettings Lens,int Mode,bool Compare,bool Clipping,Stamp Raw,Stamp? Lut);
+    private readonly string lensDatabase;
+    private Stamp? lensStamp;
+    private LensCandidate[] lensCandidates = [];
     private PreviewKey? previewKey;
     private (Stamp Raw,Stamp? Lut)? sourceStamp;
     private (Stamp Raw,int Edge,RenderedImage Frame)? original;
@@ -25,12 +28,19 @@ internal sealed class RenderEngine : IDisposable
     private static long FrameBytes(PreviewFrame frame)=>ImageBytes(frame.Result)+
         (ReferenceEquals(frame.Neutral,frame.Result) ? 0 : ImageBytes(frame.Neutral));
     public int LastBackend => Native.sony2fuji_session_get_last_backend(session);
-    public RenderEngine(int gpuMode=1) => SetGpuMode(gpuMode);
+    public RenderEngine(int gpuMode=1, string? lensDatabase=null)
+    {
+        this.lensDatabase = lensDatabase ?? Path.Combine(AppContext.BaseDirectory,"Lensfun");
+        try { InitializeSession(); SetGpuMode(gpuMode); }
+        catch { session.Dispose(); throw; }
+    }
+    private void InitializeSession() => Native.Check(Native.sony2fuji_session_set_lens_database(session,lensDatabase));
     public void SetGpuMode(int mode) { var config=new Native.GpuConfig{Version=1,StructSize=12,Mode=mode};Native.Check(Native.sony2fuji_session_set_gpu_config(session,ref config));gpuMode=mode; }
     public void Dispose() {previews.Clear();original=null;session.Dispose();}
     public double AutoExposure(string path, Adjustments settings)
     {
         settings = PrepareRecipe(path, settings);
+        SetLens(settings.Lens);
         Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
         var request=settings.Request(path,null,0,null);
         Native.Check(Native.sony2fuji_session_estimate_auto_exposure(session,ref request,out var ev));
@@ -44,10 +54,10 @@ internal sealed class RenderEngine : IDisposable
         if(sourceStamp is {} previous &&
             ((previous.Raw.Path==rawStamp.Path && previous.Raw!=rawStamp) ||
              (previous.Lut?.Path==lutStamp?.Path && previous.Lut!=lutStamp)))
-        {session.Dispose();session=new();SetGpuMode(gpuMode);}
+        {session.Dispose();session=new();InitializeSession();SetGpuMode(gpuMode);lensStamp=null;}
         sourceStamp=(rawStamp,lutStamp);
         var key=new PreviewKey(settings.Request(path,lut,2000,null),settings.Denoise,settings.Effects,settings.DisplayChromaDenoise,
-            settings.ExposureMode,settings.Hsl,gpuMode,compare,clipping,rawStamp,lutStamp);
+            settings.ExposureMode,settings.Hsl,settings.Lens,gpuMode,compare,clipping,rawStamp,lutStamp);
         if(previewKey!=key){previews.Clear();previewKey=key;}
         var cacheEdge=interactive && original?.Edge==0 ? 0 : interactive && edge==1000 ? 2000 : edge;
         if(previews.TryGetValue(cacheEdge,out var cached)) {
@@ -77,6 +87,7 @@ internal sealed class RenderEngine : IDisposable
     public RenderedImage? Render(string path, Adjustments settings, string? lut, int edge, bool interactive = false, string? output = null, bool statistics = true, bool clipping = true, int? longEdge = null)
     {
         settings = PrepareRecipe(path, settings);
+        SetLens(settings.Lens);
         Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
         var hsl=settings.RenderHsl.NativeConfig();
         Native.Check(Native.sony2fuji_session_set_hsl(session,ref hsl));
@@ -112,9 +123,29 @@ internal sealed class RenderEngine : IDisposable
             var count = (double)buffer.Width * buffer.Height;
             // Statistics consume RGBA before the private output buffers are swizzled for WPF.
             return new(Bitmap(buffer),mask.Data==IntPtr.Zero ? null : Bitmap(mask,false),bins,shadows/count,highlights/count,baseline,
-                calibrated ? (Math.Round(temperature),Math.Round(tint)) : null,LastBackend);
+                calibrated ? (Math.Round(temperature),Math.Round(tint)) : null,LastBackend,ReadLens(path));
         }
         finally { Native.sony2fuji_release_buffer(ref buffer); Native.sony2fuji_release_buffer(ref mask); }
+    }
+    private void SetLens(LensSettings value)
+    {
+        var config = new Native.LensConfig { Version=1,StructSize=(uint)Marshal.SizeOf<Native.LensConfig>(),
+            Distortion=value.Distortion ? 1 : 0,Tca=value.Tca ? 1 : 0,AutoCrop=value.AutoCrop ? 1 : 0,ProfileId=value.CoreProfileId };
+        Native.Check(Native.sony2fuji_session_set_lens_correction(session,ref config));
+    }
+    private LensInfo ReadLens(string path) {
+        var file = new FileInfo(path);
+        var stamp = new Stamp(file.FullName, file.Length, file.LastWriteTimeUtc.Ticks);
+        if (stamp != lensStamp) {
+            Native.Check(Native.sony2fuji_session_inspect_lens(session, path, out _, null, 0, out var count));
+            var profiles = new Native.LensProfile[checked((int)count)];
+            Native.Check(Native.sony2fuji_session_inspect_lens(session, path, out _, profiles, count, out _));
+            lensCandidates = profiles.Select(p => new LensCandidate(Native.Text(p.Id), Native.Text(p.Maker), Native.Text(p.Model), p.HasDistortion != 0, p.HasTca != 0, p.IsMatch != 0)).ToArray();
+            lensStamp = stamp;
+        }
+        Native.Check(Native.sony2fuji_session_get_lens_report(session, out var report));
+        return new(report.State, Native.Text(report.LensModel), Native.Text(report.Profile.Model), report.AppliedDistortion != 0,
+            report.AppliedTca != 0, report.CropScale, lensCandidates);
     }
     private Adjustments PrepareRecipe(string path, Adjustments settings)
     {

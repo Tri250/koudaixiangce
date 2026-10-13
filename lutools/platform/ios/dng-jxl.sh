@@ -48,6 +48,10 @@ fixtures=(
     linear-jxl-channel-levels.dng
     linear-channel-levels.dng
     linear-normalized.dng
+    linear-jxl-lens.dng
+    linear-lens.dng
+    linear-jxl-stage3-lens.dng
+    lenses.xml
 )
 for fixture in "${fixtures[@]}"; do
     cp "$ROOT/tests/fixtures/$fixture" "$STAGE/$fixture"
@@ -69,7 +73,7 @@ test -f "$dng_headers/dng_memory.h"
 xcrun --sdk iphonesimulator clang++ -std=c++17 -O2 \
     -target "arm64-apple-ios$DEPLOYMENT_TARGET-simulator" -isysroot "$SDK" \
     -I "$ROOT/include" -I "$dng_headers" "$test_define" \
-    -DSONY2FUJI_ENABLE_DNGSDK -DqDNGThreadSafe=1 -DqiPhone=1 -DqiPhoneSimulator=1 \
+    -DSONY2FUJI_ENABLE_DNGSDK -DSONY2FUJI_ENABLE_LENSFUN -DqDNGThreadSafe=1 -DqiPhone=1 -DqiPhoneSimulator=1 \
     "$ROOT/tests/dng_jxl_tests.cpp" -F "$FRAMEWORK" -framework sony2fuji \
     -Xlinker -rpath -Xlinker "$FRAMEWORK" -o "$BINARY"
 

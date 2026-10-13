@@ -34,6 +34,8 @@ set(BUILD_CLI OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIB OFF CACHE BOOL "" FORCE)
 set(SONY2FUJI_ENABLE_GPU ON CACHE BOOL "" FORCE)
+set(SONY2FUJI_ENABLE_LENSFUN ON CACHE BOOL "" FORCE)
+set(SONY2FUJI_BUILD_LENS_DEPS ON CACHE BOOL "" FORCE)
 set(SONY2FUJI_ENABLE_OPENMP OFF CACHE BOOL "" FORCE)
 set(SONY2FUJI_ENABLE_WAVELET_DENOISE ON CACHE BOOL "" FORCE)
 set(SONY2FUJI_ENABLE_CHROMA_DENOISE ON CACHE BOOL "" FORCE)
@@ -50,6 +52,6 @@ target_link_libraries(rawlab_gpu_tests PRIVATE sony2fuji_core)
 
 add_executable(rawlab_dng_tests EXCLUDE_FROM_ALL "${REPO}/lutools/tests/dng_jxl_tests.cpp")
 target_include_directories(rawlab_dng_tests PRIVATE "${REPO}/lutools/include")
-target_compile_definitions(rawlab_dng_tests PRIVATE SONY2FUJI_ENABLE_DNGSDK
+target_compile_definitions(rawlab_dng_tests PRIVATE SONY2FUJI_ENABLE_DNGSDK SONY2FUJI_ENABLE_LENSFUN
     TEST_FIXTURE_DIR="${REPO}/lutools/tests/fixtures")
 target_link_libraries(rawlab_dng_tests PRIVATE sony2fuji_core)

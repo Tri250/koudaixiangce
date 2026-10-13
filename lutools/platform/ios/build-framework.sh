@@ -55,6 +55,7 @@ for config in iphoneos-arm64 iphonesimulator-arm64 iphonesimulator-x86_64; do
     core="$BASE/core-$config"
     cmake -S "$ROOT" -B "$core" -GXcode "${common[@]}" "${CMAKE_EXTRA_ARGS[@]}" \
         -DIOS=ON -DBUILD_SHARED_LIB=ON -DBUILD_CLI=OFF -DBUILD_TESTING=OFF \
+        -DSONY2FUJI_ENABLE_LENSFUN=ON -DSONY2FUJI_BUILD_LENS_DEPS=ON \
         -DSONY2FUJI_ENABLE_OPENMP=OFF -DSONY2FUJI_ENABLE_GPU=ON \
         -DSONY2FUJI_BUILD_TIFF_DEPS=ON \
         -DSONY2FUJI_ENABLE_WAVELET_DENOISE=ON -DSONY2FUJI_ENABLE_CHROMA_DENOISE=ON -DSONY2FUJI_BUILD_DENOISE_DEPS=ON \
@@ -78,6 +79,10 @@ for config in iphoneos-arm64 iphonesimulator-arm64 iphonesimulator-x86_64; do
     cp "$ROOT/../RawLabMac/Resources/Licenses/stb-MIT-LICENSE.txt" "$framework/Licenses/"
     cp "$ROOT/platform/ios/ThirdPartyNotices.md" "$framework/Licenses/"
     cp "$core/licenses/OpenCV-LICENSE" "$core/licenses/wavelib-COPYRIGHT" "$framework/Licenses/"
+    cp -R "$core/licenses/lensfun" "$framework/Licenses/"
+    rm -rf "$framework/Lensfun"
+    mkdir -p "$framework/Lensfun"
+    cp -R "$ROOT/third_party/lensfun/version_1/." "$framework/Lensfun/"
     cp "$core/licenses/libtiff/LICENSE.md" "$framework/Licenses/libtiff-LICENSE.md"
     test -d "$core/licenses/dng-sdk"
     cp -R "$core/licenses/dng-sdk" "$framework/Licenses/"

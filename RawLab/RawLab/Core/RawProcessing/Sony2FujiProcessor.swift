@@ -6,9 +6,12 @@ import UniformTypeIdentifiers
 
 struct Sony2FujiProcessor {
     let gpuMode: sony2fuji_gpu_mode
+    let lensDatabaseURL: URL?
+    let lensCatalog = LensCatalogCache()
 
-    init(gpuMode: sony2fuji_gpu_mode = SONY2FUJI_GPU_AUTO) {
+    init(gpuMode: sony2fuji_gpu_mode = SONY2FUJI_GPU_AUTO, lensDatabaseURL: URL? = nil) {
         self.gpuMode = gpuMode
+        self.lensDatabaseURL = lensDatabaseURL
     }
 
     // =========================================================================
@@ -49,6 +52,7 @@ struct Sony2FujiProcessor {
         let buffer: Buffer
         let orientation: CGImagePropertyOrientation?
         let rawWhiteBalance: RawWhiteBalance?
+        var lensInfo: LensInfo? = nil
     }
 
     struct RawWhiteBalance: Codable, Equatable {
@@ -99,7 +103,9 @@ struct Sony2FujiProcessor {
     func autoExposure(url: URL?, buffer: Buffer?, settings: RawSettings) throws -> Double {
         let session = try createSession()
         defer { destroySession(session) }
+        try loadLensDatabase(session)
         let settings = try prepareRecipe(settings, session: session, url: url)
+        try configureLens(session, settings: settings.lensSettings)
         let mode = sony2fuji_raw_exposure_mode(rawValue: UInt32(settings.exposureMode.rawValue))
         guard sony2fuji_session_set_raw_exposure_mode(session, mode) == SONY2FUJI_STATUS_OK else {
             throw ProcessorError.processFailed("Invalid exposure mode.")
@@ -153,6 +159,7 @@ struct Sony2FujiProcessor {
         }
         let session = try createSession()
         defer { destroySession(session) }
+        try loadLensDatabase(session)
         let settings = try prepareRecipe(settings, session: session, url: url)
         try configureSession(session, settings: settings,
                              interactive: interactive && previewLongEdge != nil && exportLongEdge == nil)
@@ -165,6 +172,7 @@ struct Sony2FujiProcessor {
         request.lut_strength = lutStrength
 
         var buffer = sony2fuji_buffer()
+        defer { sony2fuji_release_buffer(&buffer) }
         let status = processRaw(
             session: session,
             request: &request,
@@ -178,8 +186,7 @@ struct Sony2FujiProcessor {
 
         let output = try copyBuffer(buffer)
         let rawWhiteBalance = readRawWhiteBalance(from: session)
-        sony2fuji_release_buffer(&buffer)
-        return ProcessResult(buffer: output, orientation: .up, rawWhiteBalance: rawWhiteBalance)
+        return ProcessResult(buffer: output, orientation: .up, rawWhiteBalance: rawWhiteBalance, lensInfo: try readLens(session, url: url))
     }
 
     func processBuffer(
@@ -195,6 +202,7 @@ struct Sony2FujiProcessor {
         }
         let session = try createSession()
         defer { destroySession(session) }
+        try loadLensDatabase(session)
         let settings = try prepareRecipe(settings, session: session, url: nil)
         try configureSession(session, settings: settings,
                              interactive: interactive && previewLongEdge != nil && exportLongEdge == nil)
@@ -244,6 +252,7 @@ struct Sony2FujiProcessor {
         let height = rawDimensions.height > 0 ? rawDimensions.height : metadata.height
         let session = try createSession()
         defer { destroySession(session) }
+        try loadLensDatabase(session)
         let settings = try prepareRecipe(settings, session: session, url: url)
         try configureSession(session, settings: settings, interactive: false)
 
@@ -272,6 +281,7 @@ struct Sony2FujiProcessor {
         }
         let session = try createSession()
         defer { destroySession(session) }
+        try loadLensDatabase(session)
         let settings = try prepareRecipe(settings, session: session, url: nil)
         try configureSession(session, settings: settings, interactive: false)
 
