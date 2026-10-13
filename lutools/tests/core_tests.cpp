@@ -260,6 +260,24 @@ int main() {
 
     sony2fuji_session* session=nullptr;
     sony2fuji_session_create(&session);
+    {
+        const auto unsupported = cube.u8string();
+        const auto missing = (dir / "missing.dng").u8string();
+        RAWProcessor raw;
+        check(raw.loadFile(unsupported) == ErrorCode::InvalidFormat,
+              "Existing non-RAW input is unsupported, not a missing file");
+        check(raw.loadFile(missing) == ErrorCode::FileNotFound,
+              "Missing RAW input remains a file error");
+        auto rawRequest = request(nullptr);
+        rawRequest.input_type = SONY2FUJI_INPUT_RAW;
+        sony2fuji_buffer rawOutput{};
+        rawRequest.input_path = unsupported.c_str();
+        check(sony2fuji_process(session, &rawRequest, &rawOutput) == SONY2FUJI_STATUS_UNSUPPORTED &&
+              !rawOutput.data, "RAW C ABI distinguishes unsupported input from IO failure");
+        rawRequest.input_path = missing.c_str();
+        check(sony2fuji_process(session, &rawRequest, &rawOutput) == SONY2FUJI_STATUS_IO_ERROR &&
+              !rawOutput.data, "RAW C ABI preserves missing-path IO failure");
+    }
     testFujiLUTs(dir, session);
     const unsigned char black[3]={0,0,0};
     auto r=request(black);

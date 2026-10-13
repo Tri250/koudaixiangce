@@ -15,6 +15,6 @@ swiftc -swift-version 5 -O -sdk "$SDK" -target "$(uname -m)-apple-macosx26.0" \
   "$ROOT/RawLabMac/Sources/ExportSizePicker.swift" \
   "$ROOT/RawLabMac/Sources/LookLibrary.swift" "$ROOT/RawLabMac/Sources/RenderScheduling.swift" \
   "$ROOT/RawLabMac/Sources/FileLibrary.swift" "$ROOT/RawLabMac/tests/DenoiseModelTests.swift" \
-  "$ROOT/lutools/build-macos/libsony2fuji_core.a" $(pkg-config --libs libraw opencv4 wavelib lensfun) -lc++ -lz \
+  "$ROOT/lutools/build-macos/libsony2fuji_core.a" $(pkg-config --libs libraw opencv4 wavelib rawlab-dng-sdk lensfun) -lc++ -lz \
   -framework SwiftUI -framework AppKit -framework ImageIO -framework Metal -o "$OUT/test"
 "$OUT/test" "${1:?Pass a RAW fixture}"

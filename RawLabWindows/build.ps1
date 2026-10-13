@@ -63,7 +63,8 @@ if (!$openmp) { throw 'Cannot locate the Visual C++ OpenMP runtime.' }
 Copy-Item "$($openmp.FullName)/*.dll" $output -Force
 $licenses = Join-Path $output 'Licenses'
 New-Item -ItemType Directory -Force $licenses | Out-Null
-Copy-Item "$native/licenses/*", "$repo/lutools/third_party/Adobe-DNG-SDK-LICENSE.txt", "$repo/lutools/third_party/rawspeed-camera-calibration.inc", "$repo/RawLabMac/Resources/Licenses/stb-MIT-LICENSE.txt" $licenses -Recurse -Force
+Copy-Item "$native/licenses/*" $licenses -Recurse -Force
+Copy-Item "$repo/lutools/third_party/Adobe-DNG-SDK-LICENSE.txt", "$repo/lutools/third_party/rawspeed-camera-calibration.inc", "$repo/RawLabMac/Resources/Licenses/stb-MIT-LICENSE.txt" $licenses -Force
 Copy-Item "$PSScriptRoot/Licenses/*" $licenses -Force
 Copy-Item "$PSScriptRoot/ThirdPartyNotices.md", "$PSScriptRoot/README.md", "$PSScriptRoot/verification.md", "$PSScriptRoot/performance.md" $output -Force
 Copy-Item "$repo/LICENSE" $output -Force

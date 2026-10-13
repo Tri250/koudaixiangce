@@ -28,6 +28,11 @@ val prepareAssets by tasks.registering(Sync::class) {
     from(repo.resolve("lutools/third_party/lensfun")) { into("licenses/lensfun"); include("*.txt", "*.md") }
     from(repo.resolve("lutools/third_party/lensfun/dependency-licenses")) { into("licenses/lensfun"); include("*.txt") }
     from(repo.resolve("lutools/third_party")) { into("licenses"); include("*LICENSE*") }
+    from(repo.resolve("lutools/third_party/dng-sdk")) {
+        into("licenses")
+        include("*.txt")
+        rename { if (it == "Adobe-DNG-SDK-LICENSE.txt") "Adobe-DNG-SDK-1.7.1-LICENSE.txt" else it }
+    }
     from(repo.resolve("RawLabMac/Resources/Licenses")) {
         into("licenses"); include("LibRaw-COPYRIGHT", "LibRaw-LICENSE.*", "stb-MIT-LICENSE.txt")
     }

@@ -13,6 +13,11 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
         fi
     done
     test -f "$(dirname "$binary")/Lensfun/mil-sony.xml"
+    lens_xml=("$(dirname "$binary")/Lensfun/"*.xml)
+    if [ "$(find "$(dirname "$binary")/Lensfun" -type f -name '*.xml' | wc -l)" -ne "${#lens_xml[@]}" ]; then
+        echo "FAIL: $slice Lensfun database must be a flat XML snapshot" >&2
+        exit 1
+    fi
     for notice in lgpl-3.0.txt database-CC-BY-SA-3.0.txt GLib-COPYING PCRE2-LICENCE proxy-libintl-COPYING; do
         test -f "$(dirname "$binary")/Licenses/lensfun/$notice"
     done
@@ -26,6 +31,12 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
         rawspeed-camera-calibration.inc Adobe-DNG-SDK-LICENSE.txt stb-MIT-LICENSE.txt ThirdPartyNotices.md \
         RawLab-GPL-3.0.txt RawLab-Licensing.md; do
         test -f "$(dirname "$binary")/Licenses/$notice"
+    done
+    dng_licenses="$(dirname "$binary")/Licenses/dng-sdk"
+    test -d "$dng_licenses"
+    for notice in Adobe-DNG-SDK-LICENSE.txt JPEG-XL-LICENSE.txt Brotli-LICENSE.txt \
+        Highway-LICENSE.txt Highway-LICENSE-BSD3.txt skcms-LICENSE.txt; do
+        test -f "$dng_licenses/$notice"
     done
 done
 lipo "$FRAMEWORK/ios-arm64/sony2fuji.framework/sony2fuji" -verify_arch arm64

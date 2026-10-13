@@ -95,3 +95,6 @@ third_party/*
 !third_party/lensfun/
 !third_party/lensfun/**
 !cmake/lens-dependencies.cmake
+!third_party/dng-sdk/
+!third_party/dng-sdk/*.txt
+!cmake/dng-sdk.cmake

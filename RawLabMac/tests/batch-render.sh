@@ -14,5 +14,5 @@ swiftc -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx26.0" \
   "$ROOT/RawLabMac/Sources/BatchExport.swift" "$ROOT/RawLabMac/Sources/BatchExportModel.swift" \
   "$ROOT/RawLabMac/Sources/FileLibrary.swift" "$ROOT/RawLabMac/tests/BatchRenderTests.swift" \
   "$ROOT/lutools/build-macos/libsony2fuji_core.a" -L "$(pkg-config --variable=libdir libraw)" \
-  -lraw $(pkg-config --libs opencv4 wavelib lensfun) -lc++ -lz -framework SwiftUI -framework AppKit -framework ImageIO -framework Metal -o "$OUT/test"
+  -lraw $(pkg-config --libs opencv4 wavelib rawlab-dng-sdk lensfun) -lc++ -lz -framework SwiftUI -framework AppKit -framework ImageIO -framework Metal -o "$OUT/test"
 "$OUT/test" "$INPUT"

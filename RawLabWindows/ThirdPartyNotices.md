@@ -50,6 +50,13 @@
 - stb image and image write: MIT option; license in `Licenses/stb-MIT-LICENSE.txt`.
 - Adobe DNG SDK temperature conversion: retained notice in
   `Licenses/Adobe-DNG-SDK-LICENSE.txt`.
+- Adobe DNG SDK 1.7.1 Build 2724 and its bundled JPEG XL, Brotli, Highway and
+  skcms sources: version and archive hash in `lutools/cmake/dng-sdk.cmake`.
+  Source: https://download.adobe.com/pub/adobe/dng/dng_sdk_1_7_1_2724_20260908.zip
+  Statically linked for JPEG XL DNG decoding. XMP editing and the validator are
+  disabled; the local adapter adds missing XMP guards to `dng_jxl.cpp`.
+  Full original licenses are included in `Licenses/dng-sdk/`.
+  This product includes DNG technology under license by Adobe.
 - Fujifilm F-Log2 LUTs: existing repository assets, copied unchanged. See the
   included `LUTs/F-Log2_LUT_overview_Ver.2.0E.pdf`. Names identify simulations;
   this client is not affiliated with Fujifilm.
@@ -62,5 +69,5 @@
   installed Visual Studio Build Tools, under Microsoft's distribution terms.
 
 No binaries are checked into source control. The build downloads version-pinned
-LibRaw, zlib, OpenCV and wavelib source archives and verifies their hashes before compilation.
+LibRaw, zlib, DNG SDK/JPEG XL, OpenCV and wavelib source archives and verifies their hashes before compilation.
 The ExifTool runtime archive is also version-pinned and hash-verified.
