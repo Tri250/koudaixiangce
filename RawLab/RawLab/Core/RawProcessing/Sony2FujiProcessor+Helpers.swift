@@ -37,7 +37,8 @@ extension Sony2FujiProcessor {
         _ = sony2fuji_session_destroy(session)
     }
 
-    func configureSession(_ session: OpaquePointer, settings: RawSettings, interactive: Bool) throws {
+    func configureSession(_ session: OpaquePointer, settings: RawSettings, interactive: Bool,
+                          viewportPreview: Bool = false) throws {
         let exposureMode = sony2fuji_raw_exposure_mode(rawValue: UInt32(settings.exposureMode.rawValue))
         guard sony2fuji_session_set_raw_exposure_mode(session, exposureMode) == SONY2FUJI_STATUS_OK,
               settings.hsl.isValid else { throw ProcessorError.processFailed("Invalid exposure mode or HSL parameters.") }
@@ -86,6 +87,8 @@ extension Sony2FujiProcessor {
         guard status == SONY2FUJI_STATUS_OK else { throw ProcessorError.processFailed(statusMessage(status)) }
         let previewStatus = sony2fuji_session_set_interactive_preview(session, interactive ? 1 : 0)
         guard previewStatus == SONY2FUJI_STATUS_OK else { throw ProcessorError.processFailed(statusMessage(previewStatus)) }
+        let viewportStatus = sony2fuji_session_set_viewport_preview(session, viewportPreview ? 1 : 0)
+        guard viewportStatus == SONY2FUJI_STATUS_OK else { throw ProcessorError.processFailed(statusMessage(viewportStatus)) }
     }
 
     func prepareRecipe(_ settings: RawSettings, session: OpaquePointer, url: URL?) throws -> RawSettings {

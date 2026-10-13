@@ -107,6 +107,12 @@ struct ProcessorExportTests {
         scroll.displayScale = 2
         scroll.imageView.image = UIImage(cgImage: processor.makeCGImage(from: noiseOff)!)
         scroll.layoutIfNeeded()
+        check(abs(scroll.imageView.bounds.width - 1200) < 0.01, "iOS geometry starts in display points")
+        scroll.displayScale = 3
+        scroll.setNeedsLayout()
+        scroll.layoutIfNeeded()
+        check(abs(scroll.imageView.bounds.width - 800) < 0.01,
+              "iOS display density change rebuilds geometry without a bounds change")
         scroll.setZoomScale(1, animated: false)
         scroll.setContentOffset(CGPoint(x: 100, y: 80), animated: false)
         let originalOffset = scroll.contentOffset
@@ -241,6 +247,28 @@ struct ProcessorExportTests {
         let hslRawGPU = try forcedProcessor.processRaw(url: raw, settings: hsl, previewLongEdge: nil, lutURL: lut, exportLongEdge: 128)
         check(Self.maximumDifference(hslRawGPU.buffer.data, hslRawCPU.buffer.data) <= 2,
               "iOS HSL final RAW export uses Force Metal with CPU parity")
+        var viewportSettings = RawSettings.default
+        viewportSettings.denoise.apply(.clean)
+        _ = try processor.processRaw(url: raw, settings: viewportSettings, previewLongEdge: 512,
+                                     lutURL: lut, viewportPreview: true)
+        viewportSettings.exposure = 0.35
+        _ = try processor.processRaw(url: raw, settings: viewportSettings, previewLongEdge: 768,
+                                     lutURL: lut, interactive: true, viewportPreview: true)
+        let nativeDenoise = try processor.processRaw(url: raw, settings: viewportSettings, previewLongEdge: nil,
+                                                    lutURL: lut, interactive: true, viewportPreview: true)
+        let freshDenoise = try Sony2FujiProcessor().processRaw(url: raw, settings: viewportSettings,
+                                                             previewLongEdge: nil, lutURL: lut)
+        let dimensions = raw.path.withCString { rawlab_get_raw_dimensions($0) }
+        check(nativeDenoise.buffer.width == Int(dimensions.width) && nativeDenoise.buffer.height == Int(dimensions.height),
+              "iOS denoise export after viewport resize remains native size")
+        check(nativeDenoise.buffer.data == freshDenoise.buffer.data,
+              "iOS native denoise export never reuses viewport pixels")
+        let nativeJPEG = try processor.makeJPEGData(from: nativeDenoise.buffer, sourceURL: raw,
+                                                    orientation: nativeDenoise.orientation, quality: 0.92)
+        let freshJPEG = try processor.makeJPEGData(from: freshDenoise.buffer, sourceURL: raw,
+                                                   orientation: freshDenoise.orientation, quality: 0.92)
+        check(nativeJPEG == freshJPEG, "iOS native JPEG matches independent FINAL processing")
+        try nativeJPEG.write(to: output.appendingPathComponent("ios-denoised-native.jpg"))
         let rawJPEG = try processor.makeJPEGData(from: strongRaw.buffer, sourceURL: raw,
                                                 orientation: strongRaw.orientation, quality: 0.92)
         let rawFields = properties(rawJPEG)

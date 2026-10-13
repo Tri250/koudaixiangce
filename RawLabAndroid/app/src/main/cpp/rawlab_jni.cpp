@@ -177,6 +177,7 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
             request.saturation = 1 + saturation * strength;
         }
         check(sony2fuji_session_set_interactive_preview(session, interactive && !out.chars));
+        check(sony2fuji_session_set_viewport_preview(session, !out.chars && edge > 0));
         sony2fuji_wavelet_denoise_config denoise{SONY2FUJI_WAVELET_DENOISE_CONFIG_VERSION,
             sizeof(sony2fuji_wavelet_denoise_config), denoiseEnabled ? 1 : 0, luma, chroma, coarse};
         check(sony2fuji_session_set_wavelet_denoise(session, &denoise));

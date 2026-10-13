@@ -40,7 +40,7 @@ sample-limited validation are documented in the RAW compatibility report.
 5. Blend neutral and film outputs in the same display-encoded RGB convention. Strength 0 is continuous with the no-LUT rendering. Contrast, saturation and curves follow, then HSL, optional display-chroma denoising, detail adjustments, vignette and grain, and final resizing.
 6. Write RGB/RGBA preview, JPEG or actual 16-bit PNG. PNG includes an sRGB chunk. Photo outputs use an sRGB display interpretation; the film-simulation names alone do not establish camera-to-camera colorimetric equivalence or a measured display EOTF. JPEG consumers must use this sRGB interpretation.
 
-When sharpening is enabled, the early preview downsample is skipped. The fixed pixel-radius filter runs at source resolution before the final preview resize, matching its export footprint. At zero sharpening the existing fast preview path remains unchanged. Mac's contrast/saturation controls use percent offsets from the core's identity value 1; highlight signs are reversed at the UI boundary so positive values consistently brighten. All six output adjustments default to an identity result.
+In exact/default rendering, sharpening skips the early preview downsample. The fixed pixel-radius filter runs at source resolution before the final preview resize, matching its export footprint. The separately opted-in viewport approximation below filters the reduced input instead. At zero sharpening the existing fast preview path remains unchanged. Mac's contrast/saturation controls use percent offsets from the core's identity value 1; highlight signs are reversed at the UI boundary so positive values consistently brighten. All six output adjustments default to an identity result.
 
 The film output interpretation is a declared application convention. It is not a claim that Fujifilm's short LUT overview specifies every viewing parameter. No guessed extra gamma is applied to an already rendered film LUT output.
 
@@ -122,8 +122,9 @@ approximation, not measured film stock or physical silver-halide simulation.
 
 The stage runs after sharpening and before final resize on CPU, Metal, GLES or
 D3D11. Neutral/CUBE output supports every backend; native DCP rendering remains
-CPU/Metal only. Active effects use full RAW resolution even during interactive
-previews. Off restores the existing early-resize/proxy paths. Auto retains CPU
+CPU/Metal only. Active effects use full RAW resolution in default/exact rendering,
+including legacy interactive previews. The viewport opt-in below is an
+approximation. Off restores the existing early-resize/proxy paths. Auto retains CPU
 fallback; Force reports a failure when the platform GPU cannot complete the job.
 
 References considered: [darktable lightness grain](https://docs.darktable.org/usermanual/development/en/module-reference/processing-modules/grain/),
@@ -151,10 +152,20 @@ serialized to avoid allocating full-image wavelet coefficients. Float GPU result
 are tested against the existing double wavelib implementation, not substituted
 with a different denoising algorithm.
 
-The exact filtered RAW cache includes the complete denoise options and execution
-mode. CPU/Auto/Force cannot reuse each other's cached denoise results. Interactive
-wavelet previews may remain approximations; final/file requests never reuse them.
-Active chroma or photo effects require the exact source-resolution path.
+Filtered RAW results use one exact slot and two recent viewport slots, with a
+128 MiB retained preview-image budget. Source keys include file identity, RAW
+decode settings/quality, the actual decoded baseline EV and viewport dimensions;
+baseline EV uses exact float identity, including the mutable embedded-preview
+anchor across camera-WB/FBDD transitions. Output matching also requires
+the complete denoise options and execution mode. CPU/Auto/Force cannot reuse
+each other's filtered results. The small source-analysis cache retains flat
+samples, the fitted noise model and calibrated bands across strength changes;
+it does not retain full-image coefficients or replace filtering. Coarse-band
+analysis is prepared lazily when needed. Source/quality/size changes invalidate
+that entry's analysis. Interactive wavelet previews may remain approximations;
+final/file requests never reuse viewport results.
+Active chroma or photo effects require the exact source-resolution path unless
+the caller explicitly opts into the viewport approximation below.
 
 Display-chroma denoising stays after tone/LUT and before sharpening. The GPU
 completes the source-resolution tone stage, then CPU performs the original
@@ -287,8 +298,43 @@ identification-dependent camera/auto/custom WB mode still reopens it.
 `sony2fuji_session_set_interactive_preview` opts PREVIEW+BUFFER requests into
 LibRaw half-size processing. An exact cache can serve an interactive request, never
 the reverse. FINAL requests and all file outputs ignore the flag. The Mac scheduler
-uses 1000-pixel proxies during dragging and always submits an exact pass on release.
+uses viewport-sized proxies during dragging and always submits a settled pass on release.
 No post-demosaic RGB tint approximation replaces camera-space white balance.
+
+`sony2fuji_session_set_viewport_preview` is a separate, default-off session opt-in
+for PREVIEW+BUFFER only, without changing request v2. It reduces linear input to
+the requested dimensions before wavelet, tone/LUT, chroma, sharpening and photo
+effects on CPU/Metal. The immutable RAW cache is sampled directly without first
+copying the entire image. Wavelet cache keys include the viewport dimensions and
+quality mode; reduced results cannot serve exact requests. GPU Auto fallback
+preserves the reduced source, while Force still requires GPU success.
+
+Mac fit/zoom previews derive their long edge from the actual photo pane, display
+scale and magnification, rounded upward in 64-pixel steps and capped by source
+resolution. Window, comparison and panel resizing update this size. With denoise
+enabled, continuous layout changes keep the current proxy size until 200 ms of
+quiet, then render the latest requested size. Other adjustments can still update
+the held proxy. Export stays blocked while this final size is pending; opening
+another photo or switching to actual pixels cancels obsolete resize work. Both
+numeric edits and settled fit previews opt in; actual-pixel viewing returns to the exact
+source-resolution path after dragging ends. Original comparison frames remain
+native and immutable. Exports and FINAL requests always ignore the opt-in.
+Pixel-radius denoising/sharpening and grain appearance in the viewport are
+approximations, not export-detail proofs. Inspect them at 100% when settled.
+Initial RAW decode, absolute WB reprocessing and legacy FBDD still incur their
+CPU costs; this mode does not perform viewport-region RAW decoding.
+
+Windows uses the same physical-pixel demand and quiet resize policy. Its explicit
+actual-pixel view remains native when settled; adjustments in that mode use a
+bounded 2000-pixel proxy until release. iOS and Android retain their existing
+1280/1600-pixel preview ceilings, respectively, and their 100% gesture still
+refers to the fixed comparison-preview pixels, not full RAW detail. Mobile pane
+resizing and zoom update demand within those ceilings without changing the
+comparison geometry. iOS reuses a serialized RAW preview session for denoise
+cache hits, while native exports use separate short-lived sessions. Android and
+Windows reset both session preview flags for each native/file export. All
+clients block export while a denoise resize is pending and preserve original
+export dimensions when no explicit export-size cap is selected.
 
 The illuminant xy/Kelvin conversion is adapted from Adobe DNG SDK's Robertson
 isotherm implementation. Its copyright and license are retained in

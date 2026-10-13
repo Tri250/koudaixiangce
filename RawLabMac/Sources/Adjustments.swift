@@ -545,6 +545,16 @@ struct PhotoViewport: Equatable {
         let pixelFactor = sourceWidth / max(1, renderedWidth) / max(1, displayScale)
         return (pixelMode ? pixelFactor : fit) * magnification
     }
+    func previewLongEdge(canvas: CGSize, displayScale: CGFloat, source: CGSize) -> Int {
+        let width = max(1, canvas.width - 24), height = max(1, canvas.height - 24)
+        let sourceEdge = max(source.width, source.height)
+        guard source.width > 0, source.height > 0, sourceEdge.isFinite else { return 2000 }
+        let fit = min(width / source.width, height / source.height)
+        let pixels = (pixelMode ? max(width, height) : fit * sourceEdge * magnification) * max(1, displayScale)
+        guard pixels.isFinite else { return 2000 }
+        // 按小档位取整，窗口微调不会不断产生新的渲染尺寸。
+        return Int(min(65535, sourceEdge, max(1, ceil(pixels / 64) * 64)))
+    }
 }
 
 struct PhotoEditState: Codable, Equatable {

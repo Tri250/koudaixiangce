@@ -32,9 +32,9 @@ extension ContentView {
                     exportLongEdge = nil
                     showingExportSize = true
                 }
-                .disabled(!viewModel.hasImage || editorBusy || !viewModel.isLookAvailable(for: settings))
+                .disabled(!viewModel.hasImage || editorBusy || viewModel.previewRendering || viewModel.previewResizePending || !viewModel.isLookAvailable(for: settings))
                 Button("使用当前调整批量导出…", action: openBatchExport)
-                    .disabled(viewModel.sourceKind != .raw || !viewModel.hasImage || editorBusy || !viewModel.isLookAvailable(for: settings))
+                    .disabled(viewModel.sourceKind != .raw || !viewModel.hasImage || editorBusy || viewModel.previewRendering || viewModel.previewResizePending || !viewModel.isLookAvailable(for: settings))
                     .accessibilityIdentifier("editor.batchExport")
                 if batchModel != nil { Button("查看批量任务") { showingBatchExport = true } }
             } label: {
@@ -53,7 +53,8 @@ extension ContentView {
                 Color(white: 0.12)
                 if let image = currentPreviewImage {
                     ZoomablePhoto(image: image, referenceImage: viewModel.basePreviewImage ?? image,
-                                  label: showingBefore ? "调整前的照片" : "调整后的照片")
+                                  label: showingBefore ? "调整前的照片" : "调整后的照片",
+                                  onPreviewSizeChange: { viewModel.updatePreviewSize($0, settings: settings) })
                         .id(viewModel.basePreviewImage)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                 } else {

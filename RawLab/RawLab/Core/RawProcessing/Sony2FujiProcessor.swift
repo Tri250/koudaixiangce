@@ -11,6 +11,29 @@ struct Sony2FujiProcessor {
         self.gpuMode = gpuMode
     }
 
+    private let previewSession = PreviewSession()
+
+    private final class PreviewSession {
+        private let lock = NSLock()
+        private var session: OpaquePointer?
+
+        deinit { if let session { sony2fuji_session_destroy(session) } }
+
+        func use<T>(create: () throws -> OpaquePointer,
+                    body: (OpaquePointer) throws -> T) throws -> T {
+            lock.lock()
+            defer { lock.unlock() }
+            if session == nil { session = try create() }
+            return try body(session!)
+        }
+    }
+
+    private func withRawSession<T>(reuse: Bool, body: (OpaquePointer) throws -> T) throws -> T {
+        if reuse { return try previewSession.use(create: createSession, body: body) }
+        let session = try createSession()
+        defer { destroySession(session) }
+        return try body(session)
+    }
     // =========================================================================
     // Types
     // =========================================================================
@@ -132,6 +155,7 @@ struct Sony2FujiProcessor {
         previewLongEdge: CGFloat?,
         lutURL: URL?,
         interactive: Bool = false,
+        viewportPreview: Bool = false,
         exportLongEdge: Int? = nil
     ) throws -> ProcessResult {
         guard ExportSize.isValid(exportLongEdge) else {
@@ -148,35 +172,36 @@ struct Sony2FujiProcessor {
             targetWidth = metadata.width
             targetHeight = metadata.height
         }
-        let session = try createSession()
-        defer { destroySession(session) }
-        let settings = try prepareRecipe(settings, session: session, url: url)
-        try configureSession(session, settings: settings,
-                             interactive: interactive && previewLongEdge != nil && exportLongEdge == nil)
+        return try withRawSession(reuse: previewLongEdge != nil && exportLongEdge == nil) { session in
+            let settings = try prepareRecipe(settings, session: session, url: url)
+            try configureSession(session, settings: settings,
+                                 interactive: interactive && previewLongEdge != nil && exportLongEdge == nil,
+                                 viewportPreview: viewportPreview && previewLongEdge != nil && exportLongEdge == nil)
 
-        var request = makeBaseRequest(settings: settings, inputType: SONY2FUJI_INPUT_RAW)
-        request.input_type = SONY2FUJI_INPUT_RAW
-        applySize(&request, width: targetWidth, height: targetHeight,
-                  previewLongEdge: previewLongEdge, exportLongEdge: exportLongEdge)
-        let lutStrength = lutURL == nil ? 0 : settings.clampedLUTStrength
-        request.lut_strength = lutStrength
+            var request = makeBaseRequest(settings: settings, inputType: SONY2FUJI_INPUT_RAW)
+            request.input_type = SONY2FUJI_INPUT_RAW
+            applySize(&request, width: targetWidth, height: targetHeight,
+                      previewLongEdge: previewLongEdge, exportLongEdge: exportLongEdge)
+            let lutStrength = lutURL == nil ? 0 : settings.clampedLUTStrength
+            request.lut_strength = lutStrength
 
-        var buffer = sony2fuji_buffer()
-        let status = processRaw(
-            session: session,
-            request: &request,
-            inputPath: url.path,
-            lutPath: lutURL?.path,
-            outBuffer: &buffer
-        )
-        guard status == SONY2FUJI_STATUS_OK else {
-            throw ProcessorError.processFailed(statusMessage(status))
+            var buffer = sony2fuji_buffer()
+            defer { sony2fuji_release_buffer(&buffer) }
+            let status = processRaw(
+                session: session,
+                request: &request,
+                inputPath: url.path,
+                lutPath: lutURL?.path,
+                outBuffer: &buffer
+            )
+            guard status == SONY2FUJI_STATUS_OK else {
+                throw ProcessorError.processFailed(statusMessage(status))
+            }
+
+            let output = try copyBuffer(buffer)
+            let rawWhiteBalance = readRawWhiteBalance(from: session)
+            return ProcessResult(buffer: output, orientation: .up, rawWhiteBalance: rawWhiteBalance)
         }
-
-        let output = try copyBuffer(buffer)
-        let rawWhiteBalance = readRawWhiteBalance(from: session)
-        sony2fuji_release_buffer(&buffer)
-        return ProcessResult(buffer: output, orientation: .up, rawWhiteBalance: rawWhiteBalance)
     }
 
     func processBuffer(
@@ -185,6 +210,7 @@ struct Sony2FujiProcessor {
         previewLongEdge: CGFloat?,
         lutURL: URL?,
         interactive: Bool = false,
+        viewportPreview: Bool = false,
         exportLongEdge: Int? = nil
     ) throws -> Buffer {
         guard ExportSize.isValid(exportLongEdge) else {
@@ -194,7 +220,8 @@ struct Sony2FujiProcessor {
         defer { destroySession(session) }
         let settings = try prepareRecipe(settings, session: session, url: nil)
         try configureSession(session, settings: settings,
-                             interactive: interactive && previewLongEdge != nil && exportLongEdge == nil)
+                             interactive: interactive && previewLongEdge != nil && exportLongEdge == nil,
+                             viewportPreview: viewportPreview && previewLongEdge != nil && exportLongEdge == nil)
 
         var request = makeBaseRequest(settings: settings, inputType: SONY2FUJI_INPUT_BUFFER)
         request.input_type = SONY2FUJI_INPUT_BUFFER
