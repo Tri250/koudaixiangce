@@ -12,6 +12,7 @@ import android.provider.OpenableColumns
 import android.util.Size
 import java.io.File
 import java.io.IOException
+import java.io.PushbackInputStream
 import java.util.UUID
 
 data class AlbumPhoto(val uri: Uri, val name: String, val album: String,
@@ -20,6 +21,9 @@ data class AlbumPhoto(val uri: Uri, val name: String, val album: String,
 }
 data class ImportedPhoto(val uri: Uri, val name: String, val file: File,
     val identity: PhotoIdentity = PhotoIdentity(uri.toString()))
+
+// 导入阶段的可解释失败：message 已是面向用户的中文文案，ViewModel 直接展示。
+class ImportException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
 internal fun albumAspectRatio(width: Int, height: Int, orientation: Int): Float? {
     if (width <= 0 || height <= 0) return null
@@ -34,6 +38,11 @@ class PhotoStorage(
     private val resolver = context.contentResolver
     private val directory = File(context.cacheDir, "rawlab-${UUID.randomUUID()}")
     private val lookLibrary = LookLibrary(looksDirectory, lookValidator)
+
+    private companion object {
+        // 魔数嗅探只需文件头几十字节。
+        const val HEADER_BYTES = 32
+    }
 
     fun album(): List<AlbumPhoto> {
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
@@ -75,9 +84,34 @@ class PhotoStorage(
         val name = runCatching { resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null) }.getOrNull()?.use {
             if (it.moveToFirst()) it.getString(0) else null
         } ?: uri.lastPathSegment?.substringAfterLast('/') ?: "RAW"
-        if (!RawFiles.accepts(name, resolver.getType(uri))) throw IOException("Selected item is not a supported RAW")
-        val stream = resolver.openInputStream(uri) ?: throw IOException("Cannot open input")
-        return ImportedPhoto(uri, name, WorkingCopy.import(directory, stream), PhotoIdentity(uri.toString()))
+        // 个别 provider 对受限照片会抛 SecurityException，按未知 MIME 处理即可。
+        val mime = runCatching { resolver.getType(uri) }.getOrNull()
+        val stream = resolver.openInputStream(uri)
+            ?: throw ImportException(context.getString(R.string.import_unreadable, name))
+        stream.use { input ->
+            // 先读文件头：扩展名/MIME 认不出时按魔数兜底，避免误拒有效 RAW。
+            val buffered = PushbackInputStream(input, HEADER_BYTES)
+            val header = ByteArray(HEADER_BYTES)
+            var length = 0
+            while (length < header.size) {
+                val read = runCatching { buffered.read(header, length, header.size - length) }.getOrNull() ?: -1
+                if (read < 0) break
+                length += read
+            }
+            if (length == 0) throw ImportException(context.getString(R.string.import_unreadable, name))
+            if (!RawFiles.accepts(name, mime)) when (RawFiles.sniff(header, length)) {
+                RawFiles.FileKind.RAW -> Unit
+                RawFiles.FileKind.STILL_IMAGE -> throw ImportException(context.getString(R.string.import_still_image, name))
+                RawFiles.FileKind.UNKNOWN -> throw ImportException(context.getString(R.string.import_not_raw, name))
+            }
+            buffered.unread(header, 0, length)
+            val file = try {
+                WorkingCopy.import(directory, buffered)
+            } catch (error: IOException) {
+                throw ImportException(context.getString(R.string.import_unreadable, name), error)
+            }
+            return ImportedPhoto(uri, name, file, PhotoIdentity(uri.toString()))
+        }
     }
 
     fun looks(): List<LookChoice> = LookChoice.builtIns + lookLibrary.list().map {

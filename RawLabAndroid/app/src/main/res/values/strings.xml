@@ -99,6 +99,9 @@
     <string name="edit_storage_error">无法打开本机调整记录，请检查存储权限。</string>
     <string name="process_error">处理失败，请重试或选择其他 RAW。</string>
     <string name="memory_error">内存不足，无法处理这张 RAW。</string>
+    <string name="import_not_raw">无法导入「%1$s」：不是支持的 RAW 格式（DNG、ARW、CR2/CR3、NEF、RAF、ORF、RW2 等）</string>
+    <string name="import_still_image">无法导入「%1$s」：这是普通照片（JPEG/HEIC/PNG），不是 RAW 文件</string>
+    <string name="import_unreadable">无法读取「%1$s」：文件可能已被移动或删除，云端照片请先下载到本机</string>
     <string name="retry">重试</string>
     <string name="cancel">取消</string>
     <string name="save_album">保存到相册</string>

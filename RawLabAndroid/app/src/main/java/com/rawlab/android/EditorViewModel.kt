@@ -399,8 +399,15 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
     private fun text(id: Int) = getApplication<Application>().getString(id)
-    private fun failure(error: Throwable): String = if (error is OutOfMemoryError) text(R.string.memory_error)
-        else text(R.string.process_error) + "\n" + (error.message ?: error.javaClass.simpleName)
+    private fun failure(error: Throwable): String = when {
+        error is OutOfMemoryError -> text(R.string.memory_error)
+        // 导入失败的文案在 PhotoStorage 中已按原因分类，直接展示并留排查日志。
+        error is ImportException -> {
+            android.util.Log.w("RawLab", "Import failed: ${error.message}", error)
+            error.message ?: text(R.string.process_error)
+        }
+        else -> text(R.string.process_error) + "\n" + (error.message ?: error.javaClass.simpleName)
+    }
 
     override fun onCleared() {
         disposed = true
