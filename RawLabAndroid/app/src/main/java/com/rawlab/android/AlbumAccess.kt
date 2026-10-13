@@ -22,6 +22,18 @@ object RawFiles {
     private val mimes = setOf("image/x-adobe-dng", "image/dng", "image/x-dng", "image/x-sony-arw", "image/x-canon-cr2", "image/x-canon-cr3", "image/x-nikon-nef", "image/x-fuji-raf", "image/x-panasonic-rw2", "image/x-olympus-orf", "image/x-pentax-pef")
     fun accepts(name: String, mime: String?) = name.substringAfterLast('.', "").lowercase() in extensions || mime?.lowercase() in mimes
 
+    // 相册维度：RAW 之外的普通照片（JPEG/PNG/HEIC 等），与 RAW 一同展示。
+    private val imageExtensions = setOf("jpg", "jpeg", "png", "heic", "heif", "webp")
+    private val imageMimes = setOf("image/jpeg", "image/png", "image/heic", "image/heif", "image/webp")
+    fun isImage(name: String, mime: String?): Boolean =
+        name.substringAfterLast('.', "").lowercase() in imageExtensions || mime?.lowercase() in imageMimes
+
+    // 文件维度分类：编辑器渲染分流（RAW 管线 / 照片管线）与批量导入使用。
+    fun kindOf(file: java.io.File): FileKind = file.inputStream().use { input ->
+        val probe = probe(input)
+        classify(file.name, null, probe.header, probe.length)
+    }
+
     enum class FileKind { RAW, STILL_IMAGE, UNKNOWN }
 
     // 元数据（扩展名/MIME）可识别时直接放行，否则按文件头魔数兜底。

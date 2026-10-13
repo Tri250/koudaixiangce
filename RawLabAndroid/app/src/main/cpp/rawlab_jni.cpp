@@ -5,6 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 #include <algorithm>
 #include <cmath>
 
@@ -241,6 +242,136 @@ Java_com_rawlab_android_NativeProcessor_nativeAutoExposure(JNIEnv* env, jobject,
         check(status);
         return ev;
     } catch (const std::bad_alloc&) { throwJava(env, "java/lang/OutOfMemoryError", "Not enough memory to meter this RAW"); }
+    catch (const std::exception& error) { throwJava(env, "java/io/IOException", error.what()); }
+    catch (...) { throwJava(env, "java/io/IOException", "Automatic exposure failed"); }
+    return 0;
+}
+
+// ---- 普通照片（JPEG/PNG/HEIC）：平台解码后的 RGBA8 像素走核心照片管线 ----
+
+// 照片没有 RAW 拍摄白平衡可解析，配方只按强度缩放影调参数，白平衡保持用户当前值。
+static void scaleRecipeForPhoto(sony2fuji_request& request, jboolean recipeActive, jfloat strength,
+    jfloat contrast, jfloat saturation) {
+    if (!recipeActive) return;
+    request.exposure_ev *= strength;
+    request.highlights *= strength;
+    request.shadows *= strength;
+    request.contrast = 1 + contrast * strength;
+    request.saturation = 1 + saturation * strength;
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_com_rawlab_android_NativeProcessor_nativeProcessPhoto(JNIEnv* env, jobject, jlong id,
+    jbyteArray pixels, jint width, jint height, jstring lut, jstring output, jfloat strength,
+    jfloat exposure, jboolean customWb, jfloat temperature, jfloat tint, jfloat highlights,
+    jfloat shadows, jfloat contrast, jfloat toneCurve, jfloat saturation, jfloat sharpening,
+    jint edge, jboolean interactive, jboolean png, jint longEdge,
+    jboolean denoiseEnabled, jfloat luma, jfloat chroma, jfloat coarse, jint displayChromaDenoise,
+    jfloat vignetteAmount, jfloat vignetteMidpoint, jfloat vignetteRoundness, jfloat vignetteFeather,
+    jfloat vignetteHighlights, jfloat grainAmount, jfloat grainSize, jfloat grainRoughness,
+    jint exposureMode, jfloatArray hslValues, jboolean recipeActive) {
+    try {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        const auto found = sessions.find(id);
+        if (found == sessions.end()) throw std::invalid_argument("Processor is closed");
+        auto* session = found->second.get();
+        check(sony2fuji_session_set_raw_exposure_mode(session, static_cast<sony2fuji_raw_exposure_mode>(exposureMode)));
+        UtfChars film(env, lut), out(env, output);
+        if (!pixels || width <= 0 || height <= 0 ||
+            env->GetArrayLength(pixels) != static_cast<jsize>(width) * height * 4)
+            throw std::invalid_argument("Invalid photo pixels");
+        if (!hslValues || env->GetArrayLength(hslValues) != 24) throw std::invalid_argument("Invalid HSL values");
+        float hslData[24];
+        env->GetFloatArrayRegion(hslValues, 0, 24, hslData);
+        if (env->ExceptionCheck()) return nullptr;
+        sony2fuji_hsl_config hsl{};
+        hsl.version = SONY2FUJI_HSL_CONFIG_VERSION;
+        hsl.struct_size = sizeof(hsl);
+        std::copy(hslData, hslData+8, hsl.hue);
+        std::copy(hslData+8, hslData+16, hsl.saturation);
+        std::copy(hslData+16, hslData+24, hsl.lightness);
+        check(sony2fuji_session_set_hsl(session, &hsl));
+        const jsize byteCount = static_cast<jsize>(width) * height * 4;
+        std::vector<uint8_t> rgba(static_cast<size_t>(byteCount));
+        env->GetByteArrayRegion(pixels, 0, byteCount, reinterpret_cast<jbyte*>(rgba.data()));
+        if (env->ExceptionCheck()) return nullptr;
+        auto request = rawlab::makeBufferRequest(rgba.data(), static_cast<uint32_t>(width),
+            static_cast<uint32_t>(height), film.chars, out.chars, strength, exposure, customWb,
+            temperature, tint, highlights, shadows, contrast, toneCurve, saturation, sharpening,
+            edge, png, longEdge < 0 ? 0u : static_cast<uint32_t>(longEdge));
+        scaleRecipeForPhoto(request, recipeActive, strength, contrast, saturation);
+        check(sony2fuji_session_set_interactive_preview(session, interactive && !out.chars));
+        sony2fuji_wavelet_denoise_config denoise{SONY2FUJI_WAVELET_DENOISE_CONFIG_VERSION,
+            sizeof(sony2fuji_wavelet_denoise_config), denoiseEnabled ? 1 : 0, luma, chroma, coarse};
+        check(sony2fuji_session_set_wavelet_denoise(session, &denoise));
+        sony2fuji_photo_effects_config effects{SONY2FUJI_PHOTO_EFFECTS_CONFIG_VERSION,
+            sizeof(sony2fuji_photo_effects_config), vignetteAmount, vignetteMidpoint, vignetteRoundness,
+            vignetteFeather, vignetteHighlights, grainAmount, grainSize, grainRoughness};
+        check(sony2fuji_session_set_photo_effects(session, &effects));
+        check(sony2fuji_session_set_chroma_denoise(session, displayChromaDenoise));
+        Buffer buffer;
+        check(sony2fuji_process(session, &request, &buffer.value));
+        if (output) return nullptr;
+        const auto& b = buffer.value;
+        const size_t row = static_cast<size_t>(b.width) * 4;
+        const size_t bytes = rawlab::previewByteCount(b);
+        if (bytes > static_cast<size_t>(std::numeric_limits<jsize>::max()))
+            throw std::runtime_error("Invalid preview buffer");
+        auto outPixels = env->NewByteArray(static_cast<jsize>(bytes));
+        if (!outPixels) return nullptr;
+        for (uint32_t y = 0; y < b.height && !env->ExceptionCheck(); ++y) {
+            env->SetByteArrayRegion(outPixels, static_cast<jsize>(y * row), static_cast<jsize>(row),
+                reinterpret_cast<const jbyte*>(b.data) + y * b.stride_bytes);
+        }
+        if (env->ExceptionCheck()) return nullptr;
+        // 照片没有拍摄白平衡：回传请求中的等效值，UI 按当前设置显示。
+        const float kelvin = customWb ? temperature : 6500.0f;
+        const float wbTint = customWb ? tint : 0.0f;
+        auto type = env->FindClass("com/rawlab/android/NativeFrame");
+        if (!type) return nullptr;
+        auto constructor = env->GetMethodID(type, "<init>", "(II[BFFI)V");
+        if (!constructor) return nullptr;
+        return env->NewObject(type, constructor, static_cast<jint>(b.width),
+            static_cast<jint>(b.height), outPixels, kelvin, wbTint,
+            static_cast<jint>(sony2fuji_session_get_last_backend(session)));
+    } catch (const std::bad_alloc&) {
+        throwJava(env, "java/lang/OutOfMemoryError", "Not enough memory to process this photo");
+    } catch (const std::invalid_argument& error) {
+        throwJava(env, "java/lang/IllegalArgumentException", error.what());
+    } catch (const std::exception& error) {
+        throwJava(env, "java/io/IOException", error.what());
+    } catch (...) {
+        throwJava(env, "java/io/IOException", "Photo processing failed");
+    }
+    return nullptr;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_rawlab_android_NativeProcessor_nativeAutoExposurePhoto(JNIEnv* env, jobject, jlong id,
+    jbyteArray pixels, jint width, jint height, jboolean customWb, jfloat temperature, jfloat tint,
+    jint exposureMode, jboolean recipeActive, jfloat strength) {
+    try {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        const auto found = sessions.find(id);
+        if (found == sessions.end()) throw std::invalid_argument("Processor is closed");
+        if (!pixels || width <= 0 || height <= 0 ||
+            env->GetArrayLength(pixels) != static_cast<jsize>(width) * height * 4)
+            throw std::invalid_argument("Invalid photo pixels");
+        check(sony2fuji_session_set_raw_exposure_mode(found->second.get(), static_cast<sony2fuji_raw_exposure_mode>(exposureMode)));
+        const jsize byteCount = static_cast<jsize>(width) * height * 4;
+        std::vector<uint8_t> rgba(static_cast<size_t>(byteCount));
+        env->GetByteArrayRegion(pixels, 0, byteCount, reinterpret_cast<jbyte*>(rgba.data()));
+        if (env->ExceptionCheck()) return 0;
+        auto request = rawlab::makeBufferRequest(rgba.data(), static_cast<uint32_t>(width),
+            static_cast<uint32_t>(height), nullptr, nullptr, 0, 0, customWb, temperature, tint,
+            0, 0, 0, 0, 0, 0, 1, false);
+        scaleRecipeForPhoto(request, recipeActive, strength, 0, 0);
+        float ev = 0;
+        const auto status = sony2fuji_session_estimate_auto_exposure(found->second.get(), &request, &ev);
+        if (status == SONY2FUJI_STATUS_OUT_OF_MEMORY) throw std::bad_alloc();
+        check(status);
+        return ev;
+    } catch (const std::bad_alloc&) { throwJava(env, "java/lang/OutOfMemoryError", "Not enough memory to meter this photo"); }
     catch (const std::exception& error) { throwJava(env, "java/io/IOException", error.what()); }
     catch (...) { throwJava(env, "java/io/IOException", "Automatic exposure failed"); }
     return 0;

@@ -47,7 +47,8 @@ class PhotoStorage(
         resolver.query(collection, projection, null, null, "${MediaStore.Images.Media.DATE_ADDED} DESC")?.use { cursor ->
             while (cursor.moveToNext()) {
                 val name = cursor.getString(1) ?: "RAW"
-                if (RawFiles.accepts(name, cursor.getString(2))) {
+                val mime = cursor.getString(2)
+                if (RawFiles.accepts(name, mime) || RawFiles.isImage(name, mime)) {
                     result += AlbumPhoto(ContentUris.withAppendedId(collection, cursor.getLong(0)), name, cursor.getString(3) ?: "RAW",
                         cursor.getInt(4), cursor.getInt(5), cursor.getInt(6))
                 }
@@ -88,7 +89,8 @@ class PhotoStorage(
             if (probe.length == 0) throw ImportException(context.getString(R.string.import_unreadable, name))
             when (RawFiles.classify(name, mime, probe.header, probe.length)) {
                 RawFiles.FileKind.RAW -> Unit
-                RawFiles.FileKind.STILL_IMAGE -> throw ImportException(context.getString(R.string.import_still_image, name))
+                // 普通照片（JPEG/PNG/HEIC）与 RAW 一同支持，编辑器按文件类型分流渲染管线。
+                RawFiles.FileKind.STILL_IMAGE -> Unit
                 RawFiles.FileKind.UNKNOWN -> throw ImportException(context.getString(R.string.import_not_raw, name))
             }
             val file = try {

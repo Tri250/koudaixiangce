@@ -59,6 +59,45 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
     }
 
     @Synchronized
+    fun previewPhoto(photo: StillImage.Decoded, lut: File?, settings: EditSettings, edge: Int, interactive: Boolean): NativeFrame {
+        check(handle != 0L) { "Processor is closed" }
+        return checkNotNull(nativeProcessPhoto(handle, photo.pixels, photo.width, photo.height, lut?.path, null, settings.strength,
+            settings.exposure, settings.customWb, settings.temperature, settings.tint,
+            settings.highlights, settings.shadows, settings.contrast, settings.toneCurve,
+            settings.saturation, settings.sharpening, edge, interactive, false, 0,
+            settings.denoise.enabled, settings.denoise.luma, settings.denoise.chroma, settings.denoise.coarse,
+            settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
+            settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
+            settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
+            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null))
+    }
+
+    @Synchronized
+    fun exportPhoto(source: File, photo: StillImage.Decoded, lut: File?, settings: EditSettings,
+        output: File, png: Boolean, longEdge: Int? = null) {
+        check(handle != 0L) { "Processor is closed" }
+        require(ExportSize.isValid(longEdge)) { "Invalid output long edge" }
+        nativeProcessPhoto(handle, photo.pixels, photo.width, photo.height, lut?.path, output.path, settings.strength,
+            settings.exposure, settings.customWb, settings.temperature, settings.tint,
+            settings.highlights, settings.shadows, settings.contrast, settings.toneCurve,
+            settings.saturation, settings.sharpening, 0, false, png, longEdge ?: 0,
+            settings.denoise.enabled, settings.denoise.luma, settings.denoise.chroma, settings.denoise.coarse,
+            settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
+            settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
+            settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
+            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null)
+        ExportMetadata.preserve(source, output)
+    }
+
+    @Synchronized
+    fun autoExposurePhoto(photo: StillImage.Decoded, settings: EditSettings): Float {
+        check(handle != 0L) { "Processor is closed" }
+        return nativeAutoExposurePhoto(handle, photo.pixels, photo.width, photo.height,
+            settings.customWb, settings.temperature, settings.tint, settings.exposureMode,
+            settings.recipeID != null, settings.strength)
+    }
+
+    @Synchronized
     override fun close() {
         if (handle != 0L) { nativeDestroy(handle); handle = 0L }
     }
@@ -68,6 +107,18 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
     private external fun nativeDestroy(handle: Long)
     private external fun nativeAutoExposure(handle: Long, input: String, customWb: Boolean,
         temperature: Float, tint: Float, exposureMode: Int, recipeActive: Boolean, strength: Float): Float
+    private external fun nativeProcessPhoto(handle: Long, pixels: ByteArray, width: Int, height: Int,
+        lut: String?, output: String?,
+        strength: Float, exposure: Float, customWb: Boolean, temperature: Float, tint: Float,
+        highlights: Float, shadows: Float, contrast: Float, toneCurve: Float, saturation: Float, sharpening: Float,
+        edge: Int, interactive: Boolean, png: Boolean, longEdge: Int,
+        denoiseEnabled: Boolean, luma: Float, chroma: Float, coarse: Float, displayChromaDenoise: Int,
+        vignetteAmount: Float, vignetteMidpoint: Float, vignetteRoundness: Float, vignetteFeather: Float,
+        vignetteHighlights: Float, grainAmount: Float, grainSize: Float, grainRoughness: Float,
+        exposureMode: Int, hsl: FloatArray, recipeActive: Boolean): NativeFrame?
+    private external fun nativeAutoExposurePhoto(handle: Long, pixels: ByteArray, width: Int, height: Int,
+        customWb: Boolean, temperature: Float, tint: Float, exposureMode: Int,
+        recipeActive: Boolean, strength: Float): Float
     private external fun nativeProcess(handle: Long, input: String, lut: String?, output: String?,
         strength: Float, exposure: Float, customWb: Boolean, temperature: Float, tint: Float,
         highlights: Float, shadows: Float, contrast: Float, toneCurve: Float, saturation: Float, sharpening: Float,

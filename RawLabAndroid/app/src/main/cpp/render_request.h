@@ -79,4 +79,32 @@ inline sony2fuji_request makeRequest(const char* input, const char* lut, const c
     return makeRequest(input, lut, output, strength, exposure, customWb, temperature, tint,
         0, 0, 0, 0, 0, 0, edge, png);
 }
+
+// 普通照片（JPEG/PNG/HEIC）路径：调用方完成平台解码后送入 tightly-packed RGBA8 像素，
+// 走核心的 sRGB 照片管线（INPUT_BUFFER），其余参数与 RAW 请求完全一致。
+inline sony2fuji_request makeBufferRequest(const void* pixels, uint32_t width, uint32_t height,
+    const char* lut, const char* output,
+    float strength, float exposure, bool customWb, float temperature, float tint,
+    float highlights, float shadows, float contrast, float toneCurve, float saturation,
+    float sharpening, int edge, bool png, uint32_t longEdge = 0) {
+    if (!pixels || width == 0 || height == 0 || width > 65535 || height > 65535 ||
+        (output && !*output))
+        throw std::invalid_argument("Invalid photo request");
+    // makeRequest 的 RAW 路径校验要求非空 input，这里先以占位符通过，再覆盖为像素缓冲。
+    auto request = makeRequest("buffer", lut, output, strength, exposure, customWb, temperature, tint,
+        highlights, shadows, contrast, toneCurve, saturation, sharpening, edge, png, longEdge);
+    request.input_path = nullptr;
+    request.input_type = SONY2FUJI_INPUT_BUFFER;
+    // 照片管线禁止 WB_TEMPERATURE（相机空间重标定仅对 RAW 有意义）。
+    // WB_CUSTOM + 全 1 增益时，核心按 reference/selected 计算色温补偿，
+    // 因此温度/色调滑杆的语义与 RAW 完全一致。
+    request.wb_mode = SONY2FUJI_WB_CUSTOM;
+    request.input_pixels = pixels;
+    request.input_width = width;
+    request.input_height = height;
+    request.input_pixel_format = SONY2FUJI_PIXEL_RGBA8;
+    request.input_color_space = SONY2FUJI_COLOR_SRGB;
+    request.input_is_linear = 0;
+    return request;
+}
 }

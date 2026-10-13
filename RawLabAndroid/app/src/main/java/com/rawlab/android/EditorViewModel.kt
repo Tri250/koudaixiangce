@@ -68,6 +68,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     val pendingBatch = mutablePendingBatch.asStateFlow()
     private var processor: NativeProcessor? = null
     private var original: Pair<java.io.File, Bitmap>? = null
+    // 普通照片的解码缓存（长边 1600），预览与自动测光共用，切换照片时失效。
+    private var stillPixels: Pair<java.io.File, StillImage.Decoded>? = null
     private var currentRevision = 0L
     private var lookRevision = 0L
     private var releases = 0
@@ -94,14 +96,22 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun engine() = processor ?: NativeProcessor().also { processor = it }
 
+    // 照片管线的 LUT 选择：内置胶片 cube 是 F-Log2 Log 输入 LUT，仅适用于 RAW；
+    // 照片只接受大师配方（.rlook）或无外观，否则核心会拒绝并破坏编辑流程。
+    private fun photoLook(settings: EditSettings): File? =
+        if (settings.recipeID != null || settings.film == "neutral") storage.lookPath(settings) else null
+
     // 托管文件从解析路径到 native 读取完成期间不能被另一队列删除。
     private fun perform(work: Work): WorkResult = synchronized(storage) { when (work) {
         is Work.Import -> {
             val photo = storage.import(work.uri)
             val restored = editStore?.load(photo.identity)
+            // 照片类型在渲染线程按文件头判定，无需持久化标记。
+            val still = RawFiles.kindOf(photo.file) == RawFiles.FileKind.STILL_IMAGE
             try {
                 if (restored != null && runCatching { storage.lookPath(restored) }.isFailure) {
-                    engine().preview(photo.file, null, restored.copy(film = "neutral", recipeID = null), 256, false)
+                    // 照片无需 native 中性预览校验，直接提示缺失的外观。
+                    if (!still) engine().preview(photo.file, null, restored.copy(film = "neutral", recipeID = null), 256, false)
                     WorkResult.MissingLook(photo, restored)
                 } else perform(Work.Preview(photo, restored ?: EditSettings(), false, work.gpuMode,
                     importing = true, restored = restored != null))
@@ -112,6 +122,20 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val edge = if (work.interactive) 1000 else 1600
             val native = engine()
             native.setGpuMode(work.gpuMode)
+            val still = RawFiles.kindOf(work.photo.file) == RawFiles.FileKind.STILL_IMAGE
+            if (still) {
+                if (original?.first != work.photo.file) {
+                    original = null
+                    stillPixels = null
+                    val decoded = StillImage.decode(work.photo.file, 1600)
+                    stillPixels = work.photo.file to decoded
+                    original = work.photo.file to decoded.bitmap()
+                }
+                val pixels = stillPixels?.takeIf { it.first == work.photo.file }?.second
+                    ?: StillImage.decode(work.photo.file, 1600).also { stillPixels = work.photo.file to it }
+                val film = native.previewPhoto(pixels, photoLook(work.edits), work.edits, edge, work.interactive)
+                WorkResult.Preview(work, PreviewPair(original!!.second, film.bitmap(), film.temperature, film.tint))
+            }
             if (original?.first != work.photo.file) {
                 original = null
                 original = work.photo.file to native.preview(work.photo.file, null, EditSettings(), 1600, false).bitmap()
@@ -124,13 +148,25 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val output = storage.temporaryOutput(work.png)
             try {
                 engine().setGpuMode(work.gpuMode)
-                engine().export(work.photo.file, storage.lookPath(work.edits), work.edits, output, work.png, work.longEdge)
+                if (RawFiles.kindOf(work.photo.file) == RawFiles.FileKind.STILL_IMAGE) {
+                    // 导出按原始分辨率重新解码，不占用预览解码缓存。
+                    val pixels = StillImage.decode(work.photo.file)
+                    engine().exportPhoto(work.photo.file, pixels, photoLook(work.edits), work.edits, output, work.png, work.longEdge)
+                } else {
+                    engine().export(work.photo.file, storage.lookPath(work.edits), work.edits, output, work.png, work.longEdge)
+                }
                 if (work.destination == null) storage.saveAlbum(output, work.png)
                 else storage.saveDocument(output, work.destination, work.photo.uri)
             } finally { output.delete() }
             WorkResult.Export
         }
-        is Work.AutoExposure -> WorkResult.AutoExposure(work, engine().autoExposure(work.photo.file, work.edits))
+        is Work.AutoExposure -> {
+            if (RawFiles.kindOf(work.photo.file) != RawFiles.FileKind.STILL_IMAGE)
+                return@synchronized WorkResult.AutoExposure(work, engine().autoExposure(work.photo.file, work.edits))
+            val pixels = stillPixels?.takeIf { it.first == work.photo.file }?.second
+                ?: StillImage.decode(work.photo.file, 1600).also { stillPixels = work.photo.file to it }
+            WorkResult.AutoExposure(work, engine().autoExposurePhoto(pixels, work.edits))
+        }
     } }
 
     private fun performLook(work: LookWork): LookResult = synchronized(storage) { try {

@@ -351,8 +351,20 @@ class BatchExportModel(
                     val render: (BatchTarget, EditSettings) -> ByteArray = { target, settings ->
                         val temporary = File.createTempFile("render-", if (png) ".png" else ".jpg", context.filesDir)
                         try {
-                            processor.export(target.sourceFile, materialized.source.lookFile, settings, temporary, png,
-                                materialized.outputLongEdge)
+                            if (RawFiles.kindOf(target.sourceFile) == RawFiles.FileKind.STILL_IMAGE) {
+                                // 普通照片走平台解码 + 照片管线；内置胶片 cube 仅适用于 RAW，
+                                // 照片只接受大师配方或无外观。
+                                val settings = materialized.source.settings
+                                val look = materialized.source.lookFile
+                                    ?.takeIf { settings.recipeID != null || settings.film == "neutral" }
+                                StillImage.decode(target.sourceFile).let {
+                                    processor.exportPhoto(target.sourceFile, it, look,
+                                        settings, temporary, png, materialized.outputLongEdge)
+                                }
+                            } else {
+                                processor.export(target.sourceFile, materialized.source.lookFile, settings, temporary, png,
+                                    materialized.outputLongEdge)
+                            }
                             temporary.readBytes()
                         } finally { temporary.delete() }
                     }
@@ -412,12 +424,17 @@ class BatchExportModel(
                     if (probe.length == 0) throw IOException(context.getString(R.string.import_unreadable, name))
                     when (RawFiles.classify(name, mime, probe.header, probe.length)) {
                         RawFiles.FileKind.RAW -> Unit
-                        RawFiles.FileKind.STILL_IMAGE -> throw IOException(context.getString(R.string.import_still_image, name))
+                        // 普通照片与 RAW 一同支持批量导出，按文件类型分流渲染管线。
+                        RawFiles.FileKind.STILL_IMAGE -> Unit
                         RawFiles.FileKind.UNKNOWN -> throw IOException(context.getString(R.string.import_not_raw, name))
                     }
                     destination.outputStream().use { probe.stream.copyTo(it) }
                 }
-                NativeProcessor().use { it.preview(destination, null, EditSettings(), 256, false) }
+                NativeProcessor().use {
+                    if (RawFiles.kindOf(destination) == RawFiles.FileKind.STILL_IMAGE)
+                        it.previewPhoto(StillImage.decode(destination, 256), null, EditSettings(), 256, false)
+                    else it.preview(destination, null, EditSettings(), 256, false)
+                }
             } catch (error: Exception) { destination.delete(); throw error }
         }
         return BatchTarget(identity, destination, name, uri.toString())
@@ -476,7 +493,12 @@ class BatchExportModel(
     suspend fun preview(target: BatchTarget): android.graphics.Bitmap = withContext(Dispatchers.IO) {
         val source = mutable.value.job.source
         // 效果查看先限长再降噪，避免处理整张 RAW；最终导出仍保留完整质量。
-        NativeProcessor().use { it.preview(target.sourceFile, source.lookFile, source.settings, 1280, true).bitmap() }
+        NativeProcessor().use {
+            if (RawFiles.kindOf(target.sourceFile) == RawFiles.FileKind.STILL_IMAGE) {
+                val look = source.lookFile?.takeIf { source.settings.recipeID != null || source.settings.film == "neutral" }
+                it.previewPhoto(StillImage.decode(target.sourceFile, 1280), look, source.settings, 1280, true).bitmap()
+            } else it.preview(target.sourceFile, source.lookFile, source.settings, 1280, true).bitmap()
+        }
     }
 
     private fun reconcile(job: BatchJob): BatchJob {
