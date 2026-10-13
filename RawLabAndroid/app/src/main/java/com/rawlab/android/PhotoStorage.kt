@@ -112,7 +112,7 @@ class PhotoStorage(
             val stream = resolver.openInputStream(uri) ?: throw IOException("Cannot open look")
             return stream.use { lookLibrary.importLook(it, name) }
         } catch (error: Exception) {
-            throw IOException("$name: ${error.message ?: error.javaClass.simpleName}", error)
+            throw IOException("${name}: ${error.message ?: error.javaClass.simpleName}", error)
         }
     }
 
@@ -123,13 +123,13 @@ class PhotoStorage(
     fun filmPath(id: String): File? {
         val film = Film.all.firstOrNull { it.id == id }
         if (film == null) return lookLibrary.fileFor(id)
-            ?: throw IllegalArgumentException("Unknown look: $id")
+            ?: throw IllegalArgumentException("Unknown look: ${id}")
         val name = film.file?.let { "FLog2_to_${it}_65grid_V.1.00.cube" } ?: return null
         val destination = File(directory, name)
         if (!destination.exists()) {
             directory.mkdirs()
             try {
-                context.assets.open("films/$name").use { input -> destination.outputStream().use { input.copyTo(it) } }
+                context.assets.open("films/${name}").use { input -> destination.outputStream().use { input.copyTo(it) } }
             } catch (error: Throwable) { destination.delete(); throw error }
         }
         return destination
@@ -185,7 +185,7 @@ class PhotoStorage(
             if (published != 1) throw IOException("Cannot publish image")
             return uri
         } catch (error: Throwable) {
-            if (runCatching { resolver.delete(uri, null, null) }.getOrDefault(0) != 1) throw BatchPublicationUncertain("无法确认照片保存结果，请核对照片图库", error)
+            if (runCatching { resolver.delete(uri, null, null) }.getOrDefault(0) != 1) throw BatchPublicationUncertain(AppStrings.text(R.string.message_could_not_confirm_whether_the_photo_was), error)
             throw error
         }
     }

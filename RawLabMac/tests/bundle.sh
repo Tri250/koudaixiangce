@@ -3,6 +3,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cmp "$ROOT/Shared/master-recipes.json" "${1:-$ROOT/build/RawLab Mac.app}/Contents/Resources/master-recipes.json"
 APP="${1:-$ROOT/build/RawLab Mac.app}"
+for language in en zh-Hans de fr ja es; do
+    cmp "$ROOT/RawLabMac/Resources/$language.lproj/Localizable.strings" "$APP/Contents/Resources/$language.lproj/Localizable.strings"
+done
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}"
 for asset in "$ROOT"/RawLabMac/Resources/MasterRecipes/*.cube "$ROOT"/RawLabMac/Resources/MasterRecipeIcons/*.png; do
     directory=$(basename "$(dirname "$asset")")

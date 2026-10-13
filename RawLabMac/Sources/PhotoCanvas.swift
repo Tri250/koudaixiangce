@@ -39,6 +39,7 @@ struct PhotoCanvas: View {
 }
 
 struct HistogramView: View {
+    @Environment(\.locale) private var localizationLocale
     let bins: [[Double]]
 
     var body: some View {
@@ -61,7 +62,7 @@ struct HistogramView: View {
                     context.fill(Path(rect), with: .color(color(for: segment.fill).opacity(0.82)))
                 }
             }
-        }.accessibilityLabel("RGB 输出直方图")
+        }.accessibilityLabel(L10n.text("RGB 输出直方图"))
     }
 
     private func color(for fill: HistogramFill) -> Color {

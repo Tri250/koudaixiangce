@@ -14,7 +14,8 @@ import java.io.File
 import java.util.UUID
 
 class BatchWorkflowInstrumentedTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule val languageAndCompose = org.junit.rules.RuleChain.outerRule(LanguageTestRule()).around(compose)
 
     @Test fun remembersEditsAndExportsFrozenBatchWithoutChangingTargetRecords() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()

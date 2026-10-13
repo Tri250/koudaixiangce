@@ -12,8 +12,8 @@ enum ExportFormat: String, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .jpeg: return "JPEG"
-        case .png: return "16-bit PNG"
-        case .renderedDNG: return "DNG · 渲染型"
+        case .png: return L10n.text("16-bit PNG")
+        case .renderedDNG: return L10n.text("DNG · 渲染型")
         }
     }
     var contentType: UTType {
@@ -60,7 +60,7 @@ enum RenderError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .failed(let text): return text
-        case .outputIO: return "无法写入成片，请检查输出位置和剩余空间。"
+        case .outputIO: return L10n.text("无法写入成片，请检查输出位置和剩余空间。")
         }
     }
 }
@@ -105,7 +105,7 @@ final class RenderEngine {
         lensCatalogKey = nil
         lensCandidates = []
         guard sony2fuji_session_create(&session) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无法创建处理会话")
+            throw RenderError.failed(L10n.text("无法创建处理会话"))
         }
         var config = sony2fuji_gpu_config()
         config.version = SONY2FUJI_GPU_CONFIG_VERSION
@@ -115,7 +115,7 @@ final class RenderEngine {
         if let database = lensDatabaseURL ?? Bundle.main.url(forResource: "Lensfun", withExtension: nil) {
             guard database.path.withCString({ sony2fuji_session_set_lens_database(session, $0) }) == SONY2FUJI_STATUS_OK else {
                 sony2fuji_session_destroy(session); session = nil
-                throw RenderError.failed("无法加载镜头数据库")
+                throw RenderError.failed(L10n.text("镜头数据库不可用"))
             }
         }
     }
@@ -126,7 +126,7 @@ final class RenderEngine {
     func autoExposure(_ url: URL, settings: Adjustments) throws -> Double {
         try configureLens(settings.lensSettings)
         guard sony2fuji_session_set_raw_exposure_mode(session, settings.exposureMode.core) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无效的曝光基准")
+            throw RenderError.failed(L10n.text("无效的曝光基准"))
         }
         var request = sony2fuji_request()
         request.version = SONY2FUJI_REQUEST_VERSION
@@ -141,13 +141,13 @@ final class RenderEngine {
             request.input_path = path
             return sony2fuji_session_estimate_auto_exposure(session, &request, &ev)
         }
-        guard status == SONY2FUJI_STATUS_OK else { throw RenderError.failed("无法自动调整曝光：\(String(cString: sony2fuji_status_message(status)))") }
+        guard status == SONY2FUJI_STATUS_OK else { throw RenderError.failed(L10n.format("无法自动调整曝光：%@", String(describing: String(cString: sony2fuji_status_message(status))))) }
         return Double(ev)
     }
 
     func render(_ url: URL, settings: Adjustments, lut: URL?, edge: Int?, output: URL? = nil, interactive: Bool = false, exportLongEdge: Int? = nil, viewportPreview: Bool = false) throws -> RenderedImage? {
         if let exportLongEdge, !(1...65535).contains(exportLongEdge) {
-            throw RenderError.failed("导出长边必须为 1-65535 像素。")
+            throw RenderError.failed(L10n.text("导出长边必须为 1-65535 像素。"))
         }
         let key = try? RawWhiteBalanceCacheKey(url)
         if let key, let cached = whiteBalanceCache, cached.key.file == key.file,
@@ -166,29 +166,29 @@ final class RenderEngine {
                 camera = try render(url, settings: Adjustments(), lut: nil, edge: 32)?.asShotWhiteBalance
             }
             guard let camera else {
-                throw RenderError.failed("此 RAW 无法解析拍摄白平衡，不能应用配方色调。")
+                throw RenderError.failed(L10n.text("此 RAW 无法解析拍摄白平衡，不能应用配方色调。"))
             }
             settings.resolveWhiteBalance(camera)
         }
         guard sony2fuji_session_set_interactive_preview(session, interactive && output == nil ? 1 : 0) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无效的预览模式")
+            throw RenderError.failed(L10n.text("无效的预览模式"))
         }
         guard sony2fuji_session_set_viewport_preview(session, viewportPreview && edge != nil && output == nil ? 1 : 0) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无效的视口预览模式")
+            throw RenderError.failed(L10n.text("无效的视口预览模式"))
         }
         guard sony2fuji_session_set_raw_exposure_mode(session, settings.exposureMode.core) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无效的曝光基准")
+            throw RenderError.failed(L10n.text("无效的曝光基准"))
         }
-        guard settings.hslSettings.isValid else { throw RenderError.failed("无效的 HSL 参数") }
+        guard settings.hslSettings.isValid else { throw RenderError.failed(L10n.text("无效的 HSL 参数")) }
         var hslConfig = settings.renderHSLSettings.nativeConfig
         guard sony2fuji_session_set_hsl(session, &hslConfig) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无效的 HSL 参数")
+            throw RenderError.failed(L10n.text("无效的 HSL 参数"))
         }
         try configureLens(settings.lensSettings)
         let wavelet = settings.waveletNoiseReduction
         var effectsConfig = settings.photoEffectsConfig
         guard sony2fuji_session_set_photo_effects(session, &effectsConfig) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无效的暗角或颗粒参数")
+            throw RenderError.failed(L10n.text("无效的暗角或颗粒参数"))
         }
         var waveletConfig = sony2fuji_wavelet_denoise_config()
         waveletConfig.version = UInt32(SONY2FUJI_WAVELET_DENOISE_CONFIG_VERSION)
@@ -198,17 +198,17 @@ final class RenderEngine {
         waveletConfig.chroma = Float(wavelet?.chroma ?? 0)
         waveletConfig.coarse = Float(wavelet?.coarse ?? 0)
         guard sony2fuji_session_set_wavelet_denoise(session, &waveletConfig) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无效或不可用的降噪参数")
+            throw RenderError.failed(L10n.text("无效或不可用的降噪参数"))
         }
         let chromaMode = wavelet == nil ? (settings.chromaNoiseReduction ?? 0) : 0
         guard let chroma = Int32(exactly: chromaMode),
               sony2fuji_session_set_chroma_denoise(session, chroma) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无效或不可用的色度降噪模式")
+            throw RenderError.failed(L10n.text("无效或不可用的色度降噪模式"))
         }
         let legacyLevel = wavelet == nil && chromaMode == 0 ? settings.rawNoiseReduction : 0
         guard let noiseReduction = Int32(exactly: legacyLevel),
               sony2fuji_session_set_raw_noise_reduction(session, noiseReduction) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无效的 RAW 降噪档位")
+            throw RenderError.failed(L10n.text("无效的 RAW 降噪档位"))
         }
         var request = sony2fuji_request()
         request.version = SONY2FUJI_REQUEST_VERSION
@@ -247,15 +247,15 @@ final class RenderEngine {
             if status == SONY2FUJI_STATUS_OUTPUT_IO_ERROR { throw RenderError.outputIO }
             if status == SONY2FUJI_STATUS_IO_ERROR {
                 if let output, ExportFormat.forOutput(output) != .renderedDNG { throw RenderError.outputIO }
-                throw RenderError.failed("无法读取或写入文件，请检查路径和访问权限。")
+                throw RenderError.failed(L10n.text("无法读取或写入文件，请检查路径和访问权限。"))
             }
             if status == SONY2FUJI_STATUS_UNSUPPORTED {
-                throw RenderError.failed("不支持此 RAW 或外观文件。请选择声明兼容输入和 BT.709 输出的富士 CUBE，或有效的 .rlook 文件。")
+                throw RenderError.failed(L10n.text("不支持此 RAW 或外观文件。请选择声明兼容输入和 BT.709 输出的富士 CUBE，或有效的 .rlook 文件。"))
             }
             if status == SONY2FUJI_STATUS_INVALID_ARGUMENT {
-                throw RenderError.failed("参数或输出路径无效，不能覆盖原始 RAW。")
+                throw RenderError.failed(L10n.text("参数或输出路径无效，不能覆盖原始 RAW。"))
             }
-            throw RenderError.failed("处理失败：\(message)")
+            throw RenderError.failed(L10n.format("处理失败：%@", String(describing: message)))
         }
         if let output {
             if ExportFormat.forOutput(output) != .renderedDNG {
@@ -265,9 +265,9 @@ final class RenderEngine {
         }
         var baseline: Float = 0, metadata: Float = 0
         guard sony2fuji_session_get_raw_exposure(session, &baseline, &metadata) == SONY2FUJI_STATUS_OK else {
-            throw RenderError.failed("无法读取基础曝光")
+            throw RenderError.failed(L10n.text("无法读取基础曝光"))
         }
-        guard let pointer = buffer.data else { throw RenderError.failed("处理结果为空") }
+        guard let pointer = buffer.data else { throw RenderError.failed(L10n.text("处理结果为空")) }
         var temperature: Float = 0, tint: Float = 0
         let calibrated = sony2fuji_session_get_raw_white_balance(session, &temperature, &tint) == SONY2FUJI_STATUS_OK
         var noiseReductionSupported: Int32 = 0
@@ -282,13 +282,13 @@ final class RenderEngine {
               let image = CGImage(width: width, height: height, bitsPerComponent: 8,
                 bitsPerPixel: 32, bytesPerRow: Int(buffer.stride_bytes), space: space,
                 bitmapInfo: bitmap, provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
-        else { throw RenderError.failed("无法显示处理结果") }
+        else { throw RenderError.failed(L10n.text("无法显示处理结果")) }
         var bins = [UInt32](repeating: 0, count: 768)
         var black: UInt32 = 0, white: UInt32 = 0
         var clippingBuffer = sony2fuji_buffer()
         defer { sony2fuji_release_buffer(&clippingBuffer) }
         guard sony2fuji_analyze_image(&buffer, gpuMode, &bins, &black, &white, &clippingBuffer) == SONY2FUJI_STATUS_OK,
-              let clippingPixels = clippingBuffer.data else { throw RenderError.failed("无法计算直方图") }
+              let clippingPixels = clippingBuffer.data else { throw RenderError.failed(L10n.text("无法计算直方图")) }
         let histogram = (0..<3).map { channel in (0..<256).map { Double(bins[channel*256+$0]) } }
         let overlay = Data(bytes: clippingPixels, count: clippingBuffer.size_bytes)
         let mask = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
@@ -311,7 +311,7 @@ final class RenderEngine {
             lensConfig.profile_id = profile
             return sony2fuji_session_set_lens_correction(session, &lensConfig)
         }
-        guard lensStatus == SONY2FUJI_STATUS_OK else { throw RenderError.failed("无效或不可用的镜头校正设置") }
+        guard lensStatus == SONY2FUJI_STATUS_OK else { throw RenderError.failed(L10n.text("无效或不可用的镜头校正设置")) }
     }
 
     private func lensInfo(for url: URL) -> LensInfo? {

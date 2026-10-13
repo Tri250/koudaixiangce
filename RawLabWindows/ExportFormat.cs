@@ -47,7 +47,7 @@ public static class ExportFormatExtensions
     {
         ExportFormat.Jpeg => "JPEG",
         ExportFormat.Png => "16-bit PNG",
-        ExportFormat.RenderedDng => "DNG · 渲染型",
+        ExportFormat.RenderedDng => Loc.Text("DNG · 渲染型"),
         _ => throw new ArgumentOutOfRangeException(nameof(format))
     };
 }

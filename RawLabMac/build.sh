@@ -53,6 +53,9 @@ swiftc -swift-version 5 -O -sdk "$SDK" -target "$ARCH-apple-macosx$DEPLOYMENT_TA
     -o "$APP/Contents/MacOS/RawLabMac"
 cp "$ROOT/RawLabMac/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Shared/master-recipes.json" "$APP/Contents/Resources/master-recipes.json"
+for localization in "$ROOT"/RawLabMac/Resources/*.lproj; do
+    cp -R "$localization" "$APP/Contents/Resources/"
+done
 bash "$ROOT/RawLabMac/build-icon.sh" "$APP/Contents/Resources/AppIcon.icns"
 /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $DEPLOYMENT_TARGET" "$APP/Contents/Info.plist"
 for lut in "$ROOT"/lutools/flog-2-new/*.cube; do

@@ -194,7 +194,7 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
     onAutoExposure: () -> Unit) {
     val titles = listOf(R.string.film, R.string.strength, R.string.exposure, R.string.highlights, R.string.shadows,
         R.string.contrast, R.string.tone_curve, R.string.saturation, R.string.temperature, R.string.tint, R.string.sharpening,
-        R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl, R.string.master_recipes, R.string.lens)
+        R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl, R.string.master_recipes, R.string.info_lens)
     val icons = listOf(Icons.Outlined.PhotoFilter, Icons.Outlined.Tune, Icons.Outlined.Exposure, Icons.Outlined.WbSunny,
         Icons.Outlined.DarkMode, Icons.Outlined.Contrast, Icons.Outlined.ShowChart, Icons.Outlined.WaterDrop,
         Icons.Outlined.Thermostat, Icons.Outlined.Palette, Icons.Outlined.Deblur, Icons.Outlined.Grain,
@@ -216,7 +216,10 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                 TextButton(onClick = { onEdit(edits.copy(customWb = false, tint = if (edits.recipeID == null) state.preview?.tint ?: 0f else 0f), false) }, enabled = state.controlsEnabled && calibrated,
                     modifier = Modifier.weight(1f)) { Text(stringResource(R.string.as_shot), maxLines = 1) }
             } else {
-                Text(recipes.firstOrNull { it.id == edits.recipeID }?.name ?: state.looks.firstOrNull { it.id == edits.film }?.name ?: edits.film, Modifier.weight(1f),
+                val displayLook = recipes.firstOrNull { it.id == edits.recipeID }?.name
+                    ?: if (edits.film == "neutral") stringResource(R.string.neutral_look)
+                    else state.looks.firstOrNull { it.id == edits.film }?.name ?: edits.film
+                Text(displayLook, Modifier.weight(1f),
                     maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
             }
             ToolIcon(Icons.Outlined.RestartAlt, R.string.reset, state.controlsEnabled, onReset)
@@ -256,7 +259,7 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                                 if (artwork != null) Image(artwork.asImageBitmap(), null, Modifier.fillMaxSize())
                                 else Icon(Icons.Outlined.Image, null, Modifier.size(32.dp))
                             }
-                            Text(look.name, Modifier.heightIn(min = 42.dp).padding(top = 4.dp), maxLines = 3,
+                            Text(if (look.id == "neutral") stringResource(R.string.neutral_look) else look.name, Modifier.heightIn(min = 42.dp).padding(top = 4.dp), maxLines = 3,
                                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
                         }
                         if (look.managed) {
@@ -389,11 +392,11 @@ internal fun NumericControl(label: Int, value: Float, range: ClosedFloatingPoint
     Column(Modifier.padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(label), Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-            TextButton(onClick = { input = formatted; editing = true }, enabled = enabled) { Text("$formatted $unit") }
+            TextButton(onClick = { input = formatted; editing = true }, enabled = enabled) { Text("${formatted} ${unit}") }
             ToolIcon(Icons.Outlined.RestartAlt, R.string.reset_value, enabled, onReset)
         }
         val sliderRange = if (reciprocal) (-1f / range.start)..(-1f / range.endInclusive) else range
-        Slider(modifier = Modifier.testTag("adjustment-slider").semantics { stateDescription = "$formatted $unit" },
+        Slider(modifier = Modifier.testTag("adjustment-slider").semantics { stateDescription = "${formatted} ${unit}" },
             value = if (reciprocal) -1f / value else value, onValueChange = {
             val raw = if (reciprocal) (-1f / it).coerceIn(range) else it
             val step = when (label) { R.string.exposure -> .05f; R.string.temperature -> 10f; else -> 1f }
@@ -405,7 +408,7 @@ internal fun NumericControl(label: Int, value: Float, range: ClosedFloatingPoint
         text = {
             OutlinedTextField(value = input, onValueChange = { input = it }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = if (range.start < 0) KeyboardType.Text else KeyboardType.Decimal), isError = parsed == null,
-                label = { Text("${range.start} … ${range.endInclusive} $unit") },
+                label = { Text("${range.start} … ${range.endInclusive} ${unit}") },
                 supportingText = { if (parsed == null) Text(stringResource(R.string.invalid_value)) })
         }, confirmButton = { TextButton(onClick = { parsed?.let { onValue(it, false) }; editing = false }, enabled = parsed != null) { Text(stringResource(R.string.confirm)) } },
         dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } })
@@ -426,7 +429,7 @@ internal fun MasterRecipePicker(recipes: List<MasterRecipe>, selected: String?, 
                 Text(recipe?.name ?: stringResource(R.string.no_recipe), Modifier.heightIn(min = 22.dp), maxLines = 2,
                     style = MaterialTheme.typography.labelMedium,
                     color = if (selected == recipe?.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                Text(recipe?.subtitle ?: "中性直出", Modifier.heightIn(min = 36.dp), maxLines = 2,
+                Text(recipe?.let { AppStrings.recipeSubtitle(it) } ?: AppStrings.text(R.string.neutral_direct_output), Modifier.heightIn(min = 36.dp), maxLines = 2,
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

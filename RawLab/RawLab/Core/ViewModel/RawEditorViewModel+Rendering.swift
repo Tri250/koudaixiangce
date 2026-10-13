@@ -51,7 +51,7 @@ extension RawEditorViewModel {
             setLatestRenderID(UUID())
             previewRendering = false
             isBusy = false
-            statusMessage = "所选外观不可用，请重新选择外观。"
+            statusMessage = L10n.text("所选外观不可用，请重新选择外观。")
             return
         }
 

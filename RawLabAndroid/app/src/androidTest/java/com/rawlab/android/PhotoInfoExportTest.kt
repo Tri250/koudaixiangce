@@ -17,7 +17,8 @@ import java.io.File
 import java.util.UUID
 
 class PhotoInfoExportTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule val languageAndCompose = org.junit.rules.RuleChain.outerRule(LanguageTestRule()).around(compose)
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
     @Before fun keepTestActivityVisible() {

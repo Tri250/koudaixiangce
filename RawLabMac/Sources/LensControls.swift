@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LensControls: View {
+    @Environment(\.locale) private var localizationLocale
     @ObservedObject var model: EditorModel
     @State private var choosingProfile = false
 
@@ -8,28 +9,33 @@ struct LensControls: View {
     private var info: LensInfo? { model.result?.lensInfo }
     private var selectedTitle: String {
         if settings.mode == .manual {
-            return info?.candidates.first { $0.id == settings.profileID }?.title ?? "选择镜头…"
+            return info?.candidates.first { $0.id == settings.profileID }?.title ?? L10n.text("选择镜头…")
         }
         if let selected = info?.selectedLens, !selected.isEmpty { return selected }
         let matches = info?.candidates.filter(\.isMatch) ?? []
-        return matches.count == 1 ? matches[0].title : "自动匹配"
+        return matches.count == 1 ? matches[0].title : L10n.text("自动匹配")
     }
 
     var body: some View {
+        let _ = localizationLocale
         VStack(spacing: 6) {
             HStack(spacing: 14) {
-                Picker("镜头匹配", selection: Binding(get: { settings.mode }, set: { mode in update { $0.mode = mode } })) {
-                    Text("自动").tag(LensProfileMode.automatic)
-                    Text("手动").tag(LensProfileMode.manual)
-                }.pickerStyle(.segmented).labelsHidden().frame(width: 140).accessibilityIdentifier("lens.mode")
-                Toggle("畸变矫正", isOn: value(\.distortion)).accessibilityIdentifier("lens.distortion")
-                Toggle("横向色差", isOn: value(\.tca)).accessibilityIdentifier("lens.tca")
-                Toggle("自动裁边", isOn: value(\.autoCrop)).accessibilityIdentifier("lens.crop")
-                    .disabled(!settings.isEnabled)
+                Picker(L10n.text("镜头匹配"), selection: Binding(get: { settings.mode }, set: { mode in update { $0.mode = mode } })) {
+                    Text(L10n.text("自动")).tag(LensProfileMode.automatic)
+                    Text(L10n.text("手动")).tag(LensProfileMode.manual)
+                }.pickerStyle(.segmented).labelsHidden().frame(width: 220)
+                    .id(localizationLocale.identifier).accessibilityIdentifier("lens.mode")
                 Spacer(minLength: 0)
                 Button { model.settings.reset(.lens) } label: { Image(systemName: "arrow.counterclockwise").frame(width: 20, height: 20) }
-                    .buttonStyle(.borderless).help("重置镜头校正").accessibilityLabel("重置镜头校正")
+                    .buttonStyle(.borderless).help(L10n.text("重置镜头校正")).accessibilityLabel(L10n.text("重置镜头校正"))
                     .accessibilityIdentifier("lens.reset").disabled(model.settings.isDefault(.lens))
+            }.controlSize(.small)
+            HStack(spacing: 16) {
+                Toggle(L10n.text("畸变矫正"), isOn: value(\.distortion)).accessibilityIdentifier("lens.distortion")
+                Toggle(L10n.text("横向色差"), isOn: value(\.tca)).accessibilityIdentifier("lens.tca")
+                Toggle(L10n.text("自动裁边"), isOn: value(\.autoCrop)).accessibilityIdentifier("lens.crop")
+                    .disabled(!settings.isEnabled)
+                Spacer(minLength: 0)
             }.controlSize(.small)
             HStack(spacing: 8) {
                 Button { choosingProfile = true } label: {
@@ -38,8 +44,9 @@ struct LensControls: View {
                         Text(selectedTitle).lineLimit(1).truncationMode(.middle)
                         Image(systemName: "chevron.down").font(.system(size: 9))
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                }.buttonStyle(.borderless).help("选择镜头配置文件")
-                    .accessibilityLabel("选择镜头配置文件").accessibilityIdentifier("lens.profile")
+                }.buttonStyle(.borderless).help(L10n.text("选择镜头配置文件"))
+                    .accessibilityLabel(L10n.text("选择镜头配置文件")).accessibilityIdentifier("lens.profile")
+                    .accessibilityValue(selectedTitle)
                     .disabled(info?.candidates.isEmpty != false)
                     .popover(isPresented: $choosingProfile) {
                         LensProfileChooser(candidates: info?.candidates ?? [], selectedID: settings.profileID) { candidate in
@@ -48,20 +55,21 @@ struct LensControls: View {
                         }
                     }
                 if let info, settings.isEnabled, info.cropScale > 1.0001 {
-                    Text("裁边 \(Int(((1 - 1 / info.cropScale) * 100).rounded()))%")
+                    Text(L10n.format("裁边 %@%%", String(Int(((1 - 1 / info.cropScale) * 100).rounded()))))
                         .monospacedDigit().foregroundStyle(.secondary).fixedSize()
                 }
             }.font(.system(size: 12)).frame(height: 22)
             HStack(spacing: 8) {
-                Text(info?.message ?? "正在读取镜头信息…").lineLimit(1)
+                Text(info?.message ?? L10n.text("正在读取镜头信息…")).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("lens.status")
                 if let info, settings.tca, info.appliedDistortion, !info.appliedTCA {
-                    Text("横向色差未应用").foregroundStyle(.orange)
+                    Text(L10n.text("横向色差未应用")).foregroundStyle(.orange)
                 }
                 Spacer(minLength: 0)
                 if let info, !info.detectedLens.isEmpty {
                     Text(info.detectedLens).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 }
-            }.font(.system(size: 11)).frame(height: 16)
+            }.font(.system(size: 11)).frame(minHeight: 16)
         }.frame(maxWidth: 760).padding(.horizontal, 16)
     }
 
@@ -77,6 +85,7 @@ struct LensControls: View {
 }
 
 private struct LensProfileChooser: View {
+    @Environment(\.locale) private var localizationLocale
     let candidates: [LensCandidate]
     let selectedID: String?
     let select: (LensCandidate) -> Void
@@ -88,14 +97,15 @@ private struct LensProfileChooser: View {
     }
 
     var body: some View {
+        let _ = localizationLocale
         VStack(spacing: 0) {
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("搜索镜头", text: $search).textFieldStyle(.plain).accessibilityIdentifier("lens.search")
+                TextField(L10n.text("搜索镜头"), text: $search).textFieldStyle(.plain).accessibilityIdentifier("lens.search")
             }.padding(12)
             Divider()
             if filtered.isEmpty {
-                Text("未找到镜头").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+                Text(L10n.text("未找到镜头")).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -105,8 +115,8 @@ private struct LensProfileChooser: View {
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(candidate.title).lineLimit(2).foregroundStyle(.primary)
                                         HStack(spacing: 8) {
-                                            if candidate.isMatch { Text("匹配照片").foregroundStyle(.yellow) }
-                                            Text([candidate.hasDistortion ? "畸变" : nil, candidate.hasTCA ? "横向色差" : nil]
+                                            if candidate.isMatch { Text(L10n.text("匹配照片")).foregroundStyle(.yellow) }
+                                            Text([candidate.hasDistortion ? L10n.text("畸变") : nil, candidate.hasTCA ? L10n.text("横向色差") : nil]
                                                 .compactMap { $0 }.joined(separator: " · ")).foregroundStyle(.secondary)
                                         }.font(.system(size: 11))
                                     }

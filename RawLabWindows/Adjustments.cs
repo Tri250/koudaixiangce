@@ -11,15 +11,27 @@ public sealed record LensSettings(bool Distortion = false, bool Tca = false, boo
 public sealed record LensCandidate(string Id, string Maker, string Model, bool HasDistortion, bool HasTca, bool IsMatch)
 {
     public string Title => Model.Contains(Maker, StringComparison.OrdinalIgnoreCase) ? Model : Maker + " " + Model;
-    public string Calibration => string.Join(" / ", new[] { HasDistortion ? "畸变" : null, HasTca ? "横向色差" : null }.Where(x => x != null));
+    public string Calibration => string.Join(" / ", new[] {
+        HasDistortion ? Loc.Text("畸变") : null,
+        HasTca ? Loc.Text("横向色差") : null,
+        IsMatch ? Loc.Text("元数据匹配") : null
+    }.Where(x => x != null));
 }
 public sealed record LensInfo(int State, string DetectedLens, string SelectedLens, bool AppliedDistortion, bool AppliedTca, float CropScale, IReadOnlyList<LensCandidate> Candidates)
 {
     public string Message => State switch {
-        0 => "镜头校正已关闭", 1 => AppliedDistortion || AppliedTca ? "已校正" + string.Join("、", new[] { AppliedDistortion ? "畸变" : null, AppliedTca ? "横向色差" : null }.Where(x => x != null)) : "已匹配镜头",
-        2 => "镜头数据库不可用", 3 => "未找到机身或传感器尺寸信息", 5 => "有多个匹配镜头，请手动选择",
-        6 => "此镜头没有所选校正的标定数据", 7 => "照片缺少有效焦距，未应用校正",
-        8 => "DNG 已执行内嵌 Stage3 处理，未叠加校正", 9 => "此输入不支持镜头校正", _ => "未匹配镜头，请手动选择"
+        0 => Loc.Text("镜头校正已关闭"),
+        1 => AppliedDistortion || AppliedTca
+            ? Loc.Format("已校正{0}", string.Join("、", new[] {
+                AppliedDistortion ? Loc.Text("畸变") : null,
+                AppliedTca ? Loc.Text("横向色差") : null
+            }.Where(x => x != null)))
+            : Loc.Text("已匹配镜头"),
+        2 => Loc.Text("镜头数据库不可用"), 3 => Loc.Text("未找到机身或传感器尺寸信息"),
+        5 => Loc.Text("有多个匹配镜头，请手动选择"), 6 => Loc.Text("此镜头没有所选校正的标定数据"),
+        7 => Loc.Text("照片缺少有效焦距，未应用校正"),
+        8 => Loc.Text("DNG 已执行内嵌 Stage3 处理，未叠加校正"),
+        9 => Loc.Text("此输入不支持镜头校正"), _ => Loc.Text("未匹配镜头，请手动选择")
     };
 }
 public sealed record ParameterSpec(Parameter Id, string Title, string Group, double Min, double Max, double Step, string Unit, int Decimals = 0)
@@ -93,7 +105,7 @@ public sealed class Adjustments
     {
         if (snapshot.Values.Length != ParameterSpec.All.Length || snapshot.ExposureMode is < 0 or > 2 ||
             snapshot.Values.Where((value, index) => !double.IsFinite(value) || value < ParameterSpec.All[index].Min || value > ParameterSpec.All[index].Max).Any())
-            throw new System.IO.InvalidDataException("调整记录无效，原有文件未被覆盖。");
+            throw new System.IO.InvalidDataException(Loc.Text("调整记录无效，原有文件未被覆盖。"));
         var denoise = snapshot.Denoise ?? new DenoiseSettings();
         var effects = snapshot.Effects ?? new PhotoEffectsSettings();
         _ = denoise.NativeConfig();
@@ -169,7 +181,7 @@ public sealed class Adjustments
     internal Native.Request Request(string path, string? lut, int edge, string? output, int? longEdge = null)
     {
         if (longEdge is { } requested && !ExportSize.IsValid(requested))
-            throw new ArgumentOutOfRangeException(nameof(longEdge), "导出长边必须在 1 到 65535 像素之间。");
+            throw new ArgumentOutOfRangeException(nameof(longEdge), Loc.Text("导出长边必须在 1 到 65535 像素之间。"));
         var limitedFinal = output != null && longEdge.HasValue;
         var scale = MasterRecipeID == null ? 1 : this[Parameter.Strength] / 100;
         var tintOffset = MasterRecipeID == null ? 0 : this[Parameter.Tint] * scale;

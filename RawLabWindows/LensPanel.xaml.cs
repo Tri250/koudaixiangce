@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -9,19 +10,31 @@ public partial class LensPanel : UserControl
     private LensInfo? info;
     private bool syncing = true;
     public event Action<LensSettings>? Changed;
-    public LensPanel() { InitializeComponent(); Refresh(value, null); }
+    public LensPanel()
+    {
+        InitializeComponent();
+        Loaded += (_, _) => Loc.Changed += RefreshLanguage;
+        Unloaded += (_, _) => Loc.Changed -= RefreshLanguage;
+        Refresh(value, null);
+    }
+    private void RefreshLanguage()
+    {
+        if (IsLoaded) Dispatcher.BeginInvoke(new Action(() => Refresh(value, info)));
+    }
     public void Refresh(LensSettings settings, LensInfo? report) {
         syncing = true;
         value = settings; info = report;
         Automatic.IsChecked = !value.Manual; Manual.IsChecked = value.Manual;
         Distortion.IsChecked = value.Distortion; Tca.IsChecked = value.Tca; AutoCrop.IsChecked = value.AutoCrop;
         var title = value.Manual ? info?.Candidates.FirstOrDefault(p => p.Id == value.ProfileId)?.Title : info?.SelectedLens;
-        SelectedTitle.Text = string.IsNullOrEmpty(title) ? value.Manual ? "选择镜头" : "未匹配镜头" : title;
+        SelectedTitle.Text = string.IsNullOrEmpty(title) ? value.Manual ? Loc.Text("选择镜头") : Loc.Text("未匹配镜头") : title;
         ProfileButton.ToolTip = SelectedTitle.Text;
         ProfileButton.IsEnabled = value.Manual && info?.Candidates.Count > 0;
-        StatusText.Text = info?.Message ?? "镜头信息尚未就绪";
+        StatusText.Text = info?.Message ?? Loc.Text("镜头信息尚未就绪");
         StatusText.ToolTip = info?.DetectedLens;
-        CropText.Text = info?.CropScale > 1.0001 ? $"裁边 {(1 - 1 / info.CropScale) * 100:F1}%" : "";
+        CropText.Text = info?.CropScale > 1.0001
+            ? Loc.Format("裁边 {0}%", ((1 - 1 / info.CropScale) * 100).ToString("F1", CultureInfo.GetCultureInfo(Loc.Language)))
+            : "";
         FilterProfiles();
         syncing = false;
     }

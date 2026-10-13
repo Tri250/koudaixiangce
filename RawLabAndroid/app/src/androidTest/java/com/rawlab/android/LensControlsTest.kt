@@ -23,15 +23,16 @@ class LensControlsTest {
         var value by mutableStateOf(LensSettings())
         val candidate = LensCandidate("profile-id", "Fixture", "24mm", true, true, true)
         val info = LensInfo(0, "24mm", "", false, false, 1f, listOf(candidate))
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
         compose.setContent { MaterialTheme { Box(Modifier.width(360.dp)) { LensControls(value, info, true) { value = it } } } }
         compose.onNodeWithTag("lens.distortion").performClick()
         compose.onNodeWithTag("lens.tca").performClick()
         compose.onNodeWithTag("lens.crop").performClick()
         compose.runOnIdle { assertTrue(value.distortion && value.tca); assertFalse(value.autoCrop) }
-        compose.onNodeWithText("手动").performClick()
+        compose.onNodeWithText(context.getString(R.string.lens_manual)).performClick()
         compose.onNodeWithTag("lens.profile").performClick()
         compose.onNodeWithTag("lens.search").performTextInput("not-a-profile")
-        compose.onNodeWithText("没有匹配的镜头").assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.lens_none_found)).assertIsDisplayed()
         compose.onNodeWithTag("lens.search").performTextClearance()
         compose.onNodeWithTag("lens.candidate").performClick()
         compose.runOnIdle { assertTrue(value.manual); assertEquals(candidate.id, value.profileId) }

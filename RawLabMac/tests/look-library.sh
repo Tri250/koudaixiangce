@@ -11,7 +11,7 @@ SOURCES=("$ROOT/RawLabMac/tests/LookLibraryTests.swift")
 if [ -f "$ROOT/RawLabMac/Sources/LookLibrary.swift" ]; then
     SOURCES+=("$ROOT/RawLabMac/Sources/LookLibrary.swift")
 fi
-swiftc -parse-as-library -swift-version 5 -O -sdk "$SDK" \
+swiftc "$ROOT/Shared/Localization.swift" -parse-as-library -swift-version 5 -O -sdk "$SDK" \
     -target "$(uname -m)-apple-macosx${MACOSX_DEPLOYMENT_TARGET:-15.0}" \
     -import-objc-header "$ROOT/lutools/include/sony2fuji/ffi/sony2fuji_c.h" \
     "${SOURCES[@]}" "$BUILD/libsony2fuji_core.a" \

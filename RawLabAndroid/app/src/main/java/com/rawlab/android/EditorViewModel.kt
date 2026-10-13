@@ -223,7 +223,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 val mutation = result.imported.lastOrNull()?.let { EditorStateReducer.lookImported(mutable.value, it) }
                     ?: EditorMutation(mutable.value.copy(operation = Operation.NONE), null)
                 val report = if (result.failures.isEmpty()) null else
-                    getApplication<Application>().getString(R.string.look_import_summary, result.imported.size, result.failures.size) +
+                    AppStrings.format(R.string.look_import_summary, result.imported.size, result.failures.size) +
                         "\n\n" + result.failures.joinToString("\n")
                 mutable.value = mutation.state.copy(looks = result.looks, lookImportReport = report,
                     message = if (result.imported.isEmpty()) null else text(R.string.look_imported))
@@ -440,7 +440,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                     val journal = BatchJournal(File(getApplication<Application>().filesDir, "RawLab/BatchJobs"))
                     journal.pending().mapNotNull(journal::load)
                 }
-            } catch (error: Exception) { mutable.value = mutable.value.copy(error = "无法读取批量任务：${error.message}") }
+            } catch (error: Exception) { mutable.value = mutable.value.copy(error = AppStrings.format(R.string.message_unable_to_read_batch_task, error.message.toString())) }
         }
     }
 
@@ -450,7 +450,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             if (persist(photo, mutable.value.edits) == EditSaveState.FAILED) mutable.value = mutable.value.copy(saveState = EditSaveState.FAILED)
         }
     }
-    private fun text(id: Int) = getApplication<Application>().getString(id)
+    private fun text(id: Int) = AppStrings.text(id)
     private fun failure(error: Throwable): String = if (error is OutOfMemoryError) text(R.string.memory_error)
         else text(R.string.process_error) + "\n" + (error.message ?: error.javaClass.simpleName)
 

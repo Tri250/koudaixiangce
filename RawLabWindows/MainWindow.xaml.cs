@@ -45,6 +45,8 @@ public partial class MainWindow : Window
     private double dockHeight=264;
     private double libraryWidth=260;
     private RenderedImage? result;
+    private int renderedGpuMode;
+    private Func<string>? localizedStatus;
     private readonly HashSet<LibraryEntry> visibleThumbnails=[];
     private readonly DispatcherTimer thumbnailRefresh=new(){Interval=TimeSpan.FromMilliseconds(80)};
     private readonly DispatcherTimer previewResize=new(){Interval=TimeSpan.FromMilliseconds(200)};
@@ -56,6 +58,19 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        void RefreshLanguage()
+        {
+            Tools.Children.Clear(); toolButtons.Clear();
+            RecipeStrip.Children.Clear(); recipeButtons.Clear();
+            BuildTools(); BuildFilms(); BuildMasterRecipes(); HslEditor.RefreshLanguage();
+            RefreshControls(); RefreshPhotoInfo(); RefreshExportSizeMenu();
+            RefreshRenderLabels();
+            if (localizedStatus != null) { var statusText=localizedStatus(); Status.Text=statusText; Status.ToolTip=statusText; }
+            RefreshComparisonToolTip();
+            updates.RefreshLanguage();
+        }
+        Loc.Changed += RefreshLanguage;
+        Closed += (_, _) => Loc.Changed -= RefreshLanguage;
         UpdateNotice.DataContext = updates;
         void RefreshUpdateNotice() => UpdateNotice.Visibility = updates.HasUpdate ? Visibility.Visible : Visibility.Collapsed;
         updates.PropertyChanged += (_, _) => RefreshUpdateNotice();
@@ -129,21 +144,22 @@ public partial class MainWindow : Window
         {
             var ring=new AdjustmentRing{Width=40,Height=40};
             var grid=new Grid(); grid.Children.Add(ring); grid.Children.Add(new EditorIcon{Kind=spec.Id.ToString(),Width=20,Height=20});
-            var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=spec.Title,FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
-            var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=spec.Title};
-            AutomationProperties.SetName(button,spec.Title);
+            var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=Loc.Text(spec.Title),FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
+            var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=Loc.Text(spec.Title)};
+            AutomationProperties.SetName(button,Loc.Text(spec.Title));
             button.Click+=(_,_)=>{choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;choosingLens=false;selectedParameter=spec.Id;RefreshControls();};
             Tools.Children.Add(button); toolButtons[spec.Id]=(button,ring);
         }
         foreach(var (tool,title,icon) in new[] {
-            (PhotoEffectTool.Vignette,"暗角","Clipping"), (PhotoEffectTool.Grain,"颗粒","Film")
+            (PhotoEffectTool.Vignette,Loc.Text("暗角"),"Clipping"), (PhotoEffectTool.Grain,Loc.Text("颗粒"),"Film")
         })
         {
             var ring=new AdjustmentRing{Width=40,Height=40};
             var grid=new Grid(); grid.Children.Add(ring); grid.Children.Add(new EditorIcon{Kind=icon,Width=20,Height=20});
             var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=title,FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
-            var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=tool==PhotoEffectTool.Vignette ? "Vignette / 暗角" : "Grain / 颗粒"};
-            AutomationProperties.SetName(button,tool.ToString());
+            var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=tool==PhotoEffectTool.Vignette ? Loc.Text("Vignette / 暗角") : Loc.Text("Grain / 颗粒")};
+            AutomationProperties.SetName(button,title);
+            AutomationProperties.SetAutomationId(button,tool.ToString());
             button.Click+=(_,_)=>{if(exporting)return;choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingLens=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
             Tools.Children.Add(button); effectToolButtons[tool]=(button,ring);
         }
@@ -160,17 +176,18 @@ public partial class MainWindow : Window
             var stack=new StackPanel();
             if(film.Artwork!=null && File.Exists(film.Artwork))stack.Children.Add(new Image{Source=new BitmapImage(new Uri(film.Artwork)),Width=64,Height=64});
             else stack.Children.Add(new EditorIcon{Kind=film.Path==null ? "Neutral" : "Film",Width=32,Height=64});
-            stack.Children.Add(new TextBlock{Text=film.Name,FontSize=11,Width=80,Height=30,TextWrapping=TextWrapping.Wrap,TextAlignment=TextAlignment.Center,Margin=new Thickness(0,5,0,0)});
-            var button=new Button{Content=stack,Style=(Style)FindResource("FilmButton"),ToolTip=film.Path ?? "中性显影"};
-            AutomationProperties.SetName(button,film.Name);
+            var displayName=film.Path==null ? Loc.Text("中性") : film.Name;
+            stack.Children.Add(new TextBlock{Text=displayName,FontSize=11,Width=80,Height=30,TextWrapping=TextWrapping.Wrap,TextAlignment=TextAlignment.Center,Margin=new Thickness(0,5,0,0)});
+            var button=new Button{Content=stack,Style=(Style)FindResource("FilmButton"),ToolTip=film.Path ?? Loc.Text("中性显影")};
+            AutomationProperties.SetName(button,displayName);
             button.Click+=(_,_)=>{if(exporting)return;settings.ClearMasterRecipe();lut=film.Path;MarkEdited();RefreshControls();Schedule();};
             FilmStrip.Children.Add(button); filmButtons[film.Path ?? ""]=button;
         }
         var importContent=new StackPanel();
         importContent.Children.Add(new EditorIcon{Kind="Add",Width=26,Height=64});
-        importContent.Children.Add(new TextBlock{Text="导入外观",FontSize=11,Height=30,TextAlignment=TextAlignment.Center,Margin=new Thickness(0,5,0,0)});
-        var importButton=new Button{Content=importContent,Style=(Style)FindResource("FilmButton"),ToolTip="导入兼容 CUBE 或 RLOOK，可选择多个文件"};
-        AutomationProperties.SetName(importButton,"导入外观");importButton.Click+=ImportClicked;FilmStrip.Children.Add(importButton);
+        importContent.Children.Add(new TextBlock{Text=Loc.Text("导入外观"),FontSize=11,Height=30,TextAlignment=TextAlignment.Center,Margin=new Thickness(0,5,0,0)});
+        var importButton=new Button{Content=importContent,Style=(Style)FindResource("FilmButton"),ToolTip=Loc.Text("导入兼容 CUBE 或 RLOOK，可选择多个文件")};
+        AutomationProperties.SetName(importButton,Loc.Text("导入外观"));importButton.Click+=ImportClicked;FilmStrip.Children.Add(importButton);
     }
     private void RefreshControls()
     {
@@ -179,11 +196,11 @@ public partial class MainWindow : Window
         try
         {
             var spec=ParameterSpec.All[(int)selectedParameter];
-            ParameterTitle.Text=spec.Title; ParameterUnit.Text=spec.Unit;
+            ParameterTitle.Text=Loc.Text(spec.Title); ParameterUnit.Text=spec.Unit;
             ValueText.Text=settings[selectedParameter].ToString("F"+spec.Decimals);
             ValueSlider.Value=spec.Position(settings[selectedParameter]);
-            AutomationProperties.SetName(ValueSlider,spec.Title);
-            AutomationProperties.SetName(ValueText,spec.Title+"数值（"+spec.Unit+"）");
+            AutomationProperties.SetName(ValueSlider,Loc.Text(spec.Title));
+            AutomationProperties.SetName(ValueText,Loc.Format("{0}数值（{1}）",Loc.Text(spec.Title),spec.Unit));
             var canAdjust=file!=null && !exporting && !choosingFilm && !choosingPhotoEffects && (selectedParameter!=Parameter.Strength || lut!=null) && (selectedParameter is not(Parameter.Temperature or Parameter.Tint) || settings.AsShot!=null);
             ValueSlider.IsEnabled=ValueText.IsEnabled=canAdjust;
             FilmPanel.Visibility=choosingFilm ? Visibility.Visible : Visibility.Collapsed;
@@ -232,8 +249,8 @@ public partial class MainWindow : Window
                 controls.Ring.Progress=offset==0 ? 0 : offset/(offset<0 ? origin : 1-origin); controls.Ring.InvalidateVisual();
             }
             foreach(var pair in filmButtons)pair.Value.Tag=pair.Key==(lut ?? "") ? "selected" : null;
-            var filmName=settings.Recipe?.Name ?? films.FirstOrDefault(f=>f.Path==lut)?.Name ?? "中性";
-            ActiveFilm.Text=filmName;FilmLabelText.Text=lut==null ? "调整后" : filmName;ActiveFilm.ToolTip=filmName;
+            var filmName=settings.Recipe?.Name ?? films.FirstOrDefault(f=>f.Path==lut)?.Name ?? Loc.Text("中性");
+            ActiveFilm.Text=filmName;FilmLabelText.Text=lut==null ? Loc.Text("调整后") : filmName;ActiveFilm.ToolTip=filmName;
             NeutralLabel.Visibility=FilmLabel.Visibility=compare && result!=null ? Visibility.Visible : Visibility.Collapsed;
             CompareButton.Tag=compare ? "selected" : null;
             ClippingButton.Tag=clipping ? "selected" : null;
@@ -254,21 +271,30 @@ public partial class MainWindow : Window
         AdjustmentPanel.IsEnabled=!exporting;GpuMode.IsEnabled=!exporting;
         BusyIndicator.Visibility=scheduler.Busy || previewResize.IsEnabled || exporting ? Visibility.Visible : Visibility.Collapsed;
         RetryButton.Visibility=renderFailed && !scheduler.Busy && !exporting ? Visibility.Visible : Visibility.Collapsed;
-        ExportButton.ToolTip=file==null ? "打开 RAW 照片后导出" : scheduler.Busy ? "精确预览完成后可导出" : "导出照片（尺寸可选）";
+        ExportButton.ToolTip=file==null ? Loc.Text("打开 RAW 照片后导出") : scheduler.Busy ? Loc.Text("精确预览完成后可导出") : Loc.Text("导出照片（尺寸可选）");
         ToolTipService.SetShowOnDisabled(ExportButton,true);
         ToolTipService.SetShowOnDisabled(ExportJpeg,true);ToolTipService.SetShowOnDisabled(ExportPng,true);ToolTipService.SetShowOnDisabled(ExportDng,true);
     }
-    private void SetStatus(string text,bool error=false) { Status.Text=text; Status.ToolTip=text; Status.Foreground=Brush(error ? "#FFAB92" : "#B5B8C0"); }
+    private void SetStatus(string text,bool error=false) { localizedStatus=null; Status.Text=text; Status.ToolTip=text; Status.Foreground=Brush(error ? "#FFAB92" : "#B5B8C0"); }
+    private void SetStatus(Func<string> text,bool error=false) { SetStatus(text(),error); localizedStatus=text; }
+    private void RefreshRenderLabels()
+    {
+        if (result == null) { if (file != null && !renderFailed) BackendLabel.Text=Loc.Text("相机预览 · 正在显影"); return; }
+        BackendLabel.Text=$"{(result.Backend==3 ? "Direct3D 11 · GPU" : renderedGpuMode==0 ? "CPU" : Loc.Text("CPU · GPU 已回退"))} · sRGB";
+        ClipStats.Text=Loc.Format("暗部 {0:P1}   高光 {1:P1} · 显示图统计", result.Shadows, result.Highlights);
+        BaselineLabel.Text=Loc.Format("基础偏移 {0:+0.00;-0.00;0.00} EV", result.Baseline);
+        AsShotButton.ToolTip=result.WhiteBalance==null ? Loc.Text("此 RAW 缺少有效校准，使用相机原始白平衡") : Loc.Format("拍摄时：{0} K / {1}", result.WhiteBalance.Value.Temperature, result.WhiteBalance.Value.Tint);
+    }
     private void RetryClicked(object sender,RoutedEventArgs e)=>Schedule();
     private void Report(Exception error)=>SetStatus(error is DllNotFoundException or BadImageFormatException or EntryPointNotFoundException
-        ? "无法加载显影组件。请通过 build.ps1 构建，并保留程序目录内的 DLL。" : error.Message,true);
+        ? Loc.Text("无法加载显影组件。请通过 build.ps1 构建，并保留程序目录内的 DLL。") : error.Message,true);
     internal void OpenFile(string path,BitmapSource? placeholder=null)
     {
         if(exporting || closing)return;
         try
         {
             path=Path.GetFullPath(path);
-            if(!LibraryEntry.IsRaw(path))throw new InvalidOperationException("请选择支持的 RAW 文件。");
+            if(!LibraryEntry.IsRaw(path))throw new InvalidOperationException(Loc.Text("请选择支持的 RAW 文件。"));
             if(!SaveEdits())return;
             RestoreEdits(path);
             previewResize.Stop();previewLongEdge=requestedPreviewLongEdge=2000;
@@ -278,7 +304,7 @@ public partial class MainWindow : Window
             previewLongEdge=requestedPreviewLongEdge=ResultCanvas.PreviewLongEdge>0 ? ResultCanvas.PreviewLongEdge : 2000;
             syncing=false;
             RefreshPhotoInfo();
-            BackendLabel.Text="相机预览 · 正在显影";BaselineLabel.Text="";
+            BackendLabel.Text=Loc.Text("相机预览 · 正在显影");BaselineLabel.Text="";
             Title="RawLab · "+Path.GetFileName(path); Welcome.Visibility=Visibility.Collapsed;
             embeddedScheduler.Submit(new(path,++openRevision));PumpEmbedded();
             _ = LoadPhotoInfo(path, photoInfoRevision);
@@ -331,7 +357,7 @@ public partial class MainWindow : Window
             if(result==null && !renderFailed && preview.Image!=null)
             {
                 NeutralCanvas.SetImage(preview.Image,null);ResultCanvas.SetImage(preview.Image,null);ResultCanvas.SetComparison(preview.Image,null);
-                SetStatus("相机内嵌预览 · 正在显影…");
+                SetStatus(() => Loc.Text("相机内嵌预览 · 正在显影…"));
             }
         }
         PumpEmbedded();
@@ -354,11 +380,11 @@ public partial class MainWindow : Window
     {
         if(!ready || file==null || exporting || closing)return;
         if(!settings.Denoise.Enabled && previewResize.IsEnabled){previewResize.Stop();previewLongEdge=requestedPreviewLongEdge;}
-        if(!LookAvailable){exactReady=false;result=null;renderFailed=true;SetStatus("上次使用的外观不可用，请重新导入或选择外观。",true);UpdateBusy();return;}
+        if(!LookAvailable){exactReady=false;result=null;renderFailed=true;SetStatus(() => Loc.Text("上次使用的外观不可用，请重新导入或选择外观。"),true);UpdateBusy();return;}
         renderFailed=false;
         var proxy=interacting || initialPreview;
         scheduler.Submit(new(file,settings.Clone(),lut,RenderEdge(proxy),proxy,GpuMode.SelectedIndex==0 ? 1 : GpuMode.SelectedIndex==1 ? 0 : 2,compare,clipping,initialPreview));
-        exactReady=false; SetStatus(interacting ? "正在生成交互预览…" : "正在显影…"); UpdateBusy();
+        exactReady=false; SetStatus(() => interacting ? Loc.Text("正在生成交互预览…") : Loc.Text("正在显影…")); UpdateBusy();
         Pump();
     }
     private async void Pump()
@@ -385,15 +411,13 @@ public partial class MainWindow : Window
             {
                 result=rendered; settings.ResolveWhiteBalance(rendered.WhiteBalance);
                 if(work.Edge==0)viewport.SetSourceSize(rendered.Image.PixelWidth,rendered.Image.PixelHeight);
-                BackendLabel.Text=$"{(rendered.Backend==3 ? "Direct3D 11 · GPU" : work.GpuMode==0 ? "CPU" : "CPU · GPU 已回退")} · sRGB";
+                renderedGpuMode=work.GpuMode;
                 NeutralCanvas.SetImage(neutral.Image,neutral.Clipping); ResultCanvas.SetImage(rendered.Image,rendered.Clipping);
                 ResultCanvas.SetComparison(neutral.Image,neutral.Clipping);
                 Histogram.Bins=rendered.Histogram; Histogram.InvalidateVisual();
-                ClipStats.Text=$"暗部 {rendered.Shadows:P1}   高光 {rendered.Highlights:P1} · 显示图统计";
-                BaselineLabel.Text=$"基础偏移 {rendered.Baseline:+0.00;-0.00;0.00} EV";
-                AsShotButton.ToolTip=rendered.WhiteBalance==null ? "此 RAW 缺少有效校准，使用相机原始白平衡" : $"拍摄时：{rendered.WhiteBalance.Value.Temperature} K / {rendered.WhiteBalance.Value.Tint}";
+                RefreshRenderLabels();
                 exactReady=current && !work.Interactive;
-                SetStatus($"{(work.Interactive ? "交互预览" : work.Edge==0 ? "原尺寸" : "预览")} {rendered.Image.PixelWidth} × {rendered.Image.PixelHeight} · {Path.GetFileName(file)}");
+                SetStatus(() => $"{(work.Interactive ? Loc.Text("交互预览") : work.Edge==0 ? Loc.Text("原尺寸") : Loc.Text("预览"))} {rendered.Image.PixelWidth} × {rendered.Image.PixelHeight} · {Path.GetFileName(work.File)}");
                 RefreshControls();
             }
         }
@@ -415,7 +439,7 @@ public partial class MainWindow : Window
         if(!ready || syncing || exporting || !ValueText.IsEnabled)return;
         var spec=ParameterSpec.All[(int)selectedParameter];
         if(spec.Parse(ValueText.Text) is {} value) { if(settings[selectedParameter]!=value){settings.Set(selectedParameter,value);MarkEdited();interacting=false;Schedule();} }
-        else SetStatus("请输入有限数值。",true);
+        else SetStatus(() => Loc.Text("请输入有限数值。"),true);
         RefreshControls();
     }
     private void ValueCommitted(object sender,KeyboardFocusChangedEventArgs e)=>CommitValue();
@@ -443,13 +467,13 @@ public partial class MainWindow : Window
     private void OpenClicked(object sender,RoutedEventArgs e)
     {
         if(exporting)return;
-        var dialog=new OpenFileDialog{Title="打开 RAW 照片",Filter="RAW 照片|"+string.Join(';',LibraryEntry.RawExtensions.Select(x=>"*."+x))+"|所有文件|*.*"};
+        var dialog=new OpenFileDialog{Title=Loc.Text("打开 RAW 照片"),Filter=Loc.Text("RAW 照片|")+string.Join(';',LibraryEntry.RawExtensions.Select(x=>"*."+x))+Loc.Text("|所有文件|*.*")};
         if(dialog.ShowDialog(this)==true)OpenFile(dialog.FileName);
     }
     private void ImportClicked(object sender,RoutedEventArgs e)
     {
         if(exporting)return;
-        var dialog=new OpenFileDialog{Title="导入胶片外观",Multiselect=true,Filter="胶片外观|*.cube;*.rlook|CUBE LUT|*.cube|RawLab DCP 外观|*.rlook"};
+        var dialog=new OpenFileDialog{Title=Loc.Text("导入胶片外观"),Multiselect=true,Filter=Loc.Text("胶片外观|*.cube;*.rlook|CUBE LUT|*.cube|RawLab DCP 外观|*.rlook")};
         if(dialog.ShowDialog(this)!=true)return;
         foreach(var path in dialog.FileNames)
         {
@@ -461,7 +485,7 @@ public partial class MainWindow : Window
     }
     private void AddFolderClicked(object sender,RoutedEventArgs e)
     {
-        var dialog=new OpenFolderDialog{Title="添加照片目录",Multiselect=true};
+        var dialog=new OpenFolderDialog{Title=Loc.Text("添加照片目录"),Multiselect=true};
         if(dialog.ShowDialog(this)==true)try { foreach(var path in dialog.FolderNames)library.Add(path); } catch(Exception ex){Report(ex);}
     }
     private async void FolderExpanded(object sender,RoutedEventArgs e) { if(e.OriginalSource is TreeViewItem {DataContext:LibraryEntry entry})try{await entry.Load();}catch(Exception ex){Report(ex);} }
@@ -539,7 +563,7 @@ public partial class MainWindow : Window
     {
         if(sender is not ContextMenu menu) return;
         foreach(var item in menu.Items.OfType<MenuItem>())
-            if(string.Equals(item.Header?.ToString(),"应用当前设置",StringComparison.Ordinal)) item.IsEnabled=CanApplyCurrentSettings;
+            if(string.Equals(item.Header?.ToString(),Loc.Text("应用当前设置"),StringComparison.Ordinal)) item.IsEnabled=CanApplyCurrentSettings;
     }
     private async void OpenInExplorerClicked(object sender, RoutedEventArgs e)
     {
@@ -580,7 +604,7 @@ public partial class MainWindow : Window
                 if(stable>=3) return;
                 await Task.Delay(100);
             }
-            throw new IOException("资源管理器已打开，但未能选中照片。");
+            throw new IOException(Loc.Text("资源管理器已打开，但未能选中照片。"));
         }
         finally { Marshal.ReleaseComObject(shell); }
     }
@@ -623,12 +647,12 @@ public partial class MainWindow : Window
     {
         var entry=ResolveContextEntry(sender);
         if (entry == null || string.IsNullOrEmpty(entry.Path)) return;
-        if (file == null) { SetStatus("请先打开一张照片作为调整来源。",true); return; }
+        if (file == null) { SetStatus(() => Loc.Text("请先打开一张照片作为调整来源。"),true); return; }
         if (exporting || scheduler.Busy || previewResize.IsEnabled || !exactReady || result == null)
         {
-            SetStatus("精确显影完成后才能应用当前设置。",true); return;
+            SetStatus(() => Loc.Text("精确显影完成后才能应用当前设置。"),true); return;
         }
-        if (!LookAvailable) { SetStatus("当前外观不可用，不能应用设置。",true); return; }
+        if (!LookAvailable) { SetStatus(() => Loc.Text("当前外观不可用，不能应用设置。"),true); return; }
         var snapshot=settings.Capture(); var look=CurrentLookIdentity();
         try
         {
@@ -641,13 +665,13 @@ public partial class MainWindow : Window
                     .Select(child=>new LibraryEntry(child.FullName,false)).ToArray());
             }
             else targets=LibraryEntry.IsRaw(entry.Path) ? [entry] : [];
-            if (targets.Length == 0) { SetStatus("目录中没有直接 RAW 照片。",true); return; }
+            if (targets.Length == 0) { SetStatus(() => Loc.Text("目录中没有直接 RAW 照片。"),true); return; }
             var answer=MessageBox.Show(this,
-                $"将覆盖 {targets.Length} 张照片的本机编辑记录。不会修改 RAW 文件。继续？",
-                "应用当前设置",MessageBoxButton.YesNo,MessageBoxImage.Question);
+                Loc.Format("将覆盖 {0} 张照片的本机编辑记录。不会修改 RAW 文件。继续？", targets.Length),
+                Loc.Text("应用当前设置"),MessageBoxButton.YesNo,MessageBoxImage.Question);
             if (answer != MessageBoxResult.Yes) return;
             SaveSettingsCopies(targets.Select(target=>target.Path),snapshot,look);
-            SetStatus($"已应用当前设置到 {targets.Length} 张照片。",false);
+            SetStatus(() => Loc.Format("已应用当前设置到 {0} 张照片。", targets.Length),false);
         }
         catch (Exception error) { Report(error); }
     }
@@ -690,13 +714,14 @@ public partial class MainWindow : Window
         NeutralCanvas.Visibility=compare && !swipe ? Visibility.Visible : Visibility.Collapsed;
         NeutralColumn.Width=compare && !swipe ? new(1,GridUnitType.Star) : new(0);
         ResultCanvas.ComparisonEnabled=swipe;
-        ResultCanvas.ToolTip=swipe ? "拖动分隔线对比；方向键微调，Home 居中。拖动照片平移，滚轮缩放。" : "拖动平移，滚轮缩放，双击适合窗口。";
+        RefreshComparisonToolTip();
         Grid.SetColumnSpan(NeutralLabel,swipe ? 2 : 1);
         FilmLabel.HorizontalAlignment=swipe ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         CompareOff.IsChecked=!enabled;CompareSide.IsChecked=enabled && !sliding;CompareSwipe.IsChecked=swipe;
         RefreshControls();
         if(changed)Schedule();
     }
+    private void RefreshComparisonToolTip() => ResultCanvas.ToolTip=swipe ? Loc.Text("拖动分隔线对比；方向键微调，Home 居中。拖动照片平移，滚轮缩放。") : Loc.Text("拖动平移，滚轮缩放，双击适合窗口。");
     private void DockToggle(object sender,RoutedEventArgs e)
     {
         var visible=AdjustmentPanel.Visibility==Visibility.Visible;
@@ -751,16 +776,16 @@ public partial class MainWindow : Window
         ExportSize3000.IsChecked=exportLongEdge == 3000;
         ExportSize4096.IsChecked=exportLongEdge == 4096;
         ExportCustomSize.IsChecked=exportLongEdge.HasValue && exportLongEdge != 2048 && exportLongEdge != 3000 && exportLongEdge != 4096;
-        ExportCustomSize.Header=ExportCustomSize.IsChecked == true ? $"自定义 {exportLongEdge} px" : "自定义…";
+        ExportCustomSize.Header=ExportCustomSize.IsChecked == true ? Loc.Format("自定义 {0} px", exportLongEdge) : Loc.Text("自定义…");
     }
     private async void Export(ExportFormat format)
     {
         if(!exactReady || scheduler.Busy || previewResize.IsEnabled || exporting || file==null || engine==null)return;
         var suffix=format.Suffix();
-        var dialog=new SaveFileDialog{Title="全分辨率导出",Filter=format switch {
-                ExportFormat.Jpeg => "JPEG|*.jpg;*.jpeg",
-                ExportFormat.Png => "16-bit PNG|*.png",
-                ExportFormat.RenderedDng => "DNG · 渲染型|*.dng",
+        var dialog=new SaveFileDialog{Title=Loc.Text("全分辨率导出"),Filter=format switch {
+                ExportFormat.Jpeg => Loc.Text("导出 JPEG")+"|*.jpg;*.jpeg",
+                ExportFormat.Png => Loc.Text("导出 16-bit PNG")+"|*.png",
+                ExportFormat.RenderedDng => Loc.Text("DNG · 渲染型")+"|*.dng",
                 _ => throw new ArgumentOutOfRangeException(nameof(format))
             },DefaultExt="."+suffix,AddExtension=true,OverwritePrompt=true,
             FileName=Path.GetFileNameWithoutExtension(file)+"-"+(films.FirstOrDefault(f=>f.Path==lut)?.Name ?? "neutral")};
@@ -768,14 +793,14 @@ public partial class MainWindow : Window
             if (!format.AcceptsPath(dialog.FileName))
             {
                 args.Cancel = true;
-                MessageBox.Show(this, $"请选择 {format.Title()} 文件扩展名。", "导出",
+                MessageBox.Show(this, Loc.Format("请选择 {0} 文件扩展名。", format.Title()), Loc.Text("导出"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         };
         if(dialog.ShowDialog(this)!=true)return;
         if(!exactReady || scheduler.Busy || previewResize.IsEnabled || closing)return;
-        if(Path.GetFullPath(dialog.FileName).Equals(Path.GetFullPath(file),StringComparison.OrdinalIgnoreCase)){SetStatus("不能覆盖原始 RAW。",true);return;}
-        exporting=true;RefreshControls();SetStatus("正在全分辨率导出…");
+        if(Path.GetFullPath(dialog.FileName).Equals(Path.GetFullPath(file),StringComparison.OrdinalIgnoreCase)){SetStatus(() => Loc.Text("不能覆盖原始 RAW。"),true);return;}
+        exporting=true;RefreshControls();SetStatus(() => Loc.Text("正在全分辨率导出…"));
         var input=file;var adjustment=settings.Clone();var film=lut;
         // Render to a sibling temporary file, then replace only after encoding succeeds.
         var temp=Path.Combine(Path.GetDirectoryName(dialog.FileName)!,".rawlab-"+Guid.NewGuid().ToString("N")+"."+suffix);
@@ -785,17 +810,17 @@ public partial class MainWindow : Window
             using var sourceLock = WindowsFileIdentity.OpenReadLock(input);
             if (WindowsFileIdentity.IsSameFile(sourceLock, dialog.FileName))
             {
-                SetStatus("不能覆盖原始 RAW。", true);
+                SetStatus(() => Loc.Text("不能覆盖原始 RAW。"), true);
                 return;
             }
             await Task.Run(()=>engine.Render(input,adjustment,film,0,false,temp,longEdge:size));
             if (WindowsFileIdentity.IsSameFile(sourceLock, dialog.FileName))
             {
-                SetStatus("不能覆盖原始 RAW。", true);
+                SetStatus(() => Loc.Text("不能覆盖原始 RAW。"), true);
                 return;
             }
             File.Move(temp,dialog.FileName,true);
-            SetStatus($"已导出（{(engine.LastBackend==3 ? "Direct3D 11" : "CPU")}）：{dialog.FileName}");
+            SetStatus(() => Loc.Format("已导出（{0}）：{1}", (engine.LastBackend==3 ? "Direct3D 11" : "CPU"), dialog.FileName));
         }
         catch(Exception ex){Report(ex);}
         finally {try{if(File.Exists(temp))File.Delete(temp);}catch(IOException){} exporting=false;RefreshControls();if(closing)FinishClose();else UpdatePreviewSize(requestedPreviewLongEdge);}
@@ -807,7 +832,7 @@ public partial class MainWindow : Window
         previewResize.Stop();
         if(batchWindow?.Running==true)batchWindow.CancelExecution();
         thumbnailRefresh.Stop();foreach(var entry in visibleThumbnails)entry.ReleaseThumbnail();visibleThumbnails.Clear();
-        if(scheduler.Busy || exporting){e.Cancel=true;closing=true;IsEnabled=false;SetStatus("正在完成当前任务后关闭…");return;}
+        if(scheduler.Busy || exporting){e.Cancel=true;closing=true;IsEnabled=false;SetStatus(() => Loc.Text("正在完成当前任务后关闭…"));return;}
         engine?.Dispose();engine=null;
     }
     private void FinishClose() { engine?.Dispose();engine=null;Closing-=WindowClosing;Close(); }

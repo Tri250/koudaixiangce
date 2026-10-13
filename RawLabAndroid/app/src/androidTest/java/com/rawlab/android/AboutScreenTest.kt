@@ -6,7 +6,8 @@ import org.junit.Rule
 import org.junit.Test
 
 class AboutScreenTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule val languageAndCompose = org.junit.rules.RuleChain.outerRule(LanguageTestRule()).around(compose)
 
     @Test fun nestedLensLicensesAreReadable() {
         compose.onNodeWithText(compose.activity.getString(R.string.licenses)).performClick()

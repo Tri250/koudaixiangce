@@ -24,7 +24,7 @@ class BatchPublicationUncertain(message: String, cause: Throwable? = null) : IOE
 
 internal fun asBatchOutputFailure(error: Throwable): Throwable =
     if (error is NativeProcessingException && error.status == NativeProcessingException.OUTPUT_IO_ERROR)
-        BatchGlobalFailure("输出存储失败：${error.message}", error)
+        BatchGlobalFailure(AppStrings.format(R.string.message_output_storage_failed, error.message.orEmpty()), error)
     else error
 
 enum class BatchRowStatus { PENDING, PROCESSING, PUBLISHING, NEEDS_CONFIRMATION, SUCCESS, FAILED, CANCELLED }
@@ -185,7 +185,7 @@ class BatchJournal(private val directory: File) {
         properties.setProperty("output.destination", job.destination.orEmpty())
         properties.setProperty("row.count", job.rows.size.toString())
         job.rows.forEachIndexed { index, row ->
-            val prefix = "row.$index."
+            val prefix = "row.${index}."
             properties.setProperty(prefix + "id", row.id)
             properties.setProperty(prefix + "path", row.target.sourceFile.path)
             properties.setProperty(prefix + "name", row.target.displayName)
@@ -209,7 +209,7 @@ class BatchJournal(private val directory: File) {
     }
 
     fun load(id: String): BatchJob? {
-        val file = File(directory, "$id.properties")
+        val file = File(directory, "${id}.properties")
         if (!file.isFile) return null
         val properties = Properties().also { file.inputStream().use(it::load) }
         val source = BatchSourceSnapshot(PhotoIdentity(properties.getProperty("source.identity")),
@@ -217,7 +217,7 @@ class BatchJournal(private val directory: File) {
             properties.getProperty("source.name"), properties.getProperty("source.look").orEmpty().takeIf { it.isNotEmpty() }?.let(::File))
         val count = properties.getProperty("row.count", "0").toInt()
         val targets = (0 until count).map { index ->
-            val prefix = "row.$index."
+            val prefix = "row.${index}."
             BatchTarget(PhotoIdentity(properties.getProperty(prefix + "id")), File(properties.getProperty(prefix + "path")),
                 properties.getProperty(prefix + "name"), properties.getProperty(prefix + "uri").ifBlank { null })
         }
@@ -260,7 +260,7 @@ class BatchJournal(private val directory: File) {
         } }
 
     fun discard(id: String) {
-        File(directory, "$id.properties").delete()
+        File(directory, "${id}.properties").delete()
         File(directory, id).deleteRecursively()
     }
 }
@@ -348,11 +348,11 @@ class BatchExportModel(
         if (current.phase in setOf(BatchPhase.PREPARING, BatchPhase.RUNNING) || current.job.rows.isEmpty()) return
         if (retry && current.unfinishedCount == 0) return
         if (!ExportSize.isValid(longEdge)) {
-            mutable.value = current.copy(error = "请输入 1–65535 之间的像素数")
+            mutable.value = current.copy(error = AppStrings.text(R.string.message_enter_a_pixel_count_between_1_and))
             return
         }
         if (destination == null && !format.allowsGallery) {
-            mutable.value = current.copy(error = "${format.name} 导出只能选择输出目录")
+            mutable.value = current.copy(error = AppStrings.text(R.string.dng_file_only))
             return
         }
         val configured = current.job.copy(outputFormat = format, destination = destination?.toString(),
@@ -364,7 +364,7 @@ class BatchExportModel(
             try {
                 val materialized = configured
                 if (!materialized.source.sourceFile.isFile || ((materialized.source.settings.film != "neutral" || materialized.source.settings.recipeID != null) && materialized.source.lookFile?.isFile != true)) {
-                    throw BatchGlobalFailure("任务来源或外观文件不可用，请重新创建批量任务。")
+                    throw BatchGlobalFailure(AppStrings.text(R.string.message_the_task_source_or_look_file_is))
                 }
                 val journal = BatchJournal(journalRoot)
                 val processor = NativeProcessor(lensDatabase = storage.lensDatabase())
@@ -383,7 +383,7 @@ class BatchExportModel(
                     val publish: (File, String, BatchTarget, (String) -> Unit) -> Unit = { rendered, outputName, _, checkpoint ->
                         try {
                             if (destination == null) {
-                                if (android.os.Build.VERSION.SDK_INT < 29) throw BatchGlobalFailure("相册保存需要 Android 10 或更高版本")
+                                if (android.os.Build.VERSION.SDK_INT < 29) throw BatchGlobalFailure(AppStrings.text(R.string.message_saving_to_the_photo_gallery_requires_android))
                                 storage.saveAlbum(rendered, format, outputName) { checkpoint(it.toString()) }
                             } else {
                                 saveDocumentChild(destination, rendered, outputName, format) { checkpoint(it.toString()) }
@@ -391,7 +391,7 @@ class BatchExportModel(
                         } catch (error: BatchPublicationUncertain) {
                             throw error
                         } catch (error: Exception) {
-                            throw BatchGlobalFailure("输出存储失败：${error.message}", error)
+                            throw BatchGlobalFailure(AppStrings.format(R.string.message_output_storage_failed, error.message.orEmpty()), error)
                         }
                     }
                     mutable.value = mutable.value.copy(phase = BatchPhase.RUNNING)
@@ -426,10 +426,10 @@ class BatchExportModel(
     private fun copyTarget(uri: Uri): BatchTarget {
         val identity = PhotoIdentity(uri.toString())
         val name = displayName(uri)
-        if (!RawFiles.accepts(name, resolver.getType(uri))) throw IOException("不是受支持的 RAW 文件")
+        if (!RawFiles.accepts(name, resolver.getType(uri))) throw IOException(AppStrings.text(R.string.message_not_a_supported_raw_file))
         val destination = inputFile(mutable.value.job.id, identity, name)
         if (!destination.exists()) {
-            val input = resolver.openInputStream(uri) ?: throw IOException("无法读取文件")
+            val input = resolver.openInputStream(uri) ?: throw IOException(AppStrings.text(R.string.message_unable_to_read_file))
             try { input.use { source -> destination.outputStream().use { source.copyTo(it) } }
                 NativeProcessor(lensDatabase = storage.lensDatabase()).use { it.preview(destination, null, EditSettings(), 256, false) }
             } catch (error: Exception) { destination.delete(); throw error }
@@ -456,11 +456,11 @@ class BatchExportModel(
     }
 
     private fun inputFile(jobID: String, identity: PhotoIdentity, name: String): File {
-        val root = File(context.filesDir, "RawLab/BatchJobs/$jobID/inputs")
+        val root = File(context.filesDir, "RawLab/BatchJobs/${jobID}/inputs")
         if (!root.exists()) root.mkdirs()
         val extension = name.substringAfterLast('.', "raw").replace(Regex("[^A-Za-z0-9]"), "")
         val safe = java.security.MessageDigest.getInstance("SHA-256").digest(identity.value.toByteArray()).joinToString("") { "%02x".format(it) }
-        return File(root, "$safe.${extension.ifBlank { "raw" }}")
+        return File(root, "${safe}.${extension.ifBlank { "raw" }}")
     }
 
     private fun saveDocumentChild(tree: Uri, file: File, name: String, format: ExportFormat, onCreated: (Uri) -> Unit): Uri {
@@ -469,7 +469,7 @@ class BatchExportModel(
         val names = mutableSetOf<String>()
         resolver.query(children, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)?.use { cursor ->
             while (cursor.moveToNext()) names += cursor.getString(0).lowercase()
-        } ?: throw IOException("无法读取输出目录")
+        } ?: throw IOException(AppStrings.text(R.string.message_unable_to_read_output_directory))
         var candidate = name
         var suffix = 2
         while (candidate.lowercase() in names) candidate = "${name.substringBeforeLast('.')}-${suffix++}.${name.substringAfterLast('.')}"
@@ -481,8 +481,8 @@ class BatchExportModel(
             output.use { destination -> file.inputStream().use { it.copyTo(destination) } }
             return child
         } catch (error: Exception) {
-            if (!runCatching { DocumentsContract.deleteDocument(resolver, child) }.getOrDefault(false)) throw BatchPublicationUncertain("写入未完成且无法清理，请核对输出目录", error)
-            throw BatchGlobalFailure("无法写入输出目录：${error.message}", error)
+            if (!runCatching { DocumentsContract.deleteDocument(resolver, child) }.getOrDefault(false)) throw BatchPublicationUncertain(AppStrings.text(R.string.message_writing_was_incomplete_and_cleanup_failed_check), error)
+            throw BatchGlobalFailure(AppStrings.format(R.string.message_unable_to_write_to_output_directory, error.message.toString()), error)
         }
     }
 

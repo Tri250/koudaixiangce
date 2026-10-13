@@ -29,6 +29,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        AppStrings.initialize(newBase)
+        super.attachBaseContext(AppStrings.localizedContext(newBase))
+    }
     val model: EditorViewModel by lazy { ViewModelProvider(this)[EditorViewModel::class.java] }
     val updates: UpdateViewModel by lazy { ViewModelProvider(this)[UpdateViewModel::class.java] }
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,8 +103,8 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
         Column(Modifier.fillMaxSize()) {
         pendingBatch.firstOrNull()?.let { job ->
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("有未完成的批量导出", Modifier.weight(1f))
-                TextButton(onClick = { model.resumeBatch(job) }) { Text("查看任务") }
+                Text(AppStrings.text(R.string.message_unfinished_batch_export), Modifier.weight(1f))
+                TextButton(onClick = { model.resumeBatch(job) }) { Text(AppStrings.text(R.string.message_view_task)) }
             }
         }
         Box(Modifier.weight(1f)) {

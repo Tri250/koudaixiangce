@@ -33,7 +33,7 @@ final class BatchExportModel: ObservableObject {
         source.lookName = source.settings.masterRecipe?.name ?? editor.availableLUTs.first { $0.id == source.settings.lutID }?.name ?? "中性"
         job = BatchExportJob(source: source, targets: [])
         do { journalStore = try BatchJournalStore.appStore() }
-        catch { journalStore = nil; validationMessage = "无法保存批量任务：\(error.localizedDescription)" }
+        catch { journalStore = nil; validationMessage = L10n.format("无法保存批量任务：%@", String(describing: error.localizedDescription)) }
         guard let journalStore else { return }
         let look = editor.lutURL(for: source.settings)
         var snapshot = job
@@ -75,16 +75,16 @@ final class BatchExportModel: ObservableObject {
     var canChangeTargets: Bool { isReady && !isRunning && !isPreparing && job.status == .draft }
     var canStart: Bool { isReady && !isRunning && !isPreparing && journalStore != nil && pendingCount + failedCount > 0 }
     var stateTitle: String {
-        if isPreparing { return "正在准备 RAW…" }
-        if isStopping { return "正在停止…" }
-        if isRunning { return "正在导出" }
+        if isPreparing { return L10n.text("正在准备 RAW…") }
+        if isStopping { return L10n.text("正在停止…") }
+        if isRunning { return L10n.text("正在导出") }
         switch job.status {
-        case .cancelled: return "导出已取消"
-        case .interrupted: return "导出已中断"
-        case .completed: return "导出完成"
-        case .partialFailure: return "部分照片导出失败"
-        case .failed: return "导出已停止"
-        default: return "批量导出"
+        case .cancelled: return L10n.text("导出已取消")
+        case .interrupted: return L10n.text("导出已中断")
+        case .completed: return L10n.text("导出完成")
+        case .partialFailure: return L10n.text("部分照片导出失败")
+        case .failed: return L10n.text("导出已停止")
+        default: return L10n.text("批量导出")
         }
     }
 
@@ -125,7 +125,7 @@ final class BatchExportModel: ObservableObject {
             do {
                 let file = try await PhotoImportFile.load(from: item)
                 defer { PhotoImportFile.release(file.url) }
-                guard file.isRaw else { failures.append("普通图片未加入，请选择 RAW。"); continue }
+                guard file.isRaw else { failures.append(L10n.text("普通图片未加入，请选择 RAW。")); continue }
                 let target: BatchTarget = try await perform {
                     let identity = try item.itemIdentifier.flatMap { $0.isEmpty ? nil : PhotoIdentity(resourceIdentifier: $0) }
                         ?? PhotoIdentity.fallback(for: file.url)
@@ -134,7 +134,7 @@ final class BatchExportModel: ObservableObject {
                     return BatchTarget(identity: identity, sourceURL: owned, displayName: file.url.lastPathComponent)
                 }
                 targets.append(target)
-            } catch { failures.append("所选 RAW：\(error.localizedDescription)") }
+            } catch { failures.append(L10n.format("所选 RAW：%@", String(describing: error.localizedDescription))) }
         }
         let loaded = targets, errors = failures
         await MainActor.run {
@@ -154,7 +154,7 @@ final class BatchExportModel: ObservableObject {
             : job.recovered(assetExists: PhotoLibraryBatchWriter.assetExists)
         guard !snapshot.source.settings.hasLook ||
                 snapshot.source.lookURL.map({ FileManager.default.isReadableFile(atPath: $0.path) }) == true else {
-            validationMessage = "任务外观不可用，请放弃此任务并重新创建。"
+            validationMessage = L10n.text("任务外观不可用，请放弃此任务并重新创建。")
             return
         }
         isRunning = true; isStopping = false; validationMessage = nil
@@ -271,7 +271,7 @@ final class BatchExportModel: ObservableObject {
             if status == .authorized || status == .limited {
                 job = job.recovered(assetExists: PhotoLibraryBatchWriter.assetExists)
                 saveJournal()
-            } else { validationMessage = "未获得相册读取权限，请手动核对保存结果，或在系统设置中授权。" }
+            } else { validationMessage = L10n.text("未获得相册读取权限，请手动核对保存结果，或在系统设置中授权。") }
         }
     }
 
@@ -302,24 +302,24 @@ final class BatchExportModel: ObservableObject {
     }
 
     func preview(target: BatchTarget) async throws -> UIImage {
-        guard !isRunning, !isPreparing else { throw BatchExportError.target("请等待当前任务完成。") }
+        guard !isRunning, !isPreparing else { throw BatchExportError.target(L10n.text("请等待当前任务完成。")) }
         let snapshot = job.source
         return try await perform {
             if snapshot.settings.hasLook && snapshot.lookURL.map({ FileManager.default.isReadableFile(atPath: $0.path) }) != true {
-                throw BatchExportError.global("任务外观不可用。")
+                throw BatchExportError.global(L10n.text("任务外观不可用。"))
             }
             let processor = Sony2FujiProcessor()
             let result = try processor.processRaw(url: target.sourceURL, settings: snapshot.settings,
                                                    previewLongEdge: 1280, lutURL: snapshot.lookURL)
             guard let image = processor.makeUIImage(from: result.buffer, orientation: result.orientation) else {
-                throw BatchExportError.target("无法显示预览。")
+                throw BatchExportError.target(L10n.text("无法显示预览。"))
             }
             return image
         }
     }
 
     private func render(target: BatchTarget, settings: RawSettings, look: URL?, longEdge: Int?) throws -> Data {
-        guard target.sourceKind == .raw else { throw BatchExportError.target("不是 RAW 照片。") }
+        guard target.sourceKind == .raw else { throw BatchExportError.target(L10n.text("不是 RAW 照片。")) }
         return try autoreleasepool {
             let processor = Sony2FujiProcessor()
             let result = try processor.processRaw(url: target.sourceURL, settings: settings,
@@ -331,7 +331,7 @@ final class BatchExportModel: ObservableObject {
     }
 
     private func renderDNG(target: BatchTarget, settings: RawSettings, look: URL?, longEdge: Int?, jobID: UUID) throws -> URL {
-        guard target.sourceKind == .raw else { throw BatchExportError.target("不是 RAW 照片。") }
+        guard target.sourceKind == .raw else { throw BatchExportError.target(L10n.text("不是 RAW 照片。")) }
         return try autoreleasepool {
             let processor = Sony2FujiProcessor()
             let output = BatchFileOutputStore.temporaryURL(for: jobID, outputName: target.outputName)
@@ -362,7 +362,7 @@ final class BatchExportModel: ObservableObject {
     private func saveJournal() {
         guard let journalStore else { return }
         do { try journalStore.save(job) }
-        catch { validationMessage = "任务记录未保存：\(error.localizedDescription)" }
+        catch { validationMessage = L10n.format("任务记录未保存：%@", String(describing: error.localizedDescription)) }
     }
 }
 
@@ -375,7 +375,7 @@ private enum PhotoLibraryBatchWriter {
             semaphore.wait()
         }
         guard status == .authorized || status == .limited else {
-            throw BatchExportError.global("无法保存照片，请在系统设置中允许 RawLab 添加照片。")
+            throw BatchExportError.global(L10n.text("无法保存照片，请在系统设置中允许 RawLab 添加照片。"))
         }
     }
 
@@ -404,7 +404,7 @@ private enum PhotoLibraryBatchWriter {
             didSucceed = success; writeError = error; semaphore.signal()
         }
         semaphore.wait()
-        if !didSucceed { throw BatchExportError.global(writeError?.localizedDescription ?? "保存 \(target.displayName) 失败。") }
-        if checkpointError != nil { throw BatchExportError.uncertain("照片已写入，但任务记录未更新，请先核对保存结果。") }
+        if !didSucceed { throw BatchExportError.global(writeError?.localizedDescription ?? L10n.format("保存 %@ 失败。", String(describing: target.displayName))) }
+        if checkpointError != nil { throw BatchExportError.uncertain(L10n.text("照片已写入，但任务记录未更新，请先核对保存结果。")) }
     }
 }

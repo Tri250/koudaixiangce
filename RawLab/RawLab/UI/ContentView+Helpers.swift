@@ -76,7 +76,7 @@ extension ContentView {
     var editingLocked: Bool { isImporting || isSaving || batchModel?.isRunning == true }
     var editorBusy: Bool { viewModel.isBusy || viewModel.isLoadingLUTs || editingLocked }
     var selectedFilmName: String {
-        settings.masterRecipe?.name ?? viewModel.availableLUTs.first { $0.id == settings.lutID }?.name ?? (settings.lutID == nil ? "中性" : "外观不可用")
+        settings.masterRecipe?.name ?? viewModel.availableLUTs.first { $0.id == settings.lutID }?.name ?? (settings.lutID == nil ? L10n.text("中性") : L10n.text("外观不可用"))
     }
 
     var currentPreviewImage: UIImage? {
@@ -135,8 +135,8 @@ extension ContentView {
                 fileExportRequest = FileExportRequest(
                     urls: [url],
                     removeAfterExport: true,
-                    successMessage: "已导出渲染型 DNG。",
-                    cancelMessage: "已生成渲染型 DNG，未另存到所选位置。"
+                    successMessage: L10n.text("已导出渲染型 DNG。"),
+                    cancelMessage: L10n.text("已生成渲染型 DNG，未另存到所选位置。")
                 )
             case .failure(let error):
                 isSaving = false
@@ -255,8 +255,8 @@ extension ContentView {
         PhotosPicker(selection: $selectedPhotoItem, matching: .images, preferredItemEncoding: .current, photoLibrary: .shared()) {
             Image(systemName: "photo.badge.plus")
         }
-        .accessibilityLabel("导入照片")
-        .help("从照片图库导入")
+        .accessibilityLabel(L10n.text("导入照片"))
+        .help(L10n.text("从照片图库导入"))
         .accessibilityIdentifier("editor.import")
         .disabled(!isEnabled)
     }
@@ -287,11 +287,11 @@ extension ContentView {
     func openBatchExport() {
         if batchModel != nil { showingBatchExport = true; return }
         guard let source = viewModel.currentBatchSource(settings: settings) else {
-            viewModel.statusMessage = "请先导入一张 RAW 照片。"
+            viewModel.statusMessage = L10n.text("请先导入一张 RAW 照片。")
             return
         }
         guard source.sourceKind == .raw else {
-            viewModel.statusMessage = "批量导出目前仅支持 RAW 照片。"
+            viewModel.statusMessage = L10n.text("批量导出目前仅支持 RAW 照片。")
             return
         }
         batchModel = BatchExportModel(source: source, editor: viewModel)
@@ -306,7 +306,7 @@ extension ContentView {
                 batchModel = BatchExportModel(job: job, journalStore: journal)
                 batchModel?.onDiscard = { batchModel = nil; showingBatchExport = false; recoverBatchExport() }
             }
-        } catch { viewModel.statusMessage = "无法恢复批量任务：\(error.localizedDescription)" }
+        } catch { viewModel.statusMessage = L10n.format("无法恢复批量任务：%@", String(describing: error.localizedDescription)) }
     }
 
     func loadPhotoSource(from item: PhotosPickerItem) async throws -> PhotoImportSource {
@@ -318,7 +318,7 @@ extension ContentView {
             guard status == .authorized || status == .limited else {
                 DispatchQueue.main.async {
                     isSaving = false
-                    viewModel.statusMessage = "无法保存照片，请在系统设置中允许添加照片。"
+                    viewModel.statusMessage = L10n.text("无法保存照片，请在系统设置中允许添加照片。")
                 }
                 return
             }
@@ -332,9 +332,9 @@ extension ContentView {
                     if let error = error {
                         viewModel.statusMessage = error.localizedDescription
                     } else if success {
-                        viewModel.statusMessage = "已保存到照片。"
+                        viewModel.statusMessage = L10n.text("已保存到照片。")
                     } else {
-                        viewModel.statusMessage = "保存失败，请重试。"
+                        viewModel.statusMessage = L10n.text("保存失败，请重试。")
                     }
                 }
             })

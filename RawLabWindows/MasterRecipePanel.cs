@@ -20,12 +20,12 @@ public partial class MainWindow
             var content = new StackPanel { Width = 124, Margin = new Thickness(4, 0, 4, 0) };
             if (recipe != null) content.Children.Add(new Image { Source = new BitmapImage(new Uri(recipe.ArtworkPath)), Width = 64, Height = 64 });
             else content.Children.Add(new EditorIcon { Kind = "Neutral", Width = 32, Height = 64 });
-            content.Children.Add(new TextBlock { Text = recipe?.Name ?? "无配方", FontSize = 12, Height = 20, TextAlignment = TextAlignment.Center });
-            content.Children.Add(new TextBlock { Text = recipe?.Subtitle ?? "中性直出", FontSize = 11, Height = 32,
+            content.Children.Add(new TextBlock { Text = recipe?.Name ?? Loc.Text("无配方"), FontSize = 12, Height = 20, TextAlignment = TextAlignment.Center });
+            content.Children.Add(new TextBlock { Text = Loc.Text(recipe?.Subtitle ?? "中性直出"), FontSize = 11, Height = 32,
                 Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center });
             var button = new Button { Content = content, Style = (Style)FindResource("QuietButton"), Padding = new Thickness(0),
-                Background = Brushes.Transparent, BorderThickness = new Thickness(0), ToolTip = recipe?.Summary ?? "中性直出" };
-            AutomationProperties.SetName(button, recipe?.Name ?? "无配方");
+                Background = Brushes.Transparent, BorderThickness = new Thickness(0), ToolTip = Loc.Text(recipe?.Summary ?? "中性直出") };
+            AutomationProperties.SetName(button, recipe?.Name ?? Loc.Text("无配方"));
             button.Click += (_, _) => {
                 if (exporting) return;
                 if (recipe != null) { settings.ApplyMasterRecipe(recipe); lut = recipe.LutPath; }
