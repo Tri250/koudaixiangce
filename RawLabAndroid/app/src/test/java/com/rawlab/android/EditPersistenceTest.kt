@@ -46,6 +46,23 @@ class EditPersistenceTest {
         } finally { directory.deleteRecursively() }
     }
 
+    @Test fun corruptedRecordIsSkippedWithoutBreakingOtherRecords() {
+        val directory = Files.createTempDirectory("rawlab-edits").toFile()
+        try {
+            val good = PhotoIdentity("content://media/external/images/media/9")
+            EditStore(directory).save(good, EditSettings(exposure = .5f))
+            val file = File(directory, "edits.properties")
+            val properties = java.util.Properties().also { file.inputStream().use(it::load) }
+            val corruptKey = "record." + java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("content://corrupt".toByteArray()) + ".values"
+            properties.setProperty(corruptKey, "not,a,float")
+            file.outputStream().use { properties.store(it, null) }
+            val reopened = EditStore(directory)
+            assertEquals(.5f, reopened.load(good)?.exposure)
+            assertNull(reopened.load(PhotoIdentity("content://corrupt")))
+        } finally { directory.deleteRecursively() }
+    }
+
     @Test fun sameBasenameAndFailedWriteDoNotCrossContaminate() {
         val directory = Files.createTempDirectory("rawlab-edits").toFile()
         try {

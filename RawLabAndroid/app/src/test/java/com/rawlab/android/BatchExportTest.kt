@@ -112,6 +112,24 @@ class BatchExportTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun legacyJournalWithoutUriColumnLoads() {
+        val root = Files.createTempDirectory("rawlab-legacy-journal").toFile()
+        try {
+            val source = BatchSourceSnapshot(PhotoIdentity("source"), File(root, "source.raw"), EditSettings())
+            val job = BatchJob(source, listOf(BatchTarget(PhotoIdentity("target"), File(root, "target.raw"), "target.raw")))
+            val journal = BatchJournal(root)
+            journal.save(job)
+            val file = File(root, "${job.id}.properties")
+            val properties = java.util.Properties().also { file.inputStream().use(it::load) }
+            properties.remove("row.0.uri")
+            file.outputStream().use { properties.store(it, null) }
+            val loaded = journal.load(job.id)!!
+            assertEquals(job.id, loaded.id)
+            assertNull(loaded.rows.single().target.sourceUri)
+            assertEquals(listOf(job.id), journal.pending())
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun journalRoundTripsRequestedOutputLongEdge() {
         val root = Files.createTempDirectory("rawlab-size").toFile()
         try {

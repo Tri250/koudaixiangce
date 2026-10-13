@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -18,7 +19,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun HslControls(settings: HslSettings, enabled: Boolean, onEdit: (HslSettings, Boolean) -> Unit) {
-    var channel by remember { mutableIntStateOf(0) }
+    // 旋转/分屏后保留选中的颜色通道，避免操作状态跳回第 1 个。
+    var channel by rememberSaveable { mutableIntStateOf(0) }
     val names = listOf(R.string.hsl_red, R.string.hsl_orange, R.string.hsl_yellow, R.string.hsl_green,
         R.string.hsl_aqua, R.string.hsl_blue, R.string.hsl_purple, R.string.hsl_magenta)
     val colors = listOf(Color.Red, Color(0xffff9800), Color.Yellow, Color.Green, Color.Cyan,

@@ -25,6 +25,8 @@ fun AboutDialog(state: UpdateState, onAutomatic: (Boolean) -> Unit, onCheck: () 
     val automaticLabel = stringResource(R.string.auto_update_check)
     var linkFailed by remember { mutableStateOf(false) }
     fun open(url: String) {
+        // 成功打开后清除上一次的失败提示，避免错误状态粘滞。
+        linkFailed = false
         try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
         catch (_: ActivityNotFoundException) { linkFailed = true }
     }

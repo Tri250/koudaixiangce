@@ -205,8 +205,9 @@ class BatchJournal(private val directory: File) {
         val count = properties.getProperty("row.count", "0").toInt()
         val targets = (0 until count).map { index ->
             val prefix = "row.$index."
+            // 旧版本日志没有 uri 列，getProperty 返回 null 时不能直接 ifBlank。
             BatchTarget(PhotoIdentity(properties.getProperty(prefix + "id")), File(properties.getProperty(prefix + "path")),
-                properties.getProperty(prefix + "name"), properties.getProperty(prefix + "uri").ifBlank { null })
+                properties.getProperty(prefix + "name"), properties.getProperty(prefix + "uri").orEmpty().ifBlank { null })
         }
         val base = BatchJob(source, targets, id = id,
             outputPng = properties.getProperty("output.png", "false").toBoolean(),

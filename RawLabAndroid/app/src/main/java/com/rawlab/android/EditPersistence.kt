@@ -49,7 +49,11 @@ class EditStore(private val directory: File) {
             val storedFilm = properties.getProperty("record.$encoded.film", "neutral")
             val film = runCatching { String(Base64.getUrlDecoder().decode(storedFilm), StandardCharsets.UTF_8) }
                 .getOrDefault(storedFilm)
-            records[identity] = decode(properties.getProperty(key), film).copy(recipeID = properties.getProperty("record.$encoded.recipe"))
+            // 单条记录损坏（手改/截断/旧版格式异常）不应让整个编辑库不可用，跳过并保留其余记录。
+            try {
+                records[identity] = decode(properties.getProperty(key), film).copy(recipeID = properties.getProperty("record.$encoded.recipe"))
+            } catch (_: Exception) {
+            }
         }
     }
 
