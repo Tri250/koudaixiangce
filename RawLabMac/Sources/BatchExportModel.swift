@@ -125,9 +125,9 @@ final class BatchExportModel: ObservableObject {
         if panel.runModal() == .OK { job.outputDirectory = panel.url; saveDraft() }
     }
 
-    func setPNG(_ value: Bool) {
+    func setFormat(_ value: ExportFormat) {
         guard !running, !job.started else { return }
-        job.png = value; saveDraft()
+        job.format = value; saveDraft()
     }
 
     func setLongEdge(_ value: Int?) {

@@ -254,6 +254,8 @@ struct EditorView: View {
                     .disabled(model.result == nil || model.busy || model.exporting || model.lookLibraryBusy || model.missingFilm)
                 Button("PNG · 16-bit…") { model.export(png: true) }
                     .disabled(model.result == nil || model.busy || model.exporting || model.lookLibraryBusy || model.missingFilm)
+                Button("DNG · 渲染型…") { model.export(format: .renderedDNG) }
+                    .disabled(model.result == nil || model.busy || model.exporting || model.lookLibraryBusy || model.missingFilm)
                 Divider()
                 Button("使用当前调整批量导出…") {
                     if model.prepareBatch() { openWindow(id: "batch-export") }

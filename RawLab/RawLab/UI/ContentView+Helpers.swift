@@ -5,6 +5,50 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
+struct FileExportRequest: Identifiable {
+    let id = UUID()
+    let urls: [URL]
+    let removeAfterExport: Bool
+    let successMessage: String
+    let cancelMessage: String
+}
+
+struct FileExportPicker: UIViewControllerRepresentable {
+    let urls: [URL]
+    let completion: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forExporting: urls, asCopy: true)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) { }
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        private let completion: (Bool) -> Void
+        private var didComplete = false
+
+        init(completion: @escaping (Bool) -> Void) { self.completion = completion }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            finish(true)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            finish(false)
+        }
+
+        private func finish(_ exported: Bool) {
+            guard !didComplete else { return }
+            didComplete = true
+            completion(exported)
+        }
+    }
+}
+
 extension ContentView {
     func autoExposure() {
         guard viewModel.hasImage, !autoExposing, !viewModel.isBusy else { return }
@@ -75,6 +119,25 @@ extension ContentView {
             switch result {
             case .success(let data):
                 saveToPhotoLibrary(data)
+            case .failure(let error):
+                isSaving = false
+                viewModel.statusMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func exportDNG(longEdge: Int? = nil) {
+        isSaving = true
+        viewModel.exportDNG(settings: settings, longEdge: longEdge) { result in
+            switch result {
+            case .success(let url):
+                isSaving = false
+                fileExportRequest = FileExportRequest(
+                    urls: [url],
+                    removeAfterExport: true,
+                    successMessage: "已导出渲染型 DNG。",
+                    cancelMessage: "已生成渲染型 DNG，未另存到所选位置。"
+                )
             case .failure(let error):
                 isSaving = false
                 viewModel.statusMessage = error.localizedDescription

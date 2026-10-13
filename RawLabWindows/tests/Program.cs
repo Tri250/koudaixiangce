@@ -35,6 +35,7 @@ static class Program
     {
         try
         {
+            if(args.Length==3 && args[0]=="--rendered-dng") { RenderedDngChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--master-recipes") { MasterRecipeChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--photo-features") { PhotoFeatureChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--denoise") { DenoiseChecks.Run(args[1],args[2]);return 0; }

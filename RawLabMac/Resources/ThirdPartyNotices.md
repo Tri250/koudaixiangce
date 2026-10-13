@@ -15,6 +15,11 @@ and ad-hoc code signatures. LibRaw also includes the source patches described be
 | Adobe DNG SDK | 1.7.1 Build 2724 | https://www.adobe.com/go/dng_sdk | dng-sdk/Adobe-DNG-SDK-LICENSE.txt |
 | JPEG XL, Brotli, Highway, skcms | Sources bundled with the pinned DNG SDK | https://download.adobe.com/pub/adobe/dng/dng_sdk_1_7_1_2724_20260908.zip | dng-sdk/ directory |
 | OpenCV / opencv_contrib | 4.12.0 | https://github.com/opencv/opencv/tree/4.12.0 and https://github.com/opencv/opencv_contrib/tree/4.12.0 | OpenCV/ directory |
+| libtiff | 4.7.1 | https://download.osgeo.org/libtiff/tiff-4.7.1.tar.gz | libtiff-LICENSE.md |
+
+Rendered DNG serialization uses libtiff with a virtual output-referred linear-sRGB
+profile. It does not embed original sensor data or claim reversible RAW edits.
+This product includes DNG technology under license by Adobe.
 
 The optional display-chroma filter uses OpenCV core, imgproc and ximgproc,
 with their transitive modules. Pinned source archives and build options are in

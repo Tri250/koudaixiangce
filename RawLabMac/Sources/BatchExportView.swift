@@ -130,9 +130,8 @@ struct BatchExportView: View {
             }
             Divider().padding(.vertical, 4)
             Text("输出").font(.headline)
-            Picker("格式", selection: Binding(get: { model.job.png }, set: model.setPNG)) {
-                Text("JPEG").tag(false)
-                Text("16-bit PNG").tag(true)
+            Picker("格式", selection: Binding(get: { model.job.format }, set: model.setFormat)) {
+                ForEach(ExportFormat.allCases) { format in Text(format.title).tag(format) }
             }.pickerStyle(.segmented).labelsHidden().disabled(model.job.started)
             ExportSizePicker(longEdge: Binding(get: { model.job.longEdge }, set: model.setLongEdge))
                 .disabled(model.job.started)
@@ -151,7 +150,7 @@ struct BatchExportView: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            Text(model.job.started ? "\(model.job.png ? "16-bit PNG" : "JPEG") · \(model.job.longEdge.map { "长边 \($0) px" } ?? "原始尺寸")" :
+            Text(model.job.started ? "\(model.job.format.title) · \(model.job.longEdge.map { "长边 \($0) px" } ?? "原始尺寸")" :
                  "仅用于本次导出，保留各照片原有调整")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 12)

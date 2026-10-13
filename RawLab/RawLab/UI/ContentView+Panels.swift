@@ -29,6 +29,13 @@ extension ContentView {
 
             Menu {
                 Button("保存当前照片") {
+                    singleExportFormat = .jpeg
+                    exportLongEdge = nil
+                    showingExportSize = true
+                }
+                .disabled(!viewModel.hasImage || editorBusy || !viewModel.isLookAvailable(for: settings))
+                Button("导出渲染型 DNG…") {
+                    singleExportFormat = .renderedDNG
                     exportLongEdge = nil
                     showingExportSize = true
                 }

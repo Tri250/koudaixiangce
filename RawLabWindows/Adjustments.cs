@@ -165,7 +165,7 @@ public sealed class Adjustments
             // remains independent and is never used to size an export.
             SizeMode=limitedFinal ? 4 : 3,LongEdge=limitedFinal ? (uint)longEdge!.Value : 0,
             OutputTarget=output == null ? 1 : 0,OutputPath=output,
-            OutputFormat=output == null ? 3 : System.IO.Path.GetExtension(output).Equals(".png",StringComparison.OrdinalIgnoreCase) ? 1 : 0,
+            OutputFormat=output == null ? 3 : ExportFormatExtensions.FromPath(output).NativeValue(),
             JpegQuality=95, Intent=output != null || edge == 0 ? 1 : 0, PreviewLongEdge=(uint)edge
         };
     }

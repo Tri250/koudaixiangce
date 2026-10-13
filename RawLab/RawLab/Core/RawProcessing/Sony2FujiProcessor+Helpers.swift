@@ -140,6 +140,11 @@ extension Sony2FujiProcessor {
         return request
     }
 
+    func configureDNGFile(_ request: inout sony2fuji_request) {
+        request.output_target = SONY2FUJI_TARGET_FILE
+        request.output_format = SONY2FUJI_OUTPUT_DNG
+    }
+
     func applySize(
         _ request: inout sony2fuji_request,
         width: UInt32,
@@ -206,6 +211,52 @@ extension Sony2FujiProcessor {
         }
     }
 
+    func processRawToFile(
+        session: OpaquePointer,
+        request: inout sony2fuji_request,
+        inputPath: String,
+        lutPath: String?,
+        outputPath: String
+    ) -> sony2fuji_status {
+        inputPath.withCString { inputPtr in
+            outputPath.withCString { outputPtr in
+                request.input_path = inputPtr
+                request.output_path = outputPtr
+                if let lutPath {
+                    return lutPath.withCString { lutPtr in
+                        request.lut_path = lutPtr
+                        return sony2fuji_process(session, &request, nil)
+                    }
+                }
+                request.lut_path = nil
+                return sony2fuji_process(session, &request, nil)
+            }
+        }
+    }
+
+    func processBufferToFile(
+        session: OpaquePointer,
+        request: inout sony2fuji_request,
+        buffer: Buffer,
+        lutPath: String?,
+        outputPath: String
+    ) -> sony2fuji_status {
+        buffer.data.withUnsafeBytes { bytes in
+            outputPath.withCString { outputPtr in
+                request.input_pixels = bytes.baseAddress
+                request.output_path = outputPtr
+                if let lutPath {
+                    return lutPath.withCString { lutPtr in
+                        request.lut_path = lutPtr
+                        return sony2fuji_process(session, &request, nil)
+                    }
+                }
+                request.lut_path = nil
+                return sony2fuji_process(session, &request, nil)
+            }
+        }
+    }
+
     func copyBuffer(_ buffer: sony2fuji_buffer) throws -> Buffer {
         guard let baseAddress = buffer.data,
               buffer.width > 0,
@@ -247,6 +298,17 @@ extension Sony2FujiProcessor {
             shouldInterpolate: true,
             intent: .defaultIntent
         )
+    }
+
+    func orientedCGImage(_ image: CGImage, orientation: CGImagePropertyOrientation) -> CGImage? {
+        guard orientation != .up else { return image }
+        let oriented = UIImage(cgImage: image, scale: 1, orientation: UIImage.Orientation(orientation))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: oriented.size, format: format).image { _ in
+            oriented.draw(in: CGRect(origin: .zero, size: oriented.size))
+        }.cgImage
     }
 
     func outputColorSpace() -> CGColorSpace {
