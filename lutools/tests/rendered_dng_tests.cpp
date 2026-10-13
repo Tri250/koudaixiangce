@@ -1,11 +1,21 @@
 #include "core/rendered_dng.h"
 #include "sony2fuji/ffi/sony2fuji_c.h"
+#ifdef TEST_LENS_WAVELET_DNG
+#include "core/wavelet_cache.h"
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_STATIC
+#define STBI_ONLY_JPEG
+#define STBI_ONLY_PNG
+#include "core/stb_image.h"
+#endif
 
 #include <tiffio.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstdint>
 #include <fstream>
 #include <filesystem>
@@ -13,6 +23,7 @@
 #include <iterator>
 #include <limits>
 #include <string>
+#include <memory>
 #include <vector>
 
 #ifndef _WIN32
@@ -321,6 +332,239 @@ void testLensSdkDng(const std::filesystem::path& directory) {
 }
 #endif
 
+#ifdef TEST_LENS_WAVELET_DNG
+bool sameFiles(const std::filesystem::path& left, const std::filesystem::path& right) {
+    std::ifstream a(left, std::ios::binary), b(right, std::ios::binary);
+    if (!a || !b || std::filesystem::file_size(left) != std::filesystem::file_size(right)) return false;
+    std::array<char, 65536> x{}, y{};
+    while (a) {
+        a.read(x.data(), x.size()); b.read(y.data(), y.size());
+        if (a.gcount() != b.gcount() || !std::equal(x.begin(), x.begin() + a.gcount(), y.begin())) return false;
+    }
+    return a.eof() && b.eof();
+}
+
+void testLensWaveletViewportDng(const std::filesystem::path& directory, const std::string& input) {
+    const auto database = std::filesystem::path(TEST_SOURCE_DIR) / "third_party/lensfun/version_1";
+    using Session = std::unique_ptr<sony2fuji_session, decltype(&sony2fuji_session_destroy)>;
+    sony2fuji_lens_correction_config lens{
+        SONY2FUJI_LENS_CORRECTION_CONFIG_VERSION, sizeof(lens), 1, 1, 1, nullptr};
+    sony2fuji_wavelet_denoise_config wavelet{
+        SONY2FUJI_WAVELET_DENOISE_CONFIG_VERSION, sizeof(wavelet), 1, 40, 46, 50};
+    auto makeSession = [&]() {
+        sony2fuji_session* raw = nullptr;
+        check(sony2fuji_session_create(&raw) == SONY2FUJI_STATUS_OK, "Combined render creates a session");
+        Session session(raw, sony2fuji_session_destroy);
+        if (raw) {
+            sony2fuji_gpu_config gpu{SONY2FUJI_GPU_CONFIG_VERSION, sizeof(gpu), SONY2FUJI_GPU_OFF};
+            check(sony2fuji_session_set_lens_database(raw, database.string().c_str()) == SONY2FUJI_STATUS_OK &&
+                  sony2fuji_session_set_lens_correction(raw, &lens) == SONY2FUJI_STATUS_OK &&
+                  sony2fuji_session_set_gpu_config(raw, &gpu) == SONY2FUJI_STATUS_OK &&
+                  sony2fuji_session_set_raw_exposure_mode(raw, SONY2FUJI_EXPOSURE_PREVIEW) == SONY2FUJI_STATUS_OK &&
+                  sony2fuji_session_set_wavelet_denoise(raw, &wavelet) == SONY2FUJI_STATUS_OK,
+                  "Combined render configures Lens, NR and preview exposure");
+        }
+        return session;
+    };
+    auto history = makeSession();
+    if (!history) return;
+    sony2fuji_lens_report inspected{};
+    uint32_t count = 0;
+    check(sony2fuji_session_inspect_lens(history.get(), input.c_str(), &inspected, nullptr, 0, &count) == SONY2FUJI_STATUS_OK,
+          "Combined fixture has a Lens catalog");
+    std::vector<sony2fuji_lens_profile> profiles(count);
+    check(sony2fuji_session_inspect_lens(history.get(), input.c_str(), &inspected, profiles.data(), count, &count) == SONY2FUJI_STATUS_OK,
+          "Combined fixture loads its Lens profiles");
+    const auto selected = std::find_if(profiles.begin(), profiles.end(), [](const auto& profile) {
+        return profile.is_match && profile.has_distortion && profile.has_tca;
+    });
+    check(selected != profiles.end(), "Combined RAW has matching distortion and TCA calibration");
+    if (selected == profiles.end()) return;
+    const std::string profileID = selected->id;
+    lens.profile_id = profileID.c_str();
+    check(sony2fuji_session_set_lens_correction(history.get(), &lens) == SONY2FUJI_STATUS_OK, "Combined render selects the matched profile");
+    sony2fuji_request request{};
+    request.version = SONY2FUJI_REQUEST_VERSION; request.struct_size = sizeof(request);
+    request.input_type = SONY2FUJI_INPUT_RAW; request.input_path = input.c_str();
+    request.output_target = SONY2FUJI_TARGET_BUFFER; request.output_format = SONY2FUJI_OUTPUT_RGB8;
+    request.size_mode = SONY2FUJI_SIZE_NATIVE; request.intent = SONY2FUJI_INTENT_FINAL;
+    request.brightness = request.contrast = request.saturation = 1; request.temperature = 6500;
+    request.wb_mode = SONY2FUJI_WB_CAMERA; request.jpeg_quality = 95;
+    uint32_t width = 0, height = 0;
+    auto render = [&](sony2fuji_session* session) {
+        sony2fuji_buffer buffer{};
+        const auto status = sony2fuji_process(session, &request, &buffer);
+        check(status == SONY2FUJI_STATUS_OK && buffer.data, "Combined C ABI buffer renders");
+        std::vector<uint8_t> pixels;
+        if (buffer.data) {
+            width = buffer.width; height = buffer.height;
+            const auto* data = static_cast<const uint8_t*>(buffer.data);
+            pixels.assign(data, data + buffer.size_bytes);
+        }
+        sony2fuji_release_buffer(&buffer);
+        return pixels;
+    };
+    auto report = [&](sony2fuji_session* session) {
+        sony2fuji_lens_report result{};
+        check(sony2fuji_session_get_lens_report(session, &result) == SONY2FUJI_STATUS_OK, "Combined render returns Lens report");
+        return result;
+    };
+    auto baseline = [&](sony2fuji_session* session) {
+        float value = 0, metadata = 0;
+        check(sony2fuji_session_get_raw_exposure(session, &value, &metadata) == SONY2FUJI_STATUS_OK, "Combined render returns exposure anchor");
+        return value;
+    };
+    wavelet.enabled = 0;
+    sony2fuji_session_set_wavelet_denoise(history.get(), &wavelet);
+    auto off = render(history.get());
+    const auto nativeWidth = width, nativeHeight = height;
+    wavelet.enabled = 1;
+    sony2fuji_session_set_wavelet_denoise(history.get(), &wavelet);
+    auto exact = render(history.get());
+    check(!exact.empty() && exact != off, "Combined real RAW actually applies wavelet denoising");
+    off.clear(); off.shrink_to_fit(); exact.clear(); exact.shrink_to_fit();
+    const auto applied = report(history.get());
+    check(applied.state == SONY2FUJI_LENS_MATCHED && applied.applied_distortion && applied.applied_tca && applied.crop_scale > 1,
+          "Combined real RAW applies Lens distortion/TCA and automatic crop");
+    sony2fuji_session_set_viewport_preview(history.get(), 1);
+    request.intent = SONY2FUJI_INTENT_PREVIEW; request.preview_long_edge = 1600;
+    const auto a = render(history.get());
+    check(std::max(width, height) == 1600, "Combined viewport A is bounded");
+    request.preview_long_edge = 1024; render(history.get());
+    check(std::max(width, height) == 1024, "Combined viewport B is bounded");
+    auto before = sony2fuji::waveletCacheDiagnostics(history.get());
+    request.preview_long_edge = 1600;
+    check(render(history.get()) == a, "Combined A/B/A restores viewport pixels");
+    auto after = sony2fuji::waveletCacheDiagnostics(history.get());
+    check(after.filterRuns == before.filterRuns && after.outputHits == before.outputHits + 1,
+          "Combined A/B/A reuses denoised output");
+    request.exposure_ev = .25f; request.contrast = 1.1f;
+    render(history.get());
+    check(sony2fuji::waveletCacheDiagnostics(history.get()).filterRuns == after.filterRuns,
+          "Combined downstream edits do not repeat NR");
+    request.wb_mode = SONY2FUJI_WB_TEMPERATURE; request.temperature = 7800;
+    render(history.get());
+    for (int phase = 0; phase < 3; ++phase) {
+        lens.auto_crop = phase != 0; lens.profile_id = phase == 1 ? nullptr : profileID.c_str();
+        before = sony2fuji::waveletCacheDiagnostics(history.get());
+        check(sony2fuji_session_set_lens_correction(history.get(), &lens) == SONY2FUJI_STATUS_OK,
+              "Combined render updates Lens profile/crop");
+        const auto changed = render(history.get());
+        after = sony2fuji::waveletCacheDiagnostics(history.get());
+        check(after.filterRuns == before.filterRuns + 1 && after.analysisHits == before.analysisHits,
+              "Lens profile/crop changes invalidate NR output and source analysis");
+        auto fresh = makeSession();
+        check(sony2fuji_session_set_viewport_preview(fresh.get(), 1) == SONY2FUJI_STATUS_OK,
+              "Independent viewport uses the same reduced-input mode");
+        const auto direct = render(fresh.get());
+        const auto actualReport = report(history.get()), freshReport = report(fresh.get());
+        const auto actualBaseline = baseline(history.get()), freshBaseline = baseline(fresh.get());
+        check(changed == direct, "Lens/NR viewport pixels are independent of profile/crop history");
+        check(actualBaseline == freshBaseline, "Lens/NR exposure anchor is independent of profile/crop history");
+        check(actualReport.state == freshReport.state && actualReport.applied_distortion == freshReport.applied_distortion &&
+              actualReport.applied_tca == freshReport.applied_tca && actualReport.crop_scale == freshReport.crop_scale,
+              "Lens/NR report is independent of profile/crop history");
+        if (phase != 1)
+            check(actualReport.state == SONY2FUJI_LENS_MATCHED && actualReport.applied_distortion && actualReport.applied_tca &&
+                  (phase == 0 ? actualReport.crop_scale == 1 : actualReport.crop_scale > 1),
+                  "Manual Lens profile retains calibration and requested crop");
+    }
+    before = sony2fuji::waveletCacheDiagnostics(history.get());
+    sony2fuji_session_set_lens_database(history.get(), database.string().c_str());
+    render(history.get());
+    after = sony2fuji::waveletCacheDiagnostics(history.get());
+    check(after.filterRuns == before.filterRuns + 1 && after.analysisHits == before.analysisHits,
+          "Lens database revision invalidates NR source identity");
+    request.intent = SONY2FUJI_INTENT_FINAL; request.preview_long_edge = 0;
+    sony2fuji_session_set_interactive_preview(history.get(), 1);
+    exact = render(history.get());
+    check(width == nativeWidth && height == nativeHeight, "Combined FINAL ignores both preview flags");
+    const auto finalReport = report(history.get()); const auto finalBaseline = baseline(history.get());
+    before = sony2fuji::waveletCacheDiagnostics(history.get());
+    const std::array<sony2fuji_output_format, 3> formats{SONY2FUJI_OUTPUT_JPEG, SONY2FUJI_OUTPUT_PNG, SONY2FUJI_OUTPUT_DNG};
+    const std::array<const char*, 3> suffixes{"jpg", "png", "dng"};
+    auto exportFiles = [&](sony2fuji_session* session, const char* stem) {
+        request.output_target = SONY2FUJI_TARGET_FILE;
+        for (size_t i = 0; i < formats.size(); ++i) {
+            const auto file = (directory / (std::string(stem) + "." + suffixes[i])).string();
+            request.output_format = formats[i]; request.output_path = file.c_str();
+            check(sony2fuji_process(session, &request, nullptr) == SONY2FUJI_STATUS_OK, "Combined native file exports " + std::string(suffixes[i]));
+        }
+        request.output_target = SONY2FUJI_TARGET_BUFFER; request.output_format = SONY2FUJI_OUTPUT_RGB8; request.output_path = nullptr;
+    };
+    exportFiles(history.get(), "history");
+    after = sony2fuji::waveletCacheDiagnostics(history.get());
+    check(after.filterRuns == before.filterRuns && after.outputHits == before.outputHits + 3,
+          "JPEG/PNG/DNG use native exact cache, never viewport pixels");
+    history.reset();
+    auto fresh = makeSession();
+    check(render(fresh.get()) == exact && baseline(fresh.get()) == finalBaseline,
+          "Combined native FINAL pixels and exposure equal independent exact");
+    const auto freshReport = report(fresh.get());
+    check(freshReport.state == SONY2FUJI_LENS_MATCHED && freshReport.applied_distortion && freshReport.applied_tca &&
+          freshReport.crop_scale == finalReport.crop_scale, "Combined FINAL retains exact Lens crop/report");
+    exportFiles(fresh.get(), "fresh");
+    for (const auto* suffix : suffixes)
+        check(sameFiles(directory / (std::string("history.") + suffix), directory / (std::string("fresh.") + suffix)),
+              std::string(suffix) + ": combined native file equals independent FINAL bytes");
+    const auto pngPath = (directory / "history.png").string();
+    int decodedWidth = 0, decodedHeight = 0, channels = 0;
+    auto* png = stbi_load_16(pngPath.c_str(), &decodedWidth, &decodedHeight, &channels, 3);
+    bool validPng = png && stbi_is_16_bit(pngPath.c_str()) &&
+        decodedWidth == static_cast<int>(nativeWidth) && decodedHeight == static_cast<int>(nativeHeight);
+    double pngError = 0;
+    if (validPng) {
+        for (size_t i = 0; i < exact.size(); ++i)
+            pngError = std::max(pngError, std::abs(png[i] / 257.0 - exact[i]));
+    }
+    stbi_image_free(png);
+    check(validPng && pngError <= 1, "Combined native PNG has sixteen-bit samples matching independent exact pixels");
+    const auto jpegPath = (directory / "history.jpg").string();
+    auto* jpeg = stbi_load(jpegPath.c_str(), &decodedWidth, &decodedHeight, &channels, 3);
+    check(jpeg && decodedWidth == static_cast<int>(nativeWidth) && decodedHeight == static_cast<int>(nativeHeight),
+          "Combined JPEG decodes at original geometry");
+    stbi_image_free(jpeg);
+    TIFF* tif = TIFFOpen((directory / "history.dng").string().c_str(), "r");
+    uint32_t dngWidth = 0, dngHeight = 0; uint16_t bits = 0, samples = 0, sampleFormat = 0;
+    bool validDng = tif && TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &dngWidth) && TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &dngHeight) &&
+        TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bits) && bits == 32 && dngWidth == nativeWidth && dngHeight == nativeHeight &&
+        TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samples) && samples == 3 &&
+        TIFFGetField(tif, TIFFTAG_SAMPLEFORMAT, &sampleFormat) && sampleFormat == SAMPLEFORMAT_IEEEFP;
+    double dngError = 0;
+    if (validDng) {
+        std::vector<float> row(static_cast<size_t>(dngWidth) * 3);
+        for (uint32_t y = 0; y < dngHeight && validDng; ++y) {
+            validDng = TIFFReadScanline(tif, row.data(), y, 0) >= 0;
+            if (!validDng) break;
+            for (size_t x = 0; x < row.size(); ++x) {
+                const double linear = row[x];
+                if (!std::isfinite(linear) || linear < 0 || linear > 1) { validDng = false; break; }
+                const double encoded = linear <= .0031308 ? 12.92 * linear : 1.055 * std::pow(linear, 1.0 / 2.4) - .055;
+                dngError = std::max(dngError, std::abs(encoded * 255 - exact[static_cast<size_t>(y) * row.size() + x]));
+            }
+        }
+    }
+    check(validDng && dngError <= 1, "Combined native float32 DNG pixels match independent exact");
+    if (tif) TIFFClose(tif);
+    std::cout << "Combined PNG/DNG maximum RGB8 error=" << pngError << "/" << dngError << '\n';
+    if (std::getenv("SONY2FUJI_TEST_GPU")) {
+        before = sony2fuji::waveletCacheDiagnostics(fresh.get());
+        sony2fuji_gpu_config gpu{SONY2FUJI_GPU_CONFIG_VERSION, sizeof(gpu), SONY2FUJI_GPU_FORCE};
+        check(sony2fuji_session_set_gpu_config(fresh.get(), &gpu) == SONY2FUJI_STATUS_OK, "Combined FINAL selects GPU Force");
+        const auto forced = render(fresh.get());
+        int maximum = 0;
+        if (forced.size() == exact.size())
+            for (size_t i = 0; i < exact.size(); ++i)
+                maximum = std::max(maximum, std::abs(static_cast<int>(forced[i]) - exact[i]));
+        after = sony2fuji::waveletCacheDiagnostics(fresh.get());
+        check(sony2fuji_session_get_last_backend(fresh.get()) != SONY2FUJI_BACKEND_CPU &&
+              forced.size() == exact.size() && maximum <= 2 && after.filterRuns == before.filterRuns + 1,
+              "Combined GPU FINAL applies its own NR and preserves CPU reference within two RGB8 values");
+        std::cout << "Combined GPU FINAL maximum RGB8 error=" << maximum << '\n';
+    }
+}
+#endif
+
 void testAtomicStorage(const std::filesystem::path& directory) {
     using sony2fuji::ErrorCode;
 
@@ -399,8 +643,15 @@ void testMidwriteFailure(const std::filesystem::path& directory) {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
     const auto directory = testDirectory();
+#ifdef TEST_LENS_WAVELET_DNG
+    if (argc == 2) {
+        testLensWaveletViewportDng(directory, argv[1]);
+        std::filesystem::remove_all(directory);
+        return failures == 0 ? 0 : 1;
+    }
+#endif
     testRenderedDng(directory);
     testRejectsInvalidInput(directory);
 #ifdef TEST_LENS_SDK_DNG

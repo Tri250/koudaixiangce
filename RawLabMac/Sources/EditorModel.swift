@@ -24,7 +24,14 @@ final class EditorModel: ObservableObject {
             }
         }
     }
-    @Published var fullResolution = false { didSet { schedule() } }
+    @Published var fullResolution = false {
+        didSet {
+            if fullResolution { cancelViewportResize() }
+            schedule()
+        }
+    }
+    private(set) var previewLongEdge = 2000
+    private(set) var renderPreviewLongEdge = 2000
     @Published private(set) var file: URL?
     @Published private(set) var neutral: RenderedImage?
     @Published private(set) var result: RenderedImage?
@@ -44,6 +51,7 @@ final class EditorModel: ObservableObject {
     private let debounceQueue = DispatchQueue(label: "rawlab.render.debounce", qos: .userInitiated)
     private var scheduler = RenderScheduler<RenderWork>()
     private var debounceTimer: DispatchSourceTimer?
+    private var viewportResizeWork: DispatchWorkItem?
     private var workerActive = false
     private var engine: RenderEngine?
     private var originalCache: (file: URL, frame: RenderedImage)?
@@ -100,7 +108,7 @@ final class EditorModel: ObservableObject {
         timer.resume()
         debounceTimer = timer
     }
-    deinit { debounceTimer?.cancel(); saveWork?.cancel() }
+    deinit { debounceTimer?.cancel(); viewportResizeWork?.cancel(); saveWork?.cancel() }
 
     private func edited() {
         editRevision = UUID()
@@ -206,6 +214,7 @@ final class EditorModel: ObservableObject {
         guard !exporting else { return }
         if file == url && result != nil { return }
         guard saveEdits() else { return }
+        cancelViewportResize()
         editRevision = UUID()
         scheduler.setInteracting(false)
         var restored: PhotoEditState?
@@ -352,8 +361,38 @@ final class EditorModel: ObservableObject {
     func schedule() {
         schedule(forceExact: false)
     }
+    func updatePreviewLongEdge(_ edge: Int) {
+        let edge = min(65535, max(1, edge))
+        guard previewLongEdge != edge else { return }
+        previewLongEdge = edge
+        viewportResizeWork?.cancel()
+        viewportResizeWork = nil
+        let holdProxy = settings.isDenoiseEnabled && result?.isFullResolution == false && !fullResolution
+        if holdProxy {
+            // 连续改变布局时沿用当前降噪尺度，停稳后只计算最后一个尺寸。
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.viewportResizeWork = nil
+                self.renderPreviewLongEdge = self.previewLongEdge
+                self.schedule()
+                self.refreshBusy()
+            }
+            viewportResizeWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+            refreshBusy()
+        } else {
+            renderPreviewLongEdge = edge
+            if !fullResolution || scheduler.interacting { schedule() }
+        }
+    }
+    private func cancelViewportResize() {
+        viewportResizeWork?.cancel()
+        viewportResizeWork = nil
+        renderPreviewLongEdge = previewLongEdge
+    }
     private func schedule(forceExact: Bool) {
         guard let file else { return }
+        if !settings.isDenoiseEnabled { cancelViewportResize() }
         guard !missingFilm, !missingMasterRecipe else {
             result = nil
             error = missingMasterRecipe ? "大师配方外观文件不可用。" : "上次使用的外观不可用，请重新选择或导入外观。"
@@ -362,7 +401,7 @@ final class EditorModel: ObservableObject {
         let interactive = scheduler.interacting && !forceExact
         let effectiveLUT = settings.masterRecipe?.lutURL() ?? selectedFilm?.url
         let work = RenderWork(file: file, settings: settings, lut: effectiveLUT,
-                              edge: interactive ? 1000 : (fullResolution ? nil : 2000),
+                              edge: interactive || !fullResolution ? renderPreviewLongEdge : nil,
                               pass: interactive ? .interactive : .exact)
         _ = scheduler.submit(work, fileID: file.standardizedFileURL.path, pass: work.pass)
         busy = true
@@ -396,7 +435,8 @@ final class EditorModel: ObservableObject {
                 let neutral = self.originalCache?.frame
                 let result = try self.engine!.render(work.file, settings: work.settings, lut: work.lut,
                                                      edge: work.edge, output: nil,
-                                                     interactive: work.pass == .interactive)
+                                                     interactive: work.pass == .interactive,
+                                                     viewportPreview: work.edge != nil)
                 DispatchQueue.main.async {
                     self.finish(request, neutral: neutral, result: result, failure: nil)
                 }
@@ -416,6 +456,8 @@ final class EditorModel: ObservableObject {
         switch completion {
         case .publishInteractive, .publishExact:
             guard sameFile, !missingFilm, !missingMasterRecipe else { break }
+            // 拖动仍可显示较早参数，但窗口尺寸变化后不能发布旧尺寸。
+            if completion == .publishInteractive && request.value.edge != renderPreviewLongEdge { break }
             if let failure {
                 if completion == .publishExact || scheduler.latest?.id == request.id {
                     self.result = nil
@@ -442,7 +484,7 @@ final class EditorModel: ObservableObject {
     }
 
     private func refreshBusy() {
-        busy = workerActive || scheduler.isBusy
+        busy = workerActive || scheduler.isBusy || viewportResizeWork != nil
     }
     func export(png: Bool) {
         export(format: png ? .png : .jpeg)

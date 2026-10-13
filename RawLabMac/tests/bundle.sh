@@ -51,6 +51,16 @@ for binary in "$APP/Contents/MacOS/RawLabMac" "$APP"/Contents/Frameworks/*.dylib
             *) echo "FAIL: external dependency $dependency in $binary"; exit 1 ;;
         esac
     done < <(otool -L "$binary" | awk 'NR>1 {print $1}')
+    while IFS= read -r rpath; do
+        case "$rpath" in
+            /System/*|/usr/lib/*|@*) ;;
+            /*) echo "FAIL: external runtime search path $rpath in $binary"; exit 1 ;;
+        esac
+    done < <(otool -l "$binary" | awk '
+        $1 == "cmd" && $2 == "LC_RPATH" { rpath = 1; next }
+        rpath && $1 == "path" {
+            sub(/^[[:space:]]*path /, ""); sub(/ \(offset [0-9]+\)$/, ""); print; rpath = 0
+        }')
     codesign --verify --strict "$binary"
 done
 codesign --verify --deep --strict "$APP"

@@ -56,7 +56,8 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
     onBatchExport: () -> Unit = {},
     onImportLook: () -> Unit = {}, onRenameLook: (String, String) -> Unit = { _, _ -> },
     onDeleteLook: (String) -> Unit = {}, onLookImportReportDismiss: () -> Unit = {},
-    onAbout: () -> Unit = {}, updateVersion: String? = null) {
+    onAbout: () -> Unit = {}, updateVersion: String? = null,
+    onPreviewSizeChange: (Int) -> Unit = {}) {
     var compare by rememberSaveable { mutableStateOf(false) }
     var expanded by rememberSaveable { mutableStateOf(true) }
     var menu by remember { mutableStateOf(false) }
@@ -110,13 +111,13 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
             val wide = maxWidth >= 600.dp && maxWidth > maxHeight
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxWidth().height(4.dp)) {
-                    if (state.rendering || state.operation == Operation.EXPORT) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    if (state.rendering || state.previewResizePending || state.operation == Operation.EXPORT) LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
                 if (wide && state.photo != null) {
                     Row(Modifier.weight(1f)) {
                         Column(Modifier.weight(1f)) {
                             EditorCanvas(state, compare, photoCanvas, photoInfo, infoMode, { infoMode = (infoMode + 1) % 3 },
-                                Modifier.weight(1f), onAlbum, onFile, onLicenses)
+                                Modifier.weight(1f), onAlbum, onFile, onLicenses, onPreviewSizeChange)
                             RenderError(state, onRetry)
                         }
                         VerticalDivider()
@@ -126,7 +127,7 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
                     }
                 } else {
                     EditorCanvas(state, compare, photoCanvas, photoInfo, infoMode, { infoMode = (infoMode + 1) % 3 },
-                        Modifier.weight(1f), onAlbum, onFile, onLicenses)
+                        Modifier.weight(1f), onAlbum, onFile, onLicenses, onPreviewSizeChange)
                     RenderError(state, onRetry)
                     if (state.photo != null) {
                         HorizontalDivider()
@@ -143,15 +144,15 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
 @Composable
 private fun EditorCanvas(state: EditorState, compare: Boolean, photoCanvas: PhotoCanvasState, photoInfo: PhotoInfo?, infoMode: Int,
     onInfoClick: () -> Unit, modifier: Modifier,
-    onAlbum: () -> Unit, onFile: () -> Unit, onLicenses: () -> Unit) {
+    onAlbum: () -> Unit, onFile: () -> Unit, onLicenses: () -> Unit, onPreviewSizeChange: (Int) -> Unit) {
     Box(modifier.fillMaxWidth().background(Color(0xFF18191A)), contentAlignment = Alignment.Center) {
-        state.preview?.let { PhotoCanvas(it, compare, state.photo?.name.orEmpty(), photoCanvas, photoInfo, infoMode, onInfoClick) }
+        state.preview?.let { PhotoCanvas(it, compare, state.photo?.name.orEmpty(), photoCanvas, photoInfo, infoMode, onInfoClick, onPreviewSizeChange) }
             ?: if (!state.rendering) EmptyEditor(onAlbum, onFile, onLicenses) else Unit
         val status = when {
             state.operation == Operation.EXPORT -> stringResource(R.string.exporting)
             state.operation == Operation.IMPORT -> stringResource(R.string.importing)
             state.operation == Operation.IMPORT_LOOK -> stringResource(R.string.look_importing)
-            state.rendering -> stringResource(R.string.rendering)
+            state.rendering || state.previewResizePending -> stringResource(R.string.rendering)
             else -> null
         }
         status?.let { Text(it, Modifier.align(Alignment.TopStart).padding(12.dp).background(Color.Black.copy(alpha = .6f)).padding(6.dp),

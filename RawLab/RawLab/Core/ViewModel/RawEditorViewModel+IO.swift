@@ -109,6 +109,12 @@ extension RawEditorViewModel {
         statusMessage = nil
         isBusy = true
         sourceRevision = UUID()
+        previewResizeWorkItem?.cancel()
+        previewResizeWorkItem = nil
+        previewResizePending = false
+        previewRendering = false
+        previewLongEdge = Int(previewMaxDimension)
+        requestedPreviewLongEdge = previewLongEdge
         previewWorkItem?.cancel()
         previewWorkItem = nil
         cancelHistogramWorkItem()
@@ -139,7 +145,8 @@ extension RawEditorViewModel {
                         url: localURL,
                         settings: restoredSettings,
                         previewLongEdge: self.previewMaxDimension,
-                        lutURL: lutURL
+                        lutURL: lutURL,
+                        viewportPreview: true
                     )
                     let adjustedImage = self.processor.makeUIImage(
                         from: previewResult.buffer,
@@ -321,6 +328,10 @@ extension RawEditorViewModel {
 
     func exportJPEG(settings: RawSettings, longEdge: Int? = nil,
                     completion: @escaping (Result<Data, Error>) -> Void) {
+        guard !previewRendering, !previewResizePending, !isBusy else {
+            completion(.failure(BatchExportError.global("请等待预览完成后导出。")))
+            return
+        }
         guard isLookAvailable(for: settings) else {
             completion(.failure(BatchExportError.global("所选外观不可用，请重新选择外观。")))
             return
@@ -377,11 +388,13 @@ extension RawEditorViewModel {
                 DispatchQueue.main.async {
                     self.isBusy = false
                     completion(.success(data))
+                    self.updatePreviewSize(self.requestedPreviewLongEdge, settings: self.currentPreviewSettings)
                 }
             } catch {
                 DispatchQueue.main.async {
                     self.isBusy = false
                     completion(.failure(error))
+                    self.updatePreviewSize(self.requestedPreviewLongEdge, settings: self.currentPreviewSettings)
                 }
             }
         }
@@ -421,12 +434,14 @@ extension RawEditorViewModel {
                 DispatchQueue.main.async {
                     self.isBusy = false
                     completion(.success(outputURL))
+                    self.updatePreviewSize(self.requestedPreviewLongEdge, settings: self.currentPreviewSettings)
                 }
             } catch {
                 try? FileManager.default.removeItem(at: outputURL)
                 DispatchQueue.main.async {
                     self.isBusy = false
                     completion(.failure(error))
+                    self.updatePreviewSize(self.requestedPreviewLongEdge, settings: self.currentPreviewSettings)
                 }
             }
         }

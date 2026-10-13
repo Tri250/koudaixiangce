@@ -145,7 +145,7 @@ final class RenderEngine {
         return Double(ev)
     }
 
-    func render(_ url: URL, settings: Adjustments, lut: URL?, edge: Int?, output: URL? = nil, interactive: Bool = false, exportLongEdge: Int? = nil) throws -> RenderedImage? {
+    func render(_ url: URL, settings: Adjustments, lut: URL?, edge: Int?, output: URL? = nil, interactive: Bool = false, exportLongEdge: Int? = nil, viewportPreview: Bool = false) throws -> RenderedImage? {
         if let exportLongEdge, !(1...65535).contains(exportLongEdge) {
             throw RenderError.failed("导出长边必须为 1-65535 像素。")
         }
@@ -172,6 +172,9 @@ final class RenderEngine {
         }
         guard sony2fuji_session_set_interactive_preview(session, interactive && output == nil ? 1 : 0) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed("无效的预览模式")
+        }
+        guard sony2fuji_session_set_viewport_preview(session, viewportPreview && edge != nil && output == nil ? 1 : 0) == SONY2FUJI_STATUS_OK else {
+            throw RenderError.failed("无效的视口预览模式")
         }
         guard sony2fuji_session_set_raw_exposure_mode(session, settings.exposureMode.core) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed("无效的曝光基准")

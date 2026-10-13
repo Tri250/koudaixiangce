@@ -59,7 +59,7 @@ internal sealed class RenderEngine : IDisposable
         var key=new PreviewKey(settings.Request(path,lut,2000,null),settings.Denoise,settings.Effects,settings.DisplayChromaDenoise,
             settings.ExposureMode,settings.Hsl,settings.Lens,gpuMode,compare,clipping,rawStamp,lutStamp);
         if(previewKey!=key){previews.Clear();previewKey=key;}
-        var cacheEdge=interactive && original?.Edge==0 ? 0 : interactive && edge==1000 ? 2000 : edge;
+        var cacheEdge=edge;
         if(previews.TryGetValue(cacheEdge,out var cached)) {
             original=compare ? (rawStamp,cacheEdge,cached.Neutral) : null;
             return cached;
@@ -70,9 +70,9 @@ internal sealed class RenderEngine : IDisposable
         if(compare && (original==null || original.Value.Edge!=originalEdge))
             original=(rawStamp,originalEdge,Render(path,new Adjustments(),null,originalEdge,statistics:false,clipping:false)!);
         var neutral=compare ? original!.Value.Frame : null;
-        var result=Render(path,settings,lut,edge,interactive,clipping:clipping)!;
+        var result=Render(path,settings,lut,edge,interactive,clipping:clipping,viewportPreview:true)!;
         var frame=new PreviewFrame(neutral ?? result,result);
-        if(!interactive && edge is 0 or 2000)
+        if(!interactive)
         {
             const long budget=256L*1024*1024;
             var bytes=FrameBytes(frame);
@@ -84,14 +84,15 @@ internal sealed class RenderEngine : IDisposable
         }
         return frame;
     }
-    public RenderedImage? Render(string path, Adjustments settings, string? lut, int edge, bool interactive = false, string? output = null, bool statistics = true, bool clipping = true, int? longEdge = null)
+    public RenderedImage? Render(string path, Adjustments settings, string? lut, int edge, bool interactive = false, string? output = null, bool statistics = true, bool clipping = true, int? longEdge = null, bool viewportPreview = false)
     {
         settings = PrepareRecipe(path, settings);
         SetLens(settings.Lens);
         Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
         var hsl=settings.RenderHsl.NativeConfig();
         Native.Check(Native.sony2fuji_session_set_hsl(session,ref hsl));
-        Native.Check(Native.sony2fuji_session_set_interactive_preview(session,interactive && output == null ? 1 : 0));
+        Native.Check(Native.sony2fuji_session_set_interactive_preview(session,interactive && edge>0 && output == null ? 1 : 0));
+        Native.Check(Native.sony2fuji_session_set_viewport_preview(session,viewportPreview && edge>0 && output == null ? 1 : 0));
         var denoise=settings.Denoise.NativeConfig();
         Native.Check(Native.sony2fuji_session_set_wavelet_denoise(session,ref denoise));
         var effects=settings.Effects.NativeConfig();

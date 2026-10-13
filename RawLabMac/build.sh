@@ -73,7 +73,7 @@ done
 rm -f "$APP/Contents/Frameworks/"*.dylib
 embed_dependency() {
     local binary="$1"
-    local dependency source name
+    local dependency source name rpath
     while IFS= read -r dependency; do
         case "$dependency" in
             /System/*|/usr/lib/*) continue ;;
@@ -95,6 +95,16 @@ embed_dependency() {
         fi
         install_name_tool -change "$dependency" "@rpath/$name" "$binary"
     done < <(otool -L "$binary" | awk 'NR>1 {print $1}')
+    while IFS= read -r rpath; do
+        case "$rpath" in
+            /System/*|/usr/lib/*) ;;
+            /*) install_name_tool -delete_rpath "$rpath" "$binary" ;;
+        esac
+    done < <(otool -l "$binary" | awk '
+        $1 == "cmd" && $2 == "LC_RPATH" { rpath = 1; next }
+        rpath && $1 == "path" {
+            sub(/^[[:space:]]*path /, ""); sub(/ \(offset [0-9]+\)$/, ""); print; rpath = 0
+        }')
 }
 embed_dependency "$APP/Contents/MacOS/RawLabMac"
 codesign --force --deep --sign - "$APP"

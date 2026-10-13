@@ -287,6 +287,10 @@ sony2fuji_status sony2fuji_validate_look(
 // Reduced RAW processing is allowed only for PREVIEW + BUFFER requests.
 // FINAL requests and every file export ignore this flag.
 sony2fuji_status sony2fuji_session_set_interactive_preview(sony2fuji_session* session, int32_t enabled);
+// Opt-in approximation: resize linear input before filtering, tone and effects.
+// Only PREVIEW buffer requests use it; FINAL and file outputs remain exact.
+// Disabled by default; the request layout and existing preview mode are unchanged.
+sony2fuji_status sony2fuji_session_set_viewport_preview(sony2fuji_session* session, int32_t enabled);
 sony2fuji_render_backend sony2fuji_session_get_last_backend(const sony2fuji_session* session);
 
 // Exact 256-bin channel-major RGB counts and an optional packed RGBA8 clipping mask.

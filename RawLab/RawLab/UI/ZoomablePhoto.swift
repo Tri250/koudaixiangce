@@ -6,6 +6,7 @@ struct ZoomablePhoto: UIViewRepresentable {
     let image: UIImage
     let referenceImage: UIImage
     let label: String
+    var onPreviewSizeChange: ((Int) -> Void)? = nil
 
     func makeUIView(context: Context) -> PhotoScrollView { PhotoScrollView() }
 
@@ -14,6 +15,7 @@ struct ZoomablePhoto: UIViewRepresentable {
         view.pixels = CGSize(width: referenceImage.size.width * referenceImage.scale,
                              height: referenceImage.size.height * referenceImage.scale)
         view.displayScale = displayScale
+        view.onPreviewSizeChange = onPreviewSizeChange
         view.accessibilityLabel = label
         view.setNeedsLayout()
     }
@@ -24,7 +26,12 @@ final class PhotoScrollView: UIScrollView, UIScrollViewDelegate {
     var pixels = CGSize.zero
     var displayScale: CGFloat = 1
     private var previousSize = CGSize.zero
+    private var previousPixels = CGSize.zero
+    private var previousDisplayScale: CGFloat = 0
+    private var updatingGeometry = false
     private var geometry: PhotoZoomGeometry?
+    var onPreviewSizeChange: ((Int) -> Void)?
+    private var reportedEdge: Int?
 
     init() {
         super.init(frame: .zero)
@@ -53,21 +60,27 @@ final class PhotoScrollView: UIScrollView, UIScrollViewDelegate {
     override func layoutSubviews() {
         super.layoutSubviews()
         guard bounds.width > 0, bounds.height > 0, pixels.width > 0, pixels.height > 0 else { return }
-        guard previousSize != bounds.size || geometry == nil else { return }
+        guard previousSize != bounds.size || previousPixels != pixels || previousDisplayScale != displayScale || geometry == nil else { return }
+        updatingGeometry = true
+        defer { updatingGeometry = false; reportPreviewSize() }
         let wasFit = geometry?.isFit(zoomScale) ?? true
+        let previousZoom = zoomScale
         let center = CGPoint(x: (contentOffset.x + previousSize.width / 2) / zoomScale,
                              y: (contentOffset.y + previousSize.height / 2) / zoomScale)
         let next = PhotoZoomGeometry(pixels: pixels, viewport: bounds.size, displayScale: displayScale)
-        let initial = geometry == nil
+        let imageGeometryChanged = geometry == nil || previousPixels != pixels || previousDisplayScale != displayScale
         geometry = next
         previousSize = bounds.size
-        if initial {
+        previousPixels = pixels
+        previousDisplayScale = displayScale
+        if imageGeometryChanged {
+            setZoomScale(1, animated: false)
             imageView.frame = CGRect(origin: .zero, size: next.imageSize)
             contentSize = next.imageSize
         }
         maximumZoomScale = next.maximumScale
         minimumZoomScale = next.minimumScale
-        setZoomScale(wasFit ? next.fitScale : zoomScale, animated: false)
+        setZoomScale(wasFit ? next.fitScale : previousZoom, animated: false)
         centerImage()
         let offset = wasFit ? CGPoint(x: -contentInset.left, y: -contentInset.top)
             : CGPoint(x: center.x * zoomScale - bounds.width / 2, y: center.y * zoomScale - bounds.height / 2)
@@ -80,6 +93,15 @@ final class PhotoScrollView: UIScrollView, UIScrollViewDelegate {
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
         centerImage()
         updateAccessibilityValue()
+        reportPreviewSize()
+    }
+
+    private func reportPreviewSize() {
+        guard !updatingGeometry, let geometry else { return }
+        let edge = geometry.previewLongEdge(scale: zoomScale)
+        guard reportedEdge != edge else { return }
+        reportedEdge = edge
+        DispatchQueue.main.async { [weak self] in self?.onPreviewSizeChange?(edge) }
     }
 
     private func centerImage() {

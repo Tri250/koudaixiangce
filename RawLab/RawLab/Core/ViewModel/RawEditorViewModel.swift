@@ -14,6 +14,8 @@ final class RawEditorViewModel: ObservableObject {
     @Published var hasImage = false
     @Published var statusMessage: String?
     @Published var isBusy = false
+    @Published var previewRendering = false
+    @Published var previewResizePending = false
     @Published var histogram: [CGFloat] = []
     @Published var baseHistogram: [CGFloat] = []
     @Published var availableLUTs: [LUTOption] = []
@@ -33,6 +35,7 @@ final class RawEditorViewModel: ObservableObject {
         let settings: RawSettings
         let quality: PreviewQuality
         let includeHistogram: Bool
+        let longEdge: Int
     }
 
     let processor = Sony2FujiProcessor()
@@ -54,6 +57,10 @@ final class RawEditorViewModel: ObservableObject {
     var previewWorkItem: DispatchWorkItem?
     var histogramWorkItem: DispatchWorkItem?
     var lastPreviewRequest: PreviewRequest?
+    var previewLongEdge = 1280
+    var requestedPreviewLongEdge = 1280
+    var previewResizeWorkItem: DispatchWorkItem?
+    var currentPreviewSettings = RawSettings.default
     let sampleResourceName = "sample"
     let sampleResourceExtension = "ARW"
     let previewMaxDimension: CGFloat = 1280

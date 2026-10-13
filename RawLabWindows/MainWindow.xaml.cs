@@ -47,6 +47,8 @@ public partial class MainWindow : Window
     private RenderedImage? result;
     private readonly HashSet<LibraryEntry> visibleThumbnails=[];
     private readonly DispatcherTimer thumbnailRefresh=new(){Interval=TimeSpan.FromMilliseconds(80)};
+    private readonly DispatcherTimer previewResize=new(){Interval=TimeSpan.FromMilliseconds(200)};
+    private int previewLongEdge=2000,requestedPreviewLongEdge=2000;
     private LibraryEntry? selectedThumbnail;
     private readonly UpdateChecker updates = new(typeof(App).Assembly.GetName().Version?.ToString(3) ?? "unknown");
     private AboutWindow? aboutWindow;
@@ -68,7 +70,9 @@ public partial class MainWindow : Window
         DockHeader.SizeChanged+=(_,_)=>UpdateDockMinimum();
         ToolsScroller.SizeChanged+=(_,_)=>UpdateDockMinimum();
         NeutralCanvas.Viewport=ResultCanvas.Viewport=viewport;
-        viewport.ResolutionChanged+=()=>{if(!syncing)Schedule();};
+        ResultCanvas.PreviewSizeChanged+=UpdatePreviewSize;
+        viewport.ResolutionChanged+=()=>{if(!syncing)UpdatePreviewSize(viewport.ActualPixels ? 0 : ResultCanvas.PreviewLongEdge);};
+        previewResize.Tick+=(_,_)=>CommitPreviewSize();
         films.Add(new("中性",null,null));
         var artwork=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase) {
             ["PROVIA"]="provia",["Velvia"]="velvia",["ASTIA"]="astia",["ACROS"]="acros",
@@ -244,11 +248,11 @@ public partial class MainWindow : Window
     private static SolidColorBrush Brush(string color)=>(SolidColorBrush)new BrushConverter().ConvertFromString(color)!;
     private void UpdateBusy()
     {
-        ExportJpeg.IsEnabled=ExportPng.IsEnabled=ExportDng.IsEnabled=BatchExportMenu.IsEnabled=exactReady && !scheduler.Busy && !exporting && result!=null && LookAvailable;
+        ExportJpeg.IsEnabled=ExportPng.IsEnabled=ExportDng.IsEnabled=BatchExportMenu.IsEnabled=exactReady && !scheduler.Busy && !previewResize.IsEnabled && !exporting && result!=null && LookAvailable;
         ViewBatchMenu.IsEnabled=CurrentBatch!=null;
         ExportButton.IsEnabled=ExportJpeg.IsEnabled || ExportPng.IsEnabled || ExportDng.IsEnabled || ViewBatchMenu.IsEnabled;
         AdjustmentPanel.IsEnabled=!exporting;GpuMode.IsEnabled=!exporting;
-        BusyIndicator.Visibility=scheduler.Busy || exporting ? Visibility.Visible : Visibility.Collapsed;
+        BusyIndicator.Visibility=scheduler.Busy || previewResize.IsEnabled || exporting ? Visibility.Visible : Visibility.Collapsed;
         RetryButton.Visibility=renderFailed && !scheduler.Busy && !exporting ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.ToolTip=file==null ? "打开 RAW 照片后导出" : scheduler.Busy ? "精确预览完成后可导出" : "导出照片（尺寸可选）";
         ToolTipService.SetShowOnDisabled(ExportButton,true);
@@ -267,9 +271,12 @@ public partial class MainWindow : Window
             if(!LibraryEntry.IsRaw(path))throw new InvalidOperationException("请选择支持的 RAW 文件。");
             if(!SaveEdits())return;
             RestoreEdits(path);
-            file=path; interacting=false; exactReady=false; result=null; photoInfo=null; ++photoInfoRevision; syncing=true;viewport.Fit();syncing=false;
+            previewResize.Stop();previewLongEdge=requestedPreviewLongEdge=2000;
+            file=path; interacting=false; exactReady=false; result=null; photoInfo=null; ++photoInfoRevision; syncing=true;viewport.Fit();
             viewport.SetSourceSize(0,0);
             NeutralCanvas.SetImage(placeholder,null); ResultCanvas.SetImage(placeholder,null);ResultCanvas.SetComparison(placeholder,null); Histogram.Bins=null; Histogram.InvalidateVisual(); ClipStats.Text="";
+            previewLongEdge=requestedPreviewLongEdge=ResultCanvas.PreviewLongEdge>0 ? ResultCanvas.PreviewLongEdge : 2000;
+            syncing=false;
             RefreshPhotoInfo();
             BackendLabel.Text="相机预览 · 正在显影";BaselineLabel.Text="";
             Title="RawLab · "+Path.GetFileName(path); Welcome.Visibility=Visibility.Collapsed;
@@ -329,13 +336,28 @@ public partial class MainWindow : Window
         }
         PumpEmbedded();
     }
+    private void UpdatePreviewSize(int edge)
+    {
+        if(syncing || file==null || closing || (edge==requestedPreviewLongEdge && (edge==previewLongEdge || previewResize.IsEnabled)))return;
+        requestedPreviewLongEdge=edge;previewResize.Stop();
+        if(exporting)return;
+        if(edge==previewLongEdge){UpdateBusy();return;}
+        if(settings.Denoise.Enabled && edge>0 && previewLongEdge>0){previewResize.Start();UpdateBusy();}
+        else CommitPreviewSize();
+    }
+    private void CommitPreviewSize()
+    {
+        previewResize.Stop();previewLongEdge=requestedPreviewLongEdge;Schedule(initialPreview:result==null);
+    }
+    private int RenderEdge(bool proxy)=>proxy && previewLongEdge==0 ? 2000 : previewLongEdge;
     private void Schedule(bool initialPreview=false)
     {
         if(!ready || file==null || exporting || closing)return;
+        if(!settings.Denoise.Enabled && previewResize.IsEnabled){previewResize.Stop();previewLongEdge=requestedPreviewLongEdge;}
         if(!LookAvailable){exactReady=false;result=null;renderFailed=true;SetStatus("上次使用的外观不可用，请重新导入或选择外观。",true);UpdateBusy();return;}
         renderFailed=false;
         var proxy=interacting || initialPreview;
-        scheduler.Submit(new(file,settings.Clone(),lut,proxy ? 1000 : viewport.ActualPixels ? 0 : 2000,proxy,GpuMode.SelectedIndex==0 ? 1 : GpuMode.SelectedIndex==1 ? 0 : 2,compare,clipping,initialPreview));
+        scheduler.Submit(new(file,settings.Clone(),lut,RenderEdge(proxy),proxy,GpuMode.SelectedIndex==0 ? 1 : GpuMode.SelectedIndex==1 ? 0 : 2,compare,clipping,initialPreview));
         exactReady=false; SetStatus(interacting ? "正在生成交互预览…" : "正在显影…"); UpdateBusy();
         Pump();
     }
@@ -356,7 +378,7 @@ public partial class MainWindow : Window
         if(closing) { FinishClose(); return; }
         var work=ticket.Value;
         // A current-file proxy may publish while dragging; stale exact work never publishes.
-        if(work.File==file && work.Lut==lut && work.Compare==compare && work.Clipping==clipping && (current || (work.Interactive && interacting)))
+        if(work.File==file && work.Lut==lut && work.Compare==compare && work.Clipping==clipping && (current || (work.Interactive && interacting && work.Edge==RenderEdge(true))))
         {
             if(failure!=null) { if(current){result=null;exactReady=false;renderFailed=true;Report(failure);} }
             else if(rendered!=null && neutral!=null)
@@ -512,7 +534,7 @@ public partial class MainWindow : Window
         RemoveRootMenu.IsEnabled=isRoot; RefreshRootMenu.IsEnabled=isRoot;
         ApplyTreeEntryMenu.IsEnabled=CanApplyCurrentSettings;
     }
-    private bool CanApplyCurrentSettings => file != null && result != null && exactReady && !scheduler.Busy && !exporting && LookAvailable;
+    private bool CanApplyCurrentSettings => file != null && result != null && exactReady && !scheduler.Busy && !previewResize.IsEnabled && !exporting && LookAvailable;
     private void PhotoContextMenuOpened(object sender, RoutedEventArgs e)
     {
         if(sender is not ContextMenu menu) return;
@@ -602,7 +624,7 @@ public partial class MainWindow : Window
         var entry=ResolveContextEntry(sender);
         if (entry == null || string.IsNullOrEmpty(entry.Path)) return;
         if (file == null) { SetStatus("请先打开一张照片作为调整来源。",true); return; }
-        if (exporting || scheduler.Busy || !exactReady || result == null)
+        if (exporting || scheduler.Busy || previewResize.IsEnabled || !exactReady || result == null)
         {
             SetStatus("精确显影完成后才能应用当前设置。",true); return;
         }
@@ -733,7 +755,7 @@ public partial class MainWindow : Window
     }
     private async void Export(ExportFormat format)
     {
-        if(!exactReady || scheduler.Busy || exporting || file==null || engine==null)return;
+        if(!exactReady || scheduler.Busy || previewResize.IsEnabled || exporting || file==null || engine==null)return;
         var suffix=format.Suffix();
         var dialog=new SaveFileDialog{Title="全分辨率导出",Filter=format switch {
                 ExportFormat.Jpeg => "JPEG|*.jpg;*.jpeg",
@@ -751,6 +773,7 @@ public partial class MainWindow : Window
             }
         };
         if(dialog.ShowDialog(this)!=true)return;
+        if(!exactReady || scheduler.Busy || previewResize.IsEnabled || closing)return;
         if(Path.GetFullPath(dialog.FileName).Equals(Path.GetFullPath(file),StringComparison.OrdinalIgnoreCase)){SetStatus("不能覆盖原始 RAW。",true);return;}
         exporting=true;RefreshControls();SetStatus("正在全分辨率导出…");
         var input=file;var adjustment=settings.Clone();var film=lut;
@@ -775,12 +798,13 @@ public partial class MainWindow : Window
             SetStatus($"已导出（{(engine.LastBackend==3 ? "Direct3D 11" : "CPU")}）：{dialog.FileName}");
         }
         catch(Exception ex){Report(ex);}
-        finally {try{if(File.Exists(temp))File.Delete(temp);}catch(IOException){} exporting=false;RefreshControls();if(closing)FinishClose();}
+        finally {try{if(File.Exists(temp))File.Delete(temp);}catch(IOException){} exporting=false;RefreshControls();if(closing)FinishClose();else UpdatePreviewSize(requestedPreviewLongEdge);}
     }
     private void WindowClosing(object? sender,CancelEventArgs e)
     {
         if(!SaveEdits()){e.Cancel=true;return;}
         closing=true;
+        previewResize.Stop();
         if(batchWindow?.Running==true)batchWindow.CancelExecution();
         thumbnailRefresh.Stop();foreach(var entry in visibleThumbnails)entry.ReleaseThumbnail();visibleThumbnails.Clear();
         if(scheduler.Busy || exporting){e.Cancel=true;closing=true;IsEnabled=false;SetStatus("正在完成当前任务后关闭…");return;}

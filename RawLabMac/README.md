@@ -113,9 +113,9 @@ Packaging checks verify the architecture, minimum OS, signature, and dependency 
 - 左侧文件树支持添加多个本地目录、按需展开子目录和点击 RAW 缩略图选片，可从工具栏收起。目录列表会保留；从侧栏移除目录不会删除原文件。缩略图只读取内嵌预览，不自动触发完整显影。
 
   Add multiple local directories, expand subdirectories on demand and select RAW thumbnails in the collapsible left file tree. The directory list persists; removing an entry never deletes files. Thumbnails use embedded previews rather than full RAW development.
-- 中性与结果并排对比，共享缩放和平移。适合模式使用 2000 像素预览；100% 模式重新渲染完整分辨率。
+- 中性与结果并排对比，共享缩放和平移。适合模式按照片视口、显示密度和缩放倍率计算预览尺寸；100% 模式重新渲染完整分辨率。
 
-  Neutral and film panes share zoom and pan. Fit mode uses a 2000px preview; 100% mode renders the original resolution.
+  Neutral and film panes share zoom and pan. Fit previews follow the photo pane, display scale and zoom; 100% mode renders the original resolution.
   双击任一照片画布可在适合窗口与 100% 实际像素之间切换，同时复位平移；手动缩放后双击回到适合窗口。
   Double-click either photo canvas to toggle fit and 100% actual pixels and reset pan; after manual zoom, double-click returns to fit.
 - 曝光在线性域处理。RAW 白平衡默认“拍摄时设置”：通过相机原始白平衡增益和校准矩阵推算 Kelvin/色调，绝非固定 6500 K。色温范围 2000–50000 K，调高偏暖；色调范围 -150–150，负值偏绿、正值偏洋红。选择“拍摄时设置”恢复相机原始增益，分组/全部重置保留每张照片自己的基准。
@@ -154,18 +154,21 @@ Packaging checks verify the architecture, minimum OS, signature, and dependency 
 - 明暗组提供对比度、高光、阴影、S 曲线强度；色彩组提供饱和度；细节组提供锐化。六项 UI 默认均为 0，对比度/饱和度映射到核心的恒等系数 1，其他项映射为 0。高光/阴影正值提亮、负值压暗。这些是 LUT 后成片微调，不是 RAW 高光重建，也不是 darktable 完整模块的移植。
 
   Tone includes contrast, highlights, shadows and S-curve strength; color includes saturation; detail includes sharpening. All six controls default to 0 in the UI, with contrast/saturation mapped to identity factor 1 in the core. Positive highlight/shadow values brighten and negative values darken. These are post-LUT finishing controls, not RAW highlight reconstruction or a full port of darktable modules.
-- 启用锐化时先在原图像素尺度处理，再缩小预览，避免预览和导出锐化半径不一致；预览会比未锐化时慢。100% 视图可检查真实像素细节。本批不暴露简单模糊式降噪。
+- 普通编辑预览先缩小线性输入，再执行锐化、降噪和效果；锐化半径、降噪和颗粒外观属于近似结果。100% 视图和导出仍按原图像素尺度处理，用于检查真实细节。本批不暴露简单模糊式降噪。
 
-  Sharpening runs at source-pixel scale before preview reduction to keep its radius consistent with export, so sharpened previews take longer. Use 100% view for real pixel inspection. Simple blur-based noise reduction is not exposed in this UI.
+  Ordinary editing previews reduce linear input before sharpening, denoising and effects, so detail and grain are approximations. Settled 100% views and exports retain source-pixel processing. Simple blur-based noise reduction is not exposed in this UI.
 - JPEG/16-bit PNG 导出使用原始 RAW 重新全分辨率渲染，不放大 8-bit 预览。导出不会覆盖原始 RAW 路径。
 
   JPEG and 16-bit PNG exports render at full RAW resolution rather than enlarging an 8-bit preview. Export cannot overwrite the input RAW path.
 - 导出保留 ImageIO 能读取的拍摄时间、相机/镜头、曝光、ISO、GPS 等拍摄元数据。方向和尺寸按成片更新，色彩空间标记为 sRGB；不复制旧缩略图、RAW 传感器布局或不透明 MakerNotes。JPEG 无需再次压缩；PNG 通过无损编码写入标准 eXIf，仍为 16-bit。该行为由 Mac/iOS 共用的 `Shared/ExportMetadata.swift` 实现，不改变 CLI/C API 文件编码。
 
   App exports retain ImageIO-readable capture time, camera/lens, exposure, ISO and GPS metadata. Orientation, dimensions and color space describe the rendered sRGB image; old thumbnails, RAW sensor layout and opaque MakerNotes are excluded. JPEG metadata is attached without recompression; PNG is losslessly encoded with standard eXIf while retaining 16-bit samples. The Mac/iOS shared Swift helper implements this behavior; CLI/C API file encoding is unchanged.
-- 渲染串行执行，最多保留一个在途请求和一个最新待处理请求。拖动滑杆时使用 1000 像素交互预览，松手后自动替换成 2000 像素或原尺寸的精确结果；精确结果完成前禁止导出。数字输入直接触发精确渲染。
+- 渲染串行执行，最多保留一个在途请求和一个最新待处理请求。拖动和数字输入均按当前视口尺寸预览，尺寸以 64 像素为档位，窗口、对比布局和缩放变化会更新预览。松手后应用最终参数；100% 模式恢复原尺寸精确结果。最终参数的渲染完成前禁止导出。
 
-  Rendering is serial, with at most one in-flight and one latest pending request. Dragging uses a 1000px interactive preview; release replaces it with an exact 2000px or native-resolution result. Export stays disabled until exact work completes. Numeric input requests exact rendering directly.
+  Rendering is serial, with at most one in-flight and one latest pending request. Slider and numeric edits use viewport-sized previews in 64px steps, refreshed by window, comparison and zoom changes. Release applies the final settings and restores native exact rendering in 100% mode. Export stays disabled until the settled request completes.
+- 开启降噪后，连续改变窗口或面板尺寸时沿用现有预览，尺寸稳定 200 ms 后只重建最后一个尺寸。精确降噪与最近两个视口尺寸分别缓存，预览图像缓存上限为 128 MiB。曝光和影调等后续调整复用降噪结果；修改降噪强度时复用噪声分析，但仍重新滤波。白平衡、RAW 质量和源文件变化不会误用旧结果。
+
+  With denoise enabled, continuous window or panel resizing holds the current proxy and rebuilds only the latest size after 200 ms of quiet. Exact denoise and the two recent viewport sizes have separate cache slots, with a 128 MiB preview-image budget. Exposure and tone edits reuse filtered pixels; strength edits reuse noise analysis but still filter again. WB, RAW quality and source changes cannot reuse mismatched results.
 - 会话保留当前 RAW 的解包数据和一份线性结果；连续 Kelvin/色调变化复用解包数据，但仍重新执行相机空间白平衡、去马赛克和高光处理。拍摄/自动/自定义白平衡模式之间的切换可能重新识别文件。交互白平衡使用 LibRaw half-size 处理；已有匹配的完整质量缓存可直接供交互预览使用，反之不允许。文件导出和 FINAL 请求始终忽略交互质量标志。
 
   The session retains unpacked RAW data and one linear result. Numeric Kelvin/tint changes reuse unpacked data but rerun camera-space WB, demosaicing and highlight handling. Switching camera/auto/custom WB may re-identify the file. Interactive WB uses LibRaw half-size processing; a matching full-quality cache can serve a proxy, never the reverse. File export and FINAL requests ignore the interactive-quality flag.
@@ -183,14 +186,14 @@ Packaging checks verify the architecture, minimum OS, signature, and dependency 
 强度、大小和粗糙度，相同参数重复渲染保持一致。两项默认关闭，支持单参数、整项及效果组
 重置；新参数跟随逐照片调整状态，缺少新字段的旧序列化记录按关闭处理。
 
-暗角和颗粒在 Metal 上按原图分辨率执行，然后缩放预览。小波降噪的 SWT 分解、阈值和重建，
+100% 视图和导出的暗角和颗粒在 Metal 上按原图分辨率执行；普通预览在缩小后的线性输入上处理。小波降噪的 SWT 分解、阈值和重建，
 以及色度降噪的引导滤波也支持 Metal，可与暗角和颗粒同时启用。GPU 失败时 Auto 回退 CPU；
 Force 不隐藏失败。噪声估计/校准、OpenCV 色彩转换及部分辅助处理仍在 CPU，旧 FBDD、RAW
 解码和文件编码也仍在 CPU。结果不是 Lightroom 像素级复刻或实测胶片模型。
 
 The dock adds Vignette (Amount, Midpoint, Roundness, Feather, Highlights) and
-Grain (Amount, Size, Roughness), both defaulting off. Effects run at source
-resolution on Metal before resizing. Metal also accelerates wavelet SWT filtering
+Grain (Amount, Size, Roughness), both defaulting off. Settled 100% views and exports
+run effects at source resolution on Metal; ordinary previews use reduced input. Metal also accelerates wavelet SWT filtering
 and display-chroma guided filtering, retaining CPU estimation/calibration and
 OpenCV color/resampling semantics. Auto has CPU fallback; Force does not hide GPU
 failure. Legacy FBDD, RAW decoding and file encoding remain CPU operations.
@@ -219,6 +222,7 @@ bash RawLabMac/tests/app-icon.sh
 bash RawLabMac/tests/histogram.sh
 bash RawLabMac/tests/render-scheduling.sh
 RUN_PROGRESSIVE_RENDER=1 bash RawLabMac/tests/progressive-render.sh
+bash RawLabMac/tests/viewport-preview.sh "$RAWLAB_TEST_RAW"
 ```
 
 Smoke 模式验证 Sony ARW 和存在时的 DJI DNG，输出全分辨率 PNG/JPEG、预览统计和 JSON 至临时目录，并验证缺失输入报错。使用交互界面检查文件选择、参数调整、视图切换和缩放。
