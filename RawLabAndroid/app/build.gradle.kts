@@ -54,13 +54,21 @@ android {
         applicationId = "com.rawlab.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.6.0"
+        versionCode = 11
+        versionName = "0.6.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", "-DANDROID_STL=c++_shared") } }
     }
     buildFeatures { compose = true }
+    // 发行版使用 debug 密钥签名：开源分发没有共享 release keystore，
+    // 未签名的 APK 无法安装；debug 密钥随 SDK 自动生成且可复现。
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

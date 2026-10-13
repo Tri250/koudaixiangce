@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Build and publish Android release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # AGP 会按 app/build.gradle.kts 里的 ndkVersion 27.2.12479018 自动补装 NDK/CDK，
+      # 沙盒内无法预编译，LibRaw 由 CMake FetchContent 拉取并源码构建。
+      - name: Build release APK
+        working-directory: RawLabAndroid
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      # 应用内更新器只识别 RawLab-Android-*.apk 命名的最新正式版资产。
+      - name: Rename APK
+        run: |
+          dir=RawLabAndroid/app/build/outputs/apk/release
+          ls -l "$dir"
+          cd "$dir"
+          for f in *.apk; do mv "$f" "RawLab-Android-${GITHUB_REF_NAME}.apk"; done
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: RawLabAndroid/app/build/outputs/apk/release/RawLab-Android-*.apk
+          generate_release_notes: true

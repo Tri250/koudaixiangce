@@ -4,9 +4,9 @@ import java.util.Locale
 
 data class UpdateRelease(val version: String, val notes: String, val url: String) {
     companion object {
-        const val REPOSITORY = "https://github.com/dancancer/RawLab"
+        const val REPOSITORY = "https://github.com/Tri250/koudaixiangce"
         const val AUTHOR = "https://www.xiaohongshu.com/user/profile/6474b1560000000010037c8e"
-        const val ENDPOINT = "https://api.github.com/repos/dancancer/RawLab/releases/latest"
+        const val ENDPOINT = "https://api.github.com/repos/Tri250/koudaixiangce/releases/latest"
 
         fun select(tag: String, draft: Boolean, preview: Boolean, notes: String,
                    assets: List<String>, current: String): UpdateRelease? {

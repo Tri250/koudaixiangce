@@ -12,7 +12,7 @@ class UpdateReleaseTest {
         assertEquals("0.10.0", release("v0.10.0")?.version)
         assertNull(release("v0.4"))
         assertNull(release("v0.3.9"))
-        assertEquals("https://github.com/dancancer/RawLab/releases/tag/v0.4.1", release("v0.4.1")?.url)
+        assertEquals("https://github.com/Tri250/koudaixiangce/releases/tag/v0.4.1", release("v0.4.1")?.url)
     }
 
     @Test fun rejectsInvalidTagsAndIgnoresUnpublishedOrOtherPlatformReleases() {
