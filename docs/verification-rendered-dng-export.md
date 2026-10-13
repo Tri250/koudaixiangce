@@ -244,6 +244,93 @@ skip on this non-Windows host. These results cover the portable managed tests,
 not Windows kernel32 behavior, WPF, native DLL/D3D11 rendering or actual Windows
 DNG publication. No production source, workflow or execution policy changed.
 
+### Windows Native Runtime
+
+Actual Windows 11 execution used an isolated source workspace based on
+`1890f830`, with this increment applied before rebuilding. MSVC 19.44,
+CMake 3.31.6 and .NET SDK 8.0.425 produced fresh native and WPF binaries;
+no RawLab binaries from another workspace were used. The test's native DLL
+digest matched the freshly built DLL. Execution policy and account identity
+were not changed.
+
+The first WPF builds exposed missing `System.IO` imports in `ExportFormat`,
+`WindowsFileIdentity` and the existing shared feature regression helper. Adding
+only those imports allowed the application and test project to build with zero
+warnings and errors. Both original portable editing/denoise entry points also
+passed on actual Windows, including the NTFS hard-link identity check rather
+than its non-Windows skip.
+
+The first native `rendered_dng` CTest failed with `Error writing TIFF header`
+(0/1, exit 8). The pinned libtiff Win32 backend interprets `TIFFFdOpen`'s integer
+argument as the significant 32 bits of a native `HANDLE`, not a CRT descriptor.
+The writer now retains and passes that handle directly, transfers ownership only
+on a successful open, and otherwise closes it during cleanup. POSIX descriptor
+handling, pixel math and the C ABI are unchanged. The same CTest then passed 1/1.
+
+The staging regression previously scanned only the POSIX filename marker, so
+Windows cleanup assertions could miss native `rld*.tmp` files. A Windows probe
+reproduced that blind spot (exit 8); the platform-specific scan now detects those
+files and the replacement/failed-publication cleanup regression passes 1/1.
+This verifies normal failures, not abrupt process termination or Windows
+mid-write failure injection.
+
+The focused `--rendered-dng` runtime test uses an owned copy of a real 32 MP
+Bayer RAW, nonzero settings across all adjustment categories, a frozen look and
+a 128-pixel FINAL long edge. CPU reports backend 0; Auto and Force both report
+actual Direct3D 11 backend 3. Independent libtiff/stb decoding confirms upright
+85 x 128 float32 RGB DNG 1.4 files with these observed errors:
+
+| Backend | Max DNG/PNG16 error / 65535 | Mean error / 65535 |
+| --- | --- | --- |
+| CPU | 1 | 0.000735294 |
+| Auto / Direct3D 11 | 1 | 0.000888480 |
+| Force / Direct3D 11 | 1 | 0.000888480 |
+
+CPU and D3D11 differ by at most one encoded RGB8 value; Auto and Force DNGs
+are byte-identical. The same runtime checks reject source aliases, verify that
+the production source handle blocks rename, and preserve an existing DNG after
+a missing-source failure.
+
+The initial runtime attempt stopped before batch execution because the new test
+harness assigned `null` to WPF's `StartupUri`. This was a test initialization
+error, not a production export failure. The harness now uses a plain
+`Application` with the two production resource dictionaries, without scheduling
+the default MainWindow or loading its global journal. The corrected complete
+runtime finished with exit 0: the real DNG option and export button published
+both targets, with FINAL size/settings retained and bytes identical to the
+single Auto export. An existing colliding output was preserved. Publishing
+journal recovery skipped both completed files without changing their bytes or
+timestamps; a simulated running journal removed its known partial DNG and
+restored waiting. Original RAW digests and preseeded source/target edit records
+were unchanged. This does not exercise MainWindow's live-edit task creation or
+the DNG SaveFileDialog, nor does simulated journal recovery prove strong-kill
+recovery.
+
+The unchanged `--photo-features` entry point also completed with exit 0 and
+44 checks. It covers real ExifTool metadata, the export-size menu/custom dialog,
+one-target JPEG batch, PNG16/JPEG final sizing and metadata preservation, source
+digests and existing WPF layout/actions. Explorer interaction explicitly printed
+`NOT REACHED` because the SSH process runs in session 0. No shared default batch
+journal existed before this run; no profile/journal cleanup was needed.
+
+Commands from the configured isolated Windows source workspace:
+
+```powershell
+cmake --build build/windows-native --config Release --target sony2fuji rendered_dng_tests --parallel 6
+ctest --test-dir build/windows-native -C Release -R '^rendered_dng$' --output-on-failure --no-tests=error
+dotnet build RawLabWindows/RawLabWindows.csproj -c Release
+dotnet build RawLabWindows/tests/RawLabWindows.Tests.csproj -c Release
+dotnet run --project RawLabWindows/tests/editing/EditWorkflow.Tests.csproj -c Release
+dotnet run --project RawLabWindows/tests/denoise/DenoiseSettingsTests.csproj -c Release
+# Put the freshly built native DLL/dependencies and the existing ExifTool
+# distribution in the WPF test output before running the actual runtime tests.
+dotnet RawLabWindows/tests/bin/Release/net8.0-windows/RawLabWindows.Tests.dll --rendered-dng $PWD $env:RAWLAB_TEST_RAW
+dotnet RawLabWindows/tests/bin/Release/net8.0-windows/RawLabWindows.Tests.dll --photo-features $PWD $env:RAWLAB_TEST_RAW
+```
+
+Local before/after logs and generated images remain under ignored
+`output/windows-dng-runtime-1890f830/`. They are not committed.
+
 ## Platform Boundaries
 
 - Mac final build and focused Swift/native tests have completed successfully.
@@ -272,9 +359,11 @@ DNG publication. No production source, workflow or execution policy changed.
   packaging are implemented. Single export validates the selected format's
   extension and protects original-file aliases with a Windows file identity and
   a non-delete-sharing source handle during publication. The two portable
-  managed test projects above pass with the existing .NET 8 SDK on Mac. Actual
-  Windows application compilation, kernel32 identity checks, WPF and D3D11
-  runtime validation remain unverified.
+  managed test projects above pass on Mac and actual Windows. Fresh Windows
+  native/WPF builds, kernel32 identity/source-lock checks, CPU/Auto/forced-D3D11
+  file rendering and two-target WPF DNG publication/recovery passed as described
+  above. DNG MainWindow SaveFileDialog/Explorer desktop interaction, original-size
+  large DNG and abrupt process termination remain unverified.
 
 Photos, DNG/TIFF/PNG files, screenshots, private source paths and build products
 are not part of the source changes. Local comparison metrics and artifacts live

@@ -99,7 +99,12 @@ void writeFile(const std::filesystem::path& path, const std::string& contents) {
 
 bool hasStagingFile(const std::filesystem::path& directory) {
     for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+#ifdef _WIN32
+        const auto filename = entry.path().filename().string();
+        if (filename.rfind("rld", 0) == 0 && entry.path().extension() == ".tmp")
+#else
         if (entry.path().filename().string().find(kStagingMarker) != std::string::npos)
+#endif
             return true;
     }
     return false;
@@ -248,6 +253,13 @@ void testRejectsInvalidInput(const std::filesystem::path& directory) {
 
 void testAtomicStorage(const std::filesystem::path& directory) {
     using sony2fuji::ErrorCode;
+
+#ifdef _WIN32
+    const auto stagingProbe = directory / "rld-staging-probe.tmp";
+    writeFile(stagingProbe, "staging probe");
+    check(hasStagingFile(directory), "Windows staging scan detects native rld temporary files");
+    std::filesystem::remove(stagingProbe);
+#endif
 
     const auto target = directory / "replace-existing.dng";
     writeFile(target, "old target");

@@ -14,8 +14,6 @@
 #include <vector>
 
 #ifdef _WIN32
-#include <fcntl.h>
-#include <io.h>
 #include <windows.h>
 #else
 #include <fcntl.h>
@@ -93,13 +91,11 @@ bool registerCustomFields(TIFF* tif) {
                               static_cast<uint32_t>(std::size(kCustomFields))) == 0;
 }
 
+#ifndef _WIN32
 void closeFileDescriptor(int fd) noexcept {
-#ifdef _WIN32
-    if (fd >= 0) _close(fd);
-#else
     if (fd >= 0) ::close(fd);
-#endif
 }
+#endif
 
 void removeFileNoThrow(const std::filesystem::path& path) noexcept {
     if (path.empty()) return;
@@ -131,24 +127,20 @@ public:
                 return false;
 
             path_ = std::filesystem::path(temporaryName);
-            const HANDLE handle = CreateFileW(
+            handle_ = CreateFileW(
                 path_.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
                 FILE_ATTRIBUTE_TEMPORARY, nullptr);
-            if (handle == INVALID_HANDLE_VALUE) {
+            if (handle_ == INVALID_HANDLE_VALUE) {
                 DeleteFileW(temporaryName);
                 return false;
             }
 
-            fd_ = _open_osfhandle(reinterpret_cast<intptr_t>(handle), _O_BINARY | _O_RDWR);
-            if (fd_ < 0) {
-                CloseHandle(handle);
-                DeleteFileW(temporaryName);
-                return false;
-            }
-
-            tif_ = TIFFFdOpen(fd_, "rawlab-rendered-dng-staging", "w");
+            // Win32 libtiff expects the native HANDLE's significant 32 bits,
+            // not a CRT descriptor produced by _open_osfhandle.
+            tif_ = TIFFFdOpen(static_cast<int>(reinterpret_cast<intptr_t>(handle_)),
+                             "rawlab-rendered-dng-staging", "w");
             if (!tif_) return false;
-            fd_ = -1; // libtiff owns the descriptor after TIFFFdOpen succeeds.
+            handle_ = INVALID_HANDLE_VALUE; // libtiff owns the HANDLE on success.
             return true;
         } catch (...) {
             cleanup();
@@ -210,10 +202,17 @@ private:
             TIFFClose(tif_);
             tif_ = nullptr;
         }
+#ifdef _WIN32
+        if (handle_ != INVALID_HANDLE_VALUE) {
+            CloseHandle(handle_);
+            handle_ = INVALID_HANDLE_VALUE;
+        }
+#else
         if (fd_ >= 0) {
             closeFileDescriptor(fd_);
             fd_ = -1;
         }
+#endif
     }
 
     void cleanup() noexcept {
@@ -224,7 +223,11 @@ private:
 
     std::filesystem::path path_;
     TIFF* tif_ = nullptr;
+#ifdef _WIN32
+    HANDLE handle_ = INVALID_HANDLE_VALUE;
+#else
     int fd_ = -1;
+#endif
     bool published_ = false;
 };
 
