@@ -8,7 +8,7 @@ OUT="$(mktemp -d /tmp/rawlab-edit-memory.XXXXXX)"
 trap 'rm -rf "$OUT"' EXIT
 SOURCES=("$ROOT/RawLabMac/Sources/Engine.swift" "$ROOT/Shared/ExportMetadata.swift" "$ROOT/RawLabMac/Sources/Adjustments.swift" "$ROOT/RawLabMac/Sources/MasterRecipe.swift" "$ROOT/Shared/HSLSettings.swift" "$ROOT/Shared/HSLNative.swift")
 if [ -f "$ROOT/RawLabMac/Sources/EditPersistence.swift" ]; then SOURCES+=("$ROOT/RawLabMac/Sources/EditPersistence.swift"); fi
-swiftc -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx26.0" \
+swiftc "$ROOT/Shared/Localization.swift" -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx26.0" \
   -import-objc-header "$ROOT/lutools/include/sony2fuji/ffi/sony2fuji_c.h" \
   "${SOURCES[@]}" "$ROOT/RawLabMac/tests/EditMemoryTests.swift" \
   "$ROOT/lutools/build-macos/libsony2fuji_core.a" -L "$(pkg-config --variable=libdir libraw)" \

@@ -17,6 +17,7 @@
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="Switch.System.Windows.Media.EnableHardwareAccelerationInRdp" Value="true" />
     <Compile Remove="tests/**/*.cs" />
+    <EmbeddedResource Include="Resources/Localization/*.json" />
     <Content Include="../lutools/flog-2-new/*.cube" Exclude="../lutools/flog-2-new/*FLog2-709*;../lutools/flog-2-new/*WDR*" Link="LUTs/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../RawLabMac/Resources/FilmIcons/*.png" Link="FilmIcons/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="../RawLabMac/Resources/AppIcon.png" Link="AppIcon.png" />

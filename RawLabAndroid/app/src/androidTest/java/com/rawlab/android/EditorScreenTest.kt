@@ -28,7 +28,8 @@ import org.junit.Rule
 import org.junit.Test
 
 class EditorScreenTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule val languageAndCompose = org.junit.rules.RuleChain.outerRule(LanguageTestRule()).around(compose)
     @Test fun emptyEditorOffersImportButCannotExport() {
         compose.onNodeWithText("打开 RAW 照片").assertIsDisplayed()
         compose.onNodeWithText("从文件导入").assertIsDisplayed()
@@ -85,6 +86,16 @@ class EditorScreenTest {
         assertNotNull(model.state.value.error)
         assertEquals(original, model.state.value.photo)
         assertTrue(model.state.value.canExport)
+        val savedEdits = model.state.value.edits
+        compose.runOnUiThread { AppStrings.setPreference(compose.activity, "de") }
+        if (android.os.Build.VERSION.SDK_INT < 33) compose.activityRule.scenario.recreate()
+        compose.waitUntil(10_000) { compose.activity.resources.configuration.locales[0].language == "de" }
+        compose.activityRule.scenario.onActivity { model = it.model }
+        compose.waitUntil(180_000) { model.state.value.canExport || model.state.value.error != null }
+        assertEquals(savedEdits, model.state.value.edits)
+        assertEquals(original, model.state.value.photo)
+        assertEquals("de", AppStrings.preference(compose.activity))
+        compose.onNodeWithContentDescription("Exportieren").assertIsDisplayed()
         source.delete()
         empty.delete()
     }

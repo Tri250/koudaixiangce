@@ -10,7 +10,7 @@ RAW="${1:-${RAWLAB_TEST_RAW:-}}"
 test -f "$RAW" || { echo 'Set RAWLAB_TEST_RAW or pass an external RAW path'; exit 1; }
 LUT="${2:-$ROOT/lutools/flog-2-new/FLog2_to_PROVIA_65grid_V.1.00.cube}"
 
-swiftc -swift-version 5 -O -sdk "$SDK" \
+swiftc "$ROOT/Shared/Localization.swift" -swift-version 5 -O -sdk "$SDK" \
     -target "$(uname -m)-apple-macosx26.0" \
     -import-objc-header "$ROOT/lutools/include/sony2fuji/ffi/sony2fuji_c.h" \
     "$ROOT/RawLabMac/Sources/Engine.swift" \

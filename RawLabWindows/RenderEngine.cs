@@ -91,11 +91,11 @@ internal sealed class RenderEngine : IDisposable
         try
         {
             var status = Native.sony2fuji_process(session,ref request,out buffer);
-            if (output != null && status == 3) throw new OutputWriteException("无法写入成片，请检查输出位置和剩余空间。");
+            if (output != null && status == 3) throw new OutputWriteException(Loc.Text("无法写入成片，请检查输出位置和剩余空间。"));
             Native.Check(status);
             if (output != null) {
                 try { ExportMetadata.Preserve(path,output); }
-                catch (IOException error) { throw new OutputWriteException("无法完成成片元数据写入：" + error.Message, error); }
+                catch (IOException error) { throw new OutputWriteException(Loc.Text("无法完成成片元数据写入：") + error.Message, error); }
                 return null;
             }
             var bins = statistics || clipping ? new uint[768] : Array.Empty<uint>();
@@ -117,7 +117,7 @@ internal sealed class RenderEngine : IDisposable
         // 配方色调属于目标 RAW 的拍摄白平衡，不沿用冻结来源的相机值。
         var neutral = new Adjustments { ExposureMode = settings.ExposureMode };
         var camera = Render(path, neutral, null, 32, statistics: false, clipping: false)?.WhiteBalance
-            ?? throw new InvalidOperationException("此 RAW 无法解析拍摄白平衡，不能应用配方色调。");
+            ?? throw new InvalidOperationException(Loc.Text("此 RAW 无法解析拍摄白平衡，不能应用配方色调。"));
         var prepared = settings.Clone();
         prepared.ResolveWhiteBalance(camera);
         return prepared;

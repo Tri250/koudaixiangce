@@ -73,7 +73,7 @@ public sealed class Adjustments
     {
         if (snapshot.Values.Length != ParameterSpec.All.Length || snapshot.ExposureMode is < 0 or > 2 ||
             snapshot.Values.Where((value, index) => !double.IsFinite(value) || value < ParameterSpec.All[index].Min || value > ParameterSpec.All[index].Max).Any())
-            throw new System.IO.InvalidDataException("调整记录无效，原有文件未被覆盖。");
+            throw new System.IO.InvalidDataException(Loc.Text("调整记录无效，原有文件未被覆盖。"));
         var denoise = snapshot.Denoise ?? new DenoiseSettings();
         var effects = snapshot.Effects ?? new PhotoEffectsSettings();
         _ = denoise.NativeConfig();
@@ -147,7 +147,7 @@ public sealed class Adjustments
     internal Native.Request Request(string path, string? lut, int edge, string? output, int? longEdge = null)
     {
         if (longEdge is { } requested && !ExportSize.IsValid(requested))
-            throw new ArgumentOutOfRangeException(nameof(longEdge), "导出长边必须在 1 到 65535 像素之间。");
+            throw new ArgumentOutOfRangeException(nameof(longEdge), Loc.Text("导出长边必须在 1 到 65535 像素之间。"));
         var limitedFinal = output != null && longEdge.HasValue;
         var scale = MasterRecipeID == null ? 1 : this[Parameter.Strength] / 100;
         var tintOffset = MasterRecipeID == null ? 0 : this[Parameter.Tint] * scale;

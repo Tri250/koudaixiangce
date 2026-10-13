@@ -104,7 +104,7 @@ internal fun PhotoCanvas(
         val percent = "${(zoom.scale * 100).roundToInt()}%"
         Box(Modifier.fillMaxSize().testTag("photo-canvas").semantics {
             contentDescription = filename
-            stateDescription = if (viewport.isFit(zoom.scale)) "$fitDescription $percent" else percent
+            stateDescription = if (viewport.isFit(zoom.scale)) "${fitDescription} ${percent}" else percent
             customActions = listOf(
                 CustomAccessibilityAction("100%") { state.zoom = PhotoZoom(1f); true },
                 CustomAccessibilityAction(fitDescription) { state.zoom = PhotoZoom(viewport.fitScale); true }
@@ -179,7 +179,7 @@ private fun PhotoInfoOverlay(info: PhotoInfo?, mode: Int, onInfoClick: () -> Uni
                 info.camera?.let { InfoLine(stringResource(R.string.info_camera), it) }
                 info.lens?.let { InfoLine(stringResource(R.string.info_lens), it) }
                 info.shutter?.let { InfoLine(stringResource(R.string.info_shutter), it) }
-                info.aperture?.let { InfoLine(stringResource(R.string.info_aperture), "f/$it") }
+                info.aperture?.let { InfoLine(stringResource(R.string.info_aperture), "f/${it}") }
                 info.iso?.let { InfoLine(stringResource(R.string.info_iso), it) }
                 info.focalLength?.let { InfoLine(stringResource(R.string.info_focal_length), it) }
             }
@@ -190,7 +190,7 @@ private fun PhotoInfoOverlay(info: PhotoInfo?, mode: Int, onInfoClick: () -> Uni
 @Composable
 private fun InfoLine(title: String, value: String) {
     Text(
-        "$title  $value",
+        "${title}  ${value}",
         color = Color.White,
         style = MaterialTheme.typography.labelSmall,
         modifier = Modifier.fillMaxWidth(),

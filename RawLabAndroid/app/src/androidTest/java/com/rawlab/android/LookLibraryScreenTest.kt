@@ -15,7 +15,8 @@ import java.io.File
 import java.util.UUID
 
 class LookLibraryScreenTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule val languageAndCompose = org.junit.rules.RuleChain.outerRule(LanguageTestRule()).around(compose)
 
     @Test fun batchImportReportScrollsAndCanBeDismissed() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()

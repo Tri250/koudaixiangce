@@ -29,6 +29,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        AppStrings.initialize(newBase)
+        super.attachBaseContext(AppStrings.localizedContext(newBase))
+    }
     val model: EditorViewModel by lazy { ViewModelProvider(this)[EditorViewModel::class.java] }
     val updates: UpdateViewModel by lazy { ViewModelProvider(this)[UpdateViewModel::class.java] }
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,8 +100,8 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
         Column(Modifier.fillMaxSize()) {
         pendingBatch.firstOrNull()?.let { job ->
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("有未完成的批量导出", Modifier.weight(1f))
-                TextButton(onClick = { model.resumeBatch(job) }) { Text("查看任务") }
+                Text(AppStrings.text(R.string.message_unfinished_batch_export), Modifier.weight(1f))
+                TextButton(onClick = { model.resumeBatch(job) }) { Text(AppStrings.text(R.string.message_view_task)) }
             }
         }
         Box(Modifier.weight(1f)) {
@@ -146,7 +150,7 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
                     exportDialog = false
                     pendingExportLongEdgeText = longEdge?.toString().orEmpty()
                     val name = "RawLab-${System.currentTimeMillis()}"
-                    if (png) savePng.launch("$name.png") else saveJpeg.launch("$name.jpg")
+                    if (png) savePng.launch("${name}.png") else saveJpeg.launch("${name}.jpg")
                 }, enabled = sizeValid) { Text(stringResource(R.string.save_file)) }
             }
         },
@@ -163,7 +167,7 @@ private fun LicenseDialog(onClose: () -> Unit) {
     val notices by produceState("") {
         value = withContext(Dispatchers.IO) {
             context.assets.list("licenses").orEmpty().joinToString("\n\n") { name ->
-                name + "\n" + context.assets.open("licenses/$name").bufferedReader().use { it.readText() }
+                name + "\n" + context.assets.open("licenses/${name}").bufferedReader().use { it.readText() }
             }
         }
     }

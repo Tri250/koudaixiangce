@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct ZoomablePhoto: UIViewRepresentable {
+    @Environment(\.locale) private var localizationLocale
     @Environment(\.displayScale) private var displayScale
     let image: UIImage
     let referenceImage: UIImage
@@ -10,6 +11,8 @@ struct ZoomablePhoto: UIViewRepresentable {
     func makeUIView(context: Context) -> PhotoScrollView { PhotoScrollView() }
 
     func updateUIView(_ view: PhotoScrollView, context: Context) {
+        let _ = localizationLocale
+        view.refreshAccessibilityActions()
         view.imageView.image = image
         view.pixels = CGSize(width: referenceImage.size.width * referenceImage.scale,
                              height: referenceImage.size.height * referenceImage.scale)
@@ -42,9 +45,13 @@ final class PhotoScrollView: UIScrollView, UIScrollViewDelegate {
         isAccessibilityElement = true
         accessibilityIdentifier = "editor.photo"
         accessibilityTraits = [.image, .adjustable]
+        refreshAccessibilityActions()
+    }
+
+    func refreshAccessibilityActions() {
         accessibilityCustomActions = [
             UIAccessibilityCustomAction(name: "100%", target: self, selector: #selector(showActualPixels)),
-            UIAccessibilityCustomAction(name: "适应画面", target: self, selector: #selector(showFit))
+            UIAccessibilityCustomAction(name: L10n.text("适应画面"), target: self, selector: #selector(showFit))
         ]
     }
 
@@ -121,6 +128,6 @@ final class PhotoScrollView: UIScrollView, UIScrollViewDelegate {
 
     private func updateAccessibilityValue() {
         let percent = "\(Int((zoomScale * 100).rounded()))%"
-        accessibilityValue = geometry?.isFit(zoomScale) == true ? "Fit \(percent)" : percent
+        accessibilityValue = geometry?.isFit(zoomScale) == true ? L10n.format("Fit %@", String(describing: percent)) : percent
     }
 }

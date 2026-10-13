@@ -13,8 +13,8 @@ public sealed record BatchItem(Guid Id, string Input, OriginalIdentity Identity)
     public string? Error { get; init; }
     public static BatchItem Create(string input) => new(Guid.NewGuid(), Path.GetFullPath(input), OriginalIdentity.Read(input));
     public string StatusText => Status switch {
-        BatchStatus.Waiting => "等待导出", BatchStatus.Running or BatchStatus.Publishing => "正在导出",
-        BatchStatus.Succeeded => "已导出", _ => "导出失败"
+        BatchStatus.Waiting => Loc.Text("等待导出"), BatchStatus.Running or BatchStatus.Publishing => Loc.Text("正在导出"),
+        BatchStatus.Succeeded => Loc.Text("已导出"), _ => Loc.Text("导出失败")
     };
 }
 
@@ -73,7 +73,7 @@ public sealed class BatchJournal
     {
         if (!File.Exists(PathName)) return null;
         var job = AtomicJson.Read<BatchJob>(PathName);
-        if (job.Version != 1) throw new InvalidDataException("无法读取此版本的批量任务。");
+        if (job.Version != 1) throw new InvalidDataException(Loc.Text("无法读取此版本的批量任务。"));
         if (job.LongEdge is { } edge && !ExportSize.IsValid(edge)) job.LongEdge = null;
         _ = job.Settings.Restore();
         for (var i = 0; i < job.Items.Count; i++)
@@ -126,9 +126,9 @@ public static class BatchRunner
     private static void RunCore(BatchJob job, BatchJournal journal, bool failuresOnly, CancellationToken cancellation,
                                 Action<BatchJob, string?> changed, SizedRender render)
     {
-        if (job.SelectedCount == 0) throw new InvalidOperationException("请至少选择一张 RAW。");
-        if (job.OutputDirectory == null) throw new OutputWriteException("请选择输出文件夹。");
-        if (job.Look != null && !File.Exists(job.Look)) throw new InvalidOperationException("任务外观不可用，请重新创建任务。");
+        if (job.SelectedCount == 0) throw new InvalidOperationException(Loc.Text("请至少选择一张 RAW。"));
+        if (job.OutputDirectory == null) throw new OutputWriteException(Loc.Text("请选择输出文件夹。"));
+        if (job.Look != null && !File.Exists(job.Look)) throw new InvalidOperationException(Loc.Text("任务外观不可用，请重新创建任务。"));
         job.Started = true; job.Interrupted = false; job.Cancelled = false; job.Error = null;
         journal.Save(job);
         try
@@ -163,7 +163,7 @@ public static class BatchRunner
         {
             try
             {
-                if (!item.Identity.SameFile(OriginalIdentity.Read(item.Input))) throw new InvalidOperationException("原始文件已被替换，请重新选择。");
+                if (!item.Identity.SameFile(OriginalIdentity.Read(item.Input))) throw new InvalidOperationException(Loc.Text("原始文件已被替换，请重新选择。"));
                 render(item.Input, job.Settings.Restore(), job.Look, temporary, job.LongEdge);
             }
             catch (Exception error)
@@ -180,7 +180,7 @@ public static class BatchRunner
             job.Items[index] = item;
             journal.Save(job);
             try { File.Move(temporary, destination, overwrite: false); }
-            catch (IOException error) { throw new OutputWriteException("无法发布成片，请检查输出目录。", error); }
+            catch (IOException error) { throw new OutputWriteException(Loc.Text("无法发布成片，请检查输出目录。"), error); }
             job.Items[index] = item with { Status = BatchStatus.Succeeded, Error = null };
             journal.Save(job);
         }
@@ -202,6 +202,6 @@ public static class BatchRunner
     {
         var probe = Path.Combine(directory, ".rawlab-write-" + Guid.NewGuid());
         try { using (var stream = new FileStream(probe, FileMode.CreateNew)) stream.WriteByte(0); File.Delete(probe); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { throw new OutputWriteException("输出文件夹不可写，请检查权限和剩余空间。", error); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { throw new OutputWriteException(Loc.Text("输出文件夹不可写，请检查权限和剩余空间。"), error); }
     }
 }

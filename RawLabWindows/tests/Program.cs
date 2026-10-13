@@ -35,6 +35,7 @@ static class Program
     {
         try
         {
+            Loc.Initialize("zh-Hans");
             if(args.Length==3 && args[0]=="--master-recipes") { MasterRecipeChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--photo-features") { PhotoFeatureChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--denoise") { DenoiseChecks.Run(args[1],args[2]);return 0; }
@@ -167,6 +168,7 @@ static class Program
             Check(originalHash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(unicodeRaw))),"RAW source remains byte-identical");
             // Exercise the real WPF window and asynchronous worker using its dispatcher.
             var app=new App();app.InitializeComponent();app.ShutdownMode=ShutdownMode.OnExplicitShutdown;
+            foreach(var pair in Loc.Strings) app.Resources[pair.Key]=pair.Value;
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
             var window=new MainWindow {Width=1440,Height=920};
             window.Show();

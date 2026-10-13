@@ -5,6 +5,8 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    @Environment(\.locale) private var localizationLocale
+    @AppStorage(L10n.preferenceKey) var languagePreference = AppLanguage.system.rawValue
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @StateObject var viewModel = RawEditorViewModel()
@@ -34,6 +36,7 @@ struct ContentView: View {
     @ScaledMetric(relativeTo: .body) var panelHeight = 256.0
 
     var body: some View {
+        let _ = localizationLocale
         NavigationStack {
             GeometryReader { geometry in
                 let landscape = EditorLayoutPolicy.usesSidePanel(width: geometry.size.width, height: geometry.size.height,
@@ -61,7 +64,7 @@ struct ContentView: View {
                     Button { showingBatchExport = true } label: {
                         HStack {
                             Image(systemName: "square.stack.3d.up")
-                            Text("查看批量任务 · \(batchModel.job.targets.count) 张")
+                            Text(L10n.format("查看批量任务 · %@ 张", String(describing: batchModel.job.targets.count)))
                             Spacer()
                             Image(systemName: "chevron.right")
                         }.font(.subheadline).padding(12)
@@ -80,7 +83,7 @@ struct ContentView: View {
             get: { viewModel.statusMessage != nil },
             set: { if !$0 { viewModel.statusMessage = nil } }
         )) {
-            Button("关闭", role: .cancel) { viewModel.statusMessage = nil }
+            Button(L10n.text("关闭"), role: .cancel) { viewModel.statusMessage = nil }
         } message: {
             Text(viewModel.statusMessage ?? "")
         }

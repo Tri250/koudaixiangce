@@ -40,10 +40,10 @@ extension Sony2FujiProcessor {
     func configureSession(_ session: OpaquePointer, settings: RawSettings, interactive: Bool) throws {
         let exposureMode = sony2fuji_raw_exposure_mode(rawValue: UInt32(settings.exposureMode.rawValue))
         guard sony2fuji_session_set_raw_exposure_mode(session, exposureMode) == SONY2FUJI_STATUS_OK,
-              settings.hsl.isValid else { throw ProcessorError.processFailed("Invalid exposure mode or HSL parameters.") }
+              settings.hsl.isValid else { throw ProcessorError.processFailed(L10n.text("Invalid exposure mode or HSL parameters.")) }
         var hsl = settings.hsl.nativeConfig
         guard sony2fuji_session_set_hsl(session, &hsl) == SONY2FUJI_STATUS_OK else {
-            throw ProcessorError.processFailed("Invalid HSL parameters.")
+            throw ProcessorError.processFailed(L10n.text("Invalid HSL parameters."))
         }
         var config = sony2fuji_gpu_config()
         config.version = SONY2FUJI_GPU_CONFIG_VERSION
@@ -51,9 +51,9 @@ extension Sony2FujiProcessor {
         config.mode = gpuMode
         let gpuStatus = sony2fuji_session_set_gpu_config(session, &config)
         guard gpuStatus == SONY2FUJI_STATUS_OK else {
-            throw ProcessorError.processFailed("Invalid GPU configuration: \(statusMessage(gpuStatus))")
+            throw ProcessorError.processFailed(L10n.format("Invalid GPU configuration: %@", statusMessage(gpuStatus)))
         }
-        guard settings.photoEffects.isValid else { throw ProcessorError.processFailed("Invalid photo effects.") }
+        guard settings.photoEffects.isValid else { throw ProcessorError.processFailed(L10n.text("Invalid photo effects.")) }
         var effects = sony2fuji_photo_effects_config()
         effects.version = UInt32(SONY2FUJI_PHOTO_EFFECTS_CONFIG_VERSION)
         effects.struct_size = UInt32(MemoryLayout<sony2fuji_photo_effects_config>.size)
@@ -67,14 +67,14 @@ extension Sony2FujiProcessor {
         effects.grain_roughness = Float(settings.photoEffects.grainRoughness)
         let effectsStatus = sony2fuji_session_set_photo_effects(session, &effects)
         guard effectsStatus == SONY2FUJI_STATUS_OK else {
-            throw ProcessorError.processFailed("Invalid photo effects: \(statusMessage(effectsStatus))")
+            throw ProcessorError.processFailed(L10n.format("Invalid photo effects: %@", statusMessage(effectsStatus)))
         }
         let chromaMode = Int32(settings.displayChromaDenoise)
         let chromaStatus = sony2fuji_session_set_chroma_denoise(session, chromaMode)
         guard chromaStatus == SONY2FUJI_STATUS_OK else {
-            throw ProcessorError.processFailed("Invalid display chroma denoise mode: \(statusMessage(chromaStatus))")
+            throw ProcessorError.processFailed(L10n.format("Invalid display chroma denoise mode: %@", statusMessage(chromaStatus)))
         }
-        guard settings.denoise.isValid else { throw ProcessorError.processFailed("Invalid denoise strengths.") }
+        guard settings.denoise.isValid else { throw ProcessorError.processFailed(L10n.text("Invalid denoise strengths.")) }
         var denoise = sony2fuji_wavelet_denoise_config()
         denoise.version = UInt32(SONY2FUJI_WAVELET_DENOISE_CONFIG_VERSION)
         denoise.struct_size = UInt32(MemoryLayout<sony2fuji_wavelet_denoise_config>.size)
@@ -104,7 +104,7 @@ extension Sony2FujiProcessor {
         defer { sony2fuji_release_buffer(&buffer) }
         let status = processRaw(session: session, request: &request, inputPath: url.path, lutPath: nil, outBuffer: &buffer)
         guard status == SONY2FUJI_STATUS_OK, let camera = readRawWhiteBalance(from: session), camera.isCalibrated else {
-            throw ProcessorError.processFailed("此 RAW 无法解析拍摄白平衡，不能应用配方色调。")
+            throw ProcessorError.processFailed(L10n.text("此 RAW 无法解析拍摄白平衡，不能应用配方色调。"))
         }
         return settings.renderedRecipe(cameraTemperature: camera.temperature, cameraTint: camera.tint)
     }

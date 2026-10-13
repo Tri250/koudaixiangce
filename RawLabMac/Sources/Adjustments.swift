@@ -8,6 +8,7 @@ struct WhiteBalance: Equatable, Codable {
 enum WhiteBalanceMode: String, CaseIterable, Identifiable, Codable {
     case asShot = "拍摄时设置", custom = "自定义"
     var id: String { rawValue }
+    var title: String { L10n.text(rawValue) }
 }
 
 enum ExposureMode: String, CaseIterable, Identifiable, Codable {
@@ -15,6 +16,7 @@ enum ExposureMode: String, CaseIterable, Identifiable, Codable {
     case preview = "匹配内嵌预览"
     case sensor = "传感器基准"
     var id: String { rawValue }
+    var title: String { L10n.text(rawValue) }
     var core: sony2fuji_raw_exposure_mode {
         switch self {
         case .scene: return SONY2FUJI_EXPOSURE_SCENE
@@ -29,9 +31,9 @@ enum RawNoiseReductionLevel: Double, CaseIterable, Identifiable {
     var id: Double { rawValue }
     var title: String {
         switch self {
-        case .off: return "关闭"
-        case .light: return "轻度"
-        case .full: return "强度"
+        case .off: return L10n.text("停用")
+        case .light: return L10n.text("轻度")
+        case .full: return L10n.text("强度")
         }
     }
 }
@@ -41,9 +43,9 @@ enum ChromaNoiseReductionMode: Double, CaseIterable, Identifiable {
     var id: Double { rawValue }
     var title: String {
         switch self {
-        case .off: return "关闭"
-        case .detail: return "细节优先"
-        case .clean: return "去噪优先"
+        case .off: return L10n.text("停用")
+        case .detail: return L10n.text("细节优先")
+        case .clean: return L10n.text("去噪优先")
         }
     }
 }
@@ -53,9 +55,9 @@ enum DenoisePreset: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .detail: return "细节优先"
-        case .clean: return "去噪优先"
-        case .custom: return "自定义"
+        case .detail: return L10n.text("细节优先")
+        case .clean: return L10n.text("去噪优先")
+        case .custom: return L10n.text("自定义")
         }
     }
 }
@@ -71,11 +73,18 @@ struct WaveletDenoiseSettings: Equatable, Codable {
 enum DenoiseParameter: String, CaseIterable, Identifiable {
     case luma, chroma, coarse
     var id: String { rawValue }
+    var shortTitle: String {
+        switch self {
+        case .luma: return L10n.text("降噪亮度")
+        case .chroma: return L10n.text("降噪色彩")
+        case .coarse: return L10n.text("降噪粗色斑")
+        }
+    }
     var title: String {
         switch self {
-        case .luma: return "亮度降噪"
-        case .chroma: return "色彩降噪"
-        case .coarse: return "粗色斑抑制"
+        case .luma: return L10n.text("亮度降噪")
+        case .chroma: return L10n.text("色彩降噪")
+        case .coarse: return L10n.text("粗色斑抑制")
         }
     }
     var keyPath: WritableKeyPath<WaveletDenoiseSettings, Double> {
@@ -111,13 +120,13 @@ enum PhotoEffectParameter: String, CaseIterable, Identifiable {
     }
     var title: String {
         switch self {
-        case .vignetteAmount, .grainAmount: return "强度"
-        case .vignetteMidpoint: return "中点"
-        case .vignetteRoundness: return "圆度"
-        case .vignetteFeather: return "羽化"
-        case .vignetteHighlights: return "高光保护"
-        case .grainSize: return "大小"
-        case .grainRoughness: return "粗糙度"
+        case .vignetteAmount, .grainAmount: return L10n.text("强度")
+        case .vignetteMidpoint: return L10n.text("中点")
+        case .vignetteRoundness: return L10n.text("圆度")
+        case .vignetteFeather: return L10n.text("羽化")
+        case .vignetteHighlights: return L10n.text("高光保护")
+        case .grainSize: return L10n.text("大小")
+        case .grainRoughness: return L10n.text("粗糙度")
         }
     }
     var keyPath: WritableKeyPath<PhotoEffectsSettings, Double> {
@@ -217,11 +226,11 @@ struct Adjustments: Equatable, Codable {
     var isDenoiseEnabled: Bool { waveletNoiseReduction?.enabled ?? (denoiseMode > 0) }
     var denoiseSummary: String {
         if let settings = waveletNoiseReduction {
-            return settings.enabled ? settings.preset.title : "关闭"
+            return settings.enabled ? settings.preset.title : L10n.text("停用")
         }
-        if denoiseMode == 0 { return "关闭" }
-        if denoiseMode == 3 { return "旧版 FBDD" }
-        return "旧版：\(ChromaNoiseReductionMode(rawValue: denoiseMode)?.title ?? "色度降噪")"
+        if denoiseMode == 0 { return L10n.text("停用") }
+        if denoiseMode == 3 { return L10n.text("旧版 FBDD") }
+        return L10n.format("旧版：%@", String(describing: ChromaNoiseReductionMode(rawValue: denoiseMode)?.title ?? L10n.text("色度降噪")))
     }
 
     mutating func setDenoiseEnabled(_ enabled: Bool) {
@@ -426,6 +435,7 @@ extension Adjustments {
 enum AdjustmentGroup: String, CaseIterable, Identifiable {
     case film = "胶片模拟", input = "输入调整", tone = "明暗", color = "色彩", detail = "细节", effects = "效果"
     var id: String { rawValue }
+    var title: String { L10n.text(rawValue) }
     var parameters: [AdjustmentParameter] {
         switch self {
         case .film: return [.strength]
@@ -512,20 +522,20 @@ enum AdjustmentParameter: String, CaseIterable, Identifiable {
     }
     var spec: AdjustmentSpec {
         switch self {
-        case .strength: return AdjustmentSpec(title: "强度", keyPath: \.strength, range: 0...2, defaultValue: 1, step: 0.01, unit: "%", multiplier: 100)
-        case .exposure: return AdjustmentSpec(title: "曝光", keyPath: \.exposure, range: -4...4, defaultValue: 0, step: 0.05, unit: "EV", decimals: 2)
-        case .temperature: return AdjustmentSpec(title: "色温", keyPath: \.temperature, range: 2000...50000, defaultValue: 6500, step: 10, unit: "K", reciprocalScale: true)
-        case .tint: return AdjustmentSpec(title: "色调", keyPath: \.tint, range: -150...150, defaultValue: 0, step: 1, unit: "")
-        case .contrast: return AdjustmentSpec(title: "对比度", keyPath: \.contrast, range: -100...100, defaultValue: 0, step: 1, unit: "%")
-        case .highlights: return AdjustmentSpec(title: "高光", keyPath: \.highlights, range: -100...100, defaultValue: 0, step: 1, unit: "%")
-        case .shadows: return AdjustmentSpec(title: "阴影", keyPath: \.shadows, range: -100...100, defaultValue: 0, step: 1, unit: "%")
-        case .toneCurve: return AdjustmentSpec(title: "S 曲线", keyPath: \.toneCurve, range: -100...100, defaultValue: 0, step: 1, unit: "%")
-        case .saturation: return AdjustmentSpec(title: "饱和度", keyPath: \.saturation, range: -100...100, defaultValue: 0, step: 1, unit: "%")
-        case .sharpening: return AdjustmentSpec(title: "锐化", keyPath: \.sharpening, range: 0...200, defaultValue: 0, step: 1, unit: "%")
-        case .rawNoiseReduction: return AdjustmentSpec(title: "RAW 降噪", keyPath: \.rawNoiseReduction, range: 0...2, defaultValue: 0, step: 1, unit: "")
-        case .denoiseMode: return AdjustmentSpec(title: "降噪", keyPath: \.denoiseMode, range: 0...2, defaultValue: 0, step: 1, unit: "")
-        case .vignetteAmount: return AdjustmentSpec(title: "暗角", keyPath: \.vignetteAmount, range: -100...100, defaultValue: 0, step: 1, unit: "")
-        case .grainAmount: return AdjustmentSpec(title: "颗粒", keyPath: \.grainAmount, range: 0...100, defaultValue: 0, step: 1, unit: "")
+        case .strength: return AdjustmentSpec(title: L10n.text("强度"), keyPath: \.strength, range: 0...2, defaultValue: 1, step: 0.01, unit: "%", multiplier: 100)
+        case .exposure: return AdjustmentSpec(title: L10n.text("曝光"), keyPath: \.exposure, range: -4...4, defaultValue: 0, step: 0.05, unit: "EV", decimals: 2)
+        case .temperature: return AdjustmentSpec(title: L10n.text("色温"), keyPath: \.temperature, range: 2000...50000, defaultValue: 6500, step: 10, unit: "K", reciprocalScale: true)
+        case .tint: return AdjustmentSpec(title: L10n.text("色调"), keyPath: \.tint, range: -150...150, defaultValue: 0, step: 1, unit: "")
+        case .contrast: return AdjustmentSpec(title: L10n.text("对比度"), keyPath: \.contrast, range: -100...100, defaultValue: 0, step: 1, unit: "%")
+        case .highlights: return AdjustmentSpec(title: L10n.text("高光"), keyPath: \.highlights, range: -100...100, defaultValue: 0, step: 1, unit: "%")
+        case .shadows: return AdjustmentSpec(title: L10n.text("阴影"), keyPath: \.shadows, range: -100...100, defaultValue: 0, step: 1, unit: "%")
+        case .toneCurve: return AdjustmentSpec(title: L10n.text("S 曲线"), keyPath: \.toneCurve, range: -100...100, defaultValue: 0, step: 1, unit: "%")
+        case .saturation: return AdjustmentSpec(title: L10n.text("饱和度"), keyPath: \.saturation, range: -100...100, defaultValue: 0, step: 1, unit: "%")
+        case .sharpening: return AdjustmentSpec(title: L10n.text("锐化"), keyPath: \.sharpening, range: 0...200, defaultValue: 0, step: 1, unit: "%")
+        case .rawNoiseReduction: return AdjustmentSpec(title: L10n.text("RAW 降噪"), keyPath: \.rawNoiseReduction, range: 0...2, defaultValue: 0, step: 1, unit: "")
+        case .denoiseMode: return AdjustmentSpec(title: L10n.text("降噪"), keyPath: \.denoiseMode, range: 0...2, defaultValue: 0, step: 1, unit: "")
+        case .vignetteAmount: return AdjustmentSpec(title: L10n.text("暗角"), keyPath: \.vignetteAmount, range: -100...100, defaultValue: 0, step: 1, unit: "")
+        case .grainAmount: return AdjustmentSpec(title: L10n.text("颗粒"), keyPath: \.grainAmount, range: 0...100, defaultValue: 0, step: 1, unit: "")
         }
     }
 }

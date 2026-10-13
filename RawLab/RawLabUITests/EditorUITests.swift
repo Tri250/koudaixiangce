@@ -5,8 +5,39 @@ final class EditorUITests: XCTestCase {
     private let seedPhotoBase = "DJI_20250602164503_0444_D"
     private var verifiedSeedPickerIndex: Int?
 
+    func testLanguageSelectionPersists() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let language = app.buttons["settings.language"]
+        XCTAssertTrue(language.waitForExistence(timeout: 10))
+        language.tap()
+        app.buttons["Deutsch"].tap()
+        XCTAssertTrue(app.staticTexts["RAW-Foto"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(language.label, "Sprache")
+        let german = XCTAttachment(screenshot: app.screenshot())
+        german.name = "localization-german"
+        german.lifetime = .keepAlways
+        add(german)
+        language.tap()
+        app.buttons["Français"].tap()
+        XCTAssertTrue(app.staticTexts["Photo RAW"].waitForExistence(timeout: 5), app.debugDescription)
+        let french = XCTAttachment(screenshot: app.screenshot())
+        french.name = "localization-french"
+        french.lifetime = .keepAlways
+        add(french)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(language.waitForExistence(timeout: 10))
+        XCTAssertEqual(language.label, "Langue")
+        language.tap()
+        app.buttons["Suivre le système"].tap()
+        XCTAssertTrue(app.staticTexts["RAW Photo"].waitForExistence(timeout: 5), app.debugDescription)
+    }
+
     func testMasterRecipeControls() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         importPhoto(in: app)
         let toolbar = app.scrollViews.containing(.button, identifier: "tool.masterRecipe").allElementsBoundByIndex.min { $0.frame.height < $1.frame.height }!
@@ -53,6 +84,7 @@ final class EditorUITests: XCTestCase {
 
     func testEditMemoryAndBatchWorkflow() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         importPhoto(in: app)
         app.buttons["tool.exposure"].tap()
@@ -130,6 +162,7 @@ final class EditorUITests: XCTestCase {
 
     func testHSLAndAutoExposureAdaptiveLayout() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         importPhoto(in: app)
         app.buttons["tool.exposure"].tap()
@@ -183,6 +216,7 @@ final class EditorUITests: XCTestCase {
 
     func testPhotoEffectsControls() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         importPhoto(in: app)
         let strips = app.scrollViews.containing(.button, identifier: "tool.grain").allElementsBoundByIndex
@@ -240,6 +274,7 @@ final class EditorUITests: XCTestCase {
 
     func testEmptyEditorAndPanelVisibility() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         XCTAssertTrue(app.buttons["editor.import"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["editor.export"].isEnabled)
@@ -253,6 +288,7 @@ final class EditorUITests: XCTestCase {
 
     func testPhotoInfoOverlay() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         importPhoto(in: app)
         let info = app.buttons["editor.photoInfo"]
@@ -272,6 +308,7 @@ final class EditorUITests: XCTestCase {
 
     func testExportSizePickerPresetsAndValidation() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         importPhoto(in: app)
 
@@ -321,6 +358,7 @@ final class EditorUITests: XCTestCase {
     // Seed the simulator Photos library with a single real image before running.
     func testPhotoEditingWorkflow() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         importPhoto(in: app)
         let compare = app.buttons["editor.compare"]
@@ -369,7 +407,8 @@ final class EditorUITests: XCTestCase {
 
     func testLargeText() {
         let app = XCUIApplication()
-        app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         XCTAssertTrue(app.buttons["editor.import.empty"].waitForExistence(timeout: 10))
         capture("large-text-empty")
@@ -392,6 +431,7 @@ final class EditorUITests: XCTestCase {
 
     func testAllBuiltInFilmsAreAvailable() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         importPhoto(in: app)
         app.buttons["tool.film"].tap()
@@ -405,6 +445,7 @@ final class EditorUITests: XCTestCase {
 
     func testPreviewZoomGestures() {
         let app = XCUIApplication()
+        app.launchArguments += ["-RawLab.language", "zh-Hans"]
         app.launch()
         importPhoto(in: app)
         let canvas = app.descendants(matching: .any)["editor.photo"]

@@ -20,12 +20,13 @@ import org.junit.Rule
 import org.junit.Test
 
 class PhotoCanvasTest {
-    @get:Rule val compose = createComposeRule()
+    val compose = createComposeRule()
+    @get:Rule val languageAndCompose = org.junit.rules.RuleChain.outerRule(LanguageTestRule()).around(compose)
 
     @Test fun doubleTapPinchAndPanUseNativePixels() {
         val state = PhotoCanvasState()
         val pair = fixture()
-        compose.setContent { MaterialTheme { PhotoCanvas(pair, false, "zoom-test", state) } }
+        compose.setChineseContent { MaterialTheme { PhotoCanvas(pair, false, "zoom-test", state) } }
         val canvas = compose.onNodeWithTag("photo-canvas")
         canvas.performTouchInput { doubleClick(center) }
         canvas.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "100%"))
@@ -50,7 +51,7 @@ class PhotoCanvasTest {
     @Test fun comparisonWipeDoesNotCompeteWithPinchOrTwoFingerPan() {
         val state = PhotoCanvasState()
         val pair = fixture()
-        compose.setContent { MaterialTheme { PhotoCanvas(pair, true, "comparison-test", state) } }
+        compose.setChineseContent { MaterialTheme { PhotoCanvas(pair, true, "comparison-test", state) } }
         val canvas = compose.onNodeWithTag("photo-canvas")
         canvas.performTouchInput {
             pinch(Offset(centerX - 80, centerY), Offset(centerX + 80, centerY),
@@ -111,7 +112,7 @@ class PhotoCanvasTest {
         val state = PhotoCanvasState()
         val original = fixture().neutral
         var pair by mutableStateOf(PreviewPair(original, original, 6500f, 0f))
-        compose.setContent { MaterialTheme { PhotoCanvas(pair, true, "denoise-photo", state) } }
+        compose.setChineseContent { MaterialTheme { PhotoCanvas(pair, true, "denoise-photo", state) } }
         val canvas = compose.onNodeWithTag("photo-canvas")
         canvas.performTouchInput { doubleClick(center) }
         canvas.performTouchInput {

@@ -127,7 +127,7 @@ public sealed class PhotoCanvas : FrameworkElement
     private sealed class ComparisonPeer(PhotoCanvas owner) : FrameworkElementAutomationPeer(owner),IRangeValueProvider
     {
         protected override string GetClassNameCore()=>nameof(PhotoCanvas);
-        protected override string GetNameCore()=>owner.ComparisonEnabled ? "滑动对比，左侧中性，右侧修改后" : "照片预览";
+        protected override string GetNameCore()=>owner.ComparisonEnabled ? Loc.Text("滑动对比，左侧中性，右侧修改后") : Loc.Text("照片预览");
         public override object? GetPattern(PatternInterface pattern)=>pattern==PatternInterface.RangeValue && owner.ComparisonEnabled ? this : base.GetPattern(pattern);
         public bool IsReadOnly=>false;
         public double LargeChange=>10;

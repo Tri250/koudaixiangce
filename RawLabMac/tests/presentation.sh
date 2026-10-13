@@ -5,7 +5,7 @@ source "$ROOT/RawLabMac/tests/native-env.sh"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}"
 OUT="$(mktemp -d /tmp/rawlab-presentation.XXXXXX)"
 SDK="${SDKROOT:-/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk}"
-swiftc -swift-version 5 -O -sdk "$SDK" \
+swiftc "$ROOT/Shared/Localization.swift" -swift-version 5 -O -sdk "$SDK" \
     -target "$(uname -m)-apple-macosx26.0" \
     -import-objc-header "$ROOT/lutools/include/sony2fuji/ffi/sony2fuji_c.h" \
     "$ROOT/RawLabMac/Sources/Engine.swift" "$ROOT/Shared/ExportMetadata.swift" "$ROOT/RawLabMac/Sources/Adjustments.swift" "$ROOT/RawLabMac/Sources/MasterRecipe.swift" "$ROOT/Shared/HSLSettings.swift" "$ROOT/Shared/HSLNative.swift" "$ROOT/RawLabMac/Sources/FileLibrary.swift" \

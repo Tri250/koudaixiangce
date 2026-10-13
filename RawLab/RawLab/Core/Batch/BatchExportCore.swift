@@ -17,13 +17,13 @@ enum BatchTargetStatus: String, Codable, Equatable {
 
     var title: String {
         switch self {
-        case .pending: return "等待导出"
-        case .processing: return "正在显影"
-        case .publishing: return "正在保存"
-        case .needsConfirmation: return "保存结果待确认"
-        case .succeeded: return "已保存"
-        case .failed: return "导出失败"
-        case .cancelled: return "未处理"
+        case .pending: return L10n.text("等待导出")
+        case .processing: return L10n.text("正在显影")
+        case .publishing: return L10n.text("正在保存")
+        case .needsConfirmation: return L10n.text("保存结果待确认")
+        case .succeeded: return L10n.text("已保存")
+        case .failed: return L10n.text("导出失败")
+        case .cancelled: return L10n.text("未处理")
         }
     }
 }
@@ -150,7 +150,7 @@ extension BatchExportJob {
                     copy.targets[index].errorMessage = nil
                 } else {
                     copy.targets[index].status = .needsConfirmation
-                    copy.targets[index].errorMessage = "保存时发生中断，请先核对照片图库，避免重复生成。"
+                    copy.targets[index].errorMessage = L10n.text("保存时发生中断，请先核对照片图库，避免重复生成。")
                 }
             default: break
             }
@@ -270,7 +270,7 @@ enum BatchInputStore {
         job.source.sourceURL = try copy(job.source.sourceURL, identity: job.source.identity, jobID: job.id, root: root)
         if job.source.settings.hasLook {
             guard let look, FileManager.default.isReadableFile(atPath: look.path) else {
-                throw BatchExportError.global("所选外观不可用，请重新选择外观。")
+                throw BatchExportError.global(L10n.text("所选外观不可用，请重新选择外观。"))
             }
             let folder = try directory(for: job.id, root: root).deletingLastPathComponent()
             let destination = folder.appendingPathComponent("look.\(look.pathExtension)")

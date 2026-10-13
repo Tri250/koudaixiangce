@@ -70,21 +70,21 @@ struct Sony2FujiProcessor {
         var errorDescription: String? {
             switch self {
             case .metadataUnavailable:
-                return "Image metadata unavailable."
+                return L10n.text("Image metadata unavailable.")
             case .invalidDimensions:
-                return "Image metadata has invalid dimensions."
+                return L10n.text("Image metadata has invalid dimensions.")
             case .sessionCreateFailed(let message):
-                return "Sony2Fuji session create failed: \(message)"
+                return L10n.format("Sony2Fuji session create failed: %@", String(describing: message))
             case .processFailed(let message):
-                return "Sony2Fuji process failed: \(message)"
+                return L10n.format("Sony2Fuji process failed: %@", String(describing: message))
             case .bufferCopyFailed:
-                return "Sony2Fuji output copy failed."
+                return L10n.text("Sony2Fuji output copy failed.")
             case .rasterDecodeFailed:
-                return "Raster decode failed."
+                return L10n.text("Raster decode failed.")
             case .histogramFailed(let message):
-                return "Histogram failed: \(message)"
+                return L10n.format("Histogram failed: %@", String(describing: message))
             case .invalidExportSize:
-                return "导出长边必须在 1 到 65535 像素之间。"
+                return L10n.text("导出长边必须在 1 到 65535 像素之间。")
             }
         }
     }
@@ -99,7 +99,7 @@ struct Sony2FujiProcessor {
         let settings = try prepareRecipe(settings, session: session, url: url)
         let mode = sony2fuji_raw_exposure_mode(rawValue: UInt32(settings.exposureMode.rawValue))
         guard sony2fuji_session_set_raw_exposure_mode(session, mode) == SONY2FUJI_STATUS_OK else {
-            throw ProcessorError.processFailed("Invalid exposure mode.")
+            throw ProcessorError.processFailed(L10n.text("Invalid exposure mode."))
         }
         var request = makeBaseRequest(settings: settings, inputType: url == nil ? SONY2FUJI_INPUT_BUFFER : SONY2FUJI_INPUT_RAW)
         request.input_type = url == nil ? SONY2FUJI_INPUT_BUFFER : SONY2FUJI_INPUT_RAW
@@ -121,7 +121,7 @@ struct Sony2FujiProcessor {
             }
         } else { throw ProcessorError.rasterDecodeFailed }
         guard status == SONY2FUJI_STATUS_OK else {
-            throw ProcessorError.processFailed("无法自动调整曝光：\(statusMessage(status))")
+            throw ProcessorError.processFailed(L10n.format("无法自动调整曝光：%@", String(describing: statusMessage(status))))
         }
         return Double(ev)
     }
