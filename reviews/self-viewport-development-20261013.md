@@ -79,9 +79,16 @@ applied NR native exports/GPU parity/interactions and self-contained publish.
 Full controls, heap measurements, byte-identical output hashes and collection
 exceptions are in `docs/verification-viewport-development-2026-10-13.md`.
 
+An authorized documentation-only follow-up closed the standalone macOS bundle
+gap at source commit `e101b798c174356d0223ade1eff31ba8983f91db`: fresh dependencies
+in this worktree, isolated Release/arm64 app build, strict ad-hoc signature and
+dependency/resource/license checks, and packaged smoke with the source install
+prefix unavailable passed. No production/test change or repeated RAW suite was
+needed. The original source fingerprint remains unchanged.
+
 Physical mobile devices, larger RAWs, Android x86_64 runtime and macOS x86_64
-runtime are not covered. A standalone macOS release bundle was not freshly built;
-native Swift integration was compiled and run. Sampling is not an instantaneous
+runtime are not covered. The new packaged smoke ran on macOS 27.0; fresh interactive
+GUI use and macOS 26/15 runtime are not claimed. Sampling is not an instantaneous
 heap maximum and timing is not a controlled throughput benchmark. No exact-head
 remote CI or provider automated-review success is claimed; those remain separate
 from the local/VM gates. This review does not authorize merge or release.
