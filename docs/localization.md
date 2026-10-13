@@ -32,9 +32,14 @@ phrases are table keys; existing enum raw values remain stable and are localized
 only for display. Keep format placeholders, escaped percent signs and newlines
 consistent across languages.
 
-On macOS, localized native Pickers use a locale identity on the control itself
-to refresh AppKit's cached options. Do not apply this identity to the editor or
-its model. Localized secondary windows also use a dynamic navigation title.
+On macOS and iOS, localized native Pickers use a locale identity on the control
+itself to refresh AppKit/UIKit's cached options. Do not apply this identity to
+the editor or its model. iOS denoise presets have a separate row so longer
+translations do not compete with the enable switch and reset button.
+Preset and export-size labels sit above their controls to leave full width for
+long option names. macOS batch output uses an icon-only folder action with a
+localized tooltip and accessibility name.
+Localized secondary windows also use a dynamic navigation title.
 
 Android uses an English default `values/strings.xml`, `values-b+zh+Hans` for
 Simplified Chinese and the `values-de/fr/ja/es` resource qualifiers. Use
@@ -67,6 +72,11 @@ It restores the user's original language preference after the test.
 Android has `LanguageChoiceTest` for resolution and `LanguageResourcesTest` for
 actual resource selection. iOS has `EditorUITests.testLanguageSelectionPersists`
 for live switching, restart persistence and return to the system language.
+`testSixLanguageNativePickerAndBatchWalkthrough` checks native exposure,
+white-balance, denoise and export-size options, keeps an exposure edit across
+six live language changes, and exports one batch to Photos. It requires the
+seeded DJI DNG used by the existing editor UI tests and an isolated simulator;
+its final Done action clears the test batch task, not the exported photo.
 Legacy UI tests pin Simplified Chinese independently of the host language.
 
 When devices are shared with other tasks, build Android test APKs with

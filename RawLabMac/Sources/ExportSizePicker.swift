@@ -15,11 +15,13 @@ struct ExportSizePicker: View {
     var body: some View {
         let _ = localizationLocale
         VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.text("导出尺寸")).font(.subheadline)
             Picker(L10n.text("导出尺寸"), selection: Binding(get: { longEdge != nil }, set: { longEdge = $0 ? 2048 : nil })) {
                 Text(L10n.text("原始尺寸")).tag(false)
                 Text(L10n.text("指定长边")).tag(true)
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .id(localizationLocale.identifier)
             if longEdge != nil {
                 HStack(spacing: 8) {

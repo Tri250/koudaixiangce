@@ -55,7 +55,9 @@ DynamicResource、工具/HSL/重置按钮辅助功能文案实时更新，六次
 Android 在本线新建 AVD `rawlab-i18n-api35` 的 `emulator-5584` 上，
 通过显式 `adb -s emulator-5584 install` 和 `am instrument` 执行，
 没有使用会枚举全部设备的 Gradle connected 任务。
-未操作其他任务使用的 `emulator-5582` 或 Android 真机。
+这是最终通过结果的设备边界。早期验证曾使用 `emulator-5582` 和 connected 任务，
+在明确并发设备归属后已停止；不将早期共享设备结果作为最终通过证据。
+后续未再操作该设备或其他任务的 Android 真机；本次 Apple 补充验收也未运行 Android 任务。
 设备回归使用仓库合成 DNG，不修改样片，也不构成真机 GPU 证明；结束后关闭本线模拟器。
 
 ## 评审与失败处理
@@ -74,12 +76,65 @@ Windows 完整 `build.ps1 -Test` 被当前主机脚本执行策略拒绝；
 新增 WPF 回归曾因测试 harness 给 StartupUri 赋 null 失败；
 改为等待真实应用正常启动后，最终 75 项检查通过。
 
+## Apple 补充验收
+
+### iOS 原生控件修正
+
+在 `5081f26` 上实际复现两项失败：切换到中文后，曝光 Picker 的外部标签已更新，
+选中标题及原生菜单仍是英语，测试找不到“标准显影”；德语降噪标题同一行放置开关、
+预设和重置时，“Detailpriorität”被压到约 14 pt 宽、234 pt 高。
+这两次 RED 来自当时的原生 UI 运行；早期 `/tmp` 日志在主机重连后已丢失，
+不把它们列为目前可读取的证据文件。
+
+修正仅给语言、曝光、白平衡、降噪和导出尺寸 Picker 加 locale identity，
+不重建编辑器或模型；降噪预设与其标题分行，开关和重置保持原有 Binding。
+
+补充测试只使用本线 iPhone 17e / iOS 26.4 模拟器
+`52D76F0A-FAE5-4409-9C2C-5C33C2E37AE6`。
+两次组合遍历在原生降噪点击处失败，未作为通过结果：截图中预设已正确翻译且高度约 34 pt，
+但面板滚动与恢复任务横幅共存时，测试点击落入数值输入框。
+最终回归先完成批量任务，再将编辑面板回到顶部并使用控件相对坐标，避免复用过期页面坐标。
+
+最初的完整六语言原生菜单/批量遍历 1/1 通过（355.576 秒）。独立评审随后指出曝光值
+可能为 nil 而绕过保留断言，已改为非空守卫，并增加曝光、白平衡、两种降噪预设及尺寸选择后
+的实际状态断言。补强测试又复现德语“Rauschunterdrückung priorisieren”选中标题高约 74 pt
+的 RED，证据保留在 `ios-picker-batch-verified.log` / `.xcresult`。
+预设标题与菜单进一步分行，给长选项完整宽度；不放宽原有 60 pt 高度断言。
+
+最终 `ios-picker-batch-green`：2/2，0 failures，runner exit 0。
+语言持久化回归与六语言完整遍历均通过；后者运行 446.340 秒。
+覆盖曝光三种原生选项、白平衡两种 segment、降噪 detail/clean 选择值与高度，
+单图及批量导出尺寸原生选项、曝光编辑保留、同一批量任务来源/所选数/2048 尺寸保留。
+西班牙语执行 1 张导出并等待完成；另以只读 Photos 数据库记录和实际 JPEG 文件核验
+本轮 15:35:54 新增的 2048 × 2048 资产，而非只依赖完成摘要。
+测试恢复系统语言，Done 清理本次任务但保留测试照片。
+新增 source、测试和文档经过两位独立评审，已补强的测试缺口回查后无未关闭 must/should。
+
+### macOS 批量界面
+
+使用隔离的 `RawLab I18n Walkthrough.app` 和单独的 Edits/Batch/Looks 目录，
+编译同一提交的生产视图和模型，仅测试入口更换数据目录，避免影响其他应用会话。
+同一任务窗口中完成六语言实时切换，调整来源、配方“滨田英明”100%、曝光 +0.40 EV、
+所选 1 张和输出目录均保持。
+
+合成 DNG 的导出因缺少元数据而失败（`RawLabMac.ExportMetadata.Failure`），
+没有把该次运行算作成功或改动显影逻辑。随后用仓库真实 DJI DNG 作为目标，
+西班牙语界面显示成功 1、失败 0；实际 JPEG 存在，尺寸 3072 × 3072。
+原始 RAW 未修改。完成后恢复隔离应用的系统语言并关闭本线应用。
+
+西班牙语完成页截图复现导出尺寸标签逐字换行、打开文件夹按钮文字与图标重叠的 RED。
+经确认后，仅将导出尺寸标题与 segmented 控件分行，将打开文件夹改为 folder 图标，
+保留翻译 tooltip、辅助功能名称和原动作。新 UI 编译/签名与 `RawLabMac/build.sh` 均通过。
+在同一完成任务上重新切换六语言、检查六张原生截图，标题及图标不再挤压，任务状态保持。
+额外检查德/法/西三种语言的单张保存面板：完整长边控件在 360 × 110 accessory 中可见，
+2048 数值保持；均取消面板，未写入单张导出文件。
+
 ## 未验证与剩余限制
 
 - Windows 完整 C++/CTest、原生 DLL/RAW/GPU、手动桌面/RDP 视觉验收：`NOT REACHED`。
 - Android API 26-32 运行时语言切换：没有设备实测；有版本守卫、解析测试及 lint。
-- iOS 编辑器所有原生 Picker、macOS/iOS 批量导出界面尚未做完整六语言交互遍历。
-  已有资源覆盖、构建及模型检查不替代该项验收。
+- Apple 补充验收覆盖曝光、白平衡、降噪、单张/批量尺寸控件与批量页面，
+  不涵盖全部 Dynamic Type 尺寸、VoiceOver 流程、iPad 或物理 iPhone。
 - Android 批量来源为自定义导入外观时，原有 snapshot 不保存用户显示名，
   查不到内置胶片/配方后仍回退原始 ID；未在本次多语言工作中迁移该持久化结构。
 - 六语言尚未完成母语校对；历史任务日志、已有错误详情、用户数据和底层诊断不重新翻译。
@@ -95,9 +150,23 @@ Windows 完整 `build.ps1 -Test` 被当前主机脚本执行策略拒绝；
 - Windows 托管程序集：`RawLabWindows/bin/Release/net8.0-windows/RawLab.dll`，
   不是包含 native DLL 的完整 Windows 发布包。
 
-主要验证日志保留在临时目录：
+初次交付的主要验证日志当时保留在临时目录：
 `rawlab-i18n-mac-final-build.log`、`rawlab-development-ctest.log`、
 `rawlab-i18n-ios-final-test.log`、`rawlab-i18n-final-language.xcresult`、
 `rawlab-i18n-android-build-final.log`、`rawlab-i18n-android-instrumentation.log`、
 `rawlab-i18n-native-wpf-ui-build.log` 和 `rawlab-i18n-native-wpf-ui-run.log`。
+主机重连后这些临时文件已丢失，以上表格记录当时命令结果，不代表补充验收重新运行所有平台。
+
+补充验收证据位于 worktree 的忽略目录 `build/localization-ui-20261013/`：
+`ios-picker-batch.xcresult` 和 `ios-picker-batch-final.xcresult` 保存未通过的组合运行；
+`ios-picker-batch-stable.log` / `.xcresult` 保存调整后测试；
+`ios-picker-batch-verified.log` / `.xcresult` 保存增加选择断言后复现的德语长预设失败；
+`ios-picker-batch-green.log` / `.xcresult` 保存最终回归；
+`mac-batch-{en,de,fr,ja,zh-Hans,es}.txt` 保存六语言原生任务状态，
+`mac-batch-completed-es.txt` / `.png` 保存实际完成状态。
+`mac-batch-fixed-{en,de,fr,ja,zh-Hans,es}.txt` / `.png` 保存布局修正后的同一完成任务；
+`mac-save-accessory-fixed-{de,fr,es}.txt` / `.png` 保存单图保存面板布局。
+`ios-green-shots/` 保存最终测试截图；`ios-photos-output-assets.json` 和
+`ios-photos-output-file.txt` 保存输出照片的独立核验。
+截图及导出照片仅作本地证据，不提交到仓库。
 PR 的提交 SHA、远端同步及 CI 状态在交付时单独核对。

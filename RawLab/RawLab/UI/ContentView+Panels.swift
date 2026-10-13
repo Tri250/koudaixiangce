@@ -12,6 +12,7 @@ extension ContentView {
                 Picker(L10n.text("语言"), selection: $languagePreference) {
                     ForEach(AppLanguage.allCases) { Text($0.nativeName).tag($0.rawValue) }
                 }
+                .id(localizationLocale.identifier)
             } label: { Image(systemName: "globe") }
                 .accessibilityLabel(L10n.text("语言"))
                 .accessibilityIdentifier("settings.language")
@@ -310,7 +311,7 @@ extension ContentView {
                 if adjustment == .exposure, viewModel.sourceKind == .raw {
                     Picker(L10n.text("曝光基准"), selection: $settings.exposureMode) {
                         ForEach(RawExposureMode.allCases) { Text($0.title).tag($0) }
-                    }.pickerStyle(.menu).accessibilityIdentifier("exposure.mode")
+                    }.pickerStyle(.menu).id(localizationLocale.identifier).accessibilityIdentifier("exposure.mode")
                 }
             }
             .padding(.horizontal, 24)
@@ -332,6 +333,7 @@ extension ContentView {
                 Text(L10n.text("自定义")).tag(RawWhiteBalanceMode.custom)
             }
             .pickerStyle(.segmented)
+            .id(localizationLocale.identifier)
             .disabled(viewModel.rawWhiteBalance == nil)
             .accessibilityIdentifier("whiteBalance.mode")
 
@@ -508,14 +510,18 @@ private struct IOSDenoiseControls: View {
                 Toggle(L10n.text("降噪"), isOn: $settings.enabled).fixedSize()
                     .accessibilityIdentifier("denoise.enabled")
                 Spacer(minLength: 4)
+                Button { settings = RawDenoiseSettings() } label: {
+                    Image(systemName: "arrow.counterclockwise").frame(width: 36, height: 44)
+                }.accessibilityLabel(L10n.text("重置降噪"))
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.text("预设")).font(.subheadline)
                 Picker(L10n.text("预设"), selection: Binding(get: { settings.preset }, set: { settings.apply($0) })) {
                     Text(RawDenoisePreset.detail.title).tag(RawDenoisePreset.detail)
                     Text(RawDenoisePreset.clean.title).tag(RawDenoisePreset.clean)
                     if settings.preset == .custom { Text(L10n.text("自定义")).tag(RawDenoisePreset.custom) }
-                }.pickerStyle(.menu).accessibilityIdentifier("denoise.preset")
-                Button { settings = RawDenoiseSettings() } label: {
-                    Image(systemName: "arrow.counterclockwise").frame(width: 36, height: 44)
-                }.accessibilityLabel(L10n.text("重置降噪"))
+                }.labelsHidden().pickerStyle(.menu).id(localizationLocale.identifier).accessibilityIdentifier("denoise.preset")
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             ForEach(parameters.indices, id: \.self) { index in
                 let parameter = parameters[index]

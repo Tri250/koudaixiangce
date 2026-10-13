@@ -25,6 +25,7 @@ struct ExportSizePicker: View {
                 Text(L10n.text("自定义…")).tag(-1)
             }
             .pickerStyle(.menu)
+            .id(localizationLocale.identifier)
 
             if customSelected {
                 TextField(L10n.text("长边（1–65535 px）"), text: $customText)

@@ -5,7 +5,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @Environment(\.locale) private var localizationLocale
+    @Environment(\.locale) var localizationLocale
     @AppStorage(L10n.preferenceKey) var languagePreference = AppLanguage.system.rawValue
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase

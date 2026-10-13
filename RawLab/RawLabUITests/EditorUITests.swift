@@ -5,6 +5,152 @@ final class EditorUITests: XCTestCase {
     private let seedPhotoBase = "DJI_20250602164503_0444_D"
     private var verifiedSeedPickerIndex: Int?
 
+    func testSixLanguageNativePickerAndBatchWalkthrough() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        importPhoto(in: app)
+        let names = ["简体中文", "English", "Deutsch", "Français", "日本語", "Español"]
+        let copies: [[String]] = [
+            ["语言", "标准显影", "匹配内嵌预览", "传感器基准", "拍摄时", "自定义", "细节优先", "去噪优先", "原始分辨率", "自定义…", "长边 %@ px", "取消", "保存当前照片", "返回", "查看批量任务", "调整来源", "已选 %@ 张 RAW", "导出尺寸", "已保存 %@ 张到照片图库", "完成", "跟随系统"],
+            ["Language", "Standard Development", "Match Embedded Preview", "Sensor Reference", "As Shot", "Custom", "Detail Priority", "Noise Reduction Priority", "Original Resolution", "Custom…", "Long Edge %@ px", "Cancel", "Save Current Photo", "Back", "View Batch Task", "Adjustment Source", "%@ RAW Photos Selected", "Export Size", "%@ Saved to Photos", "Done", "Follow system"],
+            ["Sprache", "Standardentwicklung", "Eingebettete Vorschau abgleichen", "Sensorreferenz", "Wie aufgenommen", "Benutzerdefiniert", "Detailpriorität", "Rauschunterdrückung priorisieren", "Originalauflösung", "Benutzerdefiniert…", "Lange Kante %@ px", "Abbrechen", "Aktuelles Foto sichern", "Zurück", "Stapelauftrag anzeigen", "Anpassungsquelle", "%@ RAW-Fotos ausgewählt", "Exportgröße", "%@ in Fotos gespeichert", "Fertig", "Systemsprache verwenden"],
+            ["Langue", "Développement standard", "Faire correspondre l’aperçu intégré", "Référence du capteur", "Selon la prise", "Personnalisé", "Priorité aux détails", "Priorité à la réduction du bruit", "Résolution originale", "Personnalisé…", "Bord long %@ px", "Annuler", "Enregistrer la photo actuelle", "Retour", "Afficher la tâche par lots", "Source des réglages", "%@ photos RAW sélectionnées", "Taille d’exportation", "%@ enregistrées dans Photos", "Terminé", "Suivre le système"],
+            ["言語", "標準現像", "埋め込みプレビューに一致", "センサー基準", "撮影時", "カスタム", "ディテール優先", "ノイズ低減優先", "元の解像度", "カスタム…", "長辺 %@ px", "キャンセル", "現在の写真を保存", "戻る", "一括タスクを表示", "調整元", "%@枚のRAWを選択", "書き出しサイズ", "写真に%@枚保存しました", "完了", "システムに従う"],
+            ["Idioma", "Revelado estándar", "Coincidir con la vista previa incrustada", "Referencia del sensor", "Según la toma", "Personalizado", "Prioridad al detalle", "Prioridad a la reducción de ruido", "Resolución original", "Personalizado…", "Borde largo %@ px", "Cancelar", "Guardar foto actual", "Volver", "Ver tarea por lotes", "Origen de los ajustes", "%@ fotos RAW seleccionadas", "Tamaño de exportación", "Se guardaron %@ en Fotos", "Listo", "Seguir el sistema"]
+        ]
+        func tapTool(_ id: String) {
+            let button = app.buttons["tool." + id]
+            let strips = app.scrollViews.containing(.button, identifier: "tool." + id).allElementsBoundByIndex
+            guard let strip = strips.min(by: { $0.frame.height < $1.frame.height }) else {
+                XCTFail("Tool strip missing: " + id); return
+            }
+            for _ in 0..<10 {
+                let frame = button.frame
+                if frame.width > 0 && strip.frame.insetBy(dx: 8, dy: 0).contains(CGPoint(x: frame.midX, y: frame.midY)) {
+                    app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+                    return
+                }
+                if frame.midX < strip.frame.midX { strip.swipeRight() } else { strip.swipeLeft() }
+            }
+            XCTFail("Could not reveal tool: " + id)
+        }
+        tapTool("exposure")
+        app.sliders["adjustment.slider"].adjust(toNormalizedSliderPosition: 0.6)
+        guard let exposure = app.buttons["tool.exposure"].value as? String else {
+            XCTFail("Exposure control did not expose its value")
+            return
+        }
+        XCTAssertNotEqual(exposure, "+0.0 EV")
+        var batchCreated = app.buttons["batch.resume"].exists
+        for index in names.indices {
+            let c = copies[index]
+            let language = app.buttons["settings.language"]
+            language.tap()
+            app.buttons[names[index]].tap()
+            expectation(for: NSPredicate { _, _ in language.label == c[0] }, evaluatedWith: app)
+            waitForExpectations(timeout: 10)
+            tapTool("exposure")
+            XCTAssertEqual(app.buttons["tool.exposure"].value as? String, exposure)
+            app.buttons["editor.export"].tap()
+            if batchCreated { app.buttons[c[14]].tap() } else { app.buttons["editor.batchExport"].tap() }
+            XCTAssertTrue(app.buttons["batch.pick"].waitForExistence(timeout: 10), app.debugDescription)
+            if !batchCreated {
+                app.buttons["batch.pick"].tap()
+                let photos = app.images.matching(identifier: "PXGGridLayout-Info")
+                XCTAssertTrue(photos.firstMatch.waitForExistence(timeout: 15), app.debugDescription)
+                guard let chosen = verifiedSeedPickerIndex else { XCTFail("Seed photo index missing"); return }
+                photos.element(boundBy: chosen).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                let add = app.buttons["Add"]
+                XCTAssertTrue(add.waitForExistence(timeout: 5), app.debugDescription)
+                add.tap()
+                expectation(for: NSPredicate { _, _ in app.buttons["batch.export"].isEnabled }, evaluatedWith: app)
+                waitForExpectations(timeout: 90)
+                batchCreated = true
+            }
+            XCTAssertTrue(app.staticTexts[c[15]].exists, app.debugDescription)
+            let selected = c[16].replacingOccurrences(of: "%@", with: "1")
+            XCTAssertTrue(app.staticTexts[selected].exists, app.debugDescription)
+            XCTAssertTrue(app.staticTexts[seedPhotoBase + ".DNG"].firstMatch.exists, app.debugDescription)
+            let scroll = app.scrollViews.allElementsBoundByIndex.max(by: { $0.frame.height < $1.frame.height })!
+            scroll.swipeUp()
+            let batchSize = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", c[17])).firstMatch
+            XCTAssertTrue(batchSize.waitForExistence(timeout: 5), app.debugDescription)
+            if index > 0 { XCTAssertTrue(batchSize.label.contains("2048"), batchSize.label) }
+            batchSize.tap()
+            XCTAssertTrue(app.buttons[c[8]].exists && app.buttons[c[9]].exists, app.debugDescription)
+            capture("extra-" + names[index] + "-batch-picker")
+            let edge = c[10].replacingOccurrences(of: "%@", with: "2048")
+            app.buttons[edge].tap()
+            capture("extra-" + names[index] + "-batch-state")
+            if index == names.count - 1 {
+                app.buttons["batch.export"].tap()
+                let saved = c[18].replacingOccurrences(of: "%@", with: "1")
+                XCTAssertTrue(app.staticTexts[saved].waitForExistence(timeout: 180), app.debugDescription)
+                capture("extra-batch-completed-spanish")
+                app.buttons[c[19]].tap()
+            } else { app.buttons[c[13]].tap() }
+            XCTAssertEqual(app.buttons["tool.exposure"].value as? String, exposure)
+        }
+
+        // 先完成批量任务，避免恢复任务横幅改变编辑控件的位置。
+        for index in names.indices {
+            let c = copies[index]
+            app.buttons["settings.language"].tap()
+            app.buttons[names[index]].tap()
+            XCTAssertEqual(app.buttons["settings.language"].label, c[0])
+            tapTool("exposure")
+            XCTAssertEqual(app.buttons["tool.exposure"].value as? String, exposure)
+            let mode = app.buttons["exposure.mode"]
+            XCTAssertTrue(mode.waitForExistence(timeout: 5), app.debugDescription)
+            mode.tap()
+            for option in c[1...3] { XCTAssertTrue(app.buttons[option].exists, app.debugDescription) }
+            capture("extra-" + names[index] + "-exposure-picker")
+            app.buttons[c[1]].tap()
+            XCTAssertTrue(mode.label.contains(c[1]), mode.label)
+
+            tapTool("temperature")
+            let wb = app.segmentedControls["whiteBalance.mode"]
+            XCTAssertTrue(wb.waitForExistence(timeout: 5), app.debugDescription)
+            XCTAssertTrue(wb.buttons[c[4]].exists && wb.buttons[c[5]].exists, app.debugDescription)
+            wb.buttons[c[5]].tap()
+            XCTAssertTrue(wb.buttons[c[5]].isSelected)
+            wb.buttons[c[4]].tap()
+            XCTAssertTrue(wb.buttons[c[4]].isSelected)
+            tapTool("noiseReduction")
+            app.scrollViews["editor.panel"].swipeDown()
+            let preset = app.buttons["denoise.preset"]
+            XCTAssertTrue(preset.waitForExistence(timeout: 5), app.debugDescription)
+            XCTAssertLessThanOrEqual(preset.frame.height, 60, preset.debugDescription)
+            capture("extra-" + names[index] + "-denoise-layout")
+            preset.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            XCTAssertTrue(app.buttons[c[6]].exists && app.buttons[c[7]].exists, app.debugDescription)
+            capture("extra-" + names[index] + "-denoise-picker")
+            app.buttons[c[7]].tap()
+            XCTAssertTrue(preset.label.contains(c[7]), preset.label)
+            XCTAssertLessThanOrEqual(preset.frame.height, 60, preset.debugDescription)
+            preset.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            app.buttons[c[6]].tap()
+            XCTAssertTrue(preset.label.contains(c[6]), preset.label)
+
+            app.buttons["editor.export"].tap()
+            app.buttons[c[12]].tap()
+            let exportSize = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", c[17])).firstMatch
+            XCTAssertTrue(exportSize.waitForExistence(timeout: 5), app.debugDescription)
+            exportSize.tap()
+            XCTAssertTrue(app.buttons[c[8]].exists && app.buttons[c[9]].exists, app.debugDescription)
+            let edge = c[10].replacingOccurrences(of: "%@", with: "2048")
+            XCTAssertTrue(app.buttons[edge].exists, app.debugDescription)
+            capture("extra-" + names[index] + "-export-picker")
+            app.buttons[edge].tap()
+            XCTAssertTrue(exportSize.label.contains("2048"), exportSize.label)
+            app.buttons[c[11]].tap()
+
+            XCTAssertEqual(app.buttons["tool.exposure"].value as? String, exposure)
+        }
+        app.buttons["settings.language"].tap()
+        app.buttons[copies.last![20]].tap()
+    }
     func testLanguageSelectionPersists() {
         let app = XCUIApplication()
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]

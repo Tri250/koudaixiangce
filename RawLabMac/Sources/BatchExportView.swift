@@ -165,7 +165,8 @@ struct BatchExportView: View {
                     if model.job.started || model.discardDraft() { dismissWindow(id: "batch-export") }
                 }.disabled(model.validating)
                 if model.job.succeededCount > 0 {
-                    Button { model.reveal() } label: { Label(L10n.text("打开文件夹"), systemImage: "folder") }
+                    Button { model.reveal() } label: { Image(systemName: "folder") }
+                        .help(L10n.text("打开文件夹")).accessibilityLabel(L10n.text("打开文件夹"))
                 }
                 if !model.job.started {
                     Button(L10n.format("导出 %@ 张", String(describing: model.job.selectedCount))) { model.start() }
