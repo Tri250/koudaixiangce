@@ -340,6 +340,14 @@ notice files, and `core_tests.cpp` retain both JPEG XL decoding and rendered-DNG
 writing. Both sets of C ABI error/output assertions remain. The installation
 documents from `78f5d84` are unchanged from the target.
 
+The later documentation-only target `261b9323bea13f562bcfee7db736fcf1728704f5`
+is merged normally after these code gates. Its 126 changed paths are Markdown;
+the two client README conflicts retain rendered-DNG descriptions and updated
+archive links. The non-Markdown code manifest is identical to the verified
+`e30660b` integration commit, so the platform gates are not rerun for that
+documentation advance. The release tracker remains its explicitly dated
+preparation snapshot, not a claim that all five feature branches are integrated.
+
 The combined static core introduced a real Swift test-link regression:
 `batch-export.sh` and `rendered-dng.sh` failed with an undefined `dng_host`
 constructor. All 21 existing native Swift link commands now include the SDK

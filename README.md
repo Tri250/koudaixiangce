@@ -59,6 +59,7 @@ film looks do not promise an exact match to in-camera JPEGs.
 
 ## Downloads and Documentation
 
+- [Documentation index](docs/README.md)
 - [Download the latest release](https://github.com/dancancer/RawLab/releases/latest)
 - [v0.6.0 release notes (build 10)](docs/releases/v0.6.0.md)
 - [Installation and distribution notes](docs/installation.md)
