@@ -43,12 +43,13 @@ class UpdateViewModel @JvmOverloads constructor(
         if (state.value.status == UpdateStatus.CHECKING || !UpdateRelease.shouldCheck(manual,
                 state.value.automatic, preferences.getLong("lastAttempt", 0), System.currentTimeMillis() / 1000)) return
         mutableState.value = mutableState.value.copy(status = UpdateStatus.CHECKING)
-        preferences.edit().putLong("lastAttempt", System.currentTimeMillis() / 1000).apply()
         viewModelScope.launch {
             try {
                 val body = withContext(Dispatchers.IO) { fetch() }
                 val release = parseRelease(body, currentVersion)
-                preferences.edit().putString("cachedRelease", body).apply()
+                // 仅在成功获取后记录检查时间：失败不占用 24 小时窗口，下次启动会自动重试。
+                preferences.edit().putLong("lastAttempt", System.currentTimeMillis() / 1000)
+                    .putString("cachedRelease", body).apply()
                 mutableState.value = mutableState.value.copy(available = release,
                     status = if (release == null) UpdateStatus.CURRENT else UpdateStatus.AVAILABLE)
             } catch (cancelled: CancellationException) {
