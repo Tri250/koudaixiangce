@@ -35,6 +35,7 @@ RawLab 用于显影相机 RAW 文件、应用兼容的富士胶片模拟 LUT 和
 
 ## 下载与文档
 
+- [文档索引](README.md)
 - [下载最新版本](https://github.com/dancancer/RawLab/releases/latest)
 - [v0.6.0 发布说明（构建 10）](releases/v0.6.0.md)
 - [安装与分发说明](installation.md)
