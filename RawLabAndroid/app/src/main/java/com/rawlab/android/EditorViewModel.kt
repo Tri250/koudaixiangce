@@ -251,7 +251,12 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun importPhoto(uri: Uri?) {
-        if (uri == null || mutable.value.operation != Operation.NONE) return
+        if (uri == null) return
+        // 渲染/导出进行中不丢弃用户选择，给出明确反馈避免"点了没反应"。
+        if (mutable.value.operation != Operation.NONE) {
+            mutable.value = mutable.value.copy(message = text(R.string.busy_message))
+            return
+        }
         val current = mutable.value
         if (current.photo != null && persist(current.photo, current.edits) == EditSaveState.FAILED) {
             mutable.value = current.copy(saveState = EditSaveState.FAILED, error = text(R.string.edit_storage_error))

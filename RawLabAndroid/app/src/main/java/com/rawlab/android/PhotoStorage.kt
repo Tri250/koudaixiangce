@@ -12,7 +12,6 @@ import android.provider.OpenableColumns
 import android.util.Size
 import java.io.File
 import java.io.IOException
-import java.io.PushbackInputStream
 import java.util.UUID
 
 data class AlbumPhoto(val uri: Uri, val name: String, val album: String,
@@ -38,11 +37,6 @@ class PhotoStorage(
     private val resolver = context.contentResolver
     private val directory = File(context.cacheDir, "rawlab-${UUID.randomUUID()}")
     private val lookLibrary = LookLibrary(looksDirectory, lookValidator)
-
-    private companion object {
-        // 魔数嗅探只需文件头几十字节。
-        const val HEADER_BYTES = 32
-    }
 
     fun album(): List<AlbumPhoto> {
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
@@ -89,24 +83,16 @@ class PhotoStorage(
         val stream = resolver.openInputStream(uri)
             ?: throw ImportException(context.getString(R.string.import_unreadable, name))
         stream.use { input ->
-            // 先读文件头：扩展名/MIME 认不出时按魔数兜底，避免误拒有效 RAW。
-            val buffered = PushbackInputStream(input, HEADER_BYTES)
-            val header = ByteArray(HEADER_BYTES)
-            var length = 0
-            while (length < header.size) {
-                val read = runCatching { buffered.read(header, length, header.size - length) }.getOrNull() ?: -1
-                if (read < 0) break
-                length += read
-            }
-            if (length == 0) throw ImportException(context.getString(R.string.import_unreadable, name))
-            if (!RawFiles.accepts(name, mime)) when (RawFiles.sniff(header, length)) {
+            // 读文件头判定类型：扩展名/MIME 认不出时按魔数兜底，避免误拒有效 RAW。
+            val probe = RawFiles.probe(input)
+            if (probe.length == 0) throw ImportException(context.getString(R.string.import_unreadable, name))
+            when (RawFiles.classify(name, mime, probe.header, probe.length)) {
                 RawFiles.FileKind.RAW -> Unit
                 RawFiles.FileKind.STILL_IMAGE -> throw ImportException(context.getString(R.string.import_still_image, name))
                 RawFiles.FileKind.UNKNOWN -> throw ImportException(context.getString(R.string.import_not_raw, name))
             }
-            buffered.unread(header, 0, length)
             val file = try {
-                WorkingCopy.import(directory, buffered)
+                WorkingCopy.import(directory, probe.stream)
             } catch (error: IOException) {
                 throw ImportException(context.getString(R.string.import_unreadable, name), error)
             }

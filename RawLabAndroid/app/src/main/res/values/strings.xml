@@ -102,6 +102,7 @@
     <string name="import_not_raw">无法导入「%1$s」：不是支持的 RAW 格式（DNG、ARW、CR2/CR3、NEF、RAF、ORF、RW2 等）</string>
     <string name="import_still_image">无法导入「%1$s」：这是普通照片（JPEG/HEIC/PNG），不是 RAW 文件</string>
     <string name="import_unreadable">无法读取「%1$s」：文件可能已被移动或删除，云端照片请先下载到本机</string>
+    <string name="busy_message">正在处理当前任务，完成后请重新选择照片</string>
     <string name="retry">重试</string>
     <string name="cancel">取消</string>
     <string name="save_album">保存到相册</string>

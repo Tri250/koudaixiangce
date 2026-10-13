@@ -396,11 +396,22 @@ class BatchExportModel(
     private fun copyTarget(uri: Uri): BatchTarget {
         val identity = PhotoIdentity(uri.toString())
         val name = displayName(uri)
-        if (!RawFiles.accepts(name, resolver.getType(uri))) throw IOException("不是受支持的 RAW 文件")
+        // 与单张导入一致的校验：扩展名/MIME 认不出时按魔数兜底，避免误拒有效 RAW。
+        val mime = runCatching { resolver.getType(uri) }.getOrNull()
         val destination = inputFile(mutable.value.job.id, identity, name)
         if (!destination.exists()) {
-            val input = resolver.openInputStream(uri) ?: throw IOException("无法读取文件")
-            try { input.use { source -> destination.outputStream().use { source.copyTo(it) } }
+            val input = resolver.openInputStream(uri) ?: throw IOException(context.getString(R.string.import_unreadable, name))
+            try {
+                input.use { source ->
+                    val probe = RawFiles.probe(source)
+                    if (probe.length == 0) throw IOException(context.getString(R.string.import_unreadable, name))
+                    when (RawFiles.classify(name, mime, probe.header, probe.length)) {
+                        RawFiles.FileKind.RAW -> Unit
+                        RawFiles.FileKind.STILL_IMAGE -> throw IOException(context.getString(R.string.import_still_image, name))
+                        RawFiles.FileKind.UNKNOWN -> throw IOException(context.getString(R.string.import_not_raw, name))
+                    }
+                    destination.outputStream().use { probe.stream.copyTo(it) }
+                }
                 NativeProcessor().use { it.preview(destination, null, EditSettings(), 256, false) }
             } catch (error: Exception) { destination.delete(); throw error }
         }
