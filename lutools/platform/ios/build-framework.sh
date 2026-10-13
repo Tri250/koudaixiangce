@@ -5,6 +5,7 @@ BASE="$ROOT/build-ios-libraw/0.22.2"
 SOURCES="$BASE/sources"
 DEPLOYMENT_TARGET="${IOS_DEPLOYMENT_TARGET:-18.0}"
 JOBS="${JOBS:-6}"
+CMAKE_EXTRA_ARGS=("$@")
 export DEVELOPER_DIR="${DEVELOPER_DIR:-$(xcode-select -p)}"
 mkdir -p "$SOURCES" "$ROOT/build-ios"
 
@@ -54,8 +55,9 @@ for config in iphoneos-arm64 iphonesimulator-arm64 iphonesimulator-x86_64; do
         "$sysroot" "$zlib_version" > "$prefix/lib/pkgconfig/zlib.pc"
     core="$BASE/core-$config"
     PKG_CONFIG_LIBDIR="$prefix/lib/pkgconfig" PKG_CONFIG_PATH="$prefix/lib/pkgconfig" \
-        cmake -S "$ROOT" -B "$core" -GXcode "${common[@]}" \
+        cmake -S "$ROOT" -B "$core" -GXcode "${common[@]}" "${CMAKE_EXTRA_ARGS[@]}" \
         -DIOS=ON -DBUILD_SHARED_LIB=ON -DBUILD_CLI=OFF -DBUILD_TESTING=OFF \
+        -DSONY2FUJI_ENABLE_LENSFUN=ON -DSONY2FUJI_BUILD_LENS_DEPS=ON \
         -DSONY2FUJI_ENABLE_OPENMP=OFF -DSONY2FUJI_ENABLE_GPU=ON \
         -DSONY2FUJI_ENABLE_WAVELET_DENOISE=ON -DSONY2FUJI_ENABLE_CHROMA_DENOISE=ON -DSONY2FUJI_BUILD_DENOISE_DEPS=ON \
         -DFETCHCONTENT_SOURCE_DIR_RAWLAB_OPENCV_CONTRIB="$SOURCES/opencv_contrib-4.12.0" \
@@ -77,6 +79,8 @@ for config in iphoneos-arm64 iphonesimulator-arm64 iphonesimulator-x86_64; do
     cp "$ROOT/../RawLabMac/Resources/Licenses/stb-MIT-LICENSE.txt" "$framework/Licenses/"
     cp "$ROOT/platform/ios/ThirdPartyNotices.md" "$framework/Licenses/"
     cp "$core/licenses/OpenCV-LICENSE" "$core/licenses/wavelib-COPYRIGHT" "$framework/Licenses/"
+    cp -R "$core/licenses/lensfun" "$framework/Licenses/"
+    cp -R "$ROOT/third_party/lensfun/version_1" "$framework/Lensfun"
 done
 
 stage="$(mktemp -d "$ROOT/build-ios/package.XXXXXX")"

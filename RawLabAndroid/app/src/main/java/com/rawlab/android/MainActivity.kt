@@ -162,8 +162,12 @@ private fun LicenseDialog(onClose: () -> Unit) {
     val context = LocalContext.current
     val notices by produceState("") {
         value = withContext(Dispatchers.IO) {
-            context.assets.list("licenses").orEmpty().joinToString("\n\n") { name ->
-                name + "\n" + context.assets.open("licenses/$name").bufferedReader().use { it.readText() }
+            fun files(path: String): List<String> {
+                val children = context.assets.list(path).orEmpty()
+                return if (children.isEmpty()) listOf(path) else children.sorted().flatMap { files("$path/$it") }
+            }
+            files("licenses").joinToString("\n\n") { path ->
+                path.removePrefix("licenses/") + "\n" + context.assets.open(path).bufferedReader().use { it.readText() }
             }
         }
     }

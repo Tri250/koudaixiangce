@@ -37,6 +37,7 @@ public partial class BatchExportWindow : Window
         ready = true; Refresh();
         AllSettings.Text += $"\n降噪  {(state.Denoise.Enabled ? "开启" : "关闭")}\n亮度降噪  {state.Denoise.Luma:F0}\n色彩降噪  {state.Denoise.Chroma:F0}\n粗颗粒降噪  {state.Denoise.Coarse:F0}";
         var effects = state.Effects;
+        AllSettings.Text += $"\n镜头匹配  {(state.Lens.Manual ? "手动配置" : "按每张照片自动匹配")}\n畸变矫正  {(state.Lens.Distortion ? "开启" : "关闭")}\n横向色差  {(state.Lens.Tca ? "开启" : "关闭")}\n自动裁边  {(state.Lens.AutoCrop ? "开启" : "关闭")}";
         var chroma = state.DisplayChromaDenoise switch { 1 => "细节优先", 2 => "去噪优先", _ => "关闭" };
         AllSettings.Text += $"\n显示色彩降噪  {chroma}\n暗角  强度 {effects.VignetteAmount:+0;-0;0} · 中点 {effects.VignetteMidpoint:0} · 圆度 {effects.VignetteRoundness:+0;-0;0} · 羽化 {effects.VignetteFeather:0} · 高光保护 {effects.VignetteHighlights:0}\n颗粒  强度 {effects.GrainAmount:0} · 大小 {effects.GrainSize:0} · 粗糙度 {effects.GrainRoughness:0}";
         Loaded += async (_, _) => {

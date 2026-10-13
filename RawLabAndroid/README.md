@@ -1,4 +1,7 @@
 # RawLab Android
+镜头校正与共享核心一致，支持畸变、横向色差、自动/手动匹配及自动裁边，配置接入逐照片记忆和批量任务。离线数据库、依赖和功能边界见[跨平台说明](../docs/lens-correction-platforms.md)。
+源依赖构建当前支持 macOS/Linux 主机，需要 Python 3.11+、POSIX shell 和 make。Windows 主机的 GNU libiconv 交叉构建尚未支持；不要将 Windows 托管检查当作 Android 原生构建通过。
+
 
 真实 RAW 仪器测试使用外部样片：设置 `RAWLAB_TEST_RAW` 或传入
 `-PrawlabTestRaw=/path/to/photo.ARW`。构建时仅复制到测试 APK 的 `sample.RAW`；

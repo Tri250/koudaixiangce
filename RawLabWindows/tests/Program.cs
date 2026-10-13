@@ -35,6 +35,7 @@ static class Program
     {
         try
         {
+            if(args.Length==3 && args[0]=="--lens") { LensChecks.Run(args[1],args[2],Check);return 0; }
             if(args.Length==3 && args[0]=="--master-recipes") { MasterRecipeChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--photo-features") { PhotoFeatureChecks.Run(args[1],args[2]);return 0; }
             if(args.Length==3 && args[0]=="--denoise") { DenoiseChecks.Run(args[1],args[2]);return 0; }
@@ -70,6 +71,7 @@ static class Program
             ComparisonChecks.Run(Check);
             if(args.Length<2)throw new ArgumentException("Supply repository root and an external RAW fixture path.");
             var raw=Path.GetFullPath(args[1]);
+            if(!args.Contains("--ui-only")) LensChecks.Run(repo,raw,Check);
             var film=Path.Combine(repo,"lutools","flog-2-new","FLog2_to_PROVIA_65grid_V.1.00.cube");
             var unicodeDir=Path.Combine(output,"中文目录");Directory.CreateDirectory(unicodeDir);
             var unicodeRaw=Path.Combine(unicodeDir,"照片.ARW");var unicodeLut=Path.Combine(unicodeDir,"胶片.cube");File.Copy(raw,unicodeRaw,true);File.Copy(film,unicodeLut,true);

@@ -181,6 +181,65 @@ and `native_dcp_metal` cover pipeline/backend contracts. Mac
 `photo-effects-render.sh RAW LUT wavelet|chroma` tests real RAW CPU/Metal parity,
 combined effects, stable exact/interactive rendering and JPEG/16-bit PNG export.
 
+### Profile-Based Lens Correction
+
+Optional Lensfun 0.3.4 correction runs after LibRaw demosaic/highlight handling
+but before `rgb_cam` mixes camera channels. Distortion and lateral chromatic
+aberration (TCA) share one inverse-coordinate sampling pass. Bilinear sampling
+preserves float values through the existing camera matrix and exposure baseline;
+WB remains before demosaic. Lensfun supplies coordinates, not the pixel sampler.
+The existing GPU photo pipelines receive corrected working RGB; lens sampling
+itself remains on CPU, like RAW decoding.
+
+`sony2fuji_session_set_lens_correction` uses a versioned configuration without
+changing request v2. Both corrections default off, an exact no-resampling bypass.
+NULL/empty profile ID means automatic matching for each input, never a remembered
+resolved lens from another photograph. Multiple matches are reported as ambiguous
+and skipped. Manual IDs come from the metadata-only catalog API. Missing camera
+crop information, focal length or requested calibration is reported; absent
+corrections do not silently become a different algorithm. Four-channel camera
+data can use common distortion, but not three-channel TCA.
+
+Known cameras receive a mount-compatible catalog; unknown/ambiguous cameras
+receive the full catalog for manual selection, but correction still requires
+usable sensor crop information. Inspection reports eligibility for the current
+switches; only the post-render report records applied correction and crop scale.
+
+Auto crop defaults on and finds an inscribed zoom covering the full image
+perimeter for all three channel maps. Output dimensions and aspect ratio stay
+unchanged; field of view decreases. With auto crop off, samples outside the active
+image become black, not edge smears or unchecked array accesses. Orientation is
+applied once, using unrotated active-image coordinates. Interactive half-size
+processing constructs the map at its actual dimensions; an approximate result
+cannot serve exact/file requests. Correction switches, manual ID and database
+revision join the decoded RAW cache key, so downstream denoise/GPU caches cannot
+reuse another lens configuration.
+
+The camera-WB exposure anchor in preview-matching mode uses the same lens
+configuration/database identity. Changing the profile or crop settings while
+using temperature WB must recompute that anchor, not reuse an uncorrected one.
+The RAW lens report is cached with its pixels and restored on RAW cache hits,
+including after the session processes a display buffer.
+
+`sony2fuji_session_set_lens_database` explicitly loads an offline DB1 XML file or
+directory. Failed loads preserve existing session state. Builds without Lensfun
+retain the new C symbols and old request layout, accept disabled configuration,
+and reject enabling it with UNSUPPORTED. macOS bundles the unmodified DB snapshot
+and dependency notices. JPEG/display buffer inputs are not treated as camera
+channels; they remain unchanged and report unsupported lens input.
+
+The current JXL DNG SDK path conservatively skips additional lens correction
+when successful unpack reports `LIBRAW_WARN_DNG_STAGE3_APPLIED`. This records
+actual SDK processing, not merely presence of an opcode list; it does not claim
+that every Stage3 list contains a geometry warp. Metadata-only inspection does
+not claim to have applied SDK operations. Manufacturer-specific embedded lens
+models outside that path are not implemented. Defringe, axial CA correction,
+profile vignetting, perspective correction and Adobe rendering equivalence are
+outside this feature.
+
+References: [Lensfun architecture](https://lensfun.github.io/manual/latest/basearch.html)
+and [stable combined-coordinate API](https://github.com/lensfun/lensfun/blob/v0.3.4/include/lensfun/lensfun.h.in).
+
 ## LUT Contracts
 
 The generic CUBE library implements standard R-fast storage, DOMAIN_MIN/MAX, float outputs and trilinear interpolation. It does not clamp table values. CPU and GPU normalize the same input domain.

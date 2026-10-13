@@ -111,6 +111,11 @@ struct BatchExportView: View {
                     settingRow("颗粒强度", value: String(format: "%.0f", effects.grainAmount))
                     settingRow("颗粒大小", value: String(format: "%.0f", effects.grainSize))
                     settingRow("颗粒粗糙度", value: String(format: "%.0f", effects.grainRoughness))
+                    let lens = model.job.source.settings.lensSettings
+                    settingRow("镜头匹配", value: lens.mode == .automatic ? "按每张照片自动匹配" : "手动配置")
+                    settingRow("畸变矫正", value: lens.distortion ? "开启" : "关闭")
+                    settingRow("横向色差", value: lens.tca ? "开启" : "关闭")
+                    settingRow("自动裁边", value: lens.autoCrop ? "开启" : "关闭")
                 }
             }.padding(.vertical, 16).accessibilityIdentifier("batch.settings")
         }.padding(.horizontal, 20)

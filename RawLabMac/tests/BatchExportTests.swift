@@ -22,6 +22,7 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         var hsl = HSLSettings()
         hsl.set(.saturation, channel: 5, value: -65)
         settings.hsl = hsl
+        settings.lensCorrection = LensCorrectionSettings(distortion: true, tca: true)
         var job = BatchExportJob(source: inputs[0], settings: settings, look: nil, lookName: "Velvia")
         job.longEdge = 2048
         let encodedJob = try JSONEncoder().encode(job)
@@ -77,11 +78,14 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         settings.exposure = -1
         settings.hsl = nil
         settings.exposureMode = .scene
+        settings.lensCorrection = LensCorrectionSettings(distortion: true, mode: .manual, profileID: "live-profile")
         let journal = BatchJournal(directory: root.appendingPathComponent("journal"))
         var calls: [String] = []
         try BatchExportRunner.run(job: &job, journal: journal, scope: .unfinished, shouldCancel: { false }) { input, snapshot, _, destination in
             calls.append(input.lastPathComponent)
             try check(snapshot.exposure == 0.75, "snapshot must not follow live edits")
+            try check(snapshot.lensSettings == LensCorrectionSettings(distortion: true, tca: true) && snapshot.lensSettings.coreProfileID.isEmpty,
+                      "batch freezes automatic mode, not a resolved source lens")
             try check(snapshot.waveletSettings == WaveletDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100), "batch keeps frozen denoise settings")
             try check(snapshot.hslSettings == hsl && snapshot.exposureMode == .sensor, "batch keeps frozen HSL and exposure baseline")
             if input == inputs[1] { throw Failure(message: "invalid RAW") }

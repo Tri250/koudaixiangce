@@ -28,6 +28,15 @@ See `rawspeed-camera-calibration.inc`. Changes are extraction into LibRaw table
 syntax while retaining metadata-derived black/white levels. No RawSpeed decoder
 code is linked.
 
+Lens correction statically links Lensfun 0.3.4, GLib 2.84.4, PCRE2 10.44 and
+proxy-libintl. Their license texts and the offline DB1 (2026-10-12) database
+attribution are in `Licenses/lensfun`. Lensfun is LGPL-3.0-or-later; GLib is
+LGPL-2.1-or-later; PCRE2 uses its BSD license; proxy-libintl uses LGPL-2.0-or-later.
+The database is CC BY-SA 3.0, not the library license. Pinned source URLs/hashes
+are in `lutools/cmake/lens-dependencies.json`. The source-build script adjusts
+GLib's pipe2 declaration probe for the iOS 18 deployment target; the lens library
+and database are unmodified. PCRE2 JIT is disabled. No extra runtime dylibs ship.
+
 The white-balance temperature model includes Adobe DNG SDK-derived code;
 see Adobe-DNG-SDK-LICENSE.txt. Embedded stb image decoding/encoding uses its
 MIT license option; see stb-MIT-LICENSE.txt. System zlib,

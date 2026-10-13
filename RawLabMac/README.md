@@ -15,6 +15,8 @@ v0.5.0 新增逐照片本机调整记忆和“使用当前调整批量导出”�
 The left pane is the neutral render and the right pane is Velvia. Film selection and exposure, tone, color, white balance and sharpening controls are grouped at the bottom.
 
 ## 构建和启动 / Build and Launch
+镜头工具提供独立的畸变矫正、横向色差校正、自动/手动匹配和自动裁边，默认关闭校正。配置随逐照片编辑保存，批量自动模式逐张匹配；中性对照不校正。离线数据库、依赖和功能边界见[跨平台说明](../docs/lens-correction-platforms.md)。紫绿去边暂未实现。
+
 
 v0.6.0 构建 10 提供 14 个优化后的大师配方、八色 HSL 与一键自动曝光。应用配方覆盖六项调色及全部 HSL；0-200% 强度一起缩放当前调整与 LUT，保存和批量导出保留手动改动。配方以风格图片、下方名称和较弱说明呈现；胶片和配方列表仅在溢出时显示左右滚动按钮。详细更新见[发布说明](../docs/releases/v0.6.0.md)和[发布验收](../docs/verification-v0.6.0.md)。
 

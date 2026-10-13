@@ -13,6 +13,23 @@ and ad-hoc code signatures. LibRaw also includes the source patches described be
 | libjpeg-turbo | 3.1.3 | https://github.com/libjpeg-turbo/libjpeg-turbo/tree/3.1.3 | libjpeg-turbo-LICENSE.md, libjpeg-turbo-README.ijg |
 | Little CMS | 2.17 | https://github.com/mm2/Little-CMS/tree/lcms2.17 | Little-CMS-LICENSE |
 | OpenCV / opencv_contrib | 4.12.0 | https://github.com/opencv/opencv/tree/4.12.0 and https://github.com/opencv/opencv_contrib/tree/4.12.0 | OpenCV/ directory |
+| Lensfun library | 0.3.4 | https://github.com/lensfun/lensfun/tree/v0.3.4 | Lensfun/lgpl-3.0.txt, Lensfun/UPSTREAM-README.md |
+| Lensfun database | DB1 snapshot, 2026-10-12 | https://lensfun.github.io/ | Lensfun/database-CC-BY-SA-3.0.txt, Lensfun/README.md |
+| GLib | 2.84.3 in the verified arm64 bundle | https://github.com/GNOME/glib/tree/2.84.3 | GLib-COPYING |
+| GNU gettext libintl | 0.25 in the verified arm64 bundle | https://ftp.gnu.org/gnu/gettext/ | Gettext-COPYING.LIB |
+| PCRE2 | 10.45 in the verified arm64 bundle | https://github.com/PCRE2Project/pcre2/tree/pcre2-10.45 | PCRE2-LICENCE |
+
+Lensfun is built unmodified from a checksum-pinned source archive using
+`RawLabMac/build-lens-dependency.sh`, without Python tools, lenstool or libpng.
+The library is LGPL-3.0; the unmodified offline database is CC BY-SA 3.0 and
+remains separate from RawLab code. Lensfun database authors/contributors retain
+their rights; the project and calibration contribution service are at
+https://lensfun.github.io/. Database provenance is retained in Lensfun/README.md.
+GLib and libintl retain LGPL-2.1-or-later terms; PCRE2 retains its original BSD
+license and PCRE2 exception. Their source releases are available at
+https://download.gnome.org/sources/glib/2.84/,
+https://ftp.gnu.org/gnu/gettext/, and
+https://github.com/PCRE2Project/pcre2/releases/tag/pcre2-10.45.
 
 The optional display-chroma filter uses OpenCV core, imgproc and ximgproc,
 with their transitive modules. Pinned source archives and build options are in

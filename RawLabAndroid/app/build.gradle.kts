@@ -24,6 +24,9 @@ val prepareAssets by tasks.registering(Sync::class) {
     from(repo.resolve("RawLabMac/Resources/MasterRecipes")) { into("MasterRecipes"); include("*.cube") }
     from(repo.resolve("RawLabMac/Resources/MasterRecipeIcons")) { into("MasterRecipeIcons"); include("*.png") }
     from(repo.resolve("RawLabMac/Resources")) { include("AppIcon.png") }
+    from(repo.resolve("lutools/third_party/lensfun/version_1")) { into("Lensfun"); include("*.xml") }
+    from(repo.resolve("lutools/third_party/lensfun")) { into("licenses/lensfun"); include("*.txt", "*.md") }
+    from(repo.resolve("lutools/third_party/lensfun/dependency-licenses")) { into("licenses/lensfun"); include("*.txt") }
     from(repo.resolve("lutools/third_party")) { into("licenses"); include("*LICENSE*") }
     from(repo.resolve("RawLabMac/Resources/Licenses")) {
         into("licenses"); include("LibRaw-COPYRIGHT", "LibRaw-LICENSE.*", "stb-MIT-LICENSE.txt")

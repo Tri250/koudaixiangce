@@ -27,6 +27,7 @@ struct BatchExportTests {
         settings.photoEffects.grainSize = 60
         settings.exposureMode = .sensor
         settings.hsl.set(.hue, channel: 3, value: 32)
+        settings.lensCorrection = LensCorrectionSettings(distortion: true, tca: true)
         let source = BatchSourceSnapshot(identity: PhotoIdentity(resourceIdentifier: "source"),
                                           sourceURL: sourceURL, displayName: "source.ARW", settings: settings)
         let targets = (1...6).map { index in
@@ -41,6 +42,9 @@ struct BatchExportTests {
         let reopenedJob = try journal.load(id: job.id)
         let pendingJobs = try journal.pendingJobs()
         check(reopenedJob?.targets.count == 6, "journal round-trips the selected rows")
+        check(reopenedJob?.source.settings.lensCorrection == settings.lensCorrection &&
+              reopenedJob?.source.settings.lensSettings.coreProfileID.isEmpty == true,
+              "batch freezes automatic lens settings, not a resolved source lens")
         check(reopenedJob?.source.settings.masterRecipeID == settings.masterRecipeID && reopenedJob?.source.settings.lutStrength == 0.5,
               "journal freezes master recipe identity and strength without reinjecting defaults")
         check(reopenedJob?.longEdge == 3000, "journal freezes the selected export long edge")

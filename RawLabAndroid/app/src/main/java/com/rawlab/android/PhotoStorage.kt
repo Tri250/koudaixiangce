@@ -34,6 +34,26 @@ class PhotoStorage(
     private val resolver = context.contentResolver
     private val directory = File(context.cacheDir, "rawlab-${UUID.randomUUID()}")
     private val lookLibrary = LookLibrary(looksDirectory, lookValidator)
+    private var lensDirectory: File? = null
+
+    @Synchronized
+    fun lensDatabase(): File {
+        lensDirectory?.let { return it }
+        val target = File(context.filesDir, "lensfun-db1-20261012")
+        if (!target.isDirectory && !target.mkdirs()) throw IOException("Cannot create lens database directory")
+        val names = context.assets.list("Lensfun")?.filter { it.endsWith(".xml") }.orEmpty()
+        if (names.isEmpty()) throw IOException("Lens database is missing")
+        for (name in names) {
+            val temporary = File(target, "$name.tmp")
+            try {
+                context.assets.open("Lensfun/$name").use { input -> temporary.outputStream().use(input::copyTo) }
+                java.nio.file.Files.move(temporary.toPath(), File(target, name).toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } finally { temporary.delete() }
+        }
+        lensDirectory = target
+        return target
+    }
 
     fun album(): List<AlbumPhoto> {
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI

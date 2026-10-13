@@ -1,5 +1,16 @@
 # Third-party components
 
+- Lens correction: Lensfun 0.3.4 (LGPL-3.0-or-later), GLib 2.84.4
+  (LGPL-2.1-or-later), PCRE2 10.44 (BSD), proxy-libintl (LGPL-2.0-or-later)
+  and upstream bundled TRE. Statically linked into sony2fuji.dll.
+  Sources and SHA256 pins: `lutools/cmake/lens-dependencies.json`; build script:
+  `lutools/cmake/build-lens-dependencies.py`. Original texts/attribution are in
+  `Licenses/lensfun`. The unmodified offline DB1 snapshot (2026-10-12) uses
+  CC BY-SA 3.0; it is separately licensed from the library and stored in `Lensfun`.
+  https://lensfun.github.io/ and https://gitlab.gnome.org/GNOME/glib
+  https://github.com/PCRE2Project/pcre2 and https://github.com/frida/proxy-libintl
+
+
 - Lucide Film icon: https://lucide.dev/icons/film, ISC license. Converted from
   the upstream SVG to WPF vector geometry; notice in `Licenses/Lucide-LICENSE.txt`.
 

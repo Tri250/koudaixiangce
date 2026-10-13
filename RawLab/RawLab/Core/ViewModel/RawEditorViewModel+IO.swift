@@ -163,6 +163,7 @@ extension RawEditorViewModel {
                         self.basePreviewImage = rawBase.basePreviewImage
                         self.baseHistogram = rawBase.baseHistogram
                         self.rawWhiteBalance = previewResult.rawWhiteBalance ?? rawBase.rawWhiteBalance
+                        self.lensInfo = previewResult.lensInfo
                         self.rawLUTID = restoredSettings.lutID
                         self.rawLUTApplied = restoredSettings.lutID != nil && restoredSettings.lutStrength > 0
                         self.previewImage = adjustedImage
@@ -209,6 +210,7 @@ extension RawEditorViewModel {
                         self.rawLUTID = nil
                         self.rawLUTApplied = false
                         self.rawWhiteBalance = nil
+                        self.lensInfo = nil
                         self.previewImage = adjustedImage
                         self.histogram = adjustedHistogram
                         self.hasImage = rasterBase.basePreviewImage != nil || adjustedImage != nil
@@ -238,6 +240,7 @@ extension RawEditorViewModel {
                     self.rawLUTID = nil
                     self.rawLUTApplied = false
                     self.rawWhiteBalance = nil
+                    self.lensInfo = nil
                     self.editSaveState = .idle
                     self.hasImage = false
                     self.histogram = []
@@ -435,6 +438,7 @@ extension RawEditorViewModel {
                     self.draftPreviewBuffer = rawPreview.previewBuffer
                     self.basePreviewImage = rawPreview.basePreviewImage
                     self.baseHistogram = rawPreview.baseHistogram
+                    self.lensInfo = previewResult.lensInfo
                     self.rawLUTID = settings.lutID
                     self.rawLUTApplied = settings.lutID != nil && settings.lutStrength > 0
                     self.previewImage = previewImage
@@ -462,6 +466,7 @@ extension RawEditorViewModel {
                     self.rawLUTID = nil
                     self.rawLUTApplied = false
                     self.hasImage = false
+                    self.lensInfo = nil
                     self.histogram = []
                     self.baseHistogram = []
                     self.sourceRevision = UUID()

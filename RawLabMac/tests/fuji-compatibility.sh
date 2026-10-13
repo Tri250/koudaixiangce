@@ -11,6 +11,6 @@ swiftc -parse-as-library -swift-version 5 -O -sdk "$SDK" -target "$(uname -m)-ap
     "$ROOT/RawLabMac/Sources/Engine.swift" "$ROOT/RawLabMac/Sources/Adjustments.swift" "$ROOT/RawLabMac/Sources/MasterRecipe.swift" "$ROOT/Shared/HSLSettings.swift" "$ROOT/Shared/HSLNative.swift" \
     "$ROOT/RawLabMac/Sources/LookLibrary.swift" "$ROOT/Shared/ExportMetadata.swift" \
     "$ROOT/RawLabMac/tests/FujiCompatibilityTests.swift" "$ROOT/lutools/build-macos/libsony2fuji_core.a" \
-    -L "$(pkg-config --variable=libdir libraw)" -lraw $(pkg-config --libs opencv4 wavelib) -lc++ -lz \
+    -L "$(pkg-config --variable=libdir libraw)" -lraw $(pkg-config --libs opencv4 wavelib lensfun) -lc++ -lz \
     -framework SwiftUI -framework AppKit -framework ImageIO -framework Metal -o "$OUT/fuji-compatibility"
 "$OUT/fuji-compatibility" "$@"
