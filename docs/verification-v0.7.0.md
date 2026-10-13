@@ -68,11 +68,15 @@ evidence and are not repeated or relabeled as a new integrated memory test.
 
 ## Failed Attempts and Remaining Coverage
 
-- Android two Sony 7008x4672 rendered-DNG attempts were killed by guest
-  `lmkd`/SIGKILL under low swap. Final DJI 3072x3072 CPU/GLES DNG passed in
-  216.539 seconds. Five other focused Sony tests have individual success
-  records; there is no successful aggregate for the original whole group.
-  Sony native-size DNG and physical GPU behavior remain unverified.
+- Two Sony 7008x4672 RAW-input preview/export runs on the 2.5 GiB/four-CPU
+  AVD were killed by guest `lmkd`/SIGKILL under low swap. The test requested
+  longEdge128 preview and DNG/PNG output; FINAL performs full-resolution
+  computation before output resizing. No CPU-round completion marker was
+  emitted, so the failing stage is not located and an original-size DNG
+  output/writer failure is not established. Final DJI 3072x3072 CPU/GLES DNG
+  passed in 216.539 seconds. Five other Sony tests have individual successes;
+  there is no successful aggregate for the original group. Original-size
+  DNG file output and physical GPU behavior remain unverified.
 - iOS earlier Files Cancel accessibility queries failed. The final two UI
   tests passed with the visible Save action and an actual copied 128x128
   float32 DNG. Native Files cancellation remains unverified.

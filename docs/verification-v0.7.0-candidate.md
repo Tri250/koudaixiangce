@@ -106,11 +106,23 @@ as system contracts without separate resolution. No new native/GPU/GUI/RDP
 runtime test is claimed. Evidence: `windows/verification-windows-candidate.md`,
 package metadata, passive closure summaries and retained blocked-script logs.
 
+The Sony input/output scope below was clarified from the original test and
+logs after candidate delivery. See
+[the test source](../RawLabAndroid/app/src/androidTest/java/com/rawlab/android/RenderedDngInstrumentedTest.kt):
+`processor.export(..., format, 128)` and the CPU-round marker after preview
+plus both exports. This documentation correction changes neither production
+source nor the four artifact hashes above.
+
 ## Remaining Release Coverage
 
-- Android Sony native-size DNG remains unpassed after guest lmkd/SIGKILL.
-  The smaller DJI pass is retained with its fixture scope; neither that test
-  nor unsigned Release packaging establishes physical-device behavior.
+- The two Sony 7008x4672 RAW-input preview/export tests used a 2.5 GiB,
+  four-CPU AVD and requested preview and DNG/PNG outputs with longEdge128.
+  FINAL still computes at full resolution before output resizing. Guest
+  lmkd/SIGKILL occurred before the CPU-round completion marker; the failing
+  stage is unknown. These attempts do not establish failure of an
+  original-resolution output file or a DNG writer-specific cause.
+  Original-resolution DNG output remains unverified. The smaller DJI pass
+  retains its fixture scope; Release packaging adds no device-runtime proof.
 - iOS Files Save was verified in the accepted source; Files cancellation,
   physical iPhone/iPad and iOS18 runtime remain unverified. iOS has no PNG UI
   gate in these records.

@@ -35,7 +35,7 @@ increment. No further source audit or build was dispatched.
 
 ## Remaining Limits
 
-Android Sony native DNG remains LMK/unpassed; only the smaller DJI DNG case passes.
+Android Sony RAW-input preview/export runs remain LMK/unpassed: planned DNG/PNG output longEdge128, CPU-round completion marker absent, failing stage unknown. Original-size DNG output was not verified; only the smaller DJI case passes. This input/output distinction corrects the earlier ambiguous native-DNG wording without changing the recorded outcomes.
 iOS Files cancellation is unverified. #25 Windows runtime uses GPU_OFF, with no
 new hardware GPU/full CTest/RDP coverage. The local Mac package is target 26.0,
 version 0.6.0/build 10, not the target-15 release candidate. Existing host-GLib and
