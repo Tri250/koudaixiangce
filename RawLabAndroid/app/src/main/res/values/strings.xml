@@ -71,7 +71,7 @@
     <string name="info_capture_missing">未读取到拍摄参数</string>
     <string name="compare">对比</string>
     <string name="reset">重置调整</string>
-    <string name="empty_title">打开 RAW 照片</string>
+    <string name="empty_title">打开照片</string>
     <string name="neutral">原图</string>
     <string name="result">调整后</string>
     <string name="film">胶片</string>
@@ -90,15 +90,15 @@
     <string name="sharpening">锐化</string>
     <string name="wb_unavailable">此 RAW 无可用的色温校准</string>
     <string name="rendering">正在显影</string>
-    <string name="importing">正在读取 RAW</string>
+    <string name="importing">正在读取照片</string>
     <string name="exporting">正在导出全分辨率照片</string>
     <string name="export_done">照片已保存</string>
     <string name="edit_saved">调整已保存</string>
     <string name="edit_restored">已恢复上次调整</string>
     <string name="edit_unsaved">调整未保存，点击重试</string>
     <string name="edit_storage_error">无法打开本机调整记录，请检查存储权限。</string>
-    <string name="process_error">处理失败，请重试或选择其他 RAW。</string>
-    <string name="memory_error">内存不足，无法处理这张 RAW。</string>
+    <string name="process_error">处理失败，请重试或选择其他文件。</string>
+    <string name="memory_error">内存不足，无法处理这张照片。</string>
     <string name="import_not_raw">无法导入「%1$s」：不是支持的格式（RAW：DNG、ARW、CR2/CR3、NEF、RAF 等；照片：JPG、PNG、HEIC）</string>
     <string name="import_unreadable">无法读取「%1$s」：文件可能已被移动或删除，云端照片请先下载到本机</string>
     <string name="busy_message">正在处理当前任务，完成后请重新选择照片</string>
@@ -116,7 +116,7 @@
     <string name="settings">系统设置</string>
     <string name="refresh">刷新</string>
     <string name="back">返回</string>
-    <string name="album_empty">没有可访问的 RAW 照片</string>
+    <string name="album_empty">没有可访问的照片</string>
     <string name="album_error">无法读取相册，请检查照片权限。</string>
     <string name="all_albums">全部相册</string>
     <string name="album_view_options">视图选项</string>

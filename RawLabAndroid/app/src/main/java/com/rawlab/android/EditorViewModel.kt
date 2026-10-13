@@ -134,7 +134,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 val pixels = stillPixels?.takeIf { it.first == work.photo.file }?.second
                     ?: StillImage.decode(work.photo.file, 1600).also { stillPixels = work.photo.file to it }
                 val film = native.previewPhoto(pixels, photoLook(work.edits), work.edits, edge, work.interactive)
-                WorkResult.Preview(work, PreviewPair(original!!.second, film.bitmap(), film.temperature, film.tint))
+                // 照片不走下方 RAW 管线：掉进去会让 LibRaw 打开 JPEG 并报 io error。
+                return@synchronized WorkResult.Preview(work, PreviewPair(original!!.second, film.bitmap(), film.temperature, film.tint))
             }
             if (original?.first != work.photo.file) {
                 original = null
