@@ -142,6 +142,18 @@ c++ -std=c++17 -I RawLabAndroid/app/src/main/cpp -I lutools/include \
 
 Device tests use an external fixture through `RAWLAB_TEST_RAW` or `-PrawlabTestRaw=/path/to/photo.ARW`, packaged only into the test APK. v0.2 verified native 7008x4672 JPEG/16-bit PNG and EXIF with a Sony fixture, and passed 10 emulator tests against the release-signed APK. See [verification.md](verification.md) for coverage details.
 
+JPEG XL 原生回归使用已运行的本机模拟器，不安装应用，也不修改原始 RAW：
+
+```bash
+bash RawLabAndroid/tests/dng-jxl.sh \
+  RawLabAndroid/app/.cxx/Debug/<build-id>/arm64-v8a emulator-5554 \
+  "$RAWLAB_TEST_JXL_DNG"
+```
+
+先运行 `:app:assembleDebug`。测试会比较无损 JPEG XL 和未压缩像素，验证必需的
+Stage2 GainMap、白平衡重载、解码器复用、损坏文件错误分类以及 C ABI CPU/Auto 输出。
+测试仅使用独立模拟器临时目录，并在结束时删除测试副本。
+
 ## 边界 / Limitations
 
 - GLES 3.1 加速缩放、曝光/色彩转换、中性映射、胶片及强度、明暗处理、细节、暗角/颗粒、小波过滤和显示色度引导滤波。RAW 解码、去马赛克、噪声估计、OpenCV Lab 转换及文件编码仍在 CPU。
@@ -152,8 +164,8 @@ Device tests use an external fixture through `RAWLAB_TEST_RAW` or `-PrawlabTestR
   Full-resolution RAW development is memory-intensive; low-memory devices may fail or be killed by the OS.
   X-Trans 并发修复新增每像素 8 字节的只读输入副本，40 MP 约增加 304 MiB 峰值内存；本轮仅验证 Android 构建，未验证这些机型在设备上的内存表现。
   The X-Trans concurrency fix adds an eight-byte-per-pixel immutable input copy, about 304 MiB for 40 MP. This camera sweep validates Android compilation only, not device memory behavior for these models.
-- LibRaw 启用 zlib，不编译可选 LCMS/JPEG/JasPer/RawSpeed/DNG SDK 集成；有损 JPEG DNG、JPEG2000 等依赖这些可选组件的格式不保证支持。
-  Optional LibRaw codecs/integrations are disabled; lossy JPEG DNG and JPEG2000-dependent inputs are not guaranteed.
+- LibRaw 启用 zlib 和 Adobe DNG SDK 1.7.1 的 JPEG XL DNG 解码；其他 RAW 仍使用现有 LibRaw 路径。不编译可选 LCMS/JPEG/JasPer/RawSpeed；有损 JPEG DNG、JPEG2000 等仍不保证支持。
+  JPEG XL DNG uses the pinned Adobe DNG SDK 1.7.1; other RAWs retain the existing LibRaw path. Optional LCMS/JPEG/JasPer/RawSpeed remain disabled.
 - 相册仅显示被系统媒体库收录且已授权的 RAW。未收录文件可通过系统文件入口导入。
   Albums show authorized, indexed RAW media; unindexed files use the document picker.
 - 相册缩略图由系统媒体库提供；Android 10+ 根据显示尺寸请求有界缩略图，Android 8-9 使用系统 `MINI_KIND` 缩略图。尺寸元数据缺失时，原始比例在缩略图加载后确定。

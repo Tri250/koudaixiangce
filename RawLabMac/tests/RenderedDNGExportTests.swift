@@ -7,6 +7,15 @@ import Foundation
         let lut = CommandLine.arguments.count > 3 ? URL(fileURLWithPath: CommandLine.arguments[3]) : nil
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let original = try OriginalFileIdentity(input)
+        let longEdges: [Int?]
+        if let value = ProcessInfo.processInfo.environment["RAWLAB_DNG_TEST_LONG_EDGE"] {
+            guard let edge = Int(value), (1...65535).contains(edge) else {
+                throw RenderError.failed("Invalid RAWLAB_DNG_TEST_LONG_EDGE")
+            }
+            longEdges = [edge]
+        } else {
+            longEdges = [nil, 1536]
+        }
         var settings = Adjustments()
         settings.exposure = 0.35
         settings.whiteBalanceMode = .custom
@@ -23,8 +32,8 @@ import Foundation
 
         for (name, mode) in [("cpu", SONY2FUJI_GPU_OFF), ("metal", SONY2FUJI_GPU_FORCE)] {
             let engine = try RenderEngine(gpuMode: mode)
-            for longEdge: Int? in [nil, 1536] {
-                let label = name + (longEdge == nil ? "-native" : "-1536")
+            for longEdge in longEdges {
+                let label = name + (longEdge.map { "-\($0)" } ?? "-native")
                 let png = output.appendingPathComponent(label + ".png")
                 let dng = output.appendingPathComponent(label + ".dng")
                 _ = try engine.render(input, settings: settings, lut: lut, edge: nil,

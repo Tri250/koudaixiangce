@@ -13,6 +13,9 @@
 #include <fstream>
 #include <array>
 #include <zlib.h>
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+#include <dng_host.h>
+#endif
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #ifdef _WIN32
@@ -51,7 +54,7 @@ public:
         if (ret != LIBRAW_SUCCESS) {
             std::cerr << "无法打开 RAW 文件: " << libraw_strerror(ret) << std::endl;
             invalidateState();
-            return ErrorCode::FileNotFound;
+            return decodeError(ret);
         }
 
         sourceReady_ = true;
@@ -83,8 +86,8 @@ public:
         // half_size skips the LibRaw interpolation stage that runs FBDD.
         params.half_size = options.halfSize && options.rawNoiseReduction == 0 ? 1 : 0;
         params.fbdd_noiserd = options.rawNoiseReduction;
-        if (ensureIdentificationMode(cameraWB, autoWB) != ErrorCode::Success)
-            return ErrorCode::ProcessingError;
+        const ErrorCode identificationResult = ensureIdentificationMode(cameraWB, autoWB);
+        if (identificationResult != ErrorCode::Success) return identificationResult;
         params.use_camera_matrix = 3;
         params.use_camera_wb = cameraWB ? 1 : 0;
         params.use_auto_wb = autoWB ? 1 : 0;
@@ -269,6 +272,13 @@ private:
         // Explicitly close the previous stream first (Windows otherwise leaks a
         // file handle on camera/custom WB mode switches).
         rawProcessor_->recycle();
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+        constexpr unsigned dngOptions = LIBRAW_RAWOPTIONS_DNG_STAGE2 |
+            LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL | LIBRAW_RAWOPTIONS_DNG_ALLOWSIZECHANGE;
+        // recycle 不清 rawparams；普通 DNG 的识别不能继承上一张 JXL 的标志。
+        rawProcessor_->imgdata.rawparams.options &= ~dngOptions;
+        rawProcessor_->set_dng_host(nullptr);
+#endif
         auto& params = rawProcessor_->imgdata.params;
         // 切换白平衡不能同时切换相机色矩阵，3 表示始终使用内嵌色彩数据。
         params.use_camera_matrix = 3;
@@ -276,6 +286,19 @@ private:
         params.use_auto_wb = autoWB ? 1 : 0;
         const int openResult = openRawFile(*rawProcessor_, filepath_);
         if (openResult != LIBRAW_SUCCESS) return openResult;
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+        // 仅 JPEG XL 使用 SDK，其他 RAW 保留现有解码和白平衡路径。
+        const char* decoder = rawProcessor_->unpack_function_name();
+        if (decoder && std::strcmp(decoder, "jxl_dng_load_raw_placeholder()") == 0) {
+            // LibRaw 在 open_file 内根据 Stage2 决定 WB 校正，必须带正确标志重新识别。
+            rawProcessor_->recycle();
+            rawProcessor_->imgdata.rawparams.options |= dngOptions;
+            const int jxlOpenResult = openRawFile(*rawProcessor_, filepath_);
+            if (jxlOpenResult != LIBRAW_SUCCESS) return jxlOpenResult;
+            if (!dngHost_) dngHost_ = std::make_unique<dng_host>();
+            rawProcessor_->set_dng_host(dngHost_.get());
+        }
+#endif
         const int unpackResult = rawProcessor_->unpack();
         if (unpackResult != LIBRAW_SUCCESS) return unpackResult;
         // 部分解码器只记录损坏计数却返回成功，不能继续导出损坏的像素。
@@ -315,7 +338,7 @@ private:
         if (ret != LIBRAW_SUCCESS) {
             std::cerr << "无法重新加载 RAW 文件: " << libraw_strerror(ret) << std::endl;
             invalidateState();
-            return ErrorCode::ProcessingError;
+            return decodeError(ret);
         }
         identificationCameraWB_ = cameraWB;
         identificationAutoWB_ = autoWB;
@@ -323,6 +346,17 @@ private:
         return ErrorCode::Success;
     }
 
+    static ErrorCode decodeError(int ret) {
+        if (ret == LIBRAW_FILE_UNSUPPORTED) return ErrorCode::InvalidFormat;
+        if (ret == LIBRAW_IO_ERROR) return ErrorCode::FileNotFound;
+        if (ret == LIBRAW_UNSUFFICIENT_MEMORY || ret == LIBRAW_MEMPOOL_OVERFLOW) return ErrorCode::OutOfMemory;
+        return ErrorCode::ProcessingError;
+    }
+
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+    // LibRaw 的 SDK 图像释放依赖 host，host 必须比 LibRaw 活得更久。
+    std::unique_ptr<dng_host> dngHost_;
+#endif
     std::unique_ptr<LibRaw> rawProcessor_;
     std::string filepath_;
     std::string cameraMake_;

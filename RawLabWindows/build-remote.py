@@ -11,6 +11,14 @@ import zipfile
 SOURCE_PATHS = ['RawLabWindows', 'lutools', 'RawLabMac/Resources', 'Shared', 'LICENSE',
                 'docs/licensing.md']
 RAW_SUFFIXES = {'.arw', '.nef', '.cr2', '.cr3', '.raf', '.rw2', '.orf', '.3fr', '.dng', '.pef'}
+SYNTHETIC_RAW_FIXTURES = {
+    'lutools/tests/fixtures/' + name for name in
+    ('linear-jxl.dng', 'linear-uncompressed.dng', 'linear-jxl-gain.dng', 'linear-doubled.dng',
+     'linear-jxl-stage1.dng', 'linear-halved.dng', 'linear-jxl-crop-gain.dng',
+     'linear-crop-doubled.dng', 'linear-jxl-required-unknown.dng',
+     'linear-jxl-default-crop-gain.dng', 'linear-default-crop-doubled.dng',
+     'linear-jxl-channel-levels.dng', 'linear-channel-levels.dng', 'linear-normalized.dng')
+}
 
 
 def package_source(root, archive):
@@ -19,7 +27,8 @@ def package_source(root, archive):
         '--exclude-standard', '--', *SOURCE_PATHS])
     files = sorted({name.decode() for name in listed.split(b'\0') if name and
                     (root / name.decode()).is_file() and
-                    Path(name.decode()).suffix.lower() not in RAW_SUFFIXES})
+                    (Path(name.decode()).suffix.lower() not in RAW_SUFFIXES or
+                     name.decode() in SYNTHETIC_RAW_FIXTURES)})
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as package:
         for name in files:
             package.write(root / name, name)

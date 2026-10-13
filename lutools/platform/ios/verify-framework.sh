@@ -22,6 +22,12 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
         RawLab-GPL-3.0.txt RawLab-Licensing.md; do
         test -f "$(dirname "$binary")/Licenses/$notice"
     done
+    dng_licenses="$(dirname "$binary")/Licenses/dng-sdk"
+    test -d "$dng_licenses"
+    for notice in Adobe-DNG-SDK-LICENSE.txt JPEG-XL-LICENSE.txt Brotli-LICENSE.txt \
+        Highway-LICENSE.txt Highway-LICENSE-BSD3.txt skcms-LICENSE.txt; do
+        test -f "$dng_licenses/$notice"
+    done
 done
 lipo "$FRAMEWORK/ios-arm64/sony2fuji.framework/sony2fuji" -verify_arch arm64
 for arch in arm64 x86_64; do

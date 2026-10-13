@@ -331,6 +331,80 @@ dotnet RawLabWindows/tests/bin/Release/net8.0-windows/RawLabWindows.Tests.dll --
 Local before/after logs and generated images remain under ignored
 `output/windows-dng-runtime-1890f830/`. They are not committed.
 
+### Development Integration
+
+The shared feature branch merges `development` at
+`caf51809102489dd0ecc5bc185352fe9992a5177` into the reviewed `d5d0b27` source,
+without rebase or force-push. Six conflicts in CMake, Mac/Windows/iOS build and
+notice files, and `core_tests.cpp` retain both JPEG XL decoding and rendered-DNG
+writing. Both sets of C ABI error/output assertions remain. The installation
+documents from `78f5d84` are unchanged from the target.
+
+The combined static core introduced a real Swift test-link regression:
+`batch-export.sh` and `rendered-dng.sh` failed with an undefined `dng_host`
+constructor. All 21 existing native Swift link commands now include the SDK
+alongside libtiff, and the common dependency check requires both. The batch
+model test then passed. `RAWLAB_DNG_TEST_LONG_EDGE=128` optionally limits the
+rendered-DNG harness for this integration check; its original-size/1536 default
+and pixel comparison thresholds are unchanged.
+
+The first Mac build's SDK OOM check failed because old pkg-config cache data
+linked another prefix's LibRaw and loaded two SDK instances. LibRaw/SDK were
+rebuilt in this worktree and the stale LibRaw discovery cache was refreshed;
+the final loader trace confirms one SDK and LibRaw from the same owned prefix.
+No source correction or reduced OOM assertion was used for that environment
+failure. The rebuilt application passed dependency closure, signing and both
+SDK/TIFF license checks. The final core CTest passed 22/22, including both
+conflicted assertion groups and all 14 JXL fixtures.
+
+The actual packaged Mac smoke entry passed with a real JPEG XL camera DNG and
+the existing DJI fixture. Nonzero-adjustment CPU and forced-Metal exports from
+the real JXL input produced 96 x 128 DNGs, each byte-identical to its batch
+output and preserving source identity. Independently decoded PNG16 comparisons
+have maximum error 1/65535 for both backends; their encoded RGB8 difference is
+at most one. A CLI JXL/DefaultCrop/GainMap input also exported a 20 x 28 DNG and
+PNG pair with maximum error 1/65535. Minimal decoder-only synthetic JXL fixtures
+cannot serve as the app smoke's embedded-preview or ImageIO metadata fixture;
+those preliminary client checks failed and were rerun with the real camera
+fixture without weakening their assertions.
+
+The rebuilt iOS device arm64 and simulator arm64/x86_64 framework slices pass
+architecture, runtime dependency and combined SDK/TIFF notice verification.
+Windows targeted DNG/JXL/C ABI/real-RAW CTest passed 4/4; fresh WPF app/test builds
+have zero warnings/errors, and the merged PowerShell script passes syntax plus
+the recursive copy check for all six SDK notices and the TIFF notice. The
+complete Windows DNG runtime then passed with the freshly rebuilt DLL: CPU and
+actual Auto/Force D3D11 exports produced 85 x 128 outputs, the WPF batch published
+both targets with identical FINAL bytes, and recovery skipped completed files
+without changing bytes or timestamps. Source/edit records and the colliding
+output were unchanged; known partial batch staging was removed. Independent
+PNG16 comparisons have maximum error 1/65535 for all three backends. The native
+build has upstream warnings; zero warnings refers only to the managed builds.
+This run does not reach SaveFileDialog or Explorer and is not a full PowerShell
+publish/package run.
+
+Android `assembleDebug`, `testDebugUnitTest` and `lintDebug` completed successfully
+after configuring the existing SDK path. Both arm64-v8a and x86_64 native builds
+include the combined SDK/TIFF dependencies; the APK contains both ABI libraries
+and all seven notices. Lint has no Error/Fatal findings. The unchanged Kotlin
+unit-test task was UP-TO-DATE, not a fresh device or JVM test execution. The
+earlier physical-device checks above remain the device evidence, not a new
+integration-head device run.
+
+The Android pre-Start format/destination report was checked against the existing
+batch design, UI/model call chain and pre-DNG implementation. Output choices are
+session draft state until Start freezes and journals them; closing SELECTING
+discards that draft. Neither the design nor historical tests promise recovery
+of these unstarted output choices across app close/restart, and the timing is
+unchanged from the former JPEG/PNG implementation. No new persistence behavior
+was added, and Activity recreation is not described as cold-start recovery.
+
+Integration logs, dependency caches, source archives and images remain only in
+ignored `output/dng-development-integration-caf5180/` and build directories.
+No device, emulator or simulator runtime was operated for this integration.
+The Lens/Stage3-warning follow-up is owned by its separate feature branch and
+is not duplicated here. These results are local, not hosted CI.
+
 ## Platform Boundaries
 
 - Mac final build and focused Swift/native tests have completed successfully.

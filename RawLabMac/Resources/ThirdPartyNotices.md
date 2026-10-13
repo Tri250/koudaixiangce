@@ -12,6 +12,8 @@ and ad-hoc code signatures. LibRaw also includes the source patches described be
 | LLVM OpenMP runtime | 21.1.8 | https://github.com/llvm/llvm-project/tree/llvmorg-21.1.8/openmp | libomp-LICENSE.TXT |
 | libjpeg-turbo | 3.1.3 | https://github.com/libjpeg-turbo/libjpeg-turbo/tree/3.1.3 | libjpeg-turbo-LICENSE.md, libjpeg-turbo-README.ijg |
 | Little CMS | 2.17 | https://github.com/mm2/Little-CMS/tree/lcms2.17 | Little-CMS-LICENSE |
+| Adobe DNG SDK | 1.7.1 Build 2724 | https://www.adobe.com/go/dng_sdk | dng-sdk/Adobe-DNG-SDK-LICENSE.txt |
+| JPEG XL, Brotli, Highway, skcms | Sources bundled with the pinned DNG SDK | https://download.adobe.com/pub/adobe/dng/dng_sdk_1_7_1_2724_20260908.zip | dng-sdk/ directory |
 | OpenCV / opencv_contrib | 4.12.0 | https://github.com/opencv/opencv/tree/4.12.0 and https://github.com/opencv/opencv_contrib/tree/4.12.0 | OpenCV/ directory |
 | libtiff | 4.7.1 | https://download.osgeo.org/libtiff/tiff-4.7.1.tar.gz | libtiff-LICENSE.md |
 
@@ -26,6 +28,14 @@ filter's BSD notice and the installed third-party notices are included in
 `OpenCV/`. No darktable denoising implementation or executable is bundled.
 
 This software is based in part on the work of the Independent JPEG Group.
+
+This product includes DNG technology under license by Adobe.
+JPEG XL DNG decoding uses the DNG SDK only for the JPEG XL decoder path.
+The SDK is built without its command-line validator, XMP metadata editing or
+XMP toolkit. The local CMake adapter adds missing `qDNGUseXMP` guards to
+`dng_jxl.cpp`; image decoding is unchanged. JPEG XL and its bundled dependencies
+are statically linked into the DNG SDK dependency. Their full original licenses
+are retained under `dng-sdk/`.
 
 LibRaw is distributed here under its CDDL 1.0 option. Its base source is
 available from the official release archive below. `LibRaw-Homebrew.rb` records

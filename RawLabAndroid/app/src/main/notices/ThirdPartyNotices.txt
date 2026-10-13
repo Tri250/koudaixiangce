@@ -18,7 +18,16 @@ SHA-256: de86b035655accff8d4010f1a221fdf50d353cb7b1422ba26f14a0db92612cfa
 Built from patched source as libraw.so; Android CMake build configuration
 is supplied in app/src/main/cpp/CMakeLists.txt. LGPL/CDDL license choices and
 copyright notices are included in this directory. Optional LCMS, JPEG/JasPer,
-RawSpeed and Adobe DNG SDK integrations are not compiled into LibRaw here.
+and RawSpeed integrations are not compiled into LibRaw here.
+
+This product includes DNG technology under license by Adobe.
+Adobe DNG SDK 1.7.1 Build 2724 and its bundled JPEG XL/Brotli/Highway/skcms
+sources are pinned by lutools/cmake/dng-sdk.cmake and statically linked for
+JPEG XL DNG decoding. The SDK's XMP editing and command-line validator are
+disabled; missing qDNGUseXMP guards in dng_jxl.cpp are added by the local adapter.
+Source: https://download.adobe.com/pub/adobe/dng/dng_sdk_1_7_1_2724_20260908.zip
+Full notices: Adobe-DNG-SDK-1.7.1-LICENSE.txt, JPEG-XL-LICENSE.txt,
+Brotli-LICENSE.txt, Highway-LICENSE.txt, Highway-LICENSE-BSD3.txt and skcms-LICENSE.txt.
 
 Local crop, X-Trans concurrency and Nikon recognition changes are applied by
 lutools/cmake/patch-libraw.cmake. Four exact-model camera matrices are adapted

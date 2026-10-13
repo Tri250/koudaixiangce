@@ -16,6 +16,6 @@ swiftc -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx26.0" \
   "$ROOT/Shared/HSLSettings.swift" "$ROOT/Shared/HSLNative.swift" \
   "$ROOT/RawLabMac/Sources/EditPersistence.swift" "$ROOT/RawLabMac/Sources/BatchExport.swift" \
   "$ROOT/RawLabMac/tests/RenderedDNGExportTests.swift" "$ROOT/lutools/build-macos/libsony2fuji_core.a" \
-  $(pkg-config --libs libraw opencv4 wavelib libtiff-4) -lc++ -lz \
+  $(pkg-config --libs libraw rawlab-dng-sdk opencv4 wavelib libtiff-4) -lc++ -lz \
   -framework SwiftUI -framework AppKit -framework ImageIO -framework Metal -o "$BIN/test"
 "$BIN/test" "$INPUT" "$OUTPUT" "$LUT"
