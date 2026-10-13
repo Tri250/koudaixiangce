@@ -220,6 +220,30 @@ c++ -std=c++17 -O2 -I/opt/homebrew/opt/libtiff/include -Ilutools/src \
 /tmp/rawlab-rendered-dng-pixels gles.dng gles.png
 ```
 
+### Windows Standalone Test Includes
+
+Both existing portable `net8.0` test projects were reproduced with .NET SDK
+8.0.425 / runtime 8.0.31 on macOS arm64. Before the fix, editing failed with
+`CS0246` for `ExportFormat`, and denoise failed with `CS0103` for
+`ExportFormatExtensions`. The explicit source lists omitted the new format
+helper; editing also referenced `WindowsFileIdentity` through its shared feature
+checks without including that source.
+
+Only the project source lists changed: editing now includes `ExportFormat.cs`
+and `WindowsFileIdentity.cs`, and denoise includes `ExportFormat.cs`. Both
+original entry points then compiled and completed with exit code 0:
+
+```sh
+dotnet run --project RawLabWindows/tests/editing/EditWorkflow.Tests.csproj -c Release
+dotnet run --project RawLabWindows/tests/denoise/DenoiseSettingsTests.csproj -c Release
+```
+
+Local before/after logs are retained under `output/windows-dng-standalone/` and
+are not committed. The editing source-alias hard-link check printed its existing
+skip on this non-Windows host. These results cover the portable managed tests,
+not Windows kernel32 behavior, WPF, native DLL/D3D11 rendering or actual Windows
+DNG publication. No production source, workflow or execution policy changed.
+
 ## Platform Boundaries
 
 - Mac final build and focused Swift/native tests have completed successfully.
@@ -247,9 +271,10 @@ c++ -std=c++17 -O2 -I/opt/homebrew/opt/libtiff/include -Ilutools/src \
 - Windows single/batch WPF integration, legacy journal tests and license
   packaging are implemented. Single export validates the selected format's
   extension and protects original-file aliases with a Windows file identity and
-  a non-delete-sharing source handle during publication. There is no
-  Windows/.NET/PowerShell toolchain on
-  this Mac; Windows compilation and D3D11 runtime validation are unverified.
+  a non-delete-sharing source handle during publication. The two portable
+  managed test projects above pass with the existing .NET 8 SDK on Mac. Actual
+  Windows application compilation, kernel32 identity checks, WPF and D3D11
+  runtime validation remain unverified.
 
 Photos, DNG/TIFF/PNG files, screenshots, private source paths and build products
 are not part of the source changes. Local comparison metrics and artifacts live
