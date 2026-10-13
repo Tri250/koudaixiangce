@@ -3,6 +3,42 @@
 Release history is kept here rather than in the project READMEs. Detailed
 release notes include assets, installation requirements and validation limits.
 
+## [0.7.0] - Unreleased candidate
+
+### Added
+
+- JPEG XL-compressed DNG decoding through the pinned Adobe DNG SDK.
+- Rendered float32 DNG export alongside JPEG and 16-bit PNG, retaining
+  independent FINAL rendering and frozen batch settings.
+- English, Simplified Chinese, German, French, Japanese and Spanish on all
+  four clients, including Lens and DNG controls and dynamic states.
+- Lensfun profile-based lens correction, manual profile selection and
+  auto-crop with persistent per-photo and batch settings.
+
+### Changed
+
+- Use viewport-sized previews and reusable denoise analysis while keeping
+  Lens/profile/crop/database and exposure-baseline cache identities isolated.
+- Reduce the measured Android denoise memory working set without changing
+  the controlled experiment's 1,800,000,000-byte budget or export assertions.
+- Integrate shared SDK/JXL, TIFF and Lensfun dependencies and their notices,
+  and document one-owner shared-file and validation-resource coordination.
+
+### Fixed
+
+- Replay pending iOS viewport/settings changes after rendered-DNG export
+  success and failure, using a reproduced RED/GREEN regression.
+- Remove non-system absolute runtime search paths from Mac package copies,
+  ensuring actual processing dependencies load from the signed bundle.
+
+Candidate metadata is `0.7.0`, build `11`. The five-feature development source
+is accepted; candidate artifacts and remaining platform limits are recorded
+in [the candidate notes](docs/releases/v0.7.0.md),
+[corresponding-source instructions](docs/releases/v0.7.0-source.md),
+[final composition verification](docs/verification-final-composition-2026-10-13.md)
+and [the integration tracker](docs/verification-v0.7.0.md).
+No v0.7.0 publication is implied by this entry.
+
 ## [0.6.0] - 2026-10-12
 
 ### Added
