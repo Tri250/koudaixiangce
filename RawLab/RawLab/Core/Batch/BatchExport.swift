@@ -247,7 +247,12 @@ final class BatchExportModel: ObservableObject {
     }
 
     func confirmPublication(id: String, saved: Bool) {
-        guard !isRunning, let index = job.targets.firstIndex(where: { $0.id == id && $0.status == .needsConfirmation }) else { return }
+        guard !isRunning, !isPreparing else { return }
+        if job.outputFormat == .renderedDNG {
+            reconcileDNGFiles()
+            return
+        }
+        guard let index = job.targets.firstIndex(where: { $0.id == id && $0.status == .needsConfirmation }) else { return }
         job.targets[index].status = saved ? .succeeded : .pending
         job.targets[index].errorMessage = nil
         if !saved { job.targets[index].outputAssetIdentifier = nil }
@@ -255,7 +260,12 @@ final class BatchExportModel: ObservableObject {
         saveJournal()
     }
 
-    func reconcilePhotos() async {
+    func reconcilePublication() async {
+        guard !isRunning, !isPreparing else { return }
+        if job.outputFormat == .renderedDNG {
+            await MainActor.run { reconcileDNGFiles() }
+            return
+        }
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         await MainActor.run {
             if status == .authorized || status == .limited {
@@ -263,6 +273,16 @@ final class BatchExportModel: ObservableObject {
                 saveJournal()
             } else { validationMessage = "未获得相册读取权限，请手动核对保存结果，或在系统设置中授权。" }
         }
+    }
+
+    private func reconcileDNGFiles() {
+        job = job.recovered()
+        let outputs = job.targets.compactMap(\.outputFileURL)
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+        fileExportURLs = outputs.isEmpty ? nil : outputs
+        fileExportStatus = outputs.isEmpty ? .none : .pending
+        validationMessage = job.globalError
+        saveJournal()
     }
 
     func presentFileExport() {

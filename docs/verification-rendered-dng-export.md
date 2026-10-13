@@ -122,6 +122,29 @@ the first target, retain the second target as pending and preserve the blocker.
 Both failures were reproduced before the fixes; the expanded batch suite and
 simulator app build passed after the changes.
 
+### iOS Confirmation Routing
+
+Both DNG confirmation actions now check the output files directly, without
+requesting Photos authorization or presenting the JPEG-only manual confirmation
+dialog. The model also routes obsolete manual DNG confirmation calls through
+file recovery rather than trusting a saved/unsaved choice. Reconciliation refreshes
+the file export list and persists the checked state; missing outputs become
+pending while existing outputs stay completed. Recovery also clears the resolved
+checkpoint warning without clearing unresolved global storage errors.
+
+`RawLab/tests/batch-publication.sh` compiles the actual iOS model and app sources
+into a standalone simulator test process, using its own bundle with Photos access
+explicitly denied. The regression reproduced the authorization failure before
+the fix and now checks permission-free DNG recovery, unchanged output bytes,
+post-open file deletion, refreshed export actions and journal state, as well as
+the retained JPEG authorization and manual-confirmation behavior. It does not
+inject a live checkpoint failure into the SwiftUI view; that state remains
+covered by the real writer/journal regression in the batch core suite.
+
+```sh
+bash RawLab/tests/batch-publication.sh "$IOS_SIMULATOR_APP" "$IOS_SIMULATOR_ID"
+```
+
 ## Platform Boundaries
 
 - Mac final build and focused Swift/native tests have completed successfully.

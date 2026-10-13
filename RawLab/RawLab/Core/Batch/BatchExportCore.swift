@@ -233,6 +233,7 @@ extension BatchExportJob {
                         copy.targets[index].outputAssetIdentifier = nil
                         copy.targets[index].status = .pending
                     }
+                    if copy.globalError == copy.targets[index].errorMessage { copy.globalError = nil }
                     copy.targets[index].errorMessage = nil
                 } else if let asset = copy.targets[index].outputAssetIdentifier, let exists = assetExists(asset) {
                     copy.targets[index].status = exists ? .succeeded : .pending

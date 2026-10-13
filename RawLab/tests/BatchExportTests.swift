@@ -287,6 +287,8 @@ struct BatchExportTests {
         let recovered = persisted.recovered()
         try require(recovered.targets[0].status == .succeeded && recovered.targets[1].status == .pending,
               "recovery verifies the already published DNG before continuing")
+        try require(recovered.globalError == nil,
+              "verified DNG publication clears the resolved uncertain global error")
         let completed = try BatchExportRunner.run(job: recovered, journalStore: journal,
             render: { target, _ in
                 rendered.append(target.id)
@@ -326,6 +328,8 @@ struct BatchExportTests {
                 cleanup: { try? FileManager.default.removeItem(at: $0) })
             try require(result.status == .failed && result.globalError != nil && result.targets[0].status == .failed,
                   "DNG directory failure during \(failureDuringRender ? "render" : "publication") is a global storage failure")
+            try require(result.recovered().globalError == result.globalError,
+                  "DNG recovery preserves unresolved global storage failures")
             try require(result.targets[1].status == .pending && renderCount == 1 && checkpointCount == 0,
                   "DNG directory failure during \(failureDuringRender ? "render" : "publication") does not process the second target")
             try require((try? Data(contentsOf: blockedDirectory)) == Data("directory blocker".utf8),

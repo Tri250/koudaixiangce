@@ -62,7 +62,8 @@ struct BatchExportView: View {
                 Button("放弃任务", role: .destructive) { if model.discard() { dismiss() } }
             }
             .confirmationDialog(confirmTarget?.displayName ?? "核对保存结果",
-                isPresented: Binding(get: { confirmTarget != nil }, set: { if !$0 { confirmTarget = nil } }),
+                isPresented: Binding(get: { model.job.outputFormat == .jpeg && confirmTarget != nil },
+                                     set: { if !$0 { confirmTarget = nil } }),
                 titleVisibility: .visible) {
                 if let target = confirmTarget {
                     Button("已在照片图库中确认保存") { model.confirmPublication(id: target.id, saved: true) }
@@ -167,7 +168,12 @@ struct BatchExportView: View {
                                     .foregroundStyle(target.status == .failed || target.status == .needsConfirmation ? Color.orange : .secondary)
                                 if let error = target.errorMessage { Text(error).font(.caption).foregroundStyle(.secondary) }
                                 if target.status == .needsConfirmation {
-                                    Button("核对保存结果") { confirmTarget = target }.font(.footnote)
+                                    if model.job.outputFormat == .renderedDNG {
+                                        Button("核对 DNG 文件") { Task { await model.reconcilePublication() } }
+                                            .font(.footnote)
+                                    } else {
+                                        Button("核对保存结果") { confirmTarget = target }.font(.footnote)
+                                    }
                                 }
                             }
                             Spacer(minLength: 0)
@@ -243,7 +249,9 @@ struct BatchExportView: View {
                         .font(.footnote)
                 }
                 if model.uncertainCount > 0 {
-                    Button("授权核对相册中的保存结果") { Task { await model.reconcilePhotos() } }
+                    Button(model.job.outputFormat == .renderedDNG ? "核对 DNG 文件保存结果" : "授权核对相册中的保存结果") {
+                        Task { await model.reconcilePublication() }
+                    }
                         .font(.footnote)
                 }
                 if model.pendingCount > 0 {
