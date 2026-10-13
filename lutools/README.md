@@ -47,8 +47,10 @@ Mac / iOS / Android / CLI
 
 ## 构建依赖 / Dependencies
 
-- CMake 3.15+、C++17 编译器、pkg-config、LibRaw 0.22.2+、zlib。
-  CMake 3.15+, a C++17 compiler, pkg-config, LibRaw 0.22.2+ and zlib.
+- CMake 3.15+、C++17 编译器、pkg-config、LibRaw 0.22.2+、zlib、libtiff 4.7.1+。
+  CMake 3.15+, a C++17 compiler, pkg-config, LibRaw 0.22.2+, zlib and libtiff 4.7.1+.
+  Mobile/Windows builds use pinned static libtiff 4.7.1; desktop builds can select
+  `SONY2FUJI_BUILD_TIFF_DEPS=ON` instead of using the system `libtiff-4` package.
 - stb 图像编解码头文件随源码提供；OpenMP 为可选的 CPU 并行支持。
   stb image codec headers are included in the source; OpenMP is optional for CPU parallelism.
 - Metal 构建需要 Apple 开发工具。移动端还需要对应 SDK 和目标平台的 LibRaw，不能链接宿主机库。

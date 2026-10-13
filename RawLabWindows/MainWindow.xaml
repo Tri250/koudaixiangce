@@ -12,7 +12,7 @@
           <local:EditorIcon Kind="Export" Width="22" Height="22"/>
           <Button.ContextMenu><ContextMenu>
             <MenuItem Header="尺寸"><MenuItem x:Name="ExportOriginalSize" Header="原尺寸" IsCheckable="True" Click="ExportOriginalSizeClicked"/><MenuItem x:Name="ExportSize2048" Header="长边 2048 px" IsCheckable="True" Click="ExportSizeClicked" Tag="2048"/><MenuItem x:Name="ExportSize3000" Header="长边 3000 px" IsCheckable="True" Click="ExportSizeClicked" Tag="3000"/><MenuItem x:Name="ExportSize4096" Header="长边 4096 px" IsCheckable="True" Click="ExportSizeClicked" Tag="4096"/><MenuItem x:Name="ExportCustomSize" Header="自定义…" IsCheckable="True" Click="ExportCustomSizeClicked"/></MenuItem>
-            <Separator/><MenuItem x:Name="ExportJpeg" Header="导出 JPEG" Click="ExportJpegClicked" IsEnabled="False"/><MenuItem x:Name="ExportPng" Header="导出 16-bit PNG" Click="ExportPngClicked" IsEnabled="False"/><Separator/><MenuItem x:Name="BatchExportMenu" Header="使用当前调整批量导出…" Click="BatchExportClicked" IsEnabled="False"/><MenuItem x:Name="ViewBatchMenu" Header="查看批量任务…" Click="ShowBatchClicked" IsEnabled="False"/>
+            <Separator/><MenuItem x:Name="ExportJpeg" Header="导出 JPEG" Click="ExportJpegClicked" IsEnabled="False"/><MenuItem x:Name="ExportPng" Header="导出 16-bit PNG" Click="ExportPngClicked" IsEnabled="False"/><MenuItem x:Name="ExportDng" Header="导出渲染型 DNG" Click="ExportDngClicked" IsEnabled="False"/><Separator/><MenuItem x:Name="BatchExportMenu" Header="使用当前调整批量导出…" Click="BatchExportClicked" IsEnabled="False"/><MenuItem x:Name="ViewBatchMenu" Header="查看批量任务…" Click="ShowBatchClicked" IsEnabled="False"/>
           </ContextMenu></Button.ContextMenu>
         </Button>
         <StackPanel Orientation="Horizontal">

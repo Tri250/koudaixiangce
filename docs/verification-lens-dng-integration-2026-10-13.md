@@ -113,7 +113,7 @@ Android uses only the owned `rawlab-lens-integration-api35`, explicit
 `09BE2E27-13F0-4BB8-9982-97A4784E906D`. No connected Gradle task, global adb restart,
 broad process kill or physical-device operation is used.
 
-## Remaining Integration Boundary
+## Rendered-DNG Target Integration
 
 After the code gates above, the docs-only target
 `261b9323bea13f562bcfee7db736fcf1728704f5` was normally merged. Its 126 changed
@@ -121,12 +121,79 @@ paths are Markdown only; diff formatting, the auto-merged platform README
 content and local links were checked. No source, ABI or version changed, so the
 code gates were not repeated merely for this documentation merge.
 
-The code gates record the caf5180 source tree, not a future development merge tree. PR #24 was
-still open at the latest target check. Its final rendered-DNG changes and the
-shared Mac test-link lines must be assessed after #24 lands and before root
-merges #26. Lens+NR+viewport A/B/FINAL combination gates belong to the viewport
-integration owner and are not duplicated here. A docs-only target update does
-not justify repeating native tests.
+PR #24 subsequently merged into
+`development@802354aa9b54e540fc2ca1c55be09038a5f621bd`, with parents `261b932`
+and `5f0dea6`. This target is integrated by another normal merge, not rebase.
+The preceding source parent is `0316579`, including the separately verified
+master-recipe link fix above.
+
+The 27 textual conflicts consist of 20 existing Swift link commands, the common
+native environment, Mac build/notices, shared CMake, iOS resources/licenses,
+Android batch tests and the Windows test entry point. Resolution combines SDK,
+Lensfun and TIFF links/notices. The Lens-only and newly introduced rendered-DNG
+Swift scripts also receive the complete dependency union. Both Android test
+groups and both Windows `--lens`/`--rendered-dng` entries remain present.
+
+The DNG writer, its pinned TIFF dependency and SDK/LibRaw glue are byte-identical
+to the reviewed target. The earlier actual Stage3 regression file is unchanged
+from `0316579`; the warning reset, host lifetime and identification flags are
+retained. The C ABI adds DNG format 4 and output I/O status 6 without changing
+request v2 or existing values; both branches' request/error assertions remain.
+The already-reviewed target's non-overlapping implementation and prior platform
+evidence are reused rather than independently re-audited.
+
+The new `rendered_dng_tests.cpp` combination case loads real Stage3/no-Stage3 JXL
+fixtures, enables both Lens corrections and writes FINAL DNG through the C API.
+Independent libtiff float scanlines, sRGB-encoded, match the reference RGB8 buffer;
+observed Mac maximum errors are `0.499693` and `0.499634` RGB8 steps. Post-file
+reports correctly distinguish embedded geometry from actual distortion/TCA.
+This case is compiled only when both SDK and Lensfun are enabled.
+
+Both original reviewers found a new iOS wrapper integration defect: the RAW and
+buffer `exportDNG` entries created a session without loading the bundled Lensfun
+database. Two calls to `loadLensDatabase`, before recipe/session configuration,
+are the complete production fix. The focused `lens-dng-export.sh` harness uses
+the packaged framework resource, a default processor, real RAW geometry,
+CPU/forced Metal, explicit native-file references and frozen settings.
+
+RED: both entries ignored an explicit invalid database (`RAW=false,
+buffer=false`, exit 133). GREEN: both reject it with the expected database error;
+Lens-enabled DNG differs from off, equals an explicitly configured native export
+on each backend and preserves frozen settings and the original RAW. The initial
+simulator run exposed only the buffer failure because host system-db fallback
+could mask the RAW omission. The explicit-invalid-db assertions prevent that
+false green without altering system files or weakening pixel assertions.
+
+Only the affected integration gates were run:
+
+| Gate | Result / log |
+| --- | --- |
+| Mac application, signing and SDK/Lens/TIFF closure | PASS; `lens-rendered-dng-mac-build-final.log` |
+| Shared writer, C ABI, Lens and JXL checks | PASS 4/4; `lens-rendered-dng-core-tests.log` |
+| Mac batch model and CPU/Metal single/frozen DNG | PASS; `lens-rendered-dng-mac-batch.log`, `lens-rendered-dng-mac-render.log` |
+| iOS three framework slices, 56 flat XML files per packaged slice and all notices | PASS; `lens-rendered-dng-ios-framework.log` |
+| iOS application after the two-call wrapper fix | PASS; `lens-rendered-dng-ios-app-final.log` |
+| iOS RAW/buffer database validation and actual Lens DNG exports | RED/GREEN; `lens-rendered-dng-ios-both-entries-red.log`, `lens-rendered-dng-ios-both-entries-green.log` |
+| Android two ABI builds, APK, 63 fresh unit tests and lint | PASS; `lens-rendered-dng-android-build.log`; APK includes Lens/SDK/TIFF notices |
+| Windows application/publish/package | PASS; `windows-remote/20261013-181744/build.log` |
+| Windows targeted native and managed entry compilation | PASS across 3 native checks plus the corrected Lens API check; `lens-rendered-dng-windows-targeted.log`, `lens-rendered-dng-windows-targeted-final.log` |
+
+The first Mac build stopped on a test-harness field-name typo; it was corrected
+to the existing `intent=FINAL` before the final build and combination tests.
+The first Windows targeted run passed writer/C ABI/JXL but failed Lens API
+because the no-`-Test` publish build had cleared the external fixture setting.
+Restoring the existing owned fixture path and rebuilding only that test gives
+1/1 PASS; the other three checks were not rerun. The forced managed test build
+has zero errors/warnings, and actual packaged SDK/TIFF/Lens licenses/database
+were checked. This is not a repeated full WPF/GPU suite.
+
+The original four-platform Stage3 suites, full Lens experiments and 14-recipe
+gate are not repeated for this target merge. The focused iOS harness reused
+only the owned simulator UUID above and it was shut down after completion; no
+new device, application install or global simulator/ADB operation was used.
+Lens+NR+viewport A/B/FINAL combination gates still belong to the viewport owner.
+
+## Remaining Boundary
 
 Physical mobile devices, Intel/macOS 15 runtime, other real lens calibration
 quality and hosted CI remain outside this verified set. No PR merge, release,

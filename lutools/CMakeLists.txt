@@ -18,6 +18,24 @@ if(NOT TARGET ZLIB::ZLIB)
     find_package(ZLIB REQUIRED)
 endif()
 
+# libtiff is used only for the structured rendered-DNG writer. Desktop builds
+# use the system package; mobile builds use the pinned static dependency so the
+# writer does not require a platform TIFF installation.
+set(SONY2FUJI_BUILD_TIFF_DEPS_DEFAULT OFF)
+if(IOS OR ANDROID OR WIN32)
+    set(SONY2FUJI_BUILD_TIFF_DEPS_DEFAULT ON)
+endif()
+option(SONY2FUJI_BUILD_TIFF_DEPS
+    "Build the pinned libtiff dependency instead of using pkg-config"
+    ${SONY2FUJI_BUILD_TIFF_DEPS_DEFAULT})
+if(SONY2FUJI_BUILD_TIFF_DEPS)
+    enable_language(C)
+    include(cmake/tiff-dependencies.cmake)
+else()
+    pkg_check_modules(TIFF REQUIRED IMPORTED_TARGET "libtiff-4>=4.7.1")
+    set(SONY2FUJI_TIFF_TARGET PkgConfig::TIFF)
+endif()
+
 # OpenMP (optional)
 set(SONY2FUJI_ENABLE_OPENMP_DEFAULT ON)
 if(IOS OR ANDROID)
@@ -138,6 +156,7 @@ set(CORE_SOURCES
     src/core/photo_color.cpp
     src/core/white_balance.cpp
     src/core/preview_exposure.cpp
+    src/core/rendered_dng.cpp
     src/ffi/sony2fuji_c.cpp
     src/gpu/lut_gpu.cpp
     src/gpu/image_stats.cpp
@@ -171,6 +190,7 @@ target_link_libraries(sony2fuji_core ${LIBRAW_LIBRARY})
 if(SONY2FUJI_ENABLE_LENSFUN)
     target_link_libraries(sony2fuji_core ${LENSFUN_LIBRARY})
 endif()
+target_link_libraries(sony2fuji_core ${SONY2FUJI_TIFF_TARGET})
 if(SONY2FUJI_ENABLE_DNGSDK)
     target_compile_definitions(sony2fuji_core PRIVATE SONY2FUJI_ENABLE_DNGSDK)
     target_link_libraries(sony2fuji_core ${DNGSDK_LIBRARY})
@@ -207,6 +227,7 @@ if(BUILD_SHARED_LIB)
     if(SONY2FUJI_ENABLE_LENSFUN)
         target_link_libraries(sony2fuji ${LENSFUN_LIBRARY})
     endif()
+    target_link_libraries(sony2fuji ${SONY2FUJI_TIFF_TARGET})
     if(SONY2FUJI_ENABLE_DNGSDK)
         target_compile_definitions(sony2fuji PRIVATE SONY2FUJI_ENABLE_DNGSDK)
         target_link_libraries(sony2fuji ${DNGSDK_LIBRARY})
@@ -268,6 +289,13 @@ if(BUILD_TESTING AND NOT IOS AND NOT ANDROID)
     set(SONY2FUJI_TEST_RAW "" CACHE FILEPATH "External RAW fixture (never bundled)")
     file(TO_CMAKE_PATH "${SONY2FUJI_TEST_RAW}" SONY2FUJI_TEST_RAW)
     find_package(Threads REQUIRED)
+    add_executable(rendered_dng_tests tests/rendered_dng_tests.cpp)
+    target_link_libraries(rendered_dng_tests sony2fuji_core)
+    if(SONY2FUJI_ENABLE_DNGSDK AND SONY2FUJI_ENABLE_LENSFUN)
+        target_compile_definitions(rendered_dng_tests PRIVATE
+            TEST_LENS_SDK_DNG TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
+    add_test(NAME rendered_dng COMMAND rendered_dng_tests)
     add_executable(core_tests tests/core_tests.cpp)
     target_link_libraries(core_tests sony2fuji_core Threads::Threads)
     target_compile_definitions(core_tests PRIVATE TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" TEST_RAW_PATH="${SONY2FUJI_TEST_RAW}")

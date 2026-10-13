@@ -387,6 +387,51 @@ extension RawEditorViewModel {
         }
     }
 
+    func exportDNG(settings: RawSettings, longEdge: Int? = nil,
+                   completion: @escaping (Result<URL, Error>) -> Void) {
+        guard isLookAvailable(for: settings) else {
+            completion(.failure(BatchExportError.global("所选外观不可用，请重新选择外观。")))
+            return
+        }
+        guard let sourceURL, let sourceKind else {
+            completion(.failure(EditorError.noImageLoaded))
+            return
+        }
+        guard ExportSize.isValid(longEdge) else {
+            completion(.failure(Sony2FujiProcessor.ProcessorError.invalidExportSize))
+            return
+        }
+
+        isBusy = true
+        let base = sourceURL.deletingPathExtension().lastPathComponent.isEmpty
+            ? "RawLab" : sourceURL.deletingPathExtension().lastPathComponent
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(base)-rendered-\(UUID().uuidString).dng")
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let lutURL = self.lutURL(for: settings)
+                if sourceKind == .raw {
+                    try self.processor.exportDNG(url: sourceURL, settings: settings, lutURL: lutURL,
+                                                 outputURL: outputURL, exportLongEdge: longEdge)
+                } else {
+                    let raster = try self.processor.loadRasterBuffer(url: sourceURL, applyingOrientation: true)
+                    try self.processor.exportDNG(buffer: raster.buffer, settings: settings, lutURL: lutURL,
+                                                 outputURL: outputURL, exportLongEdge: longEdge)
+                }
+                DispatchQueue.main.async {
+                    self.isBusy = false
+                    completion(.success(outputURL))
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: outputURL)
+                DispatchQueue.main.async {
+                    self.isBusy = false
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
+
     func runBundledSampleSmokeTest(settings: RawSettings) {
         guard let url = Bundle.main.url(forResource: sampleResourceName, withExtension: sampleResourceExtension) else {
             statusMessage = "Sample RAW not found in app bundle."

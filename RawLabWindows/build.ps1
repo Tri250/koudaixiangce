@@ -63,6 +63,8 @@ if (!$openmp) { throw 'Cannot locate the Visual C++ OpenMP runtime.' }
 Copy-Item "$($openmp.FullName)/*.dll" $output -Force
 $licenses = Join-Path $output 'Licenses'
 New-Item -ItemType Directory -Force $licenses | Out-Null
+$libtiffLicense = Join-Path $native 'licenses/libtiff/LICENSE.md'
+if (!(Test-Path $libtiffLicense)) { throw 'The native build did not export the libtiff license.' }
 Copy-Item "$native/licenses/*" $licenses -Recurse -Force
 Copy-Item "$repo/lutools/third_party/Adobe-DNG-SDK-LICENSE.txt", "$repo/lutools/third_party/rawspeed-camera-calibration.inc", "$repo/RawLabMac/Resources/Licenses/stb-MIT-LICENSE.txt" $licenses -Force
 Copy-Item "$PSScriptRoot/Licenses/*" $licenses -Force

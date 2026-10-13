@@ -41,8 +41,12 @@ v0.5.0 新增逐照片本机调整记忆和批量 RAW 导出。任务固定当�
   Portrait uses a full-size before/after wipe, collapsible controls, a fixed bottom tool row, and separate temperature/tint tools.
 - 原尺寸 JPEG (quality 95) / 16-bit PNG。Android 10+ 可直接保存到相册；所有支持版本均可保存到文件。
   Native-resolution JPEG/16-bit PNG, saved to albums on Android 10+ or to a document on every supported version.
-- 导出保留可读取的相机、镜头、拍摄时间、快门、光圈、ISO 和 GPS 等拍摄 EXIF，更新成片方向、尺寸及 sRGB 标记，不复制旧缩略图或 RAW 专有 MakerNotes。
-  Exports retain readable capture EXIF, including camera, lens, date, exposure, ISO and GPS, and update output orientation, dimensions and sRGB tags without copying old thumbnails or opaque RAW MakerNotes.
+- 单张和批量支持渲染型 DNG 文件导出，保留当前全部调整和导出尺寸。DNG 只保存到文件或所选目录，不写入图库；批量通过文件流发布，不把整个 DNG 复制到 Java 堆。
+  Single and batch rendered DNG exports retain current adjustments and final sizing. DNG uses documents/selected folders only, with streamed batch publication rather than full-file Java heap copies.
+- JPEG/PNG 导出保留可读取的相机、镜头、拍摄时间、快门、光圈、ISO 和 GPS 等拍摄 EXIF，更新成片方向、尺寸及 sRGB 标记，不复制旧缩略图或 RAW 专有 MakerNotes。
+  JPEG/PNG exports retain readable capture EXIF, including camera, lens, date, exposure, ISO and GPS, and update output orientation, dimensions and sRGB tags without copying old thumbnails or opaque RAW MakerNotes.
+- 渲染型 DNG 固化外观，不是传感器 RAW，也不提供可恢复的调整滑块。不复制来源拍摄 EXIF；未压缩 float32 RGB 约占每像素 12 字节。构建和实测边界见[验证记录](../docs/verification-rendered-dng-export.md)。
+  Rendered DNG bakes appearance, not sensor RAW or reversible controls. It omits source capture EXIF and uses about 12 bytes per pixel for uncompressed float32 RGB. See the linked verification for runtime limits.
 
 只处理 RAW，不是 JPEG/HEIC 修图器。原始文件不写回；编辑参数按原始资源身份在本机自动保存，重选同一资源可恢复。
 

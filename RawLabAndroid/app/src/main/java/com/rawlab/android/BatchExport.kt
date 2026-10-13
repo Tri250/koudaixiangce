@@ -22,6 +22,11 @@ import java.util.UUID
 class BatchGlobalFailure(message: String, cause: Throwable? = null) : IOException(message, cause)
 class BatchPublicationUncertain(message: String, cause: Throwable? = null) : IOException(message, cause)
 
+internal fun asBatchOutputFailure(error: Throwable): Throwable =
+    if (error is NativeProcessingException && error.status == NativeProcessingException.OUTPUT_IO_ERROR)
+        BatchGlobalFailure("输出存储失败：${error.message}", error)
+    else error
+
 enum class BatchRowStatus { PENDING, PROCESSING, PUBLISHING, NEEDS_CONFIRMATION, SUCCESS, FAILED, CANCELLED }
 
 data class BatchSourceSnapshot(
@@ -56,29 +61,28 @@ data class BatchJob(
     val source: BatchSourceSnapshot,
     val targets: List<BatchTarget>,
     val id: String = UUID.randomUUID().toString(),
-    val outputPng: Boolean = false,
+    val outputFormat: ExportFormat = ExportFormat.JPEG,
     val outputLongEdge: Int? = null,
     val destination: String? = null,
-    val rows: List<BatchRow> = uniqueRows(targets, outputPng),
+    val rows: List<BatchRow> = uniqueRows(targets, outputFormat),
     val globalError: String? = null,
 ) {
     companion object {
-        private fun uniqueRows(targets: List<BatchTarget>, png: Boolean): List<BatchRow> {
+        private fun uniqueRows(targets: List<BatchTarget>, format: ExportFormat): List<BatchRow> {
             val used = mutableSetOf<String>()
             return targets.filter { used.add(it.identity.value) }.map { target ->
-                BatchRow(target = target, outputName = uniqueName(target.displayName, png, used = mutableSetOf()))
+                BatchRow(target = target, outputName = uniqueName(target.displayName, format, used = mutableSetOf()))
             }.let { rows ->
                 val names = mutableSetOf<String>()
-                rows.map { row -> row.copy(outputName = uniqueName(row.outputName, png, names)) }
+                rows.map { row -> row.copy(outputName = uniqueName(row.outputName, format, names)) }
             }
         }
 
-        private fun uniqueName(displayName: String, png: Boolean, used: MutableSet<String>): String {
+        private fun uniqueName(displayName: String, format: ExportFormat, used: MutableSet<String>): String {
             val base = displayName.substringAfterLast('/').substringBeforeLast('.', "RawLab").ifBlank { "RawLab" }
-            val extension = if (png) "png" else "jpg"
-            var name = "$base.$extension"
+            var name = "$base${format.suffix}"
             var suffix = 2
-            while (!used.add(name.lowercase())) name = "$base-$suffix.$extension".also { suffix++ }
+            while (!used.add(name.lowercase())) name = "$base-$suffix${format.suffix}".also { suffix++ }
             return name
         }
     }
@@ -87,14 +91,15 @@ data class BatchJob(
 }
 
 object BatchRunner {
-    fun run(
+    fun <T> run(
         job: BatchJob,
-        render: (BatchTarget, EditSettings) -> ByteArray,
-        write: (ByteArray, String, BatchTarget) -> Unit,
+        render: (BatchTarget, EditSettings) -> T,
+        write: (T, String, BatchTarget) -> Unit,
         shouldCancel: () -> Boolean = { false },
         journal: BatchJournal? = null,
         didUpdate: (BatchJob) -> Unit = {},
-        publish: ((ByteArray, String, BatchTarget, (String) -> Unit) -> Unit)? = null,
+        publish: ((T, String, BatchTarget, (String) -> Unit) -> Unit)? = null,
+        dispose: (T) -> Unit = {},
     ): BatchJob {
         var current = job.withRows(job.rows.map { if (it.status == BatchRowStatus.PROCESSING) it.copy(status = BatchRowStatus.PENDING) else it }, null)
         fun commit() { journal?.save(current); didUpdate(current) }
@@ -114,19 +119,21 @@ object BatchRunner {
             commit()
             try {
                 val row = current.rows[index]
-                val bytes = render(row.target, current.source.settings)
-                current = current.withRows(current.rows.mapIndexed { i, item -> if (i == index) item.copy(status = BatchRowStatus.PUBLISHING) else item })
-                commit()
-                if (publish == null) write(bytes, row.outputName, row.target)
-                else publish(bytes, row.outputName, row.target) { uri ->
-                    current = current.withRows(current.rows.mapIndexed { i, item -> if (i == index) item.copy(outputUri = uri, outputReady = false) else item })
+                val payload = render(row.target, current.source.settings)
+                try {
+                    current = current.withRows(current.rows.mapIndexed { i, item -> if (i == index) item.copy(status = BatchRowStatus.PUBLISHING) else item })
                     commit()
-                }
-                current = current.withRows(current.rows.mapIndexed { i, item -> if (i == index) item.copy(outputReady = true) else item })
-                commit()
-                val done = current.rows.toMutableList()
-                done[index] = done[index].copy(status = BatchRowStatus.SUCCESS)
-                current = current.withRows(done)
+                    if (publish == null) write(payload, row.outputName, row.target)
+                    else publish(payload, row.outputName, row.target) { uri ->
+                        current = current.withRows(current.rows.mapIndexed { i, item -> if (i == index) item.copy(outputUri = uri, outputReady = false) else item })
+                        commit()
+                    }
+                    current = current.withRows(current.rows.mapIndexed { i, item -> if (i == index) item.copy(outputReady = true) else item })
+                    commit()
+                    val done = current.rows.toMutableList()
+                    done[index] = done[index].copy(status = BatchRowStatus.SUCCESS)
+                    current = current.withRows(done)
+                } finally { dispose(payload) }
             } catch (error: BatchGlobalFailure) {
                 val failed = current.rows.map { row ->
                     if (row.status in setOf(BatchRowStatus.PROCESSING, BatchRowStatus.PUBLISHING)) row.copy(status = BatchRowStatus.FAILED, error = error.message) else row
@@ -145,17 +152,20 @@ object BatchRunner {
         return current
     }
 
-    fun retryFailed(
+    fun <T> retryFailed(
         job: BatchJob,
-        render: (BatchTarget, EditSettings) -> ByteArray,
-        write: (ByteArray, String, BatchTarget) -> Unit,
+        render: (BatchTarget, EditSettings) -> T,
+        write: (T, String, BatchTarget) -> Unit,
         shouldCancel: () -> Boolean = { false },
         journal: BatchJournal? = null,
+        dispose: (T) -> Unit = {},
     ): BatchJob = run(job.withRows(job.rows.map { if (it.status == BatchRowStatus.FAILED) it.copy(status = BatchRowStatus.PENDING, error = null) else it }),
-        render, write, shouldCancel, journal)
+        render, write, shouldCancel, journal, dispose = dispose)
 }
 
 class BatchJournal(private val directory: File) {
+    private companion object { const val JOURNAL_VERSION = 2 }
+
     init { if (!directory.exists() && !directory.mkdirs()) throw IOException("Cannot create batch journal") }
 
     @Synchronized
@@ -167,7 +177,10 @@ class BatchJournal(private val directory: File) {
         properties.setProperty("source.look", job.source.lookFile?.path.orEmpty())
         properties.setProperty("global.error", job.globalError.orEmpty())
         properties.setProperty("source.settings", SettingsCodec.encode(job.source.settings))
-        properties.setProperty("output.png", job.outputPng.toString())
+        properties.setProperty("journal.version", JOURNAL_VERSION.toString())
+        properties.setProperty("output.format", job.outputFormat.name.lowercase())
+        // Keep the old flag for clients that only know JPEG/PNG journals.
+        properties.setProperty("output.png", (job.outputFormat == ExportFormat.PNG).toString())
         properties.setProperty("output.longEdge", job.outputLongEdge?.toString().orEmpty())
         properties.setProperty("output.destination", job.destination.orEmpty())
         properties.setProperty("row.count", job.rows.size.toString())
@@ -208,8 +221,17 @@ class BatchJournal(private val directory: File) {
             BatchTarget(PhotoIdentity(properties.getProperty(prefix + "id")), File(properties.getProperty(prefix + "path")),
                 properties.getProperty(prefix + "name"), properties.getProperty(prefix + "uri").ifBlank { null })
         }
+        val journalVersion = properties.getProperty("journal.version", "1").toIntOrNull() ?: 1
+        if (journalVersion > JOURNAL_VERSION) throw IOException("Unsupported batch journal version: $journalVersion")
+        val outputFormat = if (journalVersion >= JOURNAL_VERSION) {
+            ExportFormat.fromPersisted(properties.getProperty("output.format"))
+        } else if (properties.getProperty("output.png", "false").toBoolean()) {
+            ExportFormat.PNG
+        } else {
+            ExportFormat.JPEG
+        }
         val base = BatchJob(source, targets, id = id,
-            outputPng = properties.getProperty("output.png", "false").toBoolean(),
+            outputFormat = outputFormat,
             outputLongEdge = properties.getProperty("output.longEdge").orEmpty().toIntOrNull()
                 ?.takeIf { ExportSize.isValid(it) },
             destination = properties.getProperty("output.destination").orEmpty().ifBlank { null })
@@ -248,7 +270,7 @@ enum class BatchPhase { SELECTING, PREPARING, RUNNING, CANCELLED, COMPLETE, FAIL
 data class BatchExportState(
     val job: BatchJob,
     val phase: BatchPhase = BatchPhase.SELECTING,
-    val outputPng: Boolean = false,
+    val outputFormat: ExportFormat = ExportFormat.JPEG,
     val destination: Uri? = null,
     val error: String? = null,
     val stopping: Boolean = false,
@@ -272,7 +294,7 @@ class BatchExportModel(
     private val journalRoot = File(context.filesDir, "RawLab/BatchJobs")
     private val initialJob = initial ?: BatchJob(source, emptyList())
     private val mutable = MutableStateFlow(BatchExportState(initialJob, phase = BatchPhase.PREPARING,
-        outputPng = initialJob.outputPng, destination = initialJob.destination?.let(Uri::parse)))
+        outputFormat = initialJob.outputFormat, destination = initialJob.destination?.let(Uri::parse)))
     val state = mutable.asStateFlow()
 
     init {
@@ -302,7 +324,7 @@ class BatchExportModel(
             val accepted = additions.filter { existing.add(it.identity.value) }
             val all = mutable.value.job.rows.map { it.target } + accepted
             mutable.value = mutable.value.copy(job = BatchJob(mutable.value.job.source, all,
-                id = mutable.value.job.id, outputPng = mutable.value.job.outputPng,
+                id = mutable.value.job.id, outputFormat = mutable.value.job.outputFormat,
                 outputLongEdge = mutable.value.job.outputLongEdge, destination = mutable.value.job.destination),
                 phase = BatchPhase.SELECTING, stopping = false,
                 error = failures.takeIf { it.isNotEmpty() }?.joinToString("\n"))
@@ -313,15 +335,15 @@ class BatchExportModel(
         if (mutable.value.phase != BatchPhase.SELECTING) return
         val targets = mutable.value.job.rows.filterNot { it.id == id }.map { it.target }
         mutable.value = mutable.value.copy(job = BatchJob(mutable.value.job.source, targets,
-            id = mutable.value.job.id, outputPng = mutable.value.job.outputPng,
+            id = mutable.value.job.id, outputFormat = mutable.value.job.outputFormat,
             outputLongEdge = mutable.value.job.outputLongEdge, destination = mutable.value.job.destination))
     }
 
-    fun start(png: Boolean, destination: Uri?, longEdge: Int? = null) {
-        startInternal(png, destination, longEdge, retry = false)
+    fun start(format: ExportFormat, destination: Uri?, longEdge: Int? = null) {
+        startInternal(format, destination, longEdge, retry = false)
     }
 
-    private fun startInternal(png: Boolean, destination: Uri?, longEdge: Int?, retry: Boolean) {
+    private fun startInternal(format: ExportFormat, destination: Uri?, longEdge: Int?, retry: Boolean) {
         val current = mutable.value
         if (current.phase in setOf(BatchPhase.PREPARING, BatchPhase.RUNNING) || current.job.rows.isEmpty()) return
         if (retry && current.unfinishedCount == 0) return
@@ -329,10 +351,14 @@ class BatchExportModel(
             mutable.value = current.copy(error = "请输入 1–65535 之间的像素数")
             return
         }
-        val configured = current.job.copy(outputPng = png, destination = destination?.toString(),
+        if (destination == null && !format.allowsGallery) {
+            mutable.value = current.copy(error = "${format.name} 导出只能选择输出目录")
+            return
+        }
+        val configured = current.job.copy(outputFormat = format, destination = destination?.toString(),
             outputLongEdge = longEdge,
-            rows = current.job.rows.map { if (it.status == BatchRowStatus.SUCCESS) it else it.copy(outputName = it.outputName.substringBeforeLast('.') + if (png) ".png" else ".jpg") })
-        mutable.value = current.copy(job = configured, phase = BatchPhase.PREPARING, outputPng = png, destination = destination, error = null, stopping = false)
+            rows = current.job.rows.map { if (it.status == BatchRowStatus.SUCCESS) it else it.copy(outputName = it.outputName.substringBeforeLast('.') + format.suffix) })
+        mutable.value = current.copy(job = configured, phase = BatchPhase.PREPARING, outputFormat = format, destination = destination, error = null, stopping = false)
         cancelRequested.set(false)
         running = scope.launch(Dispatchers.IO) {
             try {
@@ -343,31 +369,35 @@ class BatchExportModel(
                 val journal = BatchJournal(journalRoot)
                 val processor = NativeProcessor(lensDatabase = storage.lensDatabase())
                 val result = try {
-                    val render: (BatchTarget, EditSettings) -> ByteArray = { target, settings ->
-                        val temporary = File.createTempFile("render-", if (png) ".png" else ".jpg", context.filesDir)
+                    val render: (BatchTarget, EditSettings) -> File = { target, settings ->
+                        val temporary = File.createTempFile("render-", format.suffix, context.filesDir)
                         try {
-                            processor.export(target.sourceFile, materialized.source.lookFile, settings, temporary, png,
+                            processor.export(target.sourceFile, materialized.source.lookFile, settings, temporary, format,
                                 materialized.outputLongEdge)
-                            temporary.readBytes()
-                        } finally { temporary.delete() }
-                    }
-                    val publish: (ByteArray, String, BatchTarget, (String) -> Unit) -> Unit = { bytes, outputName, _, checkpoint ->
-                        val temporary = File.createTempFile("output-", if (png) ".png" else ".jpg", context.filesDir)
-                        try {
-                            temporary.writeBytes(bytes)
-                            try { if (destination == null) {
-                                if (android.os.Build.VERSION.SDK_INT < 29) throw BatchGlobalFailure("相册保存需要 Android 10 或更高版本")
-                                storage.saveAlbum(temporary, png, outputName) { checkpoint(it.toString()) }
-                            } else {
-                                saveDocumentChild(destination, temporary, outputName, png) { checkpoint(it.toString()) }
-                            } } catch (error: BatchPublicationUncertain) { throw error }
-                            catch (error: Exception) { throw BatchGlobalFailure("输出存储失败：${error.message}", error) }
+                            temporary
+                        } catch (error: Throwable) {
+                            temporary.delete()
+                            throw asBatchOutputFailure(error)
                         }
-                        finally { temporary.delete() }
+                    }
+                    val publish: (File, String, BatchTarget, (String) -> Unit) -> Unit = { rendered, outputName, _, checkpoint ->
+                        try {
+                            if (destination == null) {
+                                if (android.os.Build.VERSION.SDK_INT < 29) throw BatchGlobalFailure("相册保存需要 Android 10 或更高版本")
+                                storage.saveAlbum(rendered, format, outputName) { checkpoint(it.toString()) }
+                            } else {
+                                saveDocumentChild(destination, rendered, outputName, format) { checkpoint(it.toString()) }
+                            }
+                        } catch (error: BatchPublicationUncertain) {
+                            throw error
+                        } catch (error: Exception) {
+                            throw BatchGlobalFailure("输出存储失败：${error.message}", error)
+                        }
                     }
                     mutable.value = mutable.value.copy(phase = BatchPhase.RUNNING)
                     BatchRunner.run(materialized, render, { _, _, _ -> }, cancelRequested::get, journal,
-                        didUpdate = { mutable.value = mutable.value.copy(job = it) }, publish = publish)
+                        didUpdate = { mutable.value = mutable.value.copy(job = it) },
+                        dispose = { it.delete() }, publish = publish)
                 } finally { processor.close() }
                 mutable.value = BatchExportState(result,
                     phase = when {
@@ -375,7 +405,7 @@ class BatchExportModel(
                         result.rows.any { it.status in setOf(BatchRowStatus.CANCELLED, BatchRowStatus.NEEDS_CONFIRMATION) } -> BatchPhase.CANCELLED
                         result.rows.any { it.status == BatchRowStatus.FAILED } -> BatchPhase.FAILED
                         else -> BatchPhase.COMPLETE
-                    }, outputPng = png, destination = destination, error = result.globalError)
+                    }, outputFormat = format, destination = destination, error = result.globalError)
             } catch (error: Throwable) {
                 mutable.value = mutable.value.copy(phase = BatchPhase.FAILED,
                     error = error.message ?: error.javaClass.simpleName)
@@ -385,7 +415,7 @@ class BatchExportModel(
 
     fun retryFailed() {
         if (mutable.value.phase == BatchPhase.RUNNING || mutable.value.unfinishedCount == 0) return
-        startInternal(mutable.value.outputPng, mutable.value.destination, mutable.value.job.outputLongEdge, retry = true)
+        startInternal(mutable.value.outputFormat, mutable.value.destination, mutable.value.job.outputLongEdge, retry = true)
     }
 
     fun cancel() {
@@ -433,8 +463,7 @@ class BatchExportModel(
         return File(root, "$safe.${extension.ifBlank { "raw" }}")
     }
 
-    private fun saveDocumentChild(tree: Uri, file: File, name: String, png: Boolean, onCreated: (Uri) -> Unit): Uri {
-        val mime = if (png) "image/png" else "image/jpeg"
+    private fun saveDocumentChild(tree: Uri, file: File, name: String, format: ExportFormat, onCreated: (Uri) -> Unit): Uri {
         val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
         val names = mutableSetOf<String>()
@@ -444,7 +473,7 @@ class BatchExportModel(
         var candidate = name
         var suffix = 2
         while (candidate.lowercase() in names) candidate = "${name.substringBeforeLast('.')}-${suffix++}.${name.substringAfterLast('.')}"
-        val child = DocumentsContract.createDocument(resolver, parent, mime, candidate)
+        val child = DocumentsContract.createDocument(resolver, parent, format.mimeType, candidate)
             ?: throw IOException("Cannot create output document")
         try {
             onCreated(child)

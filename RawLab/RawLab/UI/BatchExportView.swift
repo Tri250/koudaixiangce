@@ -47,6 +47,12 @@ struct BatchExportView: View {
             .sheet(item: $selectedTarget) { target in
                 TargetEffectInspectionView(model: model, target: target)
             }
+            .sheet(isPresented: Binding(get: { model.shouldPresentFileExport },
+                                        set: { model.shouldPresentFileExport = $0 }) ) {
+                if let urls = model.fileExportURLs {
+                    FileExportPicker(urls: urls) { model.finishFileExport($0) }
+                }
+            }
             .onChange(of: pickerItems) { _, items in
                 guard !items.isEmpty else { return }
                 pickerItems = []
@@ -56,7 +62,8 @@ struct BatchExportView: View {
                 Button("放弃任务", role: .destructive) { if model.discard() { dismiss() } }
             }
             .confirmationDialog(confirmTarget?.displayName ?? "核对保存结果",
-                isPresented: Binding(get: { confirmTarget != nil }, set: { if !$0 { confirmTarget = nil } }),
+                isPresented: Binding(get: { model.job.outputFormat == .jpeg && confirmTarget != nil },
+                                     set: { if !$0 { confirmTarget = nil } }),
                 titleVisibility: .visible) {
                 if let target = confirmTarget {
                     Button("已在照片图库中确认保存") { model.confirmPublication(id: target.id, saved: true) }
@@ -166,7 +173,12 @@ struct BatchExportView: View {
                                     .foregroundStyle(target.status == .failed || target.status == .needsConfirmation ? Color.orange : .secondary)
                                 if let error = target.errorMessage { Text(error).font(.caption).foregroundStyle(.secondary) }
                                 if target.status == .needsConfirmation {
-                                    Button("核对保存结果") { confirmTarget = target }.font(.footnote)
+                                    if model.job.outputFormat == .renderedDNG {
+                                        Button("核对 DNG 文件") { Task { await model.reconcilePublication() } }
+                                            .font(.footnote)
+                                    } else {
+                                        Button("核对保存结果") { confirmTarget = target }.font(.footnote)
+                                    }
                                 }
                             }
                             Spacer(minLength: 0)
@@ -185,11 +197,17 @@ struct BatchExportView: View {
         VStack(alignment: .leading, spacing: 0) {
             Divider()
             Text("输出").font(.title3.weight(.semibold)).padding(.top, 18).padding(.bottom, 10)
-            settingRow("格式", value: "JPEG")
+            Picker("格式", selection: Binding(get: { model.job.outputFormat }, set: model.setFormat)) {
+                Text(BatchOutputFormat.jpeg.title).tag(BatchOutputFormat.jpeg)
+                Text(BatchOutputFormat.renderedDNG.title).tag(BatchOutputFormat.renderedDNG)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .disabled(!model.canChangeTargets)
             ExportSizePicker(longEdge: Binding(get: { model.job.longEdge }, set: model.setLongEdge),
                              onValidityChanged: { exportSizeValid = $0 })
                 .disabled(!model.canChangeTargets)
-            settingRow("保存到", value: "照片图库")
+            settingRow("保存到", value: model.job.outputFormat == .renderedDNG ? "RawLab 文件" : "照片图库")
         }.padding(.horizontal, 20).padding(.bottom, 16)
     }
 
@@ -207,7 +225,22 @@ struct BatchExportView: View {
                 Button(model.isStopping ? "正在停止…" : "取消导出") { model.cancel() }
                     .buttonStyle(.bordered).disabled(model.isStopping)
             } else if model.job.status == .completed {
-                Text("已保存 \(model.completedCount) 张到照片图库").font(.footnote).foregroundStyle(.secondary)
+                if model.job.outputFormat == .renderedDNG {
+                    switch model.fileExportStatus {
+                    case .exported:
+                        Text("已导出 \(model.completedCount) 个渲染型 DNG").font(.footnote).foregroundStyle(.secondary)
+                    case .cancelled:
+                        Text("已生成 \(model.completedCount) 个渲染型 DNG，未另存到所选位置")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    default:
+                        Text("已生成 \(model.completedCount) 个渲染型 DNG").font(.footnote).foregroundStyle(.secondary)
+                    }
+                    if model.fileExportURLs?.isEmpty == false {
+                        Button("导出到文件…") { model.presentFileExport() }.font(.footnote)
+                    }
+                } else {
+                    Text("已保存 \(model.completedCount) 张到照片图库").font(.footnote).foregroundStyle(.secondary)
+                }
                 primary("完成") { if model.discard() { dismiss() } }
             } else {
                 if model.job.status == .draft {
@@ -216,8 +249,14 @@ struct BatchExportView: View {
                     Text("成功 \(model.completedCount) 张 · 失败 \(model.failedCount) 张 · 未处理 \(model.pendingCount) 张")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                if model.job.outputFormat == .renderedDNG && model.fileExportURLs?.isEmpty == false {
+                    Button("导出已完成的 DNG 到文件…") { model.presentFileExport() }
+                        .font(.footnote)
+                }
                 if model.uncertainCount > 0 {
-                    Button("授权核对相册中的保存结果") { Task { await model.reconcilePhotos() } }
+                    Button(model.job.outputFormat == .renderedDNG ? "核对 DNG 文件保存结果" : "授权核对相册中的保存结果") {
+                        Task { await model.reconcilePublication() }
+                    }
                         .font(.footnote)
                 }
                 if model.pendingCount > 0 {

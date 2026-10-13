@@ -260,6 +260,37 @@ int main() {
 
     sony2fuji_session* session=nullptr;
     sony2fuji_session_create(&session);
+    const unsigned char dngPixels[3] = {128, 70, 220};
+    auto dngRequest = request(dngPixels);
+    const std::string dngPath = (dir / "rendered.dng").string();
+    dngRequest.output_target = SONY2FUJI_TARGET_FILE;
+    dngRequest.output_format = static_cast<sony2fuji_output_format>(4);
+    dngRequest.output_path = dngPath.c_str();
+    dngRequest.intent = SONY2FUJI_INTENT_FINAL;
+    check(sony2fuji_process(session, &dngRequest, nullptr) == SONY2FUJI_STATUS_OK &&
+          std::filesystem::file_size(dngPath) > 8, "C ABI writes rendered DNG as a file");
+    const std::string missingDngPath = (dir / "absent" / "out.dng").string();
+    dngRequest.output_path = missingDngPath.c_str();
+    check(sony2fuji_process(session, &dngRequest, nullptr) == SONY2FUJI_STATUS_OUTPUT_IO_ERROR,
+          "DNG storage failures have a distinct output IO status for batch cancellation");
+    dngRequest.output_path = dngPath.c_str();
+    dngRequest.intent = SONY2FUJI_INTENT_PREVIEW;
+    check(sony2fuji_process(session, &dngRequest, nullptr) == SONY2FUJI_STATUS_UNSUPPORTED,
+          "DNG rejects preview intent instead of exporting a proxy");
+    dngRequest.intent = SONY2FUJI_INTENT_FINAL;
+    dngRequest.output_target = SONY2FUJI_TARGET_BUFFER;
+    sony2fuji_buffer dngBuffer{};
+    check(sony2fuji_process(session, &dngRequest, &dngBuffer) == SONY2FUJI_STATUS_UNSUPPORTED,
+          "Rendered DNG is not a preview buffer format");
+    dngRequest.output_target = SONY2FUJI_TARGET_FILE;
+    dngRequest.input_type = SONY2FUJI_INPUT_RAW;
+    const std::string missingInputPath = (dir / "missing-input.ARW").string();
+    dngRequest.input_path = missingInputPath.c_str();
+    check(sony2fuji_process(session, &dngRequest, nullptr) == SONY2FUJI_STATUS_IO_ERROR,
+          "Missing RAW input remains a source IO error, not an output storage error");
+    dngRequest.input_path = dngPath.c_str();
+    check(sony2fuji_process(session, &dngRequest, nullptr) == SONY2FUJI_STATUS_INVALID_ARGUMENT,
+          "DNG output cannot overwrite the original input");
     {
         const auto unsupported = cube.u8string();
         const auto missing = (dir / "missing.dng").u8string();

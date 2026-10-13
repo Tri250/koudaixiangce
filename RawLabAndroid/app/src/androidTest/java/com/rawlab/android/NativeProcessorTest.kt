@@ -109,7 +109,7 @@ class NativeProcessorTest {
                 }
                 assertTrue("Combined effects/wavelet/chroma CPU/GLES parity max DN=$maximum", maximum <= 2)
                 assertArrayEquals(gpu.pixels, processor.preview(input, null, settings, 200, false).pixels)
-                processor.export(input, null, settings, output, true)
+                processor.export(input, null, settings, output, ExportFormat.PNG)
                 assertTrue(output.isFile && output.length() > 0)
             }
         } finally { input.delete(); output.delete() }
@@ -141,7 +141,7 @@ class NativeProcessorTest {
                 }
                 assertTrue("Wavelet GLES CPU parity max DN=$difference", difference <= 2)
                 processor.setGpuMode(NativeProcessor.CPU)
-                processor.export(input, null, settings, output, true)
+                processor.export(input, null, settings, output, ExportFormat.PNG)
                 val header = ByteArray(26)
                 java.io.DataInputStream(output.inputStream()).use { it.readFully(header) }
                 assertEquals(16, header[24].toInt())
@@ -151,7 +151,7 @@ class NativeProcessorTest {
                 val reference = File(context.cacheDir, "wavelet-reference.png")
                 NativeProcessor(NativeProcessor.CPU).use { fresh ->
                     try {
-                        fresh.export(input, null, settings, reference, true)
+                        fresh.export(input, null, settings, reference, ExportFormat.PNG)
                         val full = android.graphics.BitmapFactory.decodeFile(reference.path)
                         assertTrue("Interactive work never changes a fresh FINAL export", saved.sameAs(full))
                         full.recycle()
@@ -236,7 +236,7 @@ class NativeProcessorTest {
                     assertFalse(neutral.pixels.contentEquals(warm.pixels))
                 }
                 val out = File(context.cacheDir, "native-export.png")
-                processor.export(input, null, EditSettings(), out, true)
+                processor.export(input, null, EditSettings(), out, ExportFormat.PNG)
                 val header = ByteArray(26)
                 java.io.DataInputStream(out.inputStream()).use { it.readFully(header) }
                 assertEquals(16, header[24].toInt())
@@ -247,7 +247,7 @@ class NativeProcessorTest {
                 assertCaptureMetadata(input, out, nativeWidth, nativeHeight)
                 out.delete()
                 val jpeg = File(context.cacheDir, "native-export.jpg")
-                processor.export(input, storage.filmPath("velvia"), EditSettings(film = "velvia", strength = 2f), jpeg, false)
+                processor.export(input, storage.filmPath("velvia"), EditSettings(film = "velvia", strength = 2f), jpeg, ExportFormat.JPEG)
                 val dimensions = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 android.graphics.BitmapFactory.decodeFile(jpeg.path, dimensions)
                 assertEquals(nativeWidth, dimensions.outWidth)

@@ -97,16 +97,21 @@ internal sealed class RenderEngine : IDisposable
         var effects=settings.Effects.NativeConfig();
         Native.Check(Native.sony2fuji_session_set_photo_effects(session,ref effects));
         Native.Check(Native.sony2fuji_session_set_chroma_denoise(session,settings.DisplayChromaDenoise));
+        var format = output == null ? (ExportFormat?)null : ExportFormatExtensions.FromPath(output);
         var request = settings.Request(path,lut,edge,output,longEdge);
         Native.Buffer buffer = default, mask = default;
         try
         {
             var status = Native.sony2fuji_process(session,ref request,out buffer);
-            if (output != null && status == 3) throw new OutputWriteException("无法写入成片，请检查输出位置和剩余空间。");
+            if (output != null && (status == 6 || (status == 3 && format != ExportFormat.RenderedDng)))
+                throw new OutputWriteException("无法写入成片，请检查输出位置和剩余空间。");
             Native.Check(status);
             if (output != null) {
-                try { ExportMetadata.Preserve(path,output); }
-                catch (IOException error) { throw new OutputWriteException("无法完成成片元数据写入：" + error.Message, error); }
+                if (format != ExportFormat.RenderedDng)
+                {
+                    try { ExportMetadata.Preserve(path,output); }
+                    catch (IOException error) { throw new OutputWriteException("无法完成成片元数据写入：" + error.Message, error); }
+                }
                 return null;
             }
             var bins = statistics || clipping ? new uint[768] : Array.Empty<uint>();

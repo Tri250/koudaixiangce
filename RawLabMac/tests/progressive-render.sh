@@ -24,7 +24,7 @@ swiftc -swift-version 5 -O -sdk "$SDK" \
     "$ROOT/RawLabMac/Sources/ExportSizePicker.swift" \
     "$ROOT/RawLabMac/tests/ProgressiveRenderTests.swift" \
     "$BUILD/libsony2fuji_core.a" \
-    -L "$(pkg-config --variable=libdir libraw)" -lraw $(pkg-config --libs opencv4 wavelib rawlab-dng-sdk lensfun) -lc++ -lz \
+    -L "$(pkg-config --variable=libdir libraw)" -lraw $(pkg-config --libs opencv4 wavelib rawlab-dng-sdk lensfun libtiff-4) -lc++ -lz \
     -framework SwiftUI -framework AppKit -framework ImageIO -framework Metal \
     -o "$OUT/progressive-render"
 

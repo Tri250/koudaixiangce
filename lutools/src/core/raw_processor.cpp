@@ -22,6 +22,7 @@
 #define STBIW_WINDOWS_UTF8
 #endif
 #include "stb_image_write.h"
+#include "rendered_dng.h"
 
 #ifdef _OPENMP
 namespace {
@@ -518,6 +519,8 @@ ErrorCode ImageEncoder::saveImage(
             return saveJPEG(image, filepath, quality);
         case OutputFormat::PNG:
             return savePNG(image, filepath);
+        case OutputFormat::DNG:
+            return saveRenderedDNG(image, filepath);
         default:
             return ErrorCode::InvalidFormat;
     }

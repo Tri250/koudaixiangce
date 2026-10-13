@@ -34,6 +34,10 @@
 - OpenCV 4.12.0: https://github.com/opencv/opencv/tree/4.12.0, Apache 2.0.
   Static core/imgproc libraries support linear-light wavelet denoising.
   See `Licenses/OpenCV-LICENSE`.
+- libtiff 4.7.1: https://gitlab.com/libtiff/libtiff, libtiff license.
+  The static Windows build is used only by the rendered-DNG writer. The exact
+  source archive and SHA-256 are pinned in `lutools/cmake/tiff-dependencies.cmake`;
+  its `LICENSE.md` is included in `Licenses/libtiff/`.
 - wavelib: https://github.com/rafat/wavelib/tree/7f61bf592f3c470b2a7d8199431fde821d7253ac, BSD 3-Clause.
   The exact revision and source hash are pinned in `lutools/cmake/denoise-dependencies.cmake`.
   Local stationary-wavelet column and inverse-transform optimizations are in
@@ -69,5 +73,5 @@
   installed Visual Studio Build Tools, under Microsoft's distribution terms.
 
 No binaries are checked into source control. The build downloads version-pinned
-LibRaw, zlib, DNG SDK/JPEG XL, OpenCV and wavelib source archives and verifies their hashes before compilation.
+LibRaw, zlib, libtiff, DNG SDK/JPEG XL, OpenCV and wavelib source archives and verifies their hashes before compilation.
 The ExifTool runtime archive is also version-pinned and hash-verified.

@@ -244,15 +244,15 @@ public partial class MainWindow : Window
     private static SolidColorBrush Brush(string color)=>(SolidColorBrush)new BrushConverter().ConvertFromString(color)!;
     private void UpdateBusy()
     {
-        ExportJpeg.IsEnabled=ExportPng.IsEnabled=BatchExportMenu.IsEnabled=exactReady && !scheduler.Busy && !exporting && result!=null && LookAvailable;
+        ExportJpeg.IsEnabled=ExportPng.IsEnabled=ExportDng.IsEnabled=BatchExportMenu.IsEnabled=exactReady && !scheduler.Busy && !exporting && result!=null && LookAvailable;
         ViewBatchMenu.IsEnabled=CurrentBatch!=null;
-        ExportButton.IsEnabled=ExportJpeg.IsEnabled || ViewBatchMenu.IsEnabled;
+        ExportButton.IsEnabled=ExportJpeg.IsEnabled || ExportPng.IsEnabled || ExportDng.IsEnabled || ViewBatchMenu.IsEnabled;
         AdjustmentPanel.IsEnabled=!exporting;GpuMode.IsEnabled=!exporting;
         BusyIndicator.Visibility=scheduler.Busy || exporting ? Visibility.Visible : Visibility.Collapsed;
         RetryButton.Visibility=renderFailed && !scheduler.Busy && !exporting ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.ToolTip=file==null ? "打开 RAW 照片后导出" : scheduler.Busy ? "精确预览完成后可导出" : "导出照片（尺寸可选）";
         ToolTipService.SetShowOnDisabled(ExportButton,true);
-        ToolTipService.SetShowOnDisabled(ExportJpeg,true);ToolTipService.SetShowOnDisabled(ExportPng,true);
+        ToolTipService.SetShowOnDisabled(ExportJpeg,true);ToolTipService.SetShowOnDisabled(ExportPng,true);ToolTipService.SetShowOnDisabled(ExportDng,true);
     }
     private void SetStatus(string text,bool error=false) { Status.Text=text; Status.ToolTip=text; Status.Foreground=Brush(error ? "#FFAB92" : "#B5B8C0"); }
     private void RetryClicked(object sender,RoutedEventArgs e)=>Schedule();
@@ -704,8 +704,9 @@ public partial class MainWindow : Window
         else if(e.Key is Key.Add or Key.OemPlus)ZoomInClicked(sender,e); else if(e.Key is Key.Subtract or Key.OemMinus)ZoomOutClicked(sender,e);
         else if(e.Key==Key.I)InfoClicked(sender,e);
     }
-    private void ExportJpegClicked(object sender,RoutedEventArgs e)=>Export(false);
-    private void ExportPngClicked(object sender,RoutedEventArgs e)=>Export(true);
+    private void ExportJpegClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.Jpeg);
+    private void ExportPngClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.Png);
+    private void ExportDngClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.RenderedDng);
     private void ExportOriginalSizeClicked(object sender,RoutedEventArgs e) { exportLongEdge=null; RefreshExportSizeMenu(); }
     private void ExportSizeClicked(object sender,RoutedEventArgs e)
     {
@@ -730,19 +731,49 @@ public partial class MainWindow : Window
         ExportCustomSize.IsChecked=exportLongEdge.HasValue && exportLongEdge != 2048 && exportLongEdge != 3000 && exportLongEdge != 4096;
         ExportCustomSize.Header=ExportCustomSize.IsChecked == true ? $"自定义 {exportLongEdge} px" : "自定义…";
     }
-    private async void Export(bool png)
+    private async void Export(ExportFormat format)
     {
         if(!exactReady || scheduler.Busy || exporting || file==null || engine==null)return;
-        var dialog=new SaveFileDialog{Title="全分辨率导出",Filter=png ? "16-bit PNG|*.png" : "JPEG|*.jpg",DefaultExt=png ? ".png" : ".jpg",AddExtension=true,OverwritePrompt=true,
+        var suffix=format.Suffix();
+        var dialog=new SaveFileDialog{Title="全分辨率导出",Filter=format switch {
+                ExportFormat.Jpeg => "JPEG|*.jpg;*.jpeg",
+                ExportFormat.Png => "16-bit PNG|*.png",
+                ExportFormat.RenderedDng => "DNG · 渲染型|*.dng",
+                _ => throw new ArgumentOutOfRangeException(nameof(format))
+            },DefaultExt="."+suffix,AddExtension=true,OverwritePrompt=true,
             FileName=Path.GetFileNameWithoutExtension(file)+"-"+(films.FirstOrDefault(f=>f.Path==lut)?.Name ?? "neutral")};
+        dialog.FileOk += (_, args) => {
+            if (!format.AcceptsPath(dialog.FileName))
+            {
+                args.Cancel = true;
+                MessageBox.Show(this, $"请选择 {format.Title()} 文件扩展名。", "导出",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        };
         if(dialog.ShowDialog(this)!=true)return;
         if(Path.GetFullPath(dialog.FileName).Equals(Path.GetFullPath(file),StringComparison.OrdinalIgnoreCase)){SetStatus("不能覆盖原始 RAW。",true);return;}
         exporting=true;RefreshControls();SetStatus("正在全分辨率导出…");
         var input=file;var adjustment=settings.Clone();var film=lut;
         // Render to a sibling temporary file, then replace only after encoding succeeds.
-        var temp=Path.Combine(Path.GetDirectoryName(dialog.FileName)!,".rawlab-"+Guid.NewGuid().ToString("N")+(png ? ".png" : ".jpg"));
+        var temp=Path.Combine(Path.GetDirectoryName(dialog.FileName)!,".rawlab-"+Guid.NewGuid().ToString("N")+"."+suffix);
         var size=exportLongEdge;
-        try { await Task.Run(()=>engine.Render(input,adjustment,film,0,false,temp,longEdge:size));File.Move(temp,dialog.FileName,true);SetStatus($"已导出（{(engine.LastBackend==3 ? "Direct3D 11" : "CPU")}）：{dialog.FileName}"); }
+        try
+        {
+            using var sourceLock = WindowsFileIdentity.OpenReadLock(input);
+            if (WindowsFileIdentity.IsSameFile(sourceLock, dialog.FileName))
+            {
+                SetStatus("不能覆盖原始 RAW。", true);
+                return;
+            }
+            await Task.Run(()=>engine.Render(input,adjustment,film,0,false,temp,longEdge:size));
+            if (WindowsFileIdentity.IsSameFile(sourceLock, dialog.FileName))
+            {
+                SetStatus("不能覆盖原始 RAW。", true);
+                return;
+            }
+            File.Move(temp,dialog.FileName,true);
+            SetStatus($"已导出（{(engine.LastBackend==3 ? "Direct3D 11" : "CPU")}）：{dialog.FileName}");
+        }
         catch(Exception ex){Report(ex);}
         finally {try{if(File.Exists(temp))File.Delete(temp);}catch(IOException){} exporting=false;RefreshControls();if(closing)FinishClose();}
     }

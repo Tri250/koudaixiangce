@@ -38,6 +38,9 @@ film looks do not promise an exact match to in-camera JPEGs.
 - Photo information overlays, zoom/pan and original-size or long-edge exports.
   Desktop file browsers can reveal photos and apply confirmed current settings.
 - JPEG and 16-bit PNG export on Windows, macOS and Android; JPEG export on iOS.
+  Rendered DNG file export is available in single and batch workflows on all four
+  clients. It bakes the current adjustments, not reversible sensor RAW controls.
+  See [verification and platform limits](docs/verification-rendered-dng-export.md).
   Readable capture metadata is retained, while output size and orientation are
   updated.
 - Metal, Direct3D 11 and OpenGL ES processing where supported, with automatic CPU

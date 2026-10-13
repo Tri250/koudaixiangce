@@ -57,6 +57,7 @@ for config in iphoneos-arm64 iphonesimulator-arm64 iphonesimulator-x86_64; do
         -DIOS=ON -DBUILD_SHARED_LIB=ON -DBUILD_CLI=OFF -DBUILD_TESTING=OFF \
         -DSONY2FUJI_ENABLE_LENSFUN=ON -DSONY2FUJI_BUILD_LENS_DEPS=ON \
         -DSONY2FUJI_ENABLE_OPENMP=OFF -DSONY2FUJI_ENABLE_GPU=ON \
+        -DSONY2FUJI_BUILD_TIFF_DEPS=ON \
         -DSONY2FUJI_ENABLE_WAVELET_DENOISE=ON -DSONY2FUJI_ENABLE_CHROMA_DENOISE=ON -DSONY2FUJI_BUILD_DENOISE_DEPS=ON \
         -DFETCHCONTENT_SOURCE_DIR_RAWLAB_OPENCV_CONTRIB="$SOURCES/opencv_contrib-4.12.0" \
         -DOPENCV_SKIP_LINK_NO_UNDEFINED=ON \
@@ -82,6 +83,7 @@ for config in iphoneos-arm64 iphonesimulator-arm64 iphonesimulator-x86_64; do
     rm -rf "$framework/Lensfun"
     mkdir -p "$framework/Lensfun"
     cp -R "$ROOT/third_party/lensfun/version_1/." "$framework/Lensfun/"
+    cp "$core/licenses/libtiff/LICENSE.md" "$framework/Licenses/libtiff-LICENSE.md"
     test -d "$core/licenses/dng-sdk"
     cp -R "$core/licenses/dng-sdk" "$framework/Licenses/"
 done

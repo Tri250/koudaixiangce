@@ -1,6 +1,43 @@
 import AppKit
 import ImageIO
 import Foundation
+import UniformTypeIdentifiers
+
+enum ExportFormat: String, CaseIterable, Codable, Identifiable {
+    case jpeg, png
+    case renderedDNG = "dng"
+
+    var id: String { rawValue }
+    var suffix: String { self == .jpeg ? "jpg" : rawValue }
+    var title: String {
+        switch self {
+        case .jpeg: return "JPEG"
+        case .png: return "16-bit PNG"
+        case .renderedDNG: return "DNG · 渲染型"
+        }
+    }
+    var contentType: UTType {
+        switch self {
+        case .jpeg: return .jpeg
+        case .png: return .png
+        case .renderedDNG: return UTType(filenameExtension: "dng") ?? .rawImage
+        }
+    }
+    var nativeFormat: sony2fuji_output_format {
+        switch self {
+        case .jpeg: return SONY2FUJI_OUTPUT_JPEG
+        case .png: return SONY2FUJI_OUTPUT_PNG
+        case .renderedDNG: return SONY2FUJI_OUTPUT_DNG
+        }
+    }
+    static func forOutput(_ url: URL) -> ExportFormat {
+        switch url.pathExtension.lowercased() {
+        case "png": return .png
+        case "dng": return .renderedDNG
+        default: return .jpeg
+        }
+    }
+}
 
 
 struct RenderedImage {
@@ -188,7 +225,7 @@ final class RenderEngine {
         if let edge { request.preview_long_edge = UInt32(edge) }
         request.output_target = output == nil ? SONY2FUJI_TARGET_BUFFER : SONY2FUJI_TARGET_FILE
         request.output_format = output == nil ? SONY2FUJI_OUTPUT_RGBA8 :
-            (output!.pathExtension.lowercased() == "png" ? SONY2FUJI_OUTPUT_PNG : SONY2FUJI_OUTPUT_JPEG)
+            ExportFormat.forOutput(output!).nativeFormat
         request.jpeg_quality = 95
         var buffer = sony2fuji_buffer()
         defer { sony2fuji_release_buffer(&buffer) }
@@ -204,8 +241,9 @@ final class RenderEngine {
         }
         guard status == SONY2FUJI_STATUS_OK else {
             let message = String(cString: sony2fuji_status_message(status))
+            if status == SONY2FUJI_STATUS_OUTPUT_IO_ERROR { throw RenderError.outputIO }
             if status == SONY2FUJI_STATUS_IO_ERROR {
-                if output != nil { throw RenderError.outputIO }
+                if let output, ExportFormat.forOutput(output) != .renderedDNG { throw RenderError.outputIO }
                 throw RenderError.failed("无法读取或写入文件，请检查路径和访问权限。")
             }
             if status == SONY2FUJI_STATUS_UNSUPPORTED {
@@ -217,7 +255,9 @@ final class RenderEngine {
             throw RenderError.failed("处理失败：\(message)")
         }
         if let output {
-            try ExportMetadata.preserve(from: url, in: output)
+            if ExportFormat.forOutput(output) != .renderedDNG {
+                try ExportMetadata.preserve(from: url, in: output)
+            }
             return nil
         }
         var baseline: Float = 0, metadata: Float = 0
