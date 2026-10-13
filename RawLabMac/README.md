@@ -6,6 +6,21 @@ A native SwiftUI/AppKit desktop editor for visual verification, sharing the C++ 
 
 ## 功能预览 / Preview
 
+单张及批量导出新增“DNG · 渲染型”。完整渲染当前外观、白平衡、曝光、明暗、HSL、
+降噪、锐化、暗角和颗粒后，以输出参考的线性 sRGB 浮点 RGB 写入 DNG 1.4。
+支持原尺寸及长边限制，不导出低分辨率预览。调整固化在像素中，不是可逐项撤销的
+Lightroom 调整，也不恢复原始 RAW 动态范围。初版不复制相机拍摄 EXIF、旧预览或
+传感器专属标签；虚拟相机和中性色彩配置描述已渲染像素。JPEG/PNG 的拍摄元数据
+保留行为不变。未压缩 DNG 约需每像素 12 字节。
+
+Single and batch export now include rendered DNG. The FINAL pipeline bakes all
+current adjustments before writing output-referred linear-sRGB float RGB in DNG
+1.4. Native and limited-long-edge sizes are supported. This preserves the look,
+not reversible Lightroom controls or original RAW latitude. This initial format
+does not copy capture EXIF, old previews or sensor-only tags; its virtual camera
+profile describes rendered pixels. JPEG/PNG capture metadata remains unchanged.
+Uncompressed DNG uses approximately 12 bytes per pixel.
+
 v0.5.0 新增逐照片本机调整记忆和“使用当前调整批量导出”。任务固定来源参数、降噪设置和外观，可多选 RAW、检查目标效果、选择 JPEG/16-bit PNG 与输出目录，支持取消、继续、失败重试和中断恢复；不覆盖原片或目标编辑记录。迁移到 `development` 后的验证见[验收记录](../docs/verification-edit-memory-batch-export-2026-10-10.md)。
 
 ![RawLab Mac：中性与 Velvia 效果对比 / Neutral and Velvia comparison](../docs/images/rawlab-mac-velvia.png)

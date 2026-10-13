@@ -9,6 +9,11 @@ in `lutools/cmake/denoise-dependencies.cmake`. Local stationary-wavelet column
 and inverse-transform optimizations are in `lutools/cmake/wavelib-swt-columns.c.inc`
 and `wavelib-iswt2.c.inc`.
 
+libtiff 4.7.1 is statically linked for the structured rendered-DNG writer. The
+writer stores baked display-sRGB output as float32 LinearRaw and does not embed
+original sensor data or claim reversible RAW edits. See `libtiff-LICENSE.md`.
+Source: https://download.osgeo.org/libtiff/tiff-4.7.1.tar.gz
+
 LibRaw 0.22.2 is statically linked into sony2fuji.framework under its CDDL 1.0
 option. Copyright and both upstream license texts accompany the framework.
 Base source: https://www.libraw.org/data/LibRaw-0.22.2.tar.gz

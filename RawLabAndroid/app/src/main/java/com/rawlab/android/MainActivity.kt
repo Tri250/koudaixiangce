@@ -67,7 +67,7 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
     var exportDialog by rememberSaveable { mutableStateOf(false) }
-    var png by rememberSaveable { mutableStateOf(false) }
+    var format by rememberSaveable { mutableStateOf(ExportFormat.JPEG) }
     var exportSizeKey by rememberSaveable { mutableStateOf(ExportSizeChoice.ORIGINAL.key) }
     var exportCustomSize by rememberSaveable { mutableStateOf("") }
     var pendingExportLongEdgeText by rememberSaveable { mutableStateOf("") }
@@ -80,10 +80,13 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
         model.importLooks(uris)
     }
     val saveJpeg = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) {
-        if (it == null) model.cancelExport() else model.export(it, false, pendingExportLongEdgeText.toIntOrNull())
+        if (it == null) model.cancelExport() else model.export(it, ExportFormat.JPEG, pendingExportLongEdgeText.toIntOrNull())
     }
     val savePng = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) {
-        if (it == null) model.cancelExport() else model.export(it, true, pendingExportLongEdgeText.toIntOrNull())
+        if (it == null) model.cancelExport() else model.export(it, ExportFormat.PNG, pendingExportLongEdgeText.toIntOrNull())
+    }
+    val saveDng = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/x-adobe-dng")) {
+        if (it == null) model.cancelExport() else model.export(it, ExportFormat.DNG, pendingExportLongEdgeText.toIntOrNull())
     }
     if (batch != null) {
         BatchExportScreen(model = batch!!, storage = model.storage, onBack = model::closeBatch)
@@ -108,7 +111,7 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
             onExport = {
                 exportSizeKey = ExportSizeChoice.ORIGINAL.key
                 exportCustomSize = ""
-                png = false
+                format = ExportFormat.JPEG
                 if (model.beginExport()) exportDialog = true
             },
             onBatchExport = model::beginBatch,
@@ -125,9 +128,11 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
         text = {
             Column {
                 Row {
-                    FilterChip(selected = !png, onClick = { png = false }, label = { Text(stringResource(R.string.jpeg)) })
+                    FilterChip(selected = format == ExportFormat.JPEG, onClick = { format = ExportFormat.JPEG }, label = { Text(stringResource(R.string.jpeg)) })
                     Spacer(Modifier.width(8.dp))
-                    FilterChip(selected = png, onClick = { png = true }, label = { Text(stringResource(R.string.png)) })
+                    FilterChip(selected = format == ExportFormat.PNG, onClick = { format = ExportFormat.PNG }, label = { Text(stringResource(R.string.png)) })
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(selected = format == ExportFormat.DNG, onClick = { format = ExportFormat.DNG }, label = { Text(stringResource(R.string.dng)) })
                 }
                 val selectedSize = ExportSizeChoice.fromKey(exportSizeKey)
                 val longEdge = ExportSize.parse(selectedSize, exportCustomSize)
@@ -140,13 +145,17 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
                     modifier = Modifier.padding(top = 12.dp),
                 )
                 if (Build.VERSION.SDK_INT >= 29) TextButton(onClick = {
-                    exportDialog = false; model.export(null, png, longEdge)
-                }, enabled = sizeValid) { Text(stringResource(R.string.save_album)) }
+                    exportDialog = false; model.export(null, format, longEdge)
+                }, enabled = sizeValid && format.allowsGallery) { Text(stringResource(R.string.save_album)) }
                 TextButton(onClick = {
                     exportDialog = false
                     pendingExportLongEdgeText = longEdge?.toString().orEmpty()
                     val name = "RawLab-${System.currentTimeMillis()}"
-                    if (png) savePng.launch("$name.png") else saveJpeg.launch("$name.jpg")
+                    when (format) {
+                        ExportFormat.JPEG -> saveJpeg.launch("$name.jpg")
+                        ExportFormat.PNG -> savePng.launch("$name.png")
+                        ExportFormat.DNG -> saveDng.launch("$name.dng")
+                    }
                 }, enabled = sizeValid) { Text(stringResource(R.string.save_file)) }
             }
         },

@@ -24,7 +24,8 @@ typedef enum sony2fuji_status {
     SONY2FUJI_STATUS_UNSUPPORTED = 2,
     SONY2FUJI_STATUS_IO_ERROR = 3,
     SONY2FUJI_STATUS_PROCESSING_ERROR = 4,
-    SONY2FUJI_STATUS_OUT_OF_MEMORY = 5
+    SONY2FUJI_STATUS_OUT_OF_MEMORY = 5,
+    SONY2FUJI_STATUS_OUTPUT_IO_ERROR = 6
 } sony2fuji_status;
 
 // ============================================================================
@@ -51,7 +52,9 @@ typedef enum sony2fuji_output_format {
     SONY2FUJI_OUTPUT_JPEG = 0,
     SONY2FUJI_OUTPUT_PNG = 1,
     SONY2FUJI_OUTPUT_RGB8 = 2,
-    SONY2FUJI_OUTPUT_RGBA8 = 3
+    SONY2FUJI_OUTPUT_RGBA8 = 3,
+    // Output-referred LinearRaw with baked edits, not original sensor data. FILE only.
+    SONY2FUJI_OUTPUT_DNG = 4
 } sony2fuji_output_format;
 
 typedef enum sony2fuji_output_target {

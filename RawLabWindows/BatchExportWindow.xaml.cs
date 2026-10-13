@@ -27,7 +27,9 @@ public partial class BatchExportWindow : Window
     {
         this.job = job; this.journal = journal;
         InitializeComponent(); Targets.ItemsSource = rows;
-        Jpeg.IsChecked = !job.Png; Png.IsChecked = job.Png;
+        Jpeg.IsChecked = job.Format == ExportFormat.Jpeg;
+        Png.IsChecked = job.Format == ExportFormat.Png;
+        Dng.IsChecked = job.Format == ExportFormat.RenderedDng;
         SourceName.Text = Path.GetFileName(job.Source); SourceName.ToolTip = job.Source;
         SourceLook.Text = $"{job.LookName} · {job.Settings.Values[(int)Parameter.Strength]:0}%";
         var state = job.Settings.Restore();
@@ -133,7 +135,15 @@ public partial class BatchExportWindow : Window
         var picker = new OpenFolderDialog { Title = "选择输出文件夹" };
         if (picker.ShowDialog(this) == true) { job.OutputDirectory = picker.FolderName; SaveDraft(); }
     }
-    private void FormatChanged(object sender, RoutedEventArgs e) { if (ready && !job.Started && !Running) { job.Png = Png.IsChecked == true; SaveDraft(); } }
+    private void FormatChanged(object sender, RoutedEventArgs e)
+    {
+        if (ready && !job.Started && !Running)
+        {
+            job.Format = Dng.IsChecked == true ? ExportFormat.RenderedDng :
+                Png.IsChecked == true ? ExportFormat.Png : ExportFormat.Jpeg;
+            SaveDraft();
+        }
+    }
     private void RefreshSizeControls()
     {
         refreshingSize=true;
@@ -212,7 +222,7 @@ public partial class BatchExportWindow : Window
         try
         {
             await Task.Run(() => {
-                ExportMetadata.VerifyAvailable();
+                if (work.Format != ExportFormat.RenderedDng) ExportMetadata.VerifyAvailable();
                 using var engine = new RenderEngine();
                 BatchRunner.Run(work, journal, failuresOnly, cancellation.Token,
                     (updated, _) => Dispatcher.BeginInvoke(new Action(() => { job = updated; Refresh(); })),

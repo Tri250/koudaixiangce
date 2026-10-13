@@ -38,7 +38,34 @@ sample-limited validation are documented in the RAW compatibility report.
 3. Generate the neutral reference with a fixed log-logistic display curve, then sRGB encode. For positive x the linear display value is `1 / (1 + ((1-g)/g) * (g/x)^1.5)`, with `g=0.1845`; black is 0 and highlights approach 1 smoothly. This independently implemented mathematical subset follows the same curve family as darktable sigmoid, but does not reproduce its primaries adjustment, hue-preservation or full default pipeline.
 4. For a film CUBE: start from the un-tonemapped linear input, transform to its declared F-Gamut or F-Gamut C and encode F-Log, F-Log2 or F-Log2C, then interpolate the CUBE. Named display outputs bypass the neutral curve. Explicit Log outputs are decoded back to linear BT.709/sRGB, then rendered with the neutral display curve. A compiled DCP `.rlook` instead evaluates its preserved matrix/HSV/tone stages directly from common linear sRGB, without F-Log2, an RGB CUBE or an extra neutral curve. Log encoding itself never normalizes exposure, and there is no linear clamp at 1 before it.
 5. Blend neutral and film outputs in the same display-encoded RGB convention. Strength 0 is continuous with the no-LUT rendering. Contrast, saturation and curves follow, then HSL, optional display-chroma denoising, detail adjustments, vignette and grain, and final resizing.
-6. Write RGB/RGBA preview, JPEG or actual 16-bit PNG. PNG includes an sRGB chunk. Photo outputs use an sRGB display interpretation; the film-simulation names alone do not establish camera-to-camera colorimetric equivalence or a measured display EOTF. JPEG consumers must use this sRGB interpretation.
+6. Write RGB/RGBA preview, JPEG, actual 16-bit PNG, or rendered DNG. PNG includes an sRGB chunk. Photo outputs use an sRGB display interpretation; the film-simulation names alone do not establish camera-to-camera colorimetric equivalence or a measured display EOTF. JPEG consumers must use this sRGB interpretation.
+
+### Rendered DNG
+
+`SONY2FUJI_OUTPUT_DNG=4` is an additive FILE-only format; request v2 layout and
+existing format values are unchanged. It consumes the same FINAL display-sRGB
+float RGB after LUT/recipe strength, WB/exposure, tone, HSL, denoising, detail,
+effects and final resize. It never serializes interactive proxies or scene RAW.
+
+The encoder rejects nonfinite values, clips SDR channels to [0,1] like PNG, and
+inverse-sRGB-decodes them to float32 RGB. DNG 1.4 LinearRaw stores this
+output-referred image (`ColorimetricReference=1`) under a virtual linear-sRGB
+camera, Bradford D65-to-D50 ColorMatrix/ForwardMatrix, D50 white, zero baseline,
+identity tone curve and DefaultBlackRender None. Neutral Adobe XMP disables
+initial tone, sharpening, noise reduction and effects. The already oriented
+pixels have orientation 1. No original sensor pixels, capture EXIF, old preview,
+MakerNotes or source camera calibration is copied into this virtual profile.
+
+The preserved result is appearance, not original RAW latitude or separately
+reversible RawLab controls. Lightroom import presets or later edits can change
+the appearance. Serialization uses libtiff, with an uncompressed three-channel
+float image and no ExtraSamples. There is no JPEG/PNG intermediate quantization.
+
+DNG writes stage in the destination directory and atomically replace the target
+only after a successful flush. Failed writes preserve existing output files.
+Classic TIFF size is preflighted below 4 GiB; BigTIFF is not emitted. The additive
+`SONY2FUJI_STATUS_OUTPUT_IO_ERROR=6` distinguishes output storage failures from
+source `IO_ERROR=3`, without renumbering existing statuses or changing requests.
 
 When sharpening is enabled, the early preview downsample is skipped. The fixed pixel-radius filter runs at source resolution before the final preview resize, matching its export footprint. At zero sharpening the existing fast preview path remains unchanged. Mac's contrast/saturation controls use percent offsets from the core's identity value 1; highlight signs are reversed at the UI boundary so positive values consistently brighten. All six output adjustments default to an identity result.
 

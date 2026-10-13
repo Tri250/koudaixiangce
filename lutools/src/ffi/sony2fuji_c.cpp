@@ -277,6 +277,8 @@ sony2fuji_status mapError(sony2fuji::ErrorCode code) {
             return SONY2FUJI_STATUS_OK;
         case sony2fuji::ErrorCode::FileNotFound:
             return SONY2FUJI_STATUS_IO_ERROR;
+        case sony2fuji::ErrorCode::IOError:
+            return SONY2FUJI_STATUS_OUTPUT_IO_ERROR;
         case sony2fuji::ErrorCode::ParseError:
         case sony2fuji::ErrorCode::InvalidFormat:
             return SONY2FUJI_STATUS_UNSUPPORTED;
@@ -399,9 +401,14 @@ sony2fuji_status validateGpuConfig(const sony2fuji_gpu_config* config) {
 }
 
 sony2fuji_status validateOutputFormat(const sony2fuji_request& request) {
+    if (request.output_format == SONY2FUJI_OUTPUT_DNG &&
+        request.intent != SONY2FUJI_INTENT_FINAL) {
+        return SONY2FUJI_STATUS_UNSUPPORTED;
+    }
     if (request.output_target == SONY2FUJI_TARGET_FILE) {
         if (request.output_format == SONY2FUJI_OUTPUT_JPEG ||
-            request.output_format == SONY2FUJI_OUTPUT_PNG) {
+            request.output_format == SONY2FUJI_OUTPUT_PNG ||
+            request.output_format == SONY2FUJI_OUTPUT_DNG) {
             return SONY2FUJI_STATUS_OK;
         }
         return SONY2FUJI_STATUS_UNSUPPORTED;
@@ -840,6 +847,8 @@ sony2fuji_status writeOutputFile(
     sony2fuji::OutputFormat format = sony2fuji::OutputFormat::JPEG;
     if (request.output_format == SONY2FUJI_OUTPUT_PNG) {
         format = sony2fuji::OutputFormat::PNG;
+    } else if (request.output_format == SONY2FUJI_OUTPUT_DNG) {
+        format = sony2fuji::OutputFormat::DNG;
     }
 
     int quality = static_cast<int>(request.jpeg_quality);
@@ -1517,6 +1526,8 @@ const char* sony2fuji_status_message(sony2fuji_status status) {
             return "unsupported";
         case SONY2FUJI_STATUS_IO_ERROR:
             return "io error";
+        case SONY2FUJI_STATUS_OUTPUT_IO_ERROR:
+            return "output io error";
         case SONY2FUJI_STATUS_PROCESSING_ERROR:
             return "processing error";
         case SONY2FUJI_STATUS_OUT_OF_MEMORY:

@@ -13,6 +13,11 @@ and ad-hoc code signatures. LibRaw also includes the source patches described be
 | libjpeg-turbo | 3.1.3 | https://github.com/libjpeg-turbo/libjpeg-turbo/tree/3.1.3 | libjpeg-turbo-LICENSE.md, libjpeg-turbo-README.ijg |
 | Little CMS | 2.17 | https://github.com/mm2/Little-CMS/tree/lcms2.17 | Little-CMS-LICENSE |
 | OpenCV / opencv_contrib | 4.12.0 | https://github.com/opencv/opencv/tree/4.12.0 and https://github.com/opencv/opencv_contrib/tree/4.12.0 | OpenCV/ directory |
+| libtiff | 4.7.1 | https://download.osgeo.org/libtiff/tiff-4.7.1.tar.gz | libtiff-LICENSE.md |
+
+Rendered DNG serialization uses libtiff with a virtual output-referred linear-sRGB
+profile. It does not embed original sensor data or claim reversible RAW edits.
+This product includes DNG technology under license by Adobe.
 
 The optional display-chroma filter uses OpenCV core, imgproc and ximgproc,
 with their transitive modules. Pinned source archives and build options are in

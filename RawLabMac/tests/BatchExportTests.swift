@@ -25,6 +25,19 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         var job = BatchExportJob(source: inputs[0], settings: settings, look: nil, lookName: "Velvia")
         job.longEdge = 2048
         let encodedJob = try JSONEncoder().encode(job)
+        var dngRecord = try JSONSerialization.jsonObject(with: encodedJob) as! [String: Any]
+        dngRecord["outputFormat"] = "dng"
+        dngRecord["version"] = 2
+        let restoredDNG = try JSONDecoder().decode(BatchExportJob.self,
+            from: JSONSerialization.data(withJSONObject: dngRecord))
+        try check(restoredDNG.suffix == "dng", "rendered DNG journals retain their file format")
+        try check(try JSONDecoder().decode(BatchExportJob.self, from: encodedJob).suffix == "jpg",
+                  "legacy JPEG journals retain their original format")
+        var legacyPNG = try JSONSerialization.jsonObject(with: encodedJob) as! [String: Any]
+        legacyPNG["png"] = true
+        try check(try JSONDecoder().decode(BatchExportJob.self,
+                  from: JSONSerialization.data(withJSONObject: legacyPNG)).suffix == "png",
+                  "legacy PNG journals retain their original format")
         var legacyRecipeJob = try JSONSerialization.jsonObject(with: encodedJob) as! [String: Any]
         var legacyRecipeSettings = legacyRecipeJob["settings"] as! [String: Any]
         legacyRecipeSettings["masterRecipeID"] = MasterRecipe.hamadaDaylightV2.id
@@ -78,6 +91,24 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         settings.hsl = nil
         settings.exposureMode = .scene
         let journal = BatchJournal(directory: root.appendingPathComponent("journal"))
+        var dngJob = job
+        dngJob.format = .renderedDNG
+        try journal.save(dngJob)
+        try check(try journal.load()?.format == .renderedDNG && journal.load()?.version == 2,
+                  "new DNG format survives durable journal recovery")
+        try check(ExportFormat.forOutput(URL(fileURLWithPath: "/tmp/IMAGE.DNG")) == .renderedDNG &&
+                  ExportFormat.renderedDNG.nativeFormat == SONY2FUJI_OUTPUT_DNG,
+                  "DNG extension maps to native DNG, not JPEG")
+        var dngCalls = 0
+        try BatchExportRunner.run(job: &dngJob, journal: journal, scope: .unfinished,
+                                 shouldCancel: { false }) { _, snapshot, _, destination in
+            try check(destination.pathExtension == "dng" && snapshot == job.settings,
+                      "DNG batch uses frozen adjustments and DNG temporary filenames")
+            dngCalls += 1
+            try Data("DNG".utf8).write(to: destination)
+        }
+        try check(dngCalls == inputs.count && dngJob.items.allSatisfy { $0.output?.pathExtension == "dng" },
+                  "DNG batch publishes DNG names for every selected item")
         var calls: [String] = []
         try BatchExportRunner.run(job: &job, journal: journal, scope: .unfinished, shouldCancel: { false }) { input, snapshot, _, destination in
             calls.append(input.lastPathComponent)
