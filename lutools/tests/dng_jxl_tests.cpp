@@ -62,12 +62,9 @@ bool rejectSDKOutOfMemory(const std::string& path) {
 }
 #endif
 
-bool compareLinear(RAWProcessor& compressed, RAWProcessor& reference, RAWProcessOptions options,
+bool comparePixels(const ImageData& actual, const ImageData& expected,
                    float tolerance = 1e-5f, int width = 24, int height = 32) {
-    ImageData actual, expected;
-    if (compressed.process(options, actual) != ErrorCode::Success ||
-        reference.process(options, expected) != ErrorCode::Success ||
-        actual.width != width || actual.height != height ||
+    if (actual.width != width || actual.height != height ||
         expected.width != actual.width || expected.height != actual.height) return false;
     float maximumError = 0, maximumSignal = 0;
     for (size_t i = 0; i < actual.pixels.size(); ++i) {
@@ -79,6 +76,91 @@ bool compareLinear(RAWProcessor& compressed, RAWProcessor& reference, RAWProcess
     std::cout << "Lossless JXL linear " << actual.width << 'x' << actual.height
               << " maximum error=" << maximumError << '\n';
     return maximumError < tolerance && maximumSignal > .01f;
+}
+
+bool compareLinear(RAWProcessor& compressed, RAWProcessor& reference, RAWProcessOptions options,
+                   float tolerance = 1e-5f, int width = 24, int height = 32) {
+    ImageData actual, expected;
+    return compressed.process(options, actual) == ErrorCode::Success &&
+        reference.process(options, expected) == ErrorCode::Success &&
+        comparePixels(actual, expected, tolerance, width, height);
+}
+
+bool checkChannelLevels(const std::string& directory) {
+    RAWProcessor reused, normalized, ordinary;
+    const auto jxl = directory + "/linear-jxl-channel-levels.dng";
+    const auto plain = directory + "/linear-channel-levels.dng";
+    if (reused.loadFile(jxl) != ErrorCode::Success ||
+        normalized.loadFile(directory + "/linear-normalized.dng") != ErrorCode::Success ||
+        ordinary.loadFile(plain) != ErrorCode::Success) return false;
+    RAWProcessOptions camera;
+    camera.applyBaselineExposure = false;
+    ImageData first, expected, restored, custom;
+    if (reused.process(camera, first) != ErrorCode::Success ||
+        normalized.process(camera, expected) != ErrorCode::Success) return false;
+    std::cout << "Channel levels: first camera WB vs independent normalized samples\n";
+    bool valid = comparePixels(first, expected, 2e-4f);
+    RAWProcessOptions customOptions = camera;
+    customOptions.useCameraWhiteBalance = false;
+    customOptions.useCustomWhiteBalance = true;
+    customOptions.customWhiteBalance[0] = 1.2f;
+    customOptions.customWhiteBalance[2] = .8f;
+    if (reused.process(customOptions, custom) != ErrorCode::Success ||
+        reused.process(camera, restored) != ErrorCode::Success) return false;
+    std::cout << "Channel levels: camera -> custom -> camera\n";
+    valid = comparePixels(restored, first, 1e-7f) && valid;
+    std::cout << "Channel levels: restored camera WB vs independent normalized samples\n";
+    valid = comparePixels(restored, expected, 2e-4f) && valid;
+    if (reused.loadFile(plain) != ErrorCode::Success) return false;
+    std::cout << "Channel levels: JXL -> ordinary DNG vs fresh ordinary decoder\n";
+    valid = compareLinear(reused, ordinary, camera, 1e-7f) && valid;
+    std::cout << (valid ? "PASS" : "FAIL") << " Unequal channel levels preserve camera WB and decoder reuse\n";
+    return valid;
+}
+
+bool checkCameraWBRoundTrip(const std::string& path) {
+    sony2fuji_session* session = nullptr;
+    if (sony2fuji_session_create(&session) != SONY2FUJI_STATUS_OK) return false;
+    sony2fuji_gpu_config gpu{SONY2FUJI_GPU_CONFIG_VERSION, sizeof(gpu), SONY2FUJI_GPU_OFF};
+    sony2fuji_session_set_gpu_config(session, &gpu);
+    sony2fuji_session_set_raw_exposure_mode(session, SONY2FUJI_EXPOSURE_SENSOR);
+    sony2fuji_request request{};
+    request.version = SONY2FUJI_REQUEST_VERSION;
+    request.struct_size = sizeof(request);
+    request.input_type = SONY2FUJI_INPUT_RAW;
+    request.input_path = path.c_str();
+    request.output_target = SONY2FUJI_TARGET_BUFFER;
+    request.output_format = SONY2FUJI_OUTPUT_RGB8;
+    request.size_mode = SONY2FUJI_SIZE_NATIVE;
+    request.brightness = request.contrast = request.saturation = 1;
+    request.temperature = 6500;
+    request.wb_mul[0] = 1.2f;
+    request.wb_mul[1] = request.wb_mul[3] = 1;
+    request.wb_mul[2] = .8f;
+    std::vector<unsigned char> first, custom;
+    bool valid = true;
+    size_t maximumError = 0;
+    for (auto mode : {SONY2FUJI_WB_CAMERA, SONY2FUJI_WB_CUSTOM, SONY2FUJI_WB_CAMERA}) {
+        request.wb_mode = mode;
+        sony2fuji_buffer output{};
+        const auto status = sony2fuji_process(session, &request, &output);
+        if (status != SONY2FUJI_STATUS_OK || !output.data || output.width != 24 || output.height != 32) {
+            valid = false;
+        } else {
+            const auto* bytes = static_cast<const unsigned char*>(output.data);
+            const size_t size = static_cast<size_t>(output.stride_bytes) * output.height;
+            if (first.empty()) first.assign(bytes, bytes + size);
+            else if (mode == SONY2FUJI_WB_CUSTOM) custom.assign(bytes, bytes + size);
+            else if (size != first.size()) valid = false;
+            else for (size_t i = 0; i < size; ++i)
+                maximumError = std::max(maximumError, static_cast<size_t>(std::abs(int(bytes[i]) - int(first[i]))));
+        }
+        sony2fuji_release_buffer(&output);
+    }
+    valid = valid && !custom.empty() && custom != first && maximumError == 0;
+    sony2fuji_session_destroy(session);
+    std::cout << (valid ? "PASS" : "FAIL") << " C ABI camera -> custom -> camera maximum byte error=" << maximumError << '\n';
+    return valid;
 }
 
 bool rejectDecodeError(const std::string& name) {
@@ -175,6 +257,9 @@ int main(int argc, char** argv) {
     }
     const std::string jxl = directory + "/linear-jxl.dng";
     const std::string plain = directory + "/linear-uncompressed.dng";
+    const bool channelLevels = checkChannelLevels(directory);
+    const bool cameraRoundTrip = checkCameraWBRoundTrip(directory + "/linear-jxl-channel-levels.dng");
+    if (!channelLevels || !cameraRoundTrip) return 1;
 #ifdef SONY2FUJI_ENABLE_DNGSDK
     if (!rejectSDKOutOfMemory(jxl)) return 1;
 #endif

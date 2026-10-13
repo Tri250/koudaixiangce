@@ -16,7 +16,8 @@ SYNTHETIC_RAW_FIXTURES = {
     ('linear-jxl.dng', 'linear-uncompressed.dng', 'linear-jxl-gain.dng', 'linear-doubled.dng',
      'linear-jxl-stage1.dng', 'linear-halved.dng', 'linear-jxl-crop-gain.dng',
      'linear-crop-doubled.dng', 'linear-jxl-required-unknown.dng',
-     'linear-jxl-default-crop-gain.dng', 'linear-default-crop-doubled.dng')
+     'linear-jxl-default-crop-gain.dng', 'linear-default-crop-doubled.dng',
+     'linear-jxl-channel-levels.dng', 'linear-channel-levels.dng', 'linear-normalized.dng')
 }
 
 

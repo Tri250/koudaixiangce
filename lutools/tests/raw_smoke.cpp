@@ -12,14 +12,18 @@
 #include <dng_host.h>
 #include <cstring>
 
-void enableJXL(LibRaw& raw, dng_host& host) {
+int enableJXL(LibRaw& raw, dng_host& host, const char* path) {
     const char* decoder = raw.unpack_function_name();
     if (decoder && std::strcmp(decoder, "jxl_dng_load_raw_placeholder()") == 0) {
-        raw.set_dng_host(&host);
+        raw.recycle();
         raw.imgdata.rawparams.options |= LIBRAW_RAWOPTIONS_DNG_STAGE2 |
             LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL |
             LIBRAW_RAWOPTIONS_DNG_ALLOWSIZECHANGE;
+        const int result = raw.open_file(path);
+        if (result != LIBRAW_SUCCESS) return result;
+        raw.set_dng_host(&host);
     }
+    return LIBRAW_SUCCESS;
 }
 #endif
 #define STB_IMAGE_IMPLEMENTATION
@@ -87,7 +91,7 @@ int main(int argc, char** argv) {
     metadata.imgdata.params.use_camera_matrix=1;
     metadata.open_file(argv[1]);
 #ifdef SONY2FUJI_ENABLE_DNGSDK
-    enableJXL(metadata, metadataHost);
+    if (enableJXL(metadata, metadataHost, argv[1])) return 1;
 #endif
     for (const auto& crop : metadata.imgdata.sizes.raw_inset_crops)
         std::cout << "inset " << crop.cleft << ',' << crop.ctop << ' ' << crop.cwidth << 'x' << crop.cheight << '\n';
@@ -114,7 +118,7 @@ int main(int argc, char** argv) {
         p.gamm[0]=p.gamm[1]=1;
         if (reference.open_file(argv[1])) return 1;
 #ifdef SONY2FUJI_ENABLE_DNGSDK
-        enableJXL(reference, referenceHost);
+        if (enableJXL(reference, referenceHost, argv[1])) return 1;
 #endif
         if (reference.unpack()) return 1;
         if (reference.error_count() != 0) {

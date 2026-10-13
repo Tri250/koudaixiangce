@@ -45,6 +45,9 @@ fixtures=(
     linear-jxl-required-unknown.dng
     linear-jxl-default-crop-gain.dng
     linear-default-crop-doubled.dng
+    linear-jxl-channel-levels.dng
+    linear-channel-levels.dng
+    linear-normalized.dng
 )
 for fixture in "${fixtures[@]}"; do
     cp "$ROOT/tests/fixtures/$fixture" "$STAGE/$fixture"

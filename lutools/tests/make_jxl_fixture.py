@@ -6,7 +6,8 @@ import tempfile
 from pathlib import Path
 
 
-def write_dng(path, pixels, compression, opcodes=None, stage1=None, active_area=None, default_crop=None):
+def write_dng(path, pixels, compression, opcodes=None, stage1=None, active_area=None,
+              default_crop=None, black_levels=None, white_levels=(65535, 65535, 65535)):
     width, height = 32, 24
     matrix = (32406, 10000, -15372, 10000, -4986, 10000,
               -9689, 10000, 18758, 10000, 415, 10000,
@@ -29,7 +30,7 @@ def write_dng(path, pixels, compression, opcodes=None, stage1=None, active_area=
         50706: (1, 4, bytes((1, 7, 0, 0))),
         50707: (1, 4, bytes((1, 7, 0, 0))),
         50708: (2, 24, b"RawLab synthetic linear\0"),
-        50717: (4, 3, struct.pack("<3I", 65535, 65535, 65535)),
+        50717: (4, 3, struct.pack("<3I", *white_levels)),
         50721: (10, 9, struct.pack("<18i", *matrix)),
         50728: (5, 3, struct.pack("<6I", 1, 1, 1, 1, 1, 1)),
         50778: (3, 1, struct.pack("<H", 21)),
@@ -37,6 +38,9 @@ def write_dng(path, pixels, compression, opcodes=None, stage1=None, active_area=
     }
     if stage1:
         tags[51008] = (7, len(stage1), stage1)
+    if black_levels:
+        tags[50713] = (3, 2, struct.pack("<2H", 1, 1))
+        tags[50714] = (5, 3, struct.pack("<6I", *(part for value in black_levels for part in (value, 1))))
     if default_crop:
         tags[50719] = (4, 2, struct.pack("<2I", *default_crop[:2]))
         tags[50720] = (4, 2, struct.pack("<2I", *default_crop[2:]))
@@ -66,11 +70,14 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     samples = [value for y in range(24) for x in range(32)
                for value in (2048 + x * 700, 4096 + y * 800, 8192 + (x + y) * 300)]
+    black, white = (1024, 2048, 4096), (32767, 49151, 65535)
     with tempfile.TemporaryDirectory() as temporary:
         ppm, jxl = Path(temporary) / "pixels.ppm", Path(temporary) / "pixels.jxl"
         ppm.write_bytes(b"P6\n32 24\n65535\n" + struct.pack(f">{len(samples)}H", *samples))
         subprocess.run(["cjxl", str(ppm), str(jxl), "-d", "0", "-e", "1", "--container=1"], check=True)
         write_dng(output / "linear-jxl.dng", jxl.read_bytes(), 52546)
+        write_dng(output / "linear-jxl-channel-levels.dng", jxl.read_bytes(), 52546,
+                  black_levels=black, white_levels=white)
         area = struct.pack(">8I", 0, 0, 24, 32, 0, 3, 1, 1)
         gain = struct.pack(">2I4dI12f", 2, 2, 1, 1, 0, 0, 3, *([2.0] * 12))
         payload = area + gain
@@ -87,6 +94,11 @@ def main():
         unknown = struct.pack(">5I", 1, 0xFFFFFFFF, 0x01030000, 0, 0)
         write_dng(output / "linear-jxl-required-unknown.dng", jxl.read_bytes(), 52546, stage1=unknown)
     write_dng(output / "linear-uncompressed.dng", struct.pack(f"<{len(samples)}H", *samples), 1)
+    write_dng(output / "linear-channel-levels.dng", struct.pack(f"<{len(samples)}H", *samples), 1,
+              black_levels=black, white_levels=white)
+    normalized = [((value - black[c]) * 65535 + (white[c] - black[c]) // 2) // (white[c] - black[c])
+                  for i, value in enumerate(samples) for c in (i % 3,)]
+    write_dng(output / "linear-normalized.dng", struct.pack(f"<{len(samples)}H", *normalized), 1)
     write_dng(output / "linear-doubled.dng", struct.pack(f"<{len(samples)}H", *(value * 2 for value in samples)), 1)
     write_dng(output / "linear-halved.dng", struct.pack(f"<{len(samples)}H", *(value // 2 for value in samples)), 1)
     write_dng(output / "linear-crop-doubled.dng",

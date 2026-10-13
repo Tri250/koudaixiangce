@@ -271,6 +271,13 @@ private:
         // Explicitly close the previous stream first (Windows otherwise leaks a
         // file handle on camera/custom WB mode switches).
         rawProcessor_->recycle();
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+        constexpr unsigned dngOptions = LIBRAW_RAWOPTIONS_DNG_STAGE2 |
+            LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL | LIBRAW_RAWOPTIONS_DNG_ALLOWSIZECHANGE;
+        // recycle 不清 rawparams；普通 DNG 的识别不能继承上一张 JXL 的标志。
+        rawProcessor_->imgdata.rawparams.options &= ~dngOptions;
+        rawProcessor_->set_dng_host(nullptr);
+#endif
         auto& params = rawProcessor_->imgdata.params;
         // 切换白平衡不能同时切换相机色矩阵，3 表示始终使用内嵌色彩数据。
         params.use_camera_matrix = 3;
@@ -281,16 +288,14 @@ private:
 #ifdef SONY2FUJI_ENABLE_DNGSDK
         // 仅 JPEG XL 使用 SDK，其他 RAW 保留现有解码和白平衡路径。
         const char* decoder = rawProcessor_->unpack_function_name();
-        constexpr unsigned dngOptions = LIBRAW_RAWOPTIONS_DNG_STAGE2 |
-            LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL | LIBRAW_RAWOPTIONS_DNG_ALLOWSIZECHANGE;
         if (decoder && std::strcmp(decoder, "jxl_dng_load_raw_placeholder()") == 0) {
+            // LibRaw 在 open_file 内根据 Stage2 决定 WB 校正，必须带正确标志重新识别。
+            rawProcessor_->recycle();
+            rawProcessor_->imgdata.rawparams.options |= dngOptions;
+            const int jxlOpenResult = openRawFile(*rawProcessor_, filepath_);
+            if (jxlOpenResult != LIBRAW_SUCCESS) return jxlOpenResult;
             if (!dngHost_) dngHost_ = std::make_unique<dng_host>();
             rawProcessor_->set_dng_host(dngHost_.get());
-            // Stage2 先执行必需 Stage1；其 ActiveArea 裁剪由 LibRaw 同步尺寸和偏移。
-            rawProcessor_->imgdata.rawparams.options |= dngOptions;
-        } else {
-            rawProcessor_->set_dng_host(nullptr);
-            rawProcessor_->imgdata.rawparams.options &= ~dngOptions;
         }
 #endif
         const int unpackResult = rawProcessor_->unpack();

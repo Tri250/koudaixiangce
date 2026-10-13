@@ -27,6 +27,16 @@ DefaultCropOrigin (1,1) and DefaultCropSize (28,20) within that ActiveArea.
 They verify the conversion from storage to Stage2 coordinates and must produce
 oriented 20 x 28 output with identical pixels.
 
+`linear-jxl-channel-levels.dng` and `linear-channel-levels.dng` contain the
+original ramp with BlackLevel (1024,2048,4096) and WhiteLevel
+(32767,49151,65535). `linear-normalized.dng` contains independently calculated
+16-bit samples, rounded from `(sample - black) * 65535 / (white - black)`, with
+zero black and full white levels. Tests compare the first camera-WB decode
+with these samples, require identical camera output after a custom-WB round
+trip (also through the C ABI), and compare JXL-to-ordinary decoder reuse with
+a fresh ordinary DNG processor. This catches stage flags set too late for
+LibRaw identification or left behind when changing decoders.
+
 The native suite also uses the SDK's `DNG_SetSimulateMemoryFull` diagnostic hook
 to assert OutOfMemory on initial load, white-balance reload and the C ABI.
 

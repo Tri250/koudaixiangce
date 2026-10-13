@@ -34,7 +34,12 @@ sample-limited validation are documented in the RAW compatibility report.
 JPEG XL DNG (compression 52546) uses the pinned Adobe DNG SDK 1.7.1 through
 LibRaw, with a per-processor host whose lifetime exceeds LibRaw's. Only this
 decoder receives the SDK host. `LIBRAW_RAWOPTIONS_DNG_STAGE2` runs Stage1
-opcodes before linearization even when OpcodeList2/3 are absent;
+opcodes before linearization even when OpcodeList2/3 are absent.
+these flags must be present during final LibRaw identification, not just
+unpack, so SDK-linearized channels do not receive a second range-based WB
+correction. The core first identifies the decoder without retained SDK flags,
+then reopens only JXL with its Stage2 flags. Other formats keep their original
+single-open identification and cannot inherit JXL state across reuse.
 `LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL` also applies Stage3 when present.
 `LIBRAW_RAWOPTIONS_DNG_ALLOWSIZECHANGE` lets LibRaw synchronize the SDK's
 ActiveArea-cropped dimensions and clear the storage margins. The glue also

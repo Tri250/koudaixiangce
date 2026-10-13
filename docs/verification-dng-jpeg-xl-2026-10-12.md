@@ -139,3 +139,49 @@ RAW 排除规则不变。
 不是 hosted CI。
 物理移动设备、Android x86_64 运行时、Windows 硬件 GPU 和完整 WPF 交互仍未验证；
 CPU/Auto 像素一致不代表硬件 GPU 已执行。
+
+## Stage2 白平衡时序复验 2026-10-13
+
+原独立复审固定在 `40ce6084eb4bfd6f911079d9fa4e8c80b83d9c68`，确认上轮三项
+已修复，但指出 Stage2 标志晚于 `open_file` 设置。LibRaw 在识别时已经按各通道
+`WhiteLevel - BlackLevel` 校正白平衡，之后 SDK Stage2 又按这些范围线性化；
+`recycle()` 保留的 flags 还会让后续白平衡重载或普通 DNG 的识别不同于首次加载。
+本轮保留该固定提交和报告，先补可达的失败回归，再修改实现。
+
+新增三个合成 fixture 使用 BlackLevel `(1024,2048,4096)`、WhiteLevel
+`(32767,49151,65535)`；独立参考直接将整数样本按
+`(sample - black) * 65535 / (white - black)` 归一化并四舍五入，不调用 SDK。
+
+| 回归 | 修复前 | 修复后 |
+| --- | --- | --- |
+| 首次相机 WB 与独立归一化像素 | 最大误差 `0.249717` | 最大误差 0 |
+| 相机 -> 自定义 -> 相机 | 最大误差 `0.249717` | 最大误差 0 |
+| 同一处理器 JXL -> 普通 DNG 与新建普通处理器 | 最大误差 `0.370309` | 最大误差 0 |
+| 同一 C ABI session 相机 WB 往返 | 最大字节误差 65 | 最大字节误差 0，自定义输出也确认不同于相机输出 |
+
+最小修复为：每次识别前清除本路径管理的 JXL flags 和 host 绑定，先识别 decoder；
+仅 JPEG XL 在 Stage2 flags 已设置的情况下重新打开，再绑定 SDK host 和 unpack。
+普通 RAW/DNG 仍为原来的单次打开，不改变公共 C ABI、其他解码器或 SDK 源码。
+`raw_smoke` 的 LibRaw 参考路径同步修正，避免参考本身重复同一个时序错误。
+
+默认套件现在包含 14 个 fixture，四端均重跑了新旧用例和外部 Samsung DNG：
+
+| 平台/检查 | 结果与边界 |
+| --- | --- |
+| macOS arm64 | 构建/打包、16/16 CTest、14 fixture、外部 DNG、`raw_smoke` 及实际 Samsung/DJI JPEG/16-bit PNG 导出通过 |
+| iOS | 三切片 XCFramework、模拟器 Debug 和未签名设备 Release 通过；专属 `RawLab DNG WB QA` 模拟器运行 14 fixture 和外部 DNG 通过，随后只删除该自建实例 |
+| Android | arm64-v8a/x86_64 构建、58/58 JVM 测试、Lint 无 error（38 warnings、1 information）通过；专属 `emulator-5584` 的 API 35 arm64 运行 14 fixture 和外部 DNG 通过；未操作 `emulator-5582`，未执行任何 connected 测试 |
+| Windows x64 | 原生/WPF 自包含包、4/4 CPU CTest、14 fixture、外部 DNG、`raw_smoke` 和六份 SDK notice 通过；临时个人 DNG 副本已删除，构建进程已结束 |
+
+Android 初始专属端口 5590 的设备没有注册到 adb，保留失败日志后换到空闲推荐
+端口 5584，通过最终 harness；只清理本轮专属实例/AVD，没有重启全局 adb 或
+影响其他模拟器。物理移动设备、Android x86_64 运行时、Windows 硬件 GPU 和
+完整 WPF 交互仍未验证，不把 CPU/Auto 一致当作真实 GPU 执行。
+
+本轮本机证据目录为 `build/dng-jxl-wb/`，包含 `macos-wb-red.log`、
+`macos-wb-green.log`、`macos-ctest.log`、`macos-app-smoke.log`、
+`android-gradle.log`、`android-dng-jxl-5584.log`、`ios-framework.log`、
+`ios-simulator/dng-jxl.log`、`windows-targeted-tests.log` 和
+`windows-cleanup-check.log`；Windows 构建在
+`build/windows-remote/20261013-114016/build.log`。这些是本地/专用构建机检查，
+不是 hosted CI；日志和个人 RAW 均不进入提交。
