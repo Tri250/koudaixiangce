@@ -145,6 +145,81 @@ covered by the real writer/journal regression in the batch core suite.
 bash RawLab/tests/batch-publication.sh "$IOS_SIMULATOR_APP" "$IOS_SIMULATOR_ID"
 ```
 
+### Android Physical Device
+
+The Android production code at `04985e9` was tested on a Lenovo TB320FC,
+Android 15 / API 35, arm64-v8a / SM8475. Every device operation used an explicit
+dedicated serial; no Gradle `connected*` task or shared emulator was used.
+
+A real 32 MP Sony Bayer RAW was injected only into the test APK. The native
+regression rendered CPU and forced GLES outputs with nonzero look strength,
+exposure, custom WB/tint, all tone/detail categories, HSL, wavelet/display-chroma
+denoising, vignette and grain. Source digests were unchanged. The 128-pixel final
+long-edge limit produced upright 85 x 128 float32 RGB DNG 1.4 images.
+
+Independent libtiff/stb decoding compares DNG linear float samples, re-encoded
+to sRGB, against the matching 16-bit PNG. Both CPU and GLES have maximum error
+1/65535 (0.003891 RGB8 steps). Their encoded RGB8 comparison has maximum
+difference one code value. The actual editor single output, both batch outputs
+and forced-GLES native output were byte-identical for the same frozen settings.
+
+The real system document pickers were separately exercised through the app UI:
+single DNG with Gallery disabled, custom 128-pixel sizing, and one-target batch
+export into an explicitly granted test folder. Both UI exports succeeded and
+were byte-identical; the original RAW digest remained unchanged.
+
+The instrumented workflow uses that system-granted SAF tree to exercise the
+actual editor/model and two-target batch publication. It also reloads ready
+publishing rows as completed without replacing their files. A separate regression
+creates a known partial DNG document and verifies actual provider deletion,
+pending recovery and journal persistence. These model tests do not themselves
+automate the external picker; the preceding UI check covers its callbacks.
+Diagnostics stay in app-specific test artifacts, while the tests remove their
+own published SAF documents after collection.
+
+All three DNG device regressions and the existing JPEG frozen-size recovery
+regression passed in focused runs. The workflow also verifies target edit records
+against their actual pre-export snapshots, including camera-derived white balance,
+using a freshly loaded edit store. APK builds, JVM unit tests and lint passed.
+An earlier aggregate run had one workflow assertion failure because its expected
+target edits used factory WB defaults instead of the actual pre-export state.
+The expectation was corrected and the focused workflow rerun passed; no
+production behavior was changed to resolve that test failure.
+
+`assembleDebugAndroidTest` exposed one remaining legacy Boolean JPEG test caller;
+it now passes `ExportFormat.JPEG`. The change affects tests only, not production
+rendering, file publication or the C ABI. No photos or generated outputs are
+included in the source changes.
+
+Build the APKs without touching devices, then install and run only on the
+dedicated device. Grant a test folder through the app's directory picker first:
+
+```sh
+# From RawLabAndroid, with an external RAW fixture:
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest \
+  :app:testDebugUnitTest :app:lintDebug -PrawlabTestRaw="$RAWLAB_TEST_RAW"
+: "${ANDROID_DEVICE:?Use a dedicated device serial}"
+: "${DNG_TEST_TREE:?Use the system-granted test folder URI}"
+adb -s "$ANDROID_DEVICE" install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s "$ANDROID_DEVICE" install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb -s "$ANDROID_DEVICE" shell am instrument -w -r \
+  -e dngTreeUri "$DNG_TEST_TREE" \
+  -e class com.rawlab.android.RenderedDngInstrumentedTest \
+  com.rawlab.android.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The pixel validator is a host-only diagnostic using existing libtiff and the
+repository's stb decoder; it introduces no Android runtime dependency:
+
+```sh
+# From the repository root on the verified Mac host:
+c++ -std=c++17 -O2 -I/opt/homebrew/opt/libtiff/include -Ilutools/src \
+  RawLabAndroid/tests/rendered_dng_pixels.cpp -L/opt/homebrew/opt/libtiff/lib \
+  -ltiff -o /tmp/rawlab-rendered-dng-pixels
+/tmp/rawlab-rendered-dng-pixels cpu.dng cpu.png gles.dng
+/tmp/rawlab-rendered-dng-pixels gles.dng gles.png
+```
+
 ## Platform Boundaries
 
 - Mac final build and focused Swift/native tests have completed successfully.
@@ -153,8 +228,10 @@ bash RawLab/tests/batch-publication.sh "$IOS_SIMULATOR_APP" "$IOS_SIMULATOR_ID"
 - Android explicit formats, JNI mapping, legacy journals and SAF file output are
   implemented. `:app:testDebugUnitTest`, `:app:lintDebug` and `:app:assembleDebug`
   passed, including arm64-v8a and x86_64 native builds. APK libtiff license
-  packaging was checked. Physical-device UI/SAF and GLES rendering are not
-  runtime-verified; no application was installed over the user's device app.
+  packaging was checked. The physical-device UI/SAF and CPU/forced-GLES DNG
+  checks above passed on TB320FC; no existing RawLab installation was overwritten.
+  This does not cover every camera/device, large native-size DNG output, abrupt
+  process death or revoked SAF permission during publication.
 - iOS direct FINAL file rendering and persistent DNG batch file output are
   implemented. Device, arm64 simulator and x86_64 simulator framework builds and
   license checks passed. The simulator app linked successfully; synthetic

@@ -158,7 +158,7 @@ class PhotoInfoExportTest {
             compose.waitUntil(60_000) { batch.state.value.phase != BatchPhase.PREPARING }
             assertEquals(2, batch.state.value.job.rows.size)
             batch.state.value.job.rows.single { it.target.displayName == "broken.ARW" }.target.sourceFile.writeBytes(ByteArray(64))
-            compose.runOnUiThread { batch.start(false, null, 256) }
+            compose.runOnUiThread { batch.start(ExportFormat.JPEG, null, 256) }
             compose.waitUntil(240_000) { batch.state.value.phase !in setOf(BatchPhase.PREPARING, BatchPhase.RUNNING) }
             val job = batch.state.value.job
             assertEquals(1, job.rows.count { it.status == BatchRowStatus.SUCCESS })
