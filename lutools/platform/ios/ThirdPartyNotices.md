@@ -28,6 +28,18 @@ See `rawspeed-camera-calibration.inc`. Changes are extraction into LibRaw table
 syntax while retaining metadata-derived black/white levels. No RawSpeed decoder
 code is linked.
 
+Adobe DNG SDK 1.7.1 Build 2724 is statically linked through the shared DNG decoder wrapper to
+support DNG 1.7 JPEG XL-compressed images. Its source archive and checksum are
+pinned by `lutools/cmake/dng-sdk.cmake`; the SDK license and upstream notices are
+copied into the framework's `Licenses/dng-sdk/` directory, including JPEG XL,
+Brotli, Highway and skcms notices. A local extracted SDK
+source may be supplied with
+`-DFETCHCONTENT_SOURCE_DIR_RAWLAB_DNG_SOURCE=/path/to/dng_sdk_1_7_1` when
+building, without changing the production script's source pin.
+The SDK validator and XMP editing are disabled. The local adapter adds missing
+`qDNGUseXMP` guards to `dng_jxl.cpp`; image decoding is unchanged.
+This product includes DNG technology under license by Adobe.
+
 The white-balance temperature model includes Adobe DNG SDK-derived code;
 see Adobe-DNG-SDK-LICENSE.txt. Embedded stb image decoding/encoding uses its
 MIT license option; see stb-MIT-LICENSE.txt. System zlib,
