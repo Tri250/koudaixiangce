@@ -280,6 +280,10 @@ class BatchExportModel(
         scope.launch {
             try {
                 val ready = withContext(Dispatchers.IO) {
+                    // 先清理上次进程崩溃遗留的渲染临时文件；此刻尚无批次在运行，删除安全。
+                    context.filesDir.listFiles()?.forEach { file ->
+                        if (file.name.startsWith("render-") || file.name.startsWith("output-")) file.delete()
+                    }
                     if (initial != null) reconcile(initial) else freeze(initialJob)
                 }
                 mutable.value = mutable.value.copy(job = ready, stopping = false,

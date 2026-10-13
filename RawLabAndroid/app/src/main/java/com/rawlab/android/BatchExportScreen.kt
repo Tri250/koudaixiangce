@@ -42,7 +42,7 @@ fun BatchExportScreen(
     val context = LocalContext.current
     val state by model.state.collectAsStateWithLifecycle()
     var album by rememberSaveable { mutableStateOf(false) }
-    var discard by remember { mutableStateOf(false) }
+    var discard by rememberSaveable { mutableStateOf(false) }
     var effectTarget by remember { mutableStateOf<BatchRow?>(null) }
     var png by rememberSaveable(state.job.id) { mutableStateOf(state.job.outputPng) }
     var exportSizeKey by rememberSaveable(state.job.id) {
