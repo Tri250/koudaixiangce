@@ -2,7 +2,11 @@
 
 Status: preparation in progress; final integrated verification is pending.
 
-Documentation baseline: `caf51809102489dd0ecc5bc185352fe9992a5177`,
+Snapshot: 2026-10-13 17:35 Asia/Shanghai. Progress statements below describe
+the evidence available at that time; this page is updated through reviewed
+documentation changes.
+
+Source baseline: `caf51809102489dd0ecc5bc185352fe9992a5177`,
 which contains PR #23 and the installation-guide update. This baseline does
 not yet contain all five features. The final target SHA will be recorded
 after the remaining source changes and conflict resolutions are integrated.
@@ -24,21 +28,51 @@ the viewport author review is separate from independent review. The records
 describe local or dedicated build-host results; GitHub checks must be recorded
 separately. Referenced ignored build logs may be absent from a clean checkout.
 
-The six-language delivery results remain evidence for their original scope.
-New rendered-DNG and Lensfun interface strings are an integration follow-up:
-complete resource coverage, placeholders and native layout checks on the final
-combined source.
+## Integration Follow-ups at This Snapshot
+
+- **PR #24, rendered DNG:** the author is resolving conflicts and validating
+  integration with `caf5180`. The recorded remote head remains `d5d0b276`;
+  no replacement head with completed review and checks is recorded here.
+- **PR #26, Lensfun:** the author is resolving conflicts and validating the
+  combined path. A regression reproduced a Stage3 warning surviving decoder
+  `recycle`, causing the next image without Stage3 to skip Lensfun incorrectly.
+  The minimal state reset and an actual-DNG-SDK Stage3-to-Lensfun end-to-end
+  RED/GREEN check are in progress. The recorded remote head remains `bdc05412`;
+  this regression is unresolved in the delivery evidence above.
+- **PR #25, six languages:** read-only preparation produced 49 translation
+  seeds across six languages in an ignored directory. Production resources
+  and call sites have not yet consumed them. The remaining wiring covers new
+  DNG/Lensfun text, dynamic state and accessibility labels, and PR #27's iOS
+  message for waiting until the preview completes before export. Original
+  six-language results retain their scope; resource coverage, placeholders,
+  stable state and native layout need combined-source checks.
+- **PR #27, viewport/cache:** after the new #24/#26 heads are integrated,
+  complete one focused Lensfun + noise reduction + viewport A/B + profile +
+  auto-crop combination through FINAL JPEG, 16-bit PNG and rendered DNG.
+  Record the final source and affected checks for that combination.
 
 ## Final Integrated Verification
+
+The minimum matrix uses one final source revision for all affected clients and
+the shared core. Every gate below remains pending. Each result must record the
+source SHA, configuration, actual checks, fixture scope and platform limits.
 
 | Gate | Required evidence | Status |
 | --- | --- | --- |
 | Source and review | Final development SHA, five PRs, and reviews tied to their final source revisions | Pending |
-| Shared core | Build configuration, actual registered tests, results, RAW fixtures, and CPU/GPU coverage | Pending |
-| Feature composition | Language resources and controls for DNG export and lens correction; preview/export behavior; stable saved edits and batch snapshots | Pending |
-| Native clients | macOS, iOS, Android and Windows builds and affected model/native/UI checks against the combined source | Pending |
-| Platform limits | Explicit skipped or unavailable runtime, GPU, device and camera/lens combinations | Pending |
-| Release packaging | Version/build consistency, corresponding source, licenses, dependencies, signatures, RAW exclusion and checksums | Pending |
+| Fresh build and link | Fresh configure/link on macOS, iOS, Android and Windows: DNG SDK/JPEG XL, TIFF >= 4.7.1, Lensfun, wavelet/chroma and GPU support present together; existing shared C ABI layouts and enum values preserved | Pending |
+| Decoder reuse | Actual SDK Stage3 processing followed by an image without Stage3 on the recycled decoder; warning state resets and Lensfun executes correctly for the second image; captured RED/GREEN regression | Pending |
+| Cache isolation | Lensfun, noise-reduction and preview-baseline cache keys stay isolated across viewport A/B, profile and auto-crop changes; affected CPU/GPU checks on the combined source | Pending |
+| FINAL exports | The focused Lensfun/noise-reduction/viewport/profile/auto-crop combination produces JPEG, PNG16 and rendered DNG without a proxy; cached results match a fresh exact render, and single/batch exports use consistent settings | Pending |
+| Six-language integration | New DNG/Lensfun and iOS preview-wait messages, dynamic state and accessibility call sites wired into production resources; six-language keys/placeholders, stable state and affected native layouts checked | Pending |
+| Package closure | Dependencies, licenses, Lensfun database and language resources included together; version/build consistency, corresponding source, signatures, runtime dependencies, RAW exclusion and checksums recorded | Pending |
+
+The original Android cold/hot/Scene results under the 1,800,000,000-byte budget
+remain per-feature evidence for the measured causes and algorithm budget.
+The focused matrix does not require repeating that broad experiment. Those
+results do not establish an integrated pass for the final source. Record any
+unavailable runtime, GPU, device or camera/lens coverage explicitly alongside
+the new results.
 
 Populate results only after the corresponding integrated checks have completed.
 Keep per-feature limitations visible when preparing
