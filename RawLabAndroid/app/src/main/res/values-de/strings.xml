@@ -256,6 +256,7 @@
     <string name="recipe_subtitle_ivan_ivanchenko_twilight">Abenddämmerung · Übergang benachbarter Farben</string>
     <string name="recipe_subtitle_jungraphy_neon">Neonstadt · kühles Cyan und Pinkviolett</string>
     <string name="lens_matching">Objektivzuordnung</string>
+    <string name="lens_automatic">Automatisch</string>
     <string name="lens_manual">Manuell</string>
     <string name="lens_distortion">Verzeichnungskorrektur</string>
     <string name="lens_distortion_short">Verzeichnung</string>

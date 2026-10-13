@@ -100,6 +100,80 @@ class EditorScreenTest {
         empty.delete()
     }
 
+    @Test fun sixLocaleSwitchesKeepLensDngBatchSnapshotOnTheCurrentActivity() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val source = File(context.cacheDir, "editor-locale-${System.nanoTime()}.ARW")
+        instrumentation.context.assets.open("sample.RAW").use { from -> source.outputStream().use { from.copyTo(it) } }
+        var activity = compose.activity
+        var model = activity.model
+        val expected = EditSettings(
+            film = "velvia", strength = 1.35f, exposure = -.75f, highlights = .25f, shadows = -.2f,
+            contrast = .4f, toneCurve = -.15f, saturation = .3f, customWb = true, temperature = 4200f,
+            tint = 12f, denoise = DenoiseSettings(true, 10f, 72f, 100f), sharpening = .65f,
+            effects = PhotoEffectsSettings(vignetteAmount = -40f, grainAmount = 65f),
+            displayChromaDenoise = 2, exposureMode = 2,
+            hsl = HslSettings().withValue(1, 0, -60f),
+            lens = LensSettings(true, true, false, true, "fixture-profile"),
+        )
+        val batchID = "locale-batch-${System.nanoTime()}"
+        val destination = "content://com.rawlab.test/tree/locale-destination"
+        try {
+            compose.runOnUiThread { model.importPhoto(Uri.fromFile(source)) }
+            compose.waitUntil(180_000) { model.state.value.canExport || model.state.value.error != null }
+            assertNull(model.state.value.error)
+            compose.runOnUiThread { model.edit(expected) }
+            compose.waitUntil(180_000) { model.state.value.canExport || model.state.value.error != null }
+            assertNull(model.state.value.error)
+            assertEquals(expected, model.state.value.edits)
+
+            val photo = requireNotNull(model.state.value.photo)
+            val job = BatchJob(
+                source = BatchSourceSnapshot(photo.identity, photo.file, expected, photo.name),
+                targets = listOf(BatchTarget(PhotoIdentity("$batchID-target"), photo.file, photo.name, photo.uri.toString())),
+                id = batchID,
+                outputFormat = ExportFormat.DNG,
+                destination = destination,
+            )
+            compose.runOnUiThread { model.resumeBatch(job) }
+            compose.waitUntil(30_000) { model.batch.value?.state?.value?.phase == BatchPhase.CANCELLED }
+
+            fun assertLiveSnapshot() {
+                assertEquals(expected, model.state.value.edits)
+                val currentJob = requireNotNull(model.batch.value).state.value.job
+                assertEquals(batchID, currentJob.id)
+                assertEquals(ExportFormat.DNG, currentJob.outputFormat)
+                assertEquals(destination, currentJob.destination)
+                assertEquals(expected, currentJob.source.settings)
+            }
+            assertLiveSnapshot()
+
+            listOf("zh-Hans", "en", "de", "fr", "ja", "es").forEach { language ->
+                val previousActivity = activity
+                val preferenceChanged = AppStrings.preference(previousActivity) != language
+                compose.runOnUiThread { AppStrings.setPreference(previousActivity, language) }
+                var localeRecreated = false
+                if (android.os.Build.VERSION.SDK_INT >= 33 && preferenceChanged) {
+                    try {
+                        compose.waitUntil(15_000) { compose.activity !== previousActivity }
+                        localeRecreated = true
+                    } catch (_: AssertionError) {
+                        // Some API 33 images do not recreate when the selected locale is unchanged.
+                    }
+                }
+                if (!localeRecreated) compose.activityRule.scenario.recreate()
+                compose.activityRule.scenario.onActivity { activity = it; model = it.model }
+                assertNotSame(previousActivity, activity)
+                compose.waitUntil(180_000) { model.state.value.edits == expected && model.batch.value != null }
+                assertLiveSnapshot()
+            }
+        } finally {
+            runCatching { compose.runOnUiThread { model.closeBatch() } }
+            BatchJournal(File(context.filesDir, "RawLab/BatchJobs")).discard(batchID)
+            source.delete()
+        }
+    }
+
     private fun capture(name: String) {
         compose.waitForIdle()
         val instrumentation = InstrumentationRegistry.getInstrumentation()

@@ -256,6 +256,7 @@
     <string name="recipe_subtitle_ivan_ivanchenko_twilight">Crépuscule · transition de couleurs voisines</string>
     <string name="recipe_subtitle_jungraphy_neon">Ville néon · cyan froid et rose-violet</string>
     <string name="lens_matching">Correspondance de l’objectif</string>
+    <string name="lens_automatic">Automatique</string>
     <string name="lens_manual">Manuel</string>
     <string name="lens_distortion">Correction de la distorsion</string>
     <string name="lens_distortion_short">Distorsion</string>

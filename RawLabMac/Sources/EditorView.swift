@@ -258,6 +258,8 @@ struct EditorView: View {
                     .disabled(model.result == nil || model.busy || model.exporting || model.lookLibraryBusy || model.missingFilm)
                 Button(L10n.text("PNG · 16-bit…")) { model.export(png: true) }
                     .disabled(model.result == nil || model.busy || model.exporting || model.lookLibraryBusy || model.missingFilm)
+                Button(L10n.text("导出渲染型 DNG…")) { model.export(format: .renderedDNG) }
+                    .disabled(model.result == nil || model.busy || model.exporting || model.lookLibraryBusy || model.missingFilm)
                 Divider()
                 Button(L10n.text("使用当前调整批量导出…")) {
                     if model.prepareBatch() { openWindow(id: "batch-export") }
@@ -280,7 +282,6 @@ struct EditorView: View {
     }
     private func zoom(_ multiplier: CGFloat) {
         viewport.zoom(by: multiplier)
-        if viewport.magnification > 1 && !model.fullResolution { model.fullResolution = true }
     }
     private func toggleActualPixels() {
         viewport.toggleActualPixels()
@@ -288,7 +289,9 @@ struct EditorView: View {
         if model.fullResolution != viewport.pixelMode { model.fullResolution = viewport.pixelMode }
     }
     private func imagePane(_ frame: RenderedImage, title: String, showMask: Bool) -> some View {
-        PhotoCanvas(frame: frame, viewport: viewport, sourceWidth: model.neutral?.image.width ?? frame.image.width, pan: $pan, clipping: showMask)
+        PhotoCanvas(frame: frame, viewport: viewport, sourceWidth: model.neutral?.image.width ?? frame.image.width,
+                    pan: $pan, clipping: showMask, sourceHeight: model.neutral?.image.height,
+                    onPreviewSizeChange: model.updatePreviewLongEdge)
             .simultaneousGesture(TapGesture(count: 2).onEnded { toggleActualPixels() })
             .accessibilityLabel(title)
             .overlay(alignment: .bottomLeading) {

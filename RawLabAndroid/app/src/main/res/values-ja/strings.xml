@@ -256,6 +256,7 @@
     <string name="recipe_subtitle_ivan_ivanchenko_twilight">夕暮れ · 類似色のグラデーション</string>
     <string name="recipe_subtitle_jungraphy_neon">ネオン都市 · クールシアンとピンクパープル</string>
     <string name="lens_matching">レンズの照合</string>
+    <string name="lens_automatic">自動</string>
     <string name="lens_manual">手動</string>
     <string name="lens_distortion">歪曲収差補正</string>
     <string name="lens_distortion_short">歪曲収差</string>

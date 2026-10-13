@@ -370,3 +370,11 @@
 "已生成 %@ 个渲染型 DNG，未另存到所选位置" = "%@ entwickelte DNG-Dateien erstellt, aber nicht am gewählten Ort gespeichert";
 "DNG 只能保存到文件" = "DNG kann nur in Dateien gespeichert werden";
 "请等待预览完成后导出。" = "Warten Sie vor dem Export, bis die Vorschau fertig ist.";
+"自动匹配" = "Automatische Zuordnung";
+"镜头" = "Objektiv";
+"镜头校正" = "Objektivkorrektur";
+"镜头畸变和横向色差校正" = "Korrektur von Objektivverzeichnung und lateraler chromatischer Aberration";
+"无法读取镜头校正状态" = "Status der Objektivkorrektur konnte nicht gelesen werden";
+"渲染型 DNG 未生成。" = "Das gerenderte DNG wurde nicht erstellt.";
+"DNG 已生成，但任务记录未更新，请先核对保存结果。" = "DNG erstellt, aber der Auftragsdatensatz wurde nicht aktualisiert. Prüfen Sie zuerst die gespeicherte Datei.";
+"无效的视口预览模式" = "Ungültiger Modus für die Ausschnittvorschau";

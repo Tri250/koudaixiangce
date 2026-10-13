@@ -56,7 +56,7 @@ class LocalizationTests(unittest.TestCase):
             for source in list(sources.rglob("*.swift")) + list((ROOT / "Shared").glob("*.swift")):
                 for raw in re.findall(r'L10n\.(?:text|format)\("((?:[^"\\]|\\.)*)"', source.read_text()):
                     key = json.loads('"' + raw + '"')
-                    self.assertIn(key, catalogs["en"], (source, key))
+                    self.assertTrue(key in catalogs["en"], (source, key))
             for key in ("细节优先", "去噪优先", "自定义", "跟随系统"):
                 self.assertIn(key, catalogs["en"])
 

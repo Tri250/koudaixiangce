@@ -37,12 +37,19 @@ extension ContentView {
 
             Menu {
                 Button(L10n.text("保存当前照片")) {
+                    singleExportFormat = .jpeg
                     exportLongEdge = nil
                     showingExportSize = true
                 }
-                .disabled(!viewModel.hasImage || editorBusy || !viewModel.isLookAvailable(for: settings))
+                .disabled(!viewModel.hasImage || editorBusy || viewModel.previewRendering || viewModel.previewResizePending || !viewModel.isLookAvailable(for: settings))
+                Button(L10n.text("导出渲染型 DNG…")) {
+                    singleExportFormat = .renderedDNG
+                    exportLongEdge = nil
+                    showingExportSize = true
+                }
+                .disabled(!viewModel.hasImage || editorBusy || viewModel.previewRendering || viewModel.previewResizePending || !viewModel.isLookAvailable(for: settings))
                 Button(L10n.text("使用当前调整批量导出…"), action: openBatchExport)
-                    .disabled(viewModel.sourceKind != .raw || !viewModel.hasImage || editorBusy || !viewModel.isLookAvailable(for: settings))
+                    .disabled(viewModel.sourceKind != .raw || !viewModel.hasImage || editorBusy || viewModel.previewRendering || viewModel.previewResizePending || !viewModel.isLookAvailable(for: settings))
                     .accessibilityIdentifier("editor.batchExport")
                 if batchModel != nil { Button(L10n.text("查看批量任务")) { showingBatchExport = true } }
             } label: {
@@ -61,7 +68,8 @@ extension ContentView {
                 Color(white: 0.12)
                 if let image = currentPreviewImage {
                     ZoomablePhoto(image: image, referenceImage: viewModel.basePreviewImage ?? image,
-                                  label: showingBefore ? L10n.text("调整前的照片") : L10n.text("调整后的照片"))
+                                  label: showingBefore ? L10n.text("调整前的照片") : L10n.text("调整后的照片"),
+                                  onPreviewSizeChange: { viewModel.updatePreviewSize($0, settings: settings) })
                         .id(viewModel.basePreviewImage)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                 } else {
@@ -202,28 +210,36 @@ extension ContentView {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
-                    Button { choosingMasterRecipe = false; selectedAdjustment = nil } label: {
-                        AdjustmentToolLabel(title: L10n.text("胶片"), symbol: "film", selected: selectedAdjustment == nil && !choosingMasterRecipe,
+                    Button { lensSelected = false; choosingMasterRecipe = false; selectedAdjustment = nil } label: {
+                        AdjustmentToolLabel(title: L10n.text("胶片"), symbol: "film", selected: selectedAdjustment == nil && !choosingMasterRecipe && !lensSelected,
                                             progress: 0, width: toolWidth, height: toolHeight)
                     }
                     .accessibilityValue(selectedFilmName)
-                    .accessibilityAddTraits(selectedAdjustment == nil && !choosingMasterRecipe ? .isSelected : [])
+                    .accessibilityAddTraits(selectedAdjustment == nil && !choosingMasterRecipe && !lensSelected ? .isSelected : [])
                     .accessibilityIdentifier("tool.film")
                     .id("film")
-                    Button { choosingMasterRecipe = true; selectedAdjustment = nil } label: {
+                    Button { lensSelected = false; choosingMasterRecipe = true; selectedAdjustment = nil } label: {
                         AdjustmentToolLabel(title: L10n.text("大师配方"), symbol: "photo.stack", selected: choosingMasterRecipe,
                                             progress: settings.masterRecipeID == nil ? 0 : 1, width: toolWidth, height: toolHeight)
                     }.accessibilityIdentifier("tool.masterRecipe").accessibilityValue(settings.masterRecipe?.name ?? L10n.text("无配方"))
+                        .id("masterRecipe")
+                    Button { lensSelected = true; choosingMasterRecipe = false; selectedAdjustment = nil } label: {
+                        AdjustmentToolLabel(title: L10n.text("镜头"), symbol: "viewfinder", selected: lensSelected,
+                                            progress: settings.lensSettings.isEnabled ? 1 : 0,
+                                            width: toolWidth, height: toolHeight)
+                    }.disabled(viewModel.sourceKind != .raw)
+                        .accessibilityIdentifier("tool.lens")
+                        .accessibilityAddTraits(lensSelected ? .isSelected : []).id("lens")
                     ForEach(AdjustmentKind.allCases) { adjustment in
-                        Button { choosingMasterRecipe = false; selectedAdjustment = adjustment } label: {
+                        Button { lensSelected = false; choosingMasterRecipe = false; selectedAdjustment = adjustment } label: {
                             AdjustmentToolLabel(title: adjustment.title, symbol: adjustment.iconName,
-                                                selected: selectedAdjustment == adjustment,
+                                                selected: selectedAdjustment == adjustment && !lensSelected,
                                                 progress: adjustmentProgress(adjustment),
                                                 width: toolWidth, height: toolHeight)
                         }
                         .disabled(adjustment == .strength && !settings.hasLook)
                         .accessibilityValue(adjustment.valueLabel(for: adjustment.value(from: settings)))
-                        .accessibilityAddTraits(selectedAdjustment == adjustment ? .isSelected : [])
+                        .accessibilityAddTraits(selectedAdjustment == adjustment && !lensSelected ? .isSelected : [])
                         .accessibilityIdentifier("tool.\(adjustment.rawValue)")
                         .contextMenu {
                             Button(L10n.format("重置%@", String(describing: adjustment.title))) { reset(adjustment) }
@@ -236,10 +252,16 @@ extension ContentView {
             }
             .frame(height: toolHeight)
             .onGeometryChange(for: CGFloat.self) { geometry in geometry.size.width } action: { _ in
-                proxy.scrollTo(selectedAdjustment?.rawValue ?? "film", anchor: .center)
+                proxy.scrollTo(lensSelected ? "lens" : choosingMasterRecipe ? "masterRecipe" : selectedAdjustment?.rawValue ?? "film", anchor: .center)
             }
             .onChange(of: selectedAdjustment) { _, adjustment in
-                proxy.scrollTo(adjustment?.rawValue ?? "film", anchor: .center)
+                proxy.scrollTo(lensSelected ? "lens" : choosingMasterRecipe ? "masterRecipe" : adjustment?.rawValue ?? "film", anchor: .center)
+            }
+            .onChange(of: lensSelected) { _, selected in
+                if selected { proxy.scrollTo("lens", anchor: .center) }
+            }
+            .onChange(of: choosingMasterRecipe) { _, selected in
+                if selected { proxy.scrollTo("masterRecipe", anchor: .center) }
             }
         }
         .buttonStyle(.plain)
@@ -247,7 +269,11 @@ extension ContentView {
 
     @ViewBuilder
     var valuePanel: some View {
-        if choosingMasterRecipe {
+        if lensSelected {
+            IOSLensControls(settings: $settings, info: viewModel.lensInfo)
+                .padding(.horizontal, 16)
+                .disabled(!viewModel.hasImage || editingLocked || viewModel.sourceKind != .raw)
+        } else if choosingMasterRecipe {
             masterRecipePanel
         } else if selectedAdjustment == .hsl {
             HSLMixer(settings: Binding(get: { settings.hsl }, set: { settings.hsl = $0 }),

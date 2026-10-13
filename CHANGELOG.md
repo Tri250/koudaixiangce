@@ -46,8 +46,8 @@ See the [v0.6.0 release notes](docs/releases/v0.6.0.md),
 [source rebuild instructions](docs/releases/v0.6.0-source.md),
 [release verification](docs/verification-v0.6.0.md),
 [Chinese update notes](docs/releases/master-recipes-update.md),
-[cross-platform verification](docs/verification/cross-platform-master-recipes-20261011.md)
-and [recipe HSL calibration](docs/verification/master-recipes-hsl-20261011.md).
+[cross-platform verification](docs/archive/verification/cross-platform-master-recipes-20261011.md)
+and [recipe HSL calibration](docs/archive/verification/master-recipes-hsl-20261011.md).
 
 ## [0.5.1] - 2026-10-10
 
@@ -71,7 +71,7 @@ and [recipe HSL calibration](docs/verification/master-recipes-hsl-20261011.md).
 
 See [v0.5.1 release notes](docs/releases/v0.5.1.md),
 [release verification](docs/verification-v0.5.1.md) and
-[the cross-platform implementation evidence](docs/verification-cross-platform-effects-gpu-denoise-2026-10-10.md).
+[the cross-platform implementation evidence](docs/archive/verification/verification-cross-platform-effects-gpu-denoise-2026-10-10.md).
 
 ## [0.5.0] - 2026-10-10
 
@@ -110,9 +110,9 @@ See [v0.5.0 release notes](docs/releases/v0.5.0.md) and
 - Windows 新增 Mac 发起的远程编译入口；iOS 新增可复现的三架构 XCFramework 构建。移动设备峰值内存及 Windows 真显卡验证的边界见发布说明。
   Adds remote Windows builds from Mac and reproducible three-architecture iOS frameworks. See release notes for mobile memory and Windows hardware-GPU validation limits.
 
-详见 [v0.4.1 发布说明](docs/releases/v0.4.1.md)和[逐机型兼容性记录](docs/verification-raw-compatibility-2026-10-09.md)。
+详见 [v0.4.1 发布说明](docs/releases/v0.4.1.md)和[逐机型兼容性记录](docs/archive/verification/verification-raw-compatibility-2026-10-09.md)。
 
-See the [v0.4.1 release notes](docs/releases/v0.4.1.md) and [camera compatibility report](docs/verification-raw-compatibility-2026-10-09.md).
+See the [v0.4.1 release notes](docs/releases/v0.4.1.md) and [camera compatibility report](docs/archive/verification/verification-raw-compatibility-2026-10-09.md).
 
 ## v0.4.0 更新 / Previous Features
 

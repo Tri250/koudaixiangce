@@ -70,6 +70,7 @@ internal static class Program
             adjustments.Hsl = adjustments.Hsl.WithValue(0, 2, 19).WithValue(1, 2, -23);
             var effects = new PhotoEffectsSettings(-12, 42, 7, 63, 8, 17, 33, 71);
             adjustments.Effects = effects;
+            adjustments.Lens = new LensSettings(true, true, true, true, "profile-id");
             var snapshot = JsonSerializer.Serialize(adjustments.Capture());
             var toolsBefore = (Panel)window.FindName("Tools");
             var effectButton = toolsBefore.Children.OfType<Button>()
@@ -77,11 +78,25 @@ internal static class Program
             effectButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var effectPanel = (PhotoEffectsPanel?)window.FindName("PhotoEffectsEditor")
                 ?? throw new InvalidOperationException("Photo effects panel is missing.");
+            var lensPanel = (LensPanel?)window.FindName("LensEditor")
+                ?? throw new InvalidOperationException("Lens panel is missing.");
+            var lensInfo = new LensInfo(1, "Maker Camera Lens", "24mm", true, true, 1.25f,
+                [new LensCandidate("profile-id", "Maker", "24mm", true, true, true)]);
+            var batchDirectory = Path.Combine(Path.GetTempPath(), "rawlab-localization-batch-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(batchDirectory);
+            var batchJournal = new BatchJournal(Path.Combine(batchDirectory, "journal"));
+            var batchJob = BatchJob.Create("source.ARW", adjustments.Capture(), null, "中性");
+            batchJob.OutputDirectory = batchDirectory;
+            var batch = new BatchExportWindow(batchJob, batchJournal);
+            ((RadioButton)batch.FindName("Dng")!).IsChecked = true;
+            var batchSnapshot = JsonSerializer.Serialize(batch.Job.Settings);
+            var batchDestination = batch.Job.OutputDirectory;
 
             foreach (var language in new[] { "zh-Hans", "en", "de", "fr", "ja", "es" })
             {
                 Loc.SetPreference(language);
                 Pump();
+                lensPanel.Refresh(adjustments.Lens, lensInfo);
                 Check(Loc.Language == language, $"Resolved language {language}");
                 Check(File.ReadAllText(preferencePath).Trim() == language, $"Persisted preference {language}");
                 Check(Application.Current.Resources["暗角"]?.ToString() == Loc.Text("暗角"), $"Dynamic catalog resource {language}");
@@ -107,9 +122,54 @@ internal static class Program
                 var hslPanel = (HslPanel)window.FindName("HslEditor");
                 Check(Descendants(hslPanel).OfType<Slider>().Any(slider => AutomationProperties.GetName(slider) == Loc.Text("色相")),
                     $"HSL axis automation name {language}");
+
+                Check(AutomationProperties.GetName((RadioButton)lensPanel.FindName("Automatic")!) == Loc.Text("镜头匹配") &&
+                      AutomationProperties.GetName((RadioButton)lensPanel.FindName("Manual")!) == Loc.Text("选择镜头"),
+                    $"Lens mode automation names {language}");
+                var expectedLensMode = language switch
+                {
+                    "zh-Hans" => "镜头匹配",
+                    "en" => "Lens Matching",
+                    "de" => "Objektivzuordnung",
+                    "fr" => "Correspondance de l’objectif",
+                    "ja" => "レンズの照合",
+                    _ => "Coincidencia de lente"
+                };
+                Check(AutomationProperties.GetName((RadioButton)lensPanel.FindName("Automatic")!) == expectedLensMode,
+                    $"Lens mode uses the {language} catalog value");
+                Check(AutomationProperties.GetName((CheckBox)lensPanel.FindName("Distortion")!) == Loc.Text("畸变矫正") &&
+                      AutomationProperties.GetName((CheckBox)lensPanel.FindName("Tca")!) == Loc.Text("横向色差") &&
+                      AutomationProperties.GetName((CheckBox)lensPanel.FindName("AutoCrop")!) == Loc.Text("自动裁边"),
+                    $"Lens correction automation names {language}");
+                Check(((TextBlock)lensPanel.FindName("StatusText")!).Text ==
+                      Loc.Format("已校正{0}", $"{Loc.Text("畸变")}、{Loc.Text("横向色差")}"),
+                    $"Lens status is localized without translating assembled text {language}");
+                var expectedCrop = language switch
+                {
+                    "zh-Hans" => "裁边 20.0%",
+                    "en" => "Crop 20.0%",
+                    "de" => "Beschnitt 20,0%",
+                    "fr" => "Recadrage 20,0%",
+                    "ja" => "クロップ 20.0%",
+                    _ => "Recorte 20,0%"
+                };
+                var expectedCropNumber = language is "de" or "fr" or "es" ? "20,0" : "20.0";
+                Check(((TextBlock)lensPanel.FindName("CropText")!).Text == expectedCrop &&
+                      ((TextBlock)lensPanel.FindName("CropText")!).Text == Loc.Format("裁边 {0}%", expectedCropNumber),
+                    $"Lens crop status uses one active-locale decimal {language}");
+                Check(((TextBlock)lensPanel.FindName("SelectedTitle")!).Text == "Maker 24mm",
+                    $"Native lens maker/model remains unchanged {language}");
+                Check(batch.Job.Format == ExportFormat.RenderedDng && batch.Job.OutputDirectory == batchDestination &&
+                      JsonSerializer.Serialize(batch.Job.Settings) == batchSnapshot &&
+                      ((RadioButton)batch.FindName("Dng")!).Content?.ToString() == Loc.Text("DNG · 渲染型") &&
+                      AutomationProperties.GetName((RadioButton)batch.FindName("Dng")!) == Loc.Text("DNG · 渲染型") &&
+                      ((TextBlock)batch.FindName("AllSettings")!).Text.Contains(Loc.Text("镜头匹配"), StringComparison.Ordinal),
+                    $"Batch format, destination and full settings preserved {language}");
             }
 
             Check(changedCount == 6, "Changed raised once for each language selection");
+            batch.Close();
+            try { Directory.Delete(batchDirectory, recursive: true); } catch (IOException) { }
             window.Close();
             app.Shutdown();
         }

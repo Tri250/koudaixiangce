@@ -44,7 +44,7 @@ fun BatchExportScreen(
     var album by rememberSaveable { mutableStateOf(false) }
     var discard by remember { mutableStateOf(false) }
     var effectTarget by remember { mutableStateOf<BatchRow?>(null) }
-    var png by rememberSaveable(state.job.id) { mutableStateOf(state.job.outputPng) }
+    var format by rememberSaveable(state.job.id) { mutableStateOf(state.job.outputFormat) }
     var exportSizeKey by rememberSaveable(state.job.id) {
         mutableStateOf(exportSizeChoice(state.job.outputLongEdge).key)
     }
@@ -84,13 +84,13 @@ fun BatchExportScreen(
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             when (state.phase) {
-                BatchPhase.SELECTING -> BatchConfirmContent(state, storage, png, destination,
+                BatchPhase.SELECTING -> BatchConfirmContent(state, storage, format, destination,
                     ExportSizeChoice.fromKey(exportSizeKey), exportCustomSize,
                     onAlbum = { album = true }, onFiles = { files.launch(arrayOf("*/*")) },
-                    onDirectory = { directory.launch(null) }, onAlbumOutput = { destination = null; model.setDestination(null) }, onPng = { png = it },
+                    onDirectory = { directory.launch(null) }, onAlbumOutput = { destination = null; model.setDestination(null) }, onFormat = { format = it },
                     onSize = { choice -> exportSizeKey = choice.key }, onCustomSize = { exportCustomSize = it },
                     onRemove = model::remove, onInspect = { effectTarget = it },
-                    onStart = { model.start(png, destination, ExportSize.parse(ExportSizeChoice.fromKey(exportSizeKey), exportCustomSize)) })
+                    onStart = { model.start(format, destination, ExportSize.parse(ExportSizeChoice.fromKey(exportSizeKey), exportCustomSize)) })
                 BatchPhase.PREPARING, BatchPhase.RUNNING -> BatchProgressContent(state, model::cancel)
                 BatchPhase.COMPLETE, BatchPhase.CANCELLED, BatchPhase.FAILED -> BatchResultContent(state,
                     onRetry = model::retryFailed, onClose = onBack, onDirectory = { directory.launch(state.destination) },
@@ -126,7 +126,7 @@ fun BatchExportScreen(
 private fun BatchConfirmContent(
     state: BatchExportState,
     storage: PhotoStorage,
-    png: Boolean,
+    format: ExportFormat,
     destination: Uri?,
     sizeChoice: ExportSizeChoice,
     customSize: String,
@@ -134,7 +134,7 @@ private fun BatchConfirmContent(
     onFiles: () -> Unit,
     onDirectory: () -> Unit,
     onAlbumOutput: () -> Unit,
-    onPng: (Boolean) -> Unit,
+    onFormat: (ExportFormat) -> Unit,
     onSize: (ExportSizeChoice) -> Unit,
     onCustomSize: (String) -> Unit,
     onRemove: (String) -> Unit,
@@ -158,9 +158,9 @@ private fun BatchConfirmContent(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(state.job.source.displayName, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     val settings = state.job.source.settings
-                    Text("$sourceLookName · ${String.format("%.0f", settings.strength * 100f)}%",
+                    Text("$sourceLookName · ${String.format(java.util.Locale.ROOT, "%.0f", settings.strength * 100f)}%",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    Text(String.format(AppStrings.text(R.string.message_exposure_ev), settings.exposure), style = MaterialTheme.typography.bodySmall)
+                    Text(AppStrings.format(R.string.message_exposure_ev, settings.exposure), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -198,11 +198,12 @@ private fun BatchConfirmContent(
         item {
             Text(AppStrings.text(R.string.message_output), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(20.dp, 16.dp, 20.dp, 4.dp))
             Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !png, onClick = { onPng(false) }, label = { Text(stringResource(R.string.jpeg)) })
-                FilterChip(selected = png, onClick = { onPng(true) }, label = { Text(stringResource(R.string.png)) })
+                FilterChip(selected = format == ExportFormat.JPEG, onClick = { onFormat(ExportFormat.JPEG) }, label = { Text(stringResource(R.string.jpeg)) })
+                FilterChip(selected = format == ExportFormat.PNG, onClick = { onFormat(ExportFormat.PNG) }, label = { Text(stringResource(R.string.png)) })
+                FilterChip(selected = format == ExportFormat.DNG, onClick = { onFormat(ExportFormat.DNG) }, label = { Text(stringResource(R.string.dng)) })
             }
             Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (Build.VERSION.SDK_INT >= 29) {
+                if (Build.VERSION.SDK_INT >= 29 && format.allowsGallery) {
                     FilterChip(selected = destination == null, onClick = onAlbumOutput, label = { Text(AppStrings.text(R.string.message_photo_gallery)) })
                 }
                 OutlinedButton(onClick = onDirectory) { Icon(Icons.Outlined.FolderOpen, null); Spacer(Modifier.width(4.dp)); Text(AppStrings.text(R.string.message_choose_directory)) }
@@ -214,14 +215,16 @@ private fun BatchConfirmContent(
                 onCustomText = onCustomSize,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
-            Text(destination?.lastPathSegment ?: AppStrings.text(R.string.message_photo_gallery), Modifier.padding(horizontal = 20.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(destination?.lastPathSegment ?: if (format.allowsGallery) AppStrings.text(R.string.message_photo_gallery)
+                else AppStrings.text(R.string.message_choose_directory),
+                Modifier.padding(horizontal = 20.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             state.error?.let { Text(it, Modifier.padding(20.dp), color = MaterialTheme.colorScheme.error) }
         }
     }
     Text(AppStrings.text(R.string.message_for_this_export_only_each_photo_s), Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall)
     val longEdge = ExportSize.parse(sizeChoice, customSize)
     val sizeValid = sizeChoice != ExportSizeChoice.CUSTOM || longEdge != null
-    Button(onClick = onStart, enabled = sizeValid && state.job.rows.isNotEmpty() && (Build.VERSION.SDK_INT >= 29 || destination != null), modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+    Button(onClick = onStart, enabled = sizeValid && state.job.rows.isNotEmpty() && (destination != null || (Build.VERSION.SDK_INT >= 29 && format.allowsGallery)), modifier = Modifier.fillMaxWidth().padding(20.dp)) {
         Text(AppStrings.format(R.string.message_export_photos, state.job.rows.size.toString()))
     }
     }
@@ -300,34 +303,38 @@ private fun BatchRowLine(row: BatchRow) {
 private fun SettingsSummary(settings: EditSettings, lookName: String) {
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SettingLine(AppStrings.text(R.string.message_film), lookName)
-        SettingLine(AppStrings.text(R.string.grain_amount), String.format("%.0f%%", settings.strength * 100))
-        SettingLine(AppStrings.text(R.string.message_exposure), String.format("%+.2f EV", settings.exposure))
+        SettingLine(AppStrings.text(R.string.grain_amount), String.format(java.util.Locale.ROOT, "%.0f%%", settings.strength * 100))
+        SettingLine(AppStrings.text(R.string.message_exposure), String.format(java.util.Locale.ROOT, "%+.2f EV", settings.exposure))
         SettingLine(AppStrings.text(R.string.exposure_basis), listOf(AppStrings.text(R.string.exposure_scene), AppStrings.text(R.string.exposure_preview), AppStrings.text(R.string.exposure_sensor))[settings.exposureMode])
         SettingLine("HSL", if (settings.hsl.isIdentity) AppStrings.text(R.string.hsl_unadjusted) else AppStrings.text(R.string.hsl_adjusted))
-        SettingLine(AppStrings.text(R.string.message_highlights), String.format("%+.0f%%", settings.highlights * 100))
-        SettingLine(AppStrings.text(R.string.message_shadows), String.format("%+.0f%%", settings.shadows * 100))
-        SettingLine(AppStrings.text(R.string.message_contrast), String.format("%+.0f%%", settings.contrast * 100))
-        SettingLine(AppStrings.text(R.string.message_s_curve), String.format("%+.0f%%", settings.toneCurve * 100))
-        SettingLine(AppStrings.text(R.string.message_saturation), String.format("%+.0f%%", settings.saturation * 100))
+        SettingLine(AppStrings.text(R.string.message_highlights), String.format(java.util.Locale.ROOT, "%+.0f%%", settings.highlights * 100))
+        SettingLine(AppStrings.text(R.string.message_shadows), String.format(java.util.Locale.ROOT, "%+.0f%%", settings.shadows * 100))
+        SettingLine(AppStrings.text(R.string.message_contrast), String.format(java.util.Locale.ROOT, "%+.0f%%", settings.contrast * 100))
+        SettingLine(AppStrings.text(R.string.message_s_curve), String.format(java.util.Locale.ROOT, "%+.0f%%", settings.toneCurve * 100))
+        SettingLine(AppStrings.text(R.string.message_saturation), String.format(java.util.Locale.ROOT, "%+.0f%%", settings.saturation * 100))
         SettingLine(AppStrings.text(R.string.message_white_balance), if (settings.customWb) AppStrings.text(R.string.message_custom) else AppStrings.text(R.string.message_as_shot_for_each_photo))
         if (settings.customWb) {
-            SettingLine(AppStrings.text(R.string.message_temperature), String.format("%.0f K", settings.temperature))
-            SettingLine(AppStrings.text(R.string.message_tint), String.format("%+.0f", settings.tint))
+            SettingLine(AppStrings.text(R.string.message_temperature), String.format(java.util.Locale.ROOT, "%.0f K", settings.temperature))
+            SettingLine(AppStrings.text(R.string.message_tint), String.format(java.util.Locale.ROOT, "%+.0f", settings.tint))
         }
-        SettingLine(AppStrings.text(R.string.message_sharpening), String.format("%.0f%%", settings.sharpening * 100))
+        SettingLine(AppStrings.text(R.string.message_sharpening), String.format(java.util.Locale.ROOT, "%.0f%%", settings.sharpening * 100))
         SettingLine(AppStrings.text(R.string.message_denoise), if (settings.denoise.enabled) AppStrings.text(R.string.message_on) else AppStrings.text(R.string.disabled))
-        SettingLine(AppStrings.text(R.string.message_luma_denoise), String.format("%.0f", settings.denoise.luma))
-        SettingLine(AppStrings.text(R.string.message_chroma_denoise), String.format("%.0f", settings.denoise.chroma))
-        SettingLine(AppStrings.text(R.string.message_coarse_grain_denoise), String.format("%.0f", settings.denoise.coarse))
+        SettingLine(AppStrings.text(R.string.message_luma_denoise), String.format(java.util.Locale.ROOT, "%.0f", settings.denoise.luma))
+        SettingLine(AppStrings.text(R.string.message_chroma_denoise), String.format(java.util.Locale.ROOT, "%.0f", settings.denoise.chroma))
+        SettingLine(AppStrings.text(R.string.message_coarse_grain_denoise), String.format(java.util.Locale.ROOT, "%.0f", settings.denoise.coarse))
+        SettingLine(AppStrings.text(R.string.lens_matching), if (settings.lens.manual) AppStrings.text(R.string.lens_manual) else AppStrings.text(R.string.lens_automatic))
+        SettingLine(AppStrings.text(R.string.lens_distortion_short), if (settings.lens.distortion) AppStrings.text(R.string.message_on) else AppStrings.text(R.string.disabled))
+        SettingLine(AppStrings.text(R.string.lens_tca), if (settings.lens.tca) AppStrings.text(R.string.message_on) else AppStrings.text(R.string.disabled))
+        SettingLine(AppStrings.text(R.string.lens_auto_crop), if (settings.lens.autoCrop) AppStrings.text(R.string.message_on) else AppStrings.text(R.string.disabled))
         SettingLine(AppStrings.text(R.string.display_chroma_denoise), AppStrings.text(when (settings.displayChromaDenoise) {
             1 -> R.string.denoise_detail
             2 -> R.string.denoise_clean
             else -> R.string.disabled
         }))
-        SettingLine(AppStrings.text(R.string.vignette), String.format(AppStrings.text(R.string.vignette_summary),
+        SettingLine(AppStrings.text(R.string.vignette), AppStrings.format(R.string.vignette_summary,
             settings.effects.vignetteAmount, settings.effects.vignetteMidpoint, settings.effects.vignetteRoundness,
             settings.effects.vignetteFeather, settings.effects.vignetteHighlights))
-        SettingLine(AppStrings.text(R.string.grain), String.format(AppStrings.text(R.string.grain_summary),
+        SettingLine(AppStrings.text(R.string.grain), AppStrings.format(R.string.grain_summary,
             settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness))
     }
 }

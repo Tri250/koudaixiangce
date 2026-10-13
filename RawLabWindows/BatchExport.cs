@@ -27,7 +27,15 @@ public sealed class BatchJob
     public string? Look { get; set; }
     public string LookName { get; set; } = "中性";
     public string? OutputDirectory { get; set; }
+    // Png remains for journals written before the explicit output format was added.
     public bool Png { get; set; }
+    public ExportFormat? OutputFormat { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ExportFormat Format
+    {
+        get => OutputFormat ?? (Png ? ExportFormat.Png : ExportFormat.Jpeg);
+        set { OutputFormat = value; Png = value == ExportFormat.Png; Version = 2; }
+    }
     // Null is deliberately the original-size default, including for journals
     // written by older versions that do not have this property.
     public int? LongEdge { get; set; }
@@ -40,13 +48,14 @@ public sealed class BatchJob
     public int SucceededCount => Items.Count(x => x.Selected && x.Status == BatchStatus.Succeeded);
     public int FailedCount => Items.Count(x => x.Selected && x.Status == BatchStatus.Failed);
     public int RemainingCount => SelectedCount - SucceededCount - FailedCount;
-    public string Suffix => Png ? "png" : "jpg";
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string Suffix => Format.Suffix();
     public static BatchJob Create(string source, AdjustmentSnapshot settings, string? look, string name) => new() {
         Source = source, Settings = settings.Copy(), Look = look, LookName = name
     };
     public BatchJob Copy() => new() {
         Version=Version, Id=Id, Source=Source, Settings=Settings.Copy(), Look=Look, LookName=LookName,
-        OutputDirectory=OutputDirectory, Png=Png, LongEdge=LongEdge, Started=Started, Interrupted=Interrupted, Cancelled=Cancelled,
+        OutputDirectory=OutputDirectory, Png=Png, OutputFormat=OutputFormat, LongEdge=LongEdge, Started=Started, Interrupted=Interrupted, Cancelled=Cancelled,
         Error=Error, Items=Items.Select(x => x with { }).ToList()
     };
     public string TemporaryPath(BatchItem item) => Path.Combine(OutputDirectory!, $".rawlab-{Id}-{item.Id}.{Suffix}");
@@ -73,7 +82,7 @@ public sealed class BatchJournal
     {
         if (!File.Exists(PathName)) return null;
         var job = AtomicJson.Read<BatchJob>(PathName);
-        if (job.Version != 1) throw new InvalidDataException(Loc.Text("无法读取此版本的批量任务。"));
+        if (job.Version is < 1 or > 2) throw new InvalidDataException(Loc.Text("无法读取此版本的批量任务。"));
         if (job.LongEdge is { } edge && !ExportSize.IsValid(edge)) job.LongEdge = null;
         _ = job.Settings.Restore();
         for (var i = 0; i < job.Items.Count; i++)

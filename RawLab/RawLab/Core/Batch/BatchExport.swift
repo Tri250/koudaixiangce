@@ -9,6 +9,9 @@ final class BatchExportModel: ObservableObject {
     @Published private(set) var isPreparing = false
     @Published private(set) var isStopping = false
     @Published private(set) var isReady = false
+    @Published private(set) var fileExportURLs: [URL]?
+    @Published private(set) var fileExportStatus: FileExportStatus = .none
+    @Published var shouldPresentFileExport = false
     @Published var validationMessage: String?
     var onDiscard: () -> Void = { }
 
@@ -17,6 +20,13 @@ final class BatchExportModel: ObservableObject {
     private let cancellation = NSLock()
     private var didCancel = false
     private var backgroundInterruption = false
+
+    enum FileExportStatus: Equatable {
+        case none
+        case pending
+        case exported
+        case cancelled
+    }
 
     init(source: BatchSourceSnapshot, editor: RawEditorViewModel) {
         var source = source
@@ -42,10 +52,19 @@ final class BatchExportModel: ObservableObject {
     }
 
     init(job: BatchExportJob, journalStore: BatchJournalStore) {
-        self.job = job.recovered(assetExists: PhotoLibraryBatchWriter.assetExists)
+        let recovered = job.outputFormat == .renderedDNG
+            ? job.recovered()
+            : job.recovered(assetExists: PhotoLibraryBatchWriter.assetExists)
+        self.job = recovered
         self.journalStore = journalStore
         isReady = true
-        validationMessage = self.job.globalError
+        validationMessage = recovered.globalError
+        if recovered.outputFormat == .renderedDNG {
+            let outputs = recovered.targets.compactMap(\.outputFileURL)
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+            fileExportURLs = outputs.isEmpty ? nil : outputs
+            fileExportStatus = outputs.isEmpty ? .none : .pending
+        }
     }
 
     var selectedCount: Int { job.targets.count }
@@ -73,7 +92,14 @@ final class BatchExportModel: ObservableObject {
         guard canChangeTargets else { return }
         var existing = Set(job.targets.map(\.id))
         for target in targets where existing.insert(target.id).inserted { job.targets.append(target) }
-        job.targets = OutputNameAllocator.assignUniqueNames(job.targets)
+        job.targets = OutputNameAllocator.assignUniqueNames(job.targets, suffix: job.outputFormat.suffix)
+        saveJournal()
+    }
+
+    func setFormat(_ format: BatchOutputFormat) {
+        guard canChangeTargets else { return }
+        job.outputFormat = format
+        job.targets = OutputNameAllocator.assignUniqueNames(job.targets, suffix: format.suffix)
         saveJournal()
     }
 
@@ -123,7 +149,9 @@ final class BatchExportModel: ObservableObject {
 
     private func run(failuresOnly: Bool) {
         guard canStart, let journalStore else { return }
-        var snapshot = job.recovered(assetExists: PhotoLibraryBatchWriter.assetExists)
+        var snapshot = job.outputFormat == .renderedDNG
+            ? job.recovered()
+            : job.recovered(assetExists: PhotoLibraryBatchWriter.assetExists)
         guard !snapshot.source.settings.hasLook ||
                 snapshot.source.lookURL.map({ FileManager.default.isReadableFile(atPath: $0.path) }) == true else {
             validationMessage = L10n.text("任务外观不可用，请放弃此任务并重新创建。")
@@ -136,31 +164,63 @@ final class BatchExportModel: ObservableObject {
         let frozenLongEdge = snapshot.longEdge
         queue.async { [self] in
             do {
-                try PhotoLibraryBatchWriter.authorize()
-                let result = try BatchExportRunner.run(job: snapshot, journalStore: journalStore,
-                    render: { target, settings in
-                        try self.render(target: target, settings: settings,
-                                        look: snapshot.source.lookURL,
-                                        longEdge: frozenLongEdge)
-                    },
-                    write: { data, name, target, checkpoint in
-                        try PhotoLibraryBatchWriter.write(data: data, outputName: name, target: target, checkpoint: checkpoint)
-                    },
-                    shouldCancel: { self.isCancellationRequested },
-                    didUpdate: { updated in
-                        snapshot = updated
-                        DispatchQueue.main.async { self.job = updated }
-                    },
-                    onlyIDs: failedIDs)
+                let result: BatchExportJob
+                if snapshot.outputFormat == .renderedDNG {
+                    result = try BatchExportRunner.run(job: snapshot, journalStore: journalStore,
+                        render: { target, settings in
+                            try self.renderDNG(target: target, settings: settings,
+                                               look: snapshot.source.lookURL,
+                                               longEdge: frozenLongEdge, jobID: snapshot.id)
+                        },
+                        write: { file, name, _, checkpoint in
+                            try BatchFileWriter.write(file: file, outputName: name,
+                                                      jobID: snapshot.id, checkpoint: checkpoint)
+                        },
+                        cleanup: { file in try? FileManager.default.removeItem(at: file) },
+                        shouldCancel: { self.isCancellationRequested },
+                        didUpdate: { updated in
+                            snapshot = updated
+                            DispatchQueue.main.async { self.job = updated }
+                        },
+                        onlyIDs: failedIDs)
+                } else {
+                    try PhotoLibraryBatchWriter.authorize()
+                    result = try BatchExportRunner.run(job: snapshot, journalStore: journalStore,
+                        render: { target, settings in
+                            try self.render(target: target, settings: settings,
+                                            look: snapshot.source.lookURL,
+                                            longEdge: frozenLongEdge)
+                        },
+                        write: { data, name, target, checkpoint in
+                            try PhotoLibraryBatchWriter.write(data: data, outputName: name,
+                                                              target: target, checkpoint: checkpoint)
+                        },
+                        shouldCancel: { self.isCancellationRequested },
+                        didUpdate: { updated in
+                            snapshot = updated
+                            DispatchQueue.main.async { self.job = updated }
+                        },
+                        onlyIDs: failedIDs)
+                }
                 DispatchQueue.main.async {
                     self.job = result
                     if self.backgroundInterruption && result.status == .cancelled { self.job.status = .interrupted }
                     self.isRunning = false; self.isStopping = false
                     self.validationMessage = self.job.globalError
+                    if result.outputFormat == .renderedDNG {
+                        self.fileExportURLs = result.targets.compactMap(\.outputFileURL)
+                            .filter { FileManager.default.fileExists(atPath: $0.path) }
+                        if self.fileExportURLs?.isEmpty == false {
+                            self.fileExportStatus = .pending
+                            self.shouldPresentFileExport = result.status == .completed
+                        }
+                    }
                     self.saveJournal()
                 }
             } catch {
-                let recovered = snapshot.recovered(assetExists: PhotoLibraryBatchWriter.assetExists)
+                let recovered = snapshot.outputFormat == .renderedDNG
+                    ? snapshot.recovered()
+                    : snapshot.recovered(assetExists: PhotoLibraryBatchWriter.assetExists)
                 let message = error.localizedDescription
                 DispatchQueue.main.async {
                     self.job = recovered
@@ -187,7 +247,12 @@ final class BatchExportModel: ObservableObject {
     }
 
     func confirmPublication(id: String, saved: Bool) {
-        guard !isRunning, let index = job.targets.firstIndex(where: { $0.id == id && $0.status == .needsConfirmation }) else { return }
+        guard !isRunning, !isPreparing else { return }
+        if job.outputFormat == .renderedDNG {
+            reconcileDNGFiles()
+            return
+        }
+        guard let index = job.targets.firstIndex(where: { $0.id == id && $0.status == .needsConfirmation }) else { return }
         job.targets[index].status = saved ? .succeeded : .pending
         job.targets[index].errorMessage = nil
         if !saved { job.targets[index].outputAssetIdentifier = nil }
@@ -195,7 +260,12 @@ final class BatchExportModel: ObservableObject {
         saveJournal()
     }
 
-    func reconcilePhotos() async {
+    func reconcilePublication() async {
+        guard !isRunning, !isPreparing else { return }
+        if job.outputFormat == .renderedDNG {
+            await MainActor.run { reconcileDNGFiles() }
+            return
+        }
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         await MainActor.run {
             if status == .authorized || status == .limited {
@@ -203,6 +273,26 @@ final class BatchExportModel: ObservableObject {
                 saveJournal()
             } else { validationMessage = L10n.text("未获得相册读取权限，请手动核对保存结果，或在系统设置中授权。") }
         }
+    }
+
+    private func reconcileDNGFiles() {
+        job = job.recovered()
+        let outputs = job.targets.compactMap(\.outputFileURL)
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+        fileExportURLs = outputs.isEmpty ? nil : outputs
+        fileExportStatus = outputs.isEmpty ? .none : .pending
+        validationMessage = job.globalError
+        saveJournal()
+    }
+
+    func presentFileExport() {
+        guard fileExportURLs?.isEmpty == false else { return }
+        shouldPresentFileExport = true
+    }
+
+    func finishFileExport(_ exported: Bool) {
+        shouldPresentFileExport = false
+        fileExportStatus = exported ? .exported : .cancelled
     }
 
     @discardableResult func discard() -> Bool {
@@ -237,6 +327,29 @@ final class BatchExportModel: ObservableObject {
                                                    exportLongEdge: longEdge)
             return try processor.makeJPEGData(from: result.buffer, sourceURL: target.sourceURL,
                                               orientation: result.orientation, quality: 0.92)
+        }
+    }
+
+    private func renderDNG(target: BatchTarget, settings: RawSettings, look: URL?, longEdge: Int?, jobID: UUID) throws -> URL {
+        guard target.sourceKind == .raw else { throw BatchExportError.target(L10n.text("不是 RAW 照片。")) }
+        return try autoreleasepool {
+            let processor = Sony2FujiProcessor()
+            let output = BatchFileOutputStore.temporaryURL(for: jobID, outputName: target.outputName)
+            _ = try BatchFileOutputStore.directory(for: jobID)
+            do {
+                try processor.exportDNG(url: target.sourceURL, settings: settings, lutURL: look,
+                                        outputURL: output, exportLongEdge: longEdge)
+                return output
+            } catch let error as Sony2FujiProcessor.ProcessorError {
+                try? FileManager.default.removeItem(at: output)
+                if case .outputIO = error {
+                    throw BatchExportError.global(error.localizedDescription)
+                }
+                throw error
+            } catch {
+                try? FileManager.default.removeItem(at: output)
+                throw error
+            }
         }
     }
 

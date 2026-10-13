@@ -411,5 +411,6 @@
   "已生成 {0} 个渲染型 DNG": "{0} entwickelte DNG-Dateien erstellt",
   "已生成 {0} 个渲染型 DNG，未另存到所选位置": "{0} entwickelte DNG-Dateien erstellt, aber nicht am gewählten Ort gespeichert",
   "DNG 只能保存到文件": "DNG kann nur in Dateien gespeichert werden",
-  "请等待预览完成后导出。": "Warten Sie vor dem Export, bis die Vorschau fertig ist."
+  "请等待预览完成后导出。": "Warten Sie vor dem Export, bis die Vorschau fertig ist.",
+  "请选择 {0} 文件扩展名。": "Wählen Sie eine Dateierweiterung für {0}."
 }

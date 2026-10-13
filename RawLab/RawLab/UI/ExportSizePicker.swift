@@ -74,6 +74,7 @@ struct ExportSizePicker: View {
 struct ExportSizeSheet: View {
     @Environment(\.locale) private var localizationLocale
     @Binding var longEdge: Int?
+    var title = "保存当前照片"
     let onExport: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var sizeIsValid = true
@@ -90,7 +91,7 @@ struct ExportSizeSheet: View {
                     ExportSizePicker(longEdge: $longEdge) { sizeIsValid = $0 }
                 }
             }
-            .navigationTitle(L10n.text("保存当前照片"))
+            .navigationTitle(L10n.text(title))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

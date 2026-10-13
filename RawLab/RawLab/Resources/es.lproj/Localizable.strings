@@ -306,3 +306,12 @@
 "已生成 %@ 个渲染型 DNG，未另存到所选位置" = "Se crearon %@ archivos DNG revelados, pero no se guardaron en la ubicación elegida";
 "DNG 只能保存到文件" = "El DNG solo se puede guardar en Archivos";
 "请等待预览完成后导出。" = "Espera a que termine la vista previa antes de exportar.";
+"自动匹配" = "Coincidencia automática";
+"镜头" = "Objetivo";
+"镜头校正" = "Corrección de objetivo";
+"镜头畸变和横向色差校正" = "Corrección de distorsión y aberración cromática lateral";
+"无法读取镜头校正状态" = "No se pudo leer el estado de la corrección del objetivo";
+"渲染型 DNG 未生成。" = "No se creó el DNG renderizado.";
+"DNG 已生成，但任务记录未更新，请先核对保存结果。" = "Se creó el DNG, pero no se actualizó el registro de la tarea. Verifique primero el archivo guardado.";
+"无法写入成片，请检查输出位置和剩余空间。" = "No se puede escribir en el segmento. Verifique la ubicación de salida y el espacio restante.";
+"无效的视口预览模式" = "Modo de vista previa del área visible no válido";

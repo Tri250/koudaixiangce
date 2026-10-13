@@ -79,7 +79,7 @@ class BatchWorkflowInstrumentedTest {
             assertEquals(original, EditStore(File(context.filesDir, "edits")).load(identity))
             assertArrayEquals(source.readBytes(), target.readBytes())
             val single = File(root, "single.jpg")
-            NativeProcessor().use { it.export(target, null, settings, single, false) }
+            NativeProcessor().use { it.export(target, null, settings, single, ExportFormat.JPEG) }
             val singleBitmap = BitmapFactory.decodeFile(single.path)
             val batchBitmap = context.contentResolver.openInputStream(output!!)!!.use(BitmapFactory::decodeStream)
             assertTrue("Single and batch exports have identical pixels", singleBitmap.sameAs(batchBitmap))

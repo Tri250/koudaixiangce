@@ -84,7 +84,7 @@ class LookLibraryScreenTest {
             }
             compose.runOnUiThread {
                 assertTrue(compose.activity.model.beginExport())
-                compose.activity.model.export(Uri.fromFile(exported), false)
+                compose.activity.model.export(Uri.fromFile(exported), ExportFormat.JPEG)
             }
             compose.waitUntil(30_000) { compose.activity.model.state.value.operation == Operation.NONE }
             assertTrue(exported.length() > 0)

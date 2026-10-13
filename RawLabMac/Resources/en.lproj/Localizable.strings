@@ -370,3 +370,11 @@
 "已生成 %@ 个渲染型 DNG，未另存到所选位置" = "%@ Rendered DNG Files Created, but Not Saved to the Selected Location";
 "DNG 只能保存到文件" = "DNG Can Only Be Saved to Files";
 "请等待预览完成后导出。" = "Wait for the Preview to Finish Before Exporting.";
+"自动匹配" = "Automatic Matching";
+"镜头" = "Lens";
+"镜头校正" = "Lens Correction";
+"镜头畸变和横向色差校正" = "Lens Distortion and Lateral Chromatic Aberration Correction";
+"无法读取镜头校正状态" = "Could Not Read Lens Correction Status";
+"渲染型 DNG 未生成。" = "Rendered DNG Was Not Created.";
+"DNG 已生成，但任务记录未更新，请先核对保存结果。" = "DNG Created, but the Task Record Was Not Updated. Verify the Saved File First.";
+"无效的视口预览模式" = "Invalid Viewport Preview Mode";

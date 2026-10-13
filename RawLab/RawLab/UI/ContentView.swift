@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var didAutoLoadSample = false
     @State var showingBefore = false
     @State var selectedAdjustment: AdjustmentKind? = .exposure
+    @State var lensSelected = false
     @State var choosingMasterRecipe = false
     @State var adjustmentsExpanded = true
     @State var histogramExpanded = false
@@ -30,6 +31,8 @@ struct ContentView: View {
     @State var photoInformation: PhotoInformation?
     @State var showingExportSize = false
     @State var exportLongEdge: Int?
+    @State var singleExportFormat: BatchOutputFormat = .jpeg
+    @State var fileExportRequest: FileExportRequest?
     @ScaledMetric(relativeTo: .caption) var toolWidth = 62.0
     @ScaledMetric(relativeTo: .caption) var toolHeight = 82.0
     @ScaledMetric(relativeTo: .caption) var filmSize = 72.0
@@ -52,7 +55,7 @@ struct ContentView: View {
                         }
                         .accessibilityIdentifier("editor.panel")
                         .frame(width: landscape ? min(360, geometry.size.width * 0.44) : nil,
-                               height: landscape ? nil : min(panelHeight + (selectedAdjustment == nil ? 32 : selectedAdjustment == .hsl ? 120 : selectedAdjustment == .noiseReduction ? 80 : 0),
+                               height: landscape ? nil : min(panelHeight + (lensSelected ? 220 : selectedAdjustment == nil ? 32 : selectedAdjustment == .hsl ? 120 : selectedAdjustment == .noiseReduction ? 80 : 0),
                                                             geometry.size.height * 0.6))
                         .background(Color(.secondarySystemBackground))
                     }
@@ -142,9 +145,23 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showingExportSize) {
-            ExportSizeSheet(longEdge: $exportLongEdge) {
+            ExportSizeSheet(longEdge: $exportLongEdge,
+                            title: singleExportFormat == .renderedDNG ? "导出渲染型 DNG" : "保存当前照片") {
                 showingExportSize = false
-                exportJPEG(longEdge: exportLongEdge)
+                if singleExportFormat == .renderedDNG {
+                    exportDNG(longEdge: exportLongEdge)
+                } else {
+                    exportJPEG(longEdge: exportLongEdge)
+                }
+            }
+        }
+        .sheet(item: $fileExportRequest) { request in
+            FileExportPicker(urls: request.urls) { exported in
+                fileExportRequest = nil
+                if request.removeAfterExport {
+                    for url in request.urls { try? FileManager.default.removeItem(at: url) }
+                }
+                viewModel.statusMessage = exported ? request.successMessage : request.cancelMessage
             }
         }
     }

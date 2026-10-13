@@ -87,6 +87,8 @@ struct RawLabMacApp: App {
                     Button(L10n.text("导出 JPEG…")) { model.export(png: false) }
                         .keyboardShortcut("e", modifiers: [.command, .shift])
                         .disabled(model.result == nil || model.busy || model.exporting || model.lookLibraryBusy || model.missingFilm)
+                    Button(L10n.text("导出渲染型 DNG…")) { model.export(format: .renderedDNG) }
+                        .disabled(model.result == nil || model.busy || model.exporting || model.lookLibraryBusy || model.missingFilm)
                     Button(L10n.text("使用当前调整批量导出…")) {
                         if model.prepareBatch() { openWindow(id: "batch-export") }
                     }.disabled(model.result == nil || model.busy || model.exporting || model.lookLibraryBusy || model.missingFilm)

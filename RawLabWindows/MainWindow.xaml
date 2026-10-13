@@ -12,7 +12,7 @@
           <local:EditorIcon Kind="Export" Width="22" Height="22"/>
           <Button.ContextMenu><ContextMenu>
             <MenuItem Header="{DynamicResource '尺寸'}"><MenuItem x:Name="ExportOriginalSize" Header="{DynamicResource '原尺寸'}" IsCheckable="True" Click="ExportOriginalSizeClicked"/><MenuItem x:Name="ExportSize2048" Header="{DynamicResource '长边 2048 px'}" IsCheckable="True" Click="ExportSizeClicked" Tag="2048"/><MenuItem x:Name="ExportSize3000" Header="{DynamicResource '长边 3000 px'}" IsCheckable="True" Click="ExportSizeClicked" Tag="3000"/><MenuItem x:Name="ExportSize4096" Header="{DynamicResource '长边 4096 px'}" IsCheckable="True" Click="ExportSizeClicked" Tag="4096"/><MenuItem x:Name="ExportCustomSize" Header="{DynamicResource '自定义…'}" IsCheckable="True" Click="ExportCustomSizeClicked"/></MenuItem>
-            <Separator/><MenuItem x:Name="ExportJpeg" Header="{DynamicResource '导出 JPEG'}" Click="ExportJpegClicked" IsEnabled="False"/><MenuItem x:Name="ExportPng" Header="{DynamicResource '导出 16-bit PNG'}" Click="ExportPngClicked" IsEnabled="False"/><Separator/><MenuItem x:Name="BatchExportMenu" Header="{DynamicResource '使用当前调整批量导出…'}" Click="BatchExportClicked" IsEnabled="False"/><MenuItem x:Name="ViewBatchMenu" Header="{DynamicResource '查看批量任务…'}" Click="ShowBatchClicked" IsEnabled="False"/>
+            <Separator/><MenuItem x:Name="ExportJpeg" Header="{DynamicResource '导出 JPEG'}" Click="ExportJpegClicked" IsEnabled="False"/><MenuItem x:Name="ExportPng" Header="{DynamicResource '导出 16-bit PNG'}" Click="ExportPngClicked" IsEnabled="False"/><MenuItem x:Name="ExportDng" Header="{DynamicResource '导出渲染型 DNG'}" Click="ExportDngClicked" IsEnabled="False"/><Separator/><MenuItem x:Name="BatchExportMenu" Header="{DynamicResource '使用当前调整批量导出…'}" Click="BatchExportClicked" IsEnabled="False"/><MenuItem x:Name="ViewBatchMenu" Header="{DynamicResource '查看批量任务…'}" Click="ShowBatchClicked" IsEnabled="False"/>
           </ContextMenu></Button.ContextMenu>
         </Button>
         <StackPanel Orientation="Horizontal">
@@ -125,6 +125,9 @@
               <Button x:Name="DenoiseCategory" Click="DenoiseCategoryClicked" Style="{StaticResource ToolButton}" ToolTip="{DynamicResource '降噪'}" AutomationProperties.Name="{DynamicResource '降噪'}">
                 <StackPanel><Grid Width="40" Height="40"><local:AdjustmentRing x:Name="DenoiseCategoryRing"/><local:EditorIcon Kind="Adjust" Width="20" Height="20"/></Grid><TextBlock Text="{DynamicResource '降噪'}" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/></StackPanel>
               </Button>
+              <Button x:Name="LensCategory" Click="LensCategoryClicked" Style="{StaticResource ToolButton}" ToolTip="{DynamicResource '镜头匹配'}" AutomationProperties.Name="{DynamicResource '镜头'}">
+                <StackPanel><Grid Width="40" Height="40"><local:AdjustmentRing x:Name="LensCategoryRing"/><local:EditorIcon Kind="Lens" Width="20" Height="20"/></Grid><TextBlock Text="{DynamicResource '镜头'}" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/></StackPanel>
+              </Button>
               <Button x:Name="HslCategory" Click="HslCategoryClicked" Style="{StaticResource ToolButton}" ToolTip="HSL" AutomationProperties.Name="HSL">
                 <StackPanel><Grid Width="40" Height="40"><local:AdjustmentRing x:Name="HslCategoryRing"/><local:EditorIcon Kind="Adjust" Width="20" Height="20"/></Grid><TextBlock Text="HSL" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/></StackPanel>
               </Button>
@@ -151,6 +154,7 @@
               <Button x:Name="RecipeScrollRight" Grid.Column="2" Click="RecipeScrollRightClicked" Style="{StaticResource QuietButton}" ToolTip="{DynamicResource '向右滚动大师配方'}" AutomationProperties.Name="{DynamicResource '向右滚动大师配方'}"><local:EditorIcon Kind="ChevronDown" Width="18" Height="18"><local:EditorIcon.RenderTransform><RotateTransform Angle="-90" CenterX="9" CenterY="9"/></local:EditorIcon.RenderTransform></local:EditorIcon></Button>
             </Grid>
             <local:DenoisePanel x:Name="DenoiseEditor" Grid.Row="2" Visibility="Collapsed" VerticalAlignment="Center"/>
+            <local:LensPanel x:Name="LensEditor" Grid.Row="2" Visibility="Collapsed" VerticalAlignment="Center"/>
             <ScrollViewer x:Name="HslSurface" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><local:HslPanel x:Name="HslEditor"/></ScrollViewer>
             <ScrollViewer x:Name="PhotoEffectsSurface" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
               <local:PhotoEffectsPanel x:Name="PhotoEffectsEditor" VerticalAlignment="Center"/>

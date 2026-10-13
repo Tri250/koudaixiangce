@@ -32,7 +32,7 @@ public partial class MainWindow : Window
     private string? file,lut;
     private RenderEngine? engine;
     private bool ready,syncing,interacting,exporting,closing,exactReady;
-    private bool compare=true,clipping,choosingFilm,choosingDenoise,choosingPhotoEffects,swipe;
+    private bool compare=true,clipping,choosingFilm,choosingDenoise,choosingPhotoEffects,choosingLens,swipe;
     private PhotoEffectTool selectedEffect=PhotoEffectTool.Vignette;
     private bool renderFailed;
     private bool choosingHsl,autoExposing;
@@ -49,6 +49,8 @@ public partial class MainWindow : Window
     private Func<string>? localizedStatus;
     private readonly HashSet<LibraryEntry> visibleThumbnails=[];
     private readonly DispatcherTimer thumbnailRefresh=new(){Interval=TimeSpan.FromMilliseconds(80)};
+    private readonly DispatcherTimer previewResize=new(){Interval=TimeSpan.FromMilliseconds(200)};
+    private int previewLongEdge=2000,requestedPreviewLongEdge=2000;
     private LibraryEntry? selectedThumbnail;
     private readonly UpdateChecker updates = new(typeof(App).Assembly.GetName().Version?.ToString(3) ?? "unknown");
     private AboutWindow? aboutWindow;
@@ -83,7 +85,9 @@ public partial class MainWindow : Window
         DockHeader.SizeChanged+=(_,_)=>UpdateDockMinimum();
         ToolsScroller.SizeChanged+=(_,_)=>UpdateDockMinimum();
         NeutralCanvas.Viewport=ResultCanvas.Viewport=viewport;
-        viewport.ResolutionChanged+=()=>{if(!syncing)Schedule();};
+        ResultCanvas.PreviewSizeChanged+=UpdatePreviewSize;
+        viewport.ResolutionChanged+=()=>{if(!syncing)UpdatePreviewSize(viewport.ActualPixels ? 0 : ResultCanvas.PreviewLongEdge);};
+        previewResize.Tick+=(_,_)=>CommitPreviewSize();
         films.Add(new("中性",null,null));
         var artwork=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase) {
             ["PROVIA"]="provia",["Velvia"]="velvia",["ASTIA"]="astia",["ACROS"]="acros",
@@ -108,6 +112,10 @@ public partial class MainWindow : Window
         HslEditor.Changed+=(value,dragging)=>{
             if(!ready || syncing || exporting)return;
             settings.Hsl=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
+        };
+        LensEditor.Changed+=value=>{
+            if(!ready || syncing || exporting)return;
+            settings.Lens=value;RefreshControls();MarkEdited();Schedule();
         };
         ValueSlider.AddHandler(Thumb.DragStartedEvent,new DragStartedEventHandler((_,_)=>{interacting=true;}));
         ValueSlider.AddHandler(Thumb.DragCompletedEvent,new DragCompletedEventHandler((_,_)=>{interacting=false; Schedule();}));
@@ -139,7 +147,7 @@ public partial class MainWindow : Window
             var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=Loc.Text(spec.Title),FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=Loc.Text(spec.Title)};
             AutomationProperties.SetName(button,Loc.Text(spec.Title));
-            button.Click+=(_,_)=>{choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;selectedParameter=spec.Id;RefreshControls();};
+            button.Click+=(_,_)=>{choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;choosingLens=false;selectedParameter=spec.Id;RefreshControls();};
             Tools.Children.Add(button); toolButtons[spec.Id]=(button,ring);
         }
         foreach(var (tool,title,icon) in new[] {
@@ -152,13 +160,14 @@ public partial class MainWindow : Window
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=tool==PhotoEffectTool.Vignette ? Loc.Text("Vignette / 暗角") : Loc.Text("Grain / 颗粒")};
             AutomationProperties.SetName(button,title);
             AutomationProperties.SetAutomationId(button,tool.ToString());
-            button.Click+=(_,_)=>{if(exporting)return;choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
+            button.Click+=(_,_)=>{if(exporting)return;choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingLens=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
             Tools.Children.Add(button); effectToolButtons[tool]=(button,ring);
         }
     }
-    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;RefreshControls(); }
-    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;RefreshControls(); }
-    private void HslCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=true;choosingDenoise=choosingFilm=choosingPhotoEffects=false;RefreshControls(); }
+    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
+    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
+    private void HslCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=true;choosingDenoise=choosingFilm=choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
+    private void LensCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingLens=true;choosingFilm=choosingDenoise=choosingPhotoEffects=false;RefreshControls(); }
     private void BuildFilms()
     {
         FilmStrip.Children.Clear(); filmButtons.Clear();
@@ -198,7 +207,12 @@ public partial class MainWindow : Window
             MasterRecipePanel.Visibility=choosingRecipes ? Visibility.Visible : Visibility.Collapsed;
             MasterRecipeCategoryRing.Selected=choosingRecipes;MasterRecipeCategoryRing.Progress=settings.MasterRecipeID==null ? 0 : 1;MasterRecipeCategoryRing.InvalidateVisual();
             foreach(var pair in recipeButtons)pair.Value.Foreground=pair.Key==(settings.MasterRecipeID ?? "") ? Brushes.Gold : (Brush)FindResource("Foreground");
-            ParameterPanel.Visibility=choosingRecipes || choosingFilm || choosingDenoise || choosingPhotoEffects || choosingHsl ? Visibility.Collapsed : Visibility.Visible;
+            ParameterPanel.Visibility=choosingRecipes || choosingFilm || choosingDenoise || choosingPhotoEffects || choosingHsl || choosingLens ? Visibility.Collapsed : Visibility.Visible;
+            LensEditor.Visibility=choosingLens ? Visibility.Visible : Visibility.Collapsed;
+            LensEditor.IsEnabled=file!=null && !exporting;LensEditor.Refresh(settings.Lens,result?.Lens);
+            LensCategory.IsEnabled=file!=null && !exporting;
+            LensCategory.Tag=choosingLens ? "selected" : null;
+            LensCategoryRing.Selected=choosingLens;LensCategoryRing.Progress=settings.Lens.Enabled ? 1 : 0;LensCategoryRing.InvalidateVisual();
             HslSurface.Visibility=choosingHsl ? Visibility.Visible : Visibility.Collapsed;
             HslEditor.IsEnabled=file!=null && !exporting;HslEditor.Refresh(settings.Hsl);
             HslCategory.Tag=choosingHsl ? "selected" : null;
@@ -228,7 +242,7 @@ public partial class MainWindow : Window
             AsShotButton.IsEnabled=file!=null && !exporting && settings.AsShot!=null;
             foreach(var (id,controls) in toolButtons)
             {
-                var selected=!choosingRecipes && !choosingHsl && !choosingFilm && !choosingDenoise && !choosingPhotoEffects && id==selectedParameter;
+                var selected=!choosingRecipes && !choosingHsl && !choosingFilm && !choosingDenoise && !choosingPhotoEffects && !choosingLens && id==selectedParameter;
                 controls.Button.Tag=selected ? "selected" : null;
                 controls.Ring.Selected=selected;
                 var p=ParameterSpec.All[(int)id]; var origin=p.Position(settings.Default(id)); var offset=p.Position(settings[id])-origin;
@@ -251,15 +265,15 @@ public partial class MainWindow : Window
     private static SolidColorBrush Brush(string color)=>(SolidColorBrush)new BrushConverter().ConvertFromString(color)!;
     private void UpdateBusy()
     {
-        ExportJpeg.IsEnabled=ExportPng.IsEnabled=BatchExportMenu.IsEnabled=exactReady && !scheduler.Busy && !exporting && result!=null && LookAvailable;
+        ExportJpeg.IsEnabled=ExportPng.IsEnabled=ExportDng.IsEnabled=BatchExportMenu.IsEnabled=exactReady && !scheduler.Busy && !previewResize.IsEnabled && !exporting && result!=null && LookAvailable;
         ViewBatchMenu.IsEnabled=CurrentBatch!=null;
-        ExportButton.IsEnabled=ExportJpeg.IsEnabled || ViewBatchMenu.IsEnabled;
+        ExportButton.IsEnabled=ExportJpeg.IsEnabled || ExportPng.IsEnabled || ExportDng.IsEnabled || ViewBatchMenu.IsEnabled;
         AdjustmentPanel.IsEnabled=!exporting;GpuMode.IsEnabled=!exporting;
-        BusyIndicator.Visibility=scheduler.Busy || exporting ? Visibility.Visible : Visibility.Collapsed;
+        BusyIndicator.Visibility=scheduler.Busy || previewResize.IsEnabled || exporting ? Visibility.Visible : Visibility.Collapsed;
         RetryButton.Visibility=renderFailed && !scheduler.Busy && !exporting ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.ToolTip=file==null ? Loc.Text("打开 RAW 照片后导出") : scheduler.Busy ? Loc.Text("精确预览完成后可导出") : Loc.Text("导出照片（尺寸可选）");
         ToolTipService.SetShowOnDisabled(ExportButton,true);
-        ToolTipService.SetShowOnDisabled(ExportJpeg,true);ToolTipService.SetShowOnDisabled(ExportPng,true);
+        ToolTipService.SetShowOnDisabled(ExportJpeg,true);ToolTipService.SetShowOnDisabled(ExportPng,true);ToolTipService.SetShowOnDisabled(ExportDng,true);
     }
     private void SetStatus(string text,bool error=false) { localizedStatus=null; Status.Text=text; Status.ToolTip=text; Status.Foreground=Brush(error ? "#FFAB92" : "#B5B8C0"); }
     private void SetStatus(Func<string> text,bool error=false) { SetStatus(text(),error); localizedStatus=text; }
@@ -283,9 +297,12 @@ public partial class MainWindow : Window
             if(!LibraryEntry.IsRaw(path))throw new InvalidOperationException(Loc.Text("请选择支持的 RAW 文件。"));
             if(!SaveEdits())return;
             RestoreEdits(path);
-            file=path; interacting=false; exactReady=false; result=null; photoInfo=null; ++photoInfoRevision; syncing=true;viewport.Fit();syncing=false;
+            previewResize.Stop();previewLongEdge=requestedPreviewLongEdge=2000;
+            file=path; interacting=false; exactReady=false; result=null; photoInfo=null; ++photoInfoRevision; syncing=true;viewport.Fit();
             viewport.SetSourceSize(0,0);
             NeutralCanvas.SetImage(placeholder,null); ResultCanvas.SetImage(placeholder,null);ResultCanvas.SetComparison(placeholder,null); Histogram.Bins=null; Histogram.InvalidateVisual(); ClipStats.Text="";
+            previewLongEdge=requestedPreviewLongEdge=ResultCanvas.PreviewLongEdge>0 ? ResultCanvas.PreviewLongEdge : 2000;
+            syncing=false;
             RefreshPhotoInfo();
             BackendLabel.Text=Loc.Text("相机预览 · 正在显影");BaselineLabel.Text="";
             Title="RawLab · "+Path.GetFileName(path); Welcome.Visibility=Visibility.Collapsed;
@@ -345,13 +362,28 @@ public partial class MainWindow : Window
         }
         PumpEmbedded();
     }
+    private void UpdatePreviewSize(int edge)
+    {
+        if(syncing || file==null || closing || (edge==requestedPreviewLongEdge && (edge==previewLongEdge || previewResize.IsEnabled)))return;
+        requestedPreviewLongEdge=edge;previewResize.Stop();
+        if(exporting)return;
+        if(edge==previewLongEdge){UpdateBusy();return;}
+        if(settings.Denoise.Enabled && edge>0 && previewLongEdge>0){previewResize.Start();UpdateBusy();}
+        else CommitPreviewSize();
+    }
+    private void CommitPreviewSize()
+    {
+        previewResize.Stop();previewLongEdge=requestedPreviewLongEdge;Schedule(initialPreview:result==null);
+    }
+    private int RenderEdge(bool proxy)=>proxy && previewLongEdge==0 ? 2000 : previewLongEdge;
     private void Schedule(bool initialPreview=false)
     {
         if(!ready || file==null || exporting || closing)return;
+        if(!settings.Denoise.Enabled && previewResize.IsEnabled){previewResize.Stop();previewLongEdge=requestedPreviewLongEdge;}
         if(!LookAvailable){exactReady=false;result=null;renderFailed=true;SetStatus(() => Loc.Text("上次使用的外观不可用，请重新导入或选择外观。"),true);UpdateBusy();return;}
         renderFailed=false;
         var proxy=interacting || initialPreview;
-        scheduler.Submit(new(file,settings.Clone(),lut,proxy ? 1000 : viewport.ActualPixels ? 0 : 2000,proxy,GpuMode.SelectedIndex==0 ? 1 : GpuMode.SelectedIndex==1 ? 0 : 2,compare,clipping,initialPreview));
+        scheduler.Submit(new(file,settings.Clone(),lut,RenderEdge(proxy),proxy,GpuMode.SelectedIndex==0 ? 1 : GpuMode.SelectedIndex==1 ? 0 : 2,compare,clipping,initialPreview));
         exactReady=false; SetStatus(() => interacting ? Loc.Text("正在生成交互预览…") : Loc.Text("正在显影…")); UpdateBusy();
         Pump();
     }
@@ -372,7 +404,7 @@ public partial class MainWindow : Window
         if(closing) { FinishClose(); return; }
         var work=ticket.Value;
         // A current-file proxy may publish while dragging; stale exact work never publishes.
-        if(work.File==file && work.Lut==lut && work.Compare==compare && work.Clipping==clipping && (current || (work.Interactive && interacting)))
+        if(work.File==file && work.Lut==lut && work.Compare==compare && work.Clipping==clipping && (current || (work.Interactive && interacting && work.Edge==RenderEdge(true))))
         {
             if(failure!=null) { if(current){result=null;exactReady=false;renderFailed=true;Report(failure);} }
             else if(rendered!=null && neutral!=null)
@@ -526,7 +558,7 @@ public partial class MainWindow : Window
         RemoveRootMenu.IsEnabled=isRoot; RefreshRootMenu.IsEnabled=isRoot;
         ApplyTreeEntryMenu.IsEnabled=CanApplyCurrentSettings;
     }
-    private bool CanApplyCurrentSettings => file != null && result != null && exactReady && !scheduler.Busy && !exporting && LookAvailable;
+    private bool CanApplyCurrentSettings => file != null && result != null && exactReady && !scheduler.Busy && !previewResize.IsEnabled && !exporting && LookAvailable;
     private void PhotoContextMenuOpened(object sender, RoutedEventArgs e)
     {
         if(sender is not ContextMenu menu) return;
@@ -616,7 +648,7 @@ public partial class MainWindow : Window
         var entry=ResolveContextEntry(sender);
         if (entry == null || string.IsNullOrEmpty(entry.Path)) return;
         if (file == null) { SetStatus(() => Loc.Text("请先打开一张照片作为调整来源。"),true); return; }
-        if (exporting || scheduler.Busy || !exactReady || result == null)
+        if (exporting || scheduler.Busy || previewResize.IsEnabled || !exactReady || result == null)
         {
             SetStatus(() => Loc.Text("精确显影完成后才能应用当前设置。"),true); return;
         }
@@ -719,8 +751,9 @@ public partial class MainWindow : Window
         else if(e.Key is Key.Add or Key.OemPlus)ZoomInClicked(sender,e); else if(e.Key is Key.Subtract or Key.OemMinus)ZoomOutClicked(sender,e);
         else if(e.Key==Key.I)InfoClicked(sender,e);
     }
-    private void ExportJpegClicked(object sender,RoutedEventArgs e)=>Export(false);
-    private void ExportPngClicked(object sender,RoutedEventArgs e)=>Export(true);
+    private void ExportJpegClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.Jpeg);
+    private void ExportPngClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.Png);
+    private void ExportDngClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.RenderedDng);
     private void ExportOriginalSizeClicked(object sender,RoutedEventArgs e) { exportLongEdge=null; RefreshExportSizeMenu(); }
     private void ExportSizeClicked(object sender,RoutedEventArgs e)
     {
@@ -745,26 +778,58 @@ public partial class MainWindow : Window
         ExportCustomSize.IsChecked=exportLongEdge.HasValue && exportLongEdge != 2048 && exportLongEdge != 3000 && exportLongEdge != 4096;
         ExportCustomSize.Header=ExportCustomSize.IsChecked == true ? Loc.Format("自定义 {0} px", exportLongEdge) : Loc.Text("自定义…");
     }
-    private async void Export(bool png)
+    private async void Export(ExportFormat format)
     {
-        if(!exactReady || scheduler.Busy || exporting || file==null || engine==null)return;
-        var dialog=new SaveFileDialog{Title=Loc.Text("全分辨率导出"),Filter=png ? "16-bit PNG|*.png" : "JPEG|*.jpg",DefaultExt=png ? ".png" : ".jpg",AddExtension=true,OverwritePrompt=true,
+        if(!exactReady || scheduler.Busy || previewResize.IsEnabled || exporting || file==null || engine==null)return;
+        var suffix=format.Suffix();
+        var dialog=new SaveFileDialog{Title=Loc.Text("全分辨率导出"),Filter=format switch {
+                ExportFormat.Jpeg => Loc.Text("导出 JPEG")+"|*.jpg;*.jpeg",
+                ExportFormat.Png => Loc.Text("导出 16-bit PNG")+"|*.png",
+                ExportFormat.RenderedDng => Loc.Text("DNG · 渲染型")+"|*.dng",
+                _ => throw new ArgumentOutOfRangeException(nameof(format))
+            },DefaultExt="."+suffix,AddExtension=true,OverwritePrompt=true,
             FileName=Path.GetFileNameWithoutExtension(file)+"-"+(films.FirstOrDefault(f=>f.Path==lut)?.Name ?? "neutral")};
+        dialog.FileOk += (_, args) => {
+            if (!format.AcceptsPath(dialog.FileName))
+            {
+                args.Cancel = true;
+                MessageBox.Show(this, Loc.Format("请选择 {0} 文件扩展名。", format.Title()), Loc.Text("导出"),
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        };
         if(dialog.ShowDialog(this)!=true)return;
+        if(!exactReady || scheduler.Busy || previewResize.IsEnabled || closing)return;
         if(Path.GetFullPath(dialog.FileName).Equals(Path.GetFullPath(file),StringComparison.OrdinalIgnoreCase)){SetStatus(() => Loc.Text("不能覆盖原始 RAW。"),true);return;}
         exporting=true;RefreshControls();SetStatus(() => Loc.Text("正在全分辨率导出…"));
         var input=file;var adjustment=settings.Clone();var film=lut;
         // Render to a sibling temporary file, then replace only after encoding succeeds.
-        var temp=Path.Combine(Path.GetDirectoryName(dialog.FileName)!,".rawlab-"+Guid.NewGuid().ToString("N")+(png ? ".png" : ".jpg"));
+        var temp=Path.Combine(Path.GetDirectoryName(dialog.FileName)!,".rawlab-"+Guid.NewGuid().ToString("N")+"."+suffix);
         var size=exportLongEdge;
-        try { await Task.Run(()=>engine.Render(input,adjustment,film,0,false,temp,longEdge:size));File.Move(temp,dialog.FileName,true);SetStatus(() => Loc.Format("已导出（{0}）：{1}", (engine.LastBackend==3 ? "Direct3D 11" : "CPU"), dialog.FileName)); }
+        try
+        {
+            using var sourceLock = WindowsFileIdentity.OpenReadLock(input);
+            if (WindowsFileIdentity.IsSameFile(sourceLock, dialog.FileName))
+            {
+                SetStatus(() => Loc.Text("不能覆盖原始 RAW。"), true);
+                return;
+            }
+            await Task.Run(()=>engine.Render(input,adjustment,film,0,false,temp,longEdge:size));
+            if (WindowsFileIdentity.IsSameFile(sourceLock, dialog.FileName))
+            {
+                SetStatus(() => Loc.Text("不能覆盖原始 RAW。"), true);
+                return;
+            }
+            File.Move(temp,dialog.FileName,true);
+            SetStatus(() => Loc.Format("已导出（{0}）：{1}", (engine.LastBackend==3 ? "Direct3D 11" : "CPU"), dialog.FileName));
+        }
         catch(Exception ex){Report(ex);}
-        finally {try{if(File.Exists(temp))File.Delete(temp);}catch(IOException){} exporting=false;RefreshControls();if(closing)FinishClose();}
+        finally {try{if(File.Exists(temp))File.Delete(temp);}catch(IOException){} exporting=false;RefreshControls();if(closing)FinishClose();else UpdatePreviewSize(requestedPreviewLongEdge);}
     }
     private void WindowClosing(object? sender,CancelEventArgs e)
     {
         if(!SaveEdits()){e.Cancel=true;return;}
         closing=true;
+        previewResize.Stop();
         if(batchWindow?.Running==true)batchWindow.CancelExecution();
         thumbnailRefresh.Stop();foreach(var entry in visibleThumbnails)entry.ReleaseThumbnail();visibleThumbnails.Clear();
         if(scheduler.Busy || exporting){e.Cancel=true;closing=true;IsEnabled=false;SetStatus(() => Loc.Text("正在完成当前任务后关闭…"));return;}

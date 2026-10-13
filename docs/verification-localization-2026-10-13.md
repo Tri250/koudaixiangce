@@ -4,6 +4,11 @@
 基线：`origin/development` 的 `12d6cc17b2b92233657d3eb548ee146dbdcb8530`。
 本记录描述迁移到该基线后的代码和验证，不沿用原分支上的构建结果。
 
+以下早期章节保留初次交付和 Apple 补充验收的历史结果。后续正常合入了
+`development` 的 `2c46edc5f0d8a26933f853afbb068e5def06e2bf`，包含已合并的
+JPEG XL、渲染型 DNG、镜头矫正及视口预览功能。最新集成范围、重新执行的检查和
+仍未覆盖的事项以文末“Development 集成验收”为准，不把早期结果当作最新核心的完整验收。
+
 ## 交付范围
 
 macOS、iOS、Android、Windows 支持简体中文、英语、德语、法语、日语和西班牙语。
@@ -170,3 +175,99 @@ Windows 完整 `build.ps1 -Test` 被当前主机脚本执行策略拒绝；
 `ios-photos-output-file.txt` 保存输出照片的独立核验。
 截图及导出照片仅作本地证据，不提交到仓库。
 PR 的提交 SHA、远端同步及 CI 状态在交付时单独核对。
+
+## Development 集成验收
+
+集成目标：`2c46edc5f0d8a26933f853afbb068e5def06e2bf`。
+通过普通 merge 保留目标功能，不覆盖客户端文件、不 force-push。
+新接入的 DNG 格式、文件导出、镜头模式/搜索/能力/状态/批量摘要及预览等待提示均已本地化。
+原有 JPEG/PNG/DNG C ABI 值 `0/1/4`、输出 I/O 状态 `6`、`dng` 持久化值、
+原生镜头 ProfileID、手动选择 sentinel、RAW/外观/目标身份和全套调整保持不变。
+iOS 界面仍仅提供 JPEG/DNG，不新增 PNG 入口。核心算法及目标分支的回调/缓存语义未作额外修改。
+
+### 当前可读取的检查
+
+- 资源静态回归：5/5。新增资源 seed 检查覆盖四端各六个 catalog 的 49 个集成 key，
+  原有 key/value 未改变；随后必要的 Apple 视口错误、Android 自动模式和 Windows 扩展名提示另有补齐。
+- Apple typed Lens 状态与完整设置持久化：102 项，包含 10 种状态、应用能力组合、
+  JSON/reopen 及原生 ProfileID/名称保持。测试显式断言计数 102；不是 102 次真实 UI 操作。
+- iOS 批量模型：81 条 PASS，覆盖 DNG 持久化输出、恢复、存储失败及 frozen Lens/settings。
+  macOS Lens settings 和批量模型检查通过。
+- iOS 当前三架构 XCFramework 构建通过；最终 `ios-lens-dng-v7` UI 2/2、0 failures、exit 0。
+  六语言 Lens 原生 mode/profile/switches 和同一批量目标/DNG/128 px/目的地保持，
+  语言持久化回归也通过。西班牙语实际调用系统 Files Save，完成摘要匹配独立译文断言。
+  21:58 输出文件为 128×128、32-bit float RGB DNG、198918 bytes；应用生成文件和
+  File Provider Storage 中的实际副本 SHA-256 均为
+  `1814249e724f6102b6a68e7cfbb2b1997f904743b27da462518630a096943989`。
+  德语 Lens 和西班牙语批量截图未见布局重叠。完成后恢复系统语言并清理本次任务，保留 RAW/导出文件。
+- macOS 当前生产应用构建/打包/签名检查通过。使用全新的核心 build 目录和本线依赖前缀，
+  保留原 SDK OOM 断言并实际通过；不复用其他工作区的 native 二进制。
+- macOS 真实 DJI DNG：CPU 与强制 Metal，各输出 128 px PNG/DNG；非零调整下
+  单张/批量 DNG 字节完全一致，原始文件不变。
+- macOS 当前生产视图/模型的隔离测试入口：六语言 live Lens 状态、手动 ProfileID、畸变/TCA/裁边和
+  曝光 +0.75 EV 保持；全套 edits JSON 前后 SHA-256 相同。
+  同一 frozen batch 的来源、1 个目标、DNG、128 px 和目录保持，job JSON 前后 SHA-256 相同。
+  德/法/西截图确认尺寸标题和 folder 图标布局；西班牙语实际 DNG 批量成功 1/失败 0，
+  文件 198918 bytes/128×128；单张 JPEG 实际输出 128×128。真实照片仅作本地证据。
+- Android 当前生产 APK 的双 ABI native 构建、app/test APK assemble 及 lint 通过。
+  本次 full build 的 unit task 为 UP-TO-DATE，不声明这次重跑了全部单元测试。
+  Sony fixture 下有 5 个单测试成功记录，包括六语言资源、Lens 控件、真实 Activity 重建时
+  全套编辑/DNG batch/source/destination 保持，以及 JPEG/16-bit PNG final cap。
+  该组合运行没有成功 aggregate，不能表述为整组 GREEN。
+- Android 同一 production APK/native ELF 下，仅更换 AndroidTest fixture 为 DJI DNG
+  （3072×3072、19545856 bytes），独立 CPU/强制 GLES DNG 回归 `OK (1 test)`，216.539 秒。
+  CPU 75845 ms，GLES 138571 ms；实际 DNG/PNG 存在。不是物理设备 GPU 验收。
+- Windows 当前源码的托管应用 fresh build、可移植本地化 29 项、真实 WPF 六语言窗口回归通过：
+  `RESULT: PASS failures=0 changed=6`，包含完整设置、手动 Lens、DNG、批量目标和目录保持。
+  未作 RDP 视觉验收。
+- Windows 未修改的生产 native CMake 构建通过：GPU/Lensfun/Wavelet/Chroma 与依赖开关全部 ON，
+  使用本线 Python 3.11.9 build-host runtime 和 fresh native 目录，源码 CMake hash 与 worktree 一致。
+  新 DLL 的同一 session/GPU_OFF 实际导出 JPEG 14582 bytes、16-bit PNG 63439 bytes、
+  DNG 132870 bytes，均为 128×85；ABI 0/1/4 均 status 0，缺失目录 DNG status 6，harness exit 0。
+  不是关闭 Lens/GPU/降噪的早期替代配置，也不声明执行了 Windows hardware GPU 或全量 CTest。
+
+### 失败与实际边界
+
+macOS 最初两次 SDK OOM probe 失败。CMake cache/link.txt/otool 证明旧 build 目录引用了
+原工作区依赖；本线依赖重建后，旧 cache 仍使用原路径。新 build 目录绑定本线依赖后通过，
+没有修改 native 源码或放宽断言。
+
+Android 第一次缺少 `sample.RAW`，6 个选中测试中 3 个 FileNotFoundException，未记通过。
+随后 Sony `DSC06251.ARW`（7008×4672、45199360 bytes）的两次 nativeDNG 均被 AVD guest
+`lmkd` 杀死：PID 2971/RSS 471488 kB，低 swap/thrashing；PID 3993/RSS 416732 kB，
+低 swap/min watermark。两次均有 Zygote signal 9/进程死亡证据，没有对应 native fatal signal/backtrace。
+最终 DJI fixture 的通过不能替代 Sony 大尺寸 nativeDNG 的未完成覆盖。
+
+Windows 初次 full-feature configure 因临时路径达到 279 字符触发 MAX_PATH；
+仅缩短本线 fresh build 根目录后成功，没有改源码、脚本执行策略、系统长路径设置或其他 VM 配置。
+`build.ps1 -Test` 的脚本策略限制仍在；本轮通过的是直接 production CMake/指定 target 和托管命令，
+Windows 全量 CTest、hardware GPU 与手动 RDP 视觉验收仍未执行。
+
+iOS 新增 UI 回归早期失败均保留：启动参数固定 `RawLab.language=en` 覆盖手动 preference；
+Photos 系统 Add 与应用内 Add 同名；空态 toolbar import 的 hit point 为 (-1,-1)；
+Files 的 Cancel 是 AX Other 而不是 Button。修正测试启动/实际 AX 查询，不放宽生产状态断言。
+独立 DerivedData 与测试 marker 绑定当前源码。v5 已完成六语言遍历并实际生成
+3072×3072、32-bit float RGB DNG，但因 Cancel 类型查询失败，整个 v5 仍记为 FAILED。
+v6 的六语言/128 状态断言也通过，但 AX Other Cancel 的 hit point 为 (-1,-1)，实际点到 More 菜单，
+随后取消摘要断言失败。11.846 秒的现有文件诊断截图证明系统 Files 没有可见 Cancel，
+该 AX 节点与 More 重叠；没有改生产 Files controller。
+v7 改验系统可达的正向 Save/实际文件副本/本地化 exported 摘要，不放宽语言或状态保持断言。
+Files 取消路径仍未验证，不把 v5/v6 或仅截图的诊断 test 算成最终 UI GREEN；诊断 test 已删除。
+
+原两位评审的翻译 Must/Should 已逐项回查：Mac DNG 菜单、视口错误、12 个 Apple key、
+四个 Swift harness 的 Shared/Localization source list、Windows 扩展名提示和 crop F1、
+Android 自动模式/typed states/global preference/真实 Activity 保持测试均已关闭。
+另两项属于集成目标原有功能的作者观察，未伪装成已修：RAW→raster 后选中的 Lens 可保留为禁用空面板；
+iOS DNG UI 入口有 preview/busy gating，但 model exportDNG 没有 JPEG 同等 guard。
+本轮不变更该状态/并发设计，交由对应功能 owner 跟进。
+
+最新证据保存在忽略目录 `build/localization-integration-prep/`：
+`static-final.log`、`apple-lens-final.log`、`ios-batch-model.log`、`mac-batch-model.log`、
+`mac-build-final.log`、`mac-rendered-dng-final.log`、`android-build-final.log`、
+`android-focused-instrumentation-fixture.log`、`android-rendered-dng-dng-instrumentation.log`、
+两次 Sony 的 instrumentation/logcat、`windows-wpf-ui.log`、
+`windows-native-final-config-short.log`、`windows-native-final-build.log` 和 `native-final-gate-validation.log`。
+`ios-lens-dng-{v4,v5,v6}.log/.xcresult` 是失败证据，不因文件名而计为通过。
+`ios-lens-dng-v7.log/.xcresult` 与 `ios-v7-shots/` 保存最终 UI 2/2 和原生截图，
+`ios-files-inspect.log/.xcresult` 只保存短诊断，不作为替代完整 UI 验收。
+以上不等同于 GitHub exact-head CI，也没有执行新的全量 Stage3/ColdWarm/内存评审。

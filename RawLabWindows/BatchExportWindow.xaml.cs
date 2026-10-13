@@ -29,23 +29,16 @@ public partial class BatchExportWindow : Window
         InitializeComponent(); Targets.ItemsSource = rows;
         Loc.Changed += RefreshLanguage;
         Closed += (_, _) => Loc.Changed -= RefreshLanguage;
-        Jpeg.IsChecked = !job.Png; Png.IsChecked = job.Png;
+        Jpeg.IsChecked = job.Format == ExportFormat.Jpeg;
+        Png.IsChecked = job.Format == ExportFormat.Png;
+        Dng.IsChecked = job.Format == ExportFormat.RenderedDng;
         SourceName.Text = Path.GetFileName(job.Source); SourceName.ToolTip = job.Source;
-        SourceLook.Text = $"{job.LookName} · {job.Settings.Values[(int)Parameter.Strength]:0}%";
-        var state = job.Settings.Restore();
-        SourceSummary.Text = Loc.Format("曝光  {0:+0.00;-0.00;0.00} EV\n白平衡  {1}\n曝光基准  {2}", state[Parameter.Exposure], (state.CameraWhiteBalance ? Loc.Text("拍摄时设置") : Loc.Text("自定义")), new[] { Loc.Text("标准显影"), Loc.Text("匹配内嵌预览"), Loc.Text("传感器基准") }[state.ExposureMode]);
-        AllSettings.Text = string.Join("\n", ParameterSpec.All.Select(spec => $"{Loc.Text(spec.Title)}  {(spec.Id is Parameter.Temperature or Parameter.Tint && state.CameraWhiteBalance ? Loc.Text("按每张照片") : state[spec.Id].ToString("F" + spec.Decimals) + spec.Unit)}"));
-        AllSettings.Text += $"\nHSL  {(state.Hsl.IsIdentity ? Loc.Text("未调整") : Loc.Text("已调整"))}";
-        ready = true; Refresh();
-        AllSettings.Text += Loc.Format("\n降噪  {0}\n亮度降噪  {1:F0}\n色彩降噪  {2:F0}\n粗颗粒降噪  {3:F0}", (state.Denoise.Enabled ? Loc.Text("开启") : Loc.Text("关闭")), state.Denoise.Luma, state.Denoise.Chroma, state.Denoise.Coarse);
-        var effects = state.Effects;
-        var chroma = state.DisplayChromaDenoise switch { 1 => Loc.Text("细节优先"), 2 => Loc.Text("去噪优先"), _ => Loc.Text("关闭") };
-        AllSettings.Text += Loc.Format("\n显示色彩降噪  {0}\n暗角  强度 {1:+0;-0;0} · 中点 {2:0} · 圆度 {3:+0;-0;0} · 羽化 {4:0} · 高光保护 {5:0}\n颗粒  强度 {6:0} · 大小 {7:0} · 粗糙度 {8:0}", chroma, effects.VignetteAmount, effects.VignetteMidpoint, effects.VignetteRoundness, effects.VignetteFeather, effects.VignetteHighlights, effects.GrainAmount, effects.GrainSize, effects.GrainRoughness);
         Loaded += async (_, _) => {
             try { SourceThumbnail.Source = await Task.Run(() => RenderEngine.Thumbnail(job.Source)); } catch (Exception) { }
             await LoadThumbnails();
         };
         Closing += (_, args) => { if (Running) { args.Cancel = true; closeRequested = true; CancelExecution(); } };
+        ready = true;
         RefreshLanguage();
     }
 
@@ -57,9 +50,15 @@ public partial class BatchExportWindow : Window
         SourceSummary.Text = Loc.Format("曝光  {0:+0.00;-0.00;0.00} EV\n白平衡  {1}\n曝光基准  {2}", state[Parameter.Exposure], state.CameraWhiteBalance ? Loc.Text("拍摄时设置") : Loc.Text("自定义"), new[] { Loc.Text("标准显影"), Loc.Text("匹配内嵌预览"), Loc.Text("传感器基准") }[state.ExposureMode]);
         AllSettings.Text = string.Join("\n", ParameterSpec.All.Select(spec => $"{Loc.Text(spec.Title)}  {(spec.Id is Parameter.Temperature or Parameter.Tint && state.CameraWhiteBalance ? Loc.Text("按每张照片") : state[spec.Id].ToString("F" + spec.Decimals) + spec.Unit)}"));
         AllSettings.Text += $"\nHSL  {(state.Hsl.IsIdentity ? Loc.Text("未调整") : Loc.Text("已调整"))}";
-        AllSettings.Text += Loc.Format("\n降噪  {0}\n亮度降噪  {1:F0}\n色彩降噪  {2:F0}\n粗颗粒降噪  {3:F0}", state.Denoise.Enabled ? Loc.Text("开启") : Loc.Text("停用"), state.Denoise.Luma, state.Denoise.Chroma, state.Denoise.Coarse);
+        AllSettings.Text += Loc.Format("\n降噪  {0}\n亮度降噪  {1:F0}\n色彩降噪  {2:F0}\n粗颗粒降噪  {3:F0}", state.Denoise.Enabled ? Loc.Text("开启") : Loc.Text("关闭"), state.Denoise.Luma, state.Denoise.Chroma, state.Denoise.Coarse);
+        AllSettings.Text += "\n" + string.Join("\n", new[] {
+            $"{Loc.Text("镜头匹配")}  {(state.Lens.Manual ? Loc.Text("手动") : Loc.Text("自动"))}",
+            $"{Loc.Text("畸变矫正")}  {(state.Lens.Distortion ? Loc.Text("开启") : Loc.Text("关闭"))}",
+            $"{Loc.Text("横向色差")}  {(state.Lens.Tca ? Loc.Text("开启") : Loc.Text("关闭"))}",
+            $"{Loc.Text("自动裁边")}  {(state.Lens.AutoCrop ? Loc.Text("开启") : Loc.Text("关闭"))}"
+        });
         var effects = state.Effects;
-        var chroma = state.DisplayChromaDenoise switch { 1 => Loc.Text("细节优先"), 2 => Loc.Text("去噪优先"), _ => Loc.Text("停用") };
+        var chroma = state.DisplayChromaDenoise switch { 1 => Loc.Text("细节优先"), 2 => Loc.Text("去噪优先"), _ => Loc.Text("关闭") };
         AllSettings.Text += Loc.Format("\n显示色彩降噪  {0}\n暗角  强度 {1:+0;-0;0} · 中点 {2:0} · 圆度 {3:+0;-0;0} · 羽化 {4:0} · 高光保护 {5:0}\n颗粒  强度 {6:0} · 大小 {7:0} · 粗糙度 {8:0}", chroma, effects.VignetteAmount, effects.VignetteMidpoint, effects.VignetteRoundness, effects.VignetteFeather, effects.VignetteHighlights, effects.GrainAmount, effects.GrainSize, effects.GrainRoughness);
         Refresh();
     }
@@ -151,7 +150,15 @@ public partial class BatchExportWindow : Window
         var picker = new OpenFolderDialog { Title = Loc.Text("选择输出文件夹") };
         if (picker.ShowDialog(this) == true) { job.OutputDirectory = picker.FolderName; SaveDraft(); }
     }
-    private void FormatChanged(object sender, RoutedEventArgs e) { if (ready && !job.Started && !Running) { job.Png = Png.IsChecked == true; SaveDraft(); } }
+    private void FormatChanged(object sender, RoutedEventArgs e)
+    {
+        if (ready && !job.Started && !Running)
+        {
+            job.Format = Dng.IsChecked == true ? ExportFormat.RenderedDng :
+                Png.IsChecked == true ? ExportFormat.Png : ExportFormat.Jpeg;
+            SaveDraft();
+        }
+    }
     private void RefreshSizeControls()
     {
         refreshingSize=true;
@@ -230,7 +237,7 @@ public partial class BatchExportWindow : Window
         try
         {
             await Task.Run(() => {
-                ExportMetadata.VerifyAvailable();
+                if (work.Format != ExportFormat.RenderedDng) ExportMetadata.VerifyAvailable();
                 using var engine = new RenderEngine();
                 BatchRunner.Run(work, journal, failuresOnly, cancellation.Token,
                     (updated, _) => Dispatcher.BeginInvoke(new Action(() => { job = updated; Refresh(); })),

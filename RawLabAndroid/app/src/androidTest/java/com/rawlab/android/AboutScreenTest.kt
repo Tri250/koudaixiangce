@@ -9,6 +9,14 @@ class AboutScreenTest {
     val compose = createAndroidComposeRule<MainActivity>()
     @get:Rule val languageAndCompose = org.junit.rules.RuleChain.outerRule(LanguageTestRule()).around(compose)
 
+    @Test fun nestedLensLicensesAreReadable() {
+        compose.onNodeWithText(compose.activity.getString(R.string.licenses)).performClick()
+        compose.waitUntil(15_000) {
+            compose.onAllNodes(hasText("GLib-COPYING", substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("确定").performClick()
+    }
+
     @Test fun aboutLinksManualCheckAndOptOutRemainReachable() {
         compose.onNodeWithContentDescription("更多").performClick()
         compose.onNodeWithText("关于 RawLab").performClick()

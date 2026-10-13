@@ -56,7 +56,8 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
     onBatchExport: () -> Unit = {},
     onImportLook: () -> Unit = {}, onRenameLook: (String, String) -> Unit = { _, _ -> },
     onDeleteLook: (String) -> Unit = {}, onLookImportReportDismiss: () -> Unit = {},
-    onAbout: () -> Unit = {}, updateVersion: String? = null) {
+    onAbout: () -> Unit = {}, updateVersion: String? = null,
+    onPreviewSizeChange: (Int) -> Unit = {}) {
     var compare by rememberSaveable { mutableStateOf(false) }
     var expanded by rememberSaveable { mutableStateOf(true) }
     var menu by remember { mutableStateOf(false) }
@@ -110,13 +111,13 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
             val wide = maxWidth >= 600.dp && maxWidth > maxHeight
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxWidth().height(4.dp)) {
-                    if (state.rendering || state.operation == Operation.EXPORT) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    if (state.rendering || state.previewResizePending || state.operation == Operation.EXPORT) LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
                 if (wide && state.photo != null) {
                     Row(Modifier.weight(1f)) {
                         Column(Modifier.weight(1f)) {
                             EditorCanvas(state, compare, photoCanvas, photoInfo, infoMode, { infoMode = (infoMode + 1) % 3 },
-                                Modifier.weight(1f), onAlbum, onFile, onLicenses)
+                                Modifier.weight(1f), onAlbum, onFile, onLicenses, onPreviewSizeChange)
                             RenderError(state, onRetry)
                         }
                         VerticalDivider()
@@ -126,7 +127,7 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
                     }
                 } else {
                     EditorCanvas(state, compare, photoCanvas, photoInfo, infoMode, { infoMode = (infoMode + 1) % 3 },
-                        Modifier.weight(1f), onAlbum, onFile, onLicenses)
+                        Modifier.weight(1f), onAlbum, onFile, onLicenses, onPreviewSizeChange)
                     RenderError(state, onRetry)
                     if (state.photo != null) {
                         HorizontalDivider()
@@ -143,15 +144,15 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
 @Composable
 private fun EditorCanvas(state: EditorState, compare: Boolean, photoCanvas: PhotoCanvasState, photoInfo: PhotoInfo?, infoMode: Int,
     onInfoClick: () -> Unit, modifier: Modifier,
-    onAlbum: () -> Unit, onFile: () -> Unit, onLicenses: () -> Unit) {
+    onAlbum: () -> Unit, onFile: () -> Unit, onLicenses: () -> Unit, onPreviewSizeChange: (Int) -> Unit) {
     Box(modifier.fillMaxWidth().background(Color(0xFF18191A)), contentAlignment = Alignment.Center) {
-        state.preview?.let { PhotoCanvas(it, compare, state.photo?.name.orEmpty(), photoCanvas, photoInfo, infoMode, onInfoClick) }
+        state.preview?.let { PhotoCanvas(it, compare, state.photo?.name.orEmpty(), photoCanvas, photoInfo, infoMode, onInfoClick, onPreviewSizeChange) }
             ?: if (!state.rendering) EmptyEditor(onAlbum, onFile, onLicenses) else Unit
         val status = when {
             state.operation == Operation.EXPORT -> stringResource(R.string.exporting)
             state.operation == Operation.IMPORT -> stringResource(R.string.importing)
             state.operation == Operation.IMPORT_LOOK -> stringResource(R.string.look_importing)
-            state.rendering -> stringResource(R.string.rendering)
+            state.rendering || state.previewResizePending -> stringResource(R.string.rendering)
             else -> null
         }
         status?.let { Text(it, Modifier.align(Alignment.TopStart).padding(12.dp).background(Color.Black.copy(alpha = .6f)).padding(6.dp),
@@ -193,11 +194,11 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
     onAutoExposure: () -> Unit) {
     val titles = listOf(R.string.film, R.string.strength, R.string.exposure, R.string.highlights, R.string.shadows,
         R.string.contrast, R.string.tone_curve, R.string.saturation, R.string.temperature, R.string.tint, R.string.sharpening,
-        R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl, R.string.master_recipes)
+        R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl, R.string.master_recipes, R.string.info_lens)
     val icons = listOf(Icons.Outlined.PhotoFilter, Icons.Outlined.Tune, Icons.Outlined.Exposure, Icons.Outlined.WbSunny,
         Icons.Outlined.DarkMode, Icons.Outlined.Contrast, Icons.Outlined.ShowChart, Icons.Outlined.WaterDrop,
         Icons.Outlined.Thermostat, Icons.Outlined.Palette, Icons.Outlined.Deblur, Icons.Outlined.Grain,
-        Icons.Outlined.Circle, Icons.Outlined.Grain, Icons.Outlined.Tune, Icons.Outlined.PhotoLibrary)
+        Icons.Outlined.Circle, Icons.Outlined.Grain, Icons.Outlined.Tune, Icons.Outlined.PhotoLibrary, Icons.Outlined.CenterFocusStrong)
     val edits = state.edits
     val context = LocalContext.current
     val recipes = remember(context) { MasterRecipe.load(context) }
@@ -337,6 +338,9 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                 onEdit(edits.copy(effects = value), dragging)
             }
             14 -> HslControls(edits.hsl, state.controlsEnabled) { value, dragging -> onEdit(edits.copy(hsl = value), dragging) }
+            16 -> LensControls(edits.lens, state.preview?.lens, state.controlsEnabled) { value ->
+                onEdit(edits.copy(lens = value), false)
+            }
             15 -> MasterRecipePicker(recipes, edits.recipeID, state.controlsEnabled) { recipe ->
                 onEdit(if (recipe == null) edits.selectFilm("neutral", state.preview?.tint) else edits.applyRecipe(recipe), false)
             }
@@ -345,7 +349,7 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
         }
         }
         LazyRow(Modifier.fillMaxWidth().height(64.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
-            items(listOf(0, 15) + (1 until 15).toList(), key = { it }) { index ->
+            items(listOf(0, 15) + (1 until 15).toList() + listOf(16), key = { it }) { index ->
                 val title = titles[index]
                 val color = if (tool == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 Column(Modifier.width(76.dp).fillMaxHeight().selectable(tool == index, enabled = state.controlsEnabled, role = Role.Tab,

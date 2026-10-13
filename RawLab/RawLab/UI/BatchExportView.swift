@@ -49,6 +49,12 @@ struct BatchExportView: View {
             .sheet(item: $selectedTarget) { target in
                 TargetEffectInspectionView(model: model, target: target)
             }
+            .sheet(isPresented: Binding(get: { model.shouldPresentFileExport },
+                                        set: { model.shouldPresentFileExport = $0 }) ) {
+                if let urls = model.fileExportURLs {
+                    FileExportPicker(urls: urls) { model.finishFileExport($0) }
+                }
+            }
             .onChange(of: pickerItems) { _, items in
                 guard !items.isEmpty else { return }
                 pickerItems = []
@@ -58,7 +64,8 @@ struct BatchExportView: View {
                 Button(L10n.text("放弃任务"), role: .destructive) { if model.discard() { dismiss() } }
             }
             .confirmationDialog(confirmTarget?.displayName ?? L10n.text("核对保存结果"),
-                isPresented: Binding(get: { confirmTarget != nil }, set: { if !$0 { confirmTarget = nil } }),
+                isPresented: Binding(get: { model.job.outputFormat == .jpeg && confirmTarget != nil },
+                                     set: { if !$0 { confirmTarget = nil } }),
                 titleVisibility: .visible) {
                 if let target = confirmTarget {
                     Button(L10n.text("已在照片图库中确认保存")) { model.confirmPublication(id: target.id, saved: true) }
@@ -113,6 +120,11 @@ struct BatchExportView: View {
                     settingRow(L10n.text("颗粒强度"), value: String(format: "%.0f", effects.grainAmount))
                     settingRow(L10n.text("颗粒大小"), value: String(format: "%.0f", effects.grainSize))
                     settingRow(L10n.text("颗粒粗糙度"), value: String(format: "%.0f", effects.grainRoughness))
+                    let lens = model.job.source.settings.lensSettings
+                    settingRow(L10n.text("镜头匹配"), value: lens.mode == .automatic ? "\(L10n.text("自动")) · \(L10n.text("按每张照片"))" : L10n.text("手动"))
+                    settingRow(L10n.text("畸变矫正"), value: lens.distortion ? L10n.text("开启") : L10n.text("关闭"))
+                    settingRow(L10n.text("横向色差"), value: lens.tca ? L10n.text("开启") : L10n.text("关闭"))
+                    settingRow(L10n.text("自动裁边"), value: lens.autoCrop ? L10n.text("开启") : L10n.text("关闭"))
                 }
             }.padding(.vertical, 16).accessibilityIdentifier("batch.settings")
         }.padding(.horizontal, 20)
@@ -163,7 +175,12 @@ struct BatchExportView: View {
                                     .foregroundStyle(target.status == .failed || target.status == .needsConfirmation ? Color.orange : .secondary)
                                 if let error = target.errorMessage { Text(error).font(.caption).foregroundStyle(.secondary) }
                                 if target.status == .needsConfirmation {
-                                    Button(L10n.text("核对保存结果")) { confirmTarget = target }.font(.footnote)
+                                    if model.job.outputFormat == .renderedDNG {
+                                        Button(L10n.text("核对 DNG 文件")) { Task { await model.reconcilePublication() } }
+                                            .font(.footnote)
+                                    } else {
+                                        Button(L10n.text("核对保存结果")) { confirmTarget = target }.font(.footnote)
+                                    }
                                 }
                             }
                             Spacer(minLength: 0)
@@ -182,11 +199,19 @@ struct BatchExportView: View {
         VStack(alignment: .leading, spacing: 0) {
             Divider()
             Text(L10n.text("输出")).font(.title3.weight(.semibold)).padding(.top, 18).padding(.bottom, 10)
-            settingRow(L10n.text("格式"), value: "JPEG")
+            Picker(L10n.text("格式"), selection: Binding(get: { model.job.outputFormat }, set: model.setFormat)) {
+                Text(BatchOutputFormat.jpeg.title).tag(BatchOutputFormat.jpeg)
+                Text(BatchOutputFormat.renderedDNG.title).tag(BatchOutputFormat.renderedDNG)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .id(localizationLocale.identifier)
+            .accessibilityIdentifier("batch.format")
+            .disabled(!model.canChangeTargets)
             ExportSizePicker(longEdge: Binding(get: { model.job.longEdge }, set: model.setLongEdge),
                              onValidityChanged: { exportSizeValid = $0 })
                 .disabled(!model.canChangeTargets)
-            settingRow(L10n.text("保存到"), value: L10n.text("照片图库"))
+            settingRow(L10n.text("保存到"), value: model.job.outputFormat == .renderedDNG ? L10n.text("RawLab 文件") : L10n.text("照片图库"))
         }.padding(.horizontal, 20).padding(.bottom, 16)
     }
 
@@ -204,7 +229,22 @@ struct BatchExportView: View {
                 Button(model.isStopping ? L10n.text("正在停止…") : L10n.text("取消导出")) { model.cancel() }
                     .buttonStyle(.bordered).disabled(model.isStopping)
             } else if model.job.status == .completed {
-                Text(L10n.format("已保存 %@ 张到照片图库", String(describing: model.completedCount))).font(.footnote).foregroundStyle(.secondary)
+                if model.job.outputFormat == .renderedDNG {
+                    switch model.fileExportStatus {
+                    case .exported:
+                        Text(L10n.format("已导出 %@ 个渲染型 DNG", String(model.completedCount))).font(.footnote).foregroundStyle(.secondary)
+                    case .cancelled:
+                        Text(L10n.format("已生成 %@ 个渲染型 DNG，未另存到所选位置", String(model.completedCount)))
+                            .font(.footnote).foregroundStyle(.secondary)
+                    default:
+                        Text(L10n.format("已生成 %@ 个渲染型 DNG", String(model.completedCount))).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    if model.fileExportURLs?.isEmpty == false {
+                        Button(L10n.text("导出到文件…")) { model.presentFileExport() }.font(.footnote)
+                    }
+                } else {
+                    Text(L10n.format("已保存 %@ 张到照片图库", String(model.completedCount))).font(.footnote).foregroundStyle(.secondary)
+                }
                 primary(L10n.text("完成")) { if model.discard() { dismiss() } }
             } else {
                 if model.job.status == .draft {
@@ -213,8 +253,14 @@ struct BatchExportView: View {
                     Text(L10n.format("成功 %@ 张 · 失败 %@ 张 · 未处理 %@ 张", String(describing: model.completedCount), String(describing: model.failedCount), String(describing: model.pendingCount)))
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                if model.job.outputFormat == .renderedDNG && model.fileExportURLs?.isEmpty == false {
+                    Button(L10n.text("导出已完成的 DNG 到文件…")) { model.presentFileExport() }
+                        .font(.footnote)
+                }
                 if model.uncertainCount > 0 {
-                    Button(L10n.text("授权核对相册中的保存结果")) { Task { await model.reconcilePhotos() } }
+                    Button(model.job.outputFormat == .renderedDNG ? L10n.text("核对 DNG 文件保存结果") : L10n.text("授权核对相册中的保存结果")) {
+                        Task { await model.reconcilePublication() }
+                    }
                         .font(.footnote)
                 }
                 if model.pendingCount > 0 {

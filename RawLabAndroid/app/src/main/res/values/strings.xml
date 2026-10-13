@@ -256,6 +256,7 @@
     <string name="recipe_subtitle_ivan_ivanchenko_twilight">Twilight dusk · adjacent-color transition</string>
     <string name="recipe_subtitle_jungraphy_neon">Neon city · cool cyan and pink-purple</string>
     <string name="lens_matching">Lens Matching</string>
+    <string name="lens_automatic">Automatic</string>
     <string name="lens_manual">Manual</string>
     <string name="lens_distortion">Distortion Correction</string>
     <string name="lens_distortion_short">Distortion</string>

@@ -256,6 +256,7 @@
     <string name="recipe_subtitle_ivan_ivanchenko_twilight">暮色黄昏 · 相邻色过渡</string>
     <string name="recipe_subtitle_jungraphy_neon">霓虹都市 · 冷青粉紫</string>
     <string name="lens_matching">镜头匹配</string>
+    <string name="lens_automatic">自动</string>
     <string name="lens_manual">手动</string>
     <string name="lens_distortion">畸变矫正</string>
     <string name="lens_distortion_short">畸变</string>

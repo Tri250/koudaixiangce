@@ -256,6 +256,7 @@
     <string name="recipe_subtitle_ivan_ivanchenko_twilight">Crepúsculo · transición de colores adyacentes</string>
     <string name="recipe_subtitle_jungraphy_neon">Ciudad de neón · cian frío y rosa púrpura</string>
     <string name="lens_matching">Coincidencia de lente</string>
+    <string name="lens_automatic">Automático</string>
     <string name="lens_manual">Manual</string>
     <string name="lens_distortion">Corrección de distorsión</string>
     <string name="lens_distortion_short">Distorsión</string>

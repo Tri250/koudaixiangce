@@ -129,14 +129,19 @@ struct BatchExportView: View {
                         valueRow(L10n.text("色彩降噪"), String(format: "%.0f", denoise.chroma))
                         valueRow(L10n.text("粗颗粒降噪"), String(format: "%.0f", denoise.coarse))
                     }
+                    let lens = model.job.settings.lensSettings
+                    valueRow(L10n.text("镜头匹配"), lens.mode == .automatic ? "\(L10n.text("自动")) · \(L10n.text("按每张照片"))" : L10n.text("手动"))
+                    valueRow(L10n.text("畸变矫正"), lens.distortion ? L10n.text("开启") : L10n.text("关闭"))
+                    valueRow(L10n.text("横向色差"), lens.tca ? L10n.text("开启") : L10n.text("关闭"))
+                    valueRow(L10n.text("自动裁边"), lens.autoCrop ? L10n.text("开启") : L10n.text("关闭"))
                 }.padding(.top, 12)
             }
             Divider().padding(.vertical, 4)
             Text(L10n.text("输出")).font(.headline)
-            Picker(L10n.text("格式"), selection: Binding(get: { model.job.png }, set: model.setPNG)) {
-                Text("JPEG").tag(false)
-                Text(L10n.text("16-bit PNG")).tag(true)
-            }.pickerStyle(.segmented).labelsHidden().disabled(model.job.started)
+            Picker(L10n.text("格式"), selection: Binding(get: { model.job.format }, set: model.setFormat)) {
+                ForEach(ExportFormat.allCases) { format in Text(format.title).tag(format) }
+            }.pickerStyle(.segmented).labelsHidden().id(localizationLocale.identifier)
+                .disabled(model.job.started).accessibilityIdentifier("batch.format")
             ExportSizePicker(longEdge: Binding(get: { model.job.longEdge }, set: model.setLongEdge))
                 .disabled(model.job.started)
             HStack {
@@ -154,7 +159,7 @@ struct BatchExportView: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            Text(model.job.started ? "\(model.job.png ? L10n.text("16-bit PNG") : "JPEG") · \(model.job.longEdge.map { L10n.format("长边 %@ px", String(describing: $0)) } ?? L10n.text("原始尺寸"))" :
+            Text(model.job.started ? "\(model.job.format.title) · \(model.job.longEdge.map { L10n.format("长边 %@ px", String(describing: $0)) } ?? L10n.text("原始尺寸"))" :
                  L10n.text("仅用于本次导出，保留各照片原有调整"))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 12)

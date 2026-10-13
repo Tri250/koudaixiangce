@@ -109,6 +109,12 @@ extension RawEditorViewModel {
         statusMessage = nil
         isBusy = true
         sourceRevision = UUID()
+        previewResizeWorkItem?.cancel()
+        previewResizeWorkItem = nil
+        previewResizePending = false
+        previewRendering = false
+        previewLongEdge = Int(previewMaxDimension)
+        requestedPreviewLongEdge = previewLongEdge
         previewWorkItem?.cancel()
         previewWorkItem = nil
         cancelHistogramWorkItem()
@@ -139,7 +145,8 @@ extension RawEditorViewModel {
                         url: localURL,
                         settings: restoredSettings,
                         previewLongEdge: self.previewMaxDimension,
-                        lutURL: lutURL
+                        lutURL: lutURL,
+                        viewportPreview: true
                     )
                     let adjustedImage = self.processor.makeUIImage(
                         from: previewResult.buffer,
@@ -163,6 +170,7 @@ extension RawEditorViewModel {
                         self.basePreviewImage = rawBase.basePreviewImage
                         self.baseHistogram = rawBase.baseHistogram
                         self.rawWhiteBalance = previewResult.rawWhiteBalance ?? rawBase.rawWhiteBalance
+                        self.lensInfo = previewResult.lensInfo
                         self.rawLUTID = restoredSettings.lutID
                         self.rawLUTApplied = restoredSettings.lutID != nil && restoredSettings.lutStrength > 0
                         self.previewImage = adjustedImage
@@ -209,6 +217,7 @@ extension RawEditorViewModel {
                         self.rawLUTID = nil
                         self.rawLUTApplied = false
                         self.rawWhiteBalance = nil
+                        self.lensInfo = nil
                         self.previewImage = adjustedImage
                         self.histogram = adjustedHistogram
                         self.hasImage = rasterBase.basePreviewImage != nil || adjustedImage != nil
@@ -238,6 +247,7 @@ extension RawEditorViewModel {
                     self.rawLUTID = nil
                     self.rawLUTApplied = false
                     self.rawWhiteBalance = nil
+                    self.lensInfo = nil
                     self.editSaveState = .idle
                     self.hasImage = false
                     self.histogram = []
@@ -318,6 +328,10 @@ extension RawEditorViewModel {
 
     func exportJPEG(settings: RawSettings, longEdge: Int? = nil,
                     completion: @escaping (Result<Data, Error>) -> Void) {
+        guard !previewRendering, !previewResizePending, !isBusy else {
+            completion(.failure(BatchExportError.global(L10n.text("请等待预览完成后导出。"))))
+            return
+        }
         guard isLookAvailable(for: settings) else {
             completion(.failure(BatchExportError.global(L10n.text("所选外观不可用，请重新选择外观。"))))
             return
@@ -374,11 +388,60 @@ extension RawEditorViewModel {
                 DispatchQueue.main.async {
                     self.isBusy = false
                     completion(.success(data))
+                    self.updatePreviewSize(self.requestedPreviewLongEdge, settings: self.currentPreviewSettings)
                 }
             } catch {
                 DispatchQueue.main.async {
                     self.isBusy = false
                     completion(.failure(error))
+                    self.updatePreviewSize(self.requestedPreviewLongEdge, settings: self.currentPreviewSettings)
+                }
+            }
+        }
+    }
+
+    func exportDNG(settings: RawSettings, longEdge: Int? = nil,
+                   completion: @escaping (Result<URL, Error>) -> Void) {
+        guard isLookAvailable(for: settings) else {
+            completion(.failure(BatchExportError.global(L10n.text("所选外观不可用，请重新选择外观。"))))
+            return
+        }
+        guard let sourceURL, let sourceKind else {
+            completion(.failure(EditorError.noImageLoaded))
+            return
+        }
+        guard ExportSize.isValid(longEdge) else {
+            completion(.failure(Sony2FujiProcessor.ProcessorError.invalidExportSize))
+            return
+        }
+
+        isBusy = true
+        let base = sourceURL.deletingPathExtension().lastPathComponent.isEmpty
+            ? "RawLab" : sourceURL.deletingPathExtension().lastPathComponent
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(base)-rendered-\(UUID().uuidString).dng")
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let lutURL = self.lutURL(for: settings)
+                if sourceKind == .raw {
+                    try self.processor.exportDNG(url: sourceURL, settings: settings, lutURL: lutURL,
+                                                 outputURL: outputURL, exportLongEdge: longEdge)
+                } else {
+                    let raster = try self.processor.loadRasterBuffer(url: sourceURL, applyingOrientation: true)
+                    try self.processor.exportDNG(buffer: raster.buffer, settings: settings, lutURL: lutURL,
+                                                 outputURL: outputURL, exportLongEdge: longEdge)
+                }
+                DispatchQueue.main.async {
+                    self.isBusy = false
+                    completion(.success(outputURL))
+                    self.updatePreviewSize(self.requestedPreviewLongEdge, settings: self.currentPreviewSettings)
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: outputURL)
+                DispatchQueue.main.async {
+                    self.isBusy = false
+                    completion(.failure(error))
+                    self.updatePreviewSize(self.requestedPreviewLongEdge, settings: self.currentPreviewSettings)
                 }
             }
         }
@@ -435,6 +498,7 @@ extension RawEditorViewModel {
                     self.draftPreviewBuffer = rawPreview.previewBuffer
                     self.basePreviewImage = rawPreview.basePreviewImage
                     self.baseHistogram = rawPreview.baseHistogram
+                    self.lensInfo = previewResult.lensInfo
                     self.rawLUTID = settings.lutID
                     self.rawLUTApplied = settings.lutID != nil && settings.lutStrength > 0
                     self.previewImage = previewImage
@@ -462,6 +526,7 @@ extension RawEditorViewModel {
                     self.rawLUTID = nil
                     self.rawLUTApplied = false
                     self.hasImage = false
+                    self.lensInfo = nil
                     self.histogram = []
                     self.baseHistogram = []
                     self.sourceRevision = UUID()

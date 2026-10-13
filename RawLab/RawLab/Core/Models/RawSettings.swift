@@ -182,6 +182,20 @@ enum RawWhiteBalanceMode: String, Codable, CaseIterable, Equatable {
     static var asShot: Self { .camera }
 }
 
+enum LensProfileMode: String, Codable, CaseIterable { case automatic, manual }
+
+struct LensCorrectionSettings: Codable, Equatable {
+    var distortion = false
+    var tca = false
+    var autoCrop = true
+    var mode = LensProfileMode.automatic
+    var profileID: String?
+    var isEnabled: Bool { distortion || tca }
+    var coreProfileID: String {
+        mode == .automatic ? "" : (profileID ?? "__rawlab_manual_selection_required__")
+    }
+}
+
 enum RawExposureMode: Int, Codable, CaseIterable, Identifiable {
     case scene = 0, preview = 1, sensor = 2
     var id: Int { rawValue }
@@ -200,6 +214,8 @@ struct RawSettings: Codable, Equatable {
     static let tintRange: ClosedRange<Double> = -150...150
 
     var denoise = RawDenoiseSettings()
+    var lensCorrection: LensCorrectionSettings?
+    var lensSettings: LensCorrectionSettings { lensCorrection ?? LensCorrectionSettings() }
     var photoEffects = PhotoEffectsSettings()
     var hsl = HSLSettings()
     var exposureMode = RawExposureMode.preview
@@ -254,7 +270,7 @@ struct RawSettings: Codable, Equatable {
         case exposure, contrast, saturation, temperature, tint, highlights, shadows
         case toneCurve, noiseReduction, sharpening, lutID, lutStrength, whiteBalanceMode
         case denoise, photoEffects, displayChromaDenoise, exposureMode, hsl
-        case masterRecipeID
+        case masterRecipeID, lensCorrection
     }
 
     var clampedLUTStrength: Float {
@@ -335,6 +351,7 @@ struct RawSettings: Codable, Equatable {
         lutStrength = try values.decodeIfPresent(Double.self, forKey: .lutStrength) ?? 1
         whiteBalanceMode = try values.decodeIfPresent(RawWhiteBalanceMode.self, forKey: .whiteBalanceMode) ?? .camera
         denoise = try values.decodeIfPresent(RawDenoiseSettings.self, forKey: .denoise) ?? RawDenoiseSettings()
+        lensCorrection = try values.decodeIfPresent(LensCorrectionSettings.self, forKey: .lensCorrection)
         photoEffects = try values.decodeIfPresent(PhotoEffectsSettings.self, forKey: .photoEffects) ?? PhotoEffectsSettings()
         displayChromaDenoise = Self.clampedDisplayChromaDenoise(
             try values.decodeIfPresent(Int.self, forKey: .displayChromaDenoise) ?? 0
