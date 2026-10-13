@@ -28,6 +28,7 @@ class UpdateViewModel @JvmOverloads constructor(
     private val currentVersion = application.packageManager.getPackageInfo(application.packageName, 0).versionName ?: "unknown"
     private val mutableState = MutableStateFlow(UpdateState(currentVersion, preferences.getBoolean("automatic", true)))
     val state = mutableState.asStateFlow()
+    private var autoCheckAttempted = false
 
     init {
         val cached = preferences.getString("cachedRelease", null)?.let { runCatching { parseRelease(it, currentVersion) }.getOrNull() }
@@ -42,11 +43,19 @@ class UpdateViewModel @JvmOverloads constructor(
     fun check(manual: Boolean) {
         if (state.value.status == UpdateStatus.CHECKING || !UpdateRelease.shouldCheck(manual,
                 state.value.automatic, preferences.getLong("lastAttempt", 0), System.currentTimeMillis() / 1000)) return
+        // 自动检查每次进程只发起一次：失败后旋转等配置变更不反复重试，下次启动再试。
+        if (!manual) {
+            if (autoCheckAttempted) return
+            autoCheckAttempted = true
+        }
         mutableState.value = mutableState.value.copy(status = UpdateStatus.CHECKING)
         viewModelScope.launch {
             try {
-                val body = withContext(Dispatchers.IO) { fetch() }
-                val release = parseRelease(body, currentVersion)
+                // 网络与解析都在 IO 线程，避免大体积 Release JSON 卡顿主线程。
+                val (body, release) = withContext(Dispatchers.IO) {
+                    val fetched = fetch()
+                    fetched to parseRelease(fetched, currentVersion)
+                }
                 // 仅在成功获取后记录检查时间：失败不占用 24 小时窗口，下次启动会自动重试。
                 preferences.edit().putLong("lastAttempt", System.currentTimeMillis() / 1000)
                     .putString("cachedRelease", body).apply()
