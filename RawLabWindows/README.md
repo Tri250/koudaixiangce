@@ -5,7 +5,7 @@
 原生 WPF / .NET 8 Windows x64 客户端，复用 Mac 版的 C++ / LibRaw 显影管线。
 支持 Windows 10/11 x64，默认使用 Direct3D 11 硬件加速，失败自动回退 CPU。
 
-v0.5.0 新增逐照片本机调整记忆和独立批量导出窗口。任务固定当前参数、降噪设置和外观，多选 RAW 后输出 JPEG/16-bit PNG，支持效果检查、逐项结果、取消、失败重试与启动恢复；不改写 RAW 或目标编辑记录。验证范围见[验收记录](../docs/verification-edit-memory-batch-export-2026-10-10.md)。
+v0.5.0 新增逐照片本机调整记忆和独立批量导出窗口。任务固定当前参数、降噪设置和外观，多选 RAW 后输出 JPEG/16-bit PNG，支持效果检查、逐项结果、取消、失败重试与启动恢复；不改写 RAW 或目标编辑记录。验证范围见[验收记录](../docs/archive/verification/verification-edit-memory-batch-export-2026-10-10.md)。
 
 ## 下载 v0.6.0 Windows 包
 
@@ -60,7 +60,7 @@ python3 RawLabWindows/build-remote.py \
 ./RawLabWindows/scripts/provision-build-tools.ps1 -InstallerDirectory 'D:\'
 ```
 
-平台实测范围见 [RAW 兼容性验证记录](../docs/verification-raw-compatibility-2026-10-09.md)；虚拟机编译结果不替代真机 GPU 和交互性能验收。
+平台实测范围见 [RAW 兼容性验证记录](../docs/archive/verification/verification-raw-compatibility-2026-10-09.md)；虚拟机编译结果不替代真机 GPU 和交互性能验收。
 
 ## 功能与 Mac 对齐
 
@@ -135,7 +135,7 @@ RAW 显影的 Direct3D 11 计算与 WPF 画布绘制是独立的加速路径，�
 较多显存，显存不足时自动模式仍能导出。诊断环境变量 `RAWLAB_DISABLE_D3D11=1`
 用于验证自动回退及强制失败；正常运行不要设置。
 
-跨平台接入的构建与运行范围见 [本轮验证记录](../docs/verification-cross-platform-effects-gpu-denoise-2026-10-10.md)。
+跨平台接入的构建与运行范围见 [本轮验证记录](../docs/archive/verification/verification-cross-platform-effects-gpu-denoise-2026-10-10.md)。
 Windows 托管层交叉编译通过不代表新的 D3D11 着色器或硬件路径已运行。
 
 ## 验证
@@ -159,6 +159,6 @@ Windows 托管层交叉编译通过不代表新的 D3D11 着色器或硬件路�
 dotnet ./RawLabWindows/tests/bin/Release/net8.0-windows/RawLabWindows.Tests.dll --interactions $PWD.Path 'C:/samples/photo.ARW'
 ```
 
-历史版本验证通过 119 项 Windows 检查；Sony/DJI 共 38 组输出像素哈希与优化前一致。共享核心当时 11 项 CTest 通过；这些结果不替代[本轮跨平台验证](../docs/verification-cross-platform-effects-gpu-denoise-2026-10-10.md)。
+历史版本验证通过 119 项 Windows 检查；Sony/DJI 共 38 组输出像素哈希与优化前一致。共享核心当时 11 项 CTest 通过；这些结果不替代[本轮跨平台验证](../docs/archive/verification/verification-cross-platform-effects-gpu-denoise-2026-10-10.md)。
 
 本机样片、GPU 像素差异和性能结果见 [验证记录](verification.md)。

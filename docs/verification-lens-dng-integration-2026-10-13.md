@@ -103,7 +103,13 @@ broad process kill or physical-device operation is used.
 
 ## Remaining Integration Boundary
 
-This records the caf5180 target, not a future development merge tree. PR #24 was
+After the code gates above, the docs-only target
+`261b9323bea13f562bcfee7db736fcf1728704f5` was normally merged. Its 126 changed
+paths are Markdown only; diff formatting, the auto-merged platform README
+content and local links were checked. No source, ABI or version changed, so the
+code gates were not repeated merely for this documentation merge.
+
+The code gates record the caf5180 source tree, not a future development merge tree. PR #24 was
 still open at the latest target check. Its final rendered-DNG changes and the
 shared Mac test-link lines must be assessed after #24 lands and before root
 merges #26. Lens+NR+viewport A/B/FINAL combination gates belong to the viewport
