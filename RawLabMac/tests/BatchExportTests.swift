@@ -18,6 +18,7 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         try Data("existing".utf8).write(to: existing)
         var settings = Adjustments(); settings.exposure = 0.75
         settings.waveletNoiseReduction = WaveletDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100)
+        settings.lensCorrection = LensCorrectionSettings(distortion: true, tca: true)
         var job = BatchExportJob(source: inputs[0], settings: settings, look: nil, lookName: "Velvia")
         job.longEdge = 2048
         let encodedJob = try JSONEncoder().encode(job)
@@ -32,11 +33,14 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         try check(job.items.allSatisfy { !$0.selected }, "candidates start unselected")
         for index in job.items.indices { job.items[index].selected = true }
         settings.exposure = -1
+        settings.lensCorrection = LensCorrectionSettings(distortion: true, mode: .manual, profileID: "live-profile")
         let journal = BatchJournal(directory: root.appendingPathComponent("journal"))
         var calls: [String] = []
         try BatchExportRunner.run(job: &job, journal: journal, scope: .unfinished, shouldCancel: { false }) { input, snapshot, _, destination in
             calls.append(input.lastPathComponent)
             try check(snapshot.exposure == 0.75, "snapshot must not follow live edits")
+            try check(snapshot.lensSettings == LensCorrectionSettings(distortion: true, tca: true) && snapshot.lensSettings.coreProfileID.isEmpty,
+                      "batch freezes automatic mode, not a resolved source lens")
             try check(snapshot.waveletSettings == WaveletDenoiseSettings(enabled: true, luma: 10, chroma: 72, coarse: 100), "batch keeps frozen denoise settings")
             if input == inputs[1] { throw Failure(message: "invalid RAW") }
             try Data("rendered".utf8).write(to: destination)

@@ -27,6 +27,7 @@ struct RenderedImage {
     let metadataEV: Double
     let asShotWhiteBalance: WhiteBalance?
     let supportsRawNoiseReduction: Bool
+    var lensInfo: LensInfo? = nil
 }
 
 enum RenderError: LocalizedError {
@@ -43,7 +44,14 @@ enum RenderError: LocalizedError {
 final class RenderEngine {
     private var session: OpaquePointer?
     private let gpuMode: sony2fuji_gpu_mode
-    init(gpuMode: sony2fuji_gpu_mode = SONY2FUJI_GPU_AUTO) throws {
+    private struct LensCatalogKey: Equatable {
+        let url: URL
+        let modified: Date?
+        let size: Int?
+    }
+    private var lensCatalogKey: LensCatalogKey?
+    private var lensCandidates: [LensCandidate] = []
+    init(gpuMode: sony2fuji_gpu_mode = SONY2FUJI_GPU_AUTO, lensDatabaseURL: URL? = nil) throws {
         self.gpuMode = gpuMode
         guard sony2fuji_session_create(&session) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed("无法创建处理会话")
@@ -53,6 +61,12 @@ final class RenderEngine {
         config.struct_size = UInt32(MemoryLayout<sony2fuji_gpu_config>.size)
         config.mode = gpuMode
         _ = sony2fuji_session_set_gpu_config(session, &config)
+        if let database = lensDatabaseURL ?? Bundle.main.url(forResource: "Lensfun", withExtension: nil) {
+            guard database.path.withCString({ sony2fuji_session_set_lens_database(session, $0) }) == SONY2FUJI_STATUS_OK else {
+                sony2fuji_session_destroy(session); session = nil
+                throw RenderError.failed("无法加载镜头数据库")
+            }
+        }
     }
     deinit { sony2fuji_session_destroy(session) }
 
@@ -68,6 +82,18 @@ final class RenderEngine {
         guard sony2fuji_session_set_raw_exposure_mode(session, settings.exposureMode.core) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed("无效的曝光基准")
         }
+        let lens = settings.lensSettings
+        var lensConfig = sony2fuji_lens_correction_config()
+        lensConfig.version = SONY2FUJI_LENS_CORRECTION_CONFIG_VERSION
+        lensConfig.struct_size = UInt32(MemoryLayout<sony2fuji_lens_correction_config>.size)
+        lensConfig.distortion = lens.distortion ? 1 : 0
+        lensConfig.tca = lens.tca ? 1 : 0
+        lensConfig.auto_crop = lens.autoCrop ? 1 : 0
+        let lensStatus = lens.coreProfileID.withCString { profile in
+            lensConfig.profile_id = profile
+            return sony2fuji_session_set_lens_correction(session, &lensConfig)
+        }
+        guard lensStatus == SONY2FUJI_STATUS_OK else { throw RenderError.failed("无效或不可用的镜头校正设置") }
         let wavelet = settings.waveletNoiseReduction
         var effectsConfig = settings.photoEffectsConfig
         guard sony2fuji_session_set_photo_effects(session, &effectsConfig) == SONY2FUJI_STATUS_OK else {
@@ -176,8 +202,41 @@ final class RenderEngine {
         return RenderedImage(image: image, isFullResolution: edge == nil, clipping: mask, histogram: histogram,
             shadows: Double(black)/Double(width*height), highlights: Double(white)/Double(width*height),
             baselineEV: Double(baseline), metadataEV: Double(metadata), asShotWhiteBalance: cameraWhiteBalance,
-            supportsRawNoiseReduction: noiseReductionSupported == 1)
+            supportsRawNoiseReduction: noiseReductionSupported == 1, lensInfo: lensInfo(for: url))
     }
+
+    private func lensInfo(for url: URL) -> LensInfo? {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let key = LensCatalogKey(url: url.standardizedFileURL, modified: values?.contentModificationDate, size: values?.fileSize)
+        if lensCatalogKey != key {
+            var inspection = sony2fuji_lens_report()
+            var count: UInt32 = 0
+            let status = url.path.withCString { sony2fuji_session_inspect_lens(session, $0, &inspection, nil, 0, &count) }
+            guard status == SONY2FUJI_STATUS_OK else { return nil }
+            var profiles = [sony2fuji_lens_profile](repeating: sony2fuji_lens_profile(), count: Int(count))
+            let filled = url.path.withCString { input in
+                profiles.withUnsafeMutableBufferPointer { storage in
+                    sony2fuji_session_inspect_lens(session, input, &inspection, storage.baseAddress, count, &count)
+                }
+            }
+            guard filled == SONY2FUJI_STATUS_OK else { return nil }
+            lensCandidates = profiles.map { LensCandidate(id: nativeText($0.id), maker: nativeText($0.maker),
+                model: nativeText($0.model), hasDistortion: $0.has_distortion != 0,
+                hasTCA: $0.has_tca != 0, isMatch: $0.is_match != 0) }
+            lensCatalogKey = key
+        }
+        var report = sony2fuji_lens_report()
+        guard sony2fuji_session_get_lens_report(session, &report) == SONY2FUJI_STATUS_OK else { return nil }
+        return LensInfo(state: report.state, detectedLens: nativeText(report.lens_model),
+            selectedLens: nativeText(report.profile.model), focalLength: report.focal_length,
+            appliedDistortion: report.applied_distortion != 0, appliedTCA: report.applied_tca != 0,
+            cropScale: report.crop_scale, candidates: lensCandidates)
+    }
+}
+
+private func nativeText<T>(_ value: T) -> String {
+    var copy = value
+    return withUnsafeBytes(of: &copy) { bytes in String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self) }
 }
 
 struct Film: Identifiable, Hashable {

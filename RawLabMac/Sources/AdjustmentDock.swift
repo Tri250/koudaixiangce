@@ -4,32 +4,36 @@ struct AdjustmentDock: View {
     @ObservedObject var model: EditorModel
     @Binding var selected: AdjustmentParameter?
     let resetVersion: Int
+    @State private var lensSelected = false
 
     var body: some View {
         VStack(spacing: 8) {
             GeometryReader { geometry in
                 ScrollView(.horizontal) {
                     HStack(spacing: 6) {
-                        Button { selected = nil } label: {
+                        Button { selected = nil; lensSelected = false } label: {
                             VStack(spacing: 5) {
                                 Image(systemName: "film").font(.system(size: 19))
                                     .frame(width: 40, height: 40)
-                                    .background(selected == nil ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
-                                    .overlay { Circle().strokeBorder(selected == nil ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
+                                    .background(selected == nil && !lensSelected ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                                    .overlay { Circle().strokeBorder(selected == nil && !lensSelected ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
                                 Text("胶片").font(.system(size: 11))
                                 Color.clear.frame(width: 3, height: 3)
                             }.frame(width: 56, height: 70)
-                                .foregroundStyle(selected == nil ? Color.yellow : Color.primary)
+                                .foregroundStyle(selected == nil && !lensSelected ? Color.yellow : Color.primary)
                         }.buttonStyle(.plain).help("选择胶片模拟").accessibilityLabel("胶片")
                             .accessibilityValue(model.selectedFilm?.name ?? "中性")
-                            .accessibilityAddTraits(selected == nil ? .isSelected : [])
+                            .accessibilityAddTraits(selected == nil && !lensSelected ? .isSelected : [])
                         ForEach([AdjustmentParameter.strength] + AdjustmentParameter.photoTools) { parameter in tool(parameter) }
+                        lensTool
                     }.padding(.horizontal, 12).padding(.top, 4)
                         .frame(minWidth: max(710, geometry.size.width))
                 }.scrollIndicators(.hidden)
             }.frame(height: 76)
             Group {
-                if selected == .denoiseMode {
+                if lensSelected {
+                    LensControls(model: model).id(resetVersion).disabled(model.result == nil)
+                } else if selected == .denoiseMode {
                     DenoiseControls(model: model)
                         .id(resetVersion)
                         .frame(maxWidth: 560).padding(.horizontal, 16)
@@ -72,7 +76,7 @@ struct AdjustmentDock: View {
         let progress = parameter == .denoiseMode ? (changed ? 1.0 : 0.0) : spec.progress(for: value)
         let valueText = parameter == .denoiseMode ?
             model.settings.denoiseSummary : "\(spec.text(value)) \(spec.unit)"
-        return Button { selected = parameter } label: {
+        return Button { selected = parameter; lensSelected = false } label: {
             VStack(spacing: 5) {
                 ZStack {
                     Circle().fill(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04))
@@ -103,6 +107,22 @@ struct AdjustmentDock: View {
                 else { model.settings.set(parameter, to: spec.defaultValue) }
             }.disabled(!changed)
         }
+    }
+
+    private var lensTool: some View {
+        let changed = !model.settings.isDefault(.lens)
+        return Button { selected = nil; lensSelected = true } label: {
+            VStack(spacing: 5) {
+                Image(systemName: "viewfinder").font(.system(size: 19))
+                    .frame(width: 40, height: 40)
+                    .background(lensSelected ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                    .overlay { Circle().strokeBorder(lensSelected || changed ? Color.yellow : Color.white.opacity(0.25), lineWidth: changed ? 2 : 1) }
+                Text("镜头").font(.system(size: 11))
+                Circle().fill(changed ? Color.yellow : Color.clear).frame(width: 3, height: 3)
+            }.frame(width: 56, height: 70).foregroundStyle(lensSelected ? Color.yellow : Color.primary)
+        }.buttonStyle(.plain).disabled(model.result == nil)
+            .help("镜头畸变和横向色差校正").accessibilityLabel("镜头校正")
+            .accessibilityIdentifier("tool.lens").accessibilityAddTraits(lensSelected ? .isSelected : [])
     }
 
     private var noiseReductionHelp: String {

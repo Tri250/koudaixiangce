@@ -14,6 +14,16 @@ v0.5.0 新增逐照片本机调整记忆和“使用当前调整批量导出”�
 
 The left pane is the neutral render and the right pane is Velvia. Film selection and exposure, tone, color, white balance and sharpening controls are grouped at the bottom.
 
+## 镜头校正（未发布） / Lens Correction (Unreleased)
+
+底部“镜头”工具提供独立的畸变矫正、横向色差和自动裁边开关，默认不启用校正。自动模式按每张 RAW 的机身、镜头和焦距匹配 Lensfun；有多个候选时不猜测，改用“手动”和可搜索的镜头列表。缺少标定的项目不会应用，面板显示实际处理状态。自动匹配不保存为固定镜头，批量导出会对每张目标重新匹配。
+
+共享核心在去马赛克后、相机色彩矩阵前对相机通道合并采样。自动裁边以缩小视野的方式去除无效边缘，保留输出尺寸和宽高比；关闭裁边时可能出现黑边。参数随逐照片编辑保存，支持镜头分组和全部重置。原图对照保持未校正，RAW 原片不改写。此功能不包含紫绿去边、纵向色差修复、暗角配置文件校正或 Lightroom 像素级复现。
+
+Lensfun 0.3.4 从校验过的源码构建；DB1 快照随应用离线打包，不在渲染时下载。新增构建依赖 GLib（本机可用 `brew install glib`），其动态依赖、镜头数据库和许可证均随包保留。GLib 必须支持目标架构及最低系统版本；在 Apple Silicon 上交叉构建 Intel 包时，需要通过 `PKG_CONFIG_PATH` 提供 x86_64 GLib，不能链接 arm64 Homebrew 库。`RAWLAB_DEPENDENCY_PREFIX` 可复用另一目录已构建的 LibRaw/OpenCV/wavelib；Lensfun 仍在当前工作区的 `build/lensfun` 中独立构建。
+
+Focused checks: `bash RawLabMac/tests/lens-settings.sh` and `bash RawLabMac/tests/lens-render.sh /path/to/photo.ARW`. The latter checks automatic/manual matching, reset isolation, CPU/Metal parity and native JPEG/16-bit PNG export. See [the verification record](../docs/verification-lens-correction-2026-10-13.md) for the actual fixture and platform coverage.
+
 ## AI 仿色（未发布） / AI Color Match (Unreleased)
 
 打开 RAW 并等待精确预览后，从文件菜单或顶部调色板按钮进入“AI 仿色”。支持 1–6 张 JPEG/PNG/TIFF/HEIC 参考图、文字要求、继续调整、原编辑/中性基线对比和 0–200% 强度。候选确认前不改变当前编辑；应用后加入本机外观库并保存逐图设置，可使用“恢复 AI 仿色前的调整”返回应用前状态。

@@ -31,6 +31,24 @@ constexpr int kParallelThreshold = 1 << 16;
 
 namespace sony2fuji {
 
+namespace {
+LensMetadata lensMetadata(const LibRaw& processor, bool sdkStage3 = false) {
+    const auto& data = processor.imgdata;
+    LensMetadata metadata;
+    metadata.cameraMake = data.idata.make;
+    metadata.cameraModel = data.idata.model;
+    metadata.lensMake = data.lens.LensMake;
+    metadata.lensModel = data.lens.Lens[0] ? data.lens.Lens : data.lens.makernotes.Lens;
+    metadata.focalLength = data.other.focal_len;
+    metadata.aperture = data.other.aperture;
+    if (metadata.focalLength > 0 && data.lens.FocalLengthIn35mmFormat > 0)
+        metadata.cropFactor = data.lens.FocalLengthIn35mmFormat / metadata.focalLength;
+    // SDK Stage3 may contain a spatial correction; conservatively avoid stacking a profile.
+    metadata.embeddedGeometry = sdkStage3;
+    return metadata;
+}
+}
+
 // ============================================================================
 // RAWProcessor::Impl - pImpl pattern
 // ============================================================================
@@ -147,12 +165,26 @@ public:
         // (highlight=2). Undo that common attenuation in float, not in uint16.
         const float scale=1.0f/(65535.0f*green);
 
-        auto linearRGB=[&](int row,int col) {
+        LensCorrectionTransform correction(options.lensDatabase, lensMetadata(*rawProcessor_, sdkStage3_),
+            options.lensCorrection, width, height, channels);
+        lensReport_ = correction.report();
+        auto sampledRGB=[&](int row,int col,const float* coordinates) {
             const auto& raw=data.image[static_cast<size_t>(row)*width+col];
             float rgb[3]={};
+            float camera[4];
+            for (int c=0;c<channels;++c) {
+                const int mapped = c == 3 ? 1 : c;
+                camera[c] = coordinates ? sampleCameraChannel(&data.image[0][0], width, height, c,
+                    coordinates[mapped*2], coordinates[mapped*2+1]) : raw[c];
+            }
             for (int dst=0;dst<3;++dst) for (int c=0;c<channels;++c)
-                rgb[dst]+=data.color.rgb_cam[dst][c]*raw[c]*scale;
+                rgb[dst]+=data.color.rgb_cam[dst][c]*camera[c]*scale;
             return RGB(rgb[0],rgb[1],rgb[2]);
+        };
+        auto linearRGB=[&](int row,int col) {
+            alignas(16) float coordinates[6];
+            if (correction.active()) correction.map(col, row, 1, 1, coordinates);
+            return sampledRGB(row, col, correction.active() ? coordinates : nullptr);
         };
         baselineExposureEV_=options.applyBaselineExposure ? sceneExposureEV(metadataExposureEV_) : 0;
         previewExposureEV_=0;
@@ -188,23 +220,32 @@ public:
 #ifdef _OPENMP
 #pragma omp parallel for if (static_cast<int64_t>(output.width)*output.height >= kParallelThreshold)
 #endif
-        for (int y=0;y<output.height;++y) for (int x=0;x<output.width;++x) {
-            int row=y, col=x;
-            if (flip & 4) std::swap(row,col);
-            if (flip & 2) row=height-1-row;
-            if (flip & 1) col=width-1-col;
-            auto rgb=linearRGB(row,col);
-            rgb=RGB(rgb.r*gain,rgb.g*gain,rgb.b*gain);
-            RGB pixel = ColorConverter::applyMatrix(rgb,matrix);
-            if (!options.outputLinear) {
-                pixel = RGB(neutralDisplay(rgb.r),neutralDisplay(rgb.g),neutralDisplay(rgb.b));
-                if (options.outputBitsPerSample == 8) {
-                    pixel.r=std::round(pixel.r*255)/255;
-                    pixel.g=std::round(pixel.g*255)/255;
-                    pixel.b=std::round(pixel.b*255)/255;
-                }
+        for (int y=0;y<output.height;++y) {
+            std::vector<float> coordinates;
+            if (correction.active()) {
+                coordinates.resize(static_cast<size_t>(output.width)*6);
+                if (flip & 4) correction.map((flip & 1) ? width-1-y : y, 0, 1, height, coordinates.data());
+                else correction.map(0, (flip & 2) ? height-1-y : y, width, 1, coordinates.data());
             }
-            output.at(x,y)=pixel;
+            for (int x=0;x<output.width;++x) {
+                int row=y, col=x;
+                if (flip & 4) std::swap(row,col);
+                if (flip & 2) row=height-1-row;
+                if (flip & 1) col=width-1-col;
+                const int mappedIndex = (flip & 4) ? row : col;
+                auto rgb=sampledRGB(row,col,coordinates.empty() ? nullptr : coordinates.data()+mappedIndex*6);
+                rgb=RGB(rgb.r*gain,rgb.g*gain,rgb.b*gain);
+                RGB pixel = ColorConverter::applyMatrix(rgb,matrix);
+                if (!options.outputLinear) {
+                    pixel = RGB(neutralDisplay(rgb.r),neutralDisplay(rgb.g),neutralDisplay(rgb.b));
+                    if (options.outputBitsPerSample == 8) {
+                        pixel.r=std::round(pixel.r*255)/255;
+                        pixel.g=std::round(pixel.g*255)/255;
+                        pixel.b=std::round(pixel.b*255)/255;
+                    }
+                }
+                output.at(x,y)=pixel;
+            }
         }
         rawProcessor_->free_image();
         return ErrorCode::Success;
@@ -241,6 +282,7 @@ public:
     }
 
     bool supportsNoiseReduction() const { return sourceReady_ && noiseReductionSupported_; }
+    LensCorrectionReport getLensCorrectionReport() const { return lensReport_; }
 
     bool getCameraColorMatrix(float matrix[3][3]) const {
         if (!cameraColorMatrixValid_) return false;
@@ -266,6 +308,8 @@ private:
         baselineExposureEV_ = 0;
         metadataExposureEV_ = 0;
         fujiRotate_ = false;
+        sdkStage3_ = false;
+        lensReport_ = {};
         outputSpace_ = ColorSpace::sRGB;
     }
 
@@ -281,13 +325,16 @@ private:
         params.use_auto_wb = autoWB ? 1 : 0;
         const int openResult = openRawFile(*rawProcessor_, filepath_);
         if (openResult != LIBRAW_SUCCESS) return openResult;
+        sdkStage3_ = false;
 #ifdef SONY2FUJI_ENABLE_DNGSDK
+        bool sdkJxl = false;
         // 仅 JPEG XL 使用 SDK，其他 RAW 保留现有解码和白平衡路径。
         const char* decoder = rawProcessor_->unpack_function_name();
         if (decoder && std::strcmp(decoder, "jxl_dng_load_raw_placeholder()") == 0) {
             if (!dngHost_) dngHost_ = std::make_unique<dng_host>();
             rawProcessor_->set_dng_host(dngHost_.get());
             rawProcessor_->imgdata.rawparams.options |= LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL;
+            sdkJxl = true;
         } else {
             rawProcessor_->set_dng_host(nullptr);
             rawProcessor_->imgdata.rawparams.options &= ~LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL;
@@ -295,6 +342,9 @@ private:
 #endif
         const int unpackResult = rawProcessor_->unpack();
         if (unpackResult != LIBRAW_SUCCESS) return unpackResult;
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+        sdkStage3_ = sdkJxl && (rawProcessor_->imgdata.process_warnings & LIBRAW_WARN_DNG_STAGE3_APPLIED);
+#endif
         // 部分解码器只记录损坏计数却返回成功，不能继续导出损坏的像素。
         if (rawProcessor_->error_count()!=0) return LIBRAW_DATA_ERROR;
         rawProcessor_->adjust_to_raw_inset_crop(3);
@@ -356,6 +406,8 @@ private:
     bool identificationCameraWB_ = false;
     bool identificationAutoWB_ = false;
     bool fujiRotate_ = false;
+    bool sdkStage3_ = false;
+    LensCorrectionReport lensReport_;
     int width_ = 0;
     int height_ = 0;
     ColorSpace outputSpace_ = ColorSpace::sRGB;
@@ -415,6 +467,17 @@ bool RAWProcessor::getAsShotWhiteBalance(float& temperature, float& tint) const 
 bool RAWProcessor::supportsNoiseReduction() const {
     return pImpl_->supportsNoiseReduction();
 }
+
+ErrorCode RAWProcessor::readLensMetadata(const std::string& filepath, LensMetadata& metadata) {
+    metadata = {};
+    auto processor = std::make_unique<LibRaw>();
+    const int result = openRawFile(*processor, filepath);
+    if (result != LIBRAW_SUCCESS) return result == LIBRAW_IO_ERROR ? ErrorCode::FileNotFound : ErrorCode::InvalidFormat;
+    metadata = lensMetadata(*processor);
+    return ErrorCode::Success;
+}
+
+LensCorrectionReport RAWProcessor::getLensCorrectionReport() const { return pImpl_->getLensCorrectionReport(); }
 
 bool RAWProcessor::getCameraColorMatrix(float matrix[3][3]) const {
     return pImpl_->getCameraColorMatrix(matrix);

@@ -6,6 +6,14 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}"
 for notice in RawLab-GPL-3.0.txt RawLab-Licensing.md; do
     test -f "$APP/Contents/Resources/Licenses/$notice"
 done
+for notice in GLib-COPYING Gettext-COPYING.LIB PCRE2-LICENCE; do
+    test -f "$APP/Contents/Resources/Licenses/$notice"
+done
+for notice in lgpl-3.0.txt database-CC-BY-SA-3.0.txt UPSTREAM-README.md README.md; do
+    test -f "$APP/Contents/Resources/Licenses/Lensfun/$notice"
+done
+test -f "$APP/Contents/Resources/Lensfun/mil-sony.xml"
+test -f "$APP/Contents/Frameworks/liblensfun.1.dylib"
 for notice in Adobe-DNG-SDK-LICENSE.txt JPEG-XL-LICENSE.txt Brotli-LICENSE.txt \
         Highway-LICENSE.txt Highway-LICENSE-BSD3.txt skcms-LICENSE.txt; do
     test -f "$APP/Contents/Resources/Licenses/dng-sdk/$notice"

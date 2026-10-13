@@ -14,6 +14,6 @@ swiftc -parse-as-library -swift-version 5 -O -sdk "$SDK" -target "$(uname -m)-ap
     "$ROOT/RawLabMac/Sources/EditPersistence.swift" "$ROOT/RawLabMac/Sources/BatchExport.swift" \
     "$ROOT/RawLabMac/Sources/BatchExportModel.swift" "$ROOT/RawLabMac/Sources/FileLibrary.swift" \
     "$ROOT/Shared/ExportMetadata.swift" "$ROOT/RawLabMac/tests/AIRenderTests.swift" \
-    "$ROOT/lutools/build-macos/libsony2fuji_core.a" $(pkg-config --libs libraw opencv4 wavelib) -lc++ -lz \
+    "$ROOT/lutools/build-macos/libsony2fuji_core.a" $(pkg-config --libs libraw opencv4 wavelib lensfun rawlab-dng-sdk) -lc++ -lz \
     -framework AppKit -framework ImageIO -framework Metal -o "$OUT/test"
 "$OUT/test" "$@"

@@ -16,7 +16,7 @@ swiftc -parse-as-library -swift-version 5 -O -sdk "$SDK" -target "$(uname -m)-ap
     "${SOURCES[@]}" "$ROOT/Shared/ExportMetadata.swift" "$ROOT/Shared/PhotoInformation.swift" \
     "$ROOT/RawLabMac/tests/AIWorkflowTests.swift" \
     "$ROOT/lutools/build-macos/libsony2fuji_core.a" -L "$(pkg-config --variable=libdir libraw)" \
-    -lraw $(pkg-config --libs opencv4 wavelib) -lc++ -lz -framework SwiftUI -framework AppKit \
+    -lraw $(pkg-config --libs opencv4 wavelib lensfun rawlab-dng-sdk) -lc++ -lz -framework SwiftUI -framework AppKit \
     -framework ImageIO -framework Metal -framework Security -o "$OUT/test"
 if [ "${RAWLAB_AI_UI:-0}" = "1" ]; then
     APP="$OUT/RawLab AI Fixture.app"
