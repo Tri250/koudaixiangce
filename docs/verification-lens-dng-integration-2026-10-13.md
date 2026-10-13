@@ -66,6 +66,17 @@ link parameters now also include `rawlab-dng-sdk`; the focused settings/render
 and batch checks pass. These mechanical lines overlap the rendered-DNG feature's
 SDK-link additions and must be reconciled with its later target merge.
 
+The final boundary review found one additional link command in
+`master-recipe-render.sh` missing both Lensfun and the SDK. Running the unchanged
+script reproduced unresolved `dng_host` and Lensfun symbols (exit 1); adding
+only the two pkg-config packages fixes the link. The complete 14-recipe gate
+then passed on real DJI DNG and Sony ARW fixtures, including 0/50/100/200 percent
+strength, forced Metal parity, frozen JPEG/PNG batch output and unchanged RAWs.
+An intervening attempt used a minimal decoder-only synthetic JXL fixture, which
+ImageIO cannot read for the metadata-export portion of this real-RAW harness;
+it stopped with `ExportMetadata.Failure.unreadableSource` (exit 133). The final
+run uses the intended real fixtures without changing or weakening assertions.
+
 The reused iOS framework output initially contained 112 XML files because
 directory copying nested `version_1` inside an existing `Lensfun` resource.
 The flat-snapshot verifier fails on that state. The builder now refreshes only
@@ -85,6 +96,7 @@ All evidence is under ignored `build/`. Local results are not hosted CI.
 | Mac application/signing/dependency closure | PASS; `lens-integration-macos-pass.log` |
 | Mac real RAW CPU/Metal and JPEG/16-bit PNG | PASS; `lens-integration-mac-lens-render.log` |
 | Mac settings and batch regression | PASS; `lens-integration-mac-settings.log`, `lens-integration-mac-batch.log` |
+| Mac complete 14-recipe DNG/ARW regression | PASS; `lens-integration-master-recipe-final.log`; original link RED in `lens-integration-master-recipe-red.log` |
 | iOS three-slice XCFramework/resources/licenses | PASS; `lens-integration-ios-final-framework.log` |
 | iOS simulator application build | PASS; `lens-integration-ios-app.log` |
 | iOS actual SDK Stage3 native regression | PASS; `lens-integration-ios-dng.log` |
