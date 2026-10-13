@@ -1,4 +1,5 @@
 <resources>
+    <string name="lens">镜头</string>
     <string name="master_recipes">大师配方</string>
     <string name="no_recipe">无配方</string>
     <string name="hsl_reset_channel">重置当前颜色</string>
@@ -105,6 +106,8 @@
     <string name="save_file">保存到文件</string>
     <string name="png">PNG · 16 位</string>
     <string name="jpeg">JPEG</string>
+    <string name="dng">渲染 DNG</string>
+    <string name="dng_file_only">渲染 DNG 只能保存到文件或输出目录。</string>
     <string name="permission_title">允许访问照片</string>
     <string name="permission_body">选择可供 RawLab 浏览的照片。也可以从文件导入 RAW。</string>
     <string name="grant_access">选择照片权限</string>

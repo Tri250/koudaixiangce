@@ -86,3 +86,11 @@ The delivery worktree had no macOS dependency prefix. The existing external pref
 This is a local verification bundle, not a new versioned release: its Info.plist retains the development baseline's 0.6.0/build 10. No notarization, Developer ID signing, upload, deployment, Xcode license acceptance or system security configuration change was performed. The packaged smoke entry was exercised without normal GUI activation; a fresh interactive GUI run and runtime on macOS 26/15 are not claimed.
 
 Heap sampling is not an instantaneous peak measurement. These runs establish memory/export correctness, not a controlled throughput benchmark; concurrent host workloads differed. Physical Android/iOS devices, Android x86_64 runtime and macOS x86_64 runtime are not verified by this report. Exact-head remote CI is reported separately from local/VM results. No merge or release is authorized by these gates.
+
+## Later Composition Increment
+
+The feature's normal merge with `development` at `d810fe6` and its bounded
+Lens/NR/viewport/FINAL, client binding and package-runtime checks are recorded
+separately in [the composition report](verification-viewport-lens-dng-integration-2026-10-13.md).
+The historical measurements above are not relabeled as that composed-source
+matrix; the old cold/warm/Scene experiments were not repeated.

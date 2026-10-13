@@ -6,9 +6,12 @@ import UniformTypeIdentifiers
 
 struct Sony2FujiProcessor {
     let gpuMode: sony2fuji_gpu_mode
+    let lensDatabaseURL: URL?
+    let lensCatalog = LensCatalogCache()
 
-    init(gpuMode: sony2fuji_gpu_mode = SONY2FUJI_GPU_AUTO) {
+    init(gpuMode: sony2fuji_gpu_mode = SONY2FUJI_GPU_AUTO, lensDatabaseURL: URL? = nil) {
         self.gpuMode = gpuMode
+        self.lensDatabaseURL = lensDatabaseURL
     }
 
     private let previewSession = PreviewSession()
@@ -29,8 +32,14 @@ struct Sony2FujiProcessor {
     }
 
     private func withRawSession<T>(reuse: Bool, body: (OpaquePointer) throws -> T) throws -> T {
-        if reuse { return try previewSession.use(create: createSession, body: body) }
-        let session = try createSession()
+        let create = { () throws -> OpaquePointer in
+            let session = try createSession()
+            do { try loadLensDatabase(session) }
+            catch { destroySession(session); throw error }
+            return session
+        }
+        if reuse { return try previewSession.use(create: create, body: body) }
+        let session = try create()
         defer { destroySession(session) }
         return try body(session)
     }
@@ -72,6 +81,7 @@ struct Sony2FujiProcessor {
         let buffer: Buffer
         let orientation: CGImagePropertyOrientation?
         let rawWhiteBalance: RawWhiteBalance?
+        var lensInfo: LensInfo? = nil
     }
 
     struct RawWhiteBalance: Codable, Equatable {
@@ -85,6 +95,7 @@ struct Sony2FujiProcessor {
         case invalidDimensions
         case sessionCreateFailed(String)
         case processFailed(String)
+        case outputIO
         case bufferCopyFailed
         case rasterDecodeFailed
         case histogramFailed(String)
@@ -100,6 +111,8 @@ struct Sony2FujiProcessor {
                 return "Sony2Fuji session create failed: \(message)"
             case .processFailed(let message):
                 return "Sony2Fuji process failed: \(message)"
+            case .outputIO:
+                return "无法写入成片，请检查输出位置和剩余空间。"
             case .bufferCopyFailed:
                 return "Sony2Fuji output copy failed."
             case .rasterDecodeFailed:
@@ -119,7 +132,9 @@ struct Sony2FujiProcessor {
     func autoExposure(url: URL?, buffer: Buffer?, settings: RawSettings) throws -> Double {
         let session = try createSession()
         defer { destroySession(session) }
+        try loadLensDatabase(session)
         let settings = try prepareRecipe(settings, session: session, url: url)
+        try configureLens(session, settings: settings.lensSettings)
         let mode = sony2fuji_raw_exposure_mode(rawValue: UInt32(settings.exposureMode.rawValue))
         guard sony2fuji_session_set_raw_exposure_mode(session, mode) == SONY2FUJI_STATUS_OK else {
             throw ProcessorError.processFailed("Invalid exposure mode.")
@@ -200,7 +215,7 @@ struct Sony2FujiProcessor {
 
             let output = try copyBuffer(buffer)
             let rawWhiteBalance = readRawWhiteBalance(from: session)
-            return ProcessResult(buffer: output, orientation: .up, rawWhiteBalance: rawWhiteBalance)
+            return ProcessResult(buffer: output, orientation: .up, rawWhiteBalance: rawWhiteBalance, lensInfo: try readLens(session, url: url))
         }
     }
 
@@ -218,6 +233,7 @@ struct Sony2FujiProcessor {
         }
         let session = try createSession()
         defer { destroySession(session) }
+        try loadLensDatabase(session)
         let settings = try prepareRecipe(settings, session: session, url: nil)
         try configureSession(session, settings: settings,
                              interactive: interactive && previewLongEdge != nil && exportLongEdge == nil,
@@ -252,7 +268,75 @@ struct Sony2FujiProcessor {
         return output
     }
 
-    func loadRasterBuffer(url: URL) throws -> ProcessResult {
+    func exportDNG(
+        url: URL,
+        settings: RawSettings,
+        lutURL: URL?,
+        outputURL: URL,
+        exportLongEdge: Int? = nil
+    ) throws {
+        guard ExportSize.isValid(exportLongEdge) else {
+            throw ProcessorError.invalidExportSize
+        }
+        let metadata = try loadMetadata(from: url)
+        let rawDimensions = url.path.withCString { rawlab_get_raw_dimensions($0) }
+        let width = rawDimensions.width > 0 ? rawDimensions.width : metadata.width
+        let height = rawDimensions.height > 0 ? rawDimensions.height : metadata.height
+        let session = try createSession()
+        defer { destroySession(session) }
+        try loadLensDatabase(session)
+        let settings = try prepareRecipe(settings, session: session, url: url)
+        try configureSession(session, settings: settings, interactive: false)
+
+        var request = makeBaseRequest(settings: settings, inputType: SONY2FUJI_INPUT_RAW)
+        request.input_type = SONY2FUJI_INPUT_RAW
+        applySize(&request, width: width, height: height, previewLongEdge: nil, exportLongEdge: exportLongEdge)
+        request.lut_strength = lutURL == nil ? 0 : settings.clampedLUTStrength
+        configureDNGFile(&request)
+        let status = processRawToFile(session: session, request: &request,
+                                      inputPath: url.path, lutPath: lutURL?.path, outputPath: outputURL.path)
+        if status == SONY2FUJI_STATUS_OUTPUT_IO_ERROR { throw ProcessorError.outputIO }
+        guard status == SONY2FUJI_STATUS_OK else {
+            throw ProcessorError.processFailed(statusMessage(status))
+        }
+    }
+
+    func exportDNG(
+        buffer: Buffer,
+        settings: RawSettings,
+        lutURL: URL?,
+        outputURL: URL,
+        exportLongEdge: Int? = nil
+    ) throws {
+        guard ExportSize.isValid(exportLongEdge) else {
+            throw ProcessorError.invalidExportSize
+        }
+        let session = try createSession()
+        defer { destroySession(session) }
+        try loadLensDatabase(session)
+        let settings = try prepareRecipe(settings, session: session, url: nil)
+        try configureSession(session, settings: settings, interactive: false)
+
+        var request = makeBaseRequest(settings: settings, inputType: SONY2FUJI_INPUT_BUFFER)
+        request.input_type = SONY2FUJI_INPUT_BUFFER
+        request.input_width = UInt32(buffer.width)
+        request.input_height = UInt32(buffer.height)
+        request.input_pixel_format = buffer.pixelFormat
+        request.input_color_space = SONY2FUJI_COLOR_SRGB
+        request.input_is_linear = 0
+        applySize(&request, width: UInt32(buffer.width), height: UInt32(buffer.height),
+                  previewLongEdge: nil, exportLongEdge: exportLongEdge)
+        request.lut_strength = lutURL == nil ? 0 : settings.clampedLUTStrength
+        configureDNGFile(&request)
+        let status = processBufferToFile(session: session, request: &request, buffer: buffer,
+                                         lutPath: lutURL?.path, outputPath: outputURL.path)
+        if status == SONY2FUJI_STATUS_OUTPUT_IO_ERROR { throw ProcessorError.outputIO }
+        guard status == SONY2FUJI_STATUS_OK else {
+            throw ProcessorError.processFailed(statusMessage(status))
+        }
+    }
+
+    func loadRasterBuffer(url: URL, applyingOrientation: Bool = false) throws -> ProcessResult {
         let metadata = try loadMetadata(from: url)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -260,8 +344,10 @@ struct Sony2FujiProcessor {
             throw ProcessorError.rasterDecodeFailed
         }
 
-        let width = cgImage.width
-        let height = cgImage.height
+        let orientedImage = applyingOrientation ? orientedCGImage(cgImage, orientation: metadata.orientation ?? .up) : cgImage
+        guard let orientedImage else { throw ProcessorError.rasterDecodeFailed }
+        let width = orientedImage.width
+        let height = orientedImage.height
         let bytesPerRow = width * 4
         var data = Data(count: bytesPerRow * height)
         let colorSpace = outputColorSpace()
@@ -280,7 +366,7 @@ struct Sony2FujiProcessor {
             ) else {
                 return false
             }
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            context.draw(orientedImage, in: CGRect(x: 0, y: 0, width: width, height: height))
             return true
         }
 
@@ -295,7 +381,8 @@ struct Sony2FujiProcessor {
             stride: bytesPerRow,
             pixelFormat: SONY2FUJI_PIXEL_RGBA8
         )
-        return ProcessResult(buffer: buffer, orientation: metadata.orientation, rawWhiteBalance: nil)
+        return ProcessResult(buffer: buffer, orientation: applyingOrientation ? .up : metadata.orientation,
+                             rawWhiteBalance: nil)
     }
 
     func makeUIImage(from buffer: Buffer, orientation: CGImagePropertyOrientation?) -> UIImage? {

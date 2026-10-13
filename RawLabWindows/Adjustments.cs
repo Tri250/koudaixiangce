@@ -3,6 +3,25 @@ using System.Globalization;
 namespace RawLab.Windows;
 
 public enum Parameter { Strength, Exposure, Temperature, Tint, Contrast, Highlights, Shadows, ToneCurve, Saturation, Sharpening }
+public sealed record LensSettings(bool Distortion = false, bool Tca = false, bool AutoCrop = true, bool Manual = false, string? ProfileId = null)
+{
+    public bool Enabled => Distortion || Tca;
+    public string CoreProfileId => Manual ? ProfileId ?? "__rawlab_manual_selection_required__" : "";
+}
+public sealed record LensCandidate(string Id, string Maker, string Model, bool HasDistortion, bool HasTca, bool IsMatch)
+{
+    public string Title => Model.Contains(Maker, StringComparison.OrdinalIgnoreCase) ? Model : Maker + " " + Model;
+    public string Calibration => string.Join(" / ", new[] { HasDistortion ? "畸变" : null, HasTca ? "横向色差" : null }.Where(x => x != null));
+}
+public sealed record LensInfo(int State, string DetectedLens, string SelectedLens, bool AppliedDistortion, bool AppliedTca, float CropScale, IReadOnlyList<LensCandidate> Candidates)
+{
+    public string Message => State switch {
+        0 => "镜头校正已关闭", 1 => AppliedDistortion || AppliedTca ? "已校正" + string.Join("、", new[] { AppliedDistortion ? "畸变" : null, AppliedTca ? "横向色差" : null }.Where(x => x != null)) : "已匹配镜头",
+        2 => "镜头数据库不可用", 3 => "未找到机身或传感器尺寸信息", 5 => "有多个匹配镜头，请手动选择",
+        6 => "此镜头没有所选校正的标定数据", 7 => "照片缺少有效焦距，未应用校正",
+        8 => "DNG 已执行内嵌 Stage3 处理，未叠加校正", 9 => "此输入不支持镜头校正", _ => "未匹配镜头，请手动选择"
+    };
+}
 public sealed record ParameterSpec(Parameter Id, string Title, string Group, double Min, double Max, double Step, string Unit, int Decimals = 0)
 {
     public double Position(double v) => Id == Parameter.Temperature
@@ -31,6 +50,7 @@ public sealed class Adjustments
     public DenoiseSettings Denoise { get; set; } = new();
     public PhotoEffectsSettings Effects { get; set; } = new();
     public string? MasterRecipeID { get; private set; }
+    public LensSettings Lens { get; set; } = new();
     public MasterRecipe? Recipe => MasterRecipeID == null ? null : MasterRecipe.Find(MasterRecipeID);
     public HslSettings RenderHsl => Hsl.Scaled(MasterRecipeID == null ? 1 : this[Parameter.Strength] / 100);
     public void ApplyMasterRecipe(MasterRecipe recipe)
@@ -68,7 +88,7 @@ public sealed class Adjustments
     public double this[Parameter id] => values[(int)id];
     public Adjustments Clone() { var copy = (Adjustments)MemberwiseClone(); copy.values = (double[])values.Clone(); return copy; }
     public AdjustmentSnapshot Capture() => new((double[])values.Clone(), ExposureMode, CameraWhiteBalance, AsShot?.Temperature, AsShot?.Tint,
-        Denoise, Effects, DisplayChromaDenoise, Hsl, MasterRecipeID);
+        Denoise, Effects, DisplayChromaDenoise, Hsl, MasterRecipeID, Lens);
     public static Adjustments FromSnapshot(AdjustmentSnapshot snapshot)
     {
         if (snapshot.Values.Length != ParameterSpec.All.Length || snapshot.ExposureMode is < 0 or > 2 ||
@@ -85,6 +105,7 @@ public sealed class Adjustments
             Effects = effects,
             Hsl = snapshot.Hsl ?? new HslSettings(),
             MasterRecipeID = snapshot.MasterRecipeID,
+            Lens = snapshot.Lens ?? new(),
             DisplayChromaDenoise = snapshot.DisplayChromaDenoise,
             values = (double[])snapshot.Values.Clone(), ExposureMode = snapshot.ExposureMode,
             CameraWhiteBalance = snapshot.CameraWhiteBalance,
@@ -142,8 +163,9 @@ public sealed class Adjustments
         if (group == "色彩") Hsl = new();
         if (group == "细节") { Denoise = new(); DisplayChromaDenoise = 0; }
         if (group == "效果") Effects = new();
+        if (group == "镜头") Lens = new();
     }
-    public void ResetAll() { MasterRecipeID = null; foreach (var spec in ParameterSpec.All) Reset(spec.Id); ExposureMode = 1; ResetWhiteBalance(); Denoise = new(); Effects = new(); Hsl = new(); DisplayChromaDenoise = 0; }
+    public void ResetAll() { MasterRecipeID = null; foreach (var spec in ParameterSpec.All) Reset(spec.Id); ExposureMode = 1; ResetWhiteBalance(); Denoise = new(); Effects = new(); Hsl = new(); DisplayChromaDenoise = 0; Lens = new(); }
     internal Native.Request Request(string path, string? lut, int edge, string? output, int? longEdge = null)
     {
         if (longEdge is { } requested && !ExportSize.IsValid(requested))
@@ -165,7 +187,7 @@ public sealed class Adjustments
             // remains independent and is never used to size an export.
             SizeMode=limitedFinal ? 4 : 3,LongEdge=limitedFinal ? (uint)longEdge!.Value : 0,
             OutputTarget=output == null ? 1 : 0,OutputPath=output,
-            OutputFormat=output == null ? 3 : System.IO.Path.GetExtension(output).Equals(".png",StringComparison.OrdinalIgnoreCase) ? 1 : 0,
+            OutputFormat=output == null ? 3 : ExportFormatExtensions.FromPath(output).NativeValue(),
             JpegQuality=95, Intent=output != null || edge == 0 ? 1 : 0, PreviewLongEdge=(uint)edge
         };
     }

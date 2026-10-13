@@ -65,15 +65,15 @@ class NativeMemoryTest {
                     processor.preview(input, null, settings, 1600, false)
                 }
                 mark("native-png")
-                processor.export(input, null, settings, png, true)
+                processor.export(input, null, settings, png, ExportFormat.PNG)
                 mark("preview-between-formats")
                 processor.preview(input, null, settings.copy(exposure = .35f), 640, true)
                 mark("native-jpeg")
-                processor.export(input, null, settings.copy(exposure = .35f), jpeg, false)
+                processor.export(input, null, settings.copy(exposure = .35f), jpeg, ExportFormat.JPEG)
                 if (args.getString("memoryRecomputeDenoise") == "true") {
                     mark("native-recompute")
                     val recomputed = File(directory, "$label-recomputed.png")
-                    processor.export(input, null, settings.copy(denoise = settings.denoise.copy(luma = 11f)), recomputed, true)
+                    processor.export(input, null, settings.copy(denoise = settings.denoise.copy(luma = 11f)), recomputed, ExportFormat.PNG)
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeFile(recomputed.path, bounds)
                     assertTrue(maxOf(bounds.outWidth, bounds.outHeight) > 1600)

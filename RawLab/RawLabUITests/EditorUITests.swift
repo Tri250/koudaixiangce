@@ -5,6 +5,37 @@ final class EditorUITests: XCTestCase {
     private let seedPhotoBase = "DJI_20250602164503_0444_D"
     private var verifiedSeedPickerIndex: Int?
 
+    func testLensControls() {
+        let app = XCUIApplication()
+        app.launch()
+        importPhoto(in: app)
+        let toolbar = app.scrollViews.containing(.button, identifier: "tool.lens").allElementsBoundByIndex.min { $0.frame.height < $1.frame.height }!
+        for _ in 0..<5 where !app.buttons["tool.lens"].isHittable { toolbar.swipeRight() }
+        app.buttons["tool.lens"].tap()
+        XCTAssertTrue(app.switches["lens.distortion"].waitForExistence(timeout: 10))
+        for id in ["lens.distortion", "lens.tca", "lens.crop"] { XCTAssertTrue(app.switches[id].isHittable) }
+        app.switches["lens.distortion"].tap()
+        app.segmentedControls["lens.mode"].buttons["手动"].tap()
+        let profile = app.buttons["lens.profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 10))
+        profile.tap()
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 10))
+        app.searchFields.firstMatch.tap(); app.searchFields.firstMatch.typeText("Tamron")
+        let candidate = app.buttons["lens.candidate"].firstMatch
+        XCTAssertTrue(candidate.waitForExistence(timeout: 10)); candidate.tap()
+        capture("lens-controls-portrait")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(app.switches["lens.crop"].waitForExistence(timeout: 10))
+        let panel = app.scrollViews["editor.panel"]
+        for _ in 0..<3 where !profile.isHittable { panel.swipeUp() }
+        XCTAssertTrue(profile.isHittable, "Lens selection remains reachable in landscape")
+        capture("lens-controls-landscape")
+        panel.swipeDown()
+        app.buttons["lens.reset"].tap()
+        XCTAssertEqual(app.switches["lens.distortion"].value as? String, "0")
+        XCUIDevice.shared.orientation = .portrait
+    }
+
     func testMasterRecipeControls() {
         let app = XCUIApplication()
         app.launch()

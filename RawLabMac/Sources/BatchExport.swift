@@ -40,6 +40,7 @@ struct BatchExportJob: Codable {
     var items: [BatchExportItem] = []
     var outputDirectory: URL?
     var png = false
+    var outputFormat: ExportFormat?
     var longEdge: Int?
     var started = false
     var interrupted = false
@@ -58,7 +59,11 @@ struct BatchExportJob: Codable {
     var succeededCount: Int { items.filter { $0.selected && $0.status == .succeeded }.count }
     var failedCount: Int { items.filter { $0.selected && $0.status == .failed }.count }
     var remainingCount: Int { selectedCount - succeededCount - failedCount }
-    var suffix: String { png ? "png" : "jpg" }
+    var format: ExportFormat {
+        get { outputFormat ?? (png ? .png : .jpeg) }
+        set { outputFormat = newValue; png = newValue == .png; version = 2 }
+    }
+    var suffix: String { format.suffix }
 }
 
 final class BatchJournal {
@@ -87,7 +92,7 @@ final class BatchJournal {
     func load() throws -> BatchExportJob? {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         var job = try JSONDecoder().decode(BatchExportJob.self, from: Data(contentsOf: url))
-        guard job.version == 1 else { throw CocoaError(.fileReadCorruptFile) }
+        guard (1...2).contains(job.version) else { throw CocoaError(.fileReadCorruptFile) }
         for index in job.items.indices where [.running, .publishing].contains(job.items[index].status) {
             let item = job.items[index]
             if item.status == .publishing, let output = item.output, let expected = item.completedIdentity,

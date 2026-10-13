@@ -32,7 +32,7 @@ public partial class MainWindow : Window
     private string? file,lut;
     private RenderEngine? engine;
     private bool ready,syncing,interacting,exporting,closing,exactReady;
-    private bool compare=true,clipping,choosingFilm,choosingDenoise,choosingPhotoEffects,swipe;
+    private bool compare=true,clipping,choosingFilm,choosingDenoise,choosingPhotoEffects,choosingLens,swipe;
     private PhotoEffectTool selectedEffect=PhotoEffectTool.Vignette;
     private bool renderFailed;
     private bool choosingHsl,autoExposing;
@@ -98,6 +98,10 @@ public partial class MainWindow : Window
             if(!ready || syncing || exporting)return;
             settings.Hsl=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
         };
+        LensEditor.Changed+=value=>{
+            if(!ready || syncing || exporting)return;
+            settings.Lens=value;RefreshControls();MarkEdited();Schedule();
+        };
         ValueSlider.AddHandler(Thumb.DragStartedEvent,new DragStartedEventHandler((_,_)=>{interacting=true;}));
         ValueSlider.AddHandler(Thumb.DragCompletedEvent,new DragCompletedEventHandler((_,_)=>{interacting=false; Schedule();}));
         ready=true; RefreshControls();
@@ -128,7 +132,7 @@ public partial class MainWindow : Window
             var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=spec.Title,FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=spec.Title};
             AutomationProperties.SetName(button,spec.Title);
-            button.Click+=(_,_)=>{choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;selectedParameter=spec.Id;RefreshControls();};
+            button.Click+=(_,_)=>{choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;choosingLens=false;selectedParameter=spec.Id;RefreshControls();};
             Tools.Children.Add(button); toolButtons[spec.Id]=(button,ring);
         }
         foreach(var (tool,title,icon) in new[] {
@@ -140,13 +144,14 @@ public partial class MainWindow : Window
             var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=title,FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=tool==PhotoEffectTool.Vignette ? "Vignette / 暗角" : "Grain / 颗粒"};
             AutomationProperties.SetName(button,tool.ToString());
-            button.Click+=(_,_)=>{if(exporting)return;choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
+            button.Click+=(_,_)=>{if(exporting)return;choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingLens=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
             Tools.Children.Add(button); effectToolButtons[tool]=(button,ring);
         }
     }
-    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;RefreshControls(); }
-    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;RefreshControls(); }
-    private void HslCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=true;choosingDenoise=choosingFilm=choosingPhotoEffects=false;RefreshControls(); }
+    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
+    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
+    private void HslCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=true;choosingDenoise=choosingFilm=choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
+    private void LensCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingLens=true;choosingFilm=choosingDenoise=choosingPhotoEffects=false;RefreshControls(); }
     private void BuildFilms()
     {
         FilmStrip.Children.Clear(); filmButtons.Clear();
@@ -185,7 +190,12 @@ public partial class MainWindow : Window
             MasterRecipePanel.Visibility=choosingRecipes ? Visibility.Visible : Visibility.Collapsed;
             MasterRecipeCategoryRing.Selected=choosingRecipes;MasterRecipeCategoryRing.Progress=settings.MasterRecipeID==null ? 0 : 1;MasterRecipeCategoryRing.InvalidateVisual();
             foreach(var pair in recipeButtons)pair.Value.Foreground=pair.Key==(settings.MasterRecipeID ?? "") ? Brushes.Gold : (Brush)FindResource("Foreground");
-            ParameterPanel.Visibility=choosingRecipes || choosingFilm || choosingDenoise || choosingPhotoEffects || choosingHsl ? Visibility.Collapsed : Visibility.Visible;
+            ParameterPanel.Visibility=choosingRecipes || choosingFilm || choosingDenoise || choosingPhotoEffects || choosingHsl || choosingLens ? Visibility.Collapsed : Visibility.Visible;
+            LensEditor.Visibility=choosingLens ? Visibility.Visible : Visibility.Collapsed;
+            LensEditor.IsEnabled=file!=null && !exporting;LensEditor.Refresh(settings.Lens,result?.Lens);
+            LensCategory.IsEnabled=file!=null && !exporting;
+            LensCategory.Tag=choosingLens ? "selected" : null;
+            LensCategoryRing.Selected=choosingLens;LensCategoryRing.Progress=settings.Lens.Enabled ? 1 : 0;LensCategoryRing.InvalidateVisual();
             HslSurface.Visibility=choosingHsl ? Visibility.Visible : Visibility.Collapsed;
             HslEditor.IsEnabled=file!=null && !exporting;HslEditor.Refresh(settings.Hsl);
             HslCategory.Tag=choosingHsl ? "selected" : null;
@@ -215,7 +225,7 @@ public partial class MainWindow : Window
             AsShotButton.IsEnabled=file!=null && !exporting && settings.AsShot!=null;
             foreach(var (id,controls) in toolButtons)
             {
-                var selected=!choosingRecipes && !choosingHsl && !choosingFilm && !choosingDenoise && !choosingPhotoEffects && id==selectedParameter;
+                var selected=!choosingRecipes && !choosingHsl && !choosingFilm && !choosingDenoise && !choosingPhotoEffects && !choosingLens && id==selectedParameter;
                 controls.Button.Tag=selected ? "selected" : null;
                 controls.Ring.Selected=selected;
                 var p=ParameterSpec.All[(int)id]; var origin=p.Position(settings.Default(id)); var offset=p.Position(settings[id])-origin;
@@ -238,15 +248,15 @@ public partial class MainWindow : Window
     private static SolidColorBrush Brush(string color)=>(SolidColorBrush)new BrushConverter().ConvertFromString(color)!;
     private void UpdateBusy()
     {
-        ExportJpeg.IsEnabled=ExportPng.IsEnabled=BatchExportMenu.IsEnabled=exactReady && !scheduler.Busy && !previewResize.IsEnabled && !exporting && result!=null && LookAvailable;
+        ExportJpeg.IsEnabled=ExportPng.IsEnabled=ExportDng.IsEnabled=BatchExportMenu.IsEnabled=exactReady && !scheduler.Busy && !previewResize.IsEnabled && !exporting && result!=null && LookAvailable;
         ViewBatchMenu.IsEnabled=CurrentBatch!=null;
-        ExportButton.IsEnabled=ExportJpeg.IsEnabled || ViewBatchMenu.IsEnabled;
+        ExportButton.IsEnabled=ExportJpeg.IsEnabled || ExportPng.IsEnabled || ExportDng.IsEnabled || ViewBatchMenu.IsEnabled;
         AdjustmentPanel.IsEnabled=!exporting;GpuMode.IsEnabled=!exporting;
         BusyIndicator.Visibility=scheduler.Busy || previewResize.IsEnabled || exporting ? Visibility.Visible : Visibility.Collapsed;
         RetryButton.Visibility=renderFailed && !scheduler.Busy && !exporting ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.ToolTip=file==null ? "打开 RAW 照片后导出" : scheduler.Busy ? "精确预览完成后可导出" : "导出照片（尺寸可选）";
         ToolTipService.SetShowOnDisabled(ExportButton,true);
-        ToolTipService.SetShowOnDisabled(ExportJpeg,true);ToolTipService.SetShowOnDisabled(ExportPng,true);
+        ToolTipService.SetShowOnDisabled(ExportJpeg,true);ToolTipService.SetShowOnDisabled(ExportPng,true);ToolTipService.SetShowOnDisabled(ExportDng,true);
     }
     private void SetStatus(string text,bool error=false) { Status.Text=text; Status.ToolTip=text; Status.Foreground=Brush(error ? "#FFAB92" : "#B5B8C0"); }
     private void RetryClicked(object sender,RoutedEventArgs e)=>Schedule();
@@ -716,8 +726,9 @@ public partial class MainWindow : Window
         else if(e.Key is Key.Add or Key.OemPlus)ZoomInClicked(sender,e); else if(e.Key is Key.Subtract or Key.OemMinus)ZoomOutClicked(sender,e);
         else if(e.Key==Key.I)InfoClicked(sender,e);
     }
-    private void ExportJpegClicked(object sender,RoutedEventArgs e)=>Export(false);
-    private void ExportPngClicked(object sender,RoutedEventArgs e)=>Export(true);
+    private void ExportJpegClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.Jpeg);
+    private void ExportPngClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.Png);
+    private void ExportDngClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.RenderedDng);
     private void ExportOriginalSizeClicked(object sender,RoutedEventArgs e) { exportLongEdge=null; RefreshExportSizeMenu(); }
     private void ExportSizeClicked(object sender,RoutedEventArgs e)
     {
@@ -742,20 +753,50 @@ public partial class MainWindow : Window
         ExportCustomSize.IsChecked=exportLongEdge.HasValue && exportLongEdge != 2048 && exportLongEdge != 3000 && exportLongEdge != 4096;
         ExportCustomSize.Header=ExportCustomSize.IsChecked == true ? $"自定义 {exportLongEdge} px" : "自定义…";
     }
-    private async void Export(bool png)
+    private async void Export(ExportFormat format)
     {
         if(!exactReady || scheduler.Busy || previewResize.IsEnabled || exporting || file==null || engine==null)return;
-        var dialog=new SaveFileDialog{Title="全分辨率导出",Filter=png ? "16-bit PNG|*.png" : "JPEG|*.jpg",DefaultExt=png ? ".png" : ".jpg",AddExtension=true,OverwritePrompt=true,
+        var suffix=format.Suffix();
+        var dialog=new SaveFileDialog{Title="全分辨率导出",Filter=format switch {
+                ExportFormat.Jpeg => "JPEG|*.jpg;*.jpeg",
+                ExportFormat.Png => "16-bit PNG|*.png",
+                ExportFormat.RenderedDng => "DNG · 渲染型|*.dng",
+                _ => throw new ArgumentOutOfRangeException(nameof(format))
+            },DefaultExt="."+suffix,AddExtension=true,OverwritePrompt=true,
             FileName=Path.GetFileNameWithoutExtension(file)+"-"+(films.FirstOrDefault(f=>f.Path==lut)?.Name ?? "neutral")};
+        dialog.FileOk += (_, args) => {
+            if (!format.AcceptsPath(dialog.FileName))
+            {
+                args.Cancel = true;
+                MessageBox.Show(this, $"请选择 {format.Title()} 文件扩展名。", "导出",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        };
         if(dialog.ShowDialog(this)!=true)return;
         if(!exactReady || scheduler.Busy || previewResize.IsEnabled || closing)return;
         if(Path.GetFullPath(dialog.FileName).Equals(Path.GetFullPath(file),StringComparison.OrdinalIgnoreCase)){SetStatus("不能覆盖原始 RAW。",true);return;}
         exporting=true;RefreshControls();SetStatus("正在全分辨率导出…");
         var input=file;var adjustment=settings.Clone();var film=lut;
         // Render to a sibling temporary file, then replace only after encoding succeeds.
-        var temp=Path.Combine(Path.GetDirectoryName(dialog.FileName)!,".rawlab-"+Guid.NewGuid().ToString("N")+(png ? ".png" : ".jpg"));
+        var temp=Path.Combine(Path.GetDirectoryName(dialog.FileName)!,".rawlab-"+Guid.NewGuid().ToString("N")+"."+suffix);
         var size=exportLongEdge;
-        try { await Task.Run(()=>engine.Render(input,adjustment,film,0,false,temp,longEdge:size));File.Move(temp,dialog.FileName,true);SetStatus($"已导出（{(engine.LastBackend==3 ? "Direct3D 11" : "CPU")}）：{dialog.FileName}"); }
+        try
+        {
+            using var sourceLock = WindowsFileIdentity.OpenReadLock(input);
+            if (WindowsFileIdentity.IsSameFile(sourceLock, dialog.FileName))
+            {
+                SetStatus("不能覆盖原始 RAW。", true);
+                return;
+            }
+            await Task.Run(()=>engine.Render(input,adjustment,film,0,false,temp,longEdge:size));
+            if (WindowsFileIdentity.IsSameFile(sourceLock, dialog.FileName))
+            {
+                SetStatus("不能覆盖原始 RAW。", true);
+                return;
+            }
+            File.Move(temp,dialog.FileName,true);
+            SetStatus($"已导出（{(engine.LastBackend==3 ? "Direct3D 11" : "CPU")}）：{dialog.FileName}");
+        }
         catch(Exception ex){Report(ex);}
         finally {try{if(File.Exists(temp))File.Delete(temp);}catch(IOException){} exporting=false;RefreshControls();if(closing)FinishClose();else UpdatePreviewSize(requestedPreviewLongEdge);}
     }

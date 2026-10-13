@@ -41,6 +41,36 @@ internal static class Native
         [MarshalAs(UnmanagedType.ByValArray, SizeConst=8)] public float[] Saturation;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst=8)] public float[] Lightness;
     }
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct LensConfig {
+        public uint Version, StructSize;
+        public int Distortion, Tca, AutoCrop;
+        [MarshalAs(UnmanagedType.LPUTF8Str)] public string ProfileId;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct LensProfile {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst=512)] public byte[] Id;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst=128)] public byte[] Maker;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst=256)] public byte[] Model;
+        public int HasDistortion, HasTca, IsMatch;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct LensReport {
+        public int State;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst=128)] public byte[] CameraMake;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst=128)] public byte[] CameraModel;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst=256)] public byte[] LensModel;
+        public float FocalLength;
+        public LensProfile Profile;
+        public int AppliedDistortion, AppliedTca;
+        public float CropScale;
+    }
+    internal static string Text(byte[]? value)
+    {
+        if (value == null) return "";
+        var end = Array.IndexOf(value, (byte)0);
+        return System.Text.Encoding.UTF8.GetString(value, 0, end >= 0 ? end : value.Length);
+    }
     internal sealed class Session : SafeHandleZeroOrMinusOneIsInvalid
     {
         public Session() : base(true) { Check(sony2fuji_session_create(out var value)); SetHandle(value); }
@@ -55,6 +85,10 @@ internal static class Native
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] private static extern int sony2fuji_session_create(out IntPtr session);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] private static extern int sony2fuji_session_destroy(IntPtr session);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_raw_exposure_mode(Session session,int mode);
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_lens_database(Session session,[MarshalAs(UnmanagedType.LPUTF8Str)] string path);
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_lens_correction(Session session,ref LensConfig config);
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_get_lens_report(Session session,out LensReport report);
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_inspect_lens(Session session,[MarshalAs(UnmanagedType.LPUTF8Str)] string input,out LensReport report,[Out] LensProfile[]? profiles,uint capacity,out uint count);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_hsl(Session session,ref HslConfig config);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_estimate_auto_exposure(Session session,ref Request request,out float exposure);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_gpu_config(Session session,ref GpuConfig config);

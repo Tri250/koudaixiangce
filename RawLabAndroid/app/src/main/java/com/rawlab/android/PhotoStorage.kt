@@ -34,6 +34,26 @@ class PhotoStorage(
     private val resolver = context.contentResolver
     private val directory = File(context.cacheDir, "rawlab-${UUID.randomUUID()}")
     private val lookLibrary = LookLibrary(looksDirectory, lookValidator)
+    private var lensDirectory: File? = null
+
+    @Synchronized
+    fun lensDatabase(): File {
+        lensDirectory?.let { return it }
+        val target = File(context.filesDir, "lensfun-db1-20261012")
+        if (!target.isDirectory && !target.mkdirs()) throw IOException("Cannot create lens database directory")
+        val names = context.assets.list("Lensfun")?.filter { it.endsWith(".xml") }.orEmpty()
+        if (names.isEmpty()) throw IOException("Lens database is missing")
+        for (name in names) {
+            val temporary = File(target, "$name.tmp")
+            try {
+                context.assets.open("Lensfun/$name").use { input -> temporary.outputStream().use(input::copyTo) }
+                java.nio.file.Files.move(temporary.toPath(), File(target, name).toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } finally { temporary.delete() }
+        }
+        lensDirectory = target
+        return target
+    }
 
     fun album(): List<AlbumPhoto> {
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
@@ -127,9 +147,9 @@ class PhotoStorage(
         return destination
     }
 
-    fun temporaryOutput(png: Boolean): File {
+    fun temporaryOutput(format: ExportFormat): File {
         directory.mkdirs()
-        return File.createTempFile("export-", if (png) ".png" else ".jpg", directory)
+        return File.createTempFile("export-", format.suffix, directory)
     }
 
     fun saveDocument(file: File, destination: Uri, original: Uri) {
@@ -138,20 +158,21 @@ class PhotoStorage(
         stream.use { output -> file.inputStream().use { it.copyTo(output) } }
     }
 
-    fun saveAlbum(file: File, png: Boolean, outputName: String? = null, onCreated: (Uri) -> Unit = {}): Uri {
+    fun saveAlbum(file: File, format: ExportFormat, outputName: String? = null, onCreated: (Uri) -> Unit = {}): Uri {
         check(Build.VERSION.SDK_INT >= 29)
+        require(format.allowsGallery) { "${format.name} export cannot be saved to the gallery" }
         val names = mutableSetOf<String>()
         resolver.query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Images.Media.DISPLAY_NAME),
             "${MediaStore.Images.Media.RELATIVE_PATH} = ?", arrayOf("Pictures/RawLab/"), null)?.use { cursor ->
             while (cursor.moveToNext()) names += cursor.getString(0).lowercase()
         }
-        val name = outputName ?: "RawLab-${System.currentTimeMillis()}.${if (png) "png" else "jpg"}"
+        val name = outputName ?: "RawLab-${System.currentTimeMillis()}${format.suffix}"
         var candidate = name
         var suffix = 2
         while (candidate.lowercase() in names) candidate = "${name.substringBeforeLast('.')}-${suffix++}.${name.substringAfterLast('.')}"
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, candidate)
-            put(MediaStore.Images.Media.MIME_TYPE, if (png) "image/png" else "image/jpeg")
+            put(MediaStore.Images.Media.MIME_TYPE, format.mimeType)
             put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/RawLab")
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }

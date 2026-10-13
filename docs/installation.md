@@ -38,6 +38,11 @@ Export any unsaved work before uninstalling a debug build. See the
 
 ## iOS
 
+For step-by-step personal-device installation, see the
+[iPhone installation guide](ios-installation.md)
+([Simplified Chinese](ios-installation.zh-CN.md)), including an executable
+workflow for AI agents.
+
 **The unsigned IPA cannot be installed directly.** Re-sign the application and
 embedded framework with your own valid certificate and provisioning profile.
 It is not an App Store or TestFlight package. Physical-device installation,

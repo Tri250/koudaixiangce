@@ -44,7 +44,7 @@ fun BatchExportScreen(
     var album by rememberSaveable { mutableStateOf(false) }
     var discard by remember { mutableStateOf(false) }
     var effectTarget by remember { mutableStateOf<BatchRow?>(null) }
-    var png by rememberSaveable(state.job.id) { mutableStateOf(state.job.outputPng) }
+    var format by rememberSaveable(state.job.id) { mutableStateOf(state.job.outputFormat) }
     var exportSizeKey by rememberSaveable(state.job.id) {
         mutableStateOf(exportSizeChoice(state.job.outputLongEdge).key)
     }
@@ -84,13 +84,13 @@ fun BatchExportScreen(
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             when (state.phase) {
-                BatchPhase.SELECTING -> BatchConfirmContent(state, storage, png, destination,
+                BatchPhase.SELECTING -> BatchConfirmContent(state, storage, format, destination,
                     ExportSizeChoice.fromKey(exportSizeKey), exportCustomSize,
                     onAlbum = { album = true }, onFiles = { files.launch(arrayOf("*/*")) },
-                    onDirectory = { directory.launch(null) }, onAlbumOutput = { destination = null; model.setDestination(null) }, onPng = { png = it },
+                    onDirectory = { directory.launch(null) }, onAlbumOutput = { destination = null; model.setDestination(null) }, onFormat = { format = it },
                     onSize = { choice -> exportSizeKey = choice.key }, onCustomSize = { exportCustomSize = it },
                     onRemove = model::remove, onInspect = { effectTarget = it },
-                    onStart = { model.start(png, destination, ExportSize.parse(ExportSizeChoice.fromKey(exportSizeKey), exportCustomSize)) })
+                    onStart = { model.start(format, destination, ExportSize.parse(ExportSizeChoice.fromKey(exportSizeKey), exportCustomSize)) })
                 BatchPhase.PREPARING, BatchPhase.RUNNING -> BatchProgressContent(state, model::cancel)
                 BatchPhase.COMPLETE, BatchPhase.CANCELLED, BatchPhase.FAILED -> BatchResultContent(state,
                     onRetry = model::retryFailed, onClose = onBack, onDirectory = { directory.launch(state.destination) },
@@ -126,7 +126,7 @@ fun BatchExportScreen(
 private fun BatchConfirmContent(
     state: BatchExportState,
     storage: PhotoStorage,
-    png: Boolean,
+    format: ExportFormat,
     destination: Uri?,
     sizeChoice: ExportSizeChoice,
     customSize: String,
@@ -134,7 +134,7 @@ private fun BatchConfirmContent(
     onFiles: () -> Unit,
     onDirectory: () -> Unit,
     onAlbumOutput: () -> Unit,
-    onPng: (Boolean) -> Unit,
+    onFormat: (ExportFormat) -> Unit,
     onSize: (ExportSizeChoice) -> Unit,
     onCustomSize: (String) -> Unit,
     onRemove: (String) -> Unit,
@@ -192,11 +192,12 @@ private fun BatchConfirmContent(
         item {
             Text("输出", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(20.dp, 16.dp, 20.dp, 4.dp))
             Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !png, onClick = { onPng(false) }, label = { Text(stringResource(R.string.jpeg)) })
-                FilterChip(selected = png, onClick = { onPng(true) }, label = { Text(stringResource(R.string.png)) })
+                FilterChip(selected = format == ExportFormat.JPEG, onClick = { onFormat(ExportFormat.JPEG) }, label = { Text(stringResource(R.string.jpeg)) })
+                FilterChip(selected = format == ExportFormat.PNG, onClick = { onFormat(ExportFormat.PNG) }, label = { Text(stringResource(R.string.png)) })
+                FilterChip(selected = format == ExportFormat.DNG, onClick = { onFormat(ExportFormat.DNG) }, label = { Text(stringResource(R.string.dng)) })
             }
             Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (Build.VERSION.SDK_INT >= 29) {
+                if (Build.VERSION.SDK_INT >= 29 && format.allowsGallery) {
                     FilterChip(selected = destination == null, onClick = onAlbumOutput, label = { Text("照片图库") })
                 }
                 OutlinedButton(onClick = onDirectory) { Icon(Icons.Outlined.FolderOpen, null); Spacer(Modifier.width(4.dp)); Text("选择目录") }
@@ -208,14 +209,15 @@ private fun BatchConfirmContent(
                 onCustomText = onCustomSize,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
-            Text(destination?.lastPathSegment ?: "照片图库", Modifier.padding(horizontal = 20.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(destination?.lastPathSegment ?: if (format.allowsGallery) "照片图库" else "请选择输出目录",
+                Modifier.padding(horizontal = 20.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             state.error?.let { Text(it, Modifier.padding(20.dp), color = MaterialTheme.colorScheme.error) }
         }
     }
     Text("仅用于本次导出，保留各照片原有调整", Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall)
     val longEdge = ExportSize.parse(sizeChoice, customSize)
     val sizeValid = sizeChoice != ExportSizeChoice.CUSTOM || longEdge != null
-    Button(onClick = onStart, enabled = sizeValid && state.job.rows.isNotEmpty() && (Build.VERSION.SDK_INT >= 29 || destination != null), modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+    Button(onClick = onStart, enabled = sizeValid && state.job.rows.isNotEmpty() && (destination != null || (Build.VERSION.SDK_INT >= 29 && format.allowsGallery)), modifier = Modifier.fillMaxWidth().padding(20.dp)) {
         Text("导出 ${state.job.rows.size} 张")
     }
     }
@@ -313,6 +315,10 @@ private fun SettingsSummary(settings: EditSettings) {
         SettingLine("亮度降噪", String.format("%.0f", settings.denoise.luma))
         SettingLine("色彩降噪", String.format("%.0f", settings.denoise.chroma))
         SettingLine("粗颗粒降噪", String.format("%.0f", settings.denoise.coarse))
+        SettingLine("镜头匹配", if (settings.lens.manual) "手动配置" else "按每张照片自动匹配")
+        SettingLine("畸变矫正", if (settings.lens.distortion) "开启" else "关闭")
+        SettingLine("横向色差", if (settings.lens.tca) "开启" else "关闭")
+        SettingLine("自动裁边", if (settings.lens.autoCrop) "开启" else "关闭")
         SettingLine("显示色彩降噪", settings.displayChromaDenoise.toString())
         SettingLine("暗角", String.format("强度 %+.0f · 中点 %.0f · 圆度 %+.0f · 羽化 %.0f · 高光保护 %.0f",
             settings.effects.vignetteAmount, settings.effects.vignetteMidpoint, settings.effects.vignetteRoundness,

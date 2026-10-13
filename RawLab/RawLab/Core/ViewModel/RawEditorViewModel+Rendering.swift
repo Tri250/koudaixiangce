@@ -105,6 +105,7 @@ extension RawEditorViewModel {
                             return
                         }
                         self.previewImage = previewImage
+                        self.lensInfo = result.lensInfo
                         if self.sourceOrientation == nil {
                             self.sourceOrientation = result.orientation
                         }
@@ -160,6 +161,7 @@ extension RawEditorViewModel {
                     return
                 }
                 self.previewImage = previewImage
+                self.lensInfo = nil
             }
 
             if includeHistogram {

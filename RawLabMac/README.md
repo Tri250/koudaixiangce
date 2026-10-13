@@ -6,7 +6,22 @@ A native SwiftUI/AppKit desktop editor for visual verification, sharing the C++ 
 
 ## 功能预览 / Preview
 
-v0.5.0 新增逐照片本机调整记忆和“使用当前调整批量导出”。任务固定来源参数、降噪设置和外观，可多选 RAW、检查目标效果、选择 JPEG/16-bit PNG 与输出目录，支持取消、继续、失败重试和中断恢复；不覆盖原片或目标编辑记录。迁移到 `development` 后的验证见[验收记录](../docs/verification-edit-memory-batch-export-2026-10-10.md)。
+单张及批量导出新增“DNG · 渲染型”。完整渲染当前外观、白平衡、曝光、明暗、HSL、
+降噪、锐化、暗角和颗粒后，以输出参考的线性 sRGB 浮点 RGB 写入 DNG 1.4。
+支持原尺寸及长边限制，不导出低分辨率预览。调整固化在像素中，不是可逐项撤销的
+Lightroom 调整，也不恢复原始 RAW 动态范围。初版不复制相机拍摄 EXIF、旧预览或
+传感器专属标签；虚拟相机和中性色彩配置描述已渲染像素。JPEG/PNG 的拍摄元数据
+保留行为不变。未压缩 DNG 约需每像素 12 字节。
+
+Single and batch export now include rendered DNG. The FINAL pipeline bakes all
+current adjustments before writing output-referred linear-sRGB float RGB in DNG
+1.4. Native and limited-long-edge sizes are supported. This preserves the look,
+not reversible Lightroom controls or original RAW latitude. This initial format
+does not copy capture EXIF, old previews or sensor-only tags; its virtual camera
+profile describes rendered pixels. JPEG/PNG capture metadata remains unchanged.
+Uncompressed DNG uses approximately 12 bytes per pixel.
+
+v0.5.0 新增逐照片本机调整记忆和“使用当前调整批量导出”。任务固定来源参数、降噪设置和外观，可多选 RAW、检查目标效果、选择 JPEG/16-bit PNG 与输出目录，支持取消、继续、失败重试和中断恢复；不覆盖原片或目标编辑记录。迁移到 `development` 后的验证见[验收记录](../docs/archive/verification/verification-edit-memory-batch-export-2026-10-10.md)。
 
 ![RawLab Mac：中性与 Velvia 效果对比 / Neutral and Velvia comparison](../docs/images/rawlab-mac-velvia.png)
 
@@ -15,6 +30,8 @@ v0.5.0 新增逐照片本机调整记忆和“使用当前调整批量导出”�
 The left pane is the neutral render and the right pane is Velvia. Film selection and exposure, tone, color, white balance and sharpening controls are grouped at the bottom.
 
 ## 构建和启动 / Build and Launch
+镜头工具提供独立的畸变矫正、横向色差校正、自动/手动匹配和自动裁边，默认关闭校正。配置随逐照片编辑保存，批量自动模式逐张匹配；中性对照不校正。离线数据库、依赖和功能边界见[跨平台说明](../docs/lens-correction-platforms.md)。紫绿去边暂未实现。
+
 
 v0.6.0 构建 10 提供 14 个优化后的大师配方、八色 HSL 与一键自动曝光。应用配方覆盖六项调色及全部 HSL；0-200% 强度一起缩放当前调整与 LUT，保存和批量导出保留手动改动。配方以风格图片、下方名称和较弱说明呈现；胶片和配方列表仅在溢出时显示左右滚动按钮。详细更新见[发布说明](../docs/releases/v0.6.0.md)和[发布验收](../docs/verification-v0.6.0.md)。
 
@@ -57,9 +74,9 @@ The flat app icon uses overlapping yellow/cyan frames on charcoal to suggest the
 
 Rebuild third-party libraries from pinned upstream source archives and produce two separate apps without overwriting the default build. Requires CMake, pkg-config, make, Apple Command Line Tools, and curl. NASM optionally enables Intel libjpeg SIMD acceleration; decoding still works without it. OpenMP, JPEG, DNG deflate and LCMS are retained. LibRaw 0.22 no longer enables the legacy RedCine/JasPer path; prior JPEG2000 coverage is not promised.
 
-新版相机校准、R6 III 元数据、X2D II 裁切及 X-Trans 并发修复由 `lutools/cmake/patch-libraw.cmake` 应用到源码依赖。未打补丁的 Homebrew/系统 LibRaw 0.22.2 不包含这些修复；请使用下列源码构建和对应 `PKG_CONFIG_PATH`。逐样片结果及 HE* 限制见[兼容性报告](../docs/verification-raw-compatibility-2026-10-09.md)。
+新版相机校准、R6 III 元数据、X2D II 裁切及 X-Trans 并发修复由 `lutools/cmake/patch-libraw.cmake` 应用到源码依赖。未打补丁的 Homebrew/系统 LibRaw 0.22.2 不包含这些修复；请使用下列源码构建和对应 `PKG_CONFIG_PATH`。逐样片结果及 HE* 限制见[兼容性报告](../docs/archive/verification/verification-raw-compatibility-2026-10-09.md)。
 
-Camera calibration, R6 III metadata, X2D II crop and X-Trans concurrency fixes are applied to source dependencies by `lutools/cmake/patch-libraw.cmake`. Unpatched Homebrew/system LibRaw 0.22.2 does not include them; use the source build and matching `PKG_CONFIG_PATH` below. See the [compatibility report](../docs/verification-raw-compatibility-2026-10-09.md) for per-sample results and HE* limitations.
+Camera calibration, R6 III metadata, X2D II crop and X-Trans concurrency fixes are applied to source dependencies by `lutools/cmake/patch-libraw.cmake`. Unpatched Homebrew/system LibRaw 0.22.2 does not include them; use the source build and matching `PKG_CONFIG_PATH` below. See the [compatibility report](../docs/archive/verification/verification-raw-compatibility-2026-10-09.md) for per-sample results and HE* limitations.
 
 ```bash
 for arch in arm64 x86_64; do

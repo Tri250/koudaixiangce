@@ -487,12 +487,16 @@ final class EditorModel: ObservableObject {
         busy = workerActive || scheduler.isBusy || viewportResizeWork != nil
     }
     func export(png: Bool) {
+        export(format: png ? .png : .jpeg)
+    }
+
+    func export(format: ExportFormat) {
         guard !busy, !exporting, !lookLibraryBusy, !missingFilm, !missingMasterRecipe, result != nil, let file else { return }
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [png ? .png : .jpeg]
+        panel.allowedContentTypes = [format.contentType]
         let lookName = settings.masterRecipe?.name ?? selectedFilm?.name ?? "neutral"
         panel.nameFieldStringValue = file.deletingPathExtension().lastPathComponent + "-" +
-            lookName + (png ? ".png" : ".jpg")
+            lookName + "." + format.suffix
         let sizePicker = NSHostingView(rootView: ExportSizeAccessory(model: self).padding(12).frame(width: 360))
         sizePicker.frame = NSRect(x: 0, y: 0, width: 360, height: 110)
         panel.accessoryView = sizePicker
