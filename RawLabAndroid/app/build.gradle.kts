@@ -61,12 +61,21 @@ android {
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", "-DANDROID_STL=c++_shared") } }
     }
     buildFeatures { compose = true }
-    // 发行版使用 debug 密钥签名：开源分发没有共享 release keystore，
-    // 未签名的 APK 无法安装；debug 密钥随 SDK 自动生成且可复现。
+    // 发行签名必须跨版本稳定，否则用户无法覆盖安装升级：
+    // 优先用 CI 注入的环境变量（正式密钥），缺省回退到仓库内密钥
+    // （keystore/rawlab-release.jks，口令 rawlab，别名 rawlab，有效期 30 年）。
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("RAWLAB_KEYSTORE") ?: "../keystore/rawlab-release.jks")
+            storePassword = System.getenv("RAWLAB_KEYSTORE_PASSWORD") ?: "rawlab"
+            keyAlias = System.getenv("RAWLAB_KEY_ALIAS") ?: "rawlab"
+            keyPassword = System.getenv("RAWLAB_KEY_PASSWORD") ?: "rawlab"
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
