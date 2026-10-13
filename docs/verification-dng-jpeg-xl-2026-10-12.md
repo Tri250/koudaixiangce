@@ -97,3 +97,45 @@ Windows 硬件 GPU 和完整 WPF 交互仍未验证。本节均为本地/专用�
 `ios-framework.log`、`ios-simulator/dng-jxl.log`、`rawlab-sim-build.log` 和
 `rawlab-device-build.log`。Windows 日志位于
 `build/windows-remote/20261012-220912/` 的 `build.log` 与 `dng-jxl-runtime.log`。
+
+## PR 23 评审修复复验 2026-10-13
+
+本轮在 `feature/dng-jpeg-xl-decoding` 上处理 Stage1、ActiveArea 与 SDK 内存异常，
+不修改公共 C ABI、原始 RAW 或其他解码器。三个评审问题均先复现再修复：
+
+| 条件 | 修复前 | 修复后 |
+| --- | --- | --- |
+| 只有必需 Stage1 MapTable、没有 OpcodeList2/3 | 加载成功，但与独立半值像素对照的最大误差为 `0.186099`，测试退出 1 | 强制 SDK Stage2 路径先执行 Stage1，最大误差为 0 |
+| 32x24 存储尺寸、内部 30x22 ActiveArea、必需 GainMap | 返回 `Corrupted data or unexpected EOF`，测试退出 1 | 同步 SDK 输出尺寸及边缘偏移，方向 6 的输出为 22x30，最大误差为 0 |
+| SDK 分配器内存不足 | 加载、白平衡重载及 C ABI 都被误分类为普通解码/处理错误，测试退出 1 | SDK `dng_error_memory` 和 `std::bad_alloc` 保留为 LibRaw 内存错误，再返回 `OutOfMemory` / `OUT_OF_MEMORY`，不产生 C ABI 输出 |
+| ActiveArea 内还有非零 DefaultCropOrigin | 仅允许尺寸变化后仍有像素偏移，最大误差为 `0.0244148`，测试退出 1 | 将两个 inset crop 项从存储坐标转成 Stage2 坐标，20x28 输出最大误差为 0 |
+
+回归套件现在使用 11 个合成 DNG。Stage1 MapTable 与独立未压缩半值像素比较；
+ActiveArea/GainMap 和 DefaultCrop/GainMap 各与独立双倍整数像素比较；未知必需
+Stage1 opcode 必须在 core 和 C ABI 中拒绝，不能静默跳过。所有新增用例都在
+默认 `dng_jxl_tests` 中运行，不依赖手动选择参数。内存故障通过 SDK 官方的
+`DNG_SetSimulateMemoryFull` 注入，覆盖首次加载、白平衡重载和 C ABI。
+
+LibRaw 补丁已分别验证干净源码、旧补丁缓存升级和重复执行；没有修改上游 SDK
+像素解码源文件。Windows 传输白名单及 iOS staging 已同步新增 fixture，个人
+RAW 排除规则不变。
+
+最终源码复验：
+
+| 平台/检查 | 结果 |
+| --- | --- |
+| macOS arm64 | 原生核心、客户端和打包通过；CTest 16/16；11 个 fixture 与外部 Samsung DNG 回归通过；实际客户端 Samsung/DJI JPEG、16-bit PNG 导出通过 |
+| iOS | 三切片 XCFramework、模拟器 Debug、未签名设备 Release 构建通过；模拟器 11 个 fixture、OOM 及外部 DNG 回归通过，新增 DefaultCrop 误差为 0 |
+| Android | 两 ABI 构建通过；API 35 arm64 模拟器 11 个 fixture、OOM 及外部 DNG 回归通过，新增 DefaultCrop 误差为 0；本轮 58 项 JVM 测试和 Lint 已通过，最终仅改 C++ glue 后未重复无关的 JVM/Lint 检查 |
+| Windows x64 | 专用构建机原生/WPF 自包含包构建通过；4/4 CPU CTest；11 个 fixture、OOM 及外部 DNG 回归通过，新增 DefaultCrop 误差为 0；`raw_smoke` 和六份 SDK notice 检查通过，临时个人 DNG 已删除 |
+| 源码/补丁检查 | Windows 源码打包单元测试、shell 语法及 `git diff --check` 通过；干净源和已打补丁源重复执行 CMake patch 通过 |
+
+本轮日志位于 `build/dng-jxl-review/`，包括 `macos-ctest-final.log`、
+`macos-dng-jxl-final.log`、`macos-app-final.log`、`macos-app-smoke-final.log`、
+`android-final-gradle.log`、`android-final-dng-jxl.log`、`ios-final-framework.log`
+和 `ios-final-simulator/dng-jxl.log`；Windows 运行证据为
+`windows-targeted-tests-final.log` 与 `windows-final-cleanup-check.log`，最终构建记录
+位于 `build/windows-remote/20261013-110110/build.log`。这些是本地/专用构建机检查，
+不是 hosted CI。
+物理移动设备、Android x86_64 运行时、Windows 硬件 GPU 和完整 WPF 交互仍未验证；
+CPU/Auto 像素一致不代表硬件 GPU 已执行。

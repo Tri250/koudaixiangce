@@ -33,15 +33,24 @@ sample-limited validation are documented in the RAW compatibility report.
 
 JPEG XL DNG (compression 52546) uses the pinned Adobe DNG SDK 1.7.1 through
 LibRaw, with a per-processor host whose lifetime exceeds LibRaw's. Only this
-decoder receives the SDK host. Required Stage2/Stage3 opcode lists are applied
-through `LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL`; LibRaw then develops
-the decoded camera channels using the existing exposure and color pipeline.
+decoder receives the SDK host. `LIBRAW_RAWOPTIONS_DNG_STAGE2` runs Stage1
+opcodes before linearization even when OpcodeList2/3 are absent;
+`LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL` also applies Stage3 when present.
+`LIBRAW_RAWOPTIONS_DNG_ALLOWSIZECHANGE` lets LibRaw synchronize the SDK's
+ActiveArea-cropped dimensions and clear the storage margins. The glue also
+translates inset crop origins into the cropped image coordinates, avoiding
+rejection, a second ActiveArea crop or a shifted DefaultCrop. Unsupported
+required opcodes fail rather than being ignored.
+LibRaw then develops the decoded camera channels using the existing exposure
+and color pipeline. SDK memory exceptions retain their OutOfMemory category
+through initial load, white-balance reload and the C ABI.
 Other RAW/DNG formats retain their previous decoder paths. SDK and LibRaw must
 share the same platform and `qDNGThreadSafe` definitions to preserve SDK class
 layout, including on iOS/Android. XMP editing and the SDK validator are not
 included. Synthetic lossless 16-bit LinearRaw fixtures compare JXL with the
-same uncompressed pixels, including a required Stage2 GainMap, orientation,
-WB reload and decoder reuse.
+same uncompressed pixels, including a Stage1-only required MapTable, a required
+Stage2 GainMap with internal ActiveArea, orientation, WB reload and decoder
+reuse. The SDK allocation-failure hook verifies the C ABI memory status.
 
 ## Rendering Order
 

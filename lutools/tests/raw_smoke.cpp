@@ -16,7 +16,9 @@ void enableJXL(LibRaw& raw, dng_host& host) {
     const char* decoder = raw.unpack_function_name();
     if (decoder && std::strcmp(decoder, "jxl_dng_load_raw_placeholder()") == 0) {
         raw.set_dng_host(&host);
-        raw.imgdata.rawparams.options |= LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL;
+        raw.imgdata.rawparams.options |= LIBRAW_RAWOPTIONS_DNG_STAGE2 |
+            LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL |
+            LIBRAW_RAWOPTIONS_DNG_ALLOWSIZECHANGE;
     }
 }
 #endif

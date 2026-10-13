@@ -50,5 +50,6 @@ target_link_libraries(rawlab_gpu_tests PRIVATE sony2fuji_core)
 
 add_executable(rawlab_dng_tests EXCLUDE_FROM_ALL "${REPO}/lutools/tests/dng_jxl_tests.cpp")
 target_include_directories(rawlab_dng_tests PRIVATE "${REPO}/lutools/include")
-target_compile_definitions(rawlab_dng_tests PRIVATE TEST_FIXTURE_DIR="${REPO}/lutools/tests/fixtures")
+target_compile_definitions(rawlab_dng_tests PRIVATE SONY2FUJI_ENABLE_DNGSDK
+    TEST_FIXTURE_DIR="${REPO}/lutools/tests/fixtures")
 target_link_libraries(rawlab_dng_tests PRIVATE sony2fuji_core)

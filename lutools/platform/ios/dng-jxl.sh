@@ -38,6 +38,13 @@ fixtures=(
     linear-uncompressed.dng
     linear-jxl-gain.dng
     linear-doubled.dng
+    linear-jxl-stage1.dng
+    linear-halved.dng
+    linear-jxl-crop-gain.dng
+    linear-crop-doubled.dng
+    linear-jxl-required-unknown.dng
+    linear-jxl-default-crop-gain.dng
+    linear-default-crop-doubled.dng
 )
 for fixture in "${fixtures[@]}"; do
     cp "$ROOT/tests/fixtures/$fixture" "$STAGE/$fixture"
@@ -51,9 +58,15 @@ if [ -n "$EXTERNAL" ]; then
 fi
 
 test_define="-DTEST_FIXTURE_DIR=\"$ROOT/tests/fixtures\""
+core="$ROOT/build-ios-libraw/0.22.2/core-iphonesimulator-arm64"
+dng_source="$(sed -n 's/^FETCHCONTENT_SOURCE_DIR_RAWLAB_DNG_SOURCE:[^=]*=//p' "$core/CMakeCache.txt")"
+dng_source="${dng_source:-$core/_deps/rawlab_dng_source-src}"
+dng_headers="${RAWLAB_DNGSDK_HEADERS:-$dng_source/dng_sdk/source}"
+test -f "$dng_headers/dng_memory.h"
 xcrun --sdk iphonesimulator clang++ -std=c++17 -O2 \
     -target "arm64-apple-ios$DEPLOYMENT_TARGET-simulator" -isysroot "$SDK" \
-    -I "$ROOT/include" "$test_define" \
+    -I "$ROOT/include" -I "$dng_headers" "$test_define" \
+    -DSONY2FUJI_ENABLE_DNGSDK -DqDNGThreadSafe=1 -DqiPhone=1 -DqiPhoneSimulator=1 \
     "$ROOT/tests/dng_jxl_tests.cpp" -F "$FRAMEWORK" -framework sony2fuji \
     -Xlinker -rpath -Xlinker "$FRAMEWORK" -o "$BINARY"
 

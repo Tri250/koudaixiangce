@@ -53,10 +53,7 @@ public:
         if (ret != LIBRAW_SUCCESS) {
             std::cerr << "无法打开 RAW 文件: " << libraw_strerror(ret) << std::endl;
             invalidateState();
-            if (ret == LIBRAW_FILE_UNSUPPORTED) return ErrorCode::InvalidFormat;
-            if (ret == LIBRAW_IO_ERROR) return ErrorCode::FileNotFound;
-            if (ret == LIBRAW_UNSUFFICIENT_MEMORY || ret == LIBRAW_MEMPOOL_OVERFLOW) return ErrorCode::OutOfMemory;
-            return ErrorCode::ProcessingError;
+            return decodeError(ret);
         }
 
         sourceReady_ = true;
@@ -88,8 +85,8 @@ public:
         // half_size skips the LibRaw interpolation stage that runs FBDD.
         params.half_size = options.halfSize && options.rawNoiseReduction == 0 ? 1 : 0;
         params.fbdd_noiserd = options.rawNoiseReduction;
-        if (ensureIdentificationMode(cameraWB, autoWB) != ErrorCode::Success)
-            return ErrorCode::ProcessingError;
+        const ErrorCode identificationResult = ensureIdentificationMode(cameraWB, autoWB);
+        if (identificationResult != ErrorCode::Success) return identificationResult;
         params.use_camera_matrix = 3;
         params.use_camera_wb = cameraWB ? 1 : 0;
         params.use_auto_wb = autoWB ? 1 : 0;
@@ -284,13 +281,16 @@ private:
 #ifdef SONY2FUJI_ENABLE_DNGSDK
         // 仅 JPEG XL 使用 SDK，其他 RAW 保留现有解码和白平衡路径。
         const char* decoder = rawProcessor_->unpack_function_name();
+        constexpr unsigned dngOptions = LIBRAW_RAWOPTIONS_DNG_STAGE2 |
+            LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL | LIBRAW_RAWOPTIONS_DNG_ALLOWSIZECHANGE;
         if (decoder && std::strcmp(decoder, "jxl_dng_load_raw_placeholder()") == 0) {
             if (!dngHost_) dngHost_ = std::make_unique<dng_host>();
             rawProcessor_->set_dng_host(dngHost_.get());
-            rawProcessor_->imgdata.rawparams.options |= LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL;
+            // Stage2 先执行必需 Stage1；其 ActiveArea 裁剪由 LibRaw 同步尺寸和偏移。
+            rawProcessor_->imgdata.rawparams.options |= dngOptions;
         } else {
             rawProcessor_->set_dng_host(nullptr);
-            rawProcessor_->imgdata.rawparams.options &= ~LIBRAW_RAWOPTIONS_DNG_STAGE23_IFPRESENT_JPGJXL;
+            rawProcessor_->imgdata.rawparams.options &= ~dngOptions;
         }
 #endif
         const int unpackResult = rawProcessor_->unpack();
@@ -332,12 +332,19 @@ private:
         if (ret != LIBRAW_SUCCESS) {
             std::cerr << "无法重新加载 RAW 文件: " << libraw_strerror(ret) << std::endl;
             invalidateState();
-            return ErrorCode::ProcessingError;
+            return decodeError(ret);
         }
         identificationCameraWB_ = cameraWB;
         identificationAutoWB_ = autoWB;
         sourceReady_ = true;
         return ErrorCode::Success;
+    }
+
+    static ErrorCode decodeError(int ret) {
+        if (ret == LIBRAW_FILE_UNSUPPORTED) return ErrorCode::InvalidFormat;
+        if (ret == LIBRAW_IO_ERROR) return ErrorCode::FileNotFound;
+        if (ret == LIBRAW_UNSUFFICIENT_MEMORY || ret == LIBRAW_MEMPOOL_OVERFLOW) return ErrorCode::OutOfMemory;
+        return ErrorCode::ProcessingError;
     }
 
 #ifdef SONY2FUJI_ENABLE_DNGSDK

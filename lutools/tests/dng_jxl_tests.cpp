@@ -10,14 +10,64 @@
 #include <iterator>
 #include <string>
 #include <vector>
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+#include <dng_memory.h>
+#endif
 
 using namespace sony2fuji;
 
-bool compareLinear(RAWProcessor& compressed, RAWProcessor& reference, RAWProcessOptions options, float tolerance = 1e-5f) {
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+bool rejectSDKOutOfMemory(const std::string& path) {
+    struct SimulateMemoryFull {
+        SimulateMemoryFull() { DNG_SetSimulateMemoryFull(true); }
+        ~SimulateMemoryFull() { DNG_SetSimulateMemoryFull(false); }
+    };
+    RAWProcessor raw;
+    bool valid = false;
+    {
+        SimulateMemoryFull failure;
+        valid = raw.loadFile(path) == ErrorCode::OutOfMemory;
+    }
+    if (raw.loadFile(path) != ErrorCode::Success) return false;
+    RAWProcessOptions options;
+    options.useCameraWhiteBalance = false;
+    options.useCustomWhiteBalance = true;
+    options.customWhiteBalance[0] = 1.2f;
+    ImageData image;
+    {
+        SimulateMemoryFull failure;
+        valid = raw.process(options, image) == ErrorCode::OutOfMemory && valid;
+    }
+    sony2fuji_session* session = nullptr;
+    if (sony2fuji_session_create(&session) != SONY2FUJI_STATUS_OK) return false;
+    sony2fuji_request request{};
+    request.version = SONY2FUJI_REQUEST_VERSION;
+    request.struct_size = sizeof(request);
+    request.input_type = SONY2FUJI_INPUT_RAW;
+    request.input_path = path.c_str();
+    request.output_target = SONY2FUJI_TARGET_BUFFER;
+    request.output_format = SONY2FUJI_OUTPUT_RGB8;
+    request.size_mode = SONY2FUJI_SIZE_NATIVE;
+    request.brightness = request.contrast = request.saturation = 1;
+    sony2fuji_buffer output{};
+    {
+        SimulateMemoryFull failure;
+        valid = sony2fuji_process(session, &request, &output) == SONY2FUJI_STATUS_OUT_OF_MEMORY &&
+            !output.data && valid;
+    }
+    sony2fuji_release_buffer(&output);
+    sony2fuji_session_destroy(session);
+    std::cout << (valid ? "PASS" : "FAIL") << " SDK OOM survives load, WB reload and C ABI\n";
+    return valid;
+}
+#endif
+
+bool compareLinear(RAWProcessor& compressed, RAWProcessor& reference, RAWProcessOptions options,
+                   float tolerance = 1e-5f, int width = 24, int height = 32) {
     ImageData actual, expected;
     if (compressed.process(options, actual) != ErrorCode::Success ||
         reference.process(options, expected) != ErrorCode::Success ||
-        actual.width != 24 || actual.height != 32 ||
+        actual.width != width || actual.height != height ||
         expected.width != actual.width || expected.height != actual.height) return false;
     float maximumError = 0, maximumSignal = 0;
     for (size_t i = 0; i < actual.pixels.size(); ++i) {
@@ -26,24 +76,12 @@ bool compareLinear(RAWProcessor& compressed, RAWProcessor& reference, RAWProcess
         maximumError = std::max(maximumError, std::max({std::abs(a.r-b.r), std::abs(a.g-b.g), std::abs(a.b-b.b)}));
         maximumSignal = std::max(maximumSignal, std::max({a.r, a.g, a.b}));
     }
-    std::cout << "Lossless JXL linear maximum error=" << maximumError << '\n';
+    std::cout << "Lossless JXL linear " << actual.width << 'x' << actual.height
+              << " maximum error=" << maximumError << '\n';
     return maximumError < tolerance && maximumSignal > .01f;
 }
 
-bool rejectCorruptJXL(const std::string& source) {
-    std::ifstream input(std::filesystem::u8path(source), std::ios::binary);
-    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(input)), {});
-    const unsigned char signature[] = {0, 0, 0, 12, 'J', 'X', 'L', ' ', 13, 10, 135, 10};
-    auto marker = std::search(bytes.begin(), bytes.end(), std::begin(signature), std::end(signature));
-    if (marker == bytes.end()) return false;
-    *marker = 255;
-    auto path = std::filesystem::temp_directory_path() / ("rawlab-corrupt-jxl-" +
-        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".dng");
-    {
-        std::ofstream output(path, std::ios::binary);
-        output.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-    }
-    const auto name = path.u8string();
+bool rejectDecodeError(const std::string& name) {
     RAWProcessor raw;
     bool valid = raw.loadFile(name) == ErrorCode::ProcessingError;
     sony2fuji_session* session = nullptr;
@@ -62,6 +100,23 @@ bool rejectCorruptJXL(const std::string& source) {
     valid = valid && status == SONY2FUJI_STATUS_PROCESSING_ERROR && !output.data;
     sony2fuji_release_buffer(&output);
     sony2fuji_session_destroy(session);
+    return valid;
+}
+
+bool rejectCorruptJXL(const std::string& source) {
+    std::ifstream input(std::filesystem::u8path(source), std::ios::binary);
+    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(input)), {});
+    const unsigned char signature[] = {0, 0, 0, 12, 'J', 'X', 'L', ' ', 13, 10, 135, 10};
+    auto marker = std::search(bytes.begin(), bytes.end(), std::begin(signature), std::end(signature));
+    if (marker == bytes.end()) return false;
+    *marker = 255;
+    auto path = std::filesystem::temp_directory_path() / ("rawlab-corrupt-jxl-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".dng");
+    {
+        std::ofstream output(path, std::ios::binary);
+        output.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+    }
+    const bool valid = rejectDecodeError(path.u8string());
     std::filesystem::remove(path);
     std::cout << (valid ? "PASS" : "FAIL") << " Corrupt JXL is a decoding error, not a path error\n";
     return valid;
@@ -120,7 +175,12 @@ int main(int argc, char** argv) {
     }
     const std::string jxl = directory + "/linear-jxl.dng";
     const std::string plain = directory + "/linear-uncompressed.dng";
+#ifdef SONY2FUJI_ENABLE_DNGSDK
+    if (!rejectSDKOutOfMemory(jxl)) return 1;
+#endif
     if (!rejectCorruptJXL(jxl)) return 1;
+    if (!rejectDecodeError(directory + "/linear-jxl-required-unknown.dng")) return 1;
+    std::cout << "PASS Unsupported required Stage1 opcode is rejected\n";
     RAWProcessor compressed, reference;
     if (compressed.loadFile(jxl) != ErrorCode::Success || reference.loadFile(plain) != ErrorCode::Success) return 1;
     RAWProcessOptions options;
@@ -138,7 +198,16 @@ int main(int argc, char** argv) {
     if (compressed.loadFile(directory + "/linear-jxl-gain.dng") != ErrorCode::Success ||
         reference.loadFile(directory + "/linear-doubled.dng") != ErrorCode::Success ||
         !compareLinear(compressed, reference, options, 2e-4f)) return 1;
+    if (compressed.loadFile(directory + "/linear-jxl-stage1.dng") != ErrorCode::Success ||
+        reference.loadFile(directory + "/linear-halved.dng") != ErrorCode::Success ||
+        !compareLinear(compressed, reference, options, 2e-4f)) return 1;
+    if (compressed.loadFile(directory + "/linear-jxl-crop-gain.dng") != ErrorCode::Success ||
+        reference.loadFile(directory + "/linear-crop-doubled.dng") != ErrorCode::Success ||
+        !compareLinear(compressed, reference, options, 2e-4f, 22, 30)) return 1;
+    if (compressed.loadFile(directory + "/linear-jxl-default-crop-gain.dng") != ErrorCode::Success ||
+        reference.loadFile(directory + "/linear-default-crop-doubled.dng") != ErrorCode::Success ||
+        !compareLinear(compressed, reference, options, 2e-4f, 20, 28)) return 1;
     if (!compareRender(jxl.c_str()) || (external && !compareRender(external))) return 1;
-    std::cout << "PASS JPEG XL DNG decode, WB reload, decoder reuse and C ABI rendering\n";
+    std::cout << "PASS JPEG XL DNG opcodes, ActiveArea crop, WB reload, decoder reuse and C ABI rendering\n";
     return 0;
 }

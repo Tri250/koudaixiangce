@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 
-def write_dng(path, pixels, compression, opcodes=None):
+def write_dng(path, pixels, compression, opcodes=None, stage1=None, active_area=None, default_crop=None):
     width, height = 32, 24
     matrix = (32406, 10000, -15372, 10000, -4986, 10000,
               -9689, 10000, 18758, 10000, 415, 10000,
@@ -33,8 +33,13 @@ def write_dng(path, pixels, compression, opcodes=None):
         50721: (10, 9, struct.pack("<18i", *matrix)),
         50728: (5, 3, struct.pack("<6I", 1, 1, 1, 1, 1, 1)),
         50778: (3, 1, struct.pack("<H", 21)),
-        50829: (4, 4, struct.pack("<4I", 0, 0, height, width)),
+        50829: (4, 4, struct.pack("<4I", *(active_area or (0, 0, height, width)))),
     }
+    if stage1:
+        tags[51008] = (7, len(stage1), stage1)
+    if default_crop:
+        tags[50719] = (4, 2, struct.pack("<2I", *default_crop[:2]))
+        tags[50720] = (4, 2, struct.pack("<2I", *default_crop[2:]))
     if opcodes:
         tags[51009] = (7, len(opcodes), opcodes)
     data_start = 8 + 2 + 12 * len(tags) + 4
@@ -71,8 +76,25 @@ def main():
         payload = area + gain
         opcodes = struct.pack(">5I", 1, 9, 0x01030000, 0, len(payload)) + payload
         write_dng(output / "linear-jxl-gain.dng", jxl.read_bytes(), 52546, opcodes)
+        write_dng(output / "linear-jxl-crop-gain.dng", jxl.read_bytes(), 52546,
+                  opcodes, active_area=(1, 1, 23, 31))
+        write_dng(output / "linear-jxl-default-crop-gain.dng", jxl.read_bytes(), 52546,
+                  opcodes, active_area=(1, 1, 23, 31), default_crop=(1, 1, 28, 20))
+        table = struct.pack(">I65536H", 65536, *(value // 2 for value in range(65536)))
+        payload = area + table
+        stage1 = struct.pack(">5I", 1, 7, 0x01030000, 0, len(payload)) + payload
+        write_dng(output / "linear-jxl-stage1.dng", jxl.read_bytes(), 52546, stage1=stage1)
+        unknown = struct.pack(">5I", 1, 0xFFFFFFFF, 0x01030000, 0, 0)
+        write_dng(output / "linear-jxl-required-unknown.dng", jxl.read_bytes(), 52546, stage1=unknown)
     write_dng(output / "linear-uncompressed.dng", struct.pack(f"<{len(samples)}H", *samples), 1)
     write_dng(output / "linear-doubled.dng", struct.pack(f"<{len(samples)}H", *(value * 2 for value in samples)), 1)
+    write_dng(output / "linear-halved.dng", struct.pack(f"<{len(samples)}H", *(value // 2 for value in samples)), 1)
+    write_dng(output / "linear-crop-doubled.dng",
+              struct.pack(f"<{len(samples)}H", *(value * 2 for value in samples)), 1,
+              active_area=(1, 1, 23, 31))
+    write_dng(output / "linear-default-crop-doubled.dng",
+              struct.pack(f"<{len(samples)}H", *(value * 2 for value in samples)), 1,
+              active_area=(1, 1, 23, 31), default_crop=(1, 1, 28, 20))
 
 
 if __name__ == "__main__":
