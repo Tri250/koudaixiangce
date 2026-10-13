@@ -388,25 +388,3 @@ private enum PhotoLibraryBatchWriter {
         if checkpointError != nil { throw BatchExportError.uncertain("照片已写入，但任务记录未更新，请先核对保存结果。") }
     }
 }
-
-private enum BatchFileWriter {
-    static func write(file: URL, outputName: String, jobID: UUID,
-                      checkpoint: @escaping (String) throws -> Void) throws {
-        guard FileManager.default.fileExists(atPath: file.path) else {
-            throw BatchExportError.target("渲染型 DNG 未生成。")
-        }
-        let directory = try BatchFileOutputStore.directory(for: jobID)
-        let destination = directory.appendingPathComponent(outputName)
-        do {
-            if FileManager.default.fileExists(atPath: destination.path) {
-                _ = try FileManager.default.replaceItemAt(destination, withItemAt: file,
-                                                          backupItemName: nil, options: .usingNewMetadataOnly)
-            } else {
-                try FileManager.default.moveItem(at: file, to: destination)
-            }
-        } catch {
-            throw BatchExportError.global(error.localizedDescription)
-        }
-        try checkpoint("file:\(destination.path)")
-    }
-}

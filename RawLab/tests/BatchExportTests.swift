@@ -7,6 +7,14 @@ struct BatchExportTests {
         print("PASS: \(message)")
     }
 
+    static func require(_ condition: @autoclosure () -> Bool, _ message: String) throws {
+        guard condition() else {
+            throw NSError(domain: "DNGPublicationRegression", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        print("PASS: \(message)")
+    }
+
     static func main() throws {
         check(ExportSize.isValid(nil), "native export size is valid")
         check(ExportSize.presets == [2048, 3000, 4096], "standard export sizes are available")
@@ -229,6 +237,99 @@ struct BatchExportTests {
         check(FileManager.default.fileExists(atPath: relocated.source.lookURL!.path), "look survives iOS data-container relocation")
         let relocatedPending = try movedStore.pendingJobs()
         check(relocatedPending.first?.source.sourceURL == relocated.source.sourceURL, "startup uses relocated owned paths")
+        let outputRoot = BatchFileOutputStore.root()
+        let hadOutputRoot = FileManager.default.fileExists(atPath: outputRoot.path)
+        try FileManager.default.createDirectory(at: outputRoot, withIntermediateDirectories: true)
+        defer {
+            if !hadOutputRoot, (try? FileManager.default.contentsOfDirectory(atPath: outputRoot.path))?.isEmpty == true {
+                try? FileManager.default.removeItem(at: outputRoot)
+            }
+        }
+        try testDNGCheckpointFailure(source: source, targets: Array(targets.prefix(2)), root: root)
+        try testDNGDirectoryFailures(source: source, targets: Array(targets.prefix(2)), root: root)
         print("PASS: batch export regression suite")
+    }
+
+    static func testDNGCheckpointFailure(source: BatchSourceSnapshot, targets: [BatchTarget], root: URL) throws {
+        let job = BatchExportJob(source: source, targets: targets, outputFormat: .renderedDNG)
+        let outputDirectory = BatchFileOutputStore.root().appendingPathComponent(job.id.uuidString)
+        defer { try? FileManager.default.removeItem(at: outputDirectory) }
+        let journalDirectory = root.appendingPathComponent("checkpoint-journal")
+        let journal = try BatchJournalStore(directory: journalDirectory)
+        let parkedDirectory = root.appendingPathComponent("checkpoint-journal-backup")
+        var rendered: [String] = []
+        let interrupted = try BatchExportRunner.run(job: job, journalStore: journal,
+            render: { target, _ in
+                rendered.append(target.id)
+                let file = root.appendingPathComponent("checkpoint-\(UUID().uuidString).dng")
+                try Data("published-\(target.id)".utf8).write(to: file)
+                return file
+            },
+            write: { file, name, _, checkpoint in
+                try BatchFileWriter.write(file: file, outputName: name, jobID: job.id) { identifier in
+                    // 让真实 checkpoint 写入失败，同时允许后续中断状态保存成功。
+                    try FileManager.default.moveItem(at: journalDirectory, to: parkedDirectory)
+                    defer { try! FileManager.default.moveItem(at: parkedDirectory, to: journalDirectory) }
+                    try checkpoint(identifier)
+                }
+            },
+            cleanup: { try? FileManager.default.removeItem(at: $0) })
+        try require(interrupted.status == .interrupted && interrupted.targets[0].status == .needsConfirmation,
+              "published DNG checkpoint failure is uncertain instead of a normal target failure")
+        try require(interrupted.targets[1].status == .pending && rendered == [targets[0].id],
+              "published DNG checkpoint failure stops before rendering the second target")
+        let firstOutput = BatchFileOutputStore.destination(jobID: job.id, outputName: "target-1.dng")
+        let firstBytes = try Data(contentsOf: firstOutput)
+        try require(firstBytes == Data("published-\(targets[0].id)".utf8), "checkpoint failure preserves the published DNG")
+        let persisted = try journal.load(id: job.id)!
+        try require(persisted.targets[0].status == .needsConfirmation,
+              "uncertain DNG publication survives a subsequent successful journal save")
+        let recovered = persisted.recovered()
+        try require(recovered.targets[0].status == .succeeded && recovered.targets[1].status == .pending,
+              "recovery verifies the already published DNG before continuing")
+        let completed = try BatchExportRunner.run(job: recovered, journalStore: journal,
+            render: { target, _ in
+                rendered.append(target.id)
+                let file = root.appendingPathComponent("continued-\(UUID().uuidString).dng")
+                try Data("continued-\(target.id)".utf8).write(to: file)
+                return file
+            },
+            write: { file, name, _, checkpoint in
+                try BatchFileWriter.write(file: file, outputName: name, jobID: job.id, checkpoint: checkpoint)
+            },
+            cleanup: { try? FileManager.default.removeItem(at: $0) })
+        try require(completed.status == .completed && completed.targets.allSatisfy { $0.status == .succeeded },
+              "recovered DNG publication continues to finish the batch")
+        try require(rendered == targets.map(\.id) && (try? Data(contentsOf: firstOutput)) == firstBytes,
+              "continuing after checkpoint failure never rerenders or replaces the completed DNG")
+    }
+
+    static func testDNGDirectoryFailures(source: BatchSourceSnapshot, targets: [BatchTarget], root: URL) throws {
+        for failureDuringRender in [false, true] {
+            let job = BatchExportJob(source: source, targets: targets, outputFormat: .renderedDNG)
+            let blockedDirectory = BatchFileOutputStore.root().appendingPathComponent(job.id.uuidString)
+            try Data("directory blocker".utf8).write(to: blockedDirectory, options: .withoutOverwriting)
+            defer { try? FileManager.default.removeItem(at: blockedDirectory) }
+            var renderCount = 0
+            var checkpointCount = 0
+            let result = try BatchExportRunner.run(job: job, journalStore: nil,
+                render: { _, _ in
+                    renderCount += 1
+                    if failureDuringRender { _ = try BatchFileOutputStore.directory(for: job.id) }
+                    let file = root.appendingPathComponent("blocked-\(UUID().uuidString).dng")
+                    try Data("DNG".utf8).write(to: file)
+                    return file
+                },
+                write: { file, name, _, _ in
+                    try BatchFileWriter.write(file: file, outputName: name, jobID: job.id) { _ in checkpointCount += 1 }
+                },
+                cleanup: { try? FileManager.default.removeItem(at: $0) })
+            try require(result.status == .failed && result.globalError != nil && result.targets[0].status == .failed,
+                  "DNG directory failure during \(failureDuringRender ? "render" : "publication") is a global storage failure")
+            try require(result.targets[1].status == .pending && renderCount == 1 && checkpointCount == 0,
+                  "DNG directory failure during \(failureDuringRender ? "render" : "publication") does not process the second target")
+            try require((try? Data(contentsOf: blockedDirectory)) == Data("directory blocker".utf8),
+                  "DNG directory failure preserves the existing blocking file")
+        }
     }
 }

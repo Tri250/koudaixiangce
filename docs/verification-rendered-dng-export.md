@@ -105,6 +105,23 @@ rather than writing JPEG bytes under a DNG filename. System libtiff must be at
 least the verified 4.7.1 version, or builds can select the pinned source dependency
 with `SONY2FUJI_BUILD_TIFF_DEPS=ON`.
 
+### iOS Publication Error Regressions
+
+The production file writer now lives with the Foundation-only batch core so the
+existing host suite exercises its real file moves and journal checkpoints.
+After a successful publication, a failed checkpoint is classified as uncertain
+rather than a normal per-photo failure. A regression temporarily makes the real
+journal directory unavailable, restores it for the interrupted-state save, then
+reloads and continues the job. The completed DNG is verified and neither rendered
+nor replaced again.
+
+Output-directory creation failures are converted to global storage errors in the
+shared directory entry point used by both rendering and publication. Regressions
+place a normal file at the job's directory path and verify both paths stop after
+the first target, retain the second target as pending and preserve the blocker.
+Both failures were reproduced before the fixes; the expanded batch suite and
+simulator app build passed after the changes.
+
 ## Platform Boundaries
 
 - Mac final build and focused Swift/native tests have completed successfully.
