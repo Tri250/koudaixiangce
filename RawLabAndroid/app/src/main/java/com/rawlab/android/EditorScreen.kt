@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import kotlin.math.round
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,7 +84,7 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }, topBar = {
         TopAppBar(title = {
             Column {
-                Text("RawLab", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleMedium)
                 state.photo?.let { Text(it.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) }
             }
         }, actions = {
@@ -374,7 +375,7 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
 @Composable
 internal fun NumericControl(label: Int, value: Float, range: ClosedFloatingPointRange<Float>, unit: String,
     enabled: Boolean, onValue: (Float, Boolean) -> Unit, onReset: () -> Unit, reciprocal: Boolean = false,
-    clampInput: Boolean = false) {
+    clampInput: Boolean = true) {
     var editing by remember { mutableStateOf(false) }
     var latestValue by remember(value) { mutableStateOf(value) }
     val formatted = if (unit == "EV") String.format(Locale.ROOT, "%.2f", value) else value.roundToInt().toString()
@@ -389,11 +390,15 @@ internal fun NumericControl(label: Int, value: Float, range: ClosedFloatingPoint
             ToolIcon(Icons.Outlined.RestartAlt, R.string.reset_value, enabled, onReset)
         }
         val sliderRange = if (reciprocal) (-1f / range.start)..(-1f / range.endInclusive) else range
+        val step = when {
+            reciprocal -> 10f                                   // 色温 reciprocal 滑块 10K 步进
+            unit == "EV" || range.endInclusive - range.start <= 8f -> 0.05f  // 曝光或窄范围精细控制
+            else -> 1f
+        }
         Slider(modifier = Modifier.testTag("adjustment-slider").semantics { stateDescription = "$formatted $unit" },
             value = if (reciprocal) -1f / value else value, onValueChange = {
             val raw = if (reciprocal) (-1f / it).coerceIn(range) else it
-            val step = when (label) { R.string.exposure -> .05f; R.string.temperature -> 10f; else -> 1f }
-            latestValue = (kotlin.math.round(raw / step) * step).coerceIn(range)
+            latestValue = (round(raw / step) * step).coerceIn(range)
             onValue(latestValue, true)
         }, onValueChangeFinished = { onValue(latestValue, false) }, valueRange = sliderRange, enabled = enabled)
     }
