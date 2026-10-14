@@ -96,8 +96,8 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
         Column(Modifier.fillMaxSize()) {
         pendingBatch.firstOrNull()?.let { job ->
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("有未完成的批量导出", Modifier.weight(1f))
-                TextButton(onClick = { model.resumeBatch(job) }) { Text("查看任务") }
+                Text(stringResource(R.string.pending_batch_title), Modifier.weight(1f))
+                TextButton(onClick = { model.resumeBatch(job) }) { Text(stringResource(R.string.pending_batch_view)) }
             }
         }
         Box(Modifier.weight(1f)) {

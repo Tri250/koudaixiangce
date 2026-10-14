@@ -331,7 +331,7 @@ class BatchExportModel(
         if (current.phase in setOf(BatchPhase.PREPARING, BatchPhase.RUNNING) || current.job.rows.isEmpty()) return
         if (retry && current.unfinishedCount == 0) return
         if (!ExportSize.isValid(longEdge)) {
-            mutable.value = current.copy(error = "请输入 1–65535 之间的像素数")
+            mutable.value = current.copy(error = context.getString(R.string.batch_error_invalid_size))
             return
         }
         val configured = current.job.copy(outputPng = png, destination = destination?.toString(),
@@ -343,7 +343,7 @@ class BatchExportModel(
             try {
                 val materialized = configured
                 if (!materialized.source.sourceFile.isFile || ((materialized.source.settings.film != "neutral" || materialized.source.settings.recipeID != null) && materialized.source.lookFile?.isFile != true)) {
-                    throw BatchGlobalFailure("任务来源或外观文件不可用，请重新创建批量任务。")
+                    throw BatchGlobalFailure(context.getString(R.string.batch_error_unavailable))
                 }
                 val journal = BatchJournal(journalRoot)
                 val processor = NativeProcessor()
@@ -373,12 +373,12 @@ class BatchExportModel(
                         try {
                             temporary.writeBytes(bytes)
                             try { if (destination == null) {
-                                if (android.os.Build.VERSION.SDK_INT < 29) throw BatchGlobalFailure("相册保存需要 Android 10 或更高版本")
+                                if (android.os.Build.VERSION.SDK_INT < 29) throw BatchGlobalFailure(context.getString(R.string.batch_error_android_version))
                                 storage.saveAlbum(temporary, png, outputName) { checkpoint(it.toString()) }
                             } else {
                                 saveDocumentChild(destination, temporary, outputName, png) { checkpoint(it.toString()) }
                             } } catch (error: BatchPublicationUncertain) { throw error }
-                            catch (error: Exception) { throw BatchGlobalFailure("输出存储失败：${error.message}", error) }
+                            catch (error: Exception) { throw BatchGlobalFailure(context.getString(R.string.batch_error_publish, error.message), error) }
                         }
                         finally { temporary.delete() }
                     }
@@ -473,7 +473,7 @@ class BatchExportModel(
         val names = mutableSetOf<String>()
         resolver.query(children, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)?.use { cursor ->
             while (cursor.moveToNext()) names += cursor.getString(0).lowercase()
-        } ?: throw IOException("无法读取输出目录")
+        } ?: throw IOException(context.getString(R.string.batch_error_read_output))
         var candidate = name
         var suffix = 2
         while (candidate.lowercase() in names) candidate = "${name.substringBeforeLast('.')}-${suffix++}.${name.substringAfterLast('.')}"
@@ -485,8 +485,8 @@ class BatchExportModel(
             output.use { destination -> file.inputStream().use { it.copyTo(destination) } }
             return child
         } catch (error: Exception) {
-            if (!runCatching { DocumentsContract.deleteDocument(resolver, child) }.getOrDefault(false)) throw BatchPublicationUncertain("写入未完成且无法清理，请核对输出目录", error)
-            throw BatchGlobalFailure("无法写入输出目录：${error.message}", error)
+            if (!runCatching { DocumentsContract.deleteDocument(resolver, child) }.getOrDefault(false)) throw BatchPublicationUncertain(context.getString(R.string.batch_error_cleanup_failed), error)
+            throw BatchGlobalFailure(context.getString(R.string.batch_error_write_output, error.message), error)
         }
     }
 

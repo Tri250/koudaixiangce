@@ -430,7 +430,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                     val journal = BatchJournal(File(getApplication<Application>().filesDir, "RawLab/BatchJobs"))
                     journal.pending().mapNotNull(journal::load)
                 }
-            } catch (error: Exception) { mutable.value = mutable.value.copy(error = "无法读取批量任务：${error.message}") }
+            } catch (error: Exception) { mutable.value = mutable.value.copy(error = getApplication<Application>().getString(R.string.batch_refresh_error, error.message)) }
         }
     }
 

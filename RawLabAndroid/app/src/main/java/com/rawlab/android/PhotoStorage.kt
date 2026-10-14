@@ -186,7 +186,7 @@ class PhotoStorage(
             if (published != 1) throw IOException("Cannot publish image")
             return uri
         } catch (error: Throwable) {
-            if (runCatching { resolver.delete(uri, null, null) }.getOrDefault(0) != 1) throw BatchPublicationUncertain("无法确认照片保存结果，请核对照片图库", error)
+            if (runCatching { resolver.delete(uri, null, null) }.getOrDefault(0) != 1) throw BatchPublicationUncertain(context.getString(R.string.storage_error_unconfirmed_delete), error)
             throw error
         }
     }

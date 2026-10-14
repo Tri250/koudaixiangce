@@ -144,7 +144,7 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
 private fun EditorCanvas(state: EditorState, compare: Boolean, photoCanvas: PhotoCanvasState, photoInfo: PhotoInfo?, infoMode: Int,
     onInfoClick: () -> Unit, modifier: Modifier,
     onAlbum: () -> Unit, onFile: () -> Unit, onLicenses: () -> Unit) {
-    Box(modifier.fillMaxWidth().background(Color(0xFF18191A)), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
         state.preview?.let { PhotoCanvas(it, compare, state.photo?.name.orEmpty(), photoCanvas, photoInfo, infoMode, onInfoClick) }
             ?: if (!state.rendering) EmptyEditor(onAlbum, onFile, onLicenses) else Unit
         val status = when {
@@ -179,8 +179,8 @@ private fun EmptyEditor(onAlbum: () -> Unit, onFile: () -> Unit, onLicenses: () 
         icon?.let { Image(it.asImageBitmap(), null, Modifier.size(80.dp)) }
         Text(stringResource(R.string.empty_title), color = Color.White, style = MaterialTheme.typography.titleLarge)
         Button(onClick = onAlbum) { Icon(Icons.Outlined.PhotoLibrary, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.open_album)) }
-        TextButton(onClick = onFile) { Text(stringResource(R.string.open_file), color = Color(0xFFE9CE55)) }
-        TextButton(onClick = onLicenses) { Text(stringResource(R.string.licenses), color = Color(0xFFB8BABC)) }
+        TextButton(onClick = onFile) { Text(stringResource(R.string.open_file), color = MaterialTheme.colorScheme.primary) }
+        TextButton(onClick = onLicenses) { Text(stringResource(R.string.licenses), color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
@@ -422,7 +422,7 @@ internal fun MasterRecipePicker(recipes: List<MasterRecipe>, selected: String?, 
                 Text(recipe?.name ?: stringResource(R.string.no_recipe), Modifier.heightIn(min = 22.dp), maxLines = 2,
                     style = MaterialTheme.typography.labelMedium,
                     color = if (selected == recipe?.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                Text(recipe?.subtitle ?: "中性直出", Modifier.heightIn(min = 36.dp), maxLines = 2,
+                Text(recipe?.subtitle ?: stringResource(R.string.neutral_straight_out), Modifier.heightIn(min = 36.dp), maxLines = 2,
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
