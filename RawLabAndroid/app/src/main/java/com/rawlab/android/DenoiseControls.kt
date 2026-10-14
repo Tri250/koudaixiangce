@@ -42,9 +42,9 @@ internal fun DenoiseControls(value: DenoiseSettings, enabled: Boolean,
             { onChange(value.copy(luma = 0f), false) })
         NumericControl(R.string.denoise_chroma, value.chroma, 0f..100f, "", active,
             { number, dragging -> onChange(value.copy(chroma = number.roundToInt().toFloat()), dragging) },
-            { onChange(value.copy(chroma = 46f), false) })
+            { onChange(value.copy(chroma = 46f), false) }, neutral = 46f)
         NumericControl(R.string.denoise_coarse, value.coarse, 0f..100f, "", active,
             { number, dragging -> onChange(value.copy(coarse = number.roundToInt().toFloat()), dragging) },
-            { onChange(value.copy(coarse = 50f), false) })
+            { onChange(value.copy(coarse = 50f), false) }, neutral = 50f)
     }
 }

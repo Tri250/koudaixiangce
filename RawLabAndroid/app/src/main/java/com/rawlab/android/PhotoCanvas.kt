@@ -87,6 +87,9 @@ internal fun PhotoCanvas(
 ) {
     val wipeDescription = stringResource(R.string.comparison_wipe)
     val fitDescription = stringResource(R.string.zoom_fit)
+    val holdDescription = stringResource(R.string.hold_compare)
+    // 长按画布临时查看原图（neutral 预览），松开恢复调整结果；对比擦拭模式下停用以避免手势冲突。
+    var holdOriginal by remember { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 8.dp).clipToBounds()) {
         if (constraints.maxWidth == 0 || constraints.maxHeight == 0) return@BoxWithConstraints
         // Keep exact-preview geometry while a smaller interactive preview is displayed.
@@ -107,11 +110,18 @@ internal fun PhotoCanvas(
             stateDescription = if (viewport.isFit(zoom.scale)) "$fitDescription $percent" else percent
             customActions = listOf(
                 CustomAccessibilityAction("100%") { state.zoom = PhotoZoom(1f); true },
-                CustomAccessibilityAction(fitDescription) { state.zoom = PhotoZoom(viewport.fitScale); true }
+                CustomAccessibilityAction(fitDescription) { state.zoom = PhotoZoom(viewport.fitScale); true },
+                CustomAccessibilityAction(holdDescription) { holdOriginal = !holdOriginal; true }
             )
-        }.pointerInput(state) { detectTapGestures(onDoubleTap = state::doubleTap) }
-            .pointerInput(state, compare) { photoGestures(state, compare) }) {
-            Image(pair.result.asImageBitmap(), null, transform, contentScale = ContentScale.Fit)
+        }.pointerInput(state, compare) {
+            detectTapGestures(onDoubleTap = state::doubleTap,
+                onLongPress = if (compare) null else ({ holdOriginal = true }),
+                onPress = { tryAwaitRelease(); holdOriginal = false })
+        }.pointerInput(state, compare) { photoGestures(state, compare) }) {
+            Image((if (holdOriginal) pair.neutral else pair.result).asImageBitmap(), null, transform, contentScale = ContentScale.Fit)
+            if (holdOriginal) Text(stringResource(R.string.neutral), Modifier.align(Alignment.TopCenter)
+                .padding(top = 12.dp).background(Color.Black.copy(alpha = .65f)).padding(horizontal = 10.dp, vertical = 4.dp),
+                color = Color.White, style = MaterialTheme.typography.labelSmall)
             if (compare) {
                 Box(Modifier.fillMaxSize().testTag("comparison-wipe").semantics {
                     contentDescription = wipeDescription

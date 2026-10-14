@@ -70,6 +70,7 @@
     <string name="info_focal_length">焦距</string>
     <string name="info_capture_missing">未读取到拍摄参数</string>
     <string name="compare">对比</string>
+    <string name="hold_compare">长按查看原图</string>
     <string name="reset">重置调整</string>
     <string name="empty_title">打开照片</string>
     <string name="neutral">原图</string>

@@ -2,10 +2,15 @@ package com.rawlab.android
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,9 +25,17 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.platform.LocalContext
@@ -34,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.round
 import kotlin.math.roundToInt
 
@@ -278,7 +292,8 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                 }
             }
             1 -> NumericControl(R.string.strength, edits.strength * 100, 0f..200f, "%", state.controlsEnabled && (edits.film != "neutral" || edits.recipeID != null),
-                { value, dragging -> onEdit(edits.copy(strength = value / 100), dragging) }, { onEdit(edits.copy(strength = 1f), false) })
+                { value, dragging -> onEdit(edits.copy(strength = value / 100), dragging) }, { onEdit(edits.copy(strength = 1f), false) },
+                neutral = 100f)
             2 -> Column {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onAutoExposure, enabled = state.controlsEnabled && !state.rendering,
@@ -315,14 +330,22 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
             8, 9 -> {
                 if (!calibrated) Text(stringResource(R.string.wb_unavailable), Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
                 else {
+                    // 渐变轨道的白色基准随照片 as-shot 校准漂移，触觉锚点同步使用校准值。
+                    val asShotTemperature = state.preview?.temperature ?: 6500f
                     if (tool == 8) NumericControl(R.string.temperature, edits.temperature, 2000f..50000f, "K", state.controlsEnabled,
                         { value, dragging -> onEdit(edits.copy(customWb = true, temperature = value), dragging) },
                         { onEdit(edits.copy(temperature = state.preview?.temperature ?: 6500f,
-                            customWb = edits.recipeID == null && edits.tint != state.preview?.tint), false) }, reciprocal = true)
+                            customWb = edits.recipeID == null && edits.tint != state.preview?.tint), false) }, reciprocal = true,
+                        neutral = asShotTemperature,
+                        trackGradient = Brush.linearGradient(0f to Color(0xFFFFB74D),
+                            temperatureStop(asShotTemperature) to Color.White, 1f to Color(0xFF4FC3F7)))
                     else NumericControl(R.string.tint, edits.tint, -150f..150f, "", state.controlsEnabled,
                         { value, dragging -> onEdit(edits.copy(customWb = if (edits.recipeID == null) true else edits.customWb, tint = value), dragging) },
                         { onEdit(edits.copy(tint = if (edits.recipeID == null) state.preview?.tint ?: 0f else 0f,
-                            customWb = edits.customWb && edits.temperature != state.preview?.temperature), false) })
+                            customWb = edits.customWb && edits.temperature != state.preview?.temperature), false) },
+                        neutral = if (edits.recipeID == null) state.preview?.tint ?: 0f else 0f,
+                        trackGradient = Brush.linearGradient(0f to Color(0xFF81C784),
+                            .5f to Color.White, 1f to Color(0xFFF06292)))
                 }
             }
             11 -> DenoiseControls(edits.denoise, state.controlsEnabled) { value, dragging ->
@@ -372,12 +395,27 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
     }
 }
 
+/** 无显式中性值时，范围包含 0 的滑杆以 0 为默认触觉锚点（强度等非零默认模块需显式传入）。 */
+internal fun defaultNeutral(range: ClosedFloatingPointRange<Float>): Float? =
+    if (0f in range) 0f else null
+
+/** 拖动跨越（或恰好落在）默认值时触发一次触觉反馈；离开默认值方向不重复触发。 */
+internal fun crossedNeutral(previous: Float, next: Float, neutral: Float): Boolean =
+    (previous < neutral && next >= neutral) || (previous > neutral && next <= neutral)
+
+/** 色温值在 reciprocal 滑杆行程上的位置：2000K=0（暖端）、50000K=1（冷端）。 */
+internal fun temperatureStop(kelvin: Float): Float =
+    ((1f / 2000f - 1f / kelvin) / (1f / 2000f - 1f / 50000f)).coerceIn(0f, 1f)
+
 @Composable
 internal fun NumericControl(label: Int, value: Float, range: ClosedFloatingPointRange<Float>, unit: String,
     enabled: Boolean, onValue: (Float, Boolean) -> Unit, onReset: () -> Unit, reciprocal: Boolean = false,
-    clampInput: Boolean = true) {
+    clampInput: Boolean = true, neutral: Float? = defaultNeutral(range), trackGradient: Brush? = null) {
     var editing by remember { mutableStateOf(false) }
     var latestValue by remember(value) { mutableStateOf(value) }
+    var sliding by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val currentReset by rememberUpdatedState(onReset)
     val formatted = if (unit == "EV") String.format(Locale.ROOT, "%.2f", value) else value.roundToInt().toString()
     var input by remember { mutableStateOf("") }
     val parsed = input.toFloatOrNull()?.takeIf { it.isFinite() }?.let { entered ->
@@ -389,18 +427,64 @@ internal fun NumericControl(label: Int, value: Float, range: ClosedFloatingPoint
             TextButton(onClick = { input = formatted; editing = true }, enabled = enabled) { Text("$formatted $unit") }
             ToolIcon(Icons.Outlined.RestartAlt, R.string.reset_value, enabled, onReset)
         }
-        val sliderRange = if (reciprocal) (-1f / range.start)..(-1f / range.endInclusive) else range
-        val step = when {
-            reciprocal -> 10f                                   // 色温 reciprocal 滑块 10K 步进
-            unit == "EV" || range.endInclusive - range.start <= 8f -> 0.05f  // 曝光或窄范围精细控制
-            else -> 1f
-        }
-        Slider(modifier = Modifier.testTag("adjustment-slider").semantics { stateDescription = "$formatted $unit" },
-            value = if (reciprocal) -1f / value else value, onValueChange = {
+        Box(Modifier.fillMaxWidth()) {
+            val sliderRange = if (reciprocal) (-1f / range.start)..(-1f / range.endInclusive) else range
+            val step = when {
+                reciprocal -> 10f                                   // 色温 reciprocal 滑块 10K 步进
+                unit == "EV" || range.endInclusive - range.start <= 8f -> 0.05f  // 曝光或窄范围精细控制
+                else -> 1f
+            }
+            val gradient = trackGradient
+            Slider(modifier = Modifier.fillMaxWidth().testTag("adjustment-slider")
+                .semantics { stateDescription = "$formatted $unit" }
+                .pointerInput(enabled) {
+                    // 双击滑杆回到默认值；不消费事件，滑杆原生的点按跳转不受影响。
+                    // onReset 通过 rememberUpdatedState 间接调用，避免 lambda 重组导致计时状态丢失。
+                    var lastTapTime = 0L
+                    var lastTapX = Float.NEGATIVE_INFINITY
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        if (enabled && lastTapTime > 0 &&
+                            down.uptimeMillis - lastTapTime < viewConfiguration.doubleTapTimeoutMillis &&
+                            abs(down.position.x - lastTapX) < 48f) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            currentReset()
+                            lastTapTime = 0L
+                            lastTapX = Float.NEGATIVE_INFINITY
+                        }
+                        val up = waitForUpOrCancellation()
+                        if (up != null) { lastTapTime = up.uptimeMillis; lastTapX = up.position.x }
+                    }
+                }
+                .drawBehind {
+                    if (gradient != null) {
+                        // 渐变轨道与滑杆行程对齐：两端各内缩一个滑块半径。
+                        val height = 16.dp.toPx()
+                        val inset = 10.dp.toPx()
+                        drawRoundRect(brush = gradient, topLeft = Offset(inset, center.y - height / 2),
+                            size = Size(size.width - inset * 2, height), cornerRadius = CornerRadius(height / 2))
+                    }
+                },
+                value = if (reciprocal) -1f / value else value, onValueChange = {
             val raw = if (reciprocal) (-1f / it).coerceIn(range) else it
+            val previous = latestValue
             latestValue = (round(raw / step) * step).coerceIn(range)
+            if (enabled && neutral != null && crossedNeutral(previous, latestValue, neutral))
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            sliding = true
             onValue(latestValue, true)
-        }, onValueChangeFinished = { onValue(latestValue, false) }, valueRange = sliderRange, enabled = enabled)
+        }, onValueChangeFinished = { sliding = false; onValue(latestValue, false) },
+                valueRange = sliderRange, enabled = enabled,
+                colors = if (gradient != null) SliderDefaults.colors(
+                    inactiveTrackColor = Color.Transparent, activeTrackColor = Color.Transparent)
+                else SliderDefaults.colors())
+            // 拖动时滑杆上方浮层显示实时数值，松手淡出（国内修图 App 惯例）。
+            androidx.compose.animation.AnimatedVisibility(sliding, Modifier.align(Alignment.TopCenter).offset(y = (-10).dp), fadeIn(), fadeOut()) {
+                Text("${stringResource(label)}  $formatted $unit", Modifier.background(Color.Black.copy(alpha = .72f))
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+                    color = Color.White, style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
     if (editing) AlertDialog(onDismissRequest = { editing = false }, title = { Text(stringResource(label)) },
         text = {

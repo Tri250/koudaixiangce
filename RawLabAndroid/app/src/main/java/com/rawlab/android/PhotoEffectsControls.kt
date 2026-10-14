@@ -51,6 +51,7 @@ internal fun PhotoEffectsControls(
                 onValue = { next, dragging -> onChange(value.withEffect(parameter, next), dragging) },
                 onReset = { onChange(value.withEffect(parameter, parameter.defaultValue), false) },
                 clampInput = true,
+                neutral = parameter.defaultValue,
             )
         }
     }
