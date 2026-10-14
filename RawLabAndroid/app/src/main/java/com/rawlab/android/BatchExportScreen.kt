@@ -98,10 +98,10 @@ fun BatchExportScreen(
             }
         }
     }
-    if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text("放弃批量任务？") },
-        text = { Text("已保存的照片会保留。") },
-        confirmButton = { TextButton(onClick = { if (model.discard()) onBack(); discard = false }) { Text("放弃任务") } },
-        dismissButton = { TextButton(onClick = { discard = false }) { Text("取消") } })
+    if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text(stringResource(R.string.batch_discard_title)) },
+        text = { Text(stringResource(R.string.batch_discard_body)) },
+        confirmButton = { TextButton(onClick = { if (model.discard()) onBack(); discard = false }) { Text(stringResource(R.string.batch_discard_confirm)) } },
+        dismissButton = { TextButton(onClick = { discard = false }) { Text(stringResource(R.string.cancel)) } })
     effectTarget?.let { row ->
         var preview by remember(row.id) { mutableStateOf<android.graphics.Bitmap?>(null) }
         var error by remember(row.id) { mutableStateOf<String?>(null) }
@@ -145,7 +145,7 @@ private fun BatchConfirmContent(
     Column(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = 12.dp)) {
         item {
-            Text("调整来源", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(20.dp, 16.dp, 20.dp, 8.dp))
+            Text(stringResource(R.string.batch_source_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(20.dp, 16.dp, 20.dp, 8.dp))
             Row(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.size(80.dp)) { BatchThumbnail(storage, state.job.source.identity.value, state.job.source.sourceFile) }
@@ -154,22 +154,22 @@ private fun BatchConfirmContent(
                     val settings = state.job.source.settings
                     Text("${Film.all.firstOrNull { it.id == settings.film }?.name ?: settings.film} · ${String.format("%.0f", settings.strength * 100f)}%",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    Text(String.format("曝光 %+.2f EV", settings.exposure), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.batch_exposure_format, settings.exposure), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onAlbum, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.PhotoLibrary, null); Spacer(Modifier.width(6.dp)); Text("相册多选") }
-                OutlinedButton(onClick = onFiles, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.FolderOpen, null); Spacer(Modifier.width(6.dp)); Text("文件多选") }
+                OutlinedButton(onClick = onAlbum, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.PhotoLibrary, null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.batch_album_multi)) }
+                OutlinedButton(onClick = onFiles, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.FolderOpen, null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.batch_file_multi)) }
             }
         }
         item {
-            Text("目标照片（已选 ${state.selectedCount} 张）", style = MaterialTheme.typography.titleMedium,
+            Text(stringResource(R.string.batch_target_title, state.selectedCount), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(20.dp, 20.dp, 20.dp, 8.dp))
         }
         if (state.job.rows.isEmpty()) item {
-            Text("请选择要套用当前调整的 RAW 照片", color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Text(stringResource(R.string.batch_target_empty), color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
         }
         items(state.job.rows, key = { it.id }) { row ->
@@ -178,28 +178,28 @@ private fun BatchConfirmContent(
                 Box(Modifier.size(56.dp)) { BatchThumbnail(storage, row.target.sourceUri, row.target.sourceFile) }
                 Spacer(Modifier.width(12.dp))
                 Text(row.target.displayName, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                TextButton(onClick = { onInspect(row) }) { Text("查看") }
-                IconButton(onClick = { onRemove(row.id) }) { Icon(Icons.Outlined.Close, "移除") }
+                TextButton(onClick = { onInspect(row) }) { Text(stringResource(R.string.batch_view)) }
+                IconButton(onClick = { onRemove(row.id) }) { Icon(Icons.Outlined.Close, stringResource(R.string.batch_remove)) }
             }
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-                Text("全部调整", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = { showSettings = !showSettings }) { Text(if (showSettings) "收起" else "展开") }
+                Text(stringResource(R.string.batch_all_settings), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = { showSettings = !showSettings }) { Text(if (showSettings) stringResource(R.string.batch_collapse) else stringResource(R.string.batch_expand)) }
             }
             if (showSettings) SettingsSummary(state.job.source.settings)
         }
         item {
-            Text("输出", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(20.dp, 16.dp, 20.dp, 4.dp))
+            Text(stringResource(R.string.batch_output_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(20.dp, 16.dp, 20.dp, 4.dp))
             Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = !png, onClick = { onPng(false) }, label = { Text(stringResource(R.string.jpeg)) })
                 FilterChip(selected = png, onClick = { onPng(true) }, label = { Text(stringResource(R.string.png)) })
             }
             Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (Build.VERSION.SDK_INT >= 29) {
-                    FilterChip(selected = destination == null, onClick = onAlbumOutput, label = { Text("照片图库") })
+                    FilterChip(selected = destination == null, onClick = onAlbumOutput, label = { Text(stringResource(R.string.batch_photo_gallery)) })
                 }
-                OutlinedButton(onClick = onDirectory) { Icon(Icons.Outlined.FolderOpen, null); Spacer(Modifier.width(4.dp)); Text("选择目录") }
+                OutlinedButton(onClick = onDirectory) { Icon(Icons.Outlined.FolderOpen, null); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.batch_choose_directory)) }
             }
             ExportSizeControls(
                 selected = sizeChoice,
@@ -208,15 +208,15 @@ private fun BatchConfirmContent(
                 onCustomText = onCustomSize,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
-            Text(destination?.lastPathSegment ?: "照片图库", Modifier.padding(horizontal = 20.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(destination?.lastPathSegment ?: stringResource(R.string.batch_photo_gallery), Modifier.padding(horizontal = 20.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             state.error?.let { Text(it, Modifier.padding(20.dp), color = MaterialTheme.colorScheme.error) }
         }
     }
-    Text("仅用于本次导出，保留各照片原有调整", Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall)
+    Text(stringResource(R.string.batch_only_this_time), Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall)
     val longEdge = ExportSize.parse(sizeChoice, customSize)
     val sizeValid = sizeChoice != ExportSizeChoice.CUSTOM || longEdge != null
     Button(onClick = onStart, enabled = sizeValid && state.job.rows.isNotEmpty() && (Build.VERSION.SDK_INT >= 29 || destination != null), modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-        Text("导出 ${state.job.rows.size} 张")
+        Text(stringResource(R.string.batch_export_count, state.job.rows.size))
     }
     }
 }
@@ -232,11 +232,15 @@ private fun exportSizeChoice(longEdge: Int?): ExportSizeChoice = when (longEdge)
 @Composable
 private fun BatchProgressContent(state: BatchExportState, onCancel: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(if (state.stopping) "正在停止" else if (state.phase == BatchPhase.PREPARING) "正在准备" else "正在导出", style = MaterialTheme.typography.titleLarge)
+        Text(when {
+            state.stopping -> stringResource(R.string.batch_stopping)
+            state.phase == BatchPhase.PREPARING -> stringResource(R.string.batch_preparing)
+            else -> stringResource(R.string.batch_exporting)
+        }, style = MaterialTheme.typography.titleLarge)
         LinearProgressIndicator(progress = { (state.successCount + state.failedCount).toFloat() / state.job.rows.size.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
-        Text("已完成 ${state.successCount} / ${state.job.rows.size}")
+        Text(stringResource(R.string.batch_progress_count, state.successCount, state.job.rows.size))
         LazyColumn(Modifier.weight(1f)) { items(state.job.rows, key = { it.id }) { row -> BatchRowLine(row) } }
-        OutlinedButton(onClick = onCancel, enabled = !state.stopping, modifier = Modifier.fillMaxWidth()) { Text(if (state.stopping) "正在停止" else stringResource(R.string.cancel)) }
+        OutlinedButton(onClick = onCancel, enabled = !state.stopping, modifier = Modifier.fillMaxWidth()) { Text(if (state.stopping) stringResource(R.string.batch_stopping) else stringResource(R.string.cancel)) }
     }
 }
 
@@ -244,23 +248,27 @@ private fun BatchProgressContent(state: BatchExportState, onCancel: () -> Unit) 
 private fun BatchResultContent(state: BatchExportState, onRetry: () -> Unit, onClose: () -> Unit,
     onDirectory: () -> Unit, onConfirm: (String, Boolean) -> Unit, onDiscard: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(if (state.phase == BatchPhase.COMPLETE) "导出完成" else if (state.failedCount > 0) "部分导出失败" else "导出结果", style = MaterialTheme.typography.titleLarge)
-        Text("成功 ${state.successCount} 张，失败 ${state.failedCount} 张，未处理 ${state.unfinishedCount - state.failedCount} 张")
+        Text(when {
+            state.phase == BatchPhase.COMPLETE -> stringResource(R.string.batch_result_complete)
+            state.failedCount > 0 -> stringResource(R.string.batch_result_partial)
+            else -> stringResource(R.string.batch_result_title)
+        }, style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.batch_result_summary, state.successCount, state.failedCount, state.unfinishedCount - state.failedCount))
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         LazyColumn(Modifier.weight(1f)) { items(state.job.rows, key = { it.id }) { row ->
             BatchRowLine(row)
             if (row.status == BatchRowStatus.NEEDS_CONFIRMATION) {
-                Text("上次保存结果不确定，请先核对图库或输出目录。", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.batch_uncertain_result), style = MaterialTheme.typography.bodySmall)
                 Row {
-                    TextButton(onClick = { onConfirm(row.id, true) }) { Text("已找到输出") }
-                    TextButton(onClick = { onConfirm(row.id, false) }) { Text("未保存，重新导出") }
+                    TextButton(onClick = { onConfirm(row.id, true) }) { Text(stringResource(R.string.batch_found_output)) }
+                    TextButton(onClick = { onConfirm(row.id, false) }) { Text(stringResource(R.string.batch_not_saved_retry)) }
                 }
             }
         } }
-        if (state.unfinishedCount > 0) OutlinedButton(onClick = onDirectory, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.FolderOpen, null); Text("重新选择输出目录") }
-        if (state.unfinishedCount > 0) Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Refresh, null); Spacer(Modifier.width(6.dp)); Text(if (state.failedCount == state.unfinishedCount) "重试失败项" else "继续未完成项") }
-        OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("关闭") }
-        if (state.phase != BatchPhase.COMPLETE) TextButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) { Text("放弃任务") }
+        if (state.unfinishedCount > 0) OutlinedButton(onClick = onDirectory, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.FolderOpen, null); Text(stringResource(R.string.batch_rechoose_directory)) }
+        if (state.unfinishedCount > 0) Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Refresh, null); Spacer(Modifier.width(6.dp)); Text(if (state.failedCount == state.unfinishedCount) stringResource(R.string.batch_retry_failed) else stringResource(R.string.batch_continue_unfinished)) }
+        OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_close)) }
+        if (state.phase != BatchPhase.COMPLETE) TextButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.batch_discard_confirm)) }
     }
 }
 
@@ -277,13 +285,13 @@ private fun BatchRowLine(row: BatchRow) {
         Column(Modifier.weight(1f)) {
             Text(row.target.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(when (row.status) {
-                BatchRowStatus.PENDING -> "等待导出"
-                BatchRowStatus.PROCESSING -> "正在处理"
-                BatchRowStatus.PUBLISHING -> "正在保存"
-                BatchRowStatus.NEEDS_CONFIRMATION -> "待核对"
-                BatchRowStatus.SUCCESS -> "已保存"
-                BatchRowStatus.FAILED -> "失败"
-                BatchRowStatus.CANCELLED -> "已取消"
+                BatchRowStatus.PENDING -> stringResource(R.string.batch_status_pending)
+                BatchRowStatus.PROCESSING -> stringResource(R.string.batch_status_processing)
+                BatchRowStatus.PUBLISHING -> stringResource(R.string.batch_status_publishing)
+                BatchRowStatus.NEEDS_CONFIRMATION -> stringResource(R.string.batch_status_needs_confirmation)
+                BatchRowStatus.SUCCESS -> stringResource(R.string.batch_status_success)
+                BatchRowStatus.FAILED -> stringResource(R.string.batch_status_failed)
+                BatchRowStatus.CANCELLED -> stringResource(R.string.batch_status_cancelled)
             }, style = MaterialTheme.typography.labelSmall)
             row.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
@@ -293,31 +301,32 @@ private fun BatchRowLine(row: BatchRow) {
 @Composable
 private fun SettingsSummary(settings: EditSettings) {
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        SettingLine("胶片", settings.film)
-        SettingLine("强度", String.format("%.0f%%", settings.strength * 100))
-        SettingLine("曝光", String.format("%+.2f EV", settings.exposure))
-        SettingLine("曝光基准", listOf("标准显影", "匹配内嵌预览", "传感器基准")[settings.exposureMode])
-        SettingLine("HSL", if (settings.hsl.isIdentity) "未调整" else "已调整")
-        SettingLine("高光", String.format("%+.0f%%", settings.highlights * 100))
-        SettingLine("阴影", String.format("%+.0f%%", settings.shadows * 100))
-        SettingLine("对比度", String.format("%+.0f%%", settings.contrast * 100))
-        SettingLine("S 曲线", String.format("%+.0f%%", settings.toneCurve * 100))
-        SettingLine("饱和度", String.format("%+.0f%%", settings.saturation * 100))
-        SettingLine("白平衡", if (settings.customWb) "自定义" else "各照片拍摄时设置")
+        val exposureModes = listOf(R.string.exposure_scene, R.string.exposure_preview, R.string.exposure_sensor)
+        SettingLine(stringResource(R.string.batch_settings_film), Film.all.firstOrNull { it.id == settings.film }?.name ?: settings.film)
+        SettingLine(stringResource(R.string.batch_settings_strength), String.format("%.0f%%", settings.strength * 100))
+        SettingLine(stringResource(R.string.batch_settings_exposure), String.format("%+.2f EV", settings.exposure))
+        SettingLine(stringResource(R.string.batch_settings_exposure_mode), stringResource(exposureModes[settings.exposureMode]))
+        SettingLine(stringResource(R.string.batch_settings_hsl), if (settings.hsl.isIdentity) stringResource(R.string.batch_settings_hsl_identity) else stringResource(R.string.batch_settings_hsl_adjusted))
+        SettingLine(stringResource(R.string.batch_settings_highlights), String.format("%+.0f%%", settings.highlights * 100))
+        SettingLine(stringResource(R.string.batch_settings_shadows), String.format("%+.0f%%", settings.shadows * 100))
+        SettingLine(stringResource(R.string.batch_settings_contrast), String.format("%+.0f%%", settings.contrast * 100))
+        SettingLine(stringResource(R.string.batch_settings_tone_curve), String.format("%+.0f%%", settings.toneCurve * 100))
+        SettingLine(stringResource(R.string.batch_settings_saturation), String.format("%+.0f%%", settings.saturation * 100))
+        SettingLine(stringResource(R.string.batch_settings_white_balance), if (settings.customWb) stringResource(R.string.batch_settings_wb_custom) else stringResource(R.string.batch_settings_wb_as_shot))
         if (settings.customWb) {
-            SettingLine("色温", String.format("%.0f K", settings.temperature))
-            SettingLine("色调", String.format("%+.0f", settings.tint))
+            SettingLine(stringResource(R.string.batch_settings_temperature), String.format("%.0f K", settings.temperature))
+            SettingLine(stringResource(R.string.batch_settings_tint), String.format("%+.0f", settings.tint))
         }
-        SettingLine("锐化", String.format("%.0f%%", settings.sharpening * 100))
-        SettingLine("降噪", if (settings.denoise.enabled) "开启" else "关闭")
-        SettingLine("亮度降噪", String.format("%.0f", settings.denoise.luma))
-        SettingLine("色彩降噪", String.format("%.0f", settings.denoise.chroma))
-        SettingLine("粗颗粒降噪", String.format("%.0f", settings.denoise.coarse))
-        SettingLine("显示色彩降噪", settings.displayChromaDenoise.toString())
-        SettingLine("暗角", String.format("强度 %+.0f · 中点 %.0f · 圆度 %+.0f · 羽化 %.0f · 高光保护 %.0f",
+        SettingLine(stringResource(R.string.batch_settings_sharpening), String.format("%.0f%%", settings.sharpening * 100))
+        SettingLine(stringResource(R.string.batch_settings_denoise), if (settings.denoise.enabled) stringResource(R.string.batch_settings_on) else stringResource(R.string.batch_settings_off))
+        SettingLine(stringResource(R.string.batch_settings_denoise_luma), String.format("%.0f", settings.denoise.luma))
+        SettingLine(stringResource(R.string.batch_settings_denoise_chroma), String.format("%.0f", settings.denoise.chroma))
+        SettingLine(stringResource(R.string.batch_settings_denoise_coarse), String.format("%.0f", settings.denoise.coarse))
+        SettingLine(stringResource(R.string.batch_settings_display_chroma), settings.displayChromaDenoise.toString())
+        SettingLine(stringResource(R.string.batch_settings_vignette), String.format(stringResource(R.string.batch_vignette_format),
             settings.effects.vignetteAmount, settings.effects.vignetteMidpoint, settings.effects.vignetteRoundness,
             settings.effects.vignetteFeather, settings.effects.vignetteHighlights))
-        SettingLine("颗粒", String.format("强度 %.0f · 大小 %.0f · 粗糙度 %.0f",
+        SettingLine(stringResource(R.string.batch_settings_grain), String.format(stringResource(R.string.batch_grain_format),
             settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness))
     }
 }

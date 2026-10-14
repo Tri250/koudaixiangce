@@ -96,7 +96,7 @@ fun AlbumScreen(storage: PhotoStorage, onBack: () -> Unit, onFile: () -> Unit, o
         TopAppBar(title = { Text(stringResource(R.string.open_album)) }, navigationIcon = {
             ToolIcon(Icons.AutoMirrored.Outlined.ArrowBack, R.string.back, onClick = onBack)
         }, actions = {
-            if (onDone != null) TextButton(onClick = onDone) { Text("确认 ${selectedPhotos?.size ?: 0} 张") }
+            if (onDone != null) TextButton(onClick = onDone) { Text(stringResource(R.string.album_confirm_selection, selectedPhotos?.size ?: 0)) }
             Box {
                 ToolIcon(Icons.Outlined.GridView, R.string.album_view_options) { viewMenu = true }
                 DropdownMenu(expanded = viewMenu, onDismissRequest = { viewMenu = false }) {

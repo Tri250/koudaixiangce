@@ -162,11 +162,11 @@ data class Film(val id: String, val name: String, val file: String?) {
     companion object {
         val all = listOf(
             Film("neutral", "中性", null),
-            Film("provia", "PROVIA", "PROVIA"), Film("velvia", "Velvia", "Velvia"),
-            Film("astia", "ASTIA", "ASTIA"), Film("classic-chrome", "CLASSIC CHROME", "CLASSIC-CHROME"),
-            Film("classic-neg", "CLASSIC Neg.", "CLASSIC-Neg."), Film("reala-ace", "REALA ACE", "REALA-ACE"),
-            Film("pro-neg-std", "PRO Neg. Std", "PRO-Neg.Std"), Film("eterna", "ETERNA", "ETERNA"),
-            Film("eterna-bb", "ETERNA BLEACH BYPASS", "ETERNA-BB"), Film("acros", "ACROS", "ACROS"),
+            Film("provia", "标准", "PROVIA"), Film("velvia", "鲜艳", "Velvia"),
+            Film("astia", "柔和", "ASTIA"), Film("classic-chrome", "经典铬", "CLASSIC-CHROME"),
+            Film("classic-neg", "经典负片", "CLASSIC-Neg."), Film("reala-ace", "真实", "REALA-ACE"),
+            Film("pro-neg-std", "专业负片", "PRO-Neg.Std"), Film("eterna", "永恒", "ETERNA"),
+            Film("eterna-bb", "漂白", "ETERNA-BB"), Film("acros", "细腻", "ACROS"),
         )
     }
 }
