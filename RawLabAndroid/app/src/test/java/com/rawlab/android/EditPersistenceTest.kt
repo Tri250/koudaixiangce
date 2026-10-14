@@ -23,9 +23,12 @@ class EditPersistenceTest {
         val directory = Files.createTempDirectory("rawlab-edits").toFile()
         try {
             val identity = PhotoIdentity("content://media/external/images/media/7")
-            val changed = EditSettings(film = "velvia", exposure = .75f, contrast = .25f,
+            // 覆盖全部 12 个调整模块（强度/曝光/高光/阴影/对比度/S曲线/饱和度/色温/色调/降噪/暗角/颗粒），
+            // 保证编辑记忆对每个模块都完整保存与恢复。
+            val changed = EditSettings(film = "velvia", strength = 1.5f, exposure = .75f, contrast = .25f,
                 exposureMode = 2, hsl = HslSettings().withValue(1, 0, -60f),
-                highlights = .25f, customWb = true, temperature = 4200f,
+                highlights = .25f, shadows = -.35f, toneCurve = .4f, saturation = -.15f,
+                customWb = true, temperature = 4200f, tint = 12f, sharpening = .5f,
                 denoise = DenoiseSettings(true, 10f, 72f, 100f), displayChromaDenoise = 2,
                 effects = PhotoEffectsSettings(vignetteAmount = -40f, vignetteMidpoint = 20f,
                     grainAmount = 65f, grainSize = 70f))
@@ -35,6 +38,7 @@ class EditPersistenceTest {
             val file = File(directory, "edits.properties")
             val properties = java.util.Properties().also { file.inputStream().use(it::load) }
             val key = properties.stringPropertyNames().first { it.endsWith(".values") }
+            assertEquals(49, properties.getProperty(key).split(',').size)
             properties.setProperty(key, properties.getProperty(key).split(',').take(24).joinToString(","))
             file.outputStream().use { properties.store(it, null) }
             val legacy = EditStore(directory).load(identity)!!

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -195,9 +196,10 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
     val titles = listOf(R.string.film, R.string.strength, R.string.exposure, R.string.highlights, R.string.shadows,
         R.string.contrast, R.string.tone_curve, R.string.saturation, R.string.temperature, R.string.tint, R.string.sharpening,
         R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl, R.string.master_recipes)
+    // 降噪与颗粒是独立模块：分别使用 BlurOn 与 Grain 图标，避免工具栏重复图标。
     val icons = listOf(Icons.Outlined.PhotoFilter, Icons.Outlined.Tune, Icons.Outlined.Exposure, Icons.Outlined.WbSunny,
-        Icons.Outlined.DarkMode, Icons.Outlined.Contrast, Icons.Outlined.ShowChart, Icons.Outlined.WaterDrop,
-        Icons.Outlined.Thermostat, Icons.Outlined.Palette, Icons.Outlined.Deblur, Icons.Outlined.Grain,
+        Icons.Outlined.DarkMode, Icons.Outlined.Contrast, Icons.AutoMirrored.Outlined.ShowChart, Icons.Outlined.WaterDrop,
+        Icons.Outlined.Thermostat, Icons.Outlined.Palette, Icons.Outlined.Deblur, Icons.Outlined.BlurOn,
         Icons.Outlined.Circle, Icons.Outlined.Grain, Icons.Outlined.Tune, Icons.Outlined.PhotoLibrary)
     val edits = state.edits
     val context = LocalContext.current
