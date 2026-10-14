@@ -4,14 +4,18 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -25,13 +29,16 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -43,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,6 +76,7 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
     onExport: () -> Unit, onMessageDismiss: () -> Unit, onLicenses: () -> Unit, onGpuChange: (Boolean) -> Unit,
     onSaveRetry: () -> Unit = {},
     onAutoExposure: () -> Unit = {},
+    onUndo: () -> Unit = {}, onRedo: () -> Unit = {},
     onBatchExport: () -> Unit = {},
     onImportLook: () -> Unit = {}, onRenameLook: (String, String) -> Unit = { _, _ -> },
     onDeleteLook: (String) -> Unit = {}, onLookImportReportDismiss: () -> Unit = {},
@@ -77,6 +86,46 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
     var menu by remember { mutableStateOf(false) }
     var tool by rememberSaveable { mutableIntStateOf(0) }
     var infoMode by rememberSaveable(state.photo?.file?.absolutePath) { mutableIntStateOf(0) }
+    // 白平衡吸管：从 neutral 预览（as-shot 白平衡显影）采样，避免把胶片 LUT 的风格色偏误判为白平衡偏差。
+    var eyedropper by rememberSaveable { mutableStateOf(false) }
+    // 裁剪警告：菜单开关，开启后为每次预览生成过曝/欠曝叠加层。
+    var clippingWarning by rememberSaveable { mutableStateOf(false) }
+    val clipping by produceState<Bitmap?>(null, state.preview, clippingWarning) {
+        value = if (!clippingWarning) null else state.preview?.let { pair ->
+            withContext(Dispatchers.Default) { runCatching { clippingOverlay(pair.result) }.getOrNull() }
+        }
+    }
+    val currentOnEdit by rememberUpdatedState(onEdit)
+    val currentPreview by rememberUpdatedState(state.preview)
+    val currentEditsForPick by rememberUpdatedState(state.edits)
+    fun pickWhiteBalance(nx: Float, ny: Float) {
+        eyedropper = false
+        val neutral = currentPreview?.neutral ?: return
+        val centerX = (nx * (neutral.width - 1)).roundToInt().coerceIn(0, neutral.width - 1)
+        val centerY = (ny * (neutral.height - 1)).roundToInt().coerceIn(0, neutral.height - 1)
+        var red = 0L; var green = 0L; var blue = 0L; var count = 0
+        for (dy in -3..3) for (dx in -3..3) {
+            val x = (centerX + dx).coerceIn(0, neutral.width - 1)
+            val y = (centerY + dy).coerceIn(0, neutral.height - 1)
+            val pixel = neutral.getPixel(x, y)
+            red += (pixel shr 16) and 0xFF
+            green += (pixel shr 8) and 0xFF
+            blue += pixel and 0xFF
+            count++
+        }
+        val r = red.toFloat() / count
+        val g = green.toFloat() / count
+        val b = blue.toFloat() / count
+        val peak = maxOf(r, g, b).coerceAtLeast(1f)
+        val rn = r / peak; val gn = g / peak; val bn = b / peak
+        // 近似逆推：R/B 比决定色温（display 域比值直接作 Kelvin 乘数，温和修正），
+        // 绿-品红偏差映射到 tint 行程；均以 as-shot 校准值为基准的绝对设定。
+        val asShot = currentPreview?.temperature ?: 6500f
+        val asShotTint = currentPreview?.tint ?: 0f
+        val newTemperature = (asShot * (rn / bn).coerceIn(.5f, 2f)).coerceIn(2000f, 50000f)
+        val newTint = (asShotTint + (gn - (rn + bn) / 2f) * 300f).coerceIn(-150f, 150f)
+        currentOnEdit(currentEditsForPick.copy(customWb = true, temperature = newTemperature, tint = newTint), false)
+    }
     val photoCanvas = rememberSaveable(state.photo?.file?.absolutePath, saver = PhotoCanvasState.Saver) { PhotoCanvasState() }
     val photoInfo by produceState<PhotoInfo?>(null, state.photo?.file?.absolutePath) {
         value = null
@@ -103,6 +152,8 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
             }
         }, actions = {
             if (updateVersion != null) ToolIcon(Icons.Outlined.SystemUpdate, R.string.view_update, onClick = onAbout)
+            ToolIcon(Icons.Outlined.Undo, R.string.undo, state.canUndo && state.operation == Operation.NONE, onUndo)
+            ToolIcon(Icons.Outlined.Redo, R.string.redo, state.canRedo && state.operation == Operation.NONE, onRedo)
             ToolIcon(Icons.Outlined.PhotoLibrary, R.string.open_album, state.operation == Operation.NONE, onAlbum)
             ToolIcon(Icons.Outlined.SaveAlt, R.string.export, state.canExport, onExport)
             ToolIcon(Icons.Outlined.Layers, R.string.batch_export, state.canExport, onBatchExport)
@@ -113,6 +164,8 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
                         leadingIcon = { Icon(Icons.Outlined.FolderOpen, null) }, onClick = { menu = false; onFile() })
                     DropdownMenuItem(text = { Text(stringResource(R.string.gpu_auto)) }, enabled = state.operation == Operation.NONE,
                         trailingIcon = { Checkbox(state.gpuEnabled, null) }, onClick = { menu = false; onGpuChange(!state.gpuEnabled) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.clipping_warning)) }, enabled = state.operation == Operation.NONE,
+                        trailingIcon = { Checkbox(clippingWarning, null) }, onClick = { clippingWarning = !clippingWarning })
                     DropdownMenuItem(text = { Text(stringResource(R.string.licenses)) }, onClick = { menu = false; onLicenses() })
                     DropdownMenuItem(text = { Text(stringResource(R.string.about_rawlab)) },
                         leadingIcon = { Icon(Icons.Outlined.Info, null) }, onClick = { menu = false; onAbout() })
@@ -123,6 +176,12 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
             val dockHeight = if (expanded) (maxHeight * .33f).coerceIn(200.dp, 280.dp) else 48.dp
             val wide = maxWidth >= 600.dp && maxWidth > maxHeight
+            // 实时直方图：随预览位图后台重算，画布浮层与曲线编辑器共用一份。
+            val histogram by produceState<Histogram?>(null, state.preview) {
+                value = state.preview?.let { pair ->
+                    withContext(Dispatchers.Default) { runCatching { Histogram.fromBitmap(pair.result) }.getOrNull() }
+                }
+            }
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxWidth().height(4.dp)) {
                     if (state.rendering || state.operation == Operation.EXPORT) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -130,24 +189,26 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
                 if (wide && state.photo != null) {
                     Row(Modifier.weight(1f)) {
                         Column(Modifier.weight(1f)) {
-                            EditorCanvas(state, compare, photoCanvas, photoInfo, infoMode, { infoMode = (infoMode + 1) % 3 },
+                            EditorCanvas(state, compare, histogram, eyedropper, ::pickWhiteBalance, clipping, photoCanvas, photoInfo, infoMode, { infoMode = (infoMode + 1) % 3 },
                                 Modifier.weight(1f), onAlbum, onFile, onLicenses)
                             RenderError(state, onRetry)
                         }
                         VerticalDivider()
                         AdjustmentDock(state, Modifier.width(320.dp).fillMaxHeight(), tool, { tool = it }, expanded,
                             { expanded = !expanded }, compare, { compare = !compare }, onEdit, onReset, onSaveRetry,
-                            onImportLook, onRenameLook, onDeleteLook, onAutoExposure)
+                            onImportLook, onRenameLook, onDeleteLook, onAutoExposure, histogram,
+                            eyedropper, { eyedropper = !eyedropper })
                     }
                 } else {
-                    EditorCanvas(state, compare, photoCanvas, photoInfo, infoMode, { infoMode = (infoMode + 1) % 3 },
+                    EditorCanvas(state, compare, histogram, eyedropper, ::pickWhiteBalance, clipping, photoCanvas, photoInfo, infoMode, { infoMode = (infoMode + 1) % 3 },
                         Modifier.weight(1f), onAlbum, onFile, onLicenses)
                     RenderError(state, onRetry)
                     if (state.photo != null) {
                         HorizontalDivider()
                         AdjustmentDock(state, Modifier.fillMaxWidth().height(dockHeight), tool, { tool = it }, expanded,
                             { expanded = !expanded }, compare, { compare = !compare }, onEdit, onReset, onSaveRetry,
-                            onImportLook, onRenameLook, onDeleteLook, onAutoExposure)
+                            onImportLook, onRenameLook, onDeleteLook, onAutoExposure, histogram,
+                            eyedropper, { eyedropper = !eyedropper })
                     }
                 }
             }
@@ -156,12 +217,17 @@ fun EditorScreen(state: EditorState, onAlbum: () -> Unit, onFile: () -> Unit,
 }
 
 @Composable
-private fun EditorCanvas(state: EditorState, compare: Boolean, photoCanvas: PhotoCanvasState, photoInfo: PhotoInfo?, infoMode: Int,
+private fun EditorCanvas(state: EditorState, compare: Boolean, histogram: Histogram?, eyedropper: Boolean,
+    onPickWb: (Float, Float) -> Unit, clipping: Bitmap?, photoCanvas: PhotoCanvasState, photoInfo: PhotoInfo?, infoMode: Int,
     onInfoClick: () -> Unit, modifier: Modifier,
     onAlbum: () -> Unit, onFile: () -> Unit, onLicenses: () -> Unit) {
     Box(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
-        state.preview?.let { PhotoCanvas(it, compare, state.photo?.name.orEmpty(), photoCanvas, photoInfo, infoMode, onInfoClick) }
+        state.preview?.let { PhotoCanvas(it, compare, state.photo?.name.orEmpty(), photoCanvas, photoInfo, infoMode, onInfoClick,
+            eyedropper, onPickWb, clipping) }
             ?: if (!state.rendering) EmptyEditor(onAlbum, onFile, onLicenses) else Unit
+        if (eyedropper) Text(stringResource(R.string.wb_eyedropper_hint), Modifier.align(Alignment.Center)
+            .background(Color.Black.copy(alpha = .72f)).padding(horizontal = 14.dp, vertical = 8.dp),
+            color = Color.White, style = MaterialTheme.typography.labelLarge)
         val status = when {
             state.operation == Operation.EXPORT -> stringResource(R.string.exporting)
             state.operation == Operation.IMPORT -> stringResource(R.string.importing)
@@ -171,6 +237,14 @@ private fun EditorCanvas(state: EditorState, compare: Boolean, photoCanvas: Phot
         }
         status?.let { Text(it, Modifier.align(Alignment.TopStart).padding(12.dp).background(Color.Black.copy(alpha = .6f)).padding(6.dp),
             color = Color.White, style = MaterialTheme.typography.labelSmall) }
+        // 渲染期间显示直方图浮层、结束后停留片刻淡出：拖动任意调节滑杆即可实时观察分布变化。
+        var histogramLinger by remember { mutableStateOf(false) }
+        LaunchedEffect(state.rendering) {
+            if (state.rendering) histogramLinger = true
+            else { kotlinx.coroutines.delay(1500); histogramLinger = false }
+        }
+        HistogramOverlay(histogram, histogramLinger && !compare, Modifier.align(Alignment.TopEnd)
+            .padding(12.dp).size(width = 128.dp, height = 80.dp))
     }
 }
 
@@ -205,7 +279,8 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
     onEdit: (EditSettings, Boolean) -> Unit, onReset: () -> Unit,
     onSaveRetry: () -> Unit,
     onImportLook: () -> Unit, onRenameLook: (String, String) -> Unit, onDeleteLook: (String) -> Unit,
-    onAutoExposure: () -> Unit) {
+    onAutoExposure: () -> Unit, histogram: Histogram? = null,
+    eyedropper: Boolean = false, onToggleEyedropper: () -> Unit = {}) {
     val titles = listOf(R.string.film, R.string.strength, R.string.exposure, R.string.highlights, R.string.shadows,
         R.string.contrast, R.string.tone_curve, R.string.saturation, R.string.temperature, R.string.tint, R.string.sharpening,
         R.string.denoise, R.string.vignette, R.string.grain, R.string.hsl, R.string.master_recipes)
@@ -323,13 +398,22 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                 { value, dragging -> onEdit(edits.copy(shadows = value / 100), dragging) }, { onEdit(edits.copy(shadows = 0f), false) })
             5 -> NumericControl(R.string.contrast, edits.contrast * 100, -100f..100f, "%", state.controlsEnabled,
                 { value, dragging -> onEdit(edits.copy(contrast = value / 100), dragging) }, { onEdit(edits.copy(contrast = 0f), false) })
-            6 -> NumericControl(R.string.tone_curve, edits.toneCurve * 100, -100f..100f, "%", state.controlsEnabled,
-                { value, dragging -> onEdit(edits.copy(toneCurve = value / 100), dragging) }, { onEdit(edits.copy(toneCurve = 0f), false) })
+            6 -> ToneCurveControls(edits, state.controlsEnabled, histogram) { value, dragging ->
+                onEdit(value, dragging)
+            }
             7 -> NumericControl(R.string.saturation, edits.saturation * 100, -100f..100f, "%", state.controlsEnabled,
                 { value, dragging -> onEdit(edits.copy(saturation = value / 100), dragging) }, { onEdit(edits.copy(saturation = 0f), false) })
             8, 9 -> {
                 if (!calibrated) Text(stringResource(R.string.wb_unavailable), Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
                 else {
+                    // 中灰吸管：进入取色模式后点按画布上的中性灰区域，一次性反推色温/色调。
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconToggleButton(checked = eyedropper, onCheckedChange = { onToggleEyedropper() },
+                            enabled = state.controlsEnabled) {
+                            Icon(Icons.Outlined.Colorize, stringResource(R.string.wb_eyedropper))
+                        }
+                        Text(stringResource(R.string.wb_eyedropper), style = MaterialTheme.typography.labelMedium)
+                    }
                     // 渐变轨道的白色基准随照片 as-shot 校准漂移，触觉锚点同步使用校准值。
                     val asShotTemperature = state.preview?.temperature ?: 6500f
                     if (tool == 8) NumericControl(R.string.temperature, edits.temperature, 2000f..50000f, "K", state.controlsEnabled,
@@ -348,8 +432,9 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                             .5f to Color.White, 1f to Color(0xFFF06292)))
                 }
             }
-            11 -> DenoiseControls(edits.denoise, state.controlsEnabled) { value, dragging ->
-                onEdit(edits.copy(denoise = value), dragging)
+            11 -> DenoiseControls(edits.denoise, edits.displayChromaDenoise, state.controlsEnabled,
+                { value, dragging -> onEdit(edits.copy(denoise = value), dragging) }) { mode ->
+                onEdit(edits.copy(displayChromaDenoise = mode), false)
             }
             12 -> PhotoEffectsControls(edits.effects, vignette = true, enabled = state.controlsEnabled) { value, dragging ->
                 onEdit(edits.copy(effects = value), dragging)
@@ -406,6 +491,112 @@ internal fun crossedNeutral(previous: Float, next: Float, neutral: Float): Boole
 /** 色温值在 reciprocal 滑杆行程上的位置：2000K=0（暖端）、50000K=1（冷端）。 */
 internal fun temperatureStop(kelvin: Float): Float =
     ((1f / 2000f - 1f / kelvin) / (1f / 2000f - 1f / 50000f)).coerceIn(0f, 1f)
+
+/**
+ * 交互式色调曲线编辑器：拖动控制点、点按空白加点、双击控制点删除。
+ * 首次编辑把旧 S 曲线标量迁移为等效控制点；曲线生效后标量清零（核心端 LUT 门控标量）。
+ */
+@Composable
+private fun ToneCurveControls(edits: EditSettings, enabled: Boolean, histogram: Histogram?,
+    onEdit: (EditSettings, Boolean) -> Unit) {
+    // 旧标量在打开编辑器时以等效控制点呈现，任何编辑动作都会把它写入 curve 并清零标量。
+    val display = if (edits.curve.isDefault && edits.toneCurve != 0f)
+        edits.curve.withScalar(edits.toneCurve) else edits.curve
+    val currentCurve by rememberUpdatedState(display)
+    val currentEdits by rememberUpdatedState(edits)
+    var dragIndex by remember { mutableStateOf(-1) }
+    val haptics = LocalHapticFeedback.current
+    fun apply(curve: ToneCurveSettings, dragging: Boolean) {
+        onEdit(currentEdits.copy(curve = curve, toneCurve = 0f), dragging)
+    }
+    // 命中半径内的控制点视为点按目标，否则视为空白处（用于加点）；半径由调用方的 Density 换算。
+    fun hitTest(curve: ToneCurveSettings, position: Offset, size: IntSize, radiusPx: Float): Int =
+        curve.points().indexOfFirst {
+            val dx = it.x * size.width - position.x
+            val dy = (1f - it.y) * size.height - position.y
+            dx * dx + dy * dy < radiusPx * radiusPx
+        }
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.tone_curve), Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+            ToolIcon(Icons.Outlined.RestartAlt, R.string.reset_value, enabled) {
+                onEdit(currentEdits.copy(curve = ToneCurveSettings(), toneCurve = 0f), false)
+            }
+        }
+        val outline = MaterialTheme.colorScheme.outline
+        val primary = MaterialTheme.colorScheme.primary
+        val surface = MaterialTheme.colorScheme.surfaceVariant
+        Canvas(Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(10.dp))
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                detectTapGestures(
+                    onTap = { position ->
+                        val curve = currentCurve
+                        // 提供了 onDoubleTap 时 onTap 仅在确认非双击后触发；空白处加点。
+                        if (hitTest(curve, position, size, 28.dp.toPx()) == -1)
+                            apply(curve.addPoint(position.x / size.width), false)
+                    },
+                    onDoubleTap = { position ->
+                        val curve = currentCurve
+                        val hit = hitTest(curve, position, size, 28.dp.toPx())
+                        if (hit in 1 until curve.points().size - 1) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            apply(curve.removePoint(hit), false)
+                        }
+                    })
+            }
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                detectDragGestures(
+                    onDragStart = { position ->
+                        val curve = currentCurve
+                        dragIndex = hitTest(curve, position, size, 28.dp.toPx())
+                        if (dragIndex >= 0) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    },
+                    onDrag = { change, _ ->
+                        if (dragIndex >= 0) {
+                            change.consume()
+                            apply(currentCurve.movePoint(dragIndex,
+                                (change.position.x / size.width).coerceIn(0f, 1f),
+                                1f - change.position.y / size.height), true)
+                        }
+                    },
+                    onDragEnd = {
+                        if (dragIndex >= 0) apply(currentCurve, false)
+                        dragIndex = -1
+                    },
+                    onDragCancel = { dragIndex = -1 })
+            }) {
+            drawRect(surface)
+            // 预览直方图作为曲线背景（Lightroom 风格），帮助定位需要调整的亮度区间。
+            histogram?.let { drawHistogram(it, alpha = .5f) }
+            // 四分网格 + 对角参考线。
+            for (i in 1..3) {
+                drawLine(outline.copy(alpha = .4f), Offset(size.width * i / 4f, 0f),
+                    Offset(size.width * i / 4f, size.height), 1f)
+                drawLine(outline.copy(alpha = .4f), Offset(0f, size.height * i / 4f),
+                    Offset(size.width, size.height * i / 4f), 1f)
+            }
+            drawLine(outline.copy(alpha = .6f), Offset(0f, size.height), Offset(size.width, 0f), 1.5f)
+            // 烘焙后的 256 桶 LUT 曲线（与渲染端完全一致）。
+            val lut = currentCurve.bakeLut()
+            val path = Path()
+            for (bin in 0..255) {
+                val px = bin / 255f * size.width
+                val py = (1f - lut[bin]) * size.height
+                if (bin == 0) path.moveTo(px, py) else path.lineTo(px, py)
+            }
+            drawPath(path, primary, style = Stroke(3.5f))
+            currentCurve.points().forEachIndexed { index, point ->
+                val center = Offset(point.x * size.width, (1f - point.y) * size.height)
+                drawCircle(Color.White, 9f, center)
+                drawCircle(if (index == dragIndex) Color.White else primary, 6f, center)
+            }
+        }
+        Text(stringResource(R.string.curve_hint), Modifier.padding(top = 8.dp),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
 
 @Composable
 internal fun NumericControl(label: Int, value: Float, range: ClosedFloatingPointRange<Float>, unit: String,

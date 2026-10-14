@@ -77,20 +77,25 @@ class EditStore(private val directory: File) {
         }
     }
 
-    private fun encode(settings: EditSettings): String = listOf(
-        settings.strength, settings.exposure, settings.highlights, settings.shadows,
-        settings.contrast, settings.toneCurve, settings.saturation,
-        if (settings.customWb) 1f else 0f, settings.temperature, settings.tint, settings.sharpening,
-        if (settings.denoise.enabled) 1f else 0f, settings.denoise.luma, settings.denoise.chroma, settings.denoise.coarse,
-        settings.displayChromaDenoise,
-        settings.effects.vignetteAmount, settings.effects.vignetteMidpoint, settings.effects.vignetteRoundness,
-        settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
-        settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-    ).plus(settings.exposureMode).plus(settings.hsl.packed().toList()).joinToString(",")
+    private fun encode(settings: EditSettings): String {
+        val fields = listOf(
+            settings.strength, settings.exposure, settings.highlights, settings.shadows,
+            settings.contrast, settings.toneCurve, settings.saturation,
+            if (settings.customWb) 1f else 0f, settings.temperature, settings.tint, settings.sharpening,
+            if (settings.denoise.enabled) 1f else 0f, settings.denoise.luma, settings.denoise.chroma, settings.denoise.coarse,
+            settings.displayChromaDenoise,
+            settings.effects.vignetteAmount, settings.effects.vignetteMidpoint, settings.effects.vignetteRoundness,
+            settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
+            settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
+        ).plus(settings.exposureMode).plus(settings.hsl.packed().toList()).joinToString(",")
+        // 默认直线曲线保持 49 字段不变，老版本仍可完整读取；自定义曲线追加第 50 字段。
+        return if (settings.curve.isDefault) fields else "$fields,${settings.curve.encode()}"
+    }
 
     private fun decode(values: String, film: String): EditSettings {
-        val fields = values.split(',').map(String::toFloat)
-        require(fields.size in listOf(11, 15, 24, 49))
+        val parts = values.split(',')
+        require(parts.size in listOf(11, 15, 24, 49, 50))
+        val fields = parts.dropLast(if (parts.size == 50) 1 else 0).map(String::toFloat)
         return EditSettings(film = film, strength = fields[0], exposure = fields[1],
             highlights = fields[2], shadows = fields[3], contrast = fields[4], toneCurve = fields[5],
             saturation = fields[6], customWb = fields[7] != 0f, temperature = fields[8], tint = fields[9],
@@ -106,7 +111,9 @@ class EditStore(private val directory: File) {
                 vignetteAmount = fields[16], vignetteMidpoint = fields[17], vignetteRoundness = fields[18],
                 vignetteFeather = fields[19], vignetteHighlights = fields[20], grainAmount = fields[21],
                 grainSize = fields[22], grainRoughness = fields[23],
-            ) else PhotoEffectsSettings())
+            ) else PhotoEffectsSettings(),
+            curve = if (parts.size == 50) runCatching { ToneCurveSettings.decode(parts[49]) }
+                .getOrElse { ToneCurveSettings() } else ToneCurveSettings())
     }
 
     private fun parseChromaMode(value: Float): Int {

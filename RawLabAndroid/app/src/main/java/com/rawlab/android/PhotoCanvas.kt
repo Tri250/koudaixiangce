@@ -1,5 +1,6 @@
 package com.rawlab.android
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -36,6 +37,32 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.max
 import kotlin.math.roundToInt
+
+/**
+ * 裁剪警告图：近白像素（≥250）标红、近黑像素（≤5）标蓝，其余透明。
+ * 返回 null 表示全图无裁剪（无需叠加层）。调用方应在后台线程执行。
+ */
+internal fun clippingOverlay(bitmap: Bitmap): Bitmap? {
+    val width = bitmap.width
+    val height = bitmap.height
+    if (width <= 0 || height <= 0) return null
+    val pixels = IntArray(width * height)
+    bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+    var clipped = false
+    for (index in pixels.indices) {
+        val pixel = pixels[index]
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        pixels[index] = when {
+            r >= 250 && g >= 250 && b >= 250 -> { clipped = true; 0x66FF2010.toInt() }
+            r <= 5 && g <= 5 && b <= 5 -> { clipped = true; 0x662040FF }
+            else -> 0
+        }
+    }
+    if (!clipped) return null
+    return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
+}
 
 class PhotoCanvasState {
     var viewport by mutableStateOf<PhotoViewport?>(null)
@@ -84,6 +111,9 @@ internal fun PhotoCanvas(
     info: PhotoInfo? = null,
     infoMode: Int = 0,
     onInfoClick: () -> Unit = {},
+    eyedropper: Boolean = false,
+    onPick: (Float, Float) -> Unit = { _, _ -> },
+    clipping: Bitmap? = null,
 ) {
     val wipeDescription = stringResource(R.string.comparison_wipe)
     val fitDescription = stringResource(R.string.zoom_fit)
@@ -113,12 +143,25 @@ internal fun PhotoCanvas(
                 CustomAccessibilityAction(fitDescription) { state.zoom = PhotoZoom(viewport.fitScale); true },
                 CustomAccessibilityAction(holdDescription) { holdOriginal = !holdOriginal; true }
             )
-        }.pointerInput(state, compare) {
-            detectTapGestures(onDoubleTap = state::doubleTap,
-                onLongPress = if (compare) null else ({ holdOriginal = true }),
-                onPress = { tryAwaitRelease(); holdOriginal = false })
+        }.pointerInput(state, compare, eyedropper) {
+            if (eyedropper) {
+                // 吸管模式：单击直接取色。屏幕点经 graphicsLayer 逆映射到图像归一化坐标。
+                detectTapGestures(onTap = { position ->
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val imageX = (position.x - center.x - zoom.x) / zoom.scale + viewport.imageWidth / 2f
+                    val imageY = (position.y - center.y - zoom.y) / zoom.scale + viewport.imageHeight / 2f
+                    onPick((imageX / viewport.imageWidth).coerceIn(0f, 1f),
+                        (imageY / viewport.imageHeight).coerceIn(0f, 1f))
+                })
+            } else {
+                detectTapGestures(onDoubleTap = state::doubleTap,
+                    onLongPress = if (compare) null else ({ holdOriginal = true }),
+                    onPress = { tryAwaitRelease(); holdOriginal = false })
+            }
         }.pointerInput(state, compare) { photoGestures(state, compare) }) {
             Image((if (holdOriginal) pair.neutral else pair.result).asImageBitmap(), null, transform, contentScale = ContentScale.Fit)
+            // 裁剪警告：过曝像素红标、欠曝光素蓝标，与结果图同几何叠加（保持原 transform）。
+            if (!holdOriginal && clipping != null) Image(clipping!!.asImageBitmap(), null, transform, contentScale = ContentScale.Fit)
             if (holdOriginal) Text(stringResource(R.string.neutral), Modifier.align(Alignment.TopCenter)
                 .padding(top = 12.dp).background(Color.Black.copy(alpha = .65f)).padding(horizontal = 10.dp, vertical = 4.dp),
                 color = Color.White, style = MaterialTheme.typography.labelSmall)

@@ -32,7 +32,7 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
             settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
             settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
             settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null))
+            settings.exposureMode, settings.renderHsl.packed(), settings.renderCurveLut, settings.recipeID != null))
     }
 
     @Synchronized
@@ -48,7 +48,7 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
             settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
             settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
             settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null)
+            settings.exposureMode, settings.renderHsl.packed(), settings.renderCurveLut, settings.recipeID != null)
         ExportMetadata.preserve(input, output)
     }
 
@@ -69,7 +69,7 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
             settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
             settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
             settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null))
+            settings.exposureMode, settings.renderHsl.packed(), settings.renderCurveLut, settings.recipeID != null))
     }
 
     @Synchronized
@@ -85,7 +85,7 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
             settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
             settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
             settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null)
+            settings.exposureMode, settings.renderHsl.packed(), settings.renderCurveLut, settings.recipeID != null)
         ExportMetadata.preserve(source, output)
     }
 
@@ -115,7 +115,7 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
         denoiseEnabled: Boolean, luma: Float, chroma: Float, coarse: Float, displayChromaDenoise: Int,
         vignetteAmount: Float, vignetteMidpoint: Float, vignetteRoundness: Float, vignetteFeather: Float,
         vignetteHighlights: Float, grainAmount: Float, grainSize: Float, grainRoughness: Float,
-        exposureMode: Int, hsl: FloatArray, recipeActive: Boolean): NativeFrame?
+        exposureMode: Int, hsl: FloatArray, toneCurveLut: FloatArray?, recipeActive: Boolean): NativeFrame?
     private external fun nativeAutoExposurePhoto(handle: Long, pixels: ByteArray, width: Int, height: Int,
         customWb: Boolean, temperature: Float, tint: Float, exposureMode: Int,
         recipeActive: Boolean, strength: Float): Float
@@ -126,7 +126,7 @@ class NativeProcessor(mode: Int = AUTO) : AutoCloseable {
         denoiseEnabled: Boolean, luma: Float, chroma: Float, coarse: Float, displayChromaDenoise: Int,
         vignetteAmount: Float, vignetteMidpoint: Float, vignetteRoundness: Float, vignetteFeather: Float,
         vignetteHighlights: Float, grainAmount: Float, grainSize: Float, grainRoughness: Float,
-        exposureMode: Int, hsl: FloatArray, recipeActive: Boolean): NativeFrame?
+        exposureMode: Int, hsl: FloatArray, toneCurveLut: FloatArray?, recipeActive: Boolean): NativeFrame?
 
     companion object {
         const val CPU = 0

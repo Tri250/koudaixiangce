@@ -8,6 +8,7 @@ layout(local_size_x = 128) in;
 layout(std430, binding = 0) readonly buffer Source { float src[]; };
 layout(std430, binding = 1) writeonly buffer Destination { float dst[]; };
 layout(binding = 0) uniform highp sampler3D film;
+layout(binding = 1) uniform highp sampler2D toneCurveLut;
 uniform uvec2 sourceSize;
 uniform uvec2 destinationSize;
 uniform uint sourceStartRow;
@@ -28,6 +29,7 @@ uniform vec3 domainMin;
 uniform vec3 domainMax;
 uniform vec4 tone; // contrast, saturation, highlights, shadows
 uniform float curve;
+uniform bool useToneLut;
 uniform bool hslActive;
 uniform vec4 hslHue[2];
 uniform vec4 hslSaturation[2];
@@ -82,6 +84,15 @@ float toneCurve(float x) {
     if (x <= 0.75) return mix(points.y, points.z, (x - 0.5) * 4.0);
     return mix(points.z, 1.0, (x - 0.75) * 4.0);
 }
+// Mirrors sampleToneCurveLut() on CPU: linear blend of neighbouring bins.
+float customToneCurve(float x) {
+    float p = clamp(x, 0.0, 1.0) * 255.0;
+    int lo = int(floor(p));
+    float t = p - float(lo);
+    float a = texelFetch(toneCurveLut, ivec2(lo, 0), 0).r;
+    float b = texelFetch(toneCurveLut, ivec2(min(lo + 1, 255), 0), 0).r;
+    return mix(a, b, t);
+}
 vec3 applyHsl(vec3 pixel) {
     if (!hslActive) return pixel;
     float maximum = max(pixel.r, max(pixel.g, pixel.b));
@@ -133,7 +144,8 @@ vec3 evaluate(vec3 inputColor) {
         if (tone.z != 0.0) adjusted = 1.0 - pow(1.0 - clamp(adjusted, 0.0, 1.0), 1.0 - tone.z * 0.5);
         pixel = luminance > 0.0 ? pixel * (adjusted / luminance) : vec3(adjusted);
     }
-    if (curve != 0.0) pixel = vec3(toneCurve(pixel.r), toneCurve(pixel.g), toneCurve(pixel.b));
+    if (useToneLut) pixel = vec3(customToneCurve(pixel.r), customToneCurve(pixel.g), customToneCurve(pixel.b));
+    else if (curve != 0.0) pixel = vec3(toneCurve(pixel.r), toneCurve(pixel.g), toneCurve(pixel.b));
     if (tone.x != 1.0 || tone.y != 1.0) {
         pixel = (pixel - 0.5) * tone.x + 0.5;
         float luminance = dot(pixel, vec3(0.2126, 0.7152, 0.0722));

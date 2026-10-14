@@ -8,6 +8,7 @@
 #include "core/photo_effects.h"
 #include "core/photo_color.h"
 #include "core/photo_lut.h"
+#include "core/tone_curve_lut.h"
 #include "gpu/image_stats.h"
 #if defined(SONY2FUJI_ENABLE_D3D11)
 #include "gpu/d3d11_photo.h"
@@ -43,6 +44,7 @@ struct sony2fuji_session {
     sony2fuji::WaveletDenoiseOptions wavelet_denoise;
     sony2fuji::PhotoEffectsOptions photo_effects;
     sony2fuji::HslOptions hsl;
+    sony2fuji::ToneCurveLutOptions tone_curve_lut;
     sony2fuji::ImageData wavelet_cache;
     std::string wavelet_key;
     sony2fuji::WaveletDenoiseOptions wavelet_cache_options;
@@ -253,7 +255,7 @@ void applyContrastSaturation(
     pixel.b = l + (pixel.b - l) * saturation;
 }
 
-bool needsToneAdjustments(const sony2fuji_request& request) {
+bool needsToneAdjustments(const sony2fuji_request& request, const sony2fuji::ToneCurveLutOptions& toneLut) {
     if (request.exposure_ev != 0.0f || request.brightness != 1.0f) {
         return true;
     }
@@ -269,7 +271,7 @@ bool needsToneAdjustments(const sony2fuji_request& request) {
     if (request.highlights != 0.0f || request.shadows != 0.0f) {
         return true;
     }
-    return request.tone_curve != 0.0f;
+    return request.tone_curve != 0.0f || toneLut.active;
 }
 sony2fuji_status mapError(sony2fuji::ErrorCode code) {
     switch (code) {
@@ -523,8 +525,9 @@ sony2fuji::ImageData resizeBilinear(
     return output;
 }
 
-void applyToneAdjustments(sony2fuji::ImageData& image, const sony2fuji_request& request) {
-    if (!needsToneAdjustments(request)) {
+void applyToneAdjustments(sony2fuji::ImageData& image, const sony2fuji_request& request,
+    const sony2fuji::ToneCurveLutOptions& toneLut) {
+    if (!needsToneAdjustments(request, toneLut)) {
         return;
     }
 
@@ -533,6 +536,7 @@ void applyToneAdjustments(sony2fuji::ImageData& image, const sony2fuji_request& 
     float saturation = clampFloat(request.saturation, 0.0f, 2.0f);
     float highlights = clampFloat(request.highlights, -1.0f, 1.0f);
     float shadows = clampFloat(request.shadows, -1.0f, 1.0f);
+    bool use_custom_lut = toneLut.active;
     bool use_curve = request.tone_curve != 0.0f;
     ToneCurvePoints curve = buildToneCurve(request.tone_curve);
     sony2fuji::RGB wb(1, 1, 1);
@@ -542,7 +546,11 @@ void applyToneAdjustments(sony2fuji::ImageData& image, const sony2fuji_request& 
         if (highlights != 0.0f || shadows != 0.0f) {
             applyHighlightsShadowsToPixel(pixel, highlights, shadows);
         }
-        if (use_curve) {
+        if (use_custom_lut) {
+            pixel.r = sony2fuji::sampleToneCurveLut(toneLut, pixel.r);
+            pixel.g = sony2fuji::sampleToneCurveLut(toneLut, pixel.g);
+            pixel.b = sony2fuji::sampleToneCurveLut(toneLut, pixel.b);
+        } else if (use_curve) {
             pixel.r = applyToneCurve(pixel.r, curve);
             pixel.g = applyToneCurve(pixel.g, curve);
             pixel.b = applyToneCurve(pixel.b, curve);
@@ -1089,6 +1097,26 @@ sony2fuji_status sony2fuji_session_set_hsl(
     return SONY2FUJI_STATUS_OK;
 }
 
+sony2fuji_status sony2fuji_session_set_tone_curve_lut(
+    sony2fuji_session* session, const float* lut256
+) {
+    if (!session) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    if (!lut256) {
+        session->tone_curve_lut = sony2fuji::ToneCurveLutOptions();
+        return SONY2FUJI_STATUS_OK;
+    }
+    sony2fuji::ToneCurveLutOptions options;
+    options.active = true;
+    for (int i = 0; i < 256; ++i) {
+        const float value = lut256[i];
+        if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
+            return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+        options.lut[static_cast<size_t>(i)] = value;
+    }
+    session->tone_curve_lut = options;
+    return SONY2FUJI_STATUS_OK;
+}
+
 sony2fuji_status sony2fuji_session_estimate_auto_exposure(
     sony2fuji_session* session, const sony2fuji_request* request, float* exposure_ev
 ) {
@@ -1164,8 +1192,13 @@ static sony2fuji_status processImpl(
     const bool waveletActive = session->wavelet_denoise.active();
     const bool effectsActive = session->photo_effects.active();
     const bool hslActive = session->hsl.active();
-#if defined(SONY2FUJI_ENABLE_METAL) || defined(SONY2FUJI_ENABLE_GLES) || defined(SONY2FUJI_ENABLE_D3D11)
+    const bool toneLutActive = session->tone_curve_lut.active;
+#if defined(SONY2FUJI_ENABLE_GLES)
+    // GLES samples the custom tone-curve LUT in-shader, like the film LUT.
     const bool cpuOnlyStages = false;
+#elif defined(SONY2FUJI_ENABLE_METAL) || defined(SONY2FUJI_ENABLE_D3D11)
+    // Metal/D3D11 tone-LUT shader parity is pending; keep custom curves correct on CPU.
+    const bool cpuOnlyStages = toneLutActive;
 #else
     const bool cpuOnlyStages = hslActive || effectsActive || waveletActive || session->chroma_denoise != 0;
 #endif
@@ -1286,7 +1319,8 @@ static sony2fuji_status processImpl(
         sony2fuji::ImageData rendered;
         if (session->gles_renderer->render(source, toCoreColorSpace(color_space), local, lut, wb,
                 width, height, raw && !waveletActive ? session->raw_revision : 0, rendered,
-                session->photo_effects, session->chroma_denoise, waveletActive, session->hsl)) {
+                session->photo_effects, session->chroma_denoise, waveletActive, session->hsl,
+                session->tone_curve_lut)) {
             session->last_backend = SONY2FUJI_BACKEND_GLES;
             if (local.output_target == SONY2FUJI_TARGET_FILE) return writeOutputFile(local, rendered);
             return writeOutputBuffer(local, rendered, out_buffer);
@@ -1362,7 +1396,7 @@ static sony2fuji_status processImpl(
     } else {
         image = std::move(base);
     }
-    applyToneAdjustments(image, local);
+    applyToneAdjustments(image, local, session->tone_curve_lut);
     sony2fuji::applyHsl(image, session->hsl);
     const auto chromaResult = sony2fuji::applyChromaDenoise(image, session->chroma_denoise);
     if (chromaResult != sony2fuji::ErrorCode::Success) return mapError(chromaResult);

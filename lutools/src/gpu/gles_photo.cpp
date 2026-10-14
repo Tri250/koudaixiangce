@@ -84,7 +84,7 @@ struct GlesPhotoRenderer::Impl {
     EGLDisplay display = EGL_NO_DISPLAY;
     EGLContext context = EGL_NO_CONTEXT;
     EGLSurface surface = EGL_NO_SURFACE;
-    GLuint program = 0, buffers[3]{}, texture = 0;
+    GLuint program = 0, buffers[3]{}, texture = 0, toneTexture = 0;
     size_t capacities[3]{}, blockLimit = 0, dispatchLimit = 0;
     GLint textureLimit = 0;
     uint64_t cachedRevision = 0;
@@ -98,6 +98,7 @@ struct GlesPhotoRenderer::Impl {
                 if (binding.bound) {
                     glDeleteBuffers(3, buffers);
                     if (texture) glDeleteTextures(1, &texture);
+                    if (toneTexture) glDeleteTextures(1, &toneTexture);
                     if (program) glDeleteProgram(program);
                 }
             }
@@ -213,6 +214,27 @@ struct GlesPhotoRenderer::Impl {
         }
     }
 
+    // 256x1 R32F on unit 1; texelFetch avoids the R32F filterable requirement.
+    void setToneLut(const ToneCurveLutOptions& toneLut) {
+        glUniform1i(uniform("useToneLut"), toneLut.active ? 1 : 0);
+        glUniform1i(uniform("toneCurveLut"), 1);
+        if (!toneLut.active) return;
+        glActiveTexture(GL_TEXTURE1);
+        if (!toneTexture) {
+            glGenTextures(1, &toneTexture);
+            glBindTexture(GL_TEXTURE_2D, toneTexture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, 256, 1, 0, GL_RED, GL_FLOAT, toneLut.lut.data());
+        } else {
+            glBindTexture(GL_TEXTURE_2D, toneTexture);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 256, 1, GL_RED, GL_FLOAT, toneLut.lut.data());
+        }
+        checkGL();
+    }
+
     void bands(const ImageData& input, uint32_t width, uint32_t height, int stage, ImageData* output) {
         const size_t limit = std::min(kTileBytes, blockLimit);
         const size_t sourceRowBytes = static_cast<size_t>(input.width) * sizeof(RGB);
@@ -250,12 +272,13 @@ GlesPhotoRenderer::~GlesPhotoRenderer() = default;
 bool GlesPhotoRenderer::render(const ImageData& input, ColorSpace inputSpace,
     const sony2fuji_request& request, const std::shared_ptr<LUT3D>& lut,
     const RGB& relativeWB, uint32_t width, uint32_t height, uint64_t revision, ImageData& output,
-    const PhotoEffectsOptions& effects, int chromaDenoise, bool preserveSourceResolution, const HslOptions& hsl) {
+    const PhotoEffectsOptions& effects, int chromaDenoise, bool preserveSourceResolution,
+    const HslOptions& hsl, const ToneCurveLutOptions& toneLut) {
     if (lut && lut->inputTransfer() == LUTTransfer::SRGB) return false;
     if (input.width <= 0 || input.height <= 0 || width == 0 || height == 0 ||
         width > INT32_MAX || height > INT32_MAX || uint64_t(width) * height > INT32_MAX ||
         input.pixels.size() != size_t(input.width) * input.height ||
-        !effects.valid() || !hsl.valid() || chromaDenoise < 0 || chromaDenoise > 2) return false;
+        !effects.valid() || !hsl.valid() || !toneLut.valid() || chromaDenoise < 0 || chromaDenoise > 2) return false;
     try {
         if (!impl_) { impl_ = std::make_unique<Impl>(); impl_->initialize(); }
         auto& context = *impl_;
@@ -275,6 +298,7 @@ bool GlesPhotoRenderer::render(const ImageData& input, ColorSpace inputSpace,
         glUniform4fv(context.uniform("hslSaturation[0]"), 2, hsl.saturation.data());
         glUniform4fv(context.uniform("hslLightness[0]"), 2, hsl.lightness.data());
         context.setLut(request.lut_strength > 0 ? lut : nullptr);
+        context.setToneLut(toneLut);
         if (effects.active() || chromaDenoise != 0 || request.noise_reduction > 0 || request.sharpening > 0 || preserveSourceResolution) {
             context.cachedRevision = 0;
             ImageData native(input.width, input.height);

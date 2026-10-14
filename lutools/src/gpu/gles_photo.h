@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gpu/photo_gpu.h"
+#include "core/tone_curve_lut.h"
 #include <memory>
 
 namespace sony2fuji {
@@ -17,7 +18,8 @@ public:
         const sony2fuji_request& request, const std::shared_ptr<LUT3D>& lut,
         const RGB& relativeWB, uint32_t width, uint32_t height,
         uint64_t decodeRevision, ImageData& output, const PhotoEffectsOptions& effects = {},
-        int chromaDenoise = 0, bool preserveSourceResolution = false, const HslOptions& hsl = {});
+        int chromaDenoise = 0, bool preserveSourceResolution = false, const HslOptions& hsl = {},
+        const ToneCurveLutOptions& toneLut = {});
 
 private:
     struct Impl;

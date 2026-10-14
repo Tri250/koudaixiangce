@@ -105,6 +105,7 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
             onEdit = model::edit, onReset = model::reset, onRetry = model::retry,
             onSaveRetry = model::retrySave,
             onAutoExposure = model::autoExposure,
+            onUndo = model::undo, onRedo = model::redo,
             onExport = {
                 exportSizeKey = ExportSizeChoice.ORIGINAL.key
                 exportCustomSize = ""

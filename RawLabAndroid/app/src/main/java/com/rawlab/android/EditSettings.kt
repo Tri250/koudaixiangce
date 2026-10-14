@@ -1,7 +1,11 @@
 package com.rawlab.android
 
+import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.pow
+import kotlin.math.sign
 
 data class EditSettings(
     val film: String = "neutral",
@@ -11,6 +15,7 @@ data class EditSettings(
     val shadows: Float = 0f,
     val contrast: Float = 0f,
     val toneCurve: Float = 0f,
+    val curve: ToneCurveSettings = ToneCurveSettings(),
     val saturation: Float = 0f,
     val customWb: Boolean = false,
     val temperature: Float = 6500f,
@@ -40,6 +45,7 @@ data class EditSettings(
     fun reset() = EditSettings(film = film)
     val recipeScale get() = if (recipeID == null) 1f else strength
     val renderHsl get() = hsl.scaled(recipeScale)
+    val renderCurveLut: FloatArray? get() = if (curve.isDefault) null else curve.bakeLut()
     fun applyRecipe(recipe: MasterRecipe) = copy(film = "neutral", recipeID = recipe.id, strength = 1f,
         exposure = recipe.exposure, shadows = recipe.shadows, highlights = recipe.highlights,
         contrast = recipe.contrast, saturation = recipe.saturation, tint = recipe.tint, hsl = recipe.hsl)
@@ -53,6 +59,138 @@ data class EditSettings(
 }
 
 enum class DenoisePreset { DETAIL, CLEAN, CUSTOM }
+
+/** 曲线控制点：x 为输入亮度（首点 0、尾点 1、严格递增），y 为映射输出，均在 [0,1]。 */
+data class CurvePoint(val x: Float, val y: Float) {
+    init {
+        require(x.isFinite() && x in 0f..1f && y.isFinite() && y in 0f..1f)
+    }
+}
+
+/**
+ * 交互式色调曲线：2..8 个控制点，经 Fritsch–Carlson 单调三次 Hermite 样条烘焙为
+ * 256 桶 LUT，交由核心 sony2fuji_session_set_tone_curve_lut 渲染（CPU/GLES 同一 LUT）。
+ */
+class ToneCurveSettings(private val controlPoints: List<CurvePoint> = listOf(CurvePoint(0f, 0f), CurvePoint(1f, 1f))) {
+    init {
+        require(controlPoints.size in 2..8)
+        require(controlPoints.first().x == 0f && controlPoints.last().x == 1f)
+        require(controlPoints.zipWithNext().all { (a, b) -> b.x > a.x })
+    }
+
+    val isDefault: Boolean get() = controlPoints.size == 2 &&
+        controlPoints[0].y == 0f && controlPoints[1].y == 1f
+    fun points(): List<CurvePoint> = controlPoints
+
+    /** 与核心 buildToneCurve 折线等效的控制点，用于把旧 S 曲线标量迁入编辑器。 */
+    fun withScalar(scalar: Float): ToneCurveSettings {
+        if (!scalar.isFinite() || scalar == 0f) return this
+        // 与核心 buildToneCurve 的 signedPow(scalar, 1.2) 一致（double 精度）。
+        val strength = (sign(scalar) * abs(scalar).toDouble().pow(1.2)).toFloat()
+        fun clamp01(v: Float) = v.coerceIn(0f, 1f)
+        return ToneCurveSettings(listOf(
+            CurvePoint(0f, 0f),
+            CurvePoint(0.25f, clamp01(0.25f - strength * 0.2f)),
+            CurvePoint(0.5f, clamp01(0.5f + strength * 0.05f)),
+            CurvePoint(0.75f, clamp01(0.75f + strength * 0.2f)),
+            CurvePoint(1f, 1f)))
+    }
+
+    /** 拖动已有控制点：端点 x 固定，中间点 x 在相邻点之间留出间隙。 */
+    fun movePoint(index: Int, x: Float, y: Float): ToneCurveSettings {
+        if (index !in controlPoints.indices || !x.isFinite() || !y.isFinite()) return this
+        val bound = if (controlPoints.size > 2) 1f / (controlPoints.size - 1) * 0.25f else 0f
+        val newX = when (index) {
+            0 -> 0f
+            controlPoints.size - 1 -> 1f
+            else -> x.coerceIn(controlPoints[index - 1].x + bound, controlPoints[index + 1].x - bound)
+        }
+        val moved = CurvePoint(newX, y.coerceIn(0f, 1f))
+        if (moved == controlPoints[index]) return this
+        return ToneCurveSettings(controlPoints.toMutableList().also { it[index] = moved })
+    }
+
+    /** 在指定输入亮度处加点（取当前曲线值），超过 8 个点时返回原曲线。 */
+    fun addPoint(x: Float): ToneCurveSettings {
+        if (!x.isFinite() || x <= 0f || x >= 1f || controlPoints.size >= 8) return this
+        val y = sample(x)
+        val position = controlPoints.indexOfFirst { it.x > x }.let { if (it == -1) controlPoints.size - 1 else it }
+        if (controlPoints.any { abs(it.x - x) < 1f / 255f }) return this
+        return ToneCurveSettings(controlPoints.toMutableList().also { it.add(position, CurvePoint(x, y)) })
+    }
+
+    /** 删除中间控制点；仅剩两端点或索引无效时返回原曲线。 */
+    fun removePoint(index: Int): ToneCurveSettings {
+        if (index !in 1 until controlPoints.size - 1) return this
+        return ToneCurveSettings(controlPoints.filterIndexed { i, _ -> i != index })
+    }
+
+    /** 曲线在任意输入亮度处的样条取值。 */
+    fun sample(x: Float): Float {
+        val lut = bakeLut()
+        val p = x.coerceIn(0f, 1f) * 255f
+        val lo = p.toInt().coerceIn(0, 255)
+        val t = p - lo
+        val a = lut[lo]
+        val b = lut[minOf(lo + 1, 255)]
+        return a + (b - a) * t
+    }
+
+    /**
+     * Fritsch–Carlson 单调三次样条烘焙 256 桶 LUT；两端点边界用单侧斜率。
+     * 单调段间斜率取调和平均，避免曲线过冲（与核心 sampleToneCurveLut 线性插值一致）。
+     */
+    fun bakeLut(): FloatArray {
+        val points = controlPoints
+        val n = points.size
+        val deltas = FloatArray(n - 1) { i ->
+            (points[i + 1].y - points[i].y) / (points[i + 1].x - points[i].x)
+        }
+        val slopes = FloatArray(n)
+        slopes[0] = deltas[0]
+        slopes[n - 1] = deltas[n - 2]
+        for (i in 1 until n - 1) {
+            slopes[i] = if (deltas[i - 1] * deltas[i] <= 0f) 0f
+            else 2f * deltas[i - 1] * deltas[i] / (deltas[i - 1] + deltas[i])
+        }
+        val lut = FloatArray(256)
+        var segment = 0
+        for (bin in 0..255) {
+            val x = bin / 255f
+            while (segment < n - 2 && x > points[segment + 1].x) ++segment
+            val x0 = points[segment].x
+            val x1 = points[segment + 1].x
+            val span = (x1 - x0).coerceAtLeast(1e-6f)
+            val t = ((x - x0) / span).coerceIn(0f, 1f)
+            val y0 = points[segment].y
+            val y1 = points[segment + 1].y
+            val m0 = slopes[segment] * span
+            val m1 = slopes[segment + 1] * span
+            val t2 = t * t
+            val t3 = t2 * t
+            lut[bin] = ((2f * t3 - 3f * t2 + 1f) * y0 + (t3 - 2f * t2 + t) * m0 +
+                (-2f * t3 + 3f * t2) * y1 + (t3 - t2) * m1).coerceIn(0f, 1f)
+        }
+        return lut
+    }
+
+    /** "x:y;x:y;..." 三位小数编码，用于持久化第 50 字段。 */
+    fun encode(): String = controlPoints.joinToString(";") { "%.3f:%.3f".format(Locale.ROOT, it.x, it.y) }
+
+    override fun equals(other: Any?) = other is ToneCurveSettings && controlPoints == other.controlPoints
+    override fun hashCode() = controlPoints.hashCode()
+
+    companion object {
+        fun decode(encoded: String): ToneCurveSettings {
+            val points = encoded.split(';').filter { it.isNotBlank() }.map { pair ->
+                val parts = pair.split(':')
+                require(parts.size == 2)
+                CurvePoint(parts[0].toFloat(), parts[1].toFloat())
+            }
+            return ToneCurveSettings(points)
+        }
+    }
+}
 
 class HslSettings(values: List<Float> = List(24) { 0f }) {
     private val values = values.toList()

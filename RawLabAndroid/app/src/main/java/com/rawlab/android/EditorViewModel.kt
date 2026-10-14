@@ -26,6 +26,8 @@ data class EditorState(
     val message: String? = null,
     val lookImportReport: String? = null,
     val gpuEnabled: Boolean = true,
+    val canUndo: Boolean = false,
+    val canRedo: Boolean = false,
 ) {
     val canExport get() = photo != null && preview != null && exact && !rendering && operation == Operation.NONE
     val controlsEnabled get() = photo != null && operation == Operation.NONE
@@ -76,6 +78,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     private val mutable = MutableStateFlow(EditorState())
     val state = mutable.asStateFlow()
     private var disposed = false
+    // 撤销/重做历史：仅记录提交帧（拖动结束后的最终值），栈上限 100 步防止内存膨胀。
+    private val undoStack = mutableListOf<EditSettings>()
+    private val redoStack = mutableListOf<EditSettings>()
     private val queue = RenderQueue<Work, WorkResult>(::perform, { revision, result ->
         viewModelScope.launch {
             if (!disposed && revision == currentRevision) accept(result)
@@ -119,7 +124,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             catch (error: Throwable) { photo.file.delete(); throw error }
         }
         is Work.Preview -> {
-            val edge = if (work.interactive) 1000 else 1600
+            // 交互预览 840 边长（国内修图 App 拖动跟手性惯例）：渲染队列自动合并输入帧，
+            // 核心 GLES 对 RAW 解码结果做 revision 缓存增量渲染；松手后 1600 精确渲染。
+            val edge = if (work.interactive) 840 else 1600
             val native = engine()
             native.setGpuMode(work.gpuMode)
             val still = RawFiles.kindOf(work.photo.file) == RawFiles.FileKind.STILL_IMAGE
@@ -299,7 +306,11 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             mutable.value = current.copy(saveState = EditSaveState.FAILED, error = text(R.string.edit_storage_error))
             return
         }
-        mutable.value = mutable.value.copy(operation = Operation.IMPORT, rendering = true, error = null)
+        // 换照片后历史无意义，清空撤销/重做栈。
+        undoStack.clear()
+        redoStack.clear()
+        mutable.value = mutable.value.copy(operation = Operation.IMPORT, rendering = true, error = null,
+            canUndo = false, canRedo = false)
         currentRevision = queue.submit(Work.Import(uri, gpuMode()))
     }
 
@@ -327,7 +338,29 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         lookRevision = lookQueue.submit(LookWork.Delete(id))
     }
 
-    fun edit(edits: EditSettings, interactive: Boolean = false) {
+    fun edit(edits: EditSettings, interactive: Boolean = false) = applyEdits(edits, interactive, record = true)
+
+    /** 撤销：回退到上一次提交的编辑状态；重做栈记录当前值以便恢复。 */
+    fun undo() {
+        val current = mutable.value
+        val previous = undoStack.lastOrNull() ?: return
+        if (!current.controlsEnabled || previous == current.edits) return
+        undoStack.removeAt(undoStack.lastIndex)
+        redoStack.add(current.edits)
+        applyEdits(previous, interactive = false, record = false)
+    }
+
+    /** 重做：恢复最近一次被撤销的编辑状态。 */
+    fun redo() {
+        val current = mutable.value
+        val next = redoStack.lastOrNull() ?: return
+        if (!current.controlsEnabled || next == current.edits) return
+        redoStack.removeAt(redoStack.lastIndex)
+        undoStack.add(current.edits)
+        applyEdits(next, interactive = false, record = false)
+    }
+
+    private fun applyEdits(edits: EditSettings, interactive: Boolean, record: Boolean) {
         val current = mutable.value
         if (!current.controlsEnabled) return
         val look = current.looks.firstOrNull { it.id == edits.film }
@@ -335,8 +368,14 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             mutable.value = current.copy(error = text(R.string.look_unavailable))
             return
         }
+        if (record && !interactive && edits != current.edits) {
+            undoStack.add(current.edits)
+            if (undoStack.size > 100) undoStack.removeAt(0)
+            redoStack.clear()
+        }
         val saved = if (interactive) current.saveState else persist(current.photo!!, edits)
-        mutable.value = current.copy(edits = edits, rendering = true, exact = false, error = null, saveState = saved)
+        mutable.value = current.copy(edits = edits, rendering = true, exact = false, error = null, saveState = saved,
+            canUndo = undoStack.isNotEmpty(), canRedo = redoStack.isNotEmpty())
         currentRevision = queue.submit(Work.Preview(current.photo!!, edits, interactive, gpuMode()))
     }
 

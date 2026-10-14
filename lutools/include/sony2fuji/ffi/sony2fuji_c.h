@@ -286,6 +286,15 @@ sony2fuji_status sony2fuji_session_set_hsl(
     sony2fuji_session* session, const sony2fuji_hsl_config* config
 );
 
+// Additive API; request v2 is unchanged. A 256-entry display-sRGB tone LUT
+// that replaces the legacy tone_curve scalar while active; nullptr disables
+// it and restores scalar behaviour. Every entry must be finite within [0,1].
+// GLES samples the LUT in-shader like the film LUT; Metal/D3D11 builds keep
+// results correct by rendering on CPU while a custom curve is active.
+sony2fuji_status sony2fuji_session_set_tone_curve_lut(
+    sony2fuji_session* session, const float* lut256
+);
+
 // One-shot absolute user EV in [-4,4], not a delta from current exposure.
 // Meters exact RAW/current WB and exposure mode, or a tagged raster buffer,
 // before user EV/LUT/display controls. Errors leave exposure_ev unchanged.

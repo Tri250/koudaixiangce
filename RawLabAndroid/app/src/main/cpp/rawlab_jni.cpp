@@ -45,6 +45,8 @@ void prepareRecipeWb(sony2fuji_session* session, const char* input, bool active,
     bool& custom, float& temperature, float& tint) {
     if (!active || (!custom && tint * strength == 0)) return;
     // 临时显影只解析目标 RAW 的拍摄白平衡，随后正式请求重设完整配置。
+    // 曲线 LUT 可能残留在会话上，先复位保证中性显影不被污染。
+    check(sony2fuji_session_set_tone_curve_lut(session, nullptr));
     sony2fuji_hsl_config hsl{SONY2FUJI_HSL_CONFIG_VERSION, sizeof(sony2fuji_hsl_config)};
     sony2fuji_wavelet_denoise_config denoise{SONY2FUJI_WAVELET_DENOISE_CONFIG_VERSION, sizeof(sony2fuji_wavelet_denoise_config)};
     sony2fuji_photo_effects_config effects{SONY2FUJI_PHOTO_EFFECTS_CONFIG_VERSION, sizeof(sony2fuji_photo_effects_config)};
@@ -63,6 +65,17 @@ void prepareRecipeWb(sony2fuji_session* session, const char* input, bool active,
     if (!custom) temperature = std::round(cameraTemperature);
     tint = std::clamp(std::round(cameraTint) + tint * strength, -150.0f, 150.0f);
     custom = true;
+}
+// 从 Java FloatArray 提取 256 桶曲线 LUT 并应用到会话；null 表示禁用自定义曲线。
+void applyToneCurveLut(JNIEnv* env, sony2fuji_session* session, jfloatArray array) {
+    if (!array) {
+        check(sony2fuji_session_set_tone_curve_lut(session, nullptr));
+        return;
+    }
+    if (env->GetArrayLength(array) != 256) throw std::invalid_argument("Invalid tone curve LUT");
+    float storage[256];
+    env->GetFloatArrayRegion(array, 0, 256, storage);
+    check(sony2fuji_session_set_tone_curve_lut(session, storage));
 }
 }
 
@@ -145,7 +158,7 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
     jboolean denoiseEnabled, jfloat luma, jfloat chroma, jfloat coarse, jint displayChromaDenoise,
     jfloat vignetteAmount, jfloat vignetteMidpoint, jfloat vignetteRoundness, jfloat vignetteFeather,
     jfloat vignetteHighlights, jfloat grainAmount, jfloat grainSize, jfloat grainRoughness,
-    jint exposureMode, jfloatArray hslValues, jboolean recipeActive) {
+    jint exposureMode, jfloatArray hslValues, jfloatArray toneCurveLut, jboolean recipeActive) {
     try {
         std::lock_guard<std::mutex> lock(sessionsMutex);
         const auto found = sessions.find(id);
@@ -186,6 +199,7 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
             vignetteFeather, vignetteHighlights, grainAmount, grainSize, grainRoughness};
         check(sony2fuji_session_set_photo_effects(session, &effects));
         check(sony2fuji_session_set_chroma_denoise(session, displayChromaDenoise));
+        applyToneCurveLut(env, session, toneCurveLut);
         Buffer buffer;
         check(sony2fuji_process(session, &request, &buffer.value));
         if (output) return nullptr;
@@ -269,7 +283,7 @@ Java_com_rawlab_android_NativeProcessor_nativeProcessPhoto(JNIEnv* env, jobject,
     jboolean denoiseEnabled, jfloat luma, jfloat chroma, jfloat coarse, jint displayChromaDenoise,
     jfloat vignetteAmount, jfloat vignetteMidpoint, jfloat vignetteRoundness, jfloat vignetteFeather,
     jfloat vignetteHighlights, jfloat grainAmount, jfloat grainSize, jfloat grainRoughness,
-    jint exposureMode, jfloatArray hslValues, jboolean recipeActive) {
+    jint exposureMode, jfloatArray hslValues, jfloatArray toneCurveLut, jboolean recipeActive) {
     try {
         std::lock_guard<std::mutex> lock(sessionsMutex);
         const auto found = sessions.find(id);
@@ -309,6 +323,7 @@ Java_com_rawlab_android_NativeProcessor_nativeProcessPhoto(JNIEnv* env, jobject,
             vignetteFeather, vignetteHighlights, grainAmount, grainSize, grainRoughness};
         check(sony2fuji_session_set_photo_effects(session, &effects));
         check(sony2fuji_session_set_chroma_denoise(session, displayChromaDenoise));
+        applyToneCurveLut(env, session, toneCurveLut);
         Buffer buffer;
         check(sony2fuji_process(session, &request, &buffer.value));
         if (output) return nullptr;

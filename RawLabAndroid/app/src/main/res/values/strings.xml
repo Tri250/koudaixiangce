@@ -72,6 +72,8 @@
     <string name="compare">对比</string>
     <string name="hold_compare">长按查看原图</string>
     <string name="reset">重置调整</string>
+    <string name="undo">撤销</string>
+    <string name="redo">重做</string>
     <string name="empty_title">打开照片</string>
     <string name="neutral">原图</string>
     <string name="result">调整后</string>
@@ -82,11 +84,14 @@
     <string name="shadows">阴影</string>
     <string name="contrast">对比度</string>
     <string name="tone_curve">S 曲线</string>
+    <string name="curve_hint">拖动控制点调整曲线，点按空白处添加，双击控制点删除</string>
     <string name="saturation">饱和度</string>
     <string name="white_balance">白平衡</string>
     <string name="as_shot">拍摄时设置</string>
     <string name="custom_wb">自定义</string>
     <string name="temperature">色温</string>
+    <string name="wb_eyedropper">白平衡吸管</string>
+    <string name="wb_eyedropper_hint">点击照片中应为中性灰的区域</string>
     <string name="tint">色调</string>
     <string name="sharpening">锐化</string>
     <string name="wb_unavailable">此 RAW 无可用的色温校准</string>
@@ -130,6 +135,7 @@
     <string name="licenses">开源许可</string>
     <string name="more">更多</string>
     <string name="gpu_auto">硬件加速（自动回退）</string>
+    <string name="clipping_warning">裁剪警告</string>
     <string name="collapse_adjustments">收起调整</string>
     <string name="expand_adjustments">展开调整</string>
     <string name="comparison_wipe">原图与调整后分界</string>
@@ -141,6 +147,9 @@
     <string name="denoise_luma">亮度降噪</string>
     <string name="denoise_chroma">色彩降噪</string>
     <string name="denoise_coarse">粗色斑抑制</string>
+    <string name="display_chroma_denoise">色彩平滑</string>
+    <string name="off">关闭</string>
+    <string name="denoise_zoom_hint">建议双击放大到 100% 评估降噪细节</string>
     <string name="vignette">暗角</string>
     <string name="grain">颗粒</string>
     <string name="vignette_amount">强度</string>
