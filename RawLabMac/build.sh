@@ -12,7 +12,7 @@ LENS_PREFIX="$ROOT/build/lensfun/$ARCH/install"
 # In CI mode skip all source-built deps and the lutools cmake — the caller
 # (release.yml) is expected to have supplied brew packages and prebuilt core.
 if [ "${RAWLAB_CI:-0}" = "1" ]; then
-    PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix lensfun)/lib/pkgconfig:$(brew --prefix tiff)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix lensfun)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
     export PKG_CONFIG_PATH
 else
     export PKG_CONFIG_PATH="$LENS_PREFIX/lib/pkgconfig:$CHROMA_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
@@ -42,20 +42,28 @@ cp "$ROOT/lutools/third_party/lensfun/"*.txt "$ROOT/lutools/third_party/lensfun/
 OPENCV_PREFIX="$(pkg-config --variable=prefix opencv4)"
 mkdir -p "$APP/Contents/Resources/Licenses/OpenCV"
 cp -R "$OPENCV_PREFIX/share/licenses/opencv4/." "$APP/Contents/Resources/Licenses/OpenCV/"
-cp "$CHROMA_PREFIX/share/licenses/wavelib/COPYRIGHT" "$APP/Contents/Resources/Licenses/wavelib-COPYRIGHT"
-cp "$CHROMA_PREFIX/share/licenses/libtiff/LICENSE.md" "$APP/Contents/Resources/Licenses/libtiff-LICENSE.md"
-mkdir -p "$APP/Contents/Resources/Licenses/dng-sdk"
-cp "$CHROMA_PREFIX/share/licenses/rawlab-dng-sdk/"*.txt "$APP/Contents/Resources/Licenses/dng-sdk/"
+if [ "${RAWLAB_CI:-0}" != "1" ]; then
+    [ -f "$CHROMA_PREFIX/share/licenses/wavelib/COPYRIGHT" ] && cp "$CHROMA_PREFIX/share/licenses/wavelib/COPYRIGHT" "$APP/Contents/Resources/Licenses/wavelib-COPYRIGHT"
+    [ -f "$CHROMA_PREFIX/share/licenses/libtiff/LICENSE.md" ] && cp "$CHROMA_PREFIX/share/licenses/libtiff/LICENSE.md" "$APP/Contents/Resources/Licenses/libtiff-LICENSE.md"
+    mkdir -p "$APP/Contents/Resources/Licenses/dng-sdk"
+    [ -d "$CHROMA_PREFIX/share/licenses/rawlab-dng-sdk" ] && cp "$CHROMA_PREFIX/share/licenses/rawlab-dng-sdk/"*.txt "$APP/Contents/Resources/Licenses/dng-sdk/"
+fi
 SDK="${SDKROOT:-$(xcrun --show-sdk-path)}"
 # The CLT 27 SDK exposes SwiftUI macros without shipping their compiler plugin.
 if [ -z "${SDKROOT:-}" ] && [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then
     SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
 fi
 RAW_LIB="$(pkg-config --variable=libdir libraw)"
+if [ "${RAWLAB_CI:-0}" = "1" ]; then
+    # CI build: lensfun/wavelet/chroma are all disabled in cmake, link only what brew provides.
+    swift_libs="$(pkg-config --libs libraw opencv4 libtiff-4 2>/dev/null || true)"
+else
+    swift_libs="$(pkg-config --libs libraw rawlab-dng-sdk opencv4 wavelib lensfun libtiff-4)"
+fi
 swiftc -swift-version 5 -O -sdk "$SDK" -target "$ARCH-apple-macosx$DEPLOYMENT_TARGET" \
     -import-objc-header "$ROOT/lutools/include/sony2fuji/ffi/sony2fuji_c.h" \
     "$ROOT"/RawLabMac/Sources/*.swift "$ROOT"/Shared/*.swift "$BUILD/libsony2fuji_core.a" \
-    $(pkg-config --libs libraw rawlab-dng-sdk opencv4 wavelib lensfun libtiff-4) -lc++ -lz -framework SwiftUI -framework AppKit -framework ImageIO -framework Metal \
+    $swift_libs -lc++ -lz -framework SwiftUI -framework AppKit -framework ImageIO -framework Metal \
     -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
     -o "$APP/Contents/MacOS/RawLabMac"
 cp "$ROOT/RawLabMac/Info.plist" "$APP/Contents/Info.plist"
