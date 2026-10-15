@@ -106,6 +106,10 @@ embed_dependency() {
                 if [ ! -f "$source" ] && [ "${RAWLAB_CI:-0}" = "1" ]; then
                     source="$(brew --prefix)/lib/${dependency#@rpath/}"
                 fi
+                if [ ! -f "$source" ]; then
+                    echo "embed_dependency: skipping missing $dependency" >&2
+                    continue
+                fi
                 ;;
             /*) source="$dependency" ;;
             *) echo "Unsupported dependency path: $dependency" >&2; exit 1 ;;
