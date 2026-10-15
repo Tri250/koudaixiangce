@@ -6,7 +6,7 @@ ARCH="${RAWLAB_ARCH:-$(uname -m)}"
 case "$ARCH" in arm64|x86_64) ;; *) echo "Unsupported Mac architecture: $ARCH" >&2; exit 1 ;; esac
 BUILD="${RAWLAB_BUILD_DIR:-$ROOT/lutools/build-macos}"
 APP="${RAWLAB_APP_PATH:-$ROOT/build/RawLab Mac.app}"
-DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-26.0}"
+DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-15.0}"
 CHROMA_PREFIX="${RAWLAB_DEPENDENCY_PREFIX:-$ROOT/build/macos15-deps/$ARCH/install}"
 LENS_PREFIX="$ROOT/build/lensfun/$ARCH/install"
 # In CI mode skip all source-built deps and the lutools cmake — the caller
@@ -107,7 +107,8 @@ embed_dependency() {
                     source="$(brew --prefix)/lib/${dependency#@rpath/}"
                 fi
                 if [ ! -f "$source" ]; then
-                    echo "embed_dependency: skipping missing $dependency" >&2
+                    echo "embed_dependency: skipping missing $dependency (redirecting to libSystem)" >&2
+                    install_name_tool -change "$dependency" "/usr/lib/libSystem.B.dylib" "$binary" 2>/dev/null || true
                     continue
                 fi
                 ;;

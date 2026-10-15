@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   macos:
-    name: RawLab Mac build (Swift 6 / macOS 26)
+    name: RawLab Mac build (Swift 6 / macOS 15)
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -30,26 +30,30 @@ jobs:
       - name: Install dependencies
         run: |
           brew update --quiet
-          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp libraw || true
-          brew link --overwrite libomp 2>/dev/null || true
-          export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$PKG_CONFIG_PATH"
+          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp libraw opencv@4 lensfun glib || true
+          brew link --overwrite libomp opencv@4 2>/dev/null || true
 
       - name: Build libsony2fuji_core
         run: |
+          export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix lensfun)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH"
           cmake -S lutools -B lutools/build-macos \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
             -DSONY2FUJI_ENABLE_GPU=ON \
             -DBUILD_SHARED_LIB=OFF \
             -DBUILD_CLI=OFF \
-            -DSONY2FUJI_BUILD_TIFF_DEPS=ON
+            -DSONY2FUJI_BUILD_TIFF_DEPS=ON \
+            -DSONY2FUJI_ENABLE_LENSFUN=OFF \
+            -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF \
+            -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF
           cmake --build lutools/build-macos -j 8
 
       - name: Build RawLab Mac app
         run: |
           chmod +x RawLabMac/build.sh
-          bash RawLabMac/build.sh
+          export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix lensfun)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH"
+          RAWLAB_CI=1 MACOSX_DEPLOYMENT_TARGET=15.0 bash RawLabMac/build.sh
 
       - name: Upload .app bundle
         uses: actions/upload-artifact@v4

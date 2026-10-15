@@ -75,7 +75,7 @@ jobs:
           cmake -S lutools -B lutools/build-macos \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
             -DBUILD_TESTING=OFF \
             -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF \
             -DSONY2FUJI_BUILD_TIFF_DEPS=ON \
@@ -87,7 +87,7 @@ jobs:
 
       - name: Build .app bundle
         run: |
-          RAWLAB_CI=1 PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/opt/lensfun/lib/pkgconfig:$PKG_CONFIG_PATH" \
+          RAWLAB_CI=1 MACOSX_DEPLOYMENT_TARGET=15.0 PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix lensfun)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH" \
             bash RawLabMac/build.sh
         shell: bash
 
