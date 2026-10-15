@@ -55,9 +55,14 @@ if [ -z "${SDKROOT:-}" ] && [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX
 fi
 RAW_LIB="$(pkg-config --variable=libdir libraw)"
 if [ "${RAWLAB_CI:-0}" = "1" ]; then
-    # CI build: lensfun/wavelet/chroma are all disabled in cmake, link only what brew provides.
+    # CI build: lensfun/wavelet/chroma are all disabled in cmake, libsony2fuji_core.a
+    # contains no OpenCV symbols (both denoise files skip their cv:: blocks under
+    # SONY2FUJI_ENABLE_* guards). Swift itself has no OpenCV imports either.
+    # Linking opencv4.pc here would drag every brew OpenCV optional backend
+    # (VTK, OpenVINO, Tesseract, FFmpeg, Ceres, SuiteSparse, Fortran runtimes…)
+    # into Frameworks and inflate the final .app by ~250 MB.
     # swiftc rejects clang-specific flags like -Xpreprocessor/-fopenmp; strip them out.
-    swift_libs="$(pkg-config --libs libraw opencv4 libtiff-4 2>/dev/null | sed 's/-Xpreprocessor[[:space:]]*//g' | sed 's/-fopenmp//g')"
+    swift_libs="$(pkg-config --libs libraw libtiff-4 2>/dev/null | sed 's/-Xpreprocessor[[:space:]]*//g' | sed 's/-fopenmp//g')"
 else
     swift_libs="$(pkg-config --libs libraw rawlab-dng-sdk opencv4 wavelib lensfun libtiff-4)"
 fi

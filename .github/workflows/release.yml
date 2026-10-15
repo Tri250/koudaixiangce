@@ -117,6 +117,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Install ExifTool
+        run: |
+          winget install --id OliverBetz.ExifTool --accept-source-agreements --accept-package-agreements --silent
+          if (-not (Get-Command exiftool -ErrorAction SilentlyContinue)) {
+            Invoke-WebRequest -Uri 'https://exiftool.org/exiftool-12.93.zip' -OutFile exiftool.zip -UseBasicParsing
+            Expand-Archive -Path exiftool.zip -DestinationPath exiftool-extract -Force
+            Copy-Item exiftool-extract/exiftool.exe . -Force
+          }
+          New-Item -ItemType Directory -Force -Path RawLabWindows/ExifTool | Out-Null
+          Copy-Item (Get-Command exiftool).Source RawLabWindows/ExifTool/exiftool.exe -Force
+        shell: pwsh
+
       - name: Build native sony2fuji.dll
         run: |
           cmake -S RawLabWindows/native -B build/windows-native -A x64 -DBUILD_TESTING=OFF `
@@ -128,14 +140,15 @@ jobs:
 
       - name: Publish RawLab-Windows
         run: |
-          dotnet publish RawLabWindows/RawLabWindows.csproj -c Release -r win-x64 --self-contained true -o build/RawLab-Windows
+          dotnet publish RawLabWindows/RawLabWindows.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -p:DebugSymbols=false -o build/RawLab-Windows
           Copy-Item build/windows-native/core/Release/sony2fuji.dll build/RawLab-Windows/ -Force
           Copy-Item build/windows-native/Release/raw.dll build/RawLab-Windows/ -Force
+          Copy-Item RawLabWindows/ExifTool build/RawLab-Windows/ExifTool -Recurse -Force
           New-Item -ItemType Directory -Force -Path build/RawLab-Windows/FilmIcons | Out-Null
           if (Test-Path RawLabMac/Resources/FilmIcons) { Copy-Item RawLabMac/Resources/FilmIcons build/RawLab-Windows/ -Recurse -Force }
           New-Item -ItemType Directory -Force -Path build/RawLab-Windows/LUTs | Out-Null
           Copy-Item lutools/flog-2-new/FLog2_to_*_65grid_V.1.00.cube build/RawLab-Windows/LUTs/ -Force
-          Copy-Item LICENSE build/RawLab-Windows/ -Force
+          Copy-Item LICENSE,RawLabWindows/Licenses,RawLabMac/Resources/Licenses build/RawLab-Windows/ -Recurse -Force
           Compress-Archive -Path build/RawLab-Windows/* -DestinationPath build/RawLab-Windows-${env:GITHUB_REF_NAME}.zip -Force
         shell: pwsh
 
