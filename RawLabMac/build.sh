@@ -56,7 +56,8 @@ fi
 RAW_LIB="$(pkg-config --variable=libdir libraw)"
 if [ "${RAWLAB_CI:-0}" = "1" ]; then
     # CI build: lensfun/wavelet/chroma are all disabled in cmake, link only what brew provides.
-    swift_libs="$(pkg-config --libs libraw opencv4 libtiff-4 2>/dev/null || true)"
+    # swiftc rejects clang-specific flags like -Xpreprocessor/-fopenmp; strip them out.
+    swift_libs="$(pkg-config --libs libraw opencv4 libtiff-4 2>/dev/null | sed 's/-Xpreprocessor[[:space:]]*//g' | sed 's/-fopenmp//g')"
 else
     swift_libs="$(pkg-config --libs libraw rawlab-dng-sdk opencv4 wavelib lensfun libtiff-4)"
 fi
