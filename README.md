@@ -14,7 +14,7 @@ RawLab Mac provides side-by-side neutral/film comparison, LUT selection, exposur
 
 ## 下载 / Download
 
-[下载 RawLab v0.2 / Download v0.2](https://github.com/dancancer/RawLab/releases/tag/v0.2)
+[下载 RawLab v0.2 / Download v0.2](https://github.com/Tri250/koudaixiangce/releases/tag/v0.2)
 
 v0.2 汇集 Windows / Mac / Android / iOS 的 200% 胶片强度与导出保留 EXIF 源码。
 当前提供 Windows x64 安装包，其他平台附件后续补充；旧版本下载见下方链接。
@@ -27,13 +27,13 @@ packages will follow. Earlier downloads remain linked below.
 
 Requires Windows 10/11 x64. Extract the ZIP and run `RawLab.exe`. The package includes the .NET runtime and supports Direct3D 11 acceleration with CPU fallback.
 
-[下载 RawLab Mac v0.1 / Download v0.1](https://github.com/dancancer/RawLab/releases/tag/v0.1)
+[下载 RawLab Mac v0.1 / Download v0.1](https://github.com/Tri250/koudaixiangce/releases/tag/v0.1)
 
 支持 Apple Silicon（arm64）和 macOS 26 或更高版本。应用采用 ad-hoc 签名，未经过 Apple 公证。
 
 Requires Apple Silicon (arm64) and macOS 26 or later. The app is ad-hoc signed and has not been notarized by Apple.
 
-[下载 RawLab Android v0.1.0 / Download Android v0.1.0](https://github.com/dancancer/RawLab/releases/tag/android-v0.1.0)
+[下载 RawLab Android v0.1.0 / Download Android v0.1.0](https://github.com/Tri250/koudaixiangce/releases/tag/android-v0.1.0)
 
 支持 Android 8.0+，提供 ARM64 / x86_64 通用签名 APK；GLES 不可用时自动回退 CPU。
 
@@ -46,6 +46,13 @@ Requires Android 8.0+. The signed APK includes ARM64 / x86_64 and falls back to 
 - [Mac 客户端：构建、使用与验证 / Mac editor: build, use and verification](RawLabMac/README.md)
 - [处理核心与命令行工具 / Processing core and CLI](lutools/README.md)
 - [RAW、色彩空间与 LUT 处理约定 / RAW, color-space and LUT contract](lutools/docs/color-contract.md)
+
+
+## 作者 / Author
+
+GitHub 仓库 / Repository: <https://github.com/Tri250/koudaixiangce>
+
+我在小红书收获了 2821 次赞与收藏，点击链接或复制口令来看我的主页 >> <https://xhslink.cn/o/8mIZG8oS3zE>
 
 ## 开源协议 / License
 

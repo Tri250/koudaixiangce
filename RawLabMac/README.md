@@ -14,9 +14,9 @@ The left pane is the neutral render and the right pane is Velvia. Film selection
 
 ## 构建和启动 / Build and Launch
 
-预编译版本：[GitHub Release v0.1](https://github.com/dancancer/RawLab/releases/tag/v0.1)。下载 `RawLab-Mac-0.1-macOS-arm64.zip` 后解压，可将 `RawLab Mac.app` 放入 Applications。此产物仅支持 Apple Silicon 和 macOS 26+；采用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证，macOS 可能阻止默认打开。
+预编译版本：[GitHub Release v0.1](https://github.com/Tri250/koudaixiangce/releases/tag/v0.1)。下载 `RawLab-Mac-0.1-macOS-arm64.zip` 后解压，可将 `RawLab Mac.app` 放入 Applications。此产物仅支持 Apple Silicon 和 macOS 26+；采用 ad-hoc 签名，没有 Developer ID 签名或 Apple 公证，macOS 可能阻止默认打开。
 
-Prebuilt app: [GitHub Release v0.1](https://github.com/dancancer/RawLab/releases/tag/v0.1). Extract `RawLab-Mac-0.1-macOS-arm64.zip` and move `RawLab Mac.app` to Applications. It requires Apple Silicon and macOS 26+. It is ad-hoc signed, without Developer ID signing or Apple notarization, so macOS may block opening it by default.
+Prebuilt app: [GitHub Release v0.1](https://github.com/Tri250/koudaixiangce/releases/tag/v0.1). Extract `RawLab-Mac-0.1-macOS-arm64.zip` and move `RawLab Mac.app` to Applications. It requires Apple Silicon and macOS 26+. It is ad-hoc signed, without Developer ID signing or Apple notarization, so macOS may block opening it by default.
 
 在仓库根目录执行：
 
@@ -179,3 +179,12 @@ lutools/build-macos/render_benchmark RawLab/RawLab/Resources/Samples/DSC09067.AR
 具体工作空间、曝光约定、LUT 要求见 `../lutools/docs/color-contract.md`。相机颜色准确度仍需要受控光源/灰卡/色卡标定；能够处理 RAW 不等同于复刻 Fuji 机内 JPEG。
 
 See the [color contract](../lutools/docs/color-contract.md) for working spaces, exposure and LUT requirements. Camera color accuracy still requires controlled lighting and gray/color-chart calibration; processing a RAW is not equivalent to reproducing Fuji in-camera JPEGs.
+
+---
+
+## 作者 / Author
+
+GitHub 仓库 / Repository: <https://github.com/Tri250/koudaixiangce>
+
+我在小红书收获了 2821 次赞与收藏，点击链接或复制口令来看我的主页 >> <https://xhslink.cn/o/8mIZG8oS3zE>
+

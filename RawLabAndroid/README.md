@@ -66,7 +66,7 @@ Assets are generated from existing repository resources rather than duplicated i
 
 ## Release
 
-[下载 Android v0.1.0 / Download Android v0.1.0](https://github.com/dancancer/RawLab/releases/tag/android-v0.1.0)
+[下载 Android v0.1.0 / Download Android v0.1.0](https://github.com/Tri250/koudaixiangce/releases/tag/android-v0.1.0)
 
 正式 APK 使用专用发布密钥签名，不使用 debug key。密钥和密码文件必须放在仓库外，
 后续更新使用同一密钥；请单独安全备份。构建脚本不创建或上传密钥。
@@ -136,3 +136,12 @@ The fixture is packaged only into the test APK. See [verification.md](verificati
 具体来源见 `app/src/main/notices/ThirdPartyNotices.txt`。
 
 Rendering follows the [shared color contract](../lutools/docs/color-contract.md). Notices are accessible from the empty editor.
+
+---
+
+## 作者 / Author
+
+GitHub 仓库 / Repository: <https://github.com/Tri250/koudaixiangce>
+
+我在小红书收获了 2821 次赞与收藏，点击链接或复制口令来看我的主页 >> <https://xhslink.cn/o/8mIZG8oS3zE>
+

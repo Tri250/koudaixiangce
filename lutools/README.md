@@ -151,6 +151,13 @@ Tests requiring optional RAW fixtures are omitted when those files are absent. M
 - [富士 F-Log2 LUT 说明 / Fujifilm F-Log2 LUT overview](F-Log2/F-Log2_LUT_overview_Ver.1.1E.pdf)
 - [LUTCalc 参考实现 / LUTCalc reference implementation](https://github.com/cameramanben/LUTCalc)
 
+
+## 作者 / Author
+
+GitHub 仓库 / Repository: <https://github.com/Tri250/koudaixiangce>
+
+我在小红书收获了 2821 次赞与收藏，点击链接或复制口令来看我的主页 >> <https://xhslink.cn/o/8mIZG8oS3zE>
+
 ## 许可证与致谢 / License and Acknowledgments
 
 MIT License。第三方代码和素材仍受各自许可证约束，见 [Mac 分发的第三方说明](../RawLabMac/Resources/ThirdPartyNotices.md)。
