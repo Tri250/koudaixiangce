@@ -9,44 +9,49 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
     case toneCurve
     case saturation
     case hsl
+    case curve
     case temperature
     case tint
     case noiseReduction
     case sharpening
     case vignette
     case grain
+    case crop
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .strength:
-            return "强度"
+            return L10n.text("强度")
         case .exposure:
-            return "曝光"
+            return L10n.text("曝光")
         case .contrast:
-            return "对比度"
+            return L10n.text("对比度")
         case .highlights:
-            return "高光"
+            return L10n.text("高光")
         case .shadows:
-            return "阴影"
+            return L10n.text("阴影")
         case .toneCurve:
-            return "S 曲线"
+            return L10n.text("S 曲线")
         case .saturation:
-            return "饱和度"
+            return L10n.text("饱和度")
         case .hsl: return "HSL"
+        case .curve: return L10n.text("曲线")
         case .temperature:
-            return "色温"
+            return L10n.text("色温")
         case .tint:
-            return "色调"
+            return L10n.text("色调")
         case .noiseReduction:
-            return "降噪"
+            return L10n.text("降噪")
         case .sharpening:
-            return "锐化"
+            return L10n.text("锐化")
         case .vignette:
-            return "暗角"
+            return L10n.text("暗角")
         case .grain:
-            return "颗粒"
+            return L10n.text("颗粒")
+        case .crop:
+            return L10n.text("裁剪")
         }
     }
 
@@ -67,6 +72,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .saturation:
             return "drop"
         case .hsl: return "slider.horizontal.3"
+        case .curve: return "point.topleft.down.curvedto.point.bottomright.up"
         case .temperature:
             return "thermometer"
         case .tint:
@@ -79,6 +85,8 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             return "circle.dashed"
         case .grain:
             return "circle.dotted"
+        case .crop:
+            return "crop"
         }
     }
 
@@ -99,6 +107,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .saturation:
             return -100...100
         case .hsl: return -100...100
+        case .curve: return 0...1
         case .temperature:
             return RawSettings.temperatureRange
         case .tint:
@@ -111,6 +120,8 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             return PhotoEffectsSettings.vignetteAmountRange
         case .grain:
             return PhotoEffectsSettings.grainAmountRange
+        case .crop:
+            return 0...1
         }
     }
 
@@ -139,6 +150,8 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .vignette, .grain:
             return 1
         case .hsl: return 1
+        case .curve: return 0.01
+        case .crop: return 0.01
         }
     }
 
@@ -159,6 +172,7 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .saturation:
             return (settings.saturation - 1) * 100
         case .hsl: return settings.hsl.progress * 100
+        case .curve: return settings.curve == nil ? 0 : 1
         case .temperature:
             return settings.temperature
         case .tint:
@@ -171,6 +185,8 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             return settings.photoEffects.vignetteAmount
         case .grain:
             return settings.photoEffects.grainAmount
+        case .crop:
+            return settings.crop == nil ? 0 : 1
         }
     }
 
@@ -192,6 +208,8 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             settings.saturation = 1 + value / 100
         case .hsl:
             if value == 0 { settings.hsl.reset() }
+        case .curve:
+            if value == 0 { settings.curve = nil }
         case .temperature:
             settings.temperature = value
         case .tint:
@@ -205,6 +223,8 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
             settings.photoEffects.vignetteAmount = value
         case .grain:
             settings.photoEffects.grainAmount = value
+        case .crop:
+            if value == 0 { settings.crop = nil }
         }
     }
 
@@ -227,6 +247,8 @@ enum AdjustmentKind: String, CaseIterable, Identifiable {
         case .vignette, .grain:
             return String(format: "%+.0f", value)
         case .hsl: return "HSL"
+        case .curve: return L10n.text("曲线")
+        case .crop: return L10n.text("裁剪")
         }
     }
 

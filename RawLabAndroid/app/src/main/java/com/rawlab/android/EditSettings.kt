@@ -1,5 +1,6 @@
 package com.rawlab.android
 
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -22,6 +23,11 @@ data class EditSettings(
     val exposureMode: Int = 1,
     val hsl: HslSettings = HslSettings(),
     val recipeID: String? = null,
+    val lens: LensSettings = LensSettings(),
+    // v0.7.0 schema: null keeps the v0.6.3 behavior; the legacy scalar
+    // toneCurve stays alongside curve for rollback safety.
+    val crop: CropSettings? = null,
+    val curve: CurveSettings? = null,
 ) {
     init {
         require(exposureMode in 0..2)
@@ -40,6 +46,21 @@ data class EditSettings(
     fun reset() = EditSettings(film = film)
     val recipeScale get() = if (recipeID == null) 1f else strength
     val renderHsl get() = hsl.scaled(recipeScale)
+    // JNI curve payload: flattened (x, y) pairs; empty clears the session curve.
+    fun curvePacked(): FloatArray {
+        val curve = curve ?: return FloatArray(0)
+        if (curve.isIdentity) return FloatArray(0)
+        return FloatArray(curve.points.size * 2) { i ->
+            if (i % 2 == 0) curve.points[i / 2].x else curve.points[i / 2].y
+        }
+    }
+    // JNI crop payload: (x, y, w, h, angle); null clears the session crop.
+    // A full-frame rectangle renders identically to no crop, so it stays inactive.
+    fun cropPacked(): FloatArray? {
+        val crop = crop ?: return null
+        if (crop.isFullFrame) return null
+        return floatArrayOf(crop.x, crop.y, crop.w, crop.h, crop.angle)
+    }
     fun applyRecipe(recipe: MasterRecipe) = copy(film = "neutral", recipeID = recipe.id, strength = 1f,
         exposure = recipe.exposure, shadows = recipe.shadows, highlights = recipe.highlights,
         contrast = recipe.contrast, saturation = recipe.saturation, tint = recipe.tint, hsl = recipe.hsl)
@@ -49,6 +70,94 @@ data class EditSettings(
             copy(recipeID = null, tint = cameraTint ?: 0f)
         else copy(recipeID = null, customWb = true, tint = ((cameraTint ?: 0f) + tint).coerceIn(-150f, 150f))
         return independent.copy(film = id)
+    }
+}
+
+data class LensSettings(val distortion: Boolean = false, val tca: Boolean = false,
+    val autoCrop: Boolean = true, val manual: Boolean = false, val profileId: String? = null) {
+    val enabled: Boolean get() = distortion || tca
+    val coreProfileId: String get() = if (manual) profileId ?: "__rawlab_manual_selection_required__" else ""
+    fun encode(): String = listOf(if (distortion) 1 else 0, if (tca) 1 else 0,
+        if (autoCrop) 1 else 0, if (manual) 1 else 0,
+        profileId?.let { java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(it.toByteArray(Charsets.UTF_8)) } ?: "")
+        .joinToString("|")
+    companion object {
+        fun decode(value: String?): LensSettings {
+            if (value == null) return LensSettings()
+            val fields = value.split('|')
+            require(fields.size == 5 && fields.take(4).all { it == "0" || it == "1" })
+            return LensSettings(fields[0] == "1", fields[1] == "1", fields[2] == "1", fields[3] == "1",
+                fields[4].takeIf { it.isNotEmpty() }?.let { String(java.util.Base64.getUrlDecoder().decode(it), Charsets.UTF_8) })
+        }
+    }
+}
+
+/** v0.7.0 schema: normalized source rectangle; invalid records fall back to null. */
+data class CropSettings(
+    val aspect: String = "original",
+    val x: Float = 0f,
+    val y: Float = 0f,
+    val w: Float = 1f,
+    val h: Float = 1f,
+    val angle: Float = 0f,
+) {
+    init {
+        require(aspect in ASPECTS)
+        require(listOf(x, y, w, h, angle).all { it.isFinite() })
+        require(x >= 0f && y >= 0f && w > 0f && h > 0f && x + w <= 1f && y + h <= 1f && abs(angle) <= 45f)
+    }
+
+    val isFullFrame: Boolean get() = x == 0f && y == 0f && w == 1f && h == 1f && angle == 0f
+
+    fun encode(): String = listOf(aspect, x, y, w, h, angle).joinToString("|")
+
+    companion object {
+        val ASPECTS = setOf("original", "free", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16")
+
+        fun decode(value: String?): CropSettings? {
+            if (value == null) return null
+            val fields = value.split('|')
+            if (fields.size != 6) return null
+            val angle = fields[5].toFloatOrNull() ?: return null
+            return runCatching {
+                CropSettings(fields[0], fields[1].toFloatOrNull() ?: return null,
+                    fields[2].toFloatOrNull() ?: return null, fields[3].toFloatOrNull() ?: return null,
+                    fields[4].toFloatOrNull() ?: return null, angle)
+            }.getOrNull()
+        }
+    }
+}
+
+data class CurvePoint(val x: Float, val y: Float)
+
+class CurveSettings(val points: List<CurvePoint> = listOf(CurvePoint(0f, 0f), CurvePoint(1f, 1f))) {
+    init {
+        require(points.size in 2..MAX_POINTS)
+        require(points.all { it.x.isFinite() && it.y.isFinite() && it.x in 0f..1f && it.y in 0f..1f })
+        require(points.zipWithNext().all { (a, b) -> b.x > a.x })
+    }
+
+    val isIdentity: Boolean get() = points == listOf(CurvePoint(0f, 0f), CurvePoint(1f, 1f))
+
+    override fun equals(other: Any?) = other is CurveSettings && points == other.points
+    override fun hashCode() = points.hashCode()
+
+    fun encode(): String = points.joinToString(";") { "${it.x},${it.y}" }
+
+    companion object {
+        const val MAX_POINTS = 64
+
+        fun decode(value: String?): CurveSettings? {
+            if (value.isNullOrBlank()) return null
+            val parsed = value.split(';').map {
+                val parts = it.split(',')
+                if (parts.size != 2) return null
+                val x = parts[0].toFloatOrNull() ?: return null
+                val y = parts[1].toFloatOrNull() ?: return null
+                CurvePoint(x, y)
+            }
+            return runCatching { CurveSettings(parsed) }.getOrNull()
+        }
     }
 }
 

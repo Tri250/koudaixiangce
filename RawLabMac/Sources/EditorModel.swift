@@ -11,7 +11,229 @@ final class EditorModel: ObservableObject {
         let pass: RenderPass
     }
 
-    @Published var settings = Adjustments() { didSet { if !updatingMetadata && oldValue != settings { edited() } } }
+    @Published var settings = Adjustments() {
+        didSet {
+            guard !updatingMetadata, oldValue != settings else { return }
+            recordUndo(oldValue)
+            edited()
+        }
+    }
+
+    // ================================================================
+    //  T14 undo/redo: field-level snapshots with drag collapsing.
+    //  Slider gestures start with setInteracting(true); every settings
+    //  change while interacting collapses into the step captured at the
+    //  first event, so one drag is one undo step (50-step cap).
+    // ================================================================
+    private var undoStack: [Adjustments] = []
+    private var redoStack: [Adjustments] = []
+    private var dragUndoActive = false
+    @Published private(set) var canUndo = false
+    @Published private(set) var canRedo = false
+    private static let undoLimit = 50
+
+    private func recordUndo(_ previous: Adjustments) {
+        if scheduler.interacting {
+            guard !dragUndoActive else { return }
+            dragUndoActive = true
+        }
+        pushUndo(previous)
+    }
+
+    private func pushUndo(_ previous: Adjustments) {
+        undoStack.append(previous)
+        if undoStack.count > Self.undoLimit { undoStack.removeFirst() }
+        redoStack.removeAll()
+        syncUndoFlags()
+    }
+
+    private func syncUndoFlags() {
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
+    }
+
+    func undo() {
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(settings)
+        dragUndoActive = false
+        cropDraft = nil
+        updatingMetadata = true
+        settings = previous
+        updatingMetadata = false
+        syncUndoFlags()
+        edited()
+    }
+
+    func redo() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(settings)
+        dragUndoActive = false
+        cropDraft = nil
+        updatingMetadata = true
+        settings = next
+        updatingMetadata = false
+        syncUndoFlags()
+        edited()
+    }
+
+    // ================================================================
+    //  v0.7.0 FR-01: crop edits are overlay-only — the interactive
+    //  preview never contains the crop, so they bypass the render
+    //  scheduler while export and exact renders read settings.crop.
+    //  Gestures publish a transient draft; each commit is exactly one
+    //  undo step plus a debounced edit-memory save.
+    // ================================================================
+    @Published var cropDraft: CropSettings?
+    @Published private(set) var cropAspectHint = "original"
+    func updateCropDraft(_ frame: CropSettings) {
+        cropDraft = CropGeometry.sanitize(frame)
+    }
+
+    /// FR-01: while leveling, the frame resets to the full image and the
+    /// aspect preset is kept for the next corner drag.
+    func updateAngleDraft(_ degrees: Double) {
+        var frame = effectiveCrop
+        let stepped = (degrees / 0.1).rounded() * 0.1
+        frame.angle = stepped == 0 ? 0 : min(45, max(-45, stepped))
+        frame.x = 0
+        frame.y = 0
+        frame.w = 1
+        frame.h = 1
+        cropDraft = frame
+    }
+
+    func commitCropDraft() {
+        commitCrop(effectiveCrop)
+    }
+
+    func commitCrop(_ frame: CropSettings?) {
+        cropDraft = nil
+        // A full-frame, level crop is the identity: store nil so exports
+        // keep the GPU pipeline and edit records stay canonical.
+        let normalized = (frame?.isValid == true && frame?.isFullFrame == false) ? frame : nil
+        guard settings.crop != normalized else { return }
+        let previous = settings
+        updatingMetadata = true
+        settings.crop = normalized
+        updatingMetadata = false
+        pushUndo(previous)
+        markDirtyForPersistence()
+    }
+
+    func selectCropAspect(_ aspect: String) {
+        guard CropSettings.aspectRatios.contains(aspect) else { return }
+        cropAspectHint = aspect
+        var frame = effectiveCrop
+        frame.aspect = aspect
+        if aspect != "free" {
+            frame = CropGeometry.refit(frame, sourceAspect: sourceAspect)
+        }
+        commitCrop(frame)
+    }
+
+    func discardCropDraft() {
+        cropDraft = nil
+    }
+
+    var effectiveCrop: CropSettings {
+        if let cropDraft { return cropDraft }
+        if let crop = settings.crop { return crop }
+        return CropSettings(aspect: cropAspectHint)
+    }
+
+    var sourceAspect: Double {
+        guard let result else { return 1 }
+        return Double(result.image.width) / Double(result.image.height)
+    }
+
+    // ================================================================
+    //  v0.7.0 FR-03: white balance eyedropper. Sampling runs on the
+    //  serial render queue because the engine session holds the decoded
+    //  RAW of the last published render. One sample is one undo step.
+    // ================================================================
+    @Published var samplingWhiteBalance = false
+    /// FR-01: the crop overlay lives on the interactive preview; toggled by
+    /// the crop tool and reset whenever another tool or photo takes over.
+    @Published var cropping = false
+
+    func pickWhiteBalance(at point: CGPoint) {
+        guard let file, result != nil, !exporting else { return }
+        let nx = Float(min(1, max(0, point.x)))
+        let ny = Float(min(1, max(0, point.y)))
+        queue.async { [weak self] in
+            guard let self else { return }
+            var temperature: Float = 0, tint: Float = 0
+            var status = SONY2FUJI_STATUS_UNSUPPORTED
+            do {
+                if self.engine == nil { self.engine = try RenderEngine() }
+                var sampledTemperature: Float = 0, sampledTint: Float = 0
+                status = self.engine!.pickWhiteBalance(nx: nx, ny: ny,
+                                                       temperature: &sampledTemperature,
+                                                       tint: &sampledTint)
+                temperature = sampledTemperature
+                tint = sampledTint
+            } catch { status = SONY2FUJI_STATUS_UNSUPPORTED }
+            DispatchQueue.main.async {
+                guard status == SONY2FUJI_STATUS_OK else { self.showNotice("无法取样该点"); return }
+                guard self.file == file else { return }
+                var updated = self.settings
+                updated.set(.temperature, to: Double(temperature).rounded())
+                updated.set(.tint, to: Double(tint).rounded())
+                self.settings = updated
+            }
+        }
+    }
+
+    // ================================================================
+    //  v0.7.0 FR-05: hold-C baseline. Development reference of the
+    //  current exposure mode with every user edit zeroed; cached per
+    //  file+mode and never recorded in the undo stack.
+    // ================================================================
+    @Published private(set) var baseline: RenderedImage?
+    private var baselineCache: (file: URL, mode: ExposureMode, frame: RenderedImage)?
+    private var baselineRendering = false
+    func prepareBaseline() {
+        guard let file else { return }
+        let mode = settings.exposureMode
+        if let cache = baselineCache, cache.file == file.standardizedFileURL, cache.mode == mode {
+            baseline = cache.frame
+            return
+        }
+        if mode == .preview, let neutral { baseline = neutral; return }
+        guard !baselineRendering else { return }
+        baselineRendering = true
+        queue.async { [weak self] in
+            guard let self else { return }
+            do {
+                if self.engine == nil { self.engine = try RenderEngine() }
+                var baselineSettings = Adjustments()
+                baselineSettings.exposureMode = mode
+                let frame = try self.engine!.render(file, settings: baselineSettings, lut: nil, edge: 2048)
+                DispatchQueue.main.async {
+                    self.baselineRendering = false
+                    guard let frame else { return }
+                    self.baselineCache = (file.standardizedFileURL, mode, frame)
+                    if self.file == file, self.settings.exposureMode == mode { self.baseline = frame }
+                }
+            } catch {
+                DispatchQueue.main.async { self.baselineRendering = false }
+            }
+        }
+    }
+
+    /// FR-05: releasing the C key returns to the edited preview.
+    func releaseBaseline() {
+        baseline = nil
+    }
+
+    func showNotice(_ key: String) {
+        let message = L10n.text(key)
+        statusState = .notice(message)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let state = self?.statusState, case .notice(let current) = state, current == message else { return }
+            self?.statusState = .none
+        }
+    }
     private var updatingMetadata = false
     @Published var films = Film.bundled()
     @Published var selectedFilmID = "" {
@@ -24,7 +246,14 @@ final class EditorModel: ObservableObject {
             }
         }
     }
-    @Published var fullResolution = false { didSet { schedule() } }
+    @Published var fullResolution = false {
+        didSet {
+            if fullResolution { cancelViewportResize() }
+            schedule()
+        }
+    }
+    private(set) var previewLongEdge = 2000
+    private(set) var renderPreviewLongEdge = 2000
     @Published private(set) var file: URL?
     @Published private(set) var neutral: RenderedImage?
     @Published private(set) var result: RenderedImage?
@@ -35,8 +264,24 @@ final class EditorModel: ObservableObject {
     @Published private(set) var lookLibraryBusy = false
     @Published var error: String?
     @Published var lookImportReport: String?
-    @Published private(set) var status = ""
-    @Published private(set) var saveStatus = ""
+    private enum Status {
+        case none, applied(Int), interactive(Int, Int), preview(Int, Int, original: Bool), exported(String)
+        case notice(String)
+    }
+    @Published private var statusState = Status.none
+    var status: String {
+        switch statusState {
+        case .none: return ""
+        case .applied(let count): return L10n.format("已将当前设置应用到 %@ 张照片", String(count))
+        case .interactive(let width, let height): return L10n.format("交互预览… %@ × %@ · sRGB", String(width), String(height))
+        case .preview(let width, let height, let original):
+            return "\(original ? L10n.text("原尺寸") : L10n.text("预览")) \(width) × \(height) · sRGB"
+        case .exported(let name): return L10n.format("已导出：%@", name)
+        case .notice(let text): return text
+        }
+    }
+    @Published private(set) var saveStatusKey = ""
+    var saveStatus: String { L10n.text(saveStatusKey) }
     @Published private(set) var saveError: String?
     @Published private(set) var batch: BatchExportModel?
     @Published var exportLongEdge: Int?
@@ -44,6 +289,7 @@ final class EditorModel: ObservableObject {
     private let debounceQueue = DispatchQueue(label: "rawlab.render.debounce", qos: .userInitiated)
     private var scheduler = RenderScheduler<RenderWork>()
     private var debounceTimer: DispatchSourceTimer?
+    private var viewportResizeWork: DispatchWorkItem?
     private var workerActive = false
     private var engine: RenderEngine?
     private var originalCache: (file: URL, frame: RenderedImage)?
@@ -89,10 +335,10 @@ final class EditorModel: ObservableObject {
         }
         selectedFilmID = films.first(where: { $0.name == "PROVIA" })?.id ?? films.first?.id ?? ""
         do { editStore = try EditPersistence(directory: editDirectory) }
-        catch { saveError = "无法读取调整记录：\(error.localizedDescription)" }
+        catch { saveError = L10n.format("无法读取调整记录：%@", String(describing: error.localizedDescription)) }
         do {
             if let job = try batchJournal.load() { attachBatch(job) }
-        } catch { self.error = "无法读取上次批量任务：\(error.localizedDescription)" }
+        } catch { self.error = L10n.format("无法读取上次批量任务：%@", String(describing: error.localizedDescription)) }
         let timer = DispatchSource.makeTimerSource(queue: debounceQueue)
         timer.setEventHandler { [weak self] in
             DispatchQueue.main.async { [weak self] in self?.launchNextRender() }
@@ -100,13 +346,13 @@ final class EditorModel: ObservableObject {
         timer.resume()
         debounceTimer = timer
     }
-    deinit { debounceTimer?.cancel(); saveWork?.cancel() }
+    deinit { debounceTimer?.cancel(); viewportResizeWork?.cancel(); saveWork?.cancel() }
 
     private func edited() {
         editRevision = UUID()
         guard file != nil else { return }
         dirty = true
-        saveStatus = ""
+        saveStatusKey = ""
         saveWork?.cancel()
         let work = DispatchWorkItem { [weak self] in _ = self?.saveEdits() }
         saveWork = work
@@ -123,32 +369,32 @@ final class EditorModel: ObservableObject {
                 film.managedID ?? "builtin:\(film.url.lastPathComponent)"
             } ?? selectedFilmID
             try editStore!.save(file, state: PhotoEditState(settings: settings, filmID: filmID, masterRecipeID: settings.masterRecipeID))
-            dirty = false; saveError = nil; saveStatus = "调整已保存"
+            dirty = false; saveError = nil; saveStatusKey = "调整已保存"
             clearSaveStatusLater()
             return true
         } catch {
-            saveError = "调整未保存：\(error.localizedDescription)"
+            saveError = L10n.format("调整未保存：%@", String(describing: error.localizedDescription))
             return false
         }
     }
 
     private func clearSaveStatusLater() {
-        let message = saveStatus
+        let message = saveStatusKey
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            if self?.saveStatus == message { self?.saveStatus = "" }
+            if self?.saveStatusKey == message { self?.saveStatusKey = "" }
         }
     }
 
     @discardableResult func applyCurrentSettings(to urls: [URL]) throws -> Int {
         guard file != nil, !exporting, !lookLibraryBusy, !missingFilm, !missingMasterRecipe else {
-            throw RenderError.failed("当前照片的设置尚不可用。")
+            throw RenderError.failed(L10n.text("当前照片的设置尚不可用。"))
         }
         let targets = Array(Set(urls.map { $0.resolvingSymlinksInPath().standardizedFileURL }))
         guard !targets.isEmpty else { return 0 }
         let filmID = selectedFilm.map { $0.managedID ?? "builtin:\($0.url.lastPathComponent)" } ?? selectedFilmID
         if editStore == nil { editStore = try EditPersistence(directory: editDirectory) }
         try editStore!.save(targets, state: PhotoEditState(settings: settings, filmID: filmID, masterRecipeID: settings.masterRecipeID))
-        status = "已将当前设置应用到 \(targets.count) 张照片"
+        statusState = .applied(targets.count)
         return targets.count
     }
 
@@ -156,12 +402,12 @@ final class EditorModel: ObservableObject {
         guard canApplySettings else { return }
         do {
             let targets = directory ? try DirectoryContents.read(url).photos : [url]
-            guard !targets.isEmpty else { throw RenderError.failed("此目录没有 RAW 照片。") }
+            guard !targets.isEmpty else { throw RenderError.failed(L10n.text("此目录没有 RAW 照片。")) }
             let alert = NSAlert()
-            alert.messageText = "应用当前设置到 \(targets.count) 张照片？"
-            alert.informativeText = "将替换目标照片的本机调整记录，不改写原始 RAW。" +
-                (directory ? "仅包含此目录中的 RAW，不包含子目录。" : "")
-            alert.addButton(withTitle: "应用当前设置"); alert.addButton(withTitle: "取消")
+            alert.messageText = L10n.format("应用当前设置到 %@ 张照片？", String(describing: targets.count))
+            alert.informativeText = L10n.text("将替换目标照片的本机调整记录，不改写原始 RAW。") +
+                (directory ? L10n.text("仅包含此目录中的 RAW，不包含子目录。") : "")
+            alert.addButton(withTitle: L10n.text("应用当前设置")); alert.addButton(withTitle: L10n.text("取消"))
             if alert.runModal() == .alertFirstButtonReturn { try applyCurrentSettings(to: targets) }
         } catch { self.error = error.localizedDescription }
     }
@@ -171,9 +417,9 @@ final class EditorModel: ObservableObject {
         if batch?.validating == true || batch?.previewing == true { return true }
         if let batch, batch.job.started && batch.job.succeededCount < batch.job.selectedCount {
             let alert = NSAlert()
-            alert.messageText = "上次批量任务尚未完成"
-            alert.informativeText = "继续查看上次任务，或保留已导出文件并新建任务。"
-            alert.addButton(withTitle: "查看任务"); alert.addButton(withTitle: "新建任务")
+            alert.messageText = L10n.text("上次批量任务尚未完成")
+            alert.informativeText = L10n.text("继续查看上次任务，或保留已导出文件并新建任务。")
+            alert.addButton(withTitle: L10n.text("查看任务")); alert.addButton(withTitle: L10n.text("新建任务"))
             if alert.runModal() == .alertFirstButtonReturn { return true }
         }
         do {
@@ -199,19 +445,24 @@ final class EditorModel: ObservableObject {
     func openPanel() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
-        panel.title = "打开 RAW 照片"
+        panel.title = L10n.text("打开 RAW 照片")
         if panel.runModal() == .OK, let url = panel.url { open(url) }
     }
     func open(_ url: URL) {
         guard !exporting else { return }
         if file == url && result != nil { return }
         guard saveEdits() else { return }
+        cancelViewportResize()
         editRevision = UUID()
         scheduler.setInteracting(false)
         var restored: PhotoEditState?
         do { restored = try editStore?.state(for: url) }
-        catch { saveError = "无法恢复调整：\(error.localizedDescription)" }
-        file = url; neutral = nil; result = nil; error = nil; status = ""
+        catch { saveError = L10n.format("无法恢复调整：%@", String(describing: error.localizedDescription)) }
+        file = url; neutral = nil; result = nil; error = nil; statusState = .none
+        baseline = nil; cropDraft = nil; cropAspectHint = "original"
+        samplingWhiteBalance = false; cropping = false
+        undoStack.removeAll(); redoStack.removeAll(); dragUndoActive = false
+        syncUndoFlags()
         updatingMetadata = true
         settings = restored?.settings ?? Adjustments()
         if let masterRecipeID = restored?.masterRecipeID {
@@ -225,7 +476,7 @@ final class EditorModel: ObservableObject {
         }
         updatingMetadata = false
         dirty = false
-        saveStatus = restored == nil ? "" : "已恢复上次调整"
+        saveStatusKey = restored == nil ? "" : "已恢复上次调整"
         clearSaveStatusLater()
         schedule()
     }
@@ -250,7 +501,7 @@ final class EditorModel: ObservableObject {
     func importLUT() {
         guard !lookLibraryBusy, !exporting else { return }
         let panel = NSOpenPanel()
-        panel.title = "导入外观"
+        panel.title = L10n.text("导入外观")
         panel.allowedContentTypes = ["cube", "rlook"].map { UTType(filenameExtension: $0) ?? .data }
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
@@ -278,7 +529,7 @@ final class EditorModel: ObservableObject {
                 }
             }
             let report = failures.isEmpty ? nil :
-                "已导入 \(imported) 个外观，\(failures.count) 个文件导入失败：\n" + failures.joined(separator: "\n")
+                L10n.format("已导入 %@ 个外观，%@ 个文件导入失败：\n", String(describing: imported), String(describing: failures.count)) + failures.joined(separator: "\n")
             return (selectedID, report)
         }
     }
@@ -294,9 +545,9 @@ final class EditorModel: ObservableObject {
     func renameLookPanel(_ film: Film) {
         guard let id = film.managedID, !lookLibraryBusy, !exporting else { return }
         let alert = NSAlert()
-        alert.messageText = "重命名外观"
-        alert.addButton(withTitle: "保存")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = L10n.text("重命名外观")
+        alert.addButton(withTitle: L10n.text("保存"))
+        alert.addButton(withTitle: L10n.text("取消"))
         let field = NSTextField(string: film.name)
         field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
         alert.accessoryView = field
@@ -307,10 +558,10 @@ final class EditorModel: ObservableObject {
     func removeLookPanel(_ film: Film) {
         guard let id = film.managedID, !lookLibraryBusy, !exporting else { return }
         let alert = NSAlert()
-        alert.messageText = "移除“\(film.name)”？"
-        alert.informativeText = "将移除 RawLab 保存的外观副本，原始文件不会被删除。"
-        alert.addButton(withTitle: "移除")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = L10n.format("移除“%@”？", String(describing: film.name))
+        alert.informativeText = L10n.text("将移除 RawLab 保存的外观副本，原始文件不会被删除。")
+        alert.addButton(withTitle: L10n.text("移除"))
+        alert.addButton(withTitle: L10n.text("取消"))
         if alert.runModal() == .alertFirstButtonReturn { removeLook(id: id) }
     }
 
@@ -352,17 +603,47 @@ final class EditorModel: ObservableObject {
     func schedule() {
         schedule(forceExact: false)
     }
+    func updatePreviewLongEdge(_ edge: Int) {
+        let edge = min(65535, max(1, edge))
+        guard previewLongEdge != edge else { return }
+        previewLongEdge = edge
+        viewportResizeWork?.cancel()
+        viewportResizeWork = nil
+        let holdProxy = settings.isDenoiseEnabled && result?.isFullResolution == false && !fullResolution
+        if holdProxy {
+            // 连续改变布局时沿用当前降噪尺度，停稳后只计算最后一个尺寸。
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.viewportResizeWork = nil
+                self.renderPreviewLongEdge = self.previewLongEdge
+                self.schedule()
+                self.refreshBusy()
+            }
+            viewportResizeWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+            refreshBusy()
+        } else {
+            renderPreviewLongEdge = edge
+            if !fullResolution || scheduler.interacting { schedule() }
+        }
+    }
+    private func cancelViewportResize() {
+        viewportResizeWork?.cancel()
+        viewportResizeWork = nil
+        renderPreviewLongEdge = previewLongEdge
+    }
     private func schedule(forceExact: Bool) {
         guard let file else { return }
+        if !settings.isDenoiseEnabled { cancelViewportResize() }
         guard !missingFilm, !missingMasterRecipe else {
             result = nil
-            error = missingMasterRecipe ? "大师配方外观文件不可用。" : "上次使用的外观不可用，请重新选择或导入外观。"
+            error = missingMasterRecipe ? L10n.text("大师配方外观文件不可用。") : L10n.text("上次使用的外观不可用，请重新选择或导入外观。")
             return
         }
         let interactive = scheduler.interacting && !forceExact
         let effectiveLUT = settings.masterRecipe?.lutURL() ?? selectedFilm?.url
         let work = RenderWork(file: file, settings: settings, lut: effectiveLUT,
-                              edge: interactive ? 1000 : (fullResolution ? nil : 2000),
+                              edge: interactive || !fullResolution ? renderPreviewLongEdge : nil,
                               pass: interactive ? .interactive : .exact)
         _ = scheduler.submit(work, fileID: file.standardizedFileURL.path, pass: work.pass)
         busy = true
@@ -396,7 +677,8 @@ final class EditorModel: ObservableObject {
                 let neutral = self.originalCache?.frame
                 let result = try self.engine!.render(work.file, settings: work.settings, lut: work.lut,
                                                      edge: work.edge, output: nil,
-                                                     interactive: work.pass == .interactive)
+                                                     interactive: work.pass == .interactive,
+                                                     viewportPreview: work.edge != nil)
                 DispatchQueue.main.async {
                     self.finish(request, neutral: neutral, result: result, failure: nil)
                 }
@@ -416,6 +698,8 @@ final class EditorModel: ObservableObject {
         switch completion {
         case .publishInteractive, .publishExact:
             guard sameFile, !missingFilm, !missingMasterRecipe else { break }
+            // 拖动仍可显示较早参数，但窗口尺寸变化后不能发布旧尺寸。
+            if completion == .publishInteractive && request.value.edge != renderPreviewLongEdge { break }
             if let failure {
                 if completion == .publishExact || scheduler.latest?.id == request.id {
                     self.result = nil
@@ -429,9 +713,9 @@ final class EditorModel: ObservableObject {
                 settings.resolveRawNoiseReductionSupport(result.supportsRawNoiseReduction)
                 updatingMetadata = false
                 if completion == .publishInteractive {
-                    status = "交互预览… \(result.image.width) × \(result.image.height) · sRGB"
+                    statusState = .interactive(result.image.width, result.image.height)
                 } else {
-                    status = "\(request.value.edge == nil ? "原尺寸" : "预览") \(result.image.width) × \(result.image.height) · sRGB"
+                    statusState = .preview(result.image.width, result.image.height, original: request.value.edge == nil)
                 }
             }
         case .discard, .ignored:
@@ -442,15 +726,19 @@ final class EditorModel: ObservableObject {
     }
 
     private func refreshBusy() {
-        busy = workerActive || scheduler.isBusy
+        busy = workerActive || scheduler.isBusy || viewportResizeWork != nil
     }
     func export(png: Bool) {
+        export(format: png ? .png : .jpeg)
+    }
+
+    func export(format: ExportFormat) {
         guard !busy, !exporting, !lookLibraryBusy, !missingFilm, !missingMasterRecipe, result != nil, let file else { return }
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [png ? .png : .jpeg]
+        panel.allowedContentTypes = [format.contentType]
         let lookName = settings.masterRecipe?.name ?? selectedFilm?.name ?? "neutral"
         panel.nameFieldStringValue = file.deletingPathExtension().lastPathComponent + "-" +
-            lookName + (png ? ".png" : ".jpg")
+            lookName + "." + format.suffix
         let sizePicker = NSHostingView(rootView: ExportSizeAccessory(model: self).padding(12).frame(width: 360))
         sizePicker.frame = NSRect(x: 0, y: 0, width: 360, height: 110)
         panel.accessoryView = sizePicker
@@ -463,7 +751,7 @@ final class EditorModel: ObservableObject {
                 if self.engine == nil { self.engine = try RenderEngine() }
                 _ = try self.engine!.render(file, settings: settings, lut: lut, edge: nil, output: output,
                                              interactive: false, exportLongEdge: longEdge)
-                DispatchQueue.main.async { self.exporting = false; self.status = "已导出：\(output.lastPathComponent)" }
+                DispatchQueue.main.async { self.exporting = false; self.statusState = .exported(output.lastPathComponent) }
             } catch {
                 DispatchQueue.main.async { self.exporting = false; self.error = error.localizedDescription }
             }

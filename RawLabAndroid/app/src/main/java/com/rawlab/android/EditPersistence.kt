@@ -46,12 +46,17 @@ class EditStore(private val directory: File) {
         properties.stringPropertyNames().filter { it.startsWith("record.") && it.endsWith(".values") }.forEach { key ->
             val encoded = key.removePrefix("record.").removeSuffix(".values")
             val identity = PhotoIdentity(String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8))
-            val storedFilm = properties.getProperty("record.$encoded.film", "neutral")
+            val storedFilm = properties.getProperty("record.${encoded}.film", "neutral")
             val film = runCatching { String(Base64.getUrlDecoder().decode(storedFilm), StandardCharsets.UTF_8) }
                 .getOrDefault(storedFilm)
             // 单条记录损坏（手改/截断/旧版格式异常）不应让整个编辑库不可用，跳过并保留其余记录。
             try {
-                records[identity] = decode(properties.getProperty(key), film).copy(recipeID = properties.getProperty("record.$encoded.recipe"))
+                records[identity] = decode(properties.getProperty(key), film).copy(
+                    recipeID = properties.getProperty("record.$encoded.recipe"),
+                    lens = LensSettings.decode(properties.getProperty("record.$encoded.lens")),
+                    // v0.7.0 fields: records without the keys stay on v0.6.3 defaults.
+                    crop = CropSettings.decode(properties.getProperty("record.$encoded.crop")),
+                    curve = CurveSettings.decode(properties.getProperty("record.$encoded.curve")))
             } catch (_: Exception) {
             }
         }
@@ -64,6 +69,11 @@ class EditStore(private val directory: File) {
                 .encodeToString(identity.value.toByteArray(StandardCharsets.UTF_8))
             properties.setProperty("record.$encoded.values", encode(settings))
             settings.recipeID?.let { properties.setProperty("record.$encoded.recipe", it) }
+            properties.setProperty("record.$encoded.lens", settings.lens.encode())
+            // v0.7.0 schema version; absent keys on old records mean v1 defaults.
+            properties.setProperty("record.$encoded.schema", "2")
+            settings.crop?.let { properties.setProperty("record.$encoded.crop", it.encode()) }
+            settings.curve?.let { properties.setProperty("record.$encoded.curve", it.encode()) }
             properties.setProperty("record.$encoded.film", Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(settings.film.toByteArray(StandardCharsets.UTF_8)))
         }

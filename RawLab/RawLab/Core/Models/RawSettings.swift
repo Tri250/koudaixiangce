@@ -3,6 +3,7 @@ import Foundation
 enum RawDenoisePreset: String, CaseIterable, Identifiable {
     case detail = "细节优先", clean = "去噪优先", custom = "自定义"
     var id: String { rawValue }
+    var title: String { L10n.text(rawValue) }
 }
 
 struct PhotoEffectsSettings: Codable, Equatable {
@@ -118,13 +119,13 @@ enum PhotoEffectParameter: String, CaseIterable, Identifiable {
     }
     var title: String {
         switch self {
-        case .vignetteAmount, .grainAmount: return "强度"
-        case .vignetteMidpoint: return "中点"
-        case .vignetteRoundness: return "圆度"
-        case .vignetteFeather: return "羽化"
-        case .vignetteHighlights: return "高光保护"
-        case .grainSize: return "大小"
-        case .grainRoughness: return "粗糙度"
+        case .vignetteAmount, .grainAmount: return L10n.text("强度")
+        case .vignetteMidpoint: return L10n.text("中点")
+        case .vignetteRoundness: return L10n.text("圆度")
+        case .vignetteFeather: return L10n.text("羽化")
+        case .vignetteHighlights: return L10n.text("高光保护")
+        case .grainSize: return L10n.text("大小")
+        case .grainRoughness: return L10n.text("粗糙度")
         }
     }
     var keyPath: WritableKeyPath<PhotoEffectsSettings, Double> {
@@ -181,14 +182,63 @@ enum RawWhiteBalanceMode: String, Codable, CaseIterable, Equatable {
     static var asShot: Self { .camera }
 }
 
+enum LensProfileMode: String, Codable, CaseIterable { case automatic, manual }
+
+struct LensCorrectionSettings: Codable, Equatable {
+    var distortion = false
+    var tca = false
+    var autoCrop = true
+    var mode = LensProfileMode.automatic
+    var profileID: String?
+    var isEnabled: Bool { distortion || tca }
+    var coreProfileID: String {
+        mode == .automatic ? "" : (profileID ?? "__rawlab_manual_selection_required__")
+    }
+}
+
+// v0.7.0 schema: crop anchors to the normalized source rectangle; invalid
+// records fall back to nil instead of blocking the edit.
+struct CropSettings: Codable, Equatable {
+    static let aspectRatios = ["original", "free", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16"]
+    var aspect = "original"
+    var x = 0.0
+    var y = 0.0
+    var w = 1.0
+    var h = 1.0
+    var angle = 0.0
+    var isValid: Bool {
+        guard aspectRatios.contains(aspect),
+              [x, y, w, h, angle].allSatisfy({ $0.isFinite }) else { return false }
+        return x >= 0 && y >= 0 && w > 0 && h > 0 && x + w <= 1 && y + h <= 1 && abs(angle) <= 45
+    }
+    var isFullFrame: Bool { x == 0 && y == 0 && w == 1 && h == 1 && angle == 0 }
+}
+
+struct CurvePoint: Codable, Equatable {
+    var x: Double
+    var y: Double
+}
+
+struct CurveSettings: Codable, Equatable {
+    static let maxPoints = 64
+    static let identity = CurveSettings(points: [CurvePoint(x: 0, y: 0), CurvePoint(x: 1, y: 1)])
+    var points: [CurvePoint]
+    var isValid: Bool {
+        points.count >= 2 && points.count <= CurveSettings.maxPoints
+            && points.allSatisfy { $0.x.isFinite && $0.y.isFinite && (0...1).contains($0.x) && (0...1).contains($0.y) }
+            && zip(points, points.dropFirst()).allSatisfy { $1.x > $0.x }
+    }
+    var isIdentity: Bool { self == CurveSettings.identity }
+}
+
 enum RawExposureMode: Int, Codable, CaseIterable, Identifiable {
     case scene = 0, preview = 1, sensor = 2
     var id: Int { rawValue }
     var title: String {
         switch self {
-        case .scene: return "标准显影"
-        case .preview: return "匹配内嵌预览"
-        case .sensor: return "传感器基准"
+        case .scene: return L10n.text("标准显影")
+        case .preview: return L10n.text("匹配内嵌预览")
+        case .sensor: return L10n.text("传感器基准")
         }
     }
 }
@@ -199,8 +249,15 @@ struct RawSettings: Codable, Equatable {
     static let tintRange: ClosedRange<Double> = -150...150
 
     var denoise = RawDenoiseSettings()
+    var lensCorrection: LensCorrectionSettings?
+    var lensSettings: LensCorrectionSettings { lensCorrection ?? LensCorrectionSettings() }
     var photoEffects = PhotoEffectsSettings()
     var hsl = HSLSettings()
+    // v0.7.0 schema. Missing fields on v1 records decode to nil/1 defaults;
+    // the legacy scalar toneCurve stays alongside curve for rollback safety.
+    var schemaVersion = 2
+    var crop: CropSettings?
+    var curve: CurveSettings?
     var exposureMode = RawExposureMode.preview
     var displayChromaDenoise = 0 {
         didSet { displayChromaDenoise = Self.clampedDisplayChromaDenoise(displayChromaDenoise) }
@@ -253,7 +310,8 @@ struct RawSettings: Codable, Equatable {
         case exposure, contrast, saturation, temperature, tint, highlights, shadows
         case toneCurve, noiseReduction, sharpening, lutID, lutStrength, whiteBalanceMode
         case denoise, photoEffects, displayChromaDenoise, exposureMode, hsl
-        case masterRecipeID
+        case masterRecipeID, lensCorrection
+        case schemaVersion, crop, curve
     }
 
     var clampedLUTStrength: Float {
@@ -293,7 +351,10 @@ struct RawSettings: Codable, Equatable {
         lutStrength: Double,
         whiteBalanceMode: RawWhiteBalanceMode = .camera,
         photoEffects: PhotoEffectsSettings = PhotoEffectsSettings(),
-        displayChromaDenoise: Int = 0
+        displayChromaDenoise: Int = 0,
+        crop: CropSettings? = nil,
+        curve: CurveSettings? = nil,
+        schemaVersion: Int = 2
     ) {
         self.photoEffects = photoEffects
         self.displayChromaDenoise = Self.clampedDisplayChromaDenoise(displayChromaDenoise)
@@ -310,6 +371,9 @@ struct RawSettings: Codable, Equatable {
         self.lutID = lutID
         self.lutStrength = lutStrength
         self.whiteBalanceMode = whiteBalanceMode
+        self.crop = crop
+        self.curve = curve
+        self.schemaVersion = schemaVersion
     }
 
     init(from decoder: Decoder) throws {
@@ -334,10 +398,20 @@ struct RawSettings: Codable, Equatable {
         lutStrength = try values.decodeIfPresent(Double.self, forKey: .lutStrength) ?? 1
         whiteBalanceMode = try values.decodeIfPresent(RawWhiteBalanceMode.self, forKey: .whiteBalanceMode) ?? .camera
         denoise = try values.decodeIfPresent(RawDenoiseSettings.self, forKey: .denoise) ?? RawDenoiseSettings()
+        lensCorrection = try values.decodeIfPresent(LensCorrectionSettings.self, forKey: .lensCorrection)
         photoEffects = try values.decodeIfPresent(PhotoEffectsSettings.self, forKey: .photoEffects) ?? PhotoEffectsSettings()
         displayChromaDenoise = Self.clampedDisplayChromaDenoise(
             try values.decodeIfPresent(Int.self, forKey: .displayChromaDenoise) ?? 0
         )
+        // v0.7.0 fields: v1 records and invalid payloads fall back to defaults
+        // instead of failing the whole edit.
+        schemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        if let parsedCrop = try? values.decodeIfPresent(CropSettings.self, forKey: .crop), parsedCrop.isValid {
+            crop = parsedCrop
+        }
+        if let parsedCurve = try? values.decodeIfPresent(CurveSettings.self, forKey: .curve), parsedCurve.isValid, !parsedCurve.isIdentity {
+            curve = parsedCurve
+        }
         guard denoise.isValid else {
             throw DecodingError.dataCorruptedError(forKey: .denoise, in: values, debugDescription: "Invalid denoise strengths")
         }

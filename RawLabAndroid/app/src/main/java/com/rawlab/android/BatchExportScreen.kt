@@ -44,7 +44,7 @@ fun BatchExportScreen(
     var album by rememberSaveable { mutableStateOf(false) }
     var discard by rememberSaveable { mutableStateOf(false) }
     var effectTarget by remember { mutableStateOf<BatchRow?>(null) }
-    var png by rememberSaveable(state.job.id) { mutableStateOf(state.job.outputPng) }
+    var format by rememberSaveable(state.job.id) { mutableStateOf(state.job.outputFormat) }
     var exportSizeKey by rememberSaveable(state.job.id) {
         mutableStateOf(exportSizeChoice(state.job.outputLongEdge).key)
     }
@@ -84,13 +84,13 @@ fun BatchExportScreen(
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             when (state.phase) {
-                BatchPhase.SELECTING -> BatchConfirmContent(state, storage, png, destination,
+                BatchPhase.SELECTING -> BatchConfirmContent(state, storage, format, destination,
                     ExportSizeChoice.fromKey(exportSizeKey), exportCustomSize,
                     onAlbum = { album = true }, onFiles = { files.launch(arrayOf("*/*")) },
-                    onDirectory = { directory.launch(null) }, onAlbumOutput = { destination = null; model.setDestination(null) }, onPng = { png = it },
+                    onDirectory = { directory.launch(null) }, onAlbumOutput = { destination = null; model.setDestination(null) }, onFormat = { format = it },
                     onSize = { choice -> exportSizeKey = choice.key }, onCustomSize = { exportCustomSize = it },
                     onRemove = model::remove, onInspect = { effectTarget = it },
-                    onStart = { model.start(png, destination, ExportSize.parse(ExportSizeChoice.fromKey(exportSizeKey), exportCustomSize)) })
+                    onStart = { model.start(format, destination, ExportSize.parse(ExportSizeChoice.fromKey(exportSizeKey), exportCustomSize)) })
                 BatchPhase.PREPARING, BatchPhase.RUNNING -> BatchProgressContent(state, model::cancel)
                 BatchPhase.COMPLETE, BatchPhase.CANCELLED, BatchPhase.FAILED -> BatchResultContent(state,
                     onRetry = model::retryFailed, onClose = onBack, onDirectory = { directory.launch(state.destination) },
@@ -126,7 +126,7 @@ fun BatchExportScreen(
 private fun BatchConfirmContent(
     state: BatchExportState,
     storage: PhotoStorage,
-    png: Boolean,
+    format: ExportFormat,
     destination: Uri?,
     sizeChoice: ExportSizeChoice,
     customSize: String,
@@ -134,7 +134,7 @@ private fun BatchConfirmContent(
     onFiles: () -> Unit,
     onDirectory: () -> Unit,
     onAlbumOutput: () -> Unit,
-    onPng: (Boolean) -> Unit,
+    onFormat: (ExportFormat) -> Unit,
     onSize: (ExportSizeChoice) -> Unit,
     onCustomSize: (String) -> Unit,
     onRemove: (String) -> Unit,
@@ -142,6 +142,12 @@ private fun BatchConfirmContent(
     onStart: () -> Unit,
 ) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val recipes = remember(context) { MasterRecipe.load(context) }
+    val sourceSettings = state.job.source.settings
+    val sourceLookName = recipes.firstOrNull { it.id == sourceSettings.recipeID }?.name
+        ?: if (sourceSettings.film == "neutral") stringResource(R.string.neutral_look)
+        else Film.all.firstOrNull { it.id == sourceSettings.film }?.name ?: sourceSettings.film
     Column(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = 12.dp)) {
         item {
@@ -152,7 +158,7 @@ private fun BatchConfirmContent(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(state.job.source.displayName, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     val settings = state.job.source.settings
-                    Text("${Film.all.firstOrNull { it.id == settings.film }?.name ?: settings.film} · ${String.format("%.0f", settings.strength * 100f)}%",
+                    Text("$sourceLookName · ${String.format(java.util.Locale.ROOT, "%.0f", settings.strength * 100f)}%",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     Text(stringResource(R.string.batch_exposure_format, settings.exposure), style = MaterialTheme.typography.bodySmall)
                 }
@@ -187,13 +193,14 @@ private fun BatchConfirmContent(
                 Text(stringResource(R.string.batch_all_settings), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 TextButton(onClick = { showSettings = !showSettings }) { Text(if (showSettings) stringResource(R.string.batch_collapse) else stringResource(R.string.batch_expand)) }
             }
-            if (showSettings) SettingsSummary(state.job.source.settings)
+            if (showSettings) SettingsSummary(state.job.source.settings, sourceLookName)
         }
         item {
             Text(stringResource(R.string.batch_output_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(20.dp, 16.dp, 20.dp, 4.dp))
             Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !png, onClick = { onPng(false) }, label = { Text(stringResource(R.string.jpeg)) })
-                FilterChip(selected = png, onClick = { onPng(true) }, label = { Text(stringResource(R.string.png)) })
+                FilterChip(selected = format == ExportFormat.JPEG, onClick = { onFormat(ExportFormat.JPEG) }, label = { Text(stringResource(R.string.jpeg)) })
+                FilterChip(selected = format == ExportFormat.PNG, onClick = { onFormat(ExportFormat.PNG) }, label = { Text(stringResource(R.string.png)) })
+                FilterChip(selected = format == ExportFormat.DNG, onClick = { onFormat(ExportFormat.DNG) }, label = { Text(stringResource(R.string.dng)) })
             }
             Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (Build.VERSION.SDK_INT >= 29) {
@@ -280,7 +287,7 @@ private fun BatchRowLine(row: BatchRow) {
             BatchRowStatus.FAILED -> Icons.Outlined.Close
             else -> Icons.Outlined.Refresh
         }
-        Icon(icon, row.status.name, tint = if (row.status == BatchRowStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+        Icon(icon, null, tint = if (row.status == BatchRowStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             Text(row.target.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -299,7 +306,7 @@ private fun BatchRowLine(row: BatchRow) {
 }
 
 @Composable
-private fun SettingsSummary(settings: EditSettings) {
+private fun SettingsSummary(settings: EditSettings, lookName: String) {
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val exposureModes = listOf(R.string.exposure_scene, R.string.exposure_preview, R.string.exposure_sensor)
         SettingLine(stringResource(R.string.batch_settings_film), Film.all.firstOrNull { it.id == settings.film }?.name ?: settings.film)

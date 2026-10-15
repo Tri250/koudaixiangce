@@ -26,6 +26,8 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         settings.setEffect(.vignetteFeather, to: 70)
         settings.setEffect(.grainAmount, to: 60)
         settings.setEffect(.grainRoughness, to: 30)
+        settings.lensCorrection = LensCorrectionSettings(distortion: true, tca: true, autoCrop: false,
+            mode: .manual, profileID: "saved-lens-profile")
         settings.resolveWhiteBalance(WhiteBalance(temperature: 5200, tint: 8))
         settings.set(.temperature, to: 6000)
         try store.save(a, state: PhotoEditState(settings: settings, filmID: "look-id"))
@@ -47,8 +49,31 @@ private func check(_ value: @autoclosure () throws -> Bool, _ message: String) t
         try check(wavelet?.waveletSettings.luma == 53 && wavelet?.waveletSettings.preset == .custom &&
                   wavelet?.waveletSettings.enabled == false && wavelet?.chromaNoiseReduction == nil,
                   "disabled custom wavelet settings survive restart without reviving old algorithms")
+        // v0.7.0: curve and crop survive restart; group resets clear them.
+        settings.curve = CurveSettings(points: [CurvePoint(x: 0, y: 0.1),
+            CurvePoint(x: 0.5, y: 0.4), CurvePoint(x: 1, y: 1)])
+        settings.crop = CropSettings(aspect: "4:3", x: 0.05, y: 0.1, w: 0.9, h: 0.8, angle: 2.5)
+        try reopened.save(a, state: PhotoEditState(settings: settings, filmID: "look-id"))
+        let geometry = try EditPersistence(directory: directory).state(for: a)?.settings
+        try check(geometry?.curve == settings.curve && geometry?.crop == settings.crop,
+                  "multi-point curve and crop survive restart")
+        try check(geometry?.curve?.isValid == true && geometry?.crop?.isValid == true,
+                  "persisted geometry stays valid on reload")
+        settings.reset(.tone)
+        try check(settings.curve == nil, "the tone group reset clears the curve")
+        settings.reset(.geometry)
+        try check(settings.crop == nil, "the geometry group reset clears the crop")
+        settings.curve = CurveSettings(points: [CurvePoint(x: 0, y: 0), CurvePoint(x: 1, y: 1)])
+        settings.crop = CropSettings()
+        try reopened.save(a, state: PhotoEditState(settings: settings, filmID: "look-id"))
+        let identity = try EditPersistence(directory: directory).state(for: a)?.settings
+        try check(identity?.curve != nil && identity?.crop != nil,
+                  "identity geometry round-trips without special cases")
         settings.resetAll()
         try reopened.save(a, state: PhotoEditState(settings: settings, filmID: "look-id"))
+        try check(try EditPersistence(directory: directory).state(for: a)?.settings.crop == nil &&
+                  EditPersistence(directory: directory).state(for: a)?.settings.curve == nil,
+                  "reset all persists cleared geometry")
         try check(try EditPersistence(directory: directory).state(for: a)?.settings.exposure == 0,
                   "reset must persist, not resurrect old values")
         try Data("replacement raw".utf8).write(to: a)

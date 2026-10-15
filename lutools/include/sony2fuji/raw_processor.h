@@ -1,10 +1,13 @@
 #pragma once
 
 #include "sony2fuji/common.h"
+#include "sony2fuji/lens_correction.h"
 #include <string>
 #include <memory>
 
 namespace sony2fuji {
+
+class CameraWhiteBalance;
 
 /**
  * @brief RAW 处理选项
@@ -26,6 +29,8 @@ struct RAWProcessOptions {
     int rawNoiseReduction;      // FBDD: 0 off, 1 light, 2 full; requires Bayer RAW
     bool matchEmbeddedPreviewExposure; // Optional JPEG-based approximation, not the default
     bool applyBaselineExposure; // Scene default + DNG BaselineExposure; ignored by preview match
+    std::shared_ptr<const LensCorrectionDatabase> lensDatabase;
+    LensCorrectionOptions lensCorrection;
 
     RAWProcessOptions()
         : useAutoWhiteBalance(false)
@@ -89,7 +94,11 @@ public:
     float getBaselineExposureEV() const;
     float getMetadataExposureEV() const;
     bool getAsShotWhiteBalance(float& temperature, float& tint) const;
+    // Copy of the file's calibrated WB model for offline neutral-point solving.
+    bool getCameraWhiteBalance(class CameraWhiteBalance& out) const;
     bool supportsNoiseReduction() const;
+    static ErrorCode readLensMetadata(const std::string& filepath, LensMetadata& metadata);
+    LensCorrectionReport getLensCorrectionReport() const;
 
     /**
      * @brief 获取相机色彩矩阵 (Camera RGB -> XYZ)

@@ -3,6 +3,45 @@
 Release history is kept here rather than in the project READMEs. Detailed
 release notes include assets, installation requirements and validation limits.
 
+## [0.7.0] - 2026-10-15
+
+### Added
+
+- A multi-point tone curve on macOS, iOS, Android and Windows: drag to add or
+  move anchors, double-click to delete, capped at 64 anchors. Evaluated with a
+  monotonic Fritsch–Carlson cubic in the shared C++ engine, so every platform
+  renders identical tonality; empty curves bypass the pipeline exactly.
+- Crop and leveling on all four clients. The frame stays normalized on the
+  unrotated source, with free and locked aspect presets, a rule-of-thirds grid
+  and a ±45° leveling slider that resizes to the largest inscribed rectangle.
+  The engine applies crop as the final geometry stage after resizing, and the
+  interactive preview keeps showing the full image behind the overlay.
+- A white balance eyedropper that samples a neighborhood of the decoded RAW in
+  the linear camera domain and solves for the temperature/tint whose calibrated
+  multipliers neutralize the sample. One sample is one undo step; files without
+  usable calibration report unsupported instead of guessing.
+- Undo and redo with a 50-step snapshot stack on all four clients. Slider
+  drags collapse into a single step, recipe application and eyedropper samples
+  land as one step each, and history is session-scoped: it is never persisted
+  and clears when a new photo is opened.
+- Hold-to-compare against the zeroed-edit baseline: press and hold C on
+  desktop, or long-press the preview on iOS and Android, to see the current
+  exposure mode with every user adjustment removed. The baseline is cached per
+  file and mode, rendered off the interactive scheduler, and never recorded in
+  the undo stack.
+
+### Changed
+
+- Tone curves and active crops render on CPU: GPU Auto falls back, and GPU
+  Force returns a processing error instead of silently dropping them.
+- Edit memories carry schema version 2 with independent crop and curve fields;
+  older records load with defaults and invalid payloads fall back whole.
+
+### Fixed
+
+- Curve evaluation stays monotonic at anchor boundaries and clamps out-of-range
+  coordinates, matching the native engine on every client.
+
 ## [0.6.0] - 2026-10-12
 
 ### Added
@@ -46,8 +85,8 @@ See the [v0.6.0 release notes](docs/releases/v0.6.0.md),
 [source rebuild instructions](docs/releases/v0.6.0-source.md),
 [release verification](docs/verification-v0.6.0.md),
 [Chinese update notes](docs/releases/master-recipes-update.md),
-[cross-platform verification](docs/verification/cross-platform-master-recipes-20261011.md)
-and [recipe HSL calibration](docs/verification/master-recipes-hsl-20261011.md).
+[cross-platform verification](docs/archive/verification/cross-platform-master-recipes-20261011.md)
+and [recipe HSL calibration](docs/archive/verification/master-recipes-hsl-20261011.md).
 
 ## [0.5.1] - 2026-10-10
 
@@ -71,7 +110,7 @@ and [recipe HSL calibration](docs/verification/master-recipes-hsl-20261011.md).
 
 See [v0.5.1 release notes](docs/releases/v0.5.1.md),
 [release verification](docs/verification-v0.5.1.md) and
-[the cross-platform implementation evidence](docs/verification-cross-platform-effects-gpu-denoise-2026-10-10.md).
+[the cross-platform implementation evidence](docs/archive/verification/verification-cross-platform-effects-gpu-denoise-2026-10-10.md).
 
 ## [0.5.0] - 2026-10-10
 
@@ -110,9 +149,9 @@ See [v0.5.0 release notes](docs/releases/v0.5.0.md) and
 - Windows 新增 Mac 发起的远程编译入口；iOS 新增可复现的三架构 XCFramework 构建。移动设备峰值内存及 Windows 真显卡验证的边界见发布说明。
   Adds remote Windows builds from Mac and reproducible three-architecture iOS frameworks. See release notes for mobile memory and Windows hardware-GPU validation limits.
 
-详见 [v0.4.1 发布说明](docs/releases/v0.4.1.md)和[逐机型兼容性记录](docs/verification-raw-compatibility-2026-10-09.md)。
+详见 [v0.4.1 发布说明](docs/releases/v0.4.1.md)和[逐机型兼容性记录](docs/archive/verification/verification-raw-compatibility-2026-10-09.md)。
 
-See the [v0.4.1 release notes](docs/releases/v0.4.1.md) and [camera compatibility report](docs/verification-raw-compatibility-2026-10-09.md).
+See the [v0.4.1 release notes](docs/releases/v0.4.1.md) and [camera compatibility report](docs/archive/verification/verification-raw-compatibility-2026-10-09.md).
 
 ## v0.4.0 更新 / Previous Features
 
