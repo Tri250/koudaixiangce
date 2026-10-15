@@ -556,7 +556,6 @@ Java_com_rawlab_android_NativeProcessor_nativeAutoExposurePhoto(JNIEnv* env, job
     catch (...) { throwJava(env, "java/io/IOException", "Automatic exposure failed"); }
     return 0;
 }
-=======
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_rawlab_android_NativeProcessor_nativePickWhiteBalance(JNIEnv* env, jobject, jlong id,
     jfloat nx, jfloat ny) {
