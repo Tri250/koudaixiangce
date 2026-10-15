@@ -100,6 +100,12 @@ embed_dependency() {
                 source="$RAW_LIB/${dependency#@rpath/}"
                 if [ ! -f "$source" ]; then source="$OPENCV_PREFIX/lib/${dependency#@rpath/}"; fi
                 if [ ! -f "$source" ]; then source="$LENS_PREFIX/lib/${dependency#@rpath/}"; fi
+                if [ ! -f "$source" ] && [ "${RAWLAB_CI:-0}" = "1" ]; then
+                    source="$(brew --prefix lensfun 2>/dev/null)/lib/${dependency#@rpath/}"
+                fi
+                if [ ! -f "$source" ] && [ "${RAWLAB_CI:-0}" = "1" ]; then
+                    source="$(brew --prefix)/lib/${dependency#@rpath/}"
+                fi
                 ;;
             /*) source="$dependency" ;;
             *) echo "Unsupported dependency path: $dependency" >&2; exit 1 ;;
