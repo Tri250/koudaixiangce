@@ -78,7 +78,7 @@ jobs:
             -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
             -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DSONY2FUJI_BUILD_TIFF_DEPS=ON -DSONY2FUJI_ENABLE_LENSFUN=OFF -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF
           cmake --build lutools/build-macos-arm64 -j 8
-          cp lutools/build-macos-arm64/core/libsony2fuji_core.a lutools/build-macos-arm64/libsony2fuji_core_arm64.a
+          cp lutools/build-macos-arm64/libsony2fuji_core.a lutools/build-macos-arm64/libsony2fuji_core_arm64.a
         shell: bash
 
       - name: Build x86_64 slice
@@ -89,14 +89,14 @@ jobs:
             -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
             -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DSONY2FUJI_BUILD_TIFF_DEPS=ON -DSONY2FUJI_ENABLE_LENSFUN=OFF -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF
           cmake --build lutools/build-macos-x86_64 -j 8
-          cp lutools/build-macos-x86_64/core/libsony2fuji_core.a lutools/build-macos-x86_64/libsony2fuji_core_x86_64.a
+          cp lutools/build-macos-x86_64/libsony2fuji_core.a lutools/build-macos-x86_64/libsony2fuji_core_x86_64.a
         shell: bash
 
       - name: Lipo + build .app
         run: |
           lipo -create \
-            lutools/build-macos-arm64/core/libsony2fuji_core.a \
-            lutools/build-macos-x86_64/core/libsony2fuji_core.a \
+            lutools/build-macos-arm64/libsony2fuji_core.a \
+            lutools/build-macos-x86_64/libsony2fuji_core.a \
             -output lutools/build-macos-universal/libsony2fuji_core.a
           mkdir -p lutools/build-macos-universal
           RAWLAB_ARCH="arm64;x86_64" \
