@@ -169,8 +169,14 @@ struct EditorView: View {
         if let result = model.result {
             HStack(spacing: 1) {
                 if compare, let base = model.neutral { imagePane(base, title: L10n.text("原图"), showMask: false) }
-                imagePane(result, title: model.selectedFilm?.name ?? L10n.text("调整后"), showMask: clipping)
-            }
+                if let baseline = model.baseline {
+                    // FR-05: hold-C shows the zeroed-edit reference in place
+                    // of the edited pane until the key is released.
+                    imagePane(baseline, title: L10n.text("原图"), showMask: false)
+                } else {
+                    imagePane(result, title: model.selectedFilm?.name ?? L10n.text("调整后"), showMask: clipping)
+                }
+            }.background(holdCKeyMonitor)
         } else {
             VStack(spacing: 16) {
                 if model.busy {
@@ -297,7 +303,15 @@ struct EditorView: View {
     private func imagePane(_ frame: RenderedImage, title: String, showMask: Bool) -> some View {
         PhotoCanvas(frame: frame, viewport: viewport, sourceWidth: model.neutral?.image.width ?? frame.image.width,
                     pan: $pan, clipping: showMask, sourceHeight: model.neutral?.image.height,
-                    onPreviewSizeChange: model.updatePreviewLongEdge)
+                    onPreviewSizeChange: model.updatePreviewLongEdge,
+                    cropFrame: model.cropping ? model.effectiveCrop : nil,
+                    onCropLiveChange: model.updateCropDraft,
+                    onCropCommit: model.commitCropDraft,
+                    samplingWhiteBalance: model.samplingWhiteBalance,
+                    onSample: { point in
+                        model.pickWhiteBalance(at: point)
+                        model.samplingWhiteBalance = false
+                    })
             .simultaneousGesture(TapGesture(count: 2).onEnded { toggleActualPixels() })
             .accessibilityLabel(title)
             .overlay(alignment: .bottomLeading) {
@@ -307,6 +321,63 @@ struct EditorView: View {
                         .allowsHitTesting(false)
                 }
             }
+    }
+
+    // v0.7.0 FR-05: holding C shows the zeroed-edit baseline for the current
+    // exposure mode; text-input focus is excluded, key repeats are ignored.
+    private var holdCKeyMonitor: some View {
+        HoldKeyMonitor(keyCode: 8, onPress: { [weak model] in
+            guard let model, model.result != nil, !model.exporting else { return }
+            model.prepareBaseline()
+        }, onRelease: { [weak model] in model?.releaseBaseline() })
+    }
+}
+
+// ============================================================
+//  FR-05: local key monitor for press-and-hold comparison.
+//  A dedicated NSView keeps the NSEvent lifetime explicit; the
+//  monitor removes itself on disappear through the holder.
+// ============================================================
+private struct HoldKeyMonitor: NSViewRepresentable {
+    let keyCode: UInt16
+    let onPress: () -> Void
+    let onRelease: () -> Void
+
+    func makeNSView(context: Context) -> MonitorView {
+        let view = MonitorView()
+        view.keyCode = keyCode
+        view.onPress = onPress
+        view.onRelease = onRelease
+        view.install()
+        return view
+    }
+    func updateNSView(_ view: MonitorView, context: Context) {}
+    static func dismantleNSView(_ view: MonitorView, coordinator: ()) { view.uninstall() }
+
+    final class MonitorView: NSView {
+        var keyCode: UInt16 = 0
+        var onPress: () -> Void = {}
+        var onRelease: () -> Void = {}
+        private var monitor: Any?
+
+        func install() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
+                guard let self, event.keyCode == self.keyCode else { return event }
+                if event.type == .keyDown {
+                    if event.isARepeat { return nil }
+                    if NSApp.keyWindow?.firstResponder is NSTextView { return event }
+                    self.onPress()
+                } else {
+                    self.onRelease()
+                }
+                return nil
+            }
+        }
+        func uninstall() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
     }
 }
 

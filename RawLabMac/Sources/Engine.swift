@@ -193,6 +193,22 @@ final class RenderEngine {
         } else {
             sony2fuji_session_set_tone_curve(session, nil, 0)
         }
+        // v0.7.0 user crop/level; the core applies it as the final geometry stage.
+        if let crop = settings.crop, crop.isValid {
+            var cropConfig = sony2fuji_crop_config()
+            cropConfig.version = SONY2FUJI_CROP_CONFIG_VERSION
+            cropConfig.struct_size = UInt32(MemoryLayout<sony2fuji_crop_config>.size)
+            cropConfig.x = Float(crop.x)
+            cropConfig.y = Float(crop.y)
+            cropConfig.w = Float(crop.w)
+            cropConfig.h = Float(crop.h)
+            cropConfig.angle = Float(crop.angle)
+            guard sony2fuji_session_set_crop(session, &cropConfig) == SONY2FUJI_STATUS_OK else {
+                throw RenderError.failed(L10n.text("无效的裁剪参数"))
+            }
+        } else {
+            sony2fuji_session_set_crop(session, nil)
+        }
         try configureLens(settings.lensSettings)
         let wavelet = settings.waveletNoiseReduction
         var effectsConfig = settings.photoEffectsConfig
@@ -349,6 +365,12 @@ final class RenderEngine {
             selectedLens: nativeText(report.profile.model), focalLength: report.focal_length,
             appliedDistortion: report.applied_distortion != 0, appliedTCA: report.applied_tca != 0,
             cropScale: report.crop_scale, candidates: lensCandidates)
+    }
+
+    // v0.7.0 FR-03: neutral-point sampling over the decoded RAW. The session
+    // must hold the RAW of the photo being sampled; callers serialize access.
+    func pickWhiteBalance(nx: Float, ny: Float, temperature: inout Float, tint: inout Float) -> Int {
+        sony2fuji_session_pick_white_balance(session, nx, ny, &temperature, &tint)
     }
 }
 

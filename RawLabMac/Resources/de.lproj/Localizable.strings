@@ -382,3 +382,15 @@
 "渲染型 DNG 未生成。" = "Das gerenderte DNG wurde nicht erstellt.";
 "DNG 已生成，但任务记录未更新，请先核对保存结果。" = "DNG erstellt, aber der Auftragsdatensatz wurde nicht aktualisiert. Prüfen Sie zuerst die gespeicherte Datei.";
 "无效的视口预览模式" = "Ungültiger Modus für die Ausschnittvorschau";
+
+// v0.7.0 crop and white balance eyedropper
+"白平衡吸管" = "Weißabgleich-Pipette";
+"无法取样该点" = "Dieser Punkt kann nicht abgetastet werden";
+"裁剪" = "Freistellen";
+"裁剪和水平校正" = "Freistellen und Ausrichten";
+"宽高比" = "Seitenverhältnis";
+"水平校正" = "Ausrichten";
+"重置裁剪" = "Freistellung zurücksetzen";
+"拖动角点或框内调整裁剪，按住 C 对比原图" = "Ecken oder den Rahmen ziehen, um freizustellen; C gedrückt halten für den Vergleich mit dem Original";
+"原始" = "Original";
+"自由" = "Frei";

@@ -7,9 +7,10 @@ struct AdjustmentDock: View {
     let resetVersion: Int
 
     // One side-panel state instead of crossing booleans: a parameter
-    // selection (selected != nil) or one of these fixed panels.
+    // selection (selected != nil) or one of these fixed panels. `.none`
+    // means a parameter owns the panel.
     enum SideTool: Equatable {
-        case film, masterRecipe, hsl, curve, lens
+        case none, film, masterRecipe, hsl, curve, crop, lens
     }
     @State private var sideTool: SideTool = .film
 
@@ -32,6 +33,31 @@ struct AdjustmentDock: View {
                         toolButton(.curve, symbol: "point.topleft.down.curvedto.point.bottomright.up", title: "曲线", help: "多点色调曲线",
                                    changed: model.settings.curve != nil,
                                    accessibilityValue: nil, identifier: "tool.curve")
+                            .disabled(model.result == nil)
+                        toolButton(.crop, symbol: "crop", title: "裁剪", help: "裁剪和水平校正",
+                                   changed: model.settings.crop != nil,
+                                   accessibilityValue: nil, identifier: "tool.crop")
+                            .disabled(model.result == nil)
+                        Button {
+                            selected = nil
+                            sideTool = .none
+                            model.cropping = false
+                            model.samplingWhiteBalance.toggle()
+                        } label: {
+                            VStack(spacing: 5) {
+                                Image(systemName: "eyedropper").font(.system(size: 19))
+                                    .frame(width: 40, height: 40)
+                                    .background(model.samplingWhiteBalance ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                                    .overlay { Circle().strokeBorder(model.samplingWhiteBalance ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
+                                Text(L10n.text("白平衡吸管")).font(.system(size: 11)).lineLimit(1).minimumScaleFactor(0.8)
+                                Circle().fill(Color.clear).frame(width: 3, height: 3)
+                            }.frame(width: 72, height: 70)
+                                .foregroundStyle(model.samplingWhiteBalance ? Color.yellow : Color.primary)
+                        }.buttonStyle(.plain)
+                            .help(L10n.text("白平衡吸管"))
+                            .accessibilityLabel(L10n.text("白平衡吸管"))
+                            .accessibilityValue(model.samplingWhiteBalance ? L10n.text("已开启") : L10n.text("已关闭"))
+                            .accessibilityIdentifier("tool.eyedropper")
                             .disabled(model.result == nil)
                         toolButton(.lens, symbol: "viewfinder", title: "镜头", help: "镜头畸变和横向色差校正",
                                    changed: !model.settings.isDefault(.lens),
@@ -58,6 +84,12 @@ struct AdjustmentDock: View {
                                 get: { model.settings.curve },
                                 set: { model.settings.curve = $0 }),
                             onEditingChanged: model.setInteracting)
+                            .frame(maxWidth: 540).disabled(model.result == nil)
+                            .frame(maxWidth: .infinity)
+                    }
+                } else if sideTool == .crop {
+                    ScrollView(.vertical) {
+                        CropControls(model: model)
                             .frame(maxWidth: 540).disabled(model.result == nil)
                             .frame(maxWidth: .infinity)
                     }
@@ -105,6 +137,8 @@ struct AdjustmentDock: View {
         return Button {
             selected = nil
             sideTool = tool
+            model.cropping = tool == .crop
+            model.samplingWhiteBalance = false
         } label: {
             VStack(spacing: 5) {
                 Image(systemName: symbol).font(.system(size: 19))
@@ -128,11 +162,11 @@ struct AdjustmentDock: View {
         let value = model.settings[keyPath: spec.keyPath]
         let changed = parameter.isPhotoEffect ? !model.settings.isEffectDefault(parameter) :
             (parameter == .denoiseMode ? model.settings.isDenoiseEnabled : value != spec.defaultValue)
-        let active = selected == parameter && !hslSelected && !lensSelected
+        let active = selected == parameter && sideTool == .none
         let progress = parameter == .denoiseMode ? (changed ? 1.0 : 0.0) : spec.progress(for: value)
         let valueText = parameter == .denoiseMode ?
             model.settings.denoiseSummary : "\(spec.text(value)) \(spec.unit)"
-        return Button { selected = parameter; hslSelected = false; lensSelected = false } label: {
+        return Button { selected = parameter; sideTool = .none; model.cropping = false; model.samplingWhiteBalance = false } label: {
             VStack(spacing: 5) {
                 ZStack {
                     Circle().fill(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04))

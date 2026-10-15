@@ -382,3 +382,15 @@
 "渲染型 DNG 未生成。" = "No se creó el DNG renderizado.";
 "DNG 已生成，但任务记录未更新，请先核对保存结果。" = "Se creó el DNG, pero no se actualizó el registro de la tarea. Verifique primero el archivo guardado.";
 "无效的视口预览模式" = "Modo de vista previa del área visible no válido";
+
+// v0.7.0 crop and white balance eyedropper
+"白平衡吸管" = "Cuentagotas de balance de blancos";
+"无法取样该点" = "No se puede muestrear este punto";
+"裁剪" = "Recorte";
+"裁剪和水平校正" = "Recorte y enderezado";
+"宽高比" = "Relación de aspecto";
+"水平校正" = "Enderezado";
+"重置裁剪" = "Restablecer recorte";
+"拖动角点或框内调整裁剪，按住 C 对比原图" = "Arrastra las esquinas o el marco para recortar; mantén C para comparar con el original";
+"原始" = "Original";
+"自由" = "Libre";

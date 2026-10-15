@@ -3,6 +3,45 @@
 Release history is kept here rather than in the project READMEs. Detailed
 release notes include assets, installation requirements and validation limits.
 
+## [0.7.0] - 2026-10-15
+
+### Added
+
+- A multi-point tone curve on macOS, iOS, Android and Windows: drag to add or
+  move anchors, double-click to delete, capped at 64 anchors. Evaluated with a
+  monotonic Fritsch–Carlson cubic in the shared C++ engine, so every platform
+  renders identical tonality; empty curves bypass the pipeline exactly.
+- Crop and leveling on all four clients. The frame stays normalized on the
+  unrotated source, with free and locked aspect presets, a rule-of-thirds grid
+  and a ±45° leveling slider that resizes to the largest inscribed rectangle.
+  The engine applies crop as the final geometry stage after resizing, and the
+  interactive preview keeps showing the full image behind the overlay.
+- A white balance eyedropper that samples a neighborhood of the decoded RAW in
+  the linear camera domain and solves for the temperature/tint whose calibrated
+  multipliers neutralize the sample. One sample is one undo step; files without
+  usable calibration report unsupported instead of guessing.
+- Undo and redo with a 50-step snapshot stack on all four clients. Slider
+  drags collapse into a single step, recipe application and eyedropper samples
+  land as one step each, and history is session-scoped: it is never persisted
+  and clears when a new photo is opened.
+- Hold-to-compare against the zeroed-edit baseline: press and hold C on
+  desktop, or long-press the preview on iOS and Android, to see the current
+  exposure mode with every user adjustment removed. The baseline is cached per
+  file and mode, rendered off the interactive scheduler, and never recorded in
+  the undo stack.
+
+### Changed
+
+- Tone curves and active crops render on CPU: GPU Auto falls back, and GPU
+  Force returns a processing error instead of silently dropping them.
+- Edit memories carry schema version 2 with independent crop and curve fields;
+  older records load with defaults and invalid payloads fall back whole.
+
+### Fixed
+
+- Curve evaluation stays monotonic at anchor boundaries and clamps out-of-range
+  coordinates, matching the native engine on every client.
+
 ## [0.6.0] - 2026-10-12
 
 ### Added

@@ -151,6 +151,11 @@ final class EditorModel: ObservableObject {
     //  serial render queue because the engine session holds the decoded
     //  RAW of the last published render. One sample is one undo step.
     // ================================================================
+    @Published var samplingWhiteBalance = false
+    /// FR-01: the crop overlay lives on the interactive preview; toggled by
+    /// the crop tool and reset whenever another tool or photo takes over.
+    @Published var cropping = false
+
     func pickWhiteBalance(at point: CGPoint) {
         guard let file, result != nil, !exporting else { return }
         let nx = Float(min(1, max(0, point.x)))
@@ -214,6 +219,11 @@ final class EditorModel: ObservableObject {
                 DispatchQueue.main.async { self.baselineRendering = false }
             }
         }
+    }
+
+    /// FR-05: releasing the C key returns to the edited preview.
+    func releaseBaseline() {
+        baseline = nil
     }
 
     func showNotice(_ key: String) {
@@ -450,6 +460,7 @@ final class EditorModel: ObservableObject {
         catch { saveError = L10n.format("无法恢复调整：%@", String(describing: error.localizedDescription)) }
         file = url; neutral = nil; result = nil; error = nil; statusState = .none
         baseline = nil; cropDraft = nil; cropAspectHint = "original"
+        samplingWhiteBalance = false; cropping = false
         undoStack.removeAll(); redoStack.removeAll(); dragUndoActive = false
         syncUndoFlags()
         updatingMetadata = true

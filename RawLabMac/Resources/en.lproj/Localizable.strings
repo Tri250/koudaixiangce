@@ -382,3 +382,15 @@
 "渲染型 DNG 未生成。" = "Rendered DNG Was Not Created.";
 "DNG 已生成，但任务记录未更新，请先核对保存结果。" = "DNG Created, but the Task Record Was Not Updated. Verify the Saved File First.";
 "无效的视口预览模式" = "Invalid Viewport Preview Mode";
+
+// v0.7.0 crop and white balance eyedropper
+"白平衡吸管" = "White balance eyedropper";
+"无法取样该点" = "Cannot sample this point";
+"裁剪" = "Crop";
+"裁剪和水平校正" = "Crop and leveling";
+"宽高比" = "Aspect ratio";
+"水平校正" = "Leveling";
+"重置裁剪" = "Reset crop";
+"拖动角点或框内调整裁剪，按住 C 对比原图" = "Drag corners or the frame to crop; hold C to compare with the original";
+"原始" = "Original";
+"自由" = "Free";
