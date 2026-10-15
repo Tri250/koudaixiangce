@@ -36,12 +36,16 @@ jobs:
       # Build + install pinned LibRaw from source so pkg-config sees the right version.
       - name: Install LibRaw 0.22.2 from source
         run: |
+          sudo apt-get install -y libtool automake
           curl -sL https://github.com/LibRaw/LibRaw/archive/refs/tags/0.22.2.tar.gz -o libraw.tar.gz
           tar -xzf libraw.tar.gz
           cd LibRaw-0.22.2
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENMP=OFF -DENABLE_LCMS2=OFF
-          cmake --build build -j "$(nproc)"
-          sudo cmake --install build
+          autoreconf --install 2>/dev/null || true
+          ./configure --disable-openmp --without-lcms2 --prefix=/usr/local
+          make -j "$(nproc)"
+          sudo make install
+          sudo ldconfig
+          pkg-config --modversion libraw
 
       - name: Configure CMake
         working-directory: lutools
