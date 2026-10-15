@@ -38,6 +38,7 @@ jobs:
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
             -DSONY2FUJI_BUILD_TIFF_DEPS=ON \
+            -DSONY2FUJI_BUILD_RAW_DEPS=ON \
             -DBUILD_SHARED_LIB=ON \
             -DBUILD_CLI=OFF \
             -DSONY2FUJI_ENABLE_GPU=OFF \
