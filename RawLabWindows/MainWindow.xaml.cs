@@ -952,4 +952,8 @@ public partial class MainWindow : Window
         engine?.Dispose();engine=null;
     }
     private void FinishClose() { engine?.Dispose();engine=null;Closing-=WindowClosing;Close(); }
+
+
+    private void PickerClicked(object sender, RoutedEventArgs e) { /* WB eyedropper — stub for v0.7.0 */ }
+    private void CropCategoryClicked(object sender, RoutedEventArgs e) { /* Crop toggle — stub for v0.7.0 */ }
 }
