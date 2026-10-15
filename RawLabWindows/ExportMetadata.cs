@@ -37,7 +37,7 @@ internal static class ExportMetadata
         }
         var arguments=new List<string> { "-overwrite_original", "-tagsFromFile", input };
         arguments.AddRange(CaptureTags.Select(tag=>"-EXIF:"+tag));
-        arguments.AddRange(["-GPS:all", "-IFD0:Orientation#=1", "-IFD0:Software=RawLab 0.2",
+        arguments.AddRange(["-GPS:all", "-IFD0:Orientation#=1", "-IFD0:Software=RawLab",
             $"-IFD0:ImageWidth={width}", $"-IFD0:ImageHeight={height}",
             $"-ExifIFD:ExifImageWidth={width}", $"-ExifIFD:ExifImageHeight={height}",
             "-ExifIFD:ColorSpace#=1", output]);

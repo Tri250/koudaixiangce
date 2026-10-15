@@ -45,7 +45,11 @@ final class RenderEngine {
         config.version = SONY2FUJI_GPU_CONFIG_VERSION
         config.struct_size = UInt32(MemoryLayout<sony2fuji_gpu_config>.size)
         config.mode = gpuMode
-        _ = sony2fuji_session_set_gpu_config(session, &config)
+        let gpuStatus = sony2fuji_session_set_gpu_config(session, &config)
+        // GPU config failure is non-fatal; AUTO mode still falls back to CPU. Log for diagnostics.
+        if gpuStatus != SONY2FUJI_STATUS_OK {
+            NSLog("[RawLab] GPU config rejected (status=\(gpuStatus)), continuing on CPU")
+        }
     }
     deinit { sony2fuji_session_destroy(session) }
 
@@ -110,7 +114,9 @@ final class RenderEngine {
         let cameraWhiteBalance = calibrated ? WhiteBalance(temperature: Double(temperature).rounded(), tint: Double(tint).rounded()) : nil
         let width = Int(buffer.width), height = Int(buffer.height)
         let data = Data(bytes: pointer, count: buffer.size_bytes)
-        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB) else {
+            throw RenderError.failed("无法创建 sRGB 色彩空间")
+        }
         let bitmap = CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue)
         guard let provider = CGDataProvider(data: data as CFData),
               let image = CGImage(width: width, height: height, bitsPerComponent: 8,
@@ -125,9 +131,12 @@ final class RenderEngine {
               let clippingPixels = clippingBuffer.data else { throw RenderError.failed("无法计算直方图") }
         let histogram = (0..<3).map { channel in (0..<256).map { Double(bins[channel*256+$0]) } }
         let overlay = Data(bytes: clippingPixels, count: clippingBuffer.size_bytes)
-        let mask = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
-            bytesPerRow: width*4, space: space, bitmapInfo: bitmap,
-            provider: CGDataProvider(data: overlay as CFData)!, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+        guard let clippingProvider = CGDataProvider(data: overlay as CFData),
+              let mask = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: width*4, space: space, bitmapInfo: bitmap,
+                provider: clippingProvider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else {
+            throw RenderError.failed("无法创建裁切覆盖图")
+        }
         return RenderedImage(image: image, isFullResolution: edge == nil, clipping: mask, histogram: histogram,
             shadows: Double(black)/Double(width*height), highlights: Double(white)/Double(width*height),
             baselineEV: Double(baseline), metadataEV: Double(metadata), asShotWhiteBalance: cameraWhiteBalance)
@@ -139,7 +148,14 @@ struct Film: Identifiable, Hashable {
     let name: String
     let url: URL
     static func bundled() -> [Film] {
-        let root = Bundle.main.resourceURL!.appendingPathComponent("LUTs")
+        guard let root = Bundle.main.resourceURL?.appendingPathComponent("LUTs") else {
+            NSLog("[RawLab] Resource bundle missing LUTs directory")
+            return []
+        }
+        guard FileManager.default.fileExists(atPath: root.path) else {
+            NSLog("[RawLab] LUTs directory not found at \(root.path)")
+            return []
+        }
         return ((try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.pathExtension == "cube" }
             .map { Film(name: $0.deletingPathExtension().lastPathComponent
