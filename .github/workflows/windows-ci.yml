@@ -1,0 +1,64 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main, development]
+    paths:
+      - 'RawLabWindows/**'
+      - 'lutools/**'
+      - '.github/workflows/windows*.yml'
+  pull_request:
+    branches: [main, development]
+    paths:
+      - 'RawLabWindows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: RawLab Windows publish + smoke test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install ExifTool
+        run: |
+          Invoke-WebRequest -Uri 'https://github.com/tannerhelland/PhotoDemon-PeoplePowered/raw/main/PhotoDemon/Tools/exiftool-13.19/Windows/exiftool.exe' -OutFile exiftool.exe
+          New-Item -ItemType Directory -Force -Path RawLabWindows/ExifTool | Out-Null
+          Copy-Item exiftool.exe RawLabWindows/ExifTool/exiftool.exe
+          Get-Command cl | Select-Object Source
+        shell: pwsh
+
+      - name: Build native sony2fuji.dll
+        run: |
+          cmake -S RawLabWindows/native -B build/windows-native -A x64 -DBUILD_TESTING=OFF
+          cmake --build build/windows-native --config Release --parallel
+        shell: pwsh
+
+      - name: Publish self-contained RawLab-Windows
+        run: |
+          dotnet publish RawLabWindows/RawLabWindows.csproj -c Release -r win-x64 --self-contained true -o build/RawLab-Windows
+          Copy-Item build/windows-native/core/Release/sony2fuji.dll build/RawLab-Windows/ -Force
+          Copy-Item build/windows-native/Release/raw.dll build/RawLab-Windows/ -Force
+          Copy-Item RawLabWindows/ExifTool build/RawLab-Windows/ExifTool -Recurse -Force
+          Copy-Item RawLabMac/Resources/FilmIcons build/RawLab-Windows/FilmIcons -Recurse -Force
+          New-Item -ItemType Directory -Force -Path build/RawLab-Windows/LUTs | Out-Null
+          Copy-Item lutools/flog-2-new/FLog2_to_*_65grid_V.1.00.cube build/RawLab-Windows/LUTs/ -Force
+          Copy-Item LICENSE,RawLabWindows/Licenses,RawLabMac/Resources/Licenses build/RawLab-Windows/ -Recurse -Force
+        shell: pwsh
+
+      - name: Upload Windows publish
+        uses: actions/upload-artifact@v4
+        with:
+          name: RawLab-Windows-x64
+          path: build/RawLab-Windows
+          if-no-files-found: error

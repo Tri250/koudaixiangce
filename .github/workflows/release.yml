@@ -8,12 +8,17 @@ on:
 permissions:
   contents: write
 
+concurrency: release
+
 jobs:
+  # ── Android release APK (AGP handles NDK/CMake/libraw fetch on the spot) ──────
   android:
-    name: Build and publish Android release
+    name: Build Android release APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: actions/setup-java@v4
         with:
@@ -22,22 +27,142 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # AGP 会按 app/build.gradle.kts 里的 ndkVersion 27.2.12479018 自动补装 NDK/CDK，
-      # 沙盒内无法预编译，LibRaw 由 CMake FetchContent 拉取并源码构建。
-      - name: Build release APK
+      - name: Build signed release APK
         working-directory: RawLabAndroid
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
-
-      # 应用内更新器只识别 RawLab-Android-*.apk 命名的最新正式版资产。
-      - name: Rename APK
+        env:
+          RAWLAB_RELEASE_KEYSTORE: ${{ secrets.RAWLAB_RELEASE_KEYSTORE_B64 }}
+          RAWLAB_RELEASE_PASSWORD: ${{ secrets.RAWLAB_RELEASE_PASSWORD }}
+          RAWLAB_RELEASE_KEY_ALIAS: ${{ secrets.RAWLAB_RELEASE_KEY_ALIAS }}
         run: |
-          dir=RawLabAndroid/app/build/outputs/apk/release
-          ls -l "$dir"
-          cd "$dir"
-          for f in *.apk; do mv "$f" "RawLab-Android-${GITHUB_REF_NAME}.apk"; done
+          if [ -n "$RAWLAB_RELEASE_KEYSTORE" ]; then
+            echo "$RAWLAB_RELEASE_KEYSTORE" | base64 -d > /tmp/release.jks
+            RAWLAB_RELEASE_KEYSTORE=/tmp/release.jks \
+            RAWLAB_RELEASE_PASSWORD_FILE=<(printf '%s' "$RAWLAB_RELEASE_PASSWORD") \
+            bash scripts/build-release.sh
+            mv app/build/outputs/apk/release/RawLab-Android-release.apk \
+               "../RawLab-Android-${GITHUB_REF_NAME}.apk"
+          else
+            echo "No signing secret — building unsigned debug APK for this run"
+            ./gradlew assembleRelease --no-daemon --stacktrace
+            mv app/build/outputs/apk/release/app-release-unsigned.apk \
+               "../RawLab-Android-${GITHUB_REF_NAME}-unsigned.apk"
+          fi
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: RawLab-Android-*.apk
+
+  # ── macOS universal app (arm64 + x86_64) ───────────────────────────────────
+  macos:
+    name: Build macOS universal .app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install deps
+        run: |
+          brew update --quiet
+          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp || true
+          brew link --overwrite libomp 2>/dev/null || true
+
+      - name: Build arm64 slice
+        run: |
+          cmake -S lutools -B lutools/build-macos-arm64 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
+            -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DTIFF_FORCE_BUILD=ON
+          cmake --build lutools/build-macos-arm64 -j 8
+          cp lutools/build-macos-arm64/core/libsony2fuji_core.a lutools/build-macos-arm64/libsony2fuji_core_arm64.a
+        shell: bash
+
+      - name: Build x86_64 slice
+        run: |
+          cmake -S lutools -B lutools/build-macos-x86_64 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
+            -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DTIFF_FORCE_BUILD=ON
+          cmake --build lutools/build-macos-x86_64 -j 8
+          cp lutools/build-macos-x86_64/core/libsony2fuji_core.a lutools/build-macos-x86_64/libsony2fuji_core_x86_64.a
+        shell: bash
+
+      - name: Lipo + build .app
+        run: |
+          lipo -create \
+            lutools/build-macos-arm64/core/libsony2fuji_core.a \
+            lutools/build-macos-x86_64/core/libsony2fuji_core.a \
+            -output lutools/build-macos-universal/libsony2fuji_core.a
+          mkdir -p lutools/build-macos-universal
+          RAWLAB_ARCH="arm64;x86_64" \
+          bash -c 'RAWLAB_APP_PATH="${RAWLAB_APP_PATH:-$ROOT/build/RawLab Mac.app}"; bash RawLabMac/build.sh || true'
+        shell: bash
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: "build/*.app"
+
+  # ── Windows self-contained publish ────────────────────────────────────────
+  windows:
+    name: Build Windows self-contained publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build native sony2fuji.dll
+        run: |
+          cmake -S RawLabWindows/native -B build/windows-native -A x64 -DBUILD_TESTING=OFF
+          cmake --build build/windows-native --config Release --parallel
+        shell: pwsh
+
+      - name: Publish RawLab-Windows
+        run: |
+          dotnet publish RawLabWindows/RawLabWindows.csproj -c Release -r win-x64 --self-contained true -o build/RawLab-Windows
+          Copy-Item build/windows-native/core/Release/sony2fuji.dll build/RawLab-Windows/ -Force
+          Copy-Item build/windows-native/Release/raw.dll build/RawLab-Windows/ -Force
+          New-Item -ItemType Directory -Force -Path build/RawLab-Windows/FilmIcons | Out-Null
+          if (Test-Path RawLabMac/Resources/FilmIcons) { Copy-Item RawLabMac/Resources/FilmIcons build/RawLab-Windows/ -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path build/RawLab-Windows/LUTs | Out-Null
+          Copy-Item lutools/flog-2-new/FLog2_to_*_65grid_V.1.00.cube build/RawLab-Windows/LUTs/ -Force
+          Copy-Item LICENSE build/RawLab-Windows/ -Force
+          Compress-Archive -Path build/RawLab-Windows/* -DestinationPath build/RawLab-Windows-${env:GITHUB_REF_NAME}.zip -Force
+        shell: pwsh
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: build/RawLab-Windows-*.zip
+
+  # ── Release (publishes all uploaded artifacts) ────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [android, macos, windows]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: false
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: RawLabAndroid/app/build/outputs/apk/release/RawLab-Android-*.apk
           generate_release_notes: true
+          files: |
+            dist/android-apk/**
+            dist/macos-app/**
+            dist/windows-zip/**

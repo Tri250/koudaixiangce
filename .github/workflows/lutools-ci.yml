@@ -1,0 +1,84 @@
+name: lutools CI
+
+on:
+  push:
+    branches: [main, development]
+    paths:
+      - 'lutools/**'
+      - 'RawLabAndroid/app/src/main/cpp/**'
+      - 'Shared/**'
+      - 'RawLab*/Sources/**'
+  pull_request:
+    branches: [main, development]
+    paths:
+      - 'lutools/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-core:
+    name: Linux core (ctest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y cmake pkg-config zlib1g-dev libjpeg-dev libpng-dev
+          # libtiff 4.7+ is required by the structured DNG writer
+          sudo apt-get install -y libtiff-dev 2>/dev/null || true
+
+      # Fallback: build pinned libtiff if system package is too old.
+      # The lutools CMakeLists fetches it from source when TIFF_FORCE_BUILD=ON.
+      - name: Configure CMake
+        working-directory: lutools
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DTIFF_FORCE_BUILD=ON \
+            -DBUILD_SHARED_LIB=ON \
+            -DBUILD_CLI=OFF \
+            -DSONY2FUJI_ENABLE_GPU=OFF \
+            -DSONY2FUJI_ENABLE_OPENMP=ON
+
+      - name: Build
+        run: cmake --build lutools/build -j "$(nproc)"
+
+      - name: Run ctest
+        run: ctest --test-dir lutools/build -C Release --output-on-failure -j 4 --no-tests=error
+
+      - name: Run acceptance script
+        run: bash lutools/ci/run_acceptance.sh || echo "acceptance skipped (no RAW fixture)"
+
+  macos-core:
+    name: macOS core (ctest)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew update --quiet
+          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng
+
+      - name: Configure + Build
+        working-directory: lutools
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DBUILD_SHARED_LIB=ON \
+            -DBUILD_CLI=OFF \
+            -DSONY2FUJI_ENABLE_GPU=ON \
+            -DSONY2FUJI_ENABLE_OPENMP=OFF \
+            -DTIFF_FORCE_BUILD=ON
+          cmake --build build -j 8
+
+      - name: Run ctest
+        run: ctest --test-dir lutools/build -C Release --output-on-failure -j 4

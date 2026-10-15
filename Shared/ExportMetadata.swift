@@ -83,7 +83,9 @@ enum ExportMetadata {
             try (data as Data).write(to: rendered, options: .atomic)
             return
         }
-        let originalSource = CGImageSourceCreateWithURL(original as CFURL, nil)!
+        guard let originalSource = CGImageSourceCreateWithURL(original as CFURL, nil) else {
+            throw Failure.unreadableSource
+        }
         let originalMetadata = CGImageSourceCopyMetadataAtIndex(originalSource, 0, nil)
         let metadata = CGImageMetadataCreateMutable()
         for dictionary in [kCGImagePropertyTIFFDictionary, kCGImagePropertyExifDictionary,
