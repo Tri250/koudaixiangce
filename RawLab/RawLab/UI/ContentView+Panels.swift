@@ -279,6 +279,11 @@ extension ContentView {
             HSLMixer(settings: Binding(get: { settings.hsl }, set: { settings.hsl = $0 }),
                      onEditingChanged: setSliderEditing)
                 .disabled(!viewModel.hasImage || editingLocked)
+        } else if selectedAdjustment == .curve {
+            CurveEditorView(curve: Binding(get: { settings.curve }, set: { settings.curve = $0 }),
+                            onEditingChanged: setSliderEditing)
+                .padding(.top, 4)
+                .disabled(!viewModel.hasImage || editingLocked)
         } else if selectedAdjustment == .vignette {
             IOSPhotoEffectsControls(effect: .vignette, settings: Binding(
                 get: { settings.photoEffects },

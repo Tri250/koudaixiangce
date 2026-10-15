@@ -48,7 +48,10 @@ class NativeProcessor(mode: Int = AUTO, lensDatabase: File? = null) : AutoClosea
             settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
             settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
             settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null))
+            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null,
+            settings.curvePacked(),
+            // The crop frame is composited by the preview UI; only final renders crop.
+            false, null))
         frame.lens = readLens(input)
         return frame
     }
@@ -59,6 +62,7 @@ class NativeProcessor(mode: Int = AUTO, lensDatabase: File? = null) : AutoClosea
         require(input.canonicalPath != output.canonicalPath)
         require(ExportSize.isValid(longEdge)) { "Invalid output long edge" }
         configureLens(settings.lens)
+        val cropPayload = settings.cropPacked()
         nativeProcess(handle, input.path, lut?.path, output.path, settings.strength,
             settings.exposure, settings.customWb, settings.temperature, settings.tint,
             settings.highlights, settings.shadows, settings.contrast, settings.toneCurve,
@@ -67,7 +71,8 @@ class NativeProcessor(mode: Int = AUTO, lensDatabase: File? = null) : AutoClosea
             settings.displayChromaDenoise, settings.effects.vignetteAmount, settings.effects.vignetteMidpoint,
             settings.effects.vignetteRoundness, settings.effects.vignetteFeather, settings.effects.vignetteHighlights,
             settings.effects.grainAmount, settings.effects.grainSize, settings.effects.grainRoughness,
-            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null)
+            settings.exposureMode, settings.renderHsl.packed(), settings.recipeID != null,
+            settings.curvePacked(), cropPayload != null, cropPayload)
         if (format != ExportFormat.DNG) ExportMetadata.preserve(input, output)
     }
 
@@ -76,6 +81,17 @@ class NativeProcessor(mode: Int = AUTO, lensDatabase: File? = null) : AutoClosea
         check(handle != 0L) { "Processor is closed" }
         configureLens(settings.lens)
         return nativeAutoExposure(handle, input.path, settings.customWb, settings.temperature, settings.tint, settings.exposureMode, settings.recipeID != null, settings.strength)
+    }
+
+    /**
+     * FR-03 neutral-gray sampling over the decoded RAW of the last render on
+     * this session. Returns [temperature, tint]; unsupported files throw.
+     */
+    @Synchronized
+    fun pickWhiteBalance(nx: Float, ny: Float): FloatArray {
+        check(handle != 0L) { "Processor is closed" }
+        require(nx in 0f..1f && ny in 0f..1f && nx.isFinite() && ny.isFinite()) { "Invalid white-balance sample point" }
+        return nativePickWhiteBalance(handle, nx, ny)
     }
 
     @Synchronized
@@ -108,6 +124,7 @@ class NativeProcessor(mode: Int = AUTO, lensDatabase: File? = null) : AutoClosea
     private external fun nativeDestroy(handle: Long)
     private external fun nativeAutoExposure(handle: Long, input: String, customWb: Boolean,
         temperature: Float, tint: Float, exposureMode: Int, recipeActive: Boolean, strength: Float): Float
+    private external fun nativePickWhiteBalance(handle: Long, nx: Float, ny: Float): FloatArray
     private external fun nativeProcess(handle: Long, input: String, lut: String?, output: String?,
         strength: Float, exposure: Float, customWb: Boolean, temperature: Float, tint: Float,
         highlights: Float, shadows: Float, contrast: Float, toneCurve: Float, saturation: Float, sharpening: Float,
@@ -115,7 +132,8 @@ class NativeProcessor(mode: Int = AUTO, lensDatabase: File? = null) : AutoClosea
         denoiseEnabled: Boolean, luma: Float, chroma: Float, coarse: Float, displayChromaDenoise: Int,
         vignetteAmount: Float, vignetteMidpoint: Float, vignetteRoundness: Float, vignetteFeather: Float,
         vignetteHighlights: Float, grainAmount: Float, grainSize: Float, grainRoughness: Float,
-        exposureMode: Int, hsl: FloatArray, recipeActive: Boolean): NativeFrame?
+        exposureMode: Int, hsl: FloatArray, recipeActive: Boolean, curve: FloatArray,
+        cropActive: Boolean, crop: FloatArray?): NativeFrame?
 
     companion object {
         const val CPU = 0

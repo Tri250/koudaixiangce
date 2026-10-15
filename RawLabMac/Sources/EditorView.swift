@@ -226,6 +226,12 @@ struct EditorView: View {
                 .help(L10n.text("打开 RAW")).accessibilityLabel(L10n.text("打开 RAW")).disabled(model.exporting)
         }
         ToolbarItemGroup {
+            Button(action: model.undo) { Image(systemName: "arrow.uturn.backward") }
+                .help(L10n.text("撤销")).accessibilityLabel(L10n.text("撤销"))
+                .keyboardShortcut("z", modifiers: [.command]).disabled(!model.canUndo)
+            Button(action: model.redo) { Image(systemName: "arrow.uturn.forward") }
+                .help(L10n.text("重做")).accessibilityLabel(L10n.text("重做"))
+                .keyboardShortcut("z", modifiers: [.command, .shift]).disabled(!model.canRedo)
             Button { compare.toggle() } label: { Image(systemName: "rectangle.split.2x1") }
                 .tint(compare ? .yellow : nil)
                 .help(L10n.text("原图与调整后对比")).accessibilityLabel(L10n.text("对比"))

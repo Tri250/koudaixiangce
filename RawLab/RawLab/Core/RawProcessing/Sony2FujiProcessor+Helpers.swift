@@ -38,7 +38,7 @@ extension Sony2FujiProcessor {
     }
 
     func configureSession(_ session: OpaquePointer, settings: RawSettings, interactive: Bool,
-                          viewportPreview: Bool = false) throws {
+                          viewportPreview: Bool = false, applyCrop: Bool = false) throws {
         try configureLens(session, settings: settings.lensSettings)
         let exposureMode = sony2fuji_raw_exposure_mode(rawValue: UInt32(settings.exposureMode.rawValue))
         guard sony2fuji_session_set_raw_exposure_mode(session, exposureMode) == SONY2FUJI_STATUS_OK,
@@ -46,6 +46,36 @@ extension Sony2FujiProcessor {
         var hsl = settings.hsl.nativeConfig
         guard sony2fuji_session_set_hsl(session, &hsl) == SONY2FUJI_STATUS_OK else {
             throw ProcessorError.processFailed(L10n.text("Invalid HSL parameters."))
+        }
+        // v0.7.0 multi-point tone curve; the core stacks it after the scalar S-curve.
+        if let curve = settings.curve, curve.isValid, !curve.isIdentity {
+            let curvePoints = curve.points.map { sony2fuji_curve_point(x: Float($0.x), y: Float($0.y)) }
+            guard sony2fuji_session_set_tone_curve(session, curvePoints, UInt32(curvePoints.count)) == SONY2FUJI_STATUS_OK else {
+                throw ProcessorError.processFailed(L10n.text("Invalid tone curve."))
+            }
+        } else {
+            sony2fuji_session_set_tone_curve(session, nil, 0)
+        }
+        // v0.7.0 output crop (FR-01). Preview requests keep the full frame and
+        // let the UI overlay draw the rectangle; export/final renders take the
+        // crop as the final pipeline stage. NULL clears any previous crop.
+        if applyCrop {
+            if let crop = settings.crop, crop.isValid, !crop.isFullFrame {
+                var cropConfig = sony2fuji_crop_config()
+                cropConfig.version = SONY2FUJI_CROP_CONFIG_VERSION
+                cropConfig.struct_size = UInt32(MemoryLayout<sony2fuji_crop_config>.size)
+                cropConfig.x = Float(crop.x)
+                cropConfig.y = Float(crop.y)
+                cropConfig.w = Float(crop.w)
+                cropConfig.h = Float(crop.h)
+                cropConfig.angle = Float(crop.angle)
+                let cropStatus = sony2fuji_session_set_crop(session, &cropConfig)
+                guard cropStatus == SONY2FUJI_STATUS_OK else {
+                    throw ProcessorError.processFailed(L10n.format("Invalid crop: %@", statusMessage(cropStatus)))
+                }
+            } else {
+                sony2fuji_session_set_crop(session, nil)
+            }
         }
         var config = sony2fuji_gpu_config()
         config.version = SONY2FUJI_GPU_CONFIG_VERSION

@@ -207,6 +207,9 @@
     <string name="no_recipe">レシピなし</string>
     <string name="hsl_reset_channel">現在の色をリセット</string>
     <string name="hsl">HSL</string>
+    <string name="curve">カーブ</string>
+    <string name="curve_hint">ドラッグでアンカーを追加・移動、ダブルタップで削除</string>
+    <string name="curve_reset">カーブをリセット</string>
     <string name="auto_exposure">自動</string>
     <string name="exposure_scene">標準現像</string>
     <string name="exposure_preview">埋め込みプレビューに合わせる</string>

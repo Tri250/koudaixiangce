@@ -191,6 +191,10 @@
 "色相" = "Teinte";
 "明度" = "Luminosité";
 "重置 HSL" = "Réinitialiser HSL";
+"曲线" = "Courbe";
+"多点色调曲线" = "Courbe tonale multipoints";
+"重置曲线" = "Réinitialiser la courbe";
+"拖动添加或移动锚点，双击删除" = "Glissez pour ajouter ou déplacer des points, double-cliquez pour supprimer";
 "红" = "Rouge";
 "橙" = "Orange";
 "黄" = "Jaune";

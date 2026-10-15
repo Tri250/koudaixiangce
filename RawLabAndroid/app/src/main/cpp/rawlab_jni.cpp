@@ -261,7 +261,8 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
     jboolean denoiseEnabled, jfloat luma, jfloat chroma, jfloat coarse, jint displayChromaDenoise,
     jfloat vignetteAmount, jfloat vignetteMidpoint, jfloat vignetteRoundness, jfloat vignetteFeather,
     jfloat vignetteHighlights, jfloat grainAmount, jfloat grainSize, jfloat grainRoughness,
-    jint exposureMode, jfloatArray hslValues, jboolean recipeActive) {
+    jint exposureMode, jfloatArray hslValues, jboolean recipeActive, jfloatArray curvePoints,
+    jboolean cropActive, jfloatArray cropRect) {
     try {
         std::lock_guard<std::mutex> lock(sessionsMutex);
         const auto found = sessions.find(id);
@@ -282,6 +283,36 @@ Java_com_rawlab_android_NativeProcessor_nativeProcess(JNIEnv* env, jobject, jlon
         std::copy(hslData+8, hslData+16, hsl.saturation);
         std::copy(hslData+16, hslData+24, hsl.lightness);
         check(sony2fuji_session_set_hsl(session, &hsl));
+        // v0.7.0 multi-point tone curve: flattened (x, y) anchors restated on
+        // every render; empty clears. Applied after the neutral recipe metering
+        // so camera white balance sampling stays curve-free.
+        if (curvePoints) {
+            const jsize pairs = env->GetArrayLength(curvePoints);
+            if (pairs < 0 || pairs % 2 != 0 || pairs > 2 * SONY2FUJI_TONE_CURVE_MAX_POINTS)
+                throw std::invalid_argument("Invalid tone curve anchors");
+            std::vector<float> curveData(static_cast<size_t>(pairs));
+            if (pairs > 0) env->GetFloatArrayRegion(curvePoints, 0, pairs, curveData.data());
+            if (env->ExceptionCheck()) return nullptr;
+            std::vector<sony2fuji_curve_point> anchors(static_cast<size_t>(pairs) / 2);
+            for (size_t i = 0; i < anchors.size(); ++i) { anchors[i].x = curveData[2 * i]; anchors[i].y = curveData[2 * i + 1]; }
+            check(sony2fuji_session_set_tone_curve(session, anchors.empty() ? nullptr : anchors.data(),
+                static_cast<uint32_t>(anchors.size())));
+        }
+        // v0.7.0 crop/level: restated on every render like the tone curve. The
+        // preview path clears it because the on-screen crop frame is composited
+        // by the UI; only final renders carry an active normalized rectangle.
+        if (cropActive) {
+            if (!cropRect || env->GetArrayLength(cropRect) != 5)
+                throw std::invalid_argument("Invalid crop rectangle");
+            float cropData[5];
+            env->GetFloatArrayRegion(cropRect, 0, 5, cropData);
+            if (env->ExceptionCheck()) return nullptr;
+            sony2fuji_crop_config crop{SONY2FUJI_CROP_CONFIG_VERSION, sizeof(sony2fuji_crop_config),
+                cropData[0], cropData[1], cropData[2], cropData[3], cropData[4]};
+            check(sony2fuji_session_set_crop(session, &crop));
+        } else {
+            check(sony2fuji_session_set_crop(session, nullptr));
+        }
         const auto outputFormat = rawlab::parseExportFormat(format);
         auto request = rawlab::makeRequest(in.chars, film.chars, out.chars, strength,
             exposure, effectiveCustom, temperature, tint, highlights, shadows, contrast,
@@ -366,4 +397,29 @@ Java_com_rawlab_android_NativeProcessor_nativeAutoExposure(JNIEnv* env, jobject,
     catch (const std::exception& error) { throwJava(env, "java/io/IOException", error.what()); }
     catch (...) { throwJava(env, "java/io/IOException", "Automatic exposure failed"); }
     return 0;
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_rawlab_android_NativeProcessor_nativePickWhiteBalance(JNIEnv* env, jobject, jlong id,
+    jfloat nx, jfloat ny) {
+    try {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        auto* session = sessionFor(id);
+        float temperature = 0, tint = 0;
+        // UNSUPPORTED (no RAW calibration) maps to IOException like other
+        // non-OK statuses, so the UI can surface a "cannot sample" notice.
+        check(sony2fuji_session_pick_white_balance(session, nx, ny, &temperature, &tint));
+        if (!std::isfinite(temperature) || !std::isfinite(tint))
+            throw std::runtime_error("White balance sample unavailable");
+        auto result = env->NewFloatArray(2);
+        if (!result) return nullptr;
+        const jfloat values[] = {temperature, tint};
+        env->SetFloatArrayRegion(result, 0, 2, values);
+        return env->ExceptionCheck() ? nullptr : result;
+    } catch (const NativeStatusError& error) { throwNativeStatus(env, error); }
+    catch (const std::bad_alloc&) { throwJava(env, "java/lang/OutOfMemoryError", "Not enough memory to sample white balance"); }
+    catch (const std::invalid_argument& error) { throwJava(env, "java/lang/IllegalArgumentException", error.what()); }
+    catch (const std::exception& error) { throwJava(env, "java/io/IOException", error.what()); }
+    catch (...) { throwJava(env, "java/io/IOException", "White balance sampling failed"); }
+    return nullptr;
 }

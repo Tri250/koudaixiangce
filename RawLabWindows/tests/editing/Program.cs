@@ -76,6 +76,28 @@ try
     legacy.Remove("Lens");
     Check(System.Text.Json.JsonSerializer.Deserialize<AdjustmentSnapshot>(legacy.ToJsonString())!.Restore().Lens == new LensSettings(), "legacy lens is disabled");
     Check(System.Text.Json.JsonSerializer.Deserialize<AdjustmentSnapshot>(legacy.ToJsonString())!.Restore().Denoise == new DenoiseSettings(), "older records default to disabled denoise");
+    // v0.7.0 curve/crop roundtrip, dirtiness detection and invalid-payload fallbacks.
+    var curveState = new Adjustments();
+    curveState.Curve = new CurveSettings([new CurvePoint(0, .1), new CurvePoint(.5, .4), new CurvePoint(1, 1)]);
+    curveState.Crop = new CropSettings("4:3", .05, .1, .9, .8);
+    var curveSaved = curveState.Capture();
+    var curveRestored = System.Text.Json.JsonSerializer.Deserialize<AdjustmentSnapshot>(System.Text.Json.JsonSerializer.Serialize(curveSaved))!.Restore();
+    Check(curveRestored.Curve!.Equals(curveState.Curve) && curveRestored.Crop == curveState.Crop, "curve and crop survive JSON roundtrip");
+    Check(!curveSaved.SameAs(curveSaved with { Curve = null }), "curve changes mark the snapshot dirty");
+    Check(!curveSaved.SameAs(curveSaved with { Crop = null }), "crop changes mark the snapshot dirty");
+    var curveNode = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(curveSaved))!.AsObject();
+    curveNode["Curve"] = System.Text.Json.Nodes.JsonNode.Parse("""{"Points":[{"X":0.5,"Y":0},{"X":0.2,"Y":1}]}""");
+    Check(System.Text.Json.JsonSerializer.Deserialize<AdjustmentSnapshot>(curveNode.ToJsonString())!.Restore().Curve == null,
+        "non-monotonic curve payload falls back to neutral");
+    curveNode["Curve"] = System.Text.Json.Nodes.JsonNode.Parse("""{"Points":[{"X":0,"Y":0},{"X":1,"Y":1}]}""");
+    Check(System.Text.Json.JsonSerializer.Deserialize<AdjustmentSnapshot>(curveNode.ToJsonString())!.Restore().Curve == null,
+        "identity curve is neutral");
+    curveNode["Crop"] = System.Text.Json.Nodes.JsonNode.Parse("""{"Aspect":"free","X":0,"Y":0,"W":1.2,"H":0.8}""");
+    Check(System.Text.Json.JsonSerializer.Deserialize<AdjustmentSnapshot>(curveNode.ToJsonString())!.Restore().Crop == null,
+        "out-of-range crop payload falls back to neutral");
+    curveState.ResetGroup("明暗"); Check(curveState.Curve == null, "tone group reset clears curve");
+    curveState.Curve = new CurveSettings([new CurvePoint(0, .2), new CurvePoint(1, .9)]);
+    curveState.ResetAll(); Check(curveState.Curve == null && curveState.Crop == null, "reset all clears curve and crop");
     Check(reopened.Find(b) == null, "same basename does not share edits");
     state.ResetGroup("镜头"); Check(state.Lens == new LensSettings(), "lens group reset");
     state.Lens = new LensSettings(true);

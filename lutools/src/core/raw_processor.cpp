@@ -278,6 +278,11 @@ public:
         tint=whiteBalance_->asShot().tint;
         return true;
     }
+    bool getCameraWhiteBalance(CameraWhiteBalance& out) const {
+        if (!whiteBalance_ || !whiteBalance_->available()) return false;
+        out=*whiteBalance_;
+        return true;
+    }
 
     bool supportsNoiseReduction() const { return sourceReady_ && noiseReductionSupported_; }
     LensCorrectionReport getLensCorrectionReport() const { return lensReport_; }
@@ -473,6 +478,10 @@ float RAWProcessor::getBaselineExposureEV() const { return pImpl_->getBaselineEx
 float RAWProcessor::getMetadataExposureEV() const { return pImpl_->getMetadataExposureEV(); }
 bool RAWProcessor::getAsShotWhiteBalance(float& temperature, float& tint) const {
     return pImpl_->getAsShotWhiteBalance(temperature,tint);
+}
+
+bool RAWProcessor::getCameraWhiteBalance(CameraWhiteBalance& out) const {
+    return pImpl_->getCameraWhiteBalance(out);
 }
 
 bool RAWProcessor::supportsNoiseReduction() const {

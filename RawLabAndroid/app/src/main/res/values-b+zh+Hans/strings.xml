@@ -207,6 +207,9 @@
     <string name="no_recipe">无配方</string>
     <string name="hsl_reset_channel">重置当前颜色</string>
     <string name="hsl">HSL</string>
+    <string name="curve">曲线</string>
+    <string name="curve_hint">拖动添加或移动锚点，双击删除</string>
+    <string name="curve_reset">重置曲线</string>
     <string name="auto_exposure">自动</string>
     <string name="exposure_scene">标准显影</string>
     <string name="exposure_preview">匹配内嵌预览</string>

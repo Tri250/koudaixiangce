@@ -51,7 +51,10 @@ class EditStore(private val directory: File) {
                 .getOrDefault(storedFilm)
             records[identity] = decode(properties.getProperty(key), film).copy(
                 recipeID = properties.getProperty("record.$encoded.recipe"),
-                lens = LensSettings.decode(properties.getProperty("record.$encoded.lens")))
+                lens = LensSettings.decode(properties.getProperty("record.$encoded.lens")),
+                // v0.7.0 fields: records without the keys stay on v0.6.3 defaults.
+                crop = CropSettings.decode(properties.getProperty("record.$encoded.crop")),
+                curve = CurveSettings.decode(properties.getProperty("record.$encoded.curve")))
         }
     }
 
@@ -63,6 +66,10 @@ class EditStore(private val directory: File) {
             properties.setProperty("record.$encoded.values", encode(settings))
             settings.recipeID?.let { properties.setProperty("record.$encoded.recipe", it) }
             properties.setProperty("record.$encoded.lens", settings.lens.encode())
+            // v0.7.0 schema version; absent keys on old records mean v1 defaults.
+            properties.setProperty("record.$encoded.schema", "2")
+            settings.crop?.let { properties.setProperty("record.$encoded.crop", it.encode()) }
+            settings.curve?.let { properties.setProperty("record.$encoded.curve", it.encode()) }
             properties.setProperty("record.$encoded.film", Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(settings.film.toByteArray(StandardCharsets.UTF_8)))
         }

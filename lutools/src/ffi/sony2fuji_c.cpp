@@ -9,6 +9,8 @@
 #include "core/photo_effects.h"
 #include "core/photo_color.h"
 #include "core/photo_lut.h"
+#include "core/tone_curve.h"
+#include "core/white_balance.h"
 #include "gpu/image_stats.h"
 #if defined(SONY2FUJI_ENABLE_D3D11)
 #include "gpu/d3d11_photo.h"
@@ -28,6 +30,7 @@
 #include <cstdio>
 #include <cctype>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <filesystem>
@@ -44,6 +47,12 @@ struct sony2fuji_session {
     sony2fuji::WaveletDenoiseOptions wavelet_denoise;
     sony2fuji::PhotoEffectsOptions photo_effects;
     sony2fuji::HslOptions hsl;
+    std::shared_ptr<sony2fuji::ToneCurveMap> tone_curve_map;
+    std::optional<sony2fuji::CameraWhiteBalance> camera_wb;
+    struct UserCrop {
+        float x = 0, y = 0, w = 0, h = 0, angle = 0;
+        bool active = false;
+    } user_crop;
     sony2fuji::WaveletRenderCache wavelet_cache;
     sony2fuji::LensCorrectionOptions lens_correction;
     std::shared_ptr<sony2fuji::LensCorrectionDatabase> lens_database;
@@ -577,8 +586,47 @@ sony2fuji::ImageData resizeBilinear(
     return output;
 }
 
-void applyToneAdjustments(sony2fuji::ImageData& image, const sony2fuji_request& request) {
-    if (!needsToneAdjustments(request)) {
+// Rotates the image by the given degrees (counter-clockwise in display
+// orientation) around its center with edge-clamped sampling, then crops to the
+// largest axis-aligned inscribed rectangle. The normalized user rectangle is
+// resolved against that inscribed result by the caller.
+sony2fuji::ImageData rotateAndInscribe(const sony2fuji::ImageData& source, double degrees) {
+    constexpr double kPi = 3.14159265358979323846;
+    const double rad = degrees * kPi / 180.0;
+    const double ca = std::cos(rad), sa = std::sin(rad);
+    const int width = source.width, height = source.height;
+    sony2fuji::ImageData rotated(width, height);
+    const double cx = (width - 1) / 2.0, cy = (height - 1) / 2.0;
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const double dx = x - cx, dy = y - cy;
+            const double sx = std::clamp(ca * dx + sa * dy + cx, 0.0, static_cast<double>(width - 1));
+            const double sy = std::clamp(-sa * dx + ca * dy + cy, 0.0, static_cast<double>(height - 1));
+            rotated.at(x, y) = sampleBilinear(source, sx, sy);
+        }
+    }
+    double denom = ca * ca - sa * sa;
+    double rw, rh;
+    if (std::abs(denom) < 1e-9) {
+        rw = rh = std::min(width, height) / (ca + sa);
+    } else {
+        rw = (width * ca - height * sa) / denom;
+        rh = (height * ca - width * sa) / denom;
+    }
+    const int iw = std::max(1, static_cast<int>(std::lround(std::clamp(rw, 1.0, static_cast<double>(width)))));
+    const int ih = std::max(1, static_cast<int>(std::lround(std::clamp(rh, 1.0, static_cast<double>(height)))));
+    if (iw == width && ih == height) return rotated;
+    const int px = (width - iw) / 2, py = (height - ih) / 2;
+    sony2fuji::ImageData inscribed(iw, ih);
+    for (int y = 0; y < ih; ++y)
+        for (int x = 0; x < iw; ++x)
+            inscribed.at(x, y) = rotated.at(px + x, py + y);
+    return inscribed;
+}
+
+void applyToneAdjustments(sony2fuji::ImageData& image, const sony2fuji_request& request,
+    const sony2fuji::ToneCurveMap* user_curve = nullptr) {
+    if (!needsToneAdjustments(request) && !user_curve) {
         return;
     }
 
@@ -600,6 +648,13 @@ void applyToneAdjustments(sony2fuji::ImageData& image, const sony2fuji_request& 
             pixel.r = applyToneCurve(pixel.r, curve);
             pixel.g = applyToneCurve(pixel.g, curve);
             pixel.b = applyToneCurve(pixel.b, curve);
+        }
+        // The multi-point user curve stacks after the scalar S-curve; the
+        // order is part of the cross-platform contract and must not change.
+        if (user_curve) {
+            pixel.r = user_curve->evaluate(pixel.r);
+            pixel.g = user_curve->evaluate(pixel.g);
+            pixel.b = user_curve->evaluate(pixel.b);
         }
         if (contrast != 1.0f || saturation != 1.0f) {
             applyContrastSaturation(pixel, contrast, saturation);
@@ -842,6 +897,13 @@ sony2fuji_status loadRawImage(
         session->baseline_ev = anchoredPreview ? session->preview_camera_ev : processor.getBaselineExposureEV();
         session->metadata_ev = processor.getMetadataExposureEV();
         session->calibrated_wb = processor.getAsShotWhiteBalance(session->as_shot_temperature,session->as_shot_tint);
+        session->camera_wb.reset();
+        if (session->calibrated_wb) {
+            // Constructs an invalid model first; getCameraWhiteBalance copies
+            // the calibrated one over it when the file has usable calibration.
+            sony2fuji::CameraWhiteBalance model{libraw_data_t{}};
+            if (processor.getCameraWhiteBalance(model)) session->camera_wb = std::move(model);
+        }
         if (session->raw_exposure_mode == SONY2FUJI_EXPOSURE_PREVIEW && request.wb_mode == SONY2FUJI_WB_CAMERA) {
             session->preview_exposure_key = previewExposureKey;
             session->preview_camera_ev = session->baseline_ev;
@@ -1220,6 +1282,127 @@ sony2fuji_status sony2fuji_session_set_hsl(
     return SONY2FUJI_STATUS_OK;
 }
 
+sony2fuji_status sony2fuji_session_set_tone_curve(
+    sony2fuji_session* session, const sony2fuji_curve_point* points, uint32_t count
+) {
+    if (!session) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    if (!points || count == 0) {
+        session->tone_curve_map = nullptr;
+        return SONY2FUJI_STATUS_OK;
+    }
+    if (count > sony2fuji::ToneCurveMap::kMaxPoints) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    std::vector<sony2fuji::CurvePoint> anchors;
+    anchors.reserve(count);
+    for (uint32_t i = 0; i < count; ++i) anchors.push_back({points[i].x, points[i].y});
+    auto curve = sony2fuji::ToneCurveMap::build(anchors);
+    if (!curve) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    // The identity curve is an exact bypass and never activates the CPU-only path.
+    session->tone_curve_map = curve->isIdentity() ? nullptr : curve;
+    return SONY2FUJI_STATUS_OK;
+}
+
+sony2fuji_status sony2fuji_session_pick_white_balance(
+    const sony2fuji_session* session, float nx, float ny,
+    float* out_temperature, float* out_tint
+) {
+    if (!session || !out_temperature || !out_tint) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    if (!std::isfinite(nx) || !std::isfinite(ny) || nx < 0 || nx > 1 || ny < 0 || ny > 1)
+        return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    if (session->raw_cache.pixels.empty() || !session->camera_wb)
+        return SONY2FUJI_STATUS_UNSUPPORTED;
+    *out_temperature = 0; *out_tint = 0;
+    try {
+        const auto& raw = session->raw_cache;
+        const int cx = std::clamp(static_cast<int>(std::lround(nx * (raw.width - 1))), 0, raw.width - 1);
+        const int cy = std::clamp(static_cast<int>(std::lround(ny * (raw.height - 1))), 0, raw.height - 1);
+        double sum[3] = {0, 0, 0};
+        int samples = 0;
+        for (int dy = -2; dy <= 2; ++dy) {
+            const int y = std::clamp(cy + dy, 0, raw.height - 1);
+            for (int dx = -2; dx <= 2; ++dx) {
+                const int x = std::clamp(cx + dx, 0, raw.width - 1);
+                const auto& p = raw.at(x, y);
+                sum[0] += p.r; sum[1] += p.g; sum[2] += p.b;
+                ++samples;
+            }
+        }
+        if (samples == 0) return SONY2FUJI_STATUS_PROCESSING_ERROR;
+        double rgb[3];
+        for (int c = 0; c < 3; ++c) rgb[c] = sum[c] / samples;
+        // The sample must neutralize to gray: required multipliers, green-normalized.
+        const double g = std::max(rgb[1], 1e-9);
+        const double wanted[3] = {g / std::max(rgb[0], 1e-9), 1.0, g / std::max(rgb[2], 1e-9)};
+        // Negative channels cannot be neutralized by a multiplicative WB.
+        if (rgb[0] <= 0 || rgb[2] <= 0) return SONY2FUJI_STATUS_PROCESSING_ERROR;
+
+        auto error = [&](double temperature, double tint) {
+            float m[4];
+            if (!session->camera_wb->multipliers(temperature, tint, m)) return 1e30;
+            double e = 0;
+            for (int c = 0; c < 3; ++c) {
+                const double d = std::log(std::max(static_cast<double>(m[c]), 1e-6)) - std::log(wanted[c]);
+                e += d * d;
+            }
+            return e;
+        };
+
+        // Coarse log-temperature sweep, then local refinement around the best cell.
+        double bestT = session->as_shot_temperature, bestTint = session->as_shot_tint;
+        double best = error(bestT, bestTint);
+        const int tempSteps = 128, tintSteps = 33;
+        for (int i = 0; i <= tempSteps; ++i) {
+            const double t = 2000 * std::pow(50000.0 / 2000.0, i / static_cast<double>(tempSteps));
+            for (int j = 0; j < tintSteps; ++j) {
+                const double tint = -150 + 300 * j / static_cast<double>(tintSteps - 1);
+                const double e = error(t, tint);
+                if (e < best) { best = e; bestT = t; bestTint = tint; }
+            }
+        }
+        double loT = bestT, hiT = bestT, loTint = bestTint, hiTint = bestTint;
+        for (int round = 0; round < 4; ++round) {
+            const double stepT = (hiT - loT) / 8, stepTint = (hiTint - loTint) / 8;
+            for (int i = 0; i <= 8; ++i) {
+                const double t = loT + stepT * i;
+                for (int j = 0; j <= 8; ++j) {
+                    const double tint = loTint + stepTint * j;
+                    const double e = error(t, tint);
+                    if (e < best) { best = e; bestT = t; bestTint = tint; }
+                }
+            }
+            loT = std::max(2000.0, bestT - 2 * stepT);
+            hiT = std::min(50000.0, bestT + 2 * stepT);
+            loTint = std::max(-150.0, bestTint - 2 * stepTint);
+            hiTint = std::min(150.0, bestTint + 2 * stepTint);
+        }
+        *out_temperature = static_cast<float>(std::clamp(bestT, 2000.0, 50000.0));
+        *out_tint = static_cast<float>(std::clamp(bestTint, -150.0, 150.0));
+        return SONY2FUJI_STATUS_OK;
+    } catch (...) {
+        return SONY2FUJI_STATUS_PROCESSING_ERROR;
+    }
+}
+
+sony2fuji_status sony2fuji_session_set_crop(
+    sony2fuji_session* session, const sony2fuji_crop_config* config
+) {
+    if (!session) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    if (!config) {
+        session->user_crop = {};
+        return SONY2FUJI_STATUS_OK;
+    }
+    if (config->version != SONY2FUJI_CROP_CONFIG_VERSION ||
+        config->struct_size < sizeof(sony2fuji_crop_config))
+        return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    const auto finite = [](float v) { return std::isfinite(v); };
+    const bool validRect = finite(config->x) && finite(config->y) && finite(config->w) && finite(config->h) &&
+        config->x >= 0 && config->y >= 0 && config->w > 0 && config->h > 0 &&
+        config->x + config->w <= 1 + 1e-4f && config->y + config->h <= 1 + 1e-4f;
+    const bool validAngle = finite(config->angle) && std::abs(config->angle) <= 45;
+    if (!validRect || !validAngle) return SONY2FUJI_STATUS_INVALID_ARGUMENT;
+    session->user_crop = {config->x, config->y, config->w, config->h, config->angle, true};
+    return SONY2FUJI_STATUS_OK;
+}
+
 sony2fuji_status sony2fuji_session_estimate_auto_exposure(
     sony2fuji_session* session, const sony2fuji_request* request, float* exposure_ev
 ) {
@@ -1299,12 +1482,17 @@ static sony2fuji_status processImpl(
     const bool waveletActive = session->wavelet_denoise.active();
     const bool effectsActive = session->photo_effects.active();
     const bool hslActive = session->hsl.active();
+    // The multi-point tone curve and user crop/level have no GPU implementation
+    // yet; they force the CPU path on every platform instead of being dropped
+    // by GPU rendering.
+    const bool curveActive = session->tone_curve_map != nullptr;
+    const bool cropActive = session->user_crop.active;
     const bool viewportPreview = session->viewport_preview && local.intent == SONY2FUJI_INTENT_PREVIEW &&
         local.output_target == SONY2FUJI_TARGET_BUFFER;
 #if defined(SONY2FUJI_ENABLE_METAL) || defined(SONY2FUJI_ENABLE_GLES) || defined(SONY2FUJI_ENABLE_D3D11)
-    const bool cpuOnlyStages = false;
+    const bool cpuOnlyStages = curveActive || cropActive;
 #else
-    const bool cpuOnlyStages = hslActive || effectsActive || waveletActive || session->chroma_denoise != 0;
+    const bool cpuOnlyStages = curveActive || cropActive || hslActive || effectsActive || waveletActive || session->chroma_denoise != 0;
 #endif
     const bool fastWavelet = waveletActive && !effectsActive && session->chroma_denoise == 0 && session->interactive_preview &&
         local.intent == SONY2FUJI_INTENT_PREVIEW && local.output_target == SONY2FUJI_TARGET_BUFFER;
@@ -1534,12 +1722,31 @@ static sony2fuji_status processImpl(
     } else {
         image = std::move(base);
     }
-    applyToneAdjustments(image, local);
+    applyToneAdjustments(image, local, session->tone_curve_map.get());
     sony2fuji::applyHsl(image, session->hsl);
     const auto chromaResult = sony2fuji::applyChromaDenoise(image, session->chroma_denoise);
     if (chromaResult != sony2fuji::ErrorCode::Success) return mapError(chromaResult);
     applyDetailAdjustments(image, local);
     sony2fuji::applyPhotoEffects(image, session->photo_effects);
+
+    // User crop/level is the final geometry stage: rotate-and-inscribe first,
+    // then resolve the normalized rectangle against that result. Target sizing
+    // below sees the cropped dimensions so FIT/scale modes keep the crop ratio.
+    if (session->user_crop.active) {
+        const auto& crop = session->user_crop;
+        if (crop.angle != 0) image = rotateAndInscribe(image, crop.angle);
+        const int px = std::clamp(static_cast<int>(std::lround(crop.x * image.width)), 0, image.width - 1);
+        const int py = std::clamp(static_cast<int>(std::lround(crop.y * image.height)), 0, image.height - 1);
+        const int pw = std::clamp(static_cast<int>(std::lround(crop.w * image.width)), 1, image.width - px);
+        const int ph = std::clamp(static_cast<int>(std::lround(crop.h * image.height)), 1, image.height - py);
+        if (pw != image.width || ph != image.height) {
+            sony2fuji::ImageData cropped(pw, ph);
+            for (int y = 0; y < ph; ++y)
+                for (int x = 0; x < pw; ++x)
+                    cropped.at(x, y) = image.at(px + x, py + y);
+            image = std::move(cropped);
+        }
+    }
 
     uint32_t target_width = static_cast<uint32_t>(image.width);
     uint32_t target_height = static_cast<uint32_t>(image.height);

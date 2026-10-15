@@ -207,6 +207,9 @@
     <string name="no_recipe">No recipe</string>
     <string name="hsl_reset_channel">Reset current color</string>
     <string name="hsl">HSL</string>
+    <string name="curve">Curve</string>
+    <string name="curve_hint">Drag to add or move anchors, double-tap to remove</string>
+    <string name="curve_reset">Reset curve</string>
     <string name="auto_exposure">Auto</string>
     <string name="exposure_scene">Standard development</string>
     <string name="exposure_preview">Match embedded preview</string>

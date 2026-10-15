@@ -37,6 +37,11 @@ public sealed class EditorIcon : FrameworkElement
         ,["Clipping"]=Geometry.Parse("M12,3 L22,21 H2 Z M12,9 V14 M12,17 V18")
         ,["Adjust"]=Geometry.Parse("M3,6 H8 M12,6 H21 M3,12 H14 M18,12 H21 M3,18 H6 M10,18 H21 M8,3 V9 H12 V3 Z M14,9 V15 H18 V9 Z M6,15 V21 H10 V15 Z")
         ,["Export"]=Geometry.Parse("M12,3 V16 M7,11 L12,16 17,11 M3,16 V21 H21 V16")
+        ,["Crop"]=Geometry.Parse("M6,2 V14 A2,2 0 0 0 8,16 H22 M18,22 V8 A2,2 0 0 0 16,6 H2")
+        ,["Undo"]=Geometry.Parse("M9,14 L4,9 9,4 M4,9 H14.5 A5.5,5.5 0 0 1 14.5,20 H11")
+        ,["Redo"]=Geometry.Parse("M15,14 L20,9 15,4 M20,9 H9.5 A5.5,5.5 0 0 0 4,14.5 A5.5,5.5 0 0 0 9.5,20 H13")
+        // Lucide Pipette, ISC license; converted from its SVG to WPF path geometry.
+        ,["Eyedropper"]=Geometry.Parse("M15,6 L18.4,2.6 A2.1,2.1 0 1 1 21.4,5.6 L18,9 L18.4,9.4 A2.1,2.1 0 1 1 15.4,12.4 L11.6,8.6 A2.1,2.1 0 1 1 14.6,5.6 L15,6 Z M2,22 L3,21 L6,21 L15,12 M3,21 L3,18 L12,9")
     };
     protected override void OnRender(DrawingContext dc)
     {

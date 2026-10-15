@@ -44,9 +44,21 @@ public sealed class PhotoCanvas : FrameworkElement
     private readonly RectangleGeometry wipeClip=new();
     internal int ContentVersion { get; private set; }
     internal Rect ImageBounds { get; private set; }
+    // Fired whenever the on-screen image rectangle moves or resizes (pan, zoom,
+    // resize, new frame); the crop overlay re-positions itself from it.
+    internal event Action? ImageBoundsChanged;
     private double divider=.5;
     internal int PreviewLongEdge { get; private set; } = 2000;
     internal event Action<int>? PreviewSizeChanged;
+    // White balance eyedropper: swallows pan/zoom input, reports the clicked
+    // point normalized to the full source image.
+    private bool pickMode;
+    public bool PickMode
+    {
+        get=>pickMode;
+        set { pickMode=value; Cursor=value ? Cursors.Cross : Cursors.Hand; }
+    }
+    public event Action<double,double>? PickRequested;
     public bool ComparisonEnabled { get=>comparisonEnabled; set { comparisonEnabled=value;UpdateComparison(); } }
     public double Divider { get=>divider; set { if(!double.IsFinite(value))throw new ArgumentOutOfRangeException(nameof(value));divider=Math.Clamp(value,0,1);UpdateComparison(); } }
     public bool ShowClipping { get=>showClipping; set {if(showClipping==value)return;showClipping=value;DrawImages();} }
@@ -63,6 +75,12 @@ public sealed class PhotoCanvas : FrameworkElement
         MouseWheel+=(_,e)=> { Viewport?.Magnify(e.Delta>0 ? 1.2 : 1/1.2); e.Handled=true; };
         MouseLeftButtonDown+=(_,e)=> {
             Focus();var point=e.GetPosition(this);
+            if(pickMode)
+            {
+                if(image!=null && ImageBounds.Width>0 && ImageBounds.Contains(point))
+                    PickRequested?.Invoke((point.X-ImageBounds.X)/ImageBounds.Width,(point.Y-ImageBounds.Y)/ImageBounds.Height);
+                e.Handled=true;return;
+            }
             draggingDivider=ComparisonEnabled && Math.Abs(point.X-ActualWidth*Divider)<=18;
             if(e.ClickCount==2 && !draggingDivider && image!=null)
             {
@@ -73,7 +91,7 @@ public sealed class PhotoCanvas : FrameworkElement
         };
         MouseMove+=(_,e)=> {
             var next=e.GetPosition(this);
-            Cursor=ComparisonEnabled && (draggingDivider || Math.Abs(next.X-ActualWidth*Divider)<=18) ? Cursors.SizeWE : Cursors.Hand;
+            Cursor=pickMode ? Cursors.Cross : ComparisonEnabled && (draggingDivider || Math.Abs(next.X-ActualWidth*Divider)<=18) ? Cursors.SizeWE : Cursors.Hand;
             if(draggingDivider){if(ActualWidth>0)Divider=next.X/ActualWidth;return;}
             if(drag is not {} point)return;Viewport?.Move(next-point);drag=next;
         };
@@ -116,6 +134,7 @@ public sealed class PhotoCanvas : FrameworkElement
             ImageBounds=new Rect((ActualWidth-w)/2+Viewport.Pan.X,(ActualHeight-h)/2+Viewport.Pan.Y,w,h);
             // Keep image drawing commands and bitmap resources resident while panning.
             imageTransform.Matrix=new Matrix(w,0,0,h,ImageBounds.X,ImageBounds.Y);
+            ImageBoundsChanged?.Invoke();
         }
         var edge=Viewport.PreviewLongEdge(RenderSize,dpi,size);
         if(edge!=PreviewLongEdge){PreviewLongEdge=edge;PreviewSizeChanged?.Invoke(edge);}

@@ -5,15 +5,13 @@ struct AdjustmentDock: View {
     @ObservedObject var model: EditorModel
     @Binding var selected: AdjustmentParameter?
     let resetVersion: Int
-    @State private var hslSelected = false
-    @State private var lensSelected = false
 
-    enum DockCategory: Equatable {
-        case film
-        case masterRecipe
+    // One side-panel state instead of crossing booleans: a parameter
+    // selection (selected != nil) or one of these fixed panels.
+    enum SideTool: Equatable {
+        case film, masterRecipe, hsl, curve, lens
     }
-
-    @State private var dockCategory: DockCategory = .film
+    @State private var sideTool: SideTool = .film
 
     var body: some View {
         let _ = localizationLocale
@@ -21,72 +19,45 @@ struct AdjustmentDock: View {
             GeometryReader { geometry in
                 ScrollView(.horizontal) {
                     HStack(spacing: 6) {
-                        Button {
-                            selected = nil
-                            hslSelected = false
-                            lensSelected = false
-                            dockCategory = .film
-                        } label: {
-                            let active = selected == nil && !hslSelected && !lensSelected && dockCategory == .film
-                            let changed = !model.selectedFilmID.isEmpty
-                            VStack(spacing: 5) {
-                                Image(systemName: "film").font(.system(size: 19))
-                                    .frame(width: 40, height: 40)
-                                    .background(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
-                                    .overlay { Circle().strokeBorder(active ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
-                                Text(L10n.text("胶片")).font(.system(size: 11)).lineLimit(1).minimumScaleFactor(0.8)
-                                Circle().fill(changed ? Color.yellow : Color.clear).frame(width: 3, height: 3)
-                            }.frame(width: 72, height: 70)
-                                .foregroundStyle(active ? Color.yellow : Color.primary)
-                        }.buttonStyle(.plain).help(L10n.text("选择胶片模拟")).accessibilityLabel(L10n.text("胶片"))
-                            .accessibilityValue(model.selectedFilm?.name ?? L10n.text("中性"))
-                            .accessibilityAddTraits(selected == nil && !hslSelected && !lensSelected && dockCategory == .film ? .isSelected : [])
-
-                        Button {
-                            selected = nil
-                            hslSelected = false
-                            dockCategory = .masterRecipe
-                            lensSelected = false
-                        } label: {
-                            let active = selected == nil && !hslSelected && !lensSelected && dockCategory == .masterRecipe
-                            let changed = model.settings.masterRecipeID != nil
-                            VStack(spacing: 5) {
-                                Image(systemName: "photo.stack").font(.system(size: 19))
-                                    .frame(width: 40, height: 40)
-                                    .background(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
-                                    .overlay { Circle().strokeBorder(active ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
-                                Text(L10n.text("大师配方")).font(.system(size: 11)).lineLimit(1).minimumScaleFactor(0.8)
-                                Circle().fill(changed ? Color.yellow : Color.clear).frame(width: 3, height: 3)
-                            }.frame(width: 72, height: 70)
-                                .foregroundStyle(active ? Color.yellow : Color.primary)
-                        }.buttonStyle(.plain).help(L10n.text("选择大师配方")).accessibilityLabel(L10n.text("大师配方"))
-                            .accessibilityValue(model.settings.masterRecipe?.name ?? L10n.text("无配方"))
-                            .accessibilityAddTraits(selected == nil && !hslSelected && !lensSelected && dockCategory == .masterRecipe ? .isSelected : [])
+                        toolButton(.film, symbol: "film", title: "胶片", help: "选择胶片模拟",
+                                   changed: !model.selectedFilmID.isEmpty,
+                                   accessibilityValue: model.selectedFilm?.name ?? L10n.text("中性"))
+                        toolButton(.masterRecipe, symbol: "photo.stack", title: "大师配方", help: "选择大师配方",
+                                   changed: model.settings.masterRecipeID != nil,
+                                   accessibilityValue: model.settings.masterRecipe?.name ?? L10n.text("无配方"))
                         ForEach([AdjustmentParameter.strength] + AdjustmentParameter.photoTools) { parameter in tool(parameter) }
-                        Button { hslSelected = true; lensSelected = false } label: {
-                            VStack(spacing: 5) {
-                                Image(systemName: "slider.horizontal.3").font(.system(size: 19))
-                                    .frame(width: 40, height: 40)
-                                    .background(hslSelected ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
-                                    .overlay { Circle().strokeBorder(hslSelected ? Color.yellow : Color.white.opacity(0.25), lineWidth: 1) }
-                                Text("HSL").font(.system(size: 11))
-                                Circle().fill(model.settings.hslSettings.isIdentity ? Color.clear : Color.yellow).frame(width: 3, height: 3)
-                            }.frame(width: 72, height: 70)
-                        }.buttonStyle(.plain).accessibilityLabel("HSL").accessibilityIdentifier("tool.hsl")
-                            .accessibilityAddTraits(hslSelected ? .isSelected : [])
-                            .help(L10n.text("色相、饱和度和明度")).disabled(model.result == nil)
-                        lensTool
+                        toolButton(.hsl, symbol: "slider.horizontal.3", title: "HSL", help: "色相、饱和度和明度",
+                                   changed: !model.settings.hslSettings.isIdentity,
+                                   accessibilityValue: nil, identifier: "tool.hsl")
+                        toolButton(.curve, symbol: "point.topleft.down.curvedto.point.bottomright.up", title: "曲线", help: "多点色调曲线",
+                                   changed: model.settings.curve != nil,
+                                   accessibilityValue: nil, identifier: "tool.curve")
+                            .disabled(model.result == nil)
+                        toolButton(.lens, symbol: "viewfinder", title: "镜头", help: "镜头畸变和横向色差校正",
+                                   changed: !model.settings.isDefault(.lens),
+                                   accessibilityValue: nil, identifier: "tool.lens",
+                                   compact: true)
+                            .disabled(model.result == nil)
                     }.padding(.horizontal, 12).padding(.top, 4)
                         .frame(minWidth: max(780, geometry.size.width))
                 }.scrollIndicators(.hidden)
             }.frame(height: 76)
             Group {
-                if lensSelected {
+                if sideTool == .lens {
                     LensControls(model: model).id(resetVersion).disabled(model.result == nil)
-                } else if hslSelected {
+                } else if sideTool == .hsl {
                     ScrollView(.vertical) {
                         HSLMixer(settings: Binding(get: { model.settings.hslSettings }, set: { model.settings.hsl = $0.isIdentity ? nil : $0 }),
                                  onEditingChanged: model.setInteracting)
+                            .frame(maxWidth: 540).disabled(model.result == nil)
+                            .frame(maxWidth: .infinity)
+                    }
+                } else if sideTool == .curve {
+                    ScrollView(.vertical) {
+                        CurveEditorView(curve: Binding(
+                                get: { model.settings.curve },
+                                set: { model.settings.curve = $0 }),
+                            onEditingChanged: model.setInteracting)
                             .frame(maxWidth: 540).disabled(model.result == nil)
                             .frame(maxWidth: .infinity)
                     }
@@ -116,7 +87,7 @@ struct AdjustmentDock: View {
                     .frame(maxWidth: 360).padding(.horizontal, 24)
                     .disabled(parameter == .strength && model.selectedFilm == nil && model.settings.masterRecipe == nil)
                     .disabled(parameter.isWhiteBalance && model.settings.asShotWhiteBalance == nil)
-                } else if dockCategory == .masterRecipe {
+                } else if sideTool == .masterRecipe {
                     MasterRecipeDock(model: model)
                 } else {
                     FilmDock(model: model)
@@ -125,6 +96,31 @@ struct AdjustmentDock: View {
         }
         .frame(maxWidth: .infinity).padding(.top, 6).padding(.bottom, 6)
         .background(Color(nsColor: .windowBackgroundColor)).tint(.yellow)
+    }
+
+    private func toolButton(_ tool: SideTool, symbol: String, title: String, help: String,
+                            changed: Bool, accessibilityValue: String?, identifier: String? = nil,
+                            compact: Bool = false) -> some View {
+        let active = selected == nil && sideTool == tool
+        return Button {
+            selected = nil
+            sideTool = tool
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: symbol).font(.system(size: 19))
+                    .frame(width: 40, height: 40)
+                    .background(active ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
+                    .overlay { Circle().strokeBorder(active || changed ? Color.yellow : Color.white.opacity(0.25), lineWidth: changed && !active ? 2 : 1) }
+                Text(L10n.text(title)).font(.system(size: 11)).lineLimit(1).minimumScaleFactor(0.8)
+                Circle().fill(changed ? Color.yellow : Color.clear).frame(width: 3, height: 3)
+            }.frame(width: compact ? 56 : 72, height: 70)
+                .foregroundStyle(active ? Color.yellow : Color.primary)
+        }.buttonStyle(.plain)
+            .help(L10n.text(help))
+            .accessibilityLabel(L10n.text(title))
+            .accessibilityValue(accessibilityValue ?? (active ? L10n.text("已开启") : L10n.text("已关闭")))
+            .accessibilityAddTraits(active ? .isSelected : [])
+            .accessibilityIdentifier(identifier ?? "tool.\(title)")
     }
 
     private func tool(_ parameter: AdjustmentParameter) -> some View {
@@ -168,22 +164,6 @@ struct AdjustmentDock: View {
                 else { model.settings.set(parameter, to: spec.defaultValue) }
             }.disabled(!changed)
         }
-    }
-
-    private var lensTool: some View {
-        let changed = !model.settings.isDefault(.lens)
-        return Button { selected = nil; lensSelected = true; hslSelected = false } label: {
-            VStack(spacing: 5) {
-                Image(systemName: "viewfinder").font(.system(size: 19))
-                    .frame(width: 40, height: 40)
-                    .background(lensSelected ? Color.yellow.opacity(0.12) : Color.white.opacity(0.04), in: Circle())
-                    .overlay { Circle().strokeBorder(lensSelected || changed ? Color.yellow : Color.white.opacity(0.25), lineWidth: changed ? 2 : 1) }
-                Text(L10n.text("镜头")).font(.system(size: 11))
-                Circle().fill(changed ? Color.yellow : Color.clear).frame(width: 3, height: 3)
-            }.frame(width: 56, height: 70).foregroundStyle(lensSelected ? Color.yellow : Color.primary)
-        }.buttonStyle(.plain).disabled(model.result == nil)
-            .help(L10n.text("镜头畸变和横向色差校正")).accessibilityLabel(L10n.text("镜头校正"))
-            .accessibilityIdentifier("tool.lens").accessibilityAddTraits(lensSelected ? .isSelected : [])
     }
 
     private var noiseReductionHelp: String {

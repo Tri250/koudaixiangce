@@ -154,6 +154,7 @@ set(CORE_SOURCES
     src/core/wavelet_denoise.cpp
     src/core/photo_effects.cpp
     src/core/photo_color.cpp
+    src/core/tone_curve.cpp
     src/core/white_balance.cpp
     src/core/preview_exposure.cpp
     src/core/rendered_dng.cpp
@@ -362,6 +363,14 @@ if(BUILD_TESTING AND NOT IOS AND NOT ANDROID)
         target_compile_options(photo_effects_tests PRIVATE -UNDEBUG)
     endif()
     add_test(NAME photo_effects COMMAND photo_effects_tests)
+    add_executable(tone_curve_tests tests/tone_curve_tests.cpp)
+    target_link_libraries(tone_curve_tests sony2fuji_core)
+    if(MSVC)
+        target_compile_options(tone_curve_tests PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(tone_curve_tests PRIVATE -UNDEBUG)
+    endif()
+    add_test(NAME tone_curve COMMAND tone_curve_tests)
     add_executable(srgb_look_tests tests/srgb_look_tests.cpp)
     target_link_libraries(srgb_look_tests sony2fuji_core)
     if(MSVC)

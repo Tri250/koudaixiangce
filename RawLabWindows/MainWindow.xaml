@@ -19,12 +19,15 @@
           <Button Click="OpenClicked" Style="{StaticResource ToolbarButton}" ToolTip="{DynamicResource '打开 RAW（Ctrl+O）'}" AutomationProperties.Name="{DynamicResource '打开 RAW'}"><local:EditorIcon Kind="Folder" Width="22" Height="22"/></Button>
           <Button x:Name="LibraryToggleButton" Click="LibraryToggle" Style="{StaticResource ToolbarButton}" ToolTip="{DynamicResource '显示或隐藏照片目录'}" AutomationProperties.Name="{DynamicResource '文件树'}"><local:EditorIcon Kind="Library" Width="22" Height="22"/></Button>
           <Border Width="1" Background="#474B53" Height="22" Margin="12,0"/>
+          <Button x:Name="UndoButton" Click="UndoClicked" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTip="{DynamicResource '撤销'}" AutomationProperties.Name="{DynamicResource '撤销'}"><local:EditorIcon Kind="Undo" Width="22" Height="22"/></Button>
+          <Button x:Name="RedoButton" Click="RedoClicked" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTip="{DynamicResource '重做'}" AutomationProperties.Name="{DynamicResource '重做'}"><local:EditorIcon Kind="Redo" Width="22" Height="22"/></Button>
           <Button x:Name="CompareButton" Click="CompareClicked" Style="{StaticResource ToolbarButton}" ToolTip="{DynamicResource '对比模式：并排 / 滑动'}" AutomationProperties.Name="{DynamicResource '对比模式'}">
             <local:EditorIcon Kind="Compare" Width="22" Height="22"/>
             <Button.ContextMenu><ContextMenu><MenuItem x:Name="CompareOff" Header="{DynamicResource '关闭对比'}" IsCheckable="True" Click="CompareOffClicked"/><MenuItem x:Name="CompareSide" Header="{DynamicResource '并排对比'}" IsCheckable="True" IsChecked="True" Click="CompareSideClicked"/><MenuItem x:Name="CompareSwipe" Header="{DynamicResource '滑动对比'}" IsCheckable="True" Click="CompareSwipeClicked"/></ContextMenu></Button.ContextMenu>
           </Button>
           <Button Click="ZoomClicked" Style="{StaticResource ToolbarButton}" ToolTip="{DynamicResource '缩放与适合窗口'}" AutomationProperties.Name="{DynamicResource '缩放'}"><local:EditorIcon Kind="Zoom" Width="22" Height="22"/><Button.ContextMenu><ContextMenu><MenuItem Header="{DynamicResource '适合窗口'}" InputGestureText="F" Click="FitClicked"/><MenuItem Header="{DynamicResource '100% 实际像素'}" InputGestureText="1" Click="ActualClicked"/><Separator/><MenuItem Header="{DynamicResource '放大'}" InputGestureText="+" Click="ZoomInClicked"/><MenuItem Header="{DynamicResource '缩小'}" InputGestureText="−" Click="ZoomOutClicked"/></ContextMenu></Button.ContextMenu></Button>
           <Button x:Name="ClippingButton" Click="ClippingClicked" Style="{StaticResource ToolbarButton}" ToolTip="{DynamicResource '显示高光与暗部裁切提示'}" AutomationProperties.Name="{DynamicResource '裁切提示'}"><local:EditorIcon Kind="Clipping" Width="22" Height="22"/></Button>
+          <Button x:Name="PickerButton" Click="PickerClicked" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTip="{DynamicResource '白平衡吸管'}" AutomationProperties.Name="{DynamicResource '白平衡吸管'}"><local:EditorIcon Kind="Eyedropper" Width="22" Height="22"/></Button>
           <Button x:Name="InfoButton" Click="InfoClicked" Style="{StaticResource ToolbarButton}" ToolTip="{DynamicResource '照片信息：隐藏 / 文件信息 / 拍摄参数（I）'}" AutomationProperties.Name="{DynamicResource '照片信息'}"><local:EditorIcon Kind="Info" Width="22" Height="22"/></Button>
           <Button x:Name="AdjustToggleButton" Click="DockToggle" Style="{StaticResource ToolbarButton}" ToolTip="{DynamicResource '显示或隐藏调整栏'}" AutomationProperties.Name="{DynamicResource '调整栏'}"><local:EditorIcon Kind="Adjust" Width="22" Height="22"/></Button>
         </StackPanel>
@@ -84,6 +87,7 @@
           <Grid.ColumnDefinitions><ColumnDefinition x:Name="NeutralColumn" Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <local:PhotoCanvas x:Name="NeutralCanvas" Margin="0,0,2,0"/>
           <local:PhotoCanvas x:Name="ResultCanvas" Grid.Column="1"/>
+          <local:CropOverlay x:Name="CropFrame" Grid.Column="1" Visibility="Collapsed" AutomationProperties.Name="{DynamicResource '裁剪'}"/>
           <Border x:Name="NeutralLabel" Background="#D923252A" CornerRadius="4" Padding="9,5" Margin="14" HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="Collapsed" IsHitTestVisible="False"><TextBlock Text="{DynamicResource '原图'}" FontSize="12"/></Border>
           <Border x:Name="FilmLabel" Grid.Column="1" Background="#D923252A" CornerRadius="4" Padding="9,5" Margin="14" HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="Collapsed" IsHitTestVisible="False"><TextBlock x:Name="FilmLabelText" FontSize="12"/></Border>
           <Border x:Name="InfoOverlay" Grid.ColumnSpan="2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14" Background="#D923252A" CornerRadius="5" Padding="10,7" MaxWidth="380" Visibility="Collapsed" IsHitTestVisible="False">
@@ -131,6 +135,12 @@
               <Button x:Name="HslCategory" Click="HslCategoryClicked" Style="{StaticResource ToolButton}" ToolTip="HSL" AutomationProperties.Name="HSL">
                 <StackPanel><Grid Width="40" Height="40"><local:AdjustmentRing x:Name="HslCategoryRing"/><local:EditorIcon Kind="Adjust" Width="20" Height="20"/></Grid><TextBlock Text="HSL" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/></StackPanel>
               </Button>
+              <Button x:Name="CurveCategory" Click="CurveCategoryClicked" Style="{StaticResource ToolButton}" ToolTip="{DynamicResource '多点色调曲线'}" AutomationProperties.Name="{DynamicResource '曲线'}">
+                <StackPanel><Grid Width="40" Height="40"><local:AdjustmentRing x:Name="CurveCategoryRing"/><local:EditorIcon Kind="ToneCurve" Width="20" Height="20"/></Grid><TextBlock Text="{DynamicResource '曲线'}" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/></StackPanel>
+              </Button>
+              <Button x:Name="CropCategory" Click="CropCategoryClicked" Style="{StaticResource ToolButton}" ToolTip="{DynamicResource '裁剪'}" AutomationProperties.Name="{DynamicResource '裁剪'}">
+                <StackPanel><Grid Width="40" Height="40"><local:AdjustmentRing x:Name="CropCategoryRing"/><local:EditorIcon Kind="Crop" Width="20" Height="20"/></Grid><TextBlock Text="{DynamicResource '裁剪'}" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/></StackPanel>
+              </Button>
             </StackPanel></ScrollViewer>
             <WrapPanel x:Name="ParameterPanel" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,5">
               <TextBlock x:Name="ParameterTitle" Width="105" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="SemiBold"/>
@@ -156,6 +166,7 @@
             <local:DenoisePanel x:Name="DenoiseEditor" Grid.Row="2" Visibility="Collapsed" VerticalAlignment="Center"/>
             <local:LensPanel x:Name="LensEditor" Grid.Row="2" Visibility="Collapsed" VerticalAlignment="Center"/>
             <ScrollViewer x:Name="HslSurface" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><local:HslPanel x:Name="HslEditor"/></ScrollViewer>
+            <ScrollViewer x:Name="CurveSurface" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><local:CurvePanel x:Name="CurveEditor" VerticalAlignment="Center"/></ScrollViewer>
             <ScrollViewer x:Name="PhotoEffectsSurface" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
               <local:PhotoEffectsPanel x:Name="PhotoEffectsEditor" VerticalAlignment="Center"/>
             </ScrollViewer>

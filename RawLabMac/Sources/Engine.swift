@@ -184,6 +184,15 @@ final class RenderEngine {
         guard sony2fuji_session_set_hsl(session, &hslConfig) == SONY2FUJI_STATUS_OK else {
             throw RenderError.failed(L10n.text("无效的 HSL 参数"))
         }
+        // v0.7.0 multi-point tone curve; the core stacks it after the scalar S-curve.
+        if let curve = settings.curve, curve.isValid, !curve.isIdentity {
+            let curvePoints = curve.points.map { sony2fuji_curve_point(x: Float($0.x), y: Float($0.y)) }
+            guard sony2fuji_session_set_tone_curve(session, curvePoints, UInt32(curvePoints.count)) == SONY2FUJI_STATUS_OK else {
+                throw RenderError.failed(L10n.text("无效的色调曲线"))
+            }
+        } else {
+            sony2fuji_session_set_tone_curve(session, nil, 0)
+        }
         try configureLens(settings.lensSettings)
         let wavelet = settings.waveletNoiseReduction
         var effectsConfig = settings.photoEffectsConfig

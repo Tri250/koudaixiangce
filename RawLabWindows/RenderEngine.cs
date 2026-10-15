@@ -12,9 +12,12 @@ internal sealed class RenderEngine : IDisposable
 {
     private Native.Session session = new();
     private int gpuMode;
+    // Session setters and process are not thread-safe; the preview pump runs on
+    // the thread pool while the eyedropper picks from the UI flow via Task.Run.
+    private readonly object gate = new();
     private sealed record Stamp(string Path,long Length,long Time);
     private sealed record PreviewKey(Native.Request Request,DenoiseSettings Denoise,PhotoEffectsSettings Effects,int DisplayChromaDenoise,
-        int ExposureMode,HslSettings Hsl,LensSettings Lens,int Mode,bool Compare,bool Clipping,Stamp Raw,Stamp? Lut);
+        int ExposureMode,HslSettings Hsl,LensSettings Lens,CurveSettings? Curve,CropSettings? Crop,int Mode,bool Compare,bool Clipping,Stamp Raw,Stamp? Lut);
     private readonly string lensDatabase;
     private Stamp? lensStamp;
     private LensCandidate[] lensCandidates = [];
@@ -39,12 +42,23 @@ internal sealed class RenderEngine : IDisposable
     public void Dispose() {previews.Clear();original=null;session.Dispose();}
     public double AutoExposure(string path, Adjustments settings)
     {
-        settings = PrepareRecipe(path, settings);
-        SetLens(settings.Lens);
-        Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
-        var request=settings.Request(path,null,0,null);
-        Native.Check(Native.sony2fuji_session_estimate_auto_exposure(session,ref request,out var ev));
-        return ev;
+        lock(gate)
+        {
+            settings = PrepareRecipe(path, settings);
+            SetLens(settings.Lens);
+            Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
+            var request=settings.Request(path,null,0,null);
+            Native.Check(Native.sony2fuji_session_estimate_auto_exposure(session,ref request,out var ev));
+            return ev;
+        }
+    }
+    internal (double Temperature,double Tint)? PickWhiteBalance(double nx,double ny)
+    {
+        lock(gate)
+        {
+            if(Native.sony2fuji_session_pick_white_balance(session,(float)nx,(float)ny,out var temperature,out var tint)!=0)return null;
+            return (Math.Clamp(Math.Round(temperature),2000,50000),Math.Clamp(Math.Round(tint),-150,150));
+        }
     }
     public PreviewFrame RenderPreview(string path,Adjustments settings,string? lut,int edge,bool interactive,bool compare,bool clipping)
     {
@@ -57,7 +71,7 @@ internal sealed class RenderEngine : IDisposable
         {session.Dispose();session=new();InitializeSession();SetGpuMode(gpuMode);lensStamp=null;}
         sourceStamp=(rawStamp,lutStamp);
         var key=new PreviewKey(settings.Request(path,lut,2000,null),settings.Denoise,settings.Effects,settings.DisplayChromaDenoise,
-            settings.ExposureMode,settings.Hsl,settings.Lens,gpuMode,compare,clipping,rawStamp,lutStamp);
+            settings.ExposureMode,settings.Hsl,settings.Lens,settings.Curve,settings.Crop,gpuMode,compare,clipping,rawStamp,lutStamp);
         if(previewKey!=key){previews.Clear();previewKey=key;}
         var cacheEdge=edge;
         if(previews.TryGetValue(cacheEdge,out var cached)) {
@@ -86,11 +100,32 @@ internal sealed class RenderEngine : IDisposable
     }
     public RenderedImage? Render(string path, Adjustments settings, string? lut, int edge, bool interactive = false, string? output = null, bool statistics = true, bool clipping = true, int? longEdge = null, bool viewportPreview = false)
     {
+        lock(gate)
+        {
+            return RenderLocked(path,settings,lut,edge,interactive,output,statistics,clipping,longEdge,viewportPreview);
+        }
+    }
+    private RenderedImage? RenderLocked(string path, Adjustments settings, string? lut, int edge, bool interactive, string? output, bool statistics, bool clipping, int? longEdge, bool viewportPreview)
+    {
         settings = PrepareRecipe(path, settings);
         SetLens(settings.Lens);
         Native.Check(Native.sony2fuji_session_set_raw_exposure_mode(session,settings.ExposureMode));
         var hsl=settings.RenderHsl.NativeConfig();
         Native.Check(Native.sony2fuji_session_set_hsl(session,ref hsl));
+        // Display-sRGB user tone curve; null/empty clears, so every render path
+        // (preview and export) restates it and stale session state never leaks.
+        var curvePoints=settings.Curve?.Points.Select(p=>new Native.CurvePoint{X=(float)p.X,Y=(float)p.Y}).ToArray();
+        Native.Check(Native.sony2fuji_session_set_tone_curve(session,curvePoints,curvePoints?.Length ?? 0));
+        // Crop is export geometry only: previews keep the full frame and draw the
+        // rectangle as an overlay. Restating it on every render (cleared without an
+        // output target) mirrors the tone-curve contract against session leakage.
+        if(output!=null && settings.Crop is { IsValid: true } crop)
+        {
+            var config=new Native.CropConfig{Version=1,StructSize=(uint)Marshal.SizeOf<Native.CropConfig>(),
+                X=(float)crop.X,Y=(float)crop.Y,W=(float)crop.W,H=(float)crop.H,Angle=(float)crop.Angle};
+            Native.Check(Native.sony2fuji_session_set_crop(session,ref config));
+        }
+        else Native.Check(Native.sony2fuji_session_set_crop(session,IntPtr.Zero));
         Native.Check(Native.sony2fuji_session_set_interactive_preview(session,interactive && edge>0 && output == null ? 1 : 0));
         Native.Check(Native.sony2fuji_session_set_viewport_preview(session,viewportPreview && edge>0 && output == null ? 1 : 0));
         var denoise=settings.Denoise.NativeConfig();

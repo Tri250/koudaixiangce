@@ -205,6 +205,12 @@ typedef struct sony2fuji_hsl_config {
     float lightness[SONY2FUJI_HSL_CHANNELS];  // +/-0.5 display-HSL lightness.
 } sony2fuji_hsl_config;
 
+#define SONY2FUJI_TONE_CURVE_MAX_POINTS 64u
+typedef struct sony2fuji_curve_point {
+    float x; // 0..1, strictly increasing across the anchor set.
+    float y; // 0..1.
+} sony2fuji_curve_point;
+
 #define SONY2FUJI_LENS_CORRECTION_CONFIG_VERSION 1u
 typedef struct sony2fuji_lens_correction_config {
     uint32_t version;
@@ -337,6 +343,17 @@ sony2fuji_status sony2fuji_session_set_photo_effects(
     sony2fuji_session* session, const sony2fuji_photo_effects_config* config
 );
 
+// Display-sRGB user tone curve applied after the scalar tone_curve stage in
+// the CPU pipeline. Additive API: request v2 is unchanged. NULL points or
+// count == 0 clears; an identity [(0,0),(1,1)] set also clears. Invalid
+// anchors (non-finite, outside [0,1], x not strictly increasing, count > 64)
+// return INVALID_ARGUMENT and leave the previous curve in place. An active
+// curve renders on CPU: Auto falls back from GPU, Force returns
+// PROCESSING_ERROR instead of silently skipping the curve.
+sony2fuji_status sony2fuji_session_set_tone_curve(
+    sony2fuji_session* session, const sony2fuji_curve_point* points, uint32_t count
+);
+
 // Display-sRGB mixer after tone/color and before denoise/detail/effects.
 // Additive API: request v2 is unchanged. Zero is an exact bypass. Active HSL
 // uses the platform photo GPU when available. Auto falls back on GPU failure;
@@ -366,6 +383,39 @@ sony2fuji_status sony2fuji_session_get_raw_exposure(
 // UNSUPPORTED means the file lacks usable calibration; camera WB remains usable.
 sony2fuji_status sony2fuji_session_get_raw_white_balance(
     const sony2fuji_session* session, float* temperature, float* tint
+);
+
+// Neutral-gray eyedropper over the decoded RAW. Samples a small neighborhood
+// around the normalized preview point (nx, ny in [0,1]) in the linear camera
+// domain and solves for the temperature/tint whose calibrated multipliers
+// neutralize the sample. The result is written to out_temperature/out_tint
+// and is intended for SONY2FUJI_WB_TEMPERATURE. UNSUPPORTED means the file
+// lacks usable calibration. Errors leave the outputs unchanged.
+sony2fuji_status sony2fuji_session_pick_white_balance(
+    const sony2fuji_session* session, float nx, float ny,
+    float* out_temperature, float* out_tint
+);
+
+#define SONY2FUJI_CROP_CONFIG_VERSION 1u
+typedef struct sony2fuji_crop_config {
+    uint32_t version;
+    uint32_t struct_size;
+    float x;      // Normalized crop rectangle left edge, [0,1].
+    float y;      // Normalized crop rectangle top edge, [0,1].
+    float w;      // Normalized crop width, (0,1]; x+w <= 1.
+    float h;      // Normalized crop height, (0,1]; y+h <= 1.
+    float angle;  // Horizontal leveling in degrees, [-45,45]; output is the
+                  // largest axis-aligned inscribed rectangle after rotation.
+} sony2fuji_crop_config;
+
+// Output crop/level applied as the final pipeline stage, after resizing.
+// Additive API: request v2 is unchanged. NULL clears. An invalid rectangle
+// (non-finite, w/h <= 0, x+w > 1, y+h > 1) or angle outside [-45,45] returns
+// INVALID_ARGUMENT and leaves the previous crop in place. An active crop
+// renders on CPU: Auto falls back from GPU, Force returns PROCESSING_ERROR
+// instead of silently skipping it.
+sony2fuji_status sony2fuji_session_set_crop(
+    sony2fuji_session* session, const sony2fuji_crop_config* config
 );
 
 sony2fuji_status sony2fuji_session_set_gpu_config(

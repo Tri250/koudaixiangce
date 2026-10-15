@@ -29,6 +29,8 @@ data class EditorState(
     val message: String? = null,
     val lookImportReport: String? = null,
     val gpuEnabled: Boolean = true,
+    val canUndo: Boolean = false,
+    val canRedo: Boolean = false,
 ) {
     val canExport get() = photo != null && preview != null && exact && !rendering && !previewResizePending && operation == Operation.NONE
     val controlsEnabled get() = photo != null && operation == Operation.NONE
@@ -42,12 +44,14 @@ private sealed interface Work {
     data class Export(val photo: ImportedPhoto, val edits: EditSettings, val destination: Uri?, val format: ExportFormat,
         val longEdge: Int?, val gpuMode: Int) : Work
     data class AutoExposure(val photo: ImportedPhoto, val edits: EditSettings) : Work
+    data class PickWb(val photo: ImportedPhoto, val nx: Float, val ny: Float) : Work
 }
 private sealed interface WorkResult {
     data class Preview(val request: Work.Preview, val pair: PreviewPair) : WorkResult
     data class MissingLook(val photo: ImportedPhoto, val edits: EditSettings) : WorkResult
     data object Export : WorkResult
     data class AutoExposure(val request: Work.AutoExposure, val exposure: Float) : WorkResult
+    data class PickWb(val request: Work.PickWb, val temperature: Float?, val tint: Float?) : WorkResult
 }
 private sealed interface LookWork {
     data object Load : LookWork
@@ -78,6 +82,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     private var previewResizeJob: Job? = null
     private var lookRevision = 0L
     private var releases = 0
+    // FR-04: session-scoped snapshot history; drags merge into one step.
+    private val history = EditHistory()
+    private var dragActive = false
     private val mutable = MutableStateFlow(EditorState())
     val state = mutable.asStateFlow()
     private var disposed = false
@@ -138,6 +145,13 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             WorkResult.Export
         }
         is Work.AutoExposure -> WorkResult.AutoExposure(work, engine().autoExposure(work.photo.file, work.edits))
+        is Work.PickWb -> {
+            // Sample over the RAW decoded by the most recent preview on this
+            // session; any engine refusal (including UNSUPPORTED) becomes the
+            // UI's "cannot sample this point" notice.
+            val picked = runCatching { engine().pickWhiteBalance(work.nx, work.ny) }.getOrNull()
+            WorkResult.PickWb(work, picked?.getOrNull(0), picked?.getOrNull(1))
+        }
     } }
 
     private fun performLook(work: LookWork): LookResult = synchronized(storage) { try {
@@ -198,6 +212,20 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                     val current = mutable.value
                     if (current.photo?.identity == value.request.photo.identity && current.edits == value.request.edits) {
                         edit(current.edits.copy(exposure = value.exposure))
+                    }
+                }
+                is WorkResult.PickWb -> {
+                    mutable.value = withHistory(EditorStateReducer.renderFinished(mutable.value))
+                    val current = mutable.value
+                    val picked = value.temperature != null && value.tint != null &&
+                        value.request.photo.identity == current.photo?.identity
+                    if (picked) {
+                        // Eyedropper sampling is a single undo step (FR-03/FR-04).
+                        edit(current.edits.copy(customWb = true,
+                            temperature = value.temperature!!.coerceIn(2000f, 50000f),
+                            tint = value.tint!!.coerceIn(-150f, 150f)), false)
+                    } else {
+                        mutable.value = current.copy(message = text(R.string.wb_pick_failed))
                     }
                 }
             }
@@ -266,7 +294,11 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             mutable.value = current.copy(saveState = EditSaveState.FAILED, error = text(R.string.edit_storage_error))
             return
         }
-        mutable.value = mutable.value.copy(operation = Operation.IMPORT, rendering = true, error = null)
+        // FR-04: the history is session-scoped and never crosses photos.
+        history.clear()
+        dragActive = false
+        mutable.value = mutable.value.copy(operation = Operation.IMPORT, rendering = true, error = null,
+            canUndo = false, canRedo = false)
         previewResizeJob?.cancel()
         previewResizeJob = null
         previewLongEdge = 1600
@@ -307,15 +339,72 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             mutable.value = current.copy(error = text(R.string.look_unavailable))
             return
         }
+        // FR-04: a committed step records the pre-change state once. A slider
+        // drag records it at its first moving tick and merges the rest; recipe
+        // applies, eyedropper samples and crop commits arrive non-interactive.
+        if (edits != current.edits) {
+            if (interactive) {
+                if (!dragActive) history.commit(current.edits)
+            } else {
+                history.commit(current.edits)
+            }
+        }
+        dragActive = interactive
+        renderEdits(edits, interactive)
+    }
+
+    private fun renderEdits(edits: EditSettings, interactive: Boolean) {
+        val current = mutable.value
+        if (!current.controlsEnabled) return
         if (!edits.denoise.enabled && previewResizeJob != null) {
             previewResizeJob?.cancel()
             previewResizeJob = null
             previewLongEdge = requestedPreviewLongEdge
         }
         val saved = if (interactive) current.saveState else persist(current.photo!!, edits)
-        mutable.value = current.copy(edits = edits, rendering = true, exact = false, error = null, saveState = saved,
-            previewResizePending = previewResizeJob != null)
+        mutable.value = withHistory(current.copy(edits = edits, rendering = true, exact = false, error = null, saveState = saved,
+            previewResizePending = previewResizeJob != null))
         currentRevision = queue.submit(Work.Preview(current.photo!!, edits, interactive, gpuMode(), edge = previewLongEdge))
+    }
+
+    private fun lookUsable(edits: EditSettings, state: EditorState): Boolean {
+        val look = state.looks.firstOrNull { it.id == edits.film }
+        if (look?.managed == true && !look.available) {
+            mutable.value = state.copy(error = text(R.string.look_unavailable))
+            return false
+        }
+        return true
+    }
+
+    fun undo() {
+        val current = mutable.value
+        if (!current.controlsEnabled || !current.canUndo) return
+        val previous = history.peekUndo() ?: return
+        if (!lookUsable(previous, current)) return
+        dragActive = false
+        history.undo(current.edits)
+        renderEdits(previous, false)
+    }
+
+    fun redo() {
+        val current = mutable.value
+        if (!current.controlsEnabled || !current.canRedo) return
+        val next = history.peekRedo() ?: return
+        if (!lookUsable(next, current)) return
+        dragActive = false
+        history.redo(current.edits)
+        renderEdits(next, false)
+    }
+
+    private fun withHistory(state: EditorState) = state.copy(canUndo = history.canUndo, canRedo = history.canRedo)
+
+    /** FR-03: sample a neutral-gray point (normalized preview coordinates). */
+    fun pickWhiteBalance(nx: Float, ny: Float) {
+        val current = mutable.value
+        if (!current.controlsEnabled || current.preview == null || current.rendering) return
+        val photo = current.photo ?: return
+        mutable.value = current.copy(rendering = true, error = null)
+        currentRevision = queue.submit(Work.PickWb(photo, nx.coerceIn(0f, 1f), ny.coerceIn(0f, 1f)))
     }
 
     fun updatePreviewSize(edge: Int) {

@@ -7,6 +7,8 @@
 
 namespace sony2fuji {
 
+class CameraWhiteBalance;
+
 /**
  * @brief RAW 处理选项
  */
@@ -92,6 +94,8 @@ public:
     float getBaselineExposureEV() const;
     float getMetadataExposureEV() const;
     bool getAsShotWhiteBalance(float& temperature, float& tint) const;
+    // Copy of the file's calibrated WB model for offline neutral-point solving.
+    bool getCameraWhiteBalance(class CameraWhiteBalance& out) const;
     bool supportsNoiseReduction() const;
     static ErrorCode readLensMetadata(const std::string& filepath, LensMetadata& metadata);
     LensCorrectionReport getLensCorrectionReport() const;

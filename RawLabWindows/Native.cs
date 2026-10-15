@@ -90,6 +90,14 @@ internal static class Native
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_get_lens_report(Session session,out LensReport report);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_inspect_lens(Session session,[MarshalAs(UnmanagedType.LPUTF8Str)] string input,out LensReport report,[Out] LensProfile[]? profiles,uint capacity,out uint count);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_hsl(Session session,ref HslConfig config);
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct CurvePoint { public float X, Y; }
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_tone_curve(Session session,[In] CurvePoint[]? points,int count);
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct CropConfig { public uint Version,StructSize; public float X,Y,W,H,Angle; }
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_crop(Session session,ref CropConfig config);
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_crop(Session session,IntPtr config);
+    [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_pick_white_balance(Session session,float nx,float ny,out float temperature,out float tint);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_estimate_auto_exposure(Session session,ref Request request,out float exposure);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_set_gpu_config(Session session,ref GpuConfig config);
     [DllImport(Dll, CallingConvention=CallingConvention.Cdecl)] internal static extern int sony2fuji_session_get_last_backend(Session session);

@@ -14,14 +14,19 @@ public sealed record AdjustmentSnapshot(
     int DisplayChromaDenoise = 0,
     HslSettings? Hsl = null,
     string? MasterRecipeID = null,
-    LensSettings? Lens = null)
+    LensSettings? Lens = null,
+    CurveSettings? Curve = null,
+    CropSettings? Crop = null)
 {
     public Adjustments Restore() => Adjustments.FromSnapshot(this);
+    private static CurveSettings? UsableCurve(CurveSettings? value) => value is { IsValid: true, IsIdentity: false } curve ? curve : null;
+    private static CropSettings? UsableCrop(CropSettings? value) => value is { IsValid: true } crop ? crop : null;
     public bool SameAs(AdjustmentSnapshot other) => MasterRecipeID == other.MasterRecipeID && ExposureMode == other.ExposureMode && CameraWhiteBalance == other.CameraWhiteBalance &&
         AsShotTemperature == other.AsShotTemperature && AsShotTint == other.AsShotTint && Values.SequenceEqual(other.Values) &&
         (Denoise ?? new()) == (other.Denoise ?? new()) &&
         (Effects ?? new()) == (other.Effects ?? new()) && DisplayChromaDenoise == other.DisplayChromaDenoise &&
-        (Hsl ?? new()).Equals(other.Hsl ?? new()) && (Lens ?? new()) == (other.Lens ?? new());
+        (Hsl ?? new()).Equals(other.Hsl ?? new()) && (Lens ?? new()) == (other.Lens ?? new()) &&
+        Equals(UsableCurve(Curve), UsableCurve(other.Curve)) && Equals(UsableCrop(Crop), UsableCrop(other.Crop));
     public AdjustmentSnapshot Copy() => this with { Values = (double[])Values.Clone() };
 }
 

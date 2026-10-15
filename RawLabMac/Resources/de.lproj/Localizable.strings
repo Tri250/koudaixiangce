@@ -269,6 +269,10 @@
 "色相" = "Farbton";
 "明度" = "Helligkeit";
 "重置 HSL" = "HSL zurücksetzen";
+"曲线" = "Kurve";
+"多点色调曲线" = "Mehrpunkt-Tonwertkurve";
+"重置曲线" = "Kurve zurücksetzen";
+"拖动添加或移动锚点，双击删除" = "Ziehen, um Anker hinzuzufügen oder zu verschieben, Doppelklick zum Entfernen";
 "红" = "Rot";
 "橙" = "Orange";
 "黄" = "Gelb";

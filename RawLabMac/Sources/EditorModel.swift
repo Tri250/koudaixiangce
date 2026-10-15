@@ -11,7 +11,219 @@ final class EditorModel: ObservableObject {
         let pass: RenderPass
     }
 
-    @Published var settings = Adjustments() { didSet { if !updatingMetadata && oldValue != settings { edited() } } }
+    @Published var settings = Adjustments() {
+        didSet {
+            guard !updatingMetadata, oldValue != settings else { return }
+            recordUndo(oldValue)
+            edited()
+        }
+    }
+
+    // ================================================================
+    //  T14 undo/redo: field-level snapshots with drag collapsing.
+    //  Slider gestures start with setInteracting(true); every settings
+    //  change while interacting collapses into the step captured at the
+    //  first event, so one drag is one undo step (50-step cap).
+    // ================================================================
+    private var undoStack: [Adjustments] = []
+    private var redoStack: [Adjustments] = []
+    private var dragUndoActive = false
+    @Published private(set) var canUndo = false
+    @Published private(set) var canRedo = false
+    private static let undoLimit = 50
+
+    private func recordUndo(_ previous: Adjustments) {
+        if scheduler.interacting {
+            guard !dragUndoActive else { return }
+            dragUndoActive = true
+        }
+        pushUndo(previous)
+    }
+
+    private func pushUndo(_ previous: Adjustments) {
+        undoStack.append(previous)
+        if undoStack.count > Self.undoLimit { undoStack.removeFirst() }
+        redoStack.removeAll()
+        syncUndoFlags()
+    }
+
+    private func syncUndoFlags() {
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
+    }
+
+    func undo() {
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(settings)
+        dragUndoActive = false
+        cropDraft = nil
+        updatingMetadata = true
+        settings = previous
+        updatingMetadata = false
+        syncUndoFlags()
+        edited()
+    }
+
+    func redo() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(settings)
+        dragUndoActive = false
+        cropDraft = nil
+        updatingMetadata = true
+        settings = next
+        updatingMetadata = false
+        syncUndoFlags()
+        edited()
+    }
+
+    // ================================================================
+    //  v0.7.0 FR-01: crop edits are overlay-only — the interactive
+    //  preview never contains the crop, so they bypass the render
+    //  scheduler while export and exact renders read settings.crop.
+    //  Gestures publish a transient draft; each commit is exactly one
+    //  undo step plus a debounced edit-memory save.
+    // ================================================================
+    @Published var cropDraft: CropSettings?
+    @Published private(set) var cropAspectHint = "original"
+    func updateCropDraft(_ frame: CropSettings) {
+        cropDraft = CropGeometry.sanitize(frame)
+    }
+
+    /// FR-01: while leveling, the frame resets to the full image and the
+    /// aspect preset is kept for the next corner drag.
+    func updateAngleDraft(_ degrees: Double) {
+        var frame = effectiveCrop
+        let stepped = (degrees / 0.1).rounded() * 0.1
+        frame.angle = stepped == 0 ? 0 : min(45, max(-45, stepped))
+        frame.x = 0
+        frame.y = 0
+        frame.w = 1
+        frame.h = 1
+        cropDraft = frame
+    }
+
+    func commitCropDraft() {
+        commitCrop(effectiveCrop)
+    }
+
+    func commitCrop(_ frame: CropSettings?) {
+        cropDraft = nil
+        // A full-frame, level crop is the identity: store nil so exports
+        // keep the GPU pipeline and edit records stay canonical.
+        let normalized = (frame?.isValid == true && frame?.isFullFrame == false) ? frame : nil
+        guard settings.crop != normalized else { return }
+        let previous = settings
+        updatingMetadata = true
+        settings.crop = normalized
+        updatingMetadata = false
+        pushUndo(previous)
+        markDirtyForPersistence()
+    }
+
+    func selectCropAspect(_ aspect: String) {
+        guard CropSettings.aspectRatios.contains(aspect) else { return }
+        cropAspectHint = aspect
+        var frame = effectiveCrop
+        frame.aspect = aspect
+        if aspect != "free" {
+            frame = CropGeometry.refit(frame, sourceAspect: sourceAspect)
+        }
+        commitCrop(frame)
+    }
+
+    func discardCropDraft() {
+        cropDraft = nil
+    }
+
+    var effectiveCrop: CropSettings {
+        if let cropDraft { return cropDraft }
+        if let crop = settings.crop { return crop }
+        return CropSettings(aspect: cropAspectHint)
+    }
+
+    var sourceAspect: Double {
+        guard let result else { return 1 }
+        return Double(result.image.width) / Double(result.image.height)
+    }
+
+    // ================================================================
+    //  v0.7.0 FR-03: white balance eyedropper. Sampling runs on the
+    //  serial render queue because the engine session holds the decoded
+    //  RAW of the last published render. One sample is one undo step.
+    // ================================================================
+    func pickWhiteBalance(at point: CGPoint) {
+        guard let file, result != nil, !exporting else { return }
+        let nx = Float(min(1, max(0, point.x)))
+        let ny = Float(min(1, max(0, point.y)))
+        queue.async { [weak self] in
+            guard let self else { return }
+            var temperature: Float = 0, tint: Float = 0
+            var status = SONY2FUJI_STATUS_UNSUPPORTED
+            do {
+                if self.engine == nil { self.engine = try RenderEngine() }
+                var sampledTemperature: Float = 0, sampledTint: Float = 0
+                status = self.engine!.pickWhiteBalance(nx: nx, ny: ny,
+                                                       temperature: &sampledTemperature,
+                                                       tint: &sampledTint)
+                temperature = sampledTemperature
+                tint = sampledTint
+            } catch { status = SONY2FUJI_STATUS_UNSUPPORTED }
+            DispatchQueue.main.async {
+                guard status == SONY2FUJI_STATUS_OK else { self.showNotice("无法取样该点"); return }
+                guard self.file == file else { return }
+                var updated = self.settings
+                updated.set(.temperature, to: Double(temperature).rounded())
+                updated.set(.tint, to: Double(tint).rounded())
+                self.settings = updated
+            }
+        }
+    }
+
+    // ================================================================
+    //  v0.7.0 FR-05: hold-C baseline. Development reference of the
+    //  current exposure mode with every user edit zeroed; cached per
+    //  file+mode and never recorded in the undo stack.
+    // ================================================================
+    @Published private(set) var baseline: RenderedImage?
+    private var baselineCache: (file: URL, mode: ExposureMode, frame: RenderedImage)?
+    private var baselineRendering = false
+    func prepareBaseline() {
+        guard let file else { return }
+        let mode = settings.exposureMode
+        if let cache = baselineCache, cache.file == file.standardizedFileURL, cache.mode == mode {
+            baseline = cache.frame
+            return
+        }
+        if mode == .preview, let neutral { baseline = neutral; return }
+        guard !baselineRendering else { return }
+        baselineRendering = true
+        queue.async { [weak self] in
+            guard let self else { return }
+            do {
+                if self.engine == nil { self.engine = try RenderEngine() }
+                var baselineSettings = Adjustments()
+                baselineSettings.exposureMode = mode
+                let frame = try self.engine!.render(file, settings: baselineSettings, lut: nil, edge: 2048)
+                DispatchQueue.main.async {
+                    self.baselineRendering = false
+                    guard let frame else { return }
+                    self.baselineCache = (file.standardizedFileURL, mode, frame)
+                    if self.file == file, self.settings.exposureMode == mode { self.baseline = frame }
+                }
+            } catch {
+                DispatchQueue.main.async { self.baselineRendering = false }
+            }
+        }
+    }
+
+    func showNotice(_ key: String) {
+        let message = L10n.text(key)
+        statusState = .notice(message)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let state = self?.statusState, case .notice(let current) = state, current == message else { return }
+            self?.statusState = .none
+        }
+    }
     private var updatingMetadata = false
     @Published var films = Film.bundled()
     @Published var selectedFilmID = "" {
@@ -44,6 +256,7 @@ final class EditorModel: ObservableObject {
     @Published var lookImportReport: String?
     private enum Status {
         case none, applied(Int), interactive(Int, Int), preview(Int, Int, original: Bool), exported(String)
+        case notice(String)
     }
     @Published private var statusState = Status.none
     var status: String {
@@ -54,6 +267,7 @@ final class EditorModel: ObservableObject {
         case .preview(let width, let height, let original):
             return "\(original ? L10n.text("原尺寸") : L10n.text("预览")) \(width) × \(height) · sRGB"
         case .exported(let name): return L10n.format("已导出：%@", name)
+        case .notice(let text): return text
         }
     }
     @Published private(set) var saveStatusKey = ""
@@ -235,6 +449,9 @@ final class EditorModel: ObservableObject {
         do { restored = try editStore?.state(for: url) }
         catch { saveError = L10n.format("无法恢复调整：%@", String(describing: error.localizedDescription)) }
         file = url; neutral = nil; result = nil; error = nil; statusState = .none
+        baseline = nil; cropDraft = nil; cropAspectHint = "original"
+        undoStack.removeAll(); redoStack.removeAll(); dragUndoActive = false
+        syncUndoFlags()
         updatingMetadata = true
         settings = restored?.settings ?? Adjustments()
         if let masterRecipeID = restored?.masterRecipeID {

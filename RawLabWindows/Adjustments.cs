@@ -8,6 +8,30 @@ public sealed record LensSettings(bool Distortion = false, bool Tca = false, boo
     public bool Enabled => Distortion || Tca;
     public string CoreProfileId => Manual ? ProfileId ?? "__rawlab_manual_selection_required__" : "";
 }
+// v0.7.0 schema: crop anchors to the normalized source rectangle; curve uses
+// monotone display-sRGB anchors. Invalid records fall back to defaults
+// instead of blocking the edit.
+public sealed record CropSettings(string Aspect = "original", double X = 0, double Y = 0, double W = 1, double H = 1, double Angle = 0)
+{
+    public bool IsValid => double.IsFinite(X) && double.IsFinite(Y) && double.IsFinite(W) && double.IsFinite(H) && double.IsFinite(Angle)
+        && W > 0 && H > 0 && X >= -1e-6 && Y >= -1e-6 && X + W <= 1 + 1e-6 && Y + H <= 1 + 1e-6;
+}
+public sealed record CurvePoint(double X, double Y);
+public sealed record CurveSettings(CurvePoint[] Points)
+{
+    public const int MaxPoints = 64;
+    public bool IsValid => Points is { Length: >= 2 and <= MaxPoints }
+        && Points.All(p => double.IsFinite(p.X) && double.IsFinite(p.Y) && p.X is >= 0 and <= 1 && p.Y is >= 0 and <= 1)
+        && Points.Zip(Points.Skip(1)).All(p => p.Second.X > p.First.X);
+    public bool IsIdentity => Points.Length == 2 && Points[0].X == 0 && Points[0].Y == 0 && Points[1].X == 1 && Points[1].Y == 1;
+    public bool Equals(CurveSettings? other) => other != null && Points.SequenceEqual(other.Points);
+    public override int GetHashCode()
+    {
+        var code = new HashCode();
+        foreach (var point in Points) { code.Add(point.X); code.Add(point.Y); }
+        return code.ToHashCode();
+    }
+}
 public sealed record LensCandidate(string Id, string Maker, string Model, bool HasDistortion, bool HasTca, bool IsMatch)
 {
     public string Title => Model.Contains(Maker, StringComparison.OrdinalIgnoreCase) ? Model : Maker + " " + Model;
@@ -63,6 +87,8 @@ public sealed class Adjustments
     public PhotoEffectsSettings Effects { get; set; } = new();
     public string? MasterRecipeID { get; private set; }
     public LensSettings Lens { get; set; } = new();
+    public CropSettings? Crop { get; set; }
+    public CurveSettings? Curve { get; set; }
     public MasterRecipe? Recipe => MasterRecipeID == null ? null : MasterRecipe.Find(MasterRecipeID);
     public HslSettings RenderHsl => Hsl.Scaled(MasterRecipeID == null ? 1 : this[Parameter.Strength] / 100);
     public void ApplyMasterRecipe(MasterRecipe recipe)
@@ -100,7 +126,7 @@ public sealed class Adjustments
     public double this[Parameter id] => values[(int)id];
     public Adjustments Clone() { var copy = (Adjustments)MemberwiseClone(); copy.values = (double[])values.Clone(); return copy; }
     public AdjustmentSnapshot Capture() => new((double[])values.Clone(), ExposureMode, CameraWhiteBalance, AsShot?.Temperature, AsShot?.Tint,
-        Denoise, Effects, DisplayChromaDenoise, Hsl, MasterRecipeID, Lens);
+        Denoise, Effects, DisplayChromaDenoise, Hsl, MasterRecipeID, Lens, Curve, Crop);
     public static Adjustments FromSnapshot(AdjustmentSnapshot snapshot)
     {
         if (snapshot.Values.Length != ParameterSpec.All.Length || snapshot.ExposureMode is < 0 or > 2 ||
@@ -118,6 +144,8 @@ public sealed class Adjustments
             Hsl = snapshot.Hsl ?? new HslSettings(),
             MasterRecipeID = snapshot.MasterRecipeID,
             Lens = snapshot.Lens ?? new(),
+            Curve = snapshot.Curve is { IsValid: true, IsIdentity: false } curve ? curve : null,
+            Crop = snapshot.Crop is { IsValid: true } crop ? crop : null,
             DisplayChromaDenoise = snapshot.DisplayChromaDenoise,
             values = (double[])snapshot.Values.Clone(), ExposureMode = snapshot.ExposureMode,
             CameraWhiteBalance = snapshot.CameraWhiteBalance,
@@ -176,8 +204,10 @@ public sealed class Adjustments
         if (group == "细节") { Denoise = new(); DisplayChromaDenoise = 0; }
         if (group == "效果") Effects = new();
         if (group == "镜头") Lens = new();
+        if (group == "明暗") Curve = null;
+        if (group == "几何") Crop = null;
     }
-    public void ResetAll() { MasterRecipeID = null; foreach (var spec in ParameterSpec.All) Reset(spec.Id); ExposureMode = 1; ResetWhiteBalance(); Denoise = new(); Effects = new(); Hsl = new(); DisplayChromaDenoise = 0; Lens = new(); }
+    public void ResetAll() { MasterRecipeID = null; foreach (var spec in ParameterSpec.All) Reset(spec.Id); ExposureMode = 1; ResetWhiteBalance(); Denoise = new(); Effects = new(); Hsl = new(); DisplayChromaDenoise = 0; Lens = new(); Curve = null; Crop = null; }
     internal Native.Request Request(string path, string? lut, int edge, string? output, int? longEdge = null)
     {
         if (longEdge is { } requested && !ExportSize.IsValid(requested))

@@ -191,6 +191,10 @@
 "色相" = "Matiz";
 "明度" = "Luminosidad";
 "重置 HSL" = "Restablecer HSL";
+"曲线" = "Curva";
+"多点色调曲线" = "Curva tonal multipunto";
+"重置曲线" = "Restablecer curva";
+"拖动添加或移动锚点，双击删除" = "Arrastra para añadir o mover anclas, doble clic para eliminar";
 "红" = "Rojo";
 "橙" = "Naranja";
 "黄" = "Amarillo";

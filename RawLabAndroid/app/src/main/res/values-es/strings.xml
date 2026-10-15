@@ -207,6 +207,9 @@
     <string name="no_recipe">Sin receta</string>
     <string name="hsl_reset_channel">Restablecer el color actual</string>
     <string name="hsl">HSL</string>
+    <string name="curve">Curva</string>
+    <string name="curve_hint">Arrastra para añadir o mover anclas, doble toque para eliminar</string>
+    <string name="curve_reset">Restablecer curva</string>
     <string name="auto_exposure">Automático</string>
     <string name="exposure_scene">Revelado estándar</string>
     <string name="exposure_preview">Coincidir con la vista previa incrustada</string>

@@ -207,6 +207,9 @@
     <string name="no_recipe">Aucune recette</string>
     <string name="hsl_reset_channel">Réinitialiser la couleur actuelle</string>
     <string name="hsl">HSL</string>
+    <string name="curve">Courbe</string>
+    <string name="curve_hint">Glissez pour ajouter ou déplacer des points, double-touchez pour supprimer</string>
+    <string name="curve_reset">Réinitialiser la courbe</string>
     <string name="auto_exposure">Auto</string>
     <string name="exposure_scene">Développement standard</string>
     <string name="exposure_preview">Correspondre à l\'aperçu intégré</string>

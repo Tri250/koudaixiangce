@@ -161,6 +161,41 @@ struct LensCorrectionSettings: Equatable, Codable {
     }
 }
 
+// v0.7.0 schema: crop anchors to the normalized source rectangle; invalid
+// records fall back to nil instead of blocking the edit.
+struct CropSettings: Equatable, Codable {
+    static let aspectRatios = ["original", "free", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16"]
+    var aspect = "original"
+    var x = 0.0
+    var y = 0.0
+    var w = 1.0
+    var h = 1.0
+    var angle = 0.0
+    var isValid: Bool {
+        guard CropSettings.aspectRatios.contains(aspect),
+              [x, y, w, h, angle].allSatisfy({ $0.isFinite }) else { return false }
+        return x >= 0 && y >= 0 && w > 0 && h > 0 && x + w <= 1 && y + h <= 1 && abs(angle) <= 45
+    }
+    var isFullFrame: Bool { x == 0 && y == 0 && w == 1 && h == 1 && angle == 0 }
+}
+
+struct CurvePoint: Equatable, Codable {
+    var x: Double
+    var y: Double
+}
+
+struct CurveSettings: Equatable, Codable {
+    static let maxPoints = 64
+    static let identity = CurveSettings(points: [CurvePoint(x: 0, y: 0), CurvePoint(x: 1, y: 1)])
+    var points: [CurvePoint]
+    var isValid: Bool {
+        points.count >= 2 && points.count <= CurveSettings.maxPoints
+            && points.allSatisfy { $0.x.isFinite && $0.y.isFinite && (0...1).contains($0.x) && (0...1).contains($0.y) }
+            && zip(points, points.dropFirst()).allSatisfy { $1.x > $0.x }
+    }
+    var isIdentity: Bool { self == CurveSettings.identity }
+}
+
 struct LensCandidate: Identifiable, Equatable {
     let id: String
     let maker: String
@@ -220,6 +255,11 @@ struct Adjustments: Equatable, Codable {
     var photoEffects: PhotoEffectsSettings?
     var hsl: HSLSettings?
     var lensCorrection: LensCorrectionSettings?
+    // v0.7.0 schema: missing fields on v1 records decode to nil/1 defaults;
+    // the legacy scalar toneCurve stays alongside curve for rollback safety.
+    var schemaVersion = 2
+    var crop: CropSettings?
+    var curve: CurveSettings?
     private(set) var supportsRawNoiseReduction = false
     var masterRecipeID: String? = nil
     private var masterRecipeSettingsVersion: Int? = 3
@@ -387,18 +427,22 @@ struct Adjustments: Equatable, Codable {
         }
         if group == .film { clearMasterRecipe() }
         if group == .input { exposureMode = .preview; resetWhiteBalance() }
+        if group == .tone { curve = nil }
         if group == .color { hsl = nil }
         if group == .effects { photoEffects = nil }
         if group == .lens { lensCorrection = nil }
+        if group == .geometry { crop = nil }
     }
 
     func isDefault(_ group: AdjustmentGroup) -> Bool {
         group.parameters.allSatisfy { self[keyPath: $0.spec.keyPath] == $0.spec(for: self).defaultValue }
             && (group != .input || exposureMode == .preview)
+            && (group != .tone || curve == nil)
             && (group != .color || hslSettings.isIdentity)
             && (group != .detail || !isDenoiseEnabled)
             && (group != .effects || effectSettings == PhotoEffectsSettings())
             && (group != .film || masterRecipeID == nil)
+            && (group != .geometry || crop == nil)
             && (group != .lens || lensSettings == LensCorrectionSettings())
     }
 
@@ -468,6 +512,15 @@ extension Adjustments {
         photoEffects = try values.decodeIfPresent(PhotoEffectsSettings.self, forKey: .photoEffects)
         hsl = try values.decodeIfPresent(HSLSettings.self, forKey: .hsl)
         lensCorrection = try values.decodeIfPresent(LensCorrectionSettings.self, forKey: .lensCorrection)
+        // v0.7.0 fields: v1 records and invalid payloads fall back to defaults
+        // instead of failing the whole edit.
+        schemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        if let parsedCrop = try? values.decodeIfPresent(CropSettings.self, forKey: .crop), parsedCrop.isValid {
+            crop = parsedCrop
+        }
+        if let parsedCurve = try? values.decodeIfPresent(CurveSettings.self, forKey: .curve), parsedCurve.isValid, !parsedCurve.isIdentity {
+            curve = parsedCurve
+        }
         supportsRawNoiseReduction = try values.decodeIfPresent(Bool.self, forKey: .supportsRawNoiseReduction) ?? false
         guard hslSettings.isValid else {
             throw DecodingError.dataCorruptedError(forKey: .hsl, in: values, debugDescription: "Invalid HSL parameters")
@@ -491,7 +544,7 @@ extension Adjustments {
 }
 
 enum AdjustmentGroup: String, CaseIterable, Identifiable {
-    case film = "胶片模拟", input = "输入调整", tone = "明暗", color = "色彩", detail = "细节", effects = "效果", lens = "镜头校正"
+    case film = "胶片模拟", input = "输入调整", tone = "明暗", color = "色彩", detail = "细节", effects = "效果", geometry = "几何", lens = "镜头校正"
     var id: String { rawValue }
     var title: String { L10n.text(rawValue) }
     var parameters: [AdjustmentParameter] {
@@ -502,7 +555,7 @@ enum AdjustmentGroup: String, CaseIterable, Identifiable {
         case .color: return [.saturation]
         case .detail: return [.denoiseMode, .sharpening]
         case .effects: return [.vignetteAmount, .grainAmount]
-        case .lens: return []
+        case .geometry, .lens: return []
         }
     }
 }

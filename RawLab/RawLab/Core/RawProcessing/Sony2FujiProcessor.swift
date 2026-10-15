@@ -191,7 +191,8 @@ struct Sony2FujiProcessor {
             let settings = try prepareRecipe(settings, session: session, url: url)
             try configureSession(session, settings: settings,
                                  interactive: interactive && previewLongEdge != nil && exportLongEdge == nil,
-                                 viewportPreview: viewportPreview && previewLongEdge != nil && exportLongEdge == nil)
+                                 viewportPreview: viewportPreview && previewLongEdge != nil && exportLongEdge == nil,
+                                 applyCrop: previewLongEdge == nil)
 
             var request = makeBaseRequest(settings: settings, inputType: SONY2FUJI_INPUT_RAW)
             request.input_type = SONY2FUJI_INPUT_RAW
@@ -237,7 +238,8 @@ struct Sony2FujiProcessor {
         let settings = try prepareRecipe(settings, session: session, url: nil)
         try configureSession(session, settings: settings,
                              interactive: interactive && previewLongEdge != nil && exportLongEdge == nil,
-                             viewportPreview: viewportPreview && previewLongEdge != nil && exportLongEdge == nil)
+                             viewportPreview: viewportPreview && previewLongEdge != nil && exportLongEdge == nil,
+                             applyCrop: previewLongEdge == nil)
 
         var request = makeBaseRequest(settings: settings, inputType: SONY2FUJI_INPUT_BUFFER)
         request.input_type = SONY2FUJI_INPUT_BUFFER
@@ -286,7 +288,7 @@ struct Sony2FujiProcessor {
         defer { destroySession(session) }
         try loadLensDatabase(session)
         let settings = try prepareRecipe(settings, session: session, url: url)
-        try configureSession(session, settings: settings, interactive: false)
+        try configureSession(session, settings: settings, interactive: false, applyCrop: true)
 
         var request = makeBaseRequest(settings: settings, inputType: SONY2FUJI_INPUT_RAW)
         request.input_type = SONY2FUJI_INPUT_RAW
@@ -315,7 +317,7 @@ struct Sony2FujiProcessor {
         defer { destroySession(session) }
         try loadLensDatabase(session)
         let settings = try prepareRecipe(settings, session: session, url: nil)
-        try configureSession(session, settings: settings, interactive: false)
+        try configureSession(session, settings: settings, interactive: false, applyCrop: true)
 
         var request = makeBaseRequest(settings: settings, inputType: SONY2FUJI_INPUT_BUFFER)
         request.input_type = SONY2FUJI_INPUT_BUFFER

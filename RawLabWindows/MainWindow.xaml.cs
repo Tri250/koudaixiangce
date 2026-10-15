@@ -35,7 +35,7 @@ public partial class MainWindow : Window
     private bool compare=true,clipping,choosingFilm,choosingDenoise,choosingPhotoEffects,choosingLens,swipe;
     private PhotoEffectTool selectedEffect=PhotoEffectTool.Vignette;
     private bool renderFailed;
-    private bool choosingHsl,autoExposing;
+    private bool choosingHsl,choosingCurve,autoExposing;
     private long editRevision;
     private int? exportLongEdge;
     private PhotoInfo? photoInfo;
@@ -62,7 +62,7 @@ public partial class MainWindow : Window
         {
             Tools.Children.Clear(); toolButtons.Clear();
             RecipeStrip.Children.Clear(); recipeButtons.Clear();
-            BuildTools(); BuildFilms(); BuildMasterRecipes(); HslEditor.RefreshLanguage();
+            BuildTools(); BuildFilms(); BuildMasterRecipes(); HslEditor.RefreshLanguage(); CurveEditor.RefreshLanguage();
             RefreshControls(); RefreshPhotoInfo(); RefreshExportSizeMenu();
             RefreshRenderLabels();
             if (localizedStatus != null) { var statusText=localizedStatus(); Status.Text=statusText; Status.ToolTip=statusText; }
@@ -113,6 +113,10 @@ public partial class MainWindow : Window
             if(!ready || syncing || exporting)return;
             settings.Hsl=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
         };
+        CurveEditor.Changed+=(value,dragging)=>{
+            if(!ready || syncing || exporting)return;
+            settings.Curve=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
+        };
         LensEditor.Changed+=value=>{
             if(!ready || syncing || exporting)return;
             settings.Lens=value;RefreshControls();MarkEdited();Schedule();
@@ -147,7 +151,7 @@ public partial class MainWindow : Window
             var stack=new StackPanel(); stack.Children.Add(grid); stack.Children.Add(new TextBlock{Text=Loc.Text(spec.Title),FontSize=11,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=Loc.Text(spec.Title)};
             AutomationProperties.SetName(button,Loc.Text(spec.Title));
-            button.Click+=(_,_)=>{choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;choosingLens=false;selectedParameter=spec.Id;RefreshControls();};
+            button.Click+=(_,_)=>{choosingRecipes=false;choosingHsl=false;choosingCurve=false;choosingFilm=false;choosingDenoise=false;choosingPhotoEffects=false;choosingLens=false;selectedParameter=spec.Id;RefreshControls();};
             Tools.Children.Add(button); toolButtons[spec.Id]=(button,ring);
         }
         foreach(var (tool,title,icon) in new[] {
@@ -160,14 +164,15 @@ public partial class MainWindow : Window
             var button=new Button{Content=stack,Style=(Style)FindResource("ToolButton"),ToolTip=tool==PhotoEffectTool.Vignette ? Loc.Text("Vignette / 暗角") : Loc.Text("Grain / 颗粒")};
             AutomationProperties.SetName(button,title);
             AutomationProperties.SetAutomationId(button,tool.ToString());
-            button.Click+=(_,_)=>{if(exporting)return;choosingRecipes=false;choosingHsl=false;choosingFilm=false;choosingDenoise=false;choosingLens=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
+            button.Click+=(_,_)=>{if(exporting)return;choosingRecipes=false;choosingHsl=false;choosingCurve=false;choosingFilm=false;choosingDenoise=false;choosingLens=false;choosingPhotoEffects=true;selectedEffect=tool;RefreshControls();};
             Tools.Children.Add(button); effectToolButtons[tool]=(button,ring);
         }
     }
-    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
-    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
-    private void HslCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=true;choosingDenoise=choosingFilm=choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
-    private void LensCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingLens=true;choosingFilm=choosingDenoise=choosingPhotoEffects=false;RefreshControls(); }
+    private void FilmCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingFilm=true;choosingDenoise=false;choosingPhotoEffects=false;choosingLens=false;choosingCurve=false;RefreshControls(); }
+    private void DenoiseCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingDenoise=true;choosingFilm=false;choosingPhotoEffects=false;choosingLens=false;choosingCurve=false;RefreshControls(); }
+    private void HslCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=true;choosingDenoise=choosingFilm=choosingPhotoEffects=false;choosingLens=false;choosingCurve=false;RefreshControls(); }
+    private void CurveCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingCurve=true;choosingDenoise=choosingFilm=choosingPhotoEffects=false;choosingLens=false;RefreshControls(); }
+    private void LensCategoryClicked(object sender,RoutedEventArgs e) { choosingRecipes=false;choosingHsl=false;choosingLens=true;choosingFilm=choosingDenoise=choosingPhotoEffects=false;choosingCurve=false;RefreshControls(); }
     private void BuildFilms()
     {
         FilmStrip.Children.Clear(); filmButtons.Clear();
@@ -207,7 +212,7 @@ public partial class MainWindow : Window
             MasterRecipePanel.Visibility=choosingRecipes ? Visibility.Visible : Visibility.Collapsed;
             MasterRecipeCategoryRing.Selected=choosingRecipes;MasterRecipeCategoryRing.Progress=settings.MasterRecipeID==null ? 0 : 1;MasterRecipeCategoryRing.InvalidateVisual();
             foreach(var pair in recipeButtons)pair.Value.Foreground=pair.Key==(settings.MasterRecipeID ?? "") ? Brushes.Gold : (Brush)FindResource("Foreground");
-            ParameterPanel.Visibility=choosingRecipes || choosingFilm || choosingDenoise || choosingPhotoEffects || choosingHsl || choosingLens ? Visibility.Collapsed : Visibility.Visible;
+            ParameterPanel.Visibility=choosingRecipes || choosingFilm || choosingDenoise || choosingPhotoEffects || choosingHsl || choosingLens || choosingCurve ? Visibility.Collapsed : Visibility.Visible;
             LensEditor.Visibility=choosingLens ? Visibility.Visible : Visibility.Collapsed;
             LensEditor.IsEnabled=file!=null && !exporting;LensEditor.Refresh(settings.Lens,result?.Lens);
             LensCategory.IsEnabled=file!=null && !exporting;
@@ -217,6 +222,10 @@ public partial class MainWindow : Window
             HslEditor.IsEnabled=file!=null && !exporting;HslEditor.Refresh(settings.Hsl);
             HslCategory.Tag=choosingHsl ? "selected" : null;
             HslCategoryRing.Selected=choosingHsl;HslCategoryRing.Progress=settings.Hsl.IsIdentity ? 0 : 1;HslCategoryRing.InvalidateVisual();
+            CurveSurface.Visibility=choosingCurve ? Visibility.Visible : Visibility.Collapsed;
+            CurveEditor.IsEnabled=file!=null && !exporting;CurveEditor.Refresh(settings.Curve);
+            CurveCategory.Tag=choosingCurve ? "selected" : null;
+            CurveCategoryRing.Selected=choosingCurve;CurveCategoryRing.Progress=settings.Curve==null ? 0 : 1;CurveCategoryRing.InvalidateVisual();
             AutoExposureButton.Visibility=selectedParameter==Parameter.Exposure ? Visibility.Visible : Visibility.Collapsed;
             AutoExposureButton.IsEnabled=file!=null && result!=null && !autoExposing && !exporting && !scheduler.Busy;
             DenoiseEditor.Visibility=choosingDenoise ? Visibility.Visible : Visibility.Collapsed;
@@ -242,7 +251,7 @@ public partial class MainWindow : Window
             AsShotButton.IsEnabled=file!=null && !exporting && settings.AsShot!=null;
             foreach(var (id,controls) in toolButtons)
             {
-                var selected=!choosingRecipes && !choosingHsl && !choosingFilm && !choosingDenoise && !choosingPhotoEffects && !choosingLens && id==selectedParameter;
+                var selected=!choosingRecipes && !choosingHsl && !choosingCurve && !choosingFilm && !choosingDenoise && !choosingPhotoEffects && !choosingLens && id==selectedParameter;
                 controls.Button.Tag=selected ? "selected" : null;
                 controls.Ring.Selected=selected;
                 var p=ParameterSpec.All[(int)id]; var origin=p.Position(settings.Default(id)); var offset=p.Position(settings[id])-origin;

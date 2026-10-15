@@ -207,6 +207,9 @@
     <string name="no_recipe">Kein Rezept</string>
     <string name="hsl_reset_channel">Aktuelle Farbe zurücksetzen</string>
     <string name="hsl">HSL</string>
+    <string name="curve">Kurve</string>
+    <string name="curve_hint">Ziehen, um Anker hinzuzufügen oder zu verschieben, Doppeltipp zum Entfernen</string>
+    <string name="curve_reset">Kurve zurücksetzen</string>
     <string name="auto_exposure">Auto</string>
     <string name="exposure_scene">Standardentwicklung</string>
     <string name="exposure_preview">Eingebetteter Vorschau entsprechen</string>
