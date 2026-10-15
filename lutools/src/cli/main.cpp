@@ -197,8 +197,11 @@ int main(int argc, char* argv[]) {
     if (status == SONY2FUJI_STATUS_OK) status = sony2fuji_process(session, &request, nullptr);
     sony2fuji_session_destroy(session);
     if (status != SONY2FUJI_STATUS_OK) {
-        std::cerr << "Processing failed: " << sony2fuji_status_message(status)
-                  << ". Use a supported F-Gamut/F-Log2 film LUT, not a Log-output LUT.\n";
+        std::cerr << "Processing failed: " << sony2fuji_status_message(status);
+        if (status == SONY2FUJI_STATUS_UNSUPPORTED) {
+            std::cerr << ". Use a supported F-Gamut/F-Log2 film LUT, not a Log-output LUT.";
+        }
+        std::cerr << '\n';
         return 1;
     }
     std::cout << "Saved: " << options.outputFile << '\n';

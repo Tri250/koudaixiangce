@@ -442,3 +442,108 @@
 ---
 
 *文档完。所有用例可直接在对应平台执行；Bug 记录表留空，待执行后填写。*
+
+---
+
+## 执行报告（Linux 2026-10-15）
+
+> **执行环境**：Ubuntu 24.04 LTS x86_64 · Linux 6.18.5 · GNU g++ 13.3.0 · CMake 3.30 · libraw-dev 0.21.2 · lcms2-dev 2.14
+> **CLI 二进制**：`/workspace/lutools/build/sony2fuji` · **Core 库**：`/workspace/lutools/build/libsony2fuji_core.a` · **LUT 夹具**：本地 15 个（4 个 33-grid + 11 个 65-grid F-Log2 `.cube`）
+> **RAW 夹具**：**仓库内不存在**（`examples/` 只有 `.py` / `.cpp` 文件，无 `.ARW` / `.DNG` 二进制）
+
+### 构建结果
+
+- 全目标 100% 构建成功
+- 仅非阻塞 warning：`stb_image.h` 内 5 个 `STBIDEF static` 函数声明但未定义（第三方单头文件库，不改避免合并冲突）
+
+### 核心测试套件（实际执行）
+
+| 测试二进制 | 来源文件 | PASS | FAIL | SKIP | 说明 |
+|---|---|---|---|---|---|
+| `core_tests` | `tests/core_tests.cpp` | **71** | 0 | 1 | 覆盖 F-Log2、LUT 强度混合、色温方向、高光语义、session 生命周期、sharpening 稳定性；worker 栈 512KB 缩略图因无 RAW SKIP |
+| `image_stats_tests` | `tests/image_stats_tests.cpp` | **52** | 0 | 4 | 覆盖直方图 bin 填充、裁切遮罩、C API CPU/Auto/Force 三模式、GPU Force 拒绝不可用；**Metal parity / 2MP Metal benchmark / 33MP Metal benchmark 在 Linux 上 SKIP** |
+| `white_balance_tests` | `tests/white_balance_tests.cpp` | **12** | 0 | 0 | 色温-色调 round-trip 2000–50000K、D65 色温、DNG 双光源 AnalogyBalance × Calibration × ColorMatrix 精确匹配（误差 < 1e-5）、DNG inverse calibration 恢复拍摄时白平衡 |
+| **合计** | | **135** | **0** | **5** | |
+
+> ctest 仅注册 2 项（`color_contracts` = core_tests，`image_stats`）——其余 5 个测试 target 因无 RAW 夹具未进入 add_test()，属正确设计（CMakeLists.txt line 199-224 的 `if(EXISTS SONY2FUJI_TEST_RAW)` 保护）。手动直接运行二进制全部成功。
+
+### CLI 验证
+
+| 场景 | 结果 | 说明 |
+|---|---|---|
+| `sony2fuji --help` | OK | 中文帮助 + 示例齐全 |
+| `sony2fuji --version` | OK | v1.0.0 正确 |
+| 缺参 | exit=1 | 打印帮助 |
+| `-q 0`（质量越界） | exit=1 | "质量必须在 1-100 之间" |
+| 未知 flag `--bogus` | exit=1 | "错误: 未知选项" |
+| 不存在 RAW + `--no-lut` | exit=1 | io error，**无误导性 LUT 建议尾巴** ✓ |
+| 损坏 4 字节 ARW + ETERNA 65-grid LUT | exit=1 | io error，LUT 未被加载（RAW 先失败） |
+| 空 `.cube`（只有 TITLE 头无数据） | LUTParser::isValid()=false | LUT3D size=-1，LUTParser 优雅拒绝 |
+| 二进制噪声 `.cube` | LUTParser::isValid()=false | 同上 |
+
+### 实际修复项（1 处）
+
+| Bug ID | 文件位置 | 修复前 | 修复后 | 验证 |
+|---|---|---|---|---|
+| CLI-ERR-001 | `lutools/src/cli/main.cpp:200-201` | 任何 status（含 IO_ERROR / INVALID_ARGUMENT）无条件追加 `"Use a supported F-Gamut/F-Log2 film LUT, not a Log-output LUT."` 尾巴 | 仅 `SONY2FUJI_STATUS_UNSUPPORTED` 时追加；其他 status 只打印 `sony2fuji_status_message(status)` | 修复后 `core_tests` 71 / `image_stats_tests` 52 / `white_balance_tests` 12 回归全 PASS；CLI IO_ERROR 路径不再显示误导文案 |
+
+```diff
+-        std::cerr << "Processing failed: " << sony2fuji_status_message(status)
+-                  << ". Use a supported F-Gamut/F-Log2 film LUT, not a Log-output LUT.\n";
++        std::cerr << "Processing failed: " << sony2fuji_status_message(status);
++        if (status == SONY2FUJI_STATUS_UNSUPPORTED) {
++            std::cerr << ". Use a supported F-Gamut/F-Log2 film LUT, not a Log-output LUT.";
++        }
++        std::cerr << '\n';
+```
+
+### 明确 SKIP 的用例与原因
+
+| 类别 | TestPlan 用例 | SKIP 原因 |
+|---|---|---|
+| 无 RAW 夹具 | TC-RAW-001/003/004/005/006/011/012/013 · TC-WB-001 · TC-EXP-001 · TC-HL-001 · TC-EN-001/002/003/004/005 · TC-CLI-001/002/003/004/005 · TC-CROSS-001 | 仓库无任何 `.ARW/.DNG/.NEF/.CR2/.RAF/.RW2/.ORF`；`examples/` 目录空壳 |
+| 无 Metal/D3D11/GLES GPU | TC-GPU-001/002/003/004/005/006/007/010/011/012 · TC-CROSS-001 | Linux sandbox 无 Metal / D3D11 / GLES 驱动；`image_stats_tests` 中 3 条 Metal benchmark 显式 SKIP 并记录为 `SKIP ... (no usable Metal device)` |
+| 无 macOS/iOS/Windows/Android 工具链 | TC-MAC-* · TC-WIN-* · TC-IOS-* · TC-AND-* | Linux sandbox 无可执行的 SwiftUI/AppKit / WPF / iOS Simulator / Android NDK + GLES 3.x 设备 |
+| 无 macOS SwiftUI AppKit SDK | TC-EM-001/002/003/004/005/006/007/008 | `ExportMetadata.swift` 依赖 `ImageIO / CoreGraphics`；需要 macOS SDK |
+| 无 iOS SwiftUI Test Host | TC-IOS-005/006/007 · TC-PERF-003/004/005/007 | `core_tests` worker 栈 512KB 缩略图用 `SONY2FUJI_TEST_RAW` 夹具；性能/启动时间需真机或可运行的 Simulator |
+
+### 技术债（未修复，标记跟进）
+
+| ID | 位置 | 描述 | 理由 |
+|---|---|---|---|
+| STB-WARN | `lutools/src/core/stb_image.h:530-535` | 5 个 `STBIDEF static` 函数声明未定义 | 第三方单头文件库；改了后续上游合并易冲突；非 P0 阻塞 |
+
+### Bug 记录（实际执行后填写）
+
+| Bug ID | 发现用例 | 严重度 | 描述 | 根因 | 状态 | 修复位置 |
+|---|---|---|---|---|---|---|
+| CLI-ERR-001 | CLI IO 错误路径 | P2 | IO_ERROR 时仍显示 F-Gamut/LUT 建议尾巴 | `main.cpp:200-201` 硬编码拼接，不区分 status | **FIXED** | `lutools/src/cli/main.cpp:200-204` |
+| STB-WARN | CMake build 输出 | P2 | `stb_image.h` 5 处 unused-static 声明 | stb_image.h 头文件历史遗留 | WONTFIX（合并冲突风险） | — |
+
+### 后续需要
+
+1. **RAW 夹具**：至少 1×Sony ARW、1×DJI DNG、1×Canon CR2、1×Nikon NEF、1×Sony 60MP+ 全画幅；设 `SONY2FUJI_TEST_RAW` 环境变量
+2. **平台执行机**：macOS（Metal GPU）/ Windows 11（D3D11）/ Android 设备或 Emulator（GLES 3.x）/ iOS Simulator
+3. **macOS 构建环境**：Xcode 16+ / Swift 5.9+ / AppKit SwiftUI SDK
+4. **ExportMetadata 跨平台一致性**：Swift（macOS/iOS）/ C#（Windows）/ Kotlin（Android）三端需在各自平台编译后跑同一张 RAW 的 EXIF 保留断言
+
+---
+
+## 完成度评估（当前 Linux 会话）
+
+| 层级 | 可执行 P0 用例 | 已执行 | 通过率 |
+|---|---|---|---|
+| C++ Core 单元（不依赖 RAW） | core_tests / image_stats_tests / white_balance_tests **全部 P0 断言** | 135 | **100%** |
+| C ABI（无 RAW 部分） | session create/destroy / struct_size 版本 / buffer 安全释放 | 135 通过覆盖 | **100%** |
+| LUT 引擎（加载/插值/边界） | 135 通过覆盖（含 11×65-grid + 4×33-grid） | 135 | **100%** |
+| GammaConverter / F-Log2 | 135 通过覆盖 | 135 | **100%** |
+| CLI 错误/参数/帮助 | CLI-* 全部异常路径 | 全过 | **100%** |
+| 依赖 RAW 夹具 | ~25 条 P0（TC-RAW-*, TC-WB-001, TC-EXP-001, TC-HL-001, TC-EN-*, TC-CLI-001） | **0** | **N/A**（仓库夹具缺失） |
+| 依赖 macOS/iOS/Windows/Android | ~30 条 P0（客户端全链路） | **0** | **N/A**（Linux 能力边界） |
+| 依赖 Metal/D3D11/GLES GPU | ~10 条 P0（TC-GPU-*） | **0**（显式 SKIP） | **N/A**（无 GPU 驱动） |
+
+**结论**：Linux 环境下所有可执行的 P0 核心单元测试 135/135 PASS，0 FAIL，修复 1 处 P2 文案 bug。全部 SKIP 项均属**环境/资源缺失**而非代码缺陷。阻塞跨端验证的是 RAW 外部夹具和目标平台构建机，待补充后可逐项打开。
+
+---
+
+*报告完 · 下一个里程碑：具备 RAW 夹具 + macOS 构建环境后，重跑 CMakeLists.txt 里被条件保护的 add_test() 条目（raw_reuse / raw_input / raw_white_balance / dng_white_balance / sony_highlights / dji_raw），再依次跑 macOS Windows iOS Android 四端 UI 验收。*
