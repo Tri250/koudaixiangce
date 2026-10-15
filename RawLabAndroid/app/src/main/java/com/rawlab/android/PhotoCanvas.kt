@@ -1,5 +1,6 @@
 package com.rawlab.android
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -34,8 +35,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.max
 import kotlin.math.roundToInt
+
+/** FR-05: a stationary press held this long previews the original. */
+private const val HoldOriginalMillis = 250L
 
 class PhotoCanvasState {
     var viewport by mutableStateOf<PhotoViewport?>(null)
@@ -81,6 +86,9 @@ internal fun PhotoCanvas(
     compare: Boolean,
     filename: String,
     state: PhotoCanvasState,
+    showOriginal: Boolean = false,
+    original: Bitmap? = null,
+    onHoldOriginal: (Boolean) -> Unit = {},
     info: PhotoInfo? = null,
     infoMode: Int = 0,
     onInfoClick: () -> Unit = {},
@@ -88,6 +96,8 @@ internal fun PhotoCanvas(
 ) {
     val wipeDescription = stringResource(R.string.comparison_wipe)
     val fitDescription = stringResource(R.string.zoom_fit)
+    val holdDescription = stringResource(R.string.hold_original)
+    val holdHint = stringResource(R.string.hold_original_hint)
     BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 8.dp).clipToBounds()) {
         if (constraints.maxWidth == 0 || constraints.maxHeight == 0) return@BoxWithConstraints
         // Keep exact-preview geometry while a smaller interactive preview is displayed.
@@ -104,6 +114,9 @@ internal fun PhotoCanvas(
             translationY = zoom.y
         }
         val percent = "${(zoom.scale * 100).roundToInt()}%"
+        // FR-05: never leave a stale original overlay behind when the canvas goes
+        // away (e.g. configuration change) while the gesture cannot report it.
+        DisposableEffect(Unit) { onDispose { onHoldOriginal(false) } }
         Box(Modifier.fillMaxSize().testTag("photo-canvas").semantics {
             contentDescription = filename
             stateDescription = if (viewport.isFit(zoom.scale)) "${fitDescription} ${percent}" else percent
@@ -112,7 +125,7 @@ internal fun PhotoCanvas(
                 CustomAccessibilityAction(fitDescription) { state.zoom = PhotoZoom(viewport.fitScale); true }
             )
         }.pointerInput(state) { detectTapGestures(onDoubleTap = state::doubleTap) }
-            .pointerInput(state, compare) { photoGestures(state, compare) }) {
+            .pointerInput(state, compare) { photoGestures(state, compare, onHoldOriginal) }) {
             Image(pair.result.asImageBitmap(), null, transform, contentScale = ContentScale.Fit)
             if (compare) {
                 Box(Modifier.fillMaxSize().testTag("comparison-wipe").semantics {
@@ -133,6 +146,21 @@ internal fun PhotoCanvas(
                     for (label in listOf(R.string.neutral, R.string.result)) Text(stringResource(label),
                         Modifier.background(Color.Black.copy(alpha = .65f)).padding(6.dp),
                         color = Color.White, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            if (showOriginal) {
+                original?.let { baseline ->
+                    Box(Modifier.fillMaxSize().testTag("original-overlay").semantics {
+                        contentDescription = holdDescription
+                    }) {
+                        Image(baseline.asImageBitmap(), null, transform, contentScale = ContentScale.Fit)
+                        Text(stringResource(R.string.neutral), Modifier.align(Alignment.TopStart).padding(12.dp)
+                            .background(Color.Black.copy(alpha = .6f)).padding(6.dp),
+                            color = Color.White, style = MaterialTheme.typography.labelSmall)
+                        Text(holdHint, Modifier.align(Alignment.BottomCenter).padding(12.dp)
+                            .background(Color.Black.copy(alpha = .6f)).padding(6.dp),
+                            color = Color.White, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
             PhotoInfoOverlay(info, infoMode, onInfoClick)
@@ -199,30 +227,53 @@ private fun InfoLine(title: String, value: String) {
     )
 }
 
-private suspend fun PointerInputScope.photoGestures(state: PhotoCanvasState, compare: Boolean) {
+private suspend fun PointerInputScope.photoGestures(state: PhotoCanvasState, compare: Boolean, onHoldOriginal: (Boolean) -> Unit) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         var transformed = false
         var dragging = false
-        do {
-            val event = awaitPointerEvent()
-            val fingers = event.changes.count { it.pressed }
-            if (fingers >= 2) {
-                transformed = true
-                state.transform(event.calculateZoom(), event.calculatePan(), event.calculateCentroid(useCurrent = false))
-                event.changes.forEach { if (it.positionChanged()) it.consume() }
-            } else if (!transformed && fingers == 1) {
-                val change = event.changes.first { it.pressed }
-                dragging = dragging || (change.position - down.position).getDistance() > viewConfiguration.touchSlop
-                if (dragging) {
-                    if (compare) state.split = (change.position.x / size.width).coerceIn(0f, 1f)
-                    else state.transform(1f, event.calculatePan(), change.previousPosition)
-                    change.consume()
+        var pressed = true
+        // FR-05: a stationary single-finger press held for 250 ms previews the
+        // original until release; movement beyond the touch slop or a second
+        // finger cancels it, and the wipe already compares in compare mode.
+        var holding = false
+        if (!compare) {
+            holding = withTimeoutOrNull(HoldOriginalMillis) {
+                var stationary = true
+                while (stationary) {
+                    val event = awaitPointerEvent()
+                    pressed = event.changes.any { it.pressed }
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                    stationary = event.changes.count { it.pressed } == 1 && change != null &&
+                        (change.position - down.position).getDistance() <= viewConfiguration.touchSlop
                 }
-            } else if (transformed) {
-                // Do not turn a pinch into a wipe when the first finger is lifted.
-                event.changes.forEach { it.consume() }
-            }
-        } while (event.changes.any { it.pressed })
+                false
+            } ?: true
+            if (holding) onHoldOriginal(true)
+        }
+        try {
+            if (pressed) do {
+                val event = awaitPointerEvent()
+                val fingers = event.changes.count { it.pressed }
+                if (fingers >= 2) {
+                    transformed = true
+                    state.transform(event.calculateZoom(), event.calculatePan(), event.calculateCentroid(useCurrent = false))
+                    event.changes.forEach { if (it.positionChanged()) it.consume() }
+                } else if (!transformed && fingers == 1) {
+                    val change = event.changes.first { it.pressed }
+                    dragging = dragging || (change.position - down.position).getDistance() > viewConfiguration.touchSlop
+                    if (dragging) {
+                        if (compare) state.split = (change.position.x / size.width).coerceIn(0f, 1f)
+                        else state.transform(1f, event.calculatePan(), change.previousPosition)
+                        change.consume()
+                    }
+                } else if (transformed) {
+                    // Do not turn a pinch into a wipe when the first finger is lifted.
+                    event.changes.forEach { it.consume() }
+                }
+            } while (event.changes.any { it.pressed })
+        } finally {
+            if (holding) onHoldOriginal(false)
+        }
     }
 }

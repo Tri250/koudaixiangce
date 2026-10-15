@@ -319,3 +319,10 @@
 "DNG 已生成，但任务记录未更新，请先核对保存结果。" = "Se creó el DNG, pero no se actualizó el registro de la tarea. Verifique primero el archivo guardado.";
 "无法写入成片，请检查输出位置和剩余空间。" = "No se puede escribir en el segmento. Verifique la ubicación de salida y el espacio restante.";
 "无效的视口预览模式" = "Modo de vista previa del área visible no válido";
+"白平衡吸管" = "Cuentagotas de balance de blancos";
+"点击预览图取样中性点" = "Toca la vista previa para muestrear un punto neutro";
+"取样失败" = "Error al muestrear";
+"撤销" = "Deshacer";
+"重做" = "Rehacer";
+"松开以返回编辑" = "Suelta para volver a la edición";
+"长按对比原图" = "Mantén pulsado para comparar con el original";

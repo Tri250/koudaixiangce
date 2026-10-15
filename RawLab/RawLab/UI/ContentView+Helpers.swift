@@ -80,6 +80,9 @@ extension ContentView {
     }
 
     var currentPreviewImage: UIImage? {
+        if viewModel.showOriginal {
+            return viewModel.originalImage ?? viewModel.basePreviewImage ?? viewModel.previewImage
+        }
         if showingBefore {
             return viewModel.basePreviewImage ?? viewModel.previewImage
         }
@@ -87,7 +90,7 @@ extension ContentView {
     }
 
     var currentHistogram: [CGFloat] {
-        if showingBefore {
+        if viewModel.showOriginal || showingBefore {
             return viewModel.baseHistogram.isEmpty ? viewModel.histogram : viewModel.baseHistogram
         }
         return viewModel.histogram.isEmpty ? viewModel.baseHistogram : viewModel.histogram
@@ -246,8 +249,60 @@ extension ContentView {
 
     func setSliderEditing(_ editing: Bool) {
         isAdjustingSlider = editing
+        viewModel.setSliderEditing(editing)
         if !editing {
             viewModel.updatePreview(settings: settings, includeHistogram: true, quality: .final)
+        }
+    }
+
+    // ============================================================
+    //  FR-04: undo/redo write the snapshot back through the shared
+    //  settings change hook, which re-renders and persists without
+    //  re-recording the step.
+    // ============================================================
+    func undoEdit() {
+        guard let previous = viewModel.undoEdit(current: settings) else { return }
+        isAdjustingSlider = false
+        applySettingsChange(previous)
+    }
+
+    func redoEdit() {
+        guard let next = viewModel.redoEdit(current: settings) else { return }
+        isAdjustingSlider = false
+        applySettingsChange(next)
+    }
+
+    // ============================================================
+    //  FR-03: white balance eyedropper. The tap point arrives as
+    //  normalized preview coordinates; sampling runs off-main against
+    //  the RAW decoded by the last preview render. Success applies the
+    //  result as one undo step through the shared change hook.
+    // ============================================================
+    func toggleWhiteBalanceSampling() {
+        guard viewModel.hasImage, viewModel.sourceKind == .raw, !editorBusy else { return }
+        viewModel.isSamplingWhiteBalance.toggle()
+    }
+
+    func sampleWhiteBalance(at point: CGPoint) {
+        guard viewModel.isSamplingWhiteBalance, viewModel.sourceKind == .raw, !editorBusy else { return }
+        let revision = settingsRevision, sourceRevision = viewModel.sourceRevision
+        DispatchQueue.global(qos: .userInitiated).async {
+            let sample = viewModel.processor.pickWhiteBalance(nx: Double(point.x), ny: Double(point.y))
+            DispatchQueue.main.async {
+                guard viewModel.sourceRevision == sourceRevision, settingsRevision == revision else { return }
+                guard let sample else {
+                    viewModel.statusMessage = L10n.text("取样失败")
+                    return
+                }
+                viewModel.isSamplingWhiteBalance = false
+                var updated = settings
+                updated.temperature = min(max(sample.temperature, RawSettings.temperatureRange.lowerBound),
+                                          RawSettings.temperatureRange.upperBound)
+                updated.tint = min(max(sample.tint, RawSettings.tintRange.lowerBound),
+                                   RawSettings.tintRange.upperBound)
+                updated.whiteBalanceMode = .custom
+                applySettingsChange(updated)
+            }
         }
     }
 

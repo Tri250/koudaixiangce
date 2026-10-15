@@ -8,6 +8,9 @@ struct ZoomablePhoto: UIViewRepresentable {
     let referenceImage: UIImage
     let label: String
     var onPreviewSizeChange: ((Int) -> Void)? = nil
+    // FR-03: receives the tap position normalized to the displayed image
+    // rect ([0,1] in image coordinates); nil disables sampling taps.
+    var onSampleTap: ((CGPoint) -> Void)? = nil
 
     func makeUIView(context: Context) -> PhotoScrollView { PhotoScrollView() }
 
@@ -19,6 +22,8 @@ struct ZoomablePhoto: UIViewRepresentable {
                              height: referenceImage.size.height * referenceImage.scale)
         view.displayScale = displayScale
         view.onPreviewSizeChange = onPreviewSizeChange
+        view.onSampleTap = onSampleTap
+        view.setSamplingActive(onSampleTap != nil)
         view.accessibilityLabel = label
         view.setNeedsLayout()
     }
@@ -34,6 +39,9 @@ final class PhotoScrollView: UIScrollView, UIScrollViewDelegate {
     private var updatingGeometry = false
     private var geometry: PhotoZoomGeometry?
     var onPreviewSizeChange: ((Int) -> Void)?
+    var onSampleTap: ((CGPoint) -> Void)?
+    private lazy var doubleTap = UITapGestureRecognizer(target: self, action: #selector(toggleZoom(_:)))
+    private lazy var sampleTap = UITapGestureRecognizer(target: self, action: #selector(handleSampleTap(_:)))
     private var reportedEdge: Int?
 
     init() {
@@ -46,13 +54,32 @@ final class PhotoScrollView: UIScrollView, UIScrollViewDelegate {
         bouncesZoom = false
         imageView.contentMode = .scaleAspectFit
         addSubview(imageView)
-        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(toggleZoom(_:)))
         doubleTap.numberOfTapsRequired = 2
         addGestureRecognizer(doubleTap)
+        sampleTap.isEnabled = false
+        addGestureRecognizer(sampleTap)
         isAccessibilityElement = true
         accessibilityIdentifier = "editor.photo"
         accessibilityTraits = [.image, .adjustable]
         refreshAccessibilityActions()
+    }
+
+    // FR-03: while sampling, taps pick a neutral point and the double-tap
+    // zoom shortcut is suspended (pinch zoom stays available).
+    func setSamplingActive(_ active: Bool) {
+        sampleTap.isEnabled = active
+        doubleTap.isEnabled = !active
+    }
+
+    @objc private func handleSampleTap(_ gesture: UITapGestureRecognizer) {
+        guard let onSampleTap,
+              imageView.bounds.width > 0, imageView.bounds.height > 0 else { return }
+        let location = gesture.location(in: imageView)
+        let normalized = CGPoint(
+            x: min(1, max(0, location.x / imageView.bounds.width)),
+            y: min(1, max(0, location.y / imageView.bounds.height))
+        )
+        onSampleTap(normalized)
     }
 
     func refreshAccessibilityActions() {

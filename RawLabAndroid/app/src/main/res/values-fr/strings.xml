@@ -112,6 +112,8 @@
     <string name="expand_adjustments">Développer les réglages</string>
     <string name="comparison_wipe">Séparation original/réglé</string>
     <string name="zoom_fit">Ajuster à l\'écran</string>
+    <string name="hold_original">Comparer avec l\'original</string>
+    <string name="hold_original_hint">Relâchez pour revenir à l\'édition</string>
     <string name="denoise">Réduction du bruit</string>
     <string name="denoise_detail">Priorité aux détails</string>
     <string name="denoise_clean">Priorité à la réduction du bruit</string>

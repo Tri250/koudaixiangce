@@ -45,7 +45,13 @@ public partial class MainWindow : Window
     private double dockHeight=264;
     private double libraryWidth=260;
     private RenderedImage? result;
+    private RenderedImage? neutralFrame;
     private int renderedGpuMode;
+    private readonly EditHistory history=new();
+    private HistoryStep? pendingStep;
+    private RenderedImage? baselineFrame;
+    private (string File,int Mode,int Edge)? baselineKey;
+    private bool baselineBusy,baselineShown;
     private Func<string>? localizedStatus;
     private readonly HashSet<LibraryEntry> visibleThumbnails=[];
     private readonly DispatcherTimer thumbnailRefresh=new(){Interval=TimeSpan.FromMilliseconds(80)};
@@ -103,26 +109,31 @@ public partial class MainWindow : Window
         BuildTools(); BuildFilms(); BuildMasterRecipes();
         DenoiseEditor.Changed+=(value,dragging)=>{
             if(!ready || syncing || exporting)return;
+            if(dragging)BeginStep(); else if(pendingStep!=null)EndStep(); else PushStep();
             settings.Denoise=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
         };
         PhotoEffectsEditor.Changed+=(value,dragging)=>{
             if(!ready || syncing || exporting)return;
+            if(dragging)BeginStep(); else if(pendingStep!=null)EndStep(); else PushStep();
             settings.Effects=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
         };
         HslEditor.Changed+=(value,dragging)=>{
             if(!ready || syncing || exporting)return;
+            if(dragging)BeginStep(); else if(pendingStep!=null)EndStep(); else PushStep();
             settings.Hsl=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
         };
         CurveEditor.Changed+=(value,dragging)=>{
             if(!ready || syncing || exporting)return;
+            if(dragging)BeginStep(); else if(pendingStep!=null)EndStep(); else PushStep();
             settings.Curve=value;interacting=dragging;RefreshControls();MarkEdited();Schedule();
         };
         LensEditor.Changed+=value=>{
             if(!ready || syncing || exporting)return;
+            PushStep();
             settings.Lens=value;RefreshControls();MarkEdited();Schedule();
         };
-        ValueSlider.AddHandler(Thumb.DragStartedEvent,new DragStartedEventHandler((_,_)=>{interacting=true;}));
-        ValueSlider.AddHandler(Thumb.DragCompletedEvent,new DragCompletedEventHandler((_,_)=>{interacting=false; Schedule();}));
+        ValueSlider.AddHandler(Thumb.DragStartedEvent,new DragStartedEventHandler((_,_)=>{BeginStep();interacting=true;}));
+        ValueSlider.AddHandler(Thumb.DragCompletedEvent,new DragCompletedEventHandler((_,_)=>{interacting=false;EndStep();Schedule();}));
         ready=true; RefreshControls();
         InitializeEditWorkflow();
         Closing+=WindowClosing;
@@ -185,7 +196,7 @@ public partial class MainWindow : Window
             stack.Children.Add(new TextBlock{Text=displayName,FontSize=11,Width=80,Height=30,TextWrapping=TextWrapping.Wrap,TextAlignment=TextAlignment.Center,Margin=new Thickness(0,5,0,0)});
             var button=new Button{Content=stack,Style=(Style)FindResource("FilmButton"),ToolTip=film.Path ?? Loc.Text("中性显影")};
             AutomationProperties.SetName(button,displayName);
-            button.Click+=(_,_)=>{if(exporting)return;settings.ClearMasterRecipe();lut=film.Path;MarkEdited();RefreshControls();Schedule();};
+            button.Click+=(_,_)=>{if(exporting)return;PushStep();settings.ClearMasterRecipe();lut=film.Path;MarkEdited();RefreshControls();Schedule();};
             FilmStrip.Children.Add(button); filmButtons[film.Path ?? ""]=button;
         }
         var importContent=new StackPanel();
@@ -267,9 +278,86 @@ public partial class MainWindow : Window
             LibraryToggleButton.Tag=LibraryPanel.Visibility==Visibility.Visible ? "selected" : null;
             AdjustToggleButton.Tag=AdjustmentPanel.Visibility==Visibility.Visible ? "selected" : null;
             UpdateBusy();
+            RefreshHistory();
             RefreshExportSizeMenu();
         }
         finally { syncing=false; }
+    }
+    // FR-04: one undo step per discrete change or gesture. The snapshot is
+    // captured BEFORE the change; drags merge because only the pre-gesture
+    // snapshot is pushed at completion, and only when something moved.
+    private void BeginStep() => pendingStep ??= new(settings.Capture(),lut);
+    private void EndStep()
+    {
+        if(pendingStep is not { } step)return;
+        pendingStep=null;
+        if(step.Lut!=lut || !step.Settings.SameAs(settings.Capture()))history.Push(step);
+        RefreshHistory();
+    }
+    private void PushStep()
+    {
+        if(pendingStep!=null)EndStep();
+        history.Push(new(settings.Capture(),lut));
+        RefreshHistory();
+    }
+    private void RefreshHistory()
+    {
+        UndoButton.IsEnabled=history.CanUndo && file!=null && !exporting;
+        RedoButton.IsEnabled=history.CanRedo && file!=null && !exporting;
+    }
+    private void UndoClicked(object sender,RoutedEventArgs e)=>Undo();
+    private void RedoClicked(object sender,RoutedEventArgs e)=>Redo();
+    private void Undo()
+    {
+        if(file==null || exporting || interacting)return;
+        if(history.Undo(new(settings.Capture(),lut)) is not { } step)return;
+        ApplyStep(step);
+    }
+    private void Redo()
+    {
+        if(file==null || exporting || interacting)return;
+        if(history.Redo(new(settings.Capture(),lut)) is not { } step)return;
+        ApplyStep(step);
+    }
+    private void ApplyStep(HistoryStep step)
+    {
+        pendingStep=null;
+        settings=step.Settings.Restore();
+        lut=step.Lut;
+        MarkEdited();RefreshControls();Schedule();
+    }
+    // FR-05: hold C to cover the preview with the development baseline of the
+    // current exposure mode (every user edit zeroed). Overlay only: edit state
+    // and the undo stack stay untouched; cached per file+mode+edge.
+    private void ShowBaseline()
+    {
+        if(!ready || file==null || result==null || exporting || closing || baselineShown)return;
+        baselineShown=true;
+        BaselineHint.Visibility=Visibility.Visible;
+        (string File,int Mode,int Edge) key=(file,settings.ExposureMode,previewLongEdge);
+        if(baselineFrame!=null && baselineKey==key)ResultCanvas.SetImage(baselineFrame.Image,null);
+        else if(key.Mode==1 && neutralFrame!=null){baselineFrame=neutralFrame;baselineKey=key;ResultCanvas.SetImage(neutralFrame.Image,null);}
+        else if(!baselineBusy)RenderBaseline(key);
+    }
+    private async void RenderBaseline((string File,int Mode,int Edge) key)
+    {
+        var revision=openRevision;
+        RenderedImage? frame=null;
+        try{frame=await Task.Run(()=>{engine ??= new();return engine.Render(key.File,new Adjustments{ExposureMode=key.Mode},null,key.Edge,statistics:false,clipping:false);});}
+        catch(Exception error){if(!closing && revision==openRevision)Report(error);}
+        baselineBusy=false;
+        if(closing){FinishClose();return;}
+        if(frame==null || revision!=openRevision)return;
+        baselineFrame=frame;baselineKey=key;
+        if(baselineShown && file==key.File && settings.ExposureMode==key.Mode)ResultCanvas.SetImage(frame.Image,null);
+        else if(baselineShown && !closing && file!=null)RenderBaseline((file,settings.ExposureMode,previewLongEdge));
+    }
+    private void HideBaseline()
+    {
+        if(!baselineShown)return;
+        baselineShown=false;
+        BaselineHint.Visibility=Visibility.Collapsed;
+        if(result!=null)ResultCanvas.SetImage(result.Image,result.Clipping);
     }
     private static SolidColorBrush Brush(string color)=>(SolidColorBrush)new BrushConverter().ConvertFromString(color)!;
     private void UpdateBusy()
@@ -308,6 +396,7 @@ public partial class MainWindow : Window
             RestoreEdits(path);
             previewResize.Stop();previewLongEdge=requestedPreviewLongEdge=2000;
             file=path; interacting=false; exactReady=false; result=null; photoInfo=null; ++photoInfoRevision; syncing=true;viewport.Fit();
+            history.Clear(); pendingStep=null; neutralFrame=null; HideBaseline();
             viewport.SetSourceSize(0,0);
             NeutralCanvas.SetImage(placeholder,null); ResultCanvas.SetImage(placeholder,null);ResultCanvas.SetComparison(placeholder,null); Histogram.Bins=null; Histogram.InvalidateVisual(); ClipStats.Text="";
             previewLongEdge=requestedPreviewLongEdge=ResultCanvas.PreviewLongEdge>0 ? ResultCanvas.PreviewLongEdge : 2000;
@@ -419,10 +508,16 @@ public partial class MainWindow : Window
             else if(rendered!=null && neutral!=null)
             {
                 result=rendered; settings.ResolveWhiteBalance(rendered.WhiteBalance);
+                neutralFrame=compare ? neutral : null;
                 if(work.Edge==0)viewport.SetSourceSize(rendered.Image.PixelWidth,rendered.Image.PixelHeight);
                 renderedGpuMode=work.GpuMode;
-                NeutralCanvas.SetImage(neutral.Image,neutral.Clipping); ResultCanvas.SetImage(rendered.Image,rendered.Clipping);
-                ResultCanvas.SetComparison(neutral.Image,neutral.Clipping);
+                // While C is held the baseline overlays the preview; the pump
+                // keeps updating state and restores the canvas on release.
+                if(!baselineShown)
+                {
+                    NeutralCanvas.SetImage(neutral.Image,neutral.Clipping); ResultCanvas.SetImage(rendered.Image,rendered.Clipping);
+                    ResultCanvas.SetComparison(neutral.Image,neutral.Clipping);
+                }
                 Histogram.Bins=rendered.Histogram; Histogram.InvalidateVisual();
                 RefreshRenderLabels();
                 exactReady=current && !work.Interactive;
@@ -439,6 +534,7 @@ public partial class MainWindow : Window
         if(!ready || syncing || exporting)return;
         var value=ParameterSpec.All[(int)selectedParameter].Value(e.NewValue);
         if(settings[selectedParameter]==value)return;
+        if(pendingStep==null)PushStep();
         settings.Set(selectedParameter,value);
         MarkEdited();
         RefreshControls(); Schedule();
@@ -447,17 +543,17 @@ public partial class MainWindow : Window
     {
         if(!ready || syncing || exporting || !ValueText.IsEnabled)return;
         var spec=ParameterSpec.All[(int)selectedParameter];
-        if(spec.Parse(ValueText.Text) is {} value) { if(settings[selectedParameter]!=value){settings.Set(selectedParameter,value);MarkEdited();interacting=false;Schedule();} }
+        if(spec.Parse(ValueText.Text) is {} value) { if(settings[selectedParameter]!=value){PushStep();settings.Set(selectedParameter,value);MarkEdited();interacting=false;Schedule();} }
         else SetStatus(() => Loc.Text("请输入有限数值。"),true);
         RefreshControls();
     }
     private void ValueCommitted(object sender,KeyboardFocusChangedEventArgs e)=>CommitValue();
     private void ValueKeyDown(object sender,KeyEventArgs e) { if(e.Key==Key.Enter){CommitValue();e.Handled=true;} if(e.Key==Key.Escape){RefreshControls();e.Handled=true;} }
-    private void ExposureModeChanged(object sender,SelectionChangedEventArgs e) { if(!ready || syncing || exporting)return;settings.ExposureMode=ExposureMode.SelectedIndex;MarkEdited();Schedule(); }
+    private void ExposureModeChanged(object sender,SelectionChangedEventArgs e) { if(!ready || syncing || exporting)return;PushStep();settings.ExposureMode=ExposureMode.SelectedIndex;MarkEdited();Schedule(); }
     private void GpuModeChanged(object sender,SelectionChangedEventArgs e) { if(ready && !exporting)Schedule(); }
-    private void ResetParameterClicked(object sender,RoutedEventArgs e) { settings.Reset(selectedParameter);MarkEdited();RefreshControls();Schedule(); }
-    private void ResetGroupClicked(object sender,RoutedEventArgs e) { var group=ParameterSpec.All[(int)selectedParameter].Group;if(group=="胶片" && settings.MasterRecipeID!=null){settings.ClearMasterRecipe();lut=null;}settings.ResetGroup(group);MarkEdited();RefreshControls();Schedule(); }
-    private void ResetAllClicked(object sender,RoutedEventArgs e) { if(settings.MasterRecipeID!=null)lut=null;settings.ResetAll();MarkEdited();RefreshControls();Schedule(); }
+    private void ResetParameterClicked(object sender,RoutedEventArgs e) { PushStep();settings.Reset(selectedParameter);MarkEdited();RefreshControls();Schedule(); }
+    private void ResetGroupClicked(object sender,RoutedEventArgs e) { PushStep();var group=ParameterSpec.All[(int)selectedParameter].Group;if(group=="胶片" && settings.MasterRecipeID!=null){settings.ClearMasterRecipe();lut=null;}settings.ResetGroup(group);MarkEdited();RefreshControls();Schedule(); }
+    private void ResetAllClicked(object sender,RoutedEventArgs e) { PushStep();if(settings.MasterRecipeID!=null)lut=null;settings.ResetAll();MarkEdited();RefreshControls();Schedule(); }
     private async void AutoExposureClicked(object sender,RoutedEventArgs e)
     {
         if(file==null || result==null || autoExposing || exporting)return;
@@ -467,12 +563,13 @@ public partial class MainWindow : Window
         {
             var ev=await Task.Run(()=>{using var meter=new RenderEngine();return meter.AutoExposure(path,snapshot);});
             if(closing || file!=path || openRevision!=photoRevision || editRevision!=revision || !snapshot.Capture().SameAs(settings.Capture()))return;
+            PushStep();
             settings.Set(Parameter.Exposure,ev);MarkEdited();Schedule();
         }
         catch(Exception error) {if(!closing && file==path && openRevision==photoRevision && editRevision==revision)Report(error);}
         finally {autoExposing=false;if(!closing)RefreshControls();}
     }
-    private void AsShotClicked(object sender,RoutedEventArgs e) { settings.ResetWhiteBalance();MarkEdited();RefreshControls();Schedule(); }
+    private void AsShotClicked(object sender,RoutedEventArgs e) { PushStep();settings.ResetWhiteBalance();MarkEdited();RefreshControls();Schedule(); }
     private void OpenClicked(object sender,RoutedEventArgs e)
     {
         if(exporting)return;
@@ -484,6 +581,7 @@ public partial class MainWindow : Window
         if(exporting)return;
         var dialog=new OpenFileDialog{Title=Loc.Text("导入胶片外观"),Multiselect=true,Filter=Loc.Text("胶片外观|*.cube;*.rlook|CUBE LUT|*.cube|RawLab DCP 外观|*.rlook")};
         if(dialog.ShowDialog(this)!=true)return;
+        PushStep();
         foreach(var path in dialog.FileNames)
         {
             settings.ClearMasterRecipe();
@@ -756,9 +854,18 @@ public partial class MainWindow : Window
     {
         if(e.OriginalSource is TextBoxBase or ComboBox || Keyboard.FocusedElement is TextBoxBase or ComboBox)return;
         if(e.Key==Key.O && Keyboard.Modifiers==ModifierKeys.Control)OpenClicked(sender,e);
+        else if(e.Key==Key.Z && Keyboard.Modifiers==ModifierKeys.Control)Undo();
+        else if(e.Key==Key.Y && Keyboard.Modifiers==ModifierKeys.Control)Redo();
         else if(e.Key==Key.F)FitClicked(sender,e); else if(e.Key==Key.D1)ActualClicked(sender,e);
         else if(e.Key is Key.Add or Key.OemPlus)ZoomInClicked(sender,e); else if(e.Key is Key.Subtract or Key.OemMinus)ZoomOutClicked(sender,e);
         else if(e.Key==Key.I)InfoClicked(sender,e);
+        else if(e.Key==Key.C && Keyboard.Modifiers==ModifierKeys.None && !e.IsRepeat)ShowBaseline();
+    }
+    // FR-05: releasing C restores the edited preview; the baseline never
+    // touches edit state or the undo stack.
+    private void KeyReleased(object sender,KeyEventArgs e)
+    {
+        if(e.Key==Key.C && !(e.OriginalSource is TextBoxBase or ComboBox || Keyboard.FocusedElement is TextBoxBase or ComboBox))HideBaseline();
     }
     private void ExportJpegClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.Jpeg);
     private void ExportPngClicked(object sender,RoutedEventArgs e)=>Export(ExportFormat.Png);
@@ -841,7 +948,7 @@ public partial class MainWindow : Window
         previewResize.Stop();
         if(batchWindow?.Running==true)batchWindow.CancelExecution();
         thumbnailRefresh.Stop();foreach(var entry in visibleThumbnails)entry.ReleaseThumbnail();visibleThumbnails.Clear();
-        if(scheduler.Busy || exporting){e.Cancel=true;closing=true;IsEnabled=false;SetStatus(() => Loc.Text("正在完成当前任务后关闭…"));return;}
+        if(scheduler.Busy || exporting || baselineBusy){e.Cancel=true;closing=true;IsEnabled=false;SetStatus(() => Loc.Text("正在完成当前任务后关闭…"));return;}
         engine?.Dispose();engine=null;
     }
     private void FinishClose() { engine?.Dispose();engine=null;Closing-=WindowClosing;Close(); }

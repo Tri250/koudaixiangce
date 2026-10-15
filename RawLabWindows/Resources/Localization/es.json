@@ -416,5 +416,8 @@
   "已生成 {0} 个渲染型 DNG，未另存到所选位置": "Se crearon {0} archivos DNG revelados, pero no se guardaron en la ubicación elegida",
   "DNG 只能保存到文件": "El DNG solo se puede guardar en Archivos",
   "请等待预览完成后导出。": "Espera a que termine la vista previa antes de exportar.",
-  "请选择 {0} 文件扩展名。": "Elige una extensión de archivo {0}."
+  "请选择 {0} 文件扩展名。": "Elige una extensión de archivo {0}.",
+  "撤销": "Deshacer",
+  "重做": "Rehacer",
+  "松开以返回编辑": "Suelte C para volver a la edición"
 }

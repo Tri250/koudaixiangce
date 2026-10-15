@@ -112,6 +112,8 @@
     <string name="expand_adjustments">Expand adjustments</string>
     <string name="comparison_wipe">Original/adjusted divider</string>
     <string name="zoom_fit">Fit to screen</string>
+    <string name="hold_original">Compare with original</string>
+    <string name="hold_original_hint">Release to return to editing</string>
     <string name="denoise">Denoise</string>
     <string name="denoise_detail">Detail priority</string>
     <string name="denoise_clean">Noise reduction priority</string>

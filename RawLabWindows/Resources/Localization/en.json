@@ -416,5 +416,8 @@
   "已生成 {0} 个渲染型 DNG，未另存到所选位置": "{0} Rendered DNG Files Created, but Not Saved to the Selected Location",
   "DNG 只能保存到文件": "DNG Can Only Be Saved to Files",
   "请等待预览完成后导出。": "Wait for the Preview to Finish Before Exporting.",
-  "请选择 {0} 文件扩展名。": "Choose a {0} file extension."
+  "请选择 {0} 文件扩展名。": "Choose a {0} file extension.",
+  "撤销": "Undo",
+  "重做": "Redo",
+  "松开以返回编辑": "Release C to Return to Edits"
 }

@@ -108,6 +108,11 @@ extension RawEditorViewModel {
     ) {
         statusMessage = nil
         isBusy = true
+        clearHistory()
+        isSamplingWhiteBalance = false
+        showOriginal = false
+        originalImage = nil
+        originalBaselineCache = nil
         sourceRevision = UUID()
         previewResizeWorkItem?.cancel()
         previewResizeWorkItem = nil
@@ -455,6 +460,7 @@ extension RawEditorViewModel {
 
         statusMessage = nil
         isBusy = true
+        clearHistory()
         sourceRevision = UUID()
         let lutURL = lutURL(for: settings)
 

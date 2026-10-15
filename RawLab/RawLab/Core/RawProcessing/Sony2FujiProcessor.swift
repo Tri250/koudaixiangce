@@ -164,6 +164,21 @@ struct Sony2FujiProcessor {
         return Double(ev)
     }
 
+    // FR-03: neutral-gray eyedropper over the RAW decoded by the most recent
+    // preview render on the shared session. Nil means the engine refused the
+    // sample (no calibration, nothing decoded, or engine error).
+    func pickWhiteBalance(nx: Double, ny: Double) -> (temperature: Double, tint: Double)? {
+        let clampedX = Float(min(1, max(0, nx)))
+        let clampedY = Float(min(1, max(0, ny)))
+        var temperature: Float = 0
+        var tint: Float = 0
+        let status = (try? withRawSession(reuse: true) { session in
+            sony2fuji_session_pick_white_balance(session, clampedX, clampedY, &temperature, &tint)
+        }) ?? SONY2FUJI_STATUS_UNSUPPORTED
+        guard status == SONY2FUJI_STATUS_OK else { return nil }
+        return (Double(temperature).rounded(), Double(tint).rounded())
+    }
+
     func processRaw(
         url: URL,
         settings: RawSettings,

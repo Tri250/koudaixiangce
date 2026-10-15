@@ -31,6 +31,8 @@ data class EditorState(
     val gpuEnabled: Boolean = true,
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
+    val showOriginal: Boolean = false,
+    val originalBitmap: Bitmap? = null,
 ) {
     val canExport get() = photo != null && preview != null && exact && !rendering && !previewResizePending && operation == Operation.NONE
     val controlsEnabled get() = photo != null && operation == Operation.NONE
@@ -85,6 +87,12 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     // FR-04: session-scoped snapshot history; drags merge into one step.
     private val history = EditHistory()
     private var dragActive = false
+    // FR-05: hold-to-compare baseline. Development reference of the current
+    // exposure mode with every user edit zeroed; cached per file+mode and
+    // never recorded in the undo stack.
+    private var baselineCache: Triple<File, Int, Bitmap>? = null
+    private var baselineJob: Job? = null
+    private var baselineRequest: Pair<File, Int>? = null
     private val mutable = MutableStateFlow(EditorState())
     val state = mutable.asStateFlow()
     private var disposed = false
@@ -298,7 +306,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         history.clear()
         dragActive = false
         mutable.value = mutable.value.copy(operation = Operation.IMPORT, rendering = true, error = null,
-            canUndo = false, canRedo = false)
+            canUndo = false, canRedo = false, showOriginal = false, originalBitmap = null)
         previewResizeJob?.cancel()
         previewResizeJob = null
         previewLongEdge = 1600
@@ -405,6 +413,49 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         val photo = current.photo ?: return
         mutable.value = current.copy(rendering = true, error = null)
         currentRevision = queue.submit(Work.PickWb(photo, nx.coerceIn(0f, 1f), ny.coerceIn(0f, 1f)))
+    }
+
+    /** FR-05: hold-to-compare previews the develop baseline of the current
+     * exposure mode with every user edit zeroed; it never touches the edits
+     * or the undo history. */
+    fun setOriginalVisible(visible: Boolean) {
+        val current = mutable.value
+        if (!visible) {
+            if (current.showOriginal) mutable.value = current.copy(showOriginal = false)
+            return
+        }
+        val photo = current.photo ?: return
+        if (current.preview == null || current.operation != Operation.NONE) return
+        val mode = current.edits.exposureMode
+        // The neutral preview is rendered from default settings, so it already
+        // is the baseline of the default exposure mode.
+        val defaultMode = EditSettings().exposureMode
+        val baseline = if (mode == defaultMode) current.preview?.neutral
+            else baselineCache?.takeIf { it.first == photo.file && it.second == mode }?.third
+        mutable.value = current.copy(showOriginal = true, originalBitmap = baseline)
+        if (baseline != null || mode == defaultMode) return
+        val request = photo.file to mode
+        if (baselineJob?.isActive == true) {
+            if (baselineRequest == request) return
+            baselineJob?.cancel()
+        }
+        baselineRequest = request
+        baselineJob = viewModelScope.launch {
+            val rendered = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                runCatching {
+                    synchronized(storage) {
+                        val native = engine()
+                        native.setGpuMode(gpuMode())
+                        native.preview(photo.file, null, EditSettings(exposureMode = mode), 1600, false).bitmap()
+                    }
+                }.getOrNull()
+            } ?: return@launch
+            baselineCache = Triple(photo.file, mode, rendered)
+            if (disposed) return@launch
+            val state = mutable.value
+            if (state.photo?.file == photo.file && state.edits.exposureMode == mode)
+                mutable.value = state.copy(originalBitmap = rendered)
+        }
     }
 
     fun updatePreviewSize(edge: Int) {

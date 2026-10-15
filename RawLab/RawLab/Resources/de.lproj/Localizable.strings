@@ -319,3 +319,10 @@
 "DNG 已生成，但任务记录未更新，请先核对保存结果。" = "DNG erstellt, aber der Auftragsdatensatz wurde nicht aktualisiert. Prüfen Sie zuerst die gespeicherte Datei.";
 "无法写入成片，请检查输出位置和剩余空间。" = "Auf das Slice kann nicht geschrieben werden. Bitte überprüfen Sie den Ausgabeort und den verbleibenden Speicherplatz.";
 "无效的视口预览模式" = "Ungültiger Modus für die Ausschnittvorschau";
+"白平衡吸管" = "Weißabgleich-Pipette";
+"点击预览图取样中性点" = "Tippen Sie auf die Vorschau, um einen Neutralpunkt zu messen";
+"取样失败" = "Messung fehlgeschlagen";
+"撤销" = "Rückgängig";
+"重做" = "Wiederholen";
+"松开以返回编辑" = "Loslassen, um zur Bearbeitung zurückzukehren";
+"长按对比原图" = "Zum Vergleich mit dem Original gedrückt halten";

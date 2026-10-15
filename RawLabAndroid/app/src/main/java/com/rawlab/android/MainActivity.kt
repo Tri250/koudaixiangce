@@ -123,7 +123,7 @@ private fun RawLabApp(model: EditorViewModel, updates: UpdateViewModel) {
             onImportLook = { openLook.launch(arrayOf("*/*")) }, onRenameLook = model::renameLook,
             onDeleteLook = model::deleteLook, onLookImportReportDismiss = model::dismissLookImportReport,
             onAbout = { about = true }, updateVersion = updateState.available?.version,
-            onPreviewSizeChange = model::updatePreviewSize)
+            onPreviewSizeChange = model::updatePreviewSize, onHoldOriginal = model::setOriginalVisible)
         }
         }
     }

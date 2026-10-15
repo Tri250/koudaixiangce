@@ -112,6 +112,8 @@
     <string name="expand_adjustments">調整を展開</string>
     <string name="comparison_wipe">元画像と調整後の境界</string>
     <string name="zoom_fit">画面に合わせる</string>
+    <string name="hold_original">元画像と比較</string>
+    <string name="hold_original_hint">指を離すと編集に戻ります</string>
     <string name="denoise">ノイズ除去</string>
     <string name="denoise_detail">ディテール優先</string>
     <string name="denoise_clean">ノイズ除去優先</string>

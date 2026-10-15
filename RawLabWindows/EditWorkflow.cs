@@ -21,7 +21,7 @@ public partial class MainWindow
     {
         editSaveTimer.Tick += (_, _) => { editSaveTimer.Stop(); SaveEdits(); };
         editNoticeTimer.Tick += (_, _) => { editNoticeTimer.Stop(); if (RetrySave.Visibility != Visibility.Visible) SaveState.Text = ""; };
-        Deactivated += (_, _) => SaveEdits();
+        Deactivated += (_, _) => { SaveEdits(); HideBaseline(); };
         try { editStore = new EditStore(EditStore.DefaultDirectory); }
         catch (Exception error) { SetSaveNotice(Loc.Text("无法读取调整记录"), error.Message, true); }
         try { previousBatch = batchJournal.Load(); }

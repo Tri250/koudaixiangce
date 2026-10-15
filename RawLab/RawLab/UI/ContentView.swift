@@ -90,9 +90,10 @@ struct ContentView: View {
         } message: {
             Text(viewModel.statusMessage ?? "")
         }
-        .onChange(of: settings) { _, newValue in
+        .onChange(of: settings) { oldValue, newValue in
             settingsRevision = UUID()
             if viewModel.consumeRestoredSettings(newValue) { return }
+            viewModel.recordHistoryStep(oldValue, sliderEditing: isAdjustingSlider)
             showingBefore = false
             viewModel.queueSettingsSave(newValue)
             if isAdjustingSlider {

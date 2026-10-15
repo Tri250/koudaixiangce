@@ -8,6 +8,20 @@ extension ContentView {
             photoImportButton(isEnabled: !editorBusy)
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
+            Button(action: undoEdit) {
+                Image(systemName: "arrow.uturn.backward")
+            }
+            .accessibilityLabel(L10n.text("撤销"))
+            .disabled(!viewModel.canUndo)
+            .accessibilityIdentifier("editor.undo")
+
+            Button(action: redoEdit) {
+                Image(systemName: "arrow.uturn.forward")
+            }
+            .accessibilityLabel(L10n.text("重做"))
+            .disabled(!viewModel.canRedo)
+            .accessibilityIdentifier("editor.redo")
+
             Menu {
                 Picker(L10n.text("语言"), selection: $languagePreference) {
                     ForEach(AppLanguage.allCases) { Text($0.nativeName).tag($0.rawValue) }
@@ -69,8 +83,14 @@ extension ContentView {
                 if let image = currentPreviewImage {
                     ZoomablePhoto(image: image, referenceImage: viewModel.basePreviewImage ?? image,
                                   label: showingBefore ? L10n.text("调整前的照片") : L10n.text("调整后的照片"),
-                                  onPreviewSizeChange: { viewModel.updatePreviewSize($0, settings: settings) })
+                                  onPreviewSizeChange: { viewModel.updatePreviewSize($0, settings: settings) },
+                                  onSampleTap: viewModel.isSamplingWhiteBalance ? { sampleWhiteBalance(at: $0) } : nil)
                         .id(viewModel.basePreviewImage)
+                        .onLongPressGesture(minimumDuration: 0.2, pressing: { pressing in
+                            guard !viewModel.isSamplingWhiteBalance else { return }
+                            viewModel.setShowOriginal(pressing)
+                        }, perform: {})
+                        .accessibilityHint(L10n.text("长按对比原图"))
                         .frame(width: geometry.size.width, height: geometry.size.height)
                 } else {
                     ScrollView {
@@ -123,6 +143,21 @@ extension ContentView {
             .overlay(alignment: .bottomLeading) {
                 if showingBefore && viewModel.hasImage {
                     Text(L10n.text("调整前")).font(.caption)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
+                        .padding(12)
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if viewModel.showOriginal && viewModel.hasImage {
+                    Text(L10n.text("松开以返回编辑")).font(.caption)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
+                        .padding(12)
+                        .allowsHitTesting(false)
+                } else if viewModel.isSamplingWhiteBalance {
+                    Text(L10n.text("点击预览图取样中性点")).font(.caption)
                         .padding(.horizontal, 8).padding(.vertical, 4)
                         .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
                         .padding(12)
@@ -367,6 +402,19 @@ extension ContentView {
             .id(localizationLocale.identifier)
             .disabled(viewModel.rawWhiteBalance == nil)
             .accessibilityIdentifier("whiteBalance.mode")
+
+            HStack {
+                Button(action: toggleWhiteBalanceSampling) {
+                    Label(L10n.text("白平衡吸管"), systemImage: "eyedropper")
+                }
+                .font(.subheadline)
+                .foregroundStyle(viewModel.isSamplingWhiteBalance ? Color.yellow : Color.primary)
+                .disabled(viewModel.rawWhiteBalance == nil)
+                .accessibilityLabel(L10n.text("白平衡吸管"))
+                .accessibilityAddTraits(viewModel.isSamplingWhiteBalance ? .isSelected : [])
+                .accessibilityIdentifier("whiteBalance.eyedropper")
+                Spacer()
+            }
 
             HStack {
                 Text(L10n.text("色温")).font(.subheadline)

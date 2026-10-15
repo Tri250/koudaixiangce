@@ -28,6 +28,7 @@ public partial class MainWindow
             AutomationProperties.SetName(button, recipe?.Name ?? Loc.Text("无配方"));
             button.Click += (_, _) => {
                 if (exporting) return;
+                PushStep();
                 if (recipe != null) { settings.ApplyMasterRecipe(recipe); lut = recipe.LutPath; }
                 else { settings.ClearMasterRecipe(); lut = null; }
                 MarkEdited(); RefreshControls(); Schedule();

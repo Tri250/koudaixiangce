@@ -112,6 +112,8 @@
     <string name="expand_adjustments">Anpassungen einblenden</string>
     <string name="comparison_wipe">Trennlinie zwischen Original und Anpassung</string>
     <string name="zoom_fit">An Bildschirm anpassen</string>
+    <string name="hold_original">Mit Original vergleichen</string>
+    <string name="hold_original_hint">Loslassen, um zur Bearbeitung zurückzukehren</string>
     <string name="denoise">Rauschreduzierung</string>
     <string name="denoise_detail">Detailpriorität</string>
     <string name="denoise_clean">Rauschreduzierung priorisieren</string>

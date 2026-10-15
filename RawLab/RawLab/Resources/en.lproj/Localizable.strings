@@ -319,3 +319,10 @@
 "DNG 已生成，但任务记录未更新，请先核对保存结果。" = "DNG Created, but the Task Record Was Not Updated. Verify the Saved File First.";
 "无法写入成片，请检查输出位置和剩余空间。" = "Unable to write to the slice, please check the output location and remaining space.";
 "无效的视口预览模式" = "Invalid Viewport Preview Mode";
+"白平衡吸管" = "White Balance Eyedropper";
+"点击预览图取样中性点" = "Tap the Preview to Sample a Neutral Point";
+"取样失败" = "Sampling Failed";
+"撤销" = "Undo";
+"重做" = "Redo";
+"松开以返回编辑" = "Release to Return to Editing";
+"长按对比原图" = "Hold to Compare with Original";

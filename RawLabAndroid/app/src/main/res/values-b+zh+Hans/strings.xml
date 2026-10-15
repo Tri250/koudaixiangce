@@ -112,6 +112,8 @@
     <string name="expand_adjustments">展开调整</string>
     <string name="comparison_wipe">原图与调整后分界</string>
     <string name="zoom_fit">适应画面</string>
+    <string name="hold_original">对比原图</string>
+    <string name="hold_original_hint">松开以返回编辑</string>
     <string name="denoise">降噪</string>
     <string name="denoise_detail">细节优先</string>
     <string name="denoise_clean">去噪优先</string>
