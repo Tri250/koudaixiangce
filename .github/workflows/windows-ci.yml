@@ -40,7 +40,10 @@ jobs:
 
       - name: Build native sony2fuji.dll
         run: |
-          cmake -S RawLabWindows/native -B build/windows-native -A x64 -DBUILD_TESTING=OFF
+          cmake -S RawLabWindows/native -B build/windows-native -A x64 -DBUILD_TESTING=OFF `
+            -DSONY2FUJI_ENABLE_LENSFUN=OFF -DSONY2FUJI_BUILD_LENS_DEPS=OFF `
+            -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF `
+            -DSONY2FUJI_BUILD_DENOISE_DEPS=OFF
           cmake --build build/windows-native --config Release --parallel
         shell: pwsh
 

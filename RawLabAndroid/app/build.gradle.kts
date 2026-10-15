@@ -62,13 +62,8 @@ android {
         applicationId = "com.rawlab.android"
         minSdk = 26
         targetSdk = 35
-<<<<<<< HEAD
-        versionCode = 13
-        versionName = "0.6.3"
-=======
-        versionCode = 11
+        versionCode = 14
         versionName = "0.7.0"
->>>>>>> feature/v070-editor-fr01-05
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", "-DANDROID_STL=c++_shared") } }

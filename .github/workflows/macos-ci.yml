@@ -30,8 +30,9 @@ jobs:
       - name: Install dependencies
         run: |
           brew update --quiet
-          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp || true
+          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp libraw || true
           brew link --overwrite libomp 2>/dev/null || true
+          export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$PKG_CONFIG_PATH"
 
       - name: Build libsony2fuji_core
         run: |
@@ -42,7 +43,7 @@ jobs:
             -DSONY2FUJI_ENABLE_GPU=ON \
             -DBUILD_SHARED_LIB=OFF \
             -DBUILD_CLI=OFF \
-            -DTIFF_FORCE_BUILD=ON
+            -DSONY2FUJI_BUILD_TIFF_DEPS=ON
           cmake --build lutools/build-macos -j 8
 
       - name: Build RawLab Mac app

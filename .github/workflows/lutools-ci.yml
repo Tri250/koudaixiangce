@@ -34,12 +34,12 @@ jobs:
           sudo apt-get install -y libtiff-dev 2>/dev/null || true
 
       # Fallback: build pinned libtiff if system package is too old.
-      # The lutools CMakeLists fetches it from source when TIFF_FORCE_BUILD=ON.
+      # The lutools CMakeLists fetches it from source when SONY2FUJI_BUILD_TIFF_DEPS=ON.
       - name: Configure CMake
         working-directory: lutools
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-            -DTIFF_FORCE_BUILD=ON \
+            -DSONY2FUJI_BUILD_TIFF_DEPS=ON \
             -DBUILD_SHARED_LIB=ON \
             -DBUILD_CLI=OFF \
             -DSONY2FUJI_ENABLE_GPU=OFF \
@@ -65,7 +65,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew update --quiet
-          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng
+          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libraw || true
 
       - name: Configure + Build
         working-directory: lutools
@@ -77,7 +77,7 @@ jobs:
             -DBUILD_CLI=OFF \
             -DSONY2FUJI_ENABLE_GPU=ON \
             -DSONY2FUJI_ENABLE_OPENMP=OFF \
-            -DTIFF_FORCE_BUILD=ON
+            -DSONY2FUJI_BUILD_TIFF_DEPS=ON
           cmake --build build -j 8
 
       - name: Run ctest

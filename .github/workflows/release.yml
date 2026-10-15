@@ -66,8 +66,9 @@ jobs:
       - name: Install deps
         run: |
           brew update --quiet
-          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp || true
+          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp libraw || true
           brew link --overwrite libomp 2>/dev/null || true
+          export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$PKG_CONFIG_PATH"
 
       - name: Build arm64 slice
         run: |
@@ -75,7 +76,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
-            -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DTIFF_FORCE_BUILD=ON
+            -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DSONY2FUJI_BUILD_TIFF_DEPS=ON -DSONY2FUJI_ENABLE_LENSFUN=OFF -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF
           cmake --build lutools/build-macos-arm64 -j 8
           cp lutools/build-macos-arm64/core/libsony2fuji_core.a lutools/build-macos-arm64/libsony2fuji_core_arm64.a
         shell: bash
@@ -86,7 +87,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=x86_64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
-            -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DTIFF_FORCE_BUILD=ON
+            -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DSONY2FUJI_BUILD_TIFF_DEPS=ON -DSONY2FUJI_ENABLE_LENSFUN=OFF -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF
           cmake --build lutools/build-macos-x86_64 -j 8
           cp lutools/build-macos-x86_64/core/libsony2fuji_core.a lutools/build-macos-x86_64/libsony2fuji_core_x86_64.a
         shell: bash
@@ -124,7 +125,10 @@ jobs:
 
       - name: Build native sony2fuji.dll
         run: |
-          cmake -S RawLabWindows/native -B build/windows-native -A x64 -DBUILD_TESTING=OFF
+          cmake -S RawLabWindows/native -B build/windows-native -A x64 -DBUILD_TESTING=OFF `
+            -DSONY2FUJI_ENABLE_LENSFUN=OFF -DSONY2FUJI_BUILD_LENS_DEPS=OFF `
+            -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF `
+            -DSONY2FUJI_BUILD_DENOISE_DEPS=OFF
           cmake --build build/windows-native --config Release --parallel
         shell: pwsh
 
