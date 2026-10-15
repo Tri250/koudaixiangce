@@ -42,10 +42,10 @@ jobs:
             mv app/build/outputs/apk/release/RawLab-Android-release.apk \
                "../RawLab-Android-${GITHUB_REF_NAME}.apk"
           else
-            echo "No signing secret — building unsigned debug APK for this run"
+            echo "No signing secret — assembling with repo default keystore"
             ./gradlew assembleRelease --no-daemon --stacktrace
-            mv app/build/outputs/apk/release/app-release-unsigned.apk \
-               "../RawLab-Android-${GITHUB_REF_NAME}-unsigned.apk"
+            mv app/build/outputs/apk/release/app-release.apk \
+               "../RawLab-Android-${GITHUB_REF_NAME}.apk"
           fi
 
       - name: Upload Android artifact
