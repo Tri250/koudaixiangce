@@ -91,11 +91,17 @@ jobs:
             bash RawLabMac/build.sh
         shell: bash
 
+      - name: Package .app as tar.gz
+        run: |
+          cd build
+          tar -czf "../RawLab-Mac-arm64-${GITHUB_REF_NAME}.tar.gz" "RawLab Mac.app"
+        shell: bash
+
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: "build/**/*.app"
+          path: "RawLab-Mac-arm64-*.tar.gz"
 
   # ── Windows self-contained publish ────────────────────────────────────────
   windows:
