@@ -66,9 +66,9 @@ jobs:
       - name: Install deps
         run: |
           brew update --quiet
-          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp libraw || true
-          brew link --overwrite libomp 2>/dev/null || true
-          export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$PKG_CONFIG_PATH"
+          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp libraw opencv@4 lensfun glib || true
+          brew link --overwrite libomp opencv@4 2>/dev/null || true
+          export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/opt/lensfun/lib/pkgconfig:$PKG_CONFIG_PATH"
 
       - name: Build libsony2fuji_core (arm64)
         run: |
@@ -87,14 +87,15 @@ jobs:
 
       - name: Build .app bundle
         run: |
-          bash RawLabMac/build.sh || true
+          RAWLAB_CI=1 PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/opt/lensfun/lib/pkgconfig:$PKG_CONFIG_PATH" \
+            bash RawLabMac/build.sh
         shell: bash
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: "build/**/RawLab*.app"
+          path: "build/**/*.app"
 
   # ── Windows self-contained publish ────────────────────────────────────────
   windows:

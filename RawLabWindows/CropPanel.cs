@@ -141,7 +141,7 @@ public sealed class CropPanel : StackPanel
 public sealed class CropOverlay : FrameworkElement
 {
     private static readonly Pen framePen = new(Brushes.White, 1.5);
-    private static readonly Pen gridPen = new(Brushes.White, 1) { Opacity = 0.5 };
+    private static readonly Pen gridPen = new(new SolidColorBrush(Color.FromArgb(128, 0xFF, 0xFF, 0xFF)), 1);
     private static readonly Pen handlePen = new(Brushes.White, 2.4) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
     private static readonly Brush dimBrush = new SolidColorBrush(Color.FromArgb(96, 0, 0, 0));
     private const double handleReach = 14, minSize = 0.05;

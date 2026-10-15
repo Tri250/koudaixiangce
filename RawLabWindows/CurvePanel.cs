@@ -62,9 +62,12 @@ public sealed class CurvePanel : StackPanel
 // drawn curve, anchors and mouse positions can never drift apart.
 public sealed class CurveSurface : FrameworkElement
 {
-    private static readonly Pen gridPen = new(Brushes.White, 1) { Opacity = 0.08 };
-    private static readonly Pen diagonalPen = new(Brushes.White, 1) { DashStyle = DashStyles.Dash, Opacity = 0.2 };
-    private static readonly Pen anchorPen = new(Brushes.Black, 1.5) { Opacity = 0.6 };
+    private static readonly Brush white08 = new SolidColorBrush(Color.FromArgb(20, 0xFF, 0xFF, 0xFF));
+    private static readonly Brush white20 = new SolidColorBrush(Color.FromArgb(51, 0xFF, 0xFF, 0xFF));
+    private static readonly Brush black60 = new SolidColorBrush(Color.FromArgb(153, 0x00, 0x00, 0x00));
+    private static readonly Pen gridPen = new(white08, 1);
+    private static readonly Pen diagonalPen = new(white20, 1) { DashStyle = DashStyles.Dash };
+    private static readonly Pen anchorPen = new(black60, 1.5);
     private static readonly Brush curveBrush = new SolidColorBrush(Color.FromRgb(0xE9, 0xCE, 0x55));
     private const double anchorHit = 0.08, minGap = 0.001;
     private List<CurvePoint> points = [new(0, 0), new(1, 1)];
@@ -97,7 +100,7 @@ public sealed class CurveSurface : FrameworkElement
             for (var i = 0; i <= 96; ++i)
             {
                 var x = i / 96.0;
-                var location = Display(new CurvePoint(x, Evaluate(x)), width, height);
+                var location = Display(Evaluate(x), width, height);
                 if (began) context.LineTo(location, true, false);
                 else { context.BeginFigure(location, false, false); began = true; }
             }
@@ -120,9 +123,9 @@ public sealed class CurveSurface : FrameworkElement
         if (e.ClickCount == 2)
         {
             var index = Hit(position);
-            if (index is > 0 and < int.MaxValue && index < points.Count - 1)
+            if (index.HasValue && index.Value > 0 && index.Value < points.Count - 1)
             {
-                points.RemoveAt(index); dragIndex = -1;
+                points.RemoveAt(index.Value); dragIndex = -1;
                 Commit(false); e.Handled = true; return;
             }
         }
