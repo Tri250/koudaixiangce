@@ -117,7 +117,8 @@ inline sony2fuji_request makeBufferRequest(const void* pixels, uint32_t width, u
         throw std::invalid_argument("Invalid photo request");
     // makeRequest 的 RAW 路径校验要求非空 input，这里先以占位符通过，再覆盖为像素缓冲。
     auto request = makeRequest("buffer", lut, output, strength, exposure, customWb, temperature, tint,
-        highlights, shadows, contrast, toneCurve, saturation, sharpening, edge, png, longEdge);
+        highlights, shadows, contrast, toneCurve, saturation, sharpening, edge,
+        png ? ExportFormat::PNG : ExportFormat::JPEG, longEdge);
     request.input_path = nullptr;
     request.input_type = SONY2FUJI_INPUT_BUFFER;
     // 照片管线禁止 WB_TEMPERATURE（相机空间重标定仅对 RAW 有意义）。

@@ -6,10 +6,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-<<<<<<< HEAD
-=======
 #include <string>
->>>>>>> feature/v070-editor-fr01-05
 #include <algorithm>
 #include <cmath>
 
@@ -402,7 +399,6 @@ Java_com_rawlab_android_NativeProcessor_nativeAutoExposure(JNIEnv* env, jobject,
     return 0;
 }
 
-<<<<<<< HEAD
 // ---- 普通照片（JPEG/PNG/HEIC）：平台解码后的 RGBA8 像素走核心照片管线 ----
 
 // 照片没有 RAW 拍摄白平衡可解析，配方只按强度缩放影调参数，白平衡保持用户当前值。
@@ -585,4 +581,4 @@ Java_com_rawlab_android_NativeProcessor_nativePickWhiteBalance(JNIEnv* env, jobj
     catch (...) { throwJava(env, "java/io/IOException", "White balance sampling failed"); }
     return nullptr;
 }
->>>>>>> feature/v070-editor-fr01-05
+
