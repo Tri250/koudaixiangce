@@ -1,0 +1,56 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main, development]
+    paths:
+      - 'RawLabAndroid/**'
+      - 'lutools/**'
+      - '.github/workflows/android*.yml'
+  pull_request:
+    branches: [main, development]
+    paths:
+      - 'RawLabAndroid/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android assembleDebug + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # AGP 按 app/build.gradle.kts 的 ndkVersion 自动拉取 NDK/CDK；
+      # LibRaw 由 CMake FetchContent 拉取并源码构建，无需预安装。
+      - name: Build debug APK
+        working-directory: RawLabAndroid
+        run: ./gradlew assembleDebug testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RawLab-Android-debug
+          path: RawLabAndroid/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RawLab-Android-test-results
+          path: RawLabAndroid/app/build/test-results/**/*.xml
+          if-no-files-found: ignore

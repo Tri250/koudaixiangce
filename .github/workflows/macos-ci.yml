@@ -1,0 +1,58 @@
+name: macOS CI
+
+on:
+  push:
+    branches: [main, development]
+    paths:
+      - 'RawLabMac/**'
+      - 'lutools/**'
+      - 'Shared/**'
+      - '.github/workflows/macos*.yml'
+  pull_request:
+    branches: [main, development]
+    paths:
+      - 'RawLabMac/**'
+      - 'Shared/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: RawLab Mac build (Swift 6 / macOS 26)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew update --quiet
+          brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp || true
+          brew link --overwrite libomp 2>/dev/null || true
+
+      - name: Build libsony2fuji_core
+        run: |
+          cmake -S lutools -B lutools/build-macos \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
+            -DSONY2FUJI_ENABLE_GPU=ON \
+            -DBUILD_SHARED_LIB=OFF \
+            -DBUILD_CLI=OFF \
+            -DTIFF_FORCE_BUILD=ON
+          cmake --build lutools/build-macos -j 8
+
+      - name: Build RawLab Mac app
+        run: |
+          chmod +x RawLabMac/build.sh
+          bash RawLabMac/build.sh
+
+      - name: Upload .app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: RawLab-Mac-arm64
+          path: build/*.app
+          if-no-files-found: error
