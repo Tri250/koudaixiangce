@@ -8,6 +8,7 @@ on:
       - 'RawLabAndroid/app/src/main/cpp/**'
       - 'Shared/**'
       - 'RawLab*/Sources/**'
+      - '.github/workflows/lutools-ci.yml'
   pull_request:
     branches: [main, development]
     paths:
@@ -29,16 +30,24 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y cmake pkg-config zlib1g-dev libjpeg-dev libpng-dev libtiff-dev libraw-dev
+          sudo apt-get install -y cmake pkg-config zlib1g-dev libjpeg-dev libpng-dev libtiff-dev
 
-      # Fallback: build pinned libtiff if system package is too old.
-      # The lutools CMakeLists fetches it from source when SONY2FUJI_BUILD_TIFF_DEPS=ON.
+      # Ubuntu 24.04 ships libraw-dev 0.21.2; lutools CMakeLists requires >=0.22.2.
+      # Build + install pinned LibRaw from source so pkg-config sees the right version.
+      - name: Install LibRaw 0.22.2 from source
+        run: |
+          curl -sL https://github.com/LibRaw/LibRaw/archive/refs/tags/0.22.2.tar.gz -o libraw.tar.gz
+          tar -xzf libraw.tar.gz
+          cd LibRaw-0.22.2
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENMP=OFF -DENABLE_LCMS2=OFF
+          cmake --build build -j "$(nproc)"
+          sudo cmake --install build
+
       - name: Configure CMake
         working-directory: lutools
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
             -DSONY2FUJI_BUILD_TIFF_DEPS=ON \
-            -DSONY2FUJI_BUILD_RAW_DEPS=ON \
             -DBUILD_SHARED_LIB=ON \
             -DBUILD_CLI=OFF \
             -DSONY2FUJI_ENABLE_GPU=OFF \
