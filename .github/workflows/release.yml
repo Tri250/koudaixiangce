@@ -54,9 +54,9 @@ jobs:
           name: android-apk
           path: RawLab-Android-*.apk
 
-  # ── macOS universal app (arm64 + x86_64) ───────────────────────────────────
+  # ── macOS arm64 app (Apple Silicon, 单一架构避免 brew libraw 切片问题) ──
   macos:
-    name: Build macOS universal .app
+    name: Build macOS arm64 .app
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -70,37 +70,24 @@ jobs:
           brew link --overwrite libomp 2>/dev/null || true
           export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$PKG_CONFIG_PATH"
 
-      - name: Build arm64 slice
+      - name: Build libsony2fuji_core (arm64)
         run: |
-          cmake -S lutools -B lutools/build-macos-arm64 \
+          cmake -S lutools -B lutools/build-macos \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
-            -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DSONY2FUJI_BUILD_TIFF_DEPS=ON -DSONY2FUJI_ENABLE_LENSFUN=OFF -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF
-          cmake --build lutools/build-macos-arm64 -j 8
-          cp lutools/build-macos-arm64/libsony2fuji_core.a lutools/build-macos-arm64/libsony2fuji_core_arm64.a
+            -DBUILD_TESTING=OFF \
+            -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF \
+            -DSONY2FUJI_BUILD_TIFF_DEPS=ON \
+            -DSONY2FUJI_ENABLE_LENSFUN=OFF \
+            -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF \
+            -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF
+          cmake --build lutools/build-macos -j 8
         shell: bash
 
-      - name: Build x86_64 slice
+      - name: Build .app bundle
         run: |
-          cmake -S lutools -B lutools/build-macos-x86_64 \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
-            -DSONY2FUJI_ENABLE_GPU=ON -DBUILD_SHARED_LIB=OFF -DBUILD_CLI=OFF -DSONY2FUJI_BUILD_TIFF_DEPS=ON -DSONY2FUJI_ENABLE_LENSFUN=OFF -DSONY2FUJI_ENABLE_WAVELET_DENOISE=OFF -DSONY2FUJI_ENABLE_CHROMA_DENOISE=OFF
-          cmake --build lutools/build-macos-x86_64 -j 8
-          cp lutools/build-macos-x86_64/libsony2fuji_core.a lutools/build-macos-x86_64/libsony2fuji_core_x86_64.a
-        shell: bash
-
-      - name: Lipo + build .app
-        run: |
-          lipo -create \
-            lutools/build-macos-arm64/libsony2fuji_core.a \
-            lutools/build-macos-x86_64/libsony2fuji_core.a \
-            -output lutools/build-macos-universal/libsony2fuji_core.a
-          mkdir -p lutools/build-macos-universal
-          RAWLAB_ARCH="arm64;x86_64" \
-          bash -c 'RAWLAB_APP_PATH="${RAWLAB_APP_PATH:-$ROOT/build/RawLab Mac.app}"; bash RawLabMac/build.sh || true'
+          bash RawLabMac/build.sh || true
         shell: bash
 
       - name: Upload macOS artifact
