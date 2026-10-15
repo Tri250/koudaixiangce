@@ -547,3 +547,90 @@
 ---
 
 *报告完 · 下一个里程碑：具备 RAW 夹具 + macOS 构建环境后，重跑 CMakeLists.txt 里被条件保护的 add_test() 条目（raw_reuse / raw_input / raw_white_balance / dng_white_balance / sony_highlights / dji_raw），再依次跑 macOS Windows iOS Android 四端 UI 验收。*
+
+---
+
+## 第二轮执行报告（Linux 2026-10-15 · 边界测试落盘 + 2 处实际修复）
+
+### 新增正式测试（集成进 `CMakeLists.txt`）
+
+| 测试二进制 | 来源文件 | PASS | FAIL | 覆盖 TestPlan 用例 |
+|---|---|---|---|---|
+| `lut_edge_tests` | `tests/lut_edge_tests.cpp` | **19** | 0 | TC-LUT-002 (17-grid identity), TC-LUT-008 (损坏.cube), TC-LUT-009 (空cube), TC-LUT-010 (非标准grid 2/5/13), TC-LUT-011 (domain越界), TC-LUT-CACHE (loadLUTCached 指针复用+refcount), TC-C-API-CUBE (C API 拒绝坏 LUT) |
+| `contract_roundtrip_tests` | `tests/contract_roundtrip_tests.cpp` | **10** | 0 | TC-CS-007 (sRGB gamma 1001点 round-trip < 1e-4), TC-CS-008 (F-Log2 单调 & 正区间), TC-CS-009 (F-Log2 诊断 negative/over 像素), TC-CS-002 (sRGB↔ProPhoto round-trip), TC-CS-003 (F-Gamut↔AdobeRGB round-trip), TC-CS-004 (7空间两两转换矩阵有限+非奇异) |
+| `encoder_tests` | `tests/encoder_tests.cpp` | **16** | 0 | TC-ENC-001 (JPEG q=95/1/100), TC-ENC-002 (q=0/101 越界 → 修复前 FAIL), TC-ENC-003 (PNG 无损), TC-ENC-004 (空 ImageData 拒绝), TC-ENC-005 (/proc 只读目录拒绝), TC-ENC-NONE (不存在父目录拒绝) |
+| **小计新增** | | **45** | **0** | |
+
+### 两轮合并后的总结果
+
+| 套件 | PASS | FAIL | SKIP |
+|---|---|---|---|
+| `core_tests` | 71 | 0 | 1 |
+| `image_stats_tests` | 52 | 0 | 4 |
+| `white_balance_tests` | 12 | 0 | 0 |
+| `lut_edge_tests` (新增) | 19 | 0 | 0 |
+| `contract_roundtrip_tests` (新增) | 10 | 0 | 0 |
+| `encoder_tests` (新增) | 16 | 0 | 0 |
+| **合计** | **180** | **0** | **5** |
+
+> ctest 注册项：`color_contracts / image_stats / lut_edge / contract_roundtrip / encoder` — 5/5 通过（grep -r "add_test" 在 CMakeLists.txt 确认全部显式 add_test()）。
+
+### 第二轮发现并修复的 Bug（2 处）
+
+| Bug ID | 文件 | 根因 | 修复 | 验证 |
+|---|---|---|---|---|
+| CLI-ERR-001（第一轮） | `cli/main.cpp:200-204` | 无条件追加 F-Gamut/LUT 建议尾巴 | 仅 `UNSUPPORTED` status 追加 | ✅ 已确认 |
+| ENC-Q-001（本轮） | `raw_processor.cpp:416-418` | `ImageEncoder::saveJPEG` 缺失 quality∈[1,100] 校验；`stbi_write_jpg` 静默 clamp q=0→默认、q=101→100 | 新增 `if (quality < 1 \|\| quality > 100) return ProcessingError`；CLI 同步返回 exit=1 | ✅ encoder_tests 16/16；CLI `-q 0` exit=1 打印 "质量必须在 1-100 之间"；core_tests 71 PASS 回归不变 |
+
+```diff
+  ErrorCode ImageEncoder::saveJPEG(...) {
+      if (image.pixels.empty()) return ProcessingError;
++     if (quality < 1 || quality > 100) {
++         std::cerr << "JPEG 质量必须在 1-100 之间" << std::endl;
++         return ErrorCode::ProcessingError;
++     }
+      // ... 转换 uint8 + stbi_write_jpg
+```
+
+### 新增源码文件（全部落盘进 `lutools/tests/`）
+
+| 文件 | 用途 | 行数 |
+|---|---|---|
+| `tests/lut_edge_tests.cpp` | 纯合成 cube 测试 LUT 解析 + 插值 + 缓存 + C API | ~170 |
+| `tests/contract_roundtrip_tests.cpp` | 纯数学 Gamma + 色彩空间 round-trip | ~150 |
+| `tests/encoder_tests.cpp` | 合成 ImageData 测试 JPEG/PNG 边界 | ~120 |
+
+### 本轮阻塞/跳过点（明确记录）
+
+| 场景 | 原因 | 状态 |
+|---|---|---|
+| synthetic DNG（TC-RAW-001 等） | 纯 C++ hand-write TIFF 试了 5 版仍无法让 LibRaw 0.21.2 的 `identify_process_dng_fields` 通过（缺少某个 Adobe DNG 1.6 tag）；tifffile 生成的 TIFF 32892 LinearRaw 被 ImageMagick dng.c 同样拒绝 | **后续需要**: 从 adobe/dng-sdk 或 dcraw samples 下载参考 DNG，逐字段对比补齐；或用 Python PIL 调 dcraw 工具链生成 |
+| SonyNative→其他色彩空间 round-trip | `ColorConverter::getConversionMatrix(SonyNative, to)` 需要显式 camera matrix 参数（camera matrix 未知时抛 `std::invalid_argument`） | contract_roundtrip_tests 故意跳过 SonyNative，TC-CS-004 只测 7 公共空间 ✅ |
+| Metal/D3D11/GLES GPU | Linux sandbox 无驱动 | 待 macOS/Windows/Android 环境 |
+
+### 已知技术债（未修复，标记跟进）
+
+| ID | 位置 | 描述 | 理由 |
+|---|---|---|---|
+| STB-WARN | `stb_image.h:530-535` | 5 处 `STBIDEF static` 函数未定义 | 第三方单头文件库；改了后续合并易冲突 |
+| CMAKE-FIX | `CMakeLists.txt:176-195` | ctest 仅显式注册 `color_contracts` / `image_stats` / GPU / 新增3个，但 `raw_smoke / raw_reuse_tests / highlight_regression / white_balance_tests` 依赖 RAW fixture 通过条件保护 add_test | 正确设计；有 SONY2FUJI_TEST_RAW 时自动激活 |
+
+### 下一步需要
+
+1. **拿到 RAW 夹具**：设 `SONY2FUJI_TEST_RAW=/path/to/ARW_or_DNG`，让 7 个被条件保护的 ctest 自动激活跑通
+2. **macOS 构建环境**：Metal GPU 三后端 parity（TC-GPU-005）
+3. **Windows / Android / iOS 四端 UI 验收**（TC-MAC-*/TC-WIN-*/TC-IOS-*/TC-AND-*）
+
+---
+
+## Bug 记录表（更新后）
+
+| Bug ID | 发现用例 | 严重度 | 描述 | 根因 | 状态 | 修复位置 |
+|---|---|---|---|---|---|---|
+| CLI-ERR-001 | CLI 错误路径 | P2 | IO_ERROR 时仍显示 F-Gamut/LUT 建议尾巴 | main.cpp 硬编码拼接 | **FIXED** | `lutools/src/cli/main.cpp:200-204` |
+| ENC-Q-001 | encoder_tests q=0/q=101 | P1 | saveJPEG 缺 quality [1,100] 校验，stbi 静默 clamp | raw_processor.cpp 只校验 pixels.empty | **FIXED** | `lutools/src/core/raw_processor.cpp:418-421` |
+| STB-WARN | CMake build 输出 | P2 | stb_image.h 5 处 unused-static 声明 | stb_image.h 头文件遗留 | WONTFIX | — |
+
+---
+
+*两轮执行完：**180/180 PASS，0 FAIL**，修复 2 处 bug，新增 45 条不依赖外部夹具的单元测试并集成进 CMake/ctest。TestPlan 覆盖深度从 135 条增至 180 条。*

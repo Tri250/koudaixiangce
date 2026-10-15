@@ -416,6 +416,10 @@ ErrorCode ImageEncoder::saveJPEG(
     if (image.pixels.empty()) {
         return ErrorCode::ProcessingError;
     }
+    if (quality < 1 || quality > 100) {
+        std::cerr << "JPEG 质量必须在 1-100 之间" << std::endl;
+        return ErrorCode::ProcessingError;
+    }
 
     // 转换为 uint8_t
     std::vector<uint8_t> data(image.width * image.height * 3);
