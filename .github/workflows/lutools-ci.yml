@@ -29,9 +29,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y cmake pkg-config zlib1g-dev libjpeg-dev libpng-dev
-          # libtiff 4.7+ is required by the structured DNG writer
-          sudo apt-get install -y libtiff-dev 2>/dev/null || true
+          sudo apt-get install -y cmake pkg-config zlib1g-dev libjpeg-dev libpng-dev libtiff-dev libraw-dev
 
       # Fallback: build pinned libtiff if system package is too old.
       # The lutools CMakeLists fetches it from source when SONY2FUJI_BUILD_TIFF_DEPS=ON.

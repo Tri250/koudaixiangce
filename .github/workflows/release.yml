@@ -68,7 +68,7 @@ jobs:
           brew update --quiet
           brew install --quiet cmake pkg-config libtiff jpeg-turbo libpng libomp libraw opencv@4 lensfun glib || true
           brew link --overwrite libomp opencv@4 2>/dev/null || true
-          export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/opt/lensfun/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export PKG_CONFIG_PATH="$(brew --prefix libraw)/lib/pkgconfig:$(brew --prefix opencv@4)/lib/pkgconfig:$(brew --prefix lensfun)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH"
 
       - name: Build libsony2fuji_core (arm64)
         run: |

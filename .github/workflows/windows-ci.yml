@@ -32,11 +32,14 @@ jobs:
 
       - name: Install ExifTool
         run: |
-          winget install --id OliverBetz.ExifTool --accept-source-agreements --accept-package-agreements 2>$null || \
-            Invoke-WebRequest -Uri 'https://exiftool.org/exiftool-12.93.zip' -OutFile exiftool.zip
-          if (Test-Path exiftool.zip) { Expand-Archive -Path exiftool.zip -DestinationPath exiftool-extract -Force; Copy-Item exiftool-extract/exiftool.exe . -Force }
+          winget install --id OliverBetz.ExifTool --accept-source-agreements --accept-package-agreements --silent
+          if (-not (Get-Command exiftool -ErrorAction SilentlyContinue)) {
+            Invoke-WebRequest -Uri 'https://exiftool.org/exiftool-12.93.zip' -OutFile exiftool.zip -UseBasicParsing
+            Expand-Archive -Path exiftool.zip -DestinationPath exiftool-extract -Force
+            Copy-Item exiftool-extract/exiftool.exe . -Force
+          }
           New-Item -ItemType Directory -Force -Path RawLabWindows/ExifTool | Out-Null
-          Copy-Item exiftool.exe RawLabWindows/ExifTool/exiftool.exe
+          Copy-Item (Get-Command exiftool).Source RawLabWindows/ExifTool/exiftool.exe -Force
         shell: pwsh
 
       - name: Build native sony2fuji.dll
