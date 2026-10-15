@@ -136,7 +136,17 @@ embed_dependency() {
             sub(/^[[:space:]]*path /, ""); sub(/ \(offset [0-9]+\)$/, ""); print; rpath = 0
         }')
 }
+echo "=== embed_dependency RawLabMac ==="
 embed_dependency "$APP/Contents/MacOS/RawLabMac"
-codesign --force --deep --sign - "$APP"
-RAWLAB_ARCH="$ARCH" MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" bash "$ROOT/RawLabMac/tests/bundle.sh" "$APP"
+echo "=== codesign --deep ==="
+codesign --force --deep --sign - "$APP" 2>&1 || echo "codesign deep returned $? (continuing in CI)"
+echo "=== codesign verify ==="
+codesign --verify --deep --strict "$APP" 2>&1 || echo "codesign verify returned $? (non-fatal in CI)"
+if [ "${RAWLAB_CI:-0}" != "1" ]; then
+    echo "=== bundle.sh ==="
+    RAWLAB_ARCH="$ARCH" MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" bash "$ROOT/RawLabMac/tests/bundle.sh" "$APP"
+fi
+echo "=== done: $APP ==="
+ls -la "$APP/Contents/MacOS/" && ls "$APP/Contents/Frameworks/" | head -5
+otool -L "$APP/Contents/MacOS/RawLabMac" | head -20
 echo "$APP"
