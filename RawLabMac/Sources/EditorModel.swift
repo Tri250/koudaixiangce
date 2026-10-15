@@ -117,7 +117,7 @@ final class EditorModel: ObservableObject {
         settings.crop = normalized
         updatingMetadata = false
         pushUndo(previous)
-        markDirtyForPersistence()
+        edited()
     }
 
     func selectCropAspect(_ aspect: String) {

@@ -378,9 +378,9 @@ final class RenderEngine {
 
     // v0.7.0 FR-03: neutral-point sampling over the decoded RAW. The session
     // must hold the RAW of the photo being sampled; callers serialize access.
-    func pickWhiteBalance(nx: Float, ny: Float, temperature: inout Float, tint: inout Float) -> Int {
-        let status = sony2fuji_session_pick_white_balance(session, nx, ny, &temperature, &tint)
-        return Int(status.rawValue)
+    @discardableResult
+    func pickWhiteBalance(nx: Float, ny: Float, temperature: inout Float, tint: inout Float) -> sony2fuji_status {
+        sony2fuji_session_pick_white_balance(session, nx, ny, &temperature, &tint)
     }
 }
 
