@@ -210,7 +210,9 @@ private fun AdjustmentDock(state: EditorState, modifier: Modifier, tool: Int, se
                 TextButton(onClick = { onEdit(edits.copy(customWb = false), false) }, enabled = state.controlsEnabled && calibrated,
                     modifier = Modifier.weight(1f)) { Text(stringResource(R.string.as_shot), maxLines = 1) }
             } else {
-                Text(Film.all.first { it.id == edits.film }.name, Modifier.weight(1f),
+                // 防御：如果 edits.film 是不在已知列表里的值（理论上 EditSettings 校验 + 固定 Film 集合
+                // 已确保不会，但仍在 lookup 失败时用原始 id 兜底，避免 NoSuchElementException 崩溃）
+                Text(Film.all.firstOrNull { it.id == edits.film }?.name ?: edits.film, Modifier.weight(1f),
                     maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
             }
             ToolIcon(Icons.Outlined.RestartAlt, R.string.reset, state.controlsEnabled, onReset)

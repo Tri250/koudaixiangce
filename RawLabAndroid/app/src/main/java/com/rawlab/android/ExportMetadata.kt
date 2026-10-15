@@ -9,6 +9,7 @@ import kotlin.math.abs
 import kotlin.math.round
 
 internal object ExportMetadata {
+    private const val TAG = "ExportMetadata"
     // Only capture metadata belongs on rendered pixels, not RAW layout or preview thumbnails.
     private val captureTags = listOf(
         TAG_MAKE, TAG_MODEL, TAG_ARTIST, TAG_COPYRIGHT, TAG_IMAGE_DESCRIPTION,
@@ -41,10 +42,16 @@ internal object ExportMetadata {
         val source = ExifInterface(input)
         val destination = ExifInterface(output)
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(output.path, bounds)
+        val decoded = BitmapFactory.decodeFile(output.path, bounds)
+        // inJustDecodeBounds 不应分配像素内存，但 BitmapFactory.decodeFile 的某些版本实现
+        // 仍可能返回一个已解码的 Bitmap；在这里安全回收以防万一。
+        decoded?.recycle()
         check(bounds.outWidth > 0 && bounds.outHeight > 0) { "Cannot read exported image dimensions" }
         for (tag in captureTags) {
-            source.getAttribute(tag)?.let { destination.setAttribute(tag, it) }
+            source.getAttribute(tag)?.let { value ->
+                // ExifInterface.setAttribute 返回 void；成功与否由 saveAttributes() 是否抛异常判断
+                destination.setAttribute(tag, value)
+            }
         }
         aperture(source.getAttributeDouble(TAG_F_NUMBER, Double.NaN))?.let {
             destination.setAttribute(TAG_F_NUMBER, it)

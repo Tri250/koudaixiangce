@@ -121,7 +121,10 @@ fun AlbumScreen(storage: PhotoStorage, onBack: () -> Unit, onFile: () -> Unit, o
                     horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(photos.filter { bucket == null || it.album == bucket }, key = { it.uri.toString() }) { photo ->
                         val thumbnail by produceState<android.graphics.Bitmap?>(null, photo.uri, refresh) {
+                            // recycle old bitmap to avoid accumulating 256KB thumbnails across many grid cards
+                            val old = value
                             value = withContext(Dispatchers.IO) { storage.thumbnail(photo.uri) }
+                            if (old != null && old !== value) old.recycle()
                         }
                         Column(Modifier.clickable { onPhoto(photo.uri) }) {
                             Box(Modifier.fillMaxWidth().aspectRatio(1f), contentAlignment = Alignment.Center) {

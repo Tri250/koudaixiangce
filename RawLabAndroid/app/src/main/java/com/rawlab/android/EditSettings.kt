@@ -13,6 +13,8 @@ data class EditSettings(
         require(exposure.isFinite() && exposure in -5f..5f)
         require(temperature.isFinite() && temperature in 2000f..50000f)
         require(tint.isFinite() && tint in -150f..150f)
+        // 校验 film id 必须在已知集合内，防止外部传入未知值导致 PhotoStorage.filmPath / EditorScreen 崩溃
+        require(film.isNotBlank() && film in Film.all.map { it.id }) { "Unknown film id: $film" }
     }
     fun reset() = EditSettings(film = film)
 }
