@@ -138,10 +138,15 @@ CameraWhiteBalance::CameraWhiteBalance(const libraw_data_t& raw) {
         }
     }
     if (!validMatrix(first_)) return;
+    matrixValid_ = true;
+    // Attempt to estimate as-shot WB from cam_mul metadata.
+    // Some cameras (e.g. Canon 7D) write all-equal cam_mul = {1024,1024,1024,1024}
+    // which LibRaw treats as "no WB data". We still have a valid color matrix
+    // for temperature WB sliders, so asShot estimation is optional.
     std::array<double,3> neutral{};
     for (int c=0;c<3;++c) {
         const double gain=raw.color.cam_mul[c];
-        if (!std::isfinite(gain) || gain<=0) return;
+        if (!std::isfinite(gain) || gain<=0) { matrixValid_ = true; return; }
         neutral[c]=1/gain;
     }
     for (int iteration=0;iteration<30;++iteration) {
@@ -156,12 +161,13 @@ CameraWhiteBalance::CameraWhiteBalance(const libraw_data_t& raw) {
         asShot_=next;
         if (change<0.01) break;
     }
-    valid_=std::isfinite(asShot_.temperature) && std::isfinite(asShot_.tint) &&
+    asShotValid_=std::isfinite(asShot_.temperature) && std::isfinite(asShot_.tint) &&
         asShot_.temperature>=2000 && asShot_.temperature<=50000 && std::abs(asShot_.tint)<=150;
+    if (!asShotValid_) asShot_ = {5500, 0};
 }
 
 bool CameraWhiteBalance::multipliers(double temperature, double tint, float output[4]) const {
-    if (!valid_ || !std::isfinite(temperature) || !std::isfinite(tint) ||
+    if (!matrixValid_ || !std::isfinite(temperature) || !std::isfinite(tint) ||
         temperature<2000 || temperature>50000 || std::abs(tint)>150) return false;
     const auto xy=temperatureWhitePoint(temperature,tint);
     const std::array<double,3> xyz={xy.x/xy.y,1,(1-xy.x-xy.y)/xy.y};

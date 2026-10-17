@@ -38,7 +38,8 @@ public sealed class Adjustments
         var spec = ParameterSpec.All[(int)id];
         values[(int)id] = Math.Clamp(value, spec.Min, spec.Max);
         if (id is Parameter.Temperature or Parameter.Tint)
-            CameraWhiteBalance = AsShot is { } wb && this[Parameter.Temperature] == wb.Temperature && this[Parameter.Tint] == wb.Tint;
+            CameraWhiteBalance = AsShot is not { } wb ||
+                (this[Parameter.Temperature] == wb.Temperature && this[Parameter.Tint] == wb.Tint);
     }
     public void ResolveWhiteBalance((double Temperature, double Tint)? wb) { AsShot = wb; if (CameraWhiteBalance) ResetWhiteBalance(); }
     public void ResetWhiteBalance() { values[2] = Default(Parameter.Temperature); values[3] = Default(Parameter.Tint); CameraWhiteBalance = true; }

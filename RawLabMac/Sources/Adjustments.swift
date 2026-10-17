@@ -28,8 +28,12 @@ struct Adjustments: Equatable {
     func apply(to request: inout sony2fuji_request) {
         request.exposure_ev = Float(exposure)
         request.brightness = 1
-        let cameraWB = whiteBalanceMode == .asShot ||
-            (temperature == asShotWhiteBalance?.temperature && tint == asShotWhiteBalance?.tint)
+        // When asShotWhiteBalance is nil (camera didn't record WB metadata), always
+        // stay in CAMERA mode since we can't tell if the user has customized WB.
+        let matchesAsShot = asShotWhiteBalance.map {
+            temperature == $0.temperature && tint == $0.tint
+        } ?? true
+        let cameraWB = whiteBalanceMode == .asShot || matchesAsShot
         request.wb_mode = cameraWB ? SONY2FUJI_WB_CAMERA : SONY2FUJI_WB_TEMPERATURE
         request.temperature = cameraWB ? 6500 : Float(temperature)
         request.tint = cameraWB ? 0 : Float(tint)
