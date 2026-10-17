@@ -32,7 +32,7 @@ if(SONY2FUJI_BUILD_TIFF_DEPS)
     enable_language(C)
     include(cmake/tiff-dependencies.cmake)
 else()
-    pkg_check_modules(TIFF REQUIRED IMPORTED_TARGET "libtiff-4>=4.7.1")
+    pkg_check_modules(TIFF REQUIRED IMPORTED_TARGET "libtiff-4>=4.0")
     set(SONY2FUJI_TIFF_TARGET PkgConfig::TIFF)
 endif()
 

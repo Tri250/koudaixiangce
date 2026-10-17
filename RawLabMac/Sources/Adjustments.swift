@@ -368,8 +368,13 @@ struct Adjustments: Equatable, Codable {
     }
 
     var usesAsShotWhiteBalance: Bool {
-        whiteBalanceMode == .asShot ||
-            (masterRecipe == nil && temperature == asShotWhiteBalance?.temperature && tint == asShotWhiteBalance?.tint)
+        whiteBalanceMode == .asShot || (masterRecipe == nil && {
+            // When asShotWhiteBalance is nil (camera didn't record WB metadata),
+            // we treat current values as the camera WB baseline — never silently
+            // drop into TEMPERATURE mode, which would crash cameras without calib data.
+            guard let wb = asShotWhiteBalance else { return true }
+            return temperature == wb.temperature && tint == wb.tint
+        }())
     }
 
     mutating func applyMasterRecipe(_ recipe: MasterRecipe) {
@@ -470,11 +475,12 @@ struct Adjustments: Equatable, Codable {
         if parameter.isWhiteBalance {
             if masterRecipe != nil {
                 if parameter == .temperature {
-                    whiteBalanceMode = temperature == asShotWhiteBalance?.temperature ? .asShot : .custom
+                    // Missing asShot (no cam WB metadata) stays in asShot mode defensively.
+                    whiteBalanceMode = asShotWhiteBalance == nil || temperature == asShotWhiteBalance?.temperature ? .asShot : .custom
                 }
                 return
             }
-            whiteBalanceMode = temperature == asShotWhiteBalance?.temperature && tint == asShotWhiteBalance?.tint ? .asShot : .custom
+            whiteBalanceMode = asShotWhiteBalance == nil || (temperature == asShotWhiteBalance?.temperature && tint == asShotWhiteBalance?.tint) ? .asShot : .custom
         }
     }
 
@@ -530,7 +536,7 @@ extension Adjustments {
         masterRecipeSettingsVersion = masterRecipeID == nil ? 3 : (version ?? 2)
         if version == nil, let recipe = masterRecipe {
             // 旧记录只保存基础值；一次性合入预设，之后由新规则整体缩放这些当前值。
-            let cameraWB = whiteBalanceMode == .asShot ||
+            let cameraWB = whiteBalanceMode == .asShot || asShotWhiteBalance == nil ||
                 (temperature == asShotWhiteBalance?.temperature && tint == asShotWhiteBalance?.tint)
             exposure += recipe.exposureDelta
             shadows += recipe.shadowsDelta

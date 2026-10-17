@@ -158,9 +158,9 @@ public sealed class Adjustments
         if (!double.IsFinite(value)) throw new ArgumentOutOfRangeException(nameof(value));
         var spec = ParameterSpec.All[(int)id];
         values[(int)id] = Math.Clamp(value, spec.Min, spec.Max);
-        if (MasterRecipeID != null) { if (id == Parameter.Temperature) CameraWhiteBalance = AsShot?.Temperature == value; return; }
+        if (MasterRecipeID != null) { if (id == Parameter.Temperature) CameraWhiteBalance = AsShot == null || AsShot?.Temperature == value; return; }
         if (id is Parameter.Temperature or Parameter.Tint)
-            CameraWhiteBalance = AsShot is { } wb && this[Parameter.Temperature] == wb.Temperature && this[Parameter.Tint] == wb.Tint;
+            CameraWhiteBalance = AsShot is not { } wb || (this[Parameter.Temperature] == wb.Temperature && this[Parameter.Tint] == wb.Tint);
     }
     public void ResolveWhiteBalance((double Temperature, double Tint)? wb)
     {
